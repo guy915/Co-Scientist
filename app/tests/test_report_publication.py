@@ -31,7 +31,13 @@ from tests._engine_tasks_helpers import (
     _task_state,
     fake_final_drain,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint
+from tests._store_helpers import (
+    enqueue_task,
+    pause_run,
+    resume_run,
+    resume_run_async,
+    seed_checkpoint,
+)
 from tests.test_report_cancel_publication import (
     _OWNER,
     _install_report_stubs,
@@ -43,17 +49,12 @@ def _status_event(events: list[dict[str, Any]], status: str) -> dict[str, Any]:
     return next(
         event
         for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == status
+        if event["type"] == "status" and event["payload"].get("status") == status
     )
 
 
 def _statuses(events: list[dict[str, Any]]) -> list[Any]:
-    return [
-        event["payload"].get("status")
-        for event in events
-        if event["type"] == "status"
-    ]
+    return [event["payload"].get("status") for event in events if event["type"] == "status"]
 
 
 def _decisions(run_id: str, stage: str, db_path: str) -> list[dict[str, Any]]:
@@ -153,9 +154,7 @@ def _seed_leased_finalize(
         inputs={"checkpoint_seq": checkpoint_seq},
         db_path=isolated_db,
     )
-    task = tasks.claim_task(
-        "final-safety-cancel-worker", run_id=run_id, db_path=isolated_db
-    )
+    task = tasks.claim_task("final-safety-cancel-worker", run_id=run_id, db_path=isolated_db)
     assert task is not None and task.id == queued.id
     assert task.status == "leased"
     _patch_restore_generator(monkeypatch, _Generator(state))
@@ -164,9 +163,7 @@ def _seed_leased_finalize(
     return owner, headers, run_id, task
 
 
-def _install_report(
-    monkeypatch: pytest.MonkeyPatch, *, empty: bool = True
-) -> None:
+def _install_report(monkeypatch: pytest.MonkeyPatch, *, empty: bool = True) -> None:
     leaderboard = (
         []
         if empty
@@ -187,9 +184,7 @@ def _install_report(
     async def fake_build_report(*_: Any, **__: Any) -> Any:
         return built
 
-    monkeypatch.setattr(
-        report_finalize, "build_report_content", fake_build_report
-    )
+    monkeypatch.setattr(report_finalize, "build_report_content", fake_build_report)
 
 
 def _assert_cancelled_task(
@@ -209,12 +204,8 @@ def _assert_cancelled_task(
     return events
 
 
-def _owner_events(
-    owner: Any, headers: dict[str, str], run_id: str
-) -> list[dict[str, Any]]:
-    response = owner.get(
-        f"/api/runs/{run_id}/events?stream=false", headers=headers
-    )
+def _owner_events(owner: Any, headers: dict[str, str], run_id: str) -> list[dict[str, Any]]:
+    response = owner.get(f"/api/runs/{run_id}/events?stream=false", headers=headers)
     assert response.status_code == 200, response.text
     return cast(list[dict[str, Any]], response.json()["events"])
 
@@ -275,9 +266,7 @@ async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    events = _assert_cancelled_task(
-        owner, headers, run_id, task.id, isolated_db
-    )
+    events = _assert_cancelled_task(owner, headers, run_id, task.id, isolated_db)
     assert _decisions(run_id, stage, isolated_db) == []
     assert not any(event["type"] == event_type for event in events)
 
@@ -307,9 +296,7 @@ async def test_empty_leaderboard_block_remains_auditable(
     assert readiness[0]["decision"] == "block"
 
     events = _owner_events(owner, headers, run_id)
-    final_event = next(
-        event for event in events if event["type"] == "safety.final"
-    )
+    final_event = next(event for event in events if event["type"] == "safety.final")
     blocked_event = _status_event(events, "blocked")
     assert final_event["seq"] < blocked_event["seq"]
     assert not any(event["type"] == "report" for event in events)
@@ -350,9 +337,7 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
     assert REDACTED_PLACEHOLDER in saved["markdown_text"]
 
     events = _owner_events(owner, headers, run_id)
-    final_event = next(
-        event for event in events if event["type"] == "safety.final"
-    )
+    final_event = next(event for event in events if event["type"] == "safety.final")
     report_event = next(event for event in events if event["type"] == "report")
     completed_event = _status_event(events, "completed")
     assert final_event["seq"] < report_event["seq"] < completed_event["seq"]
@@ -382,11 +367,7 @@ async def test_leased_monitor_halt_remains_auditable(
     assert monitor[0]["matches"] == ["engineer smallpox for greater transmiss"]
 
     events = _owner_events(owner, headers, run_id)
-    halt_event = next(
-        event
-        for event in events
-        if event["type"] == "safety.research_direction"
-    )
+    halt_event = next(event for event in events if event["type"] == "safety.research_direction")
     blocked_event = _status_event(events, "blocked")
     assert halt_event["seq"] < blocked_event["seq"]
     assert not any(event["type"] == "report" for event in events)
@@ -418,9 +399,7 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    events = _assert_cancelled_task(
-        owner, headers, run_id, task.id, isolated_db
-    )
+    events = _assert_cancelled_task(owner, headers, run_id, task.id, isolated_db)
     final_decisions = _decisions(run_id, "final", isolated_db)
     assert final_decisions == []
     assert not any(event["type"] == "safety.final" for event in events)
@@ -463,9 +442,7 @@ def _install_final_drain(
             report_inputs={"citation_summary": {}},
         )
 
-    monkeypatch.setattr(
-        engine_tasks_node, "persist_final_state", persist_final_state
-    )
+    monkeypatch.setattr(engine_tasks_node, "persist_final_state", persist_final_state)
 
 
 @pytest.mark.asyncio
@@ -491,9 +468,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
         llm_calls=1,
         during=cancel,
     )
-    task = tasks.claim_task(
-        "cancel-during-drain-worker", run_id=run_id, db_path=isolated_db
-    )
+    task = tasks.claim_task("cancel-during-drain-worker", run_id=run_id, db_path=isolated_db)
     assert task is not None
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
@@ -505,9 +480,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
     checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["stage"] == "fixture"
     events = _owner_events(owner, _OWNER, run_id)
-    assert not any(
-        event["type"] in {*_DRAIN_STAGES, "report"} for event in events
-    )
+    assert not any(event["type"] in {*_DRAIN_STAGES, "report"} for event in events)
 
 
 @pytest.mark.asyncio
@@ -518,13 +491,12 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         isolated_db, monkeypatch, claim=False
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    pause_responses: list[dict[str, Any]] = []
+    pause_calls: list[str] = []
 
     def pause_once() -> None:
-        if not pause_responses:
-            response = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-            assert response.status_code == 200, response.text
-            pause_responses.append(response.json())
+        if not pause_calls:
+            pause_run(run_id, db_path=isolated_db)
+            pause_calls.append(run_id)
 
     _install_final_drain(
         monkeypatch,
@@ -539,51 +511,30 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         "pause-during-drain-worker", run_id=run_id, db_path=isolated_db
     )
     paused = runs.get_run(run_id, db_path=isolated_db)
-    assert pause_responses == [{"id": run_id, "status": "paused"}]
+    assert pause_calls == [run_id]
     assert paused is not None and paused.status == RunStatus.PAUSED.value
     assert hypotheses.get_hypothesis(hypothesis_id, db_path=isolated_db) is None
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
     pre_resume_events = _owner_events(owner, _OWNER, run_id)
-    assert not any(
-        event["type"] in {*_DRAIN_STAGES, "report"}
-        for event in pre_resume_events
-    )
-    assert (
-        owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
-        == 404
-    )
+    assert not any(event["type"] in {*_DRAIN_STAGES, "report"} for event in pre_resume_events)
+    assert owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code == 404
     checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task_paused:{original_task.id}"
-    assert (
-        checkpoint["state"]["resume_successor"]
-        == engine_tasks_support.FINALIZE_TASK
-    )
-    assert retrieval.get_run_metrics(run_id, db_path=isolated_db) == {
-        "llm_calls": 3
-    }
-    assert (
-        tasks.claim_task(
-            "before-finalize-resume", run_id=run_id, db_path=isolated_db
-        )
-        is None
-    )
+    assert checkpoint["state"]["resume_successor"] == engine_tasks_support.FINALIZE_TASK
+    assert retrieval.get_run_metrics(run_id, db_path=isolated_db) == {"llm_calls": 3}
+    assert tasks.claim_task("before-finalize-resume", run_id=run_id, db_path=isolated_db) is None
 
     from app import main
 
     recovered = main._reconcile_and_log_interrupted_runs()
     assert run_id not in recovered["failed"]
     assert run_id not in recovered["resumable"]
-    assert run_id not in tasks.list_active_engine_task_run_ids(
-        db_path=isolated_db
-    )
+    assert run_id not in tasks.list_active_engine_task_run_ids(db_path=isolated_db)
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
 
-    resumed = owner.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
-    assert resumed.status_code == 200, resumed.text
-    assert await task_worker.run_once(
-        "resumed-finalize-worker", run_id=run_id, db_path=isolated_db
-    )
+    await resume_run_async(run_id)
+    assert await task_worker.run_once("resumed-finalize-worker", run_id=run_id, db_path=isolated_db)
     completed = runs.get_run(run_id, db_path=isolated_db)
     assert completed is not None
     assert completed.status == RunStatus.COMPLETED.value
@@ -593,8 +544,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     pause_event = next(
         event
         for event in events
-        if event["type"] == "lifecycle"
-        and event["payload"].get("event") == "pause_requested"
+        if event["type"] == "lifecycle" and event["payload"].get("event") == "pause_requested"
     )
     resume_event = _status_event(events, "resuming")
     report_event = next(event for event in events if event["type"] == "report")
@@ -603,8 +553,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     stages = [
         event
         for event in events
-        if event["type"]
-        in {"safety.hypothesis", "citation.grounding", "citation_audit"}
+        if event["type"] in {"safety.hypothesis", "citation.grounding", "citation_audit"}
     ]
     assert [event["type"] for event in stages] == [
         "safety.hypothesis",
@@ -619,9 +568,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
 async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    owner, run_id, task, hypothesis_id = _seed_owned_finalize(
-        isolated_db, monkeypatch
-    )
+    _owner, run_id, task, hypothesis_id = _seed_owned_finalize(isolated_db, monkeypatch)
     _install_report_stubs(hypothesis_id, monkeypatch)
     previous = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert previous is not None
@@ -634,16 +581,13 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
         resume_state,
         stage=f"engine_task:{task.id}",
         schema_version=previous["schema_version"],
-        last_event_seq=store_events.latest_event_seq(
-            run_id, db_path=isolated_db
-        ),
+        last_event_seq=store_events.latest_event_seq(run_id, db_path=isolated_db),
         db_path=isolated_db,
     )
-    paused = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-    assert paused.status_code == 200, paused.text
+    pause_run(run_id, db_path=isolated_db)
     get_run = runs.get_run
     paused_reads = 0
-    resume_responses: list[dict[str, Any]] = []
+    resume_calls: list[str] = []
 
     def resume_after_pause_snapshot(
         requested: str,
@@ -655,18 +599,15 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
         if requested == run_id and run is not None and run.status == "paused":
             paused_reads += 1
             if paused_reads == 2:
-                response = owner.post(
-                    f"/api/runs/{run_id}/resume", headers=_OWNER
-                )
-                assert response.status_code == 200, response.text
-                resume_responses.append(response.json())
+                resume_run(run_id)
+                resume_calls.append(run_id)
         return run
 
     monkeypatch.setattr(runs, "get_run", resume_after_pause_snapshot)
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert paused_reads >= 2
-    assert resume_responses == [{"id": run_id, "status": "queued"}]
+    assert resume_calls == [run_id]
     assert result["status"] == RunStatus.COMPLETED.value
     completed = runs.get_run(run_id, db_path=isolated_db)
     assert completed is not None

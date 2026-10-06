@@ -171,9 +171,7 @@ def _turn_argument(reasoning: str) -> str:
     return _TRAILING_VERDICT_RE.sub("", (reasoning or "").rstrip()).rstrip()
 
 
-def debate_transcript_document(
-    transcript: list[dict[str, Any]], verdict: str
-) -> dict[str, Any]:
+def debate_transcript_document(transcript: list[dict[str, Any]], verdict: str) -> dict[str, Any]:
     """Persist the readable exchange and one verdict, excluding loop
     bookkeeping."""
     return {
@@ -201,9 +199,7 @@ def _parse_verdict_line(text: str) -> str | None:
     return None
 
 
-def _parse_matchup_winner(
-    response: dict[str, Any], *, fallback: str
-) -> tuple[str, bool]:
+def _parse_matchup_winner(response: dict[str, Any], *, fallback: str) -> tuple[str, bool]:
     """Prefer prose verdicts, with JSON winner for offline responses; invalid
     judgments use a position-balanced fallback."""
     verdict = _parse_verdict_line(str(response.get("decision_summary") or ""))
@@ -321,24 +317,18 @@ def _build_turn_prompt(
     transcript: list[dict[str, Any]],
 ) -> _MatchupPrompt:
     if swapped:
-        turn_prompt = _render_ordered_prompt(
-            ctx.hypothesis_b, ctx.hypothesis_a, ctx
-        )
+        turn_prompt = _render_ordered_prompt(ctx.hypothesis_b, ctx.hypothesis_a, ctx)
     else:
         turn_prompt = base
     if turn > 0:
         turn_prompt = dataclasses.replace(
             turn_prompt,
-            prompt=_append_debate_context(
-                turn_prompt.prompt, transcript, swapped=swapped
-            ),
+            prompt=_append_debate_context(turn_prompt.prompt, transcript, swapped=swapped),
         )
     return turn_prompt
 
 
-def _ranking_debate_consensus(
-    votes: list[str], turns_run: int, turn_budget: int
-) -> bool:
+def _ranking_debate_consensus(votes: list[str], turns_run: int, turn_budget: int) -> bool:
     """Consecutive agreement spans opposite presentation orders, reducing
     position bias; require a real exchange before accepting it."""
     if turns_run >= min(turn_budget, _RANKING_DEBATE_MAX_TURNS):
@@ -352,9 +342,7 @@ def _resolve_turn_winner(
     response: dict[str, Any], swapped: bool, fallback: str
 ) -> tuple[str, bool]:
     raw_fallback = ("b" if fallback == "a" else "a") if swapped else fallback
-    raw_winner, valid_output = _parse_matchup_winner(
-        response, fallback=raw_fallback
-    )
+    raw_winner, valid_output = _parse_matchup_winner(response, fallback=raw_fallback)
     winner = ("b" if raw_winner == "a" else "a") if swapped else raw_winner
     return winner, valid_output
 
@@ -379,9 +367,7 @@ def _finalize_debate_response(
     response["judge_model"] = model_name
     response["consensus_votes"] = votes
     response["position_balanced"] = turns > 1
-    response["invalid_output_fallback"] = not all(
-        turn["valid_output"] for turn in run.transcript
-    )
+    response["invalid_output_fallback"] = not all(turn["valid_output"] for turn in run.transcript)
     return winner
 
 
@@ -453,9 +439,7 @@ def calculate_elo_update(
     return int(new_winner_elo), int(new_loser_elo)
 
 
-def match_tier(
-    winner_elo_before: int, loser_elo_before: int, confidence: str
-) -> str:
+def match_tier(winner_elo_before: int, loser_elo_before: int, confidence: str) -> str:
     # A sufficiently large pre-match rating gap is an upset regardless of the
     # judge's stated confidence.
     if loser_elo_before - winner_elo_before >= ELO_UPSET_MARGIN:
@@ -490,9 +474,7 @@ def _extract_criteria_comparisons(
 def _extract_reasoning(response: dict[str, Any]) -> str:
     reasoning: str = response.get("decision_summary", "")
     if not reasoning and "judgment_explanation" in response:
-        reasoning = _format_judgment_explanation(
-            response["judgment_explanation"]
-        )
+        reasoning = _format_judgment_explanation(response["judgment_explanation"])
     if not reasoning:
         reasoning = "No reasoning provided"
     return reasoning
@@ -554,9 +536,7 @@ def _apply_matchup_elo(
     old_winner_elo = winner_hyp.elo_rating
     old_loser_elo = loser_hyp.elo_rating
 
-    new_winner_elo, new_loser_elo = _compute_elo_update(
-        winner_hyp, loser_hyp, k_factor, confidence
-    )
+    new_winner_elo, new_loser_elo = _compute_elo_update(winner_hyp, loser_hyp, k_factor, confidence)
 
     return _MatchupOutcome(
         winner_hyp,
@@ -568,22 +548,17 @@ def _apply_matchup_elo(
     )
 
 
-def _debate_provenance_fields(
-    response: dict[str, Any], winner: str
-) -> dict[str, Any]:
+def _debate_provenance_fields(response: dict[str, Any], winner: str) -> dict[str, Any]:
     """Legacy responses may lack debate_verdict; retain the resolved winner
     fallback."""
     return {
         "debate_turns": response.get("debate_turns", 1),
         "debate_transcript": response.get("debate_transcript", []),
-        "debate_verdict": response.get("debate_verdict")
-        or _verdict_number(winner),
+        "debate_verdict": response.get("debate_verdict") or _verdict_number(winner),
         "judge_model": response.get("judge_model"),
         "consensus_votes": response.get("consensus_votes", [winner]),
         "position_balanced": response.get("position_balanced", False),
-        "invalid_output_fallback": response.get(
-            "invalid_output_fallback", False
-        ),
+        "invalid_output_fallback": response.get("invalid_output_fallback", False),
     }
 
 
@@ -627,14 +602,10 @@ def _build_matchup_detail(
     }
 
 
-def _ranking_metrics_update(
-    matches_judged: int, total_llm_calls: int | None
-) -> ExecutionMetrics:
+def _ranking_metrics_update(matches_judged: int, total_llm_calls: int | None) -> ExecutionMetrics:
     """Bill actual matches, not offered rounds; count multi-turn calls
     separately so early exhaustion cannot charge nonexistent work."""
-    llm_calls = (
-        total_llm_calls if total_llm_calls is not None else matches_judged
-    )
+    llm_calls = total_llm_calls if total_llm_calls is not None else matches_judged
     metrics = create_metrics_update(
         deltas=MetricDeltas(llm_calls=llm_calls, tournaments=matches_judged)
     )
@@ -670,9 +641,9 @@ def _build_ranking_delta(
 
 # Asyncio guards belong to their loop; weak keys avoid cross-thread durable
 # tasks sharing primitives or finished loops retaining them.
-_ranking_semaphores: weakref.WeakKeyDictionary[
-    asyncio.AbstractEventLoop, asyncio.Semaphore
-] = weakref.WeakKeyDictionary()
+_ranking_semaphores: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Semaphore] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 def effective_ranking_wave_size() -> int:
@@ -740,9 +711,7 @@ async def _run_debate_turn(
     entry = {
         "turn": turn + 1,
         "winner": winner,
-        "winner_id": (
-            ctx.hypothesis_a.id if winner == "a" else ctx.hypothesis_b.id
-        ),
+        "winner_id": (ctx.hypothesis_a.id if winner == "a" else ctx.hypothesis_b.id),
         "reasoning": _extract_reasoning(response),
         "presentation_order": "ba" if swapped else "ab",
         "valid_output": valid_output,
@@ -795,9 +764,7 @@ async def judge_matchup(
     # single-turn or scientific-debate contract.
     ctx = ctx._replace(debate=turns > SINGLE_TURN_DEBATE_TURNS)
     base = _render_ordered_prompt(ctx.hypothesis_a, ctx.hypothesis_b, ctx)
-    fallback = _balanced_invalid_fallback(
-        ctx.hypothesis_a, ctx.hypothesis_b, ctx.matchup_index
-    )
+    fallback = _balanced_invalid_fallback(ctx.hypothesis_a, ctx.hypothesis_b, ctx.matchup_index)
     votes, run, response = await _run_debate_turns(ctx, turns, base, fallback)
     winner = _finalize_debate_response(response, votes, run, ctx.model_name)
     return winner, response
@@ -809,14 +776,10 @@ def _median_elo(hypotheses: list[Hypothesis]) -> float:
     return statistics.median(h.elo_rating for h in hypotheses)
 
 
-def _matchup_debate_turns(
-    hyp_a: Hypothesis, hyp_b: Hypothesis, median_elo: float
-) -> int:
+def _matchup_debate_turns(hyp_a: Hypothesis, hyp_b: Hypothesis, median_elo: float) -> int:
     """The maximum is a ceiling for contested top-ranked matchups; adaptive
     consensus stops settled debates before spending the full depth."""
-    top_ranked = (
-        hyp_a.elo_rating >= median_elo or hyp_b.elo_rating >= median_elo
-    )
+    top_ranked = hyp_a.elo_rating >= median_elo or hyp_b.elo_rating >= median_elo
     if top_ranked:
         return _RANKING_DEBATE_MAX_TURNS
     return SINGLE_TURN_DEBATE_TURNS

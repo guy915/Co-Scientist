@@ -156,7 +156,7 @@ Run from `engine/`:
 ```bash
 pip install -e '.[dev]'     # install with dev dependencies
 pytest                       # run tests
-ruff format .                # format (80 cols)
+ruff format .                # format (100 cols)
 ruff check .                 # lint
 mypy .                       # typecheck
 ```
@@ -174,7 +174,7 @@ pytest tests/test_coordinator.py tests/test_supervisor.py
 - Apply AGENTS.md’s hidden-reasons documentation policy.
 - `logger.debug()` lowercase; `info` / `warning` / `error` capitalized.
 - No emojis or Unicode decoration in library code or logs.
-- Line length: 80. Formatter: `ruff format`. Linter: `ruff check`.
+- Line length: 100. Formatter: `ruff format`. Linter: `ruff check`.
 
 #### Logging
 

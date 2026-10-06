@@ -131,9 +131,7 @@ def test_runtime_handles_excluded_and_reinjected() -> None:
 
 
 def _freeze_time(monkeypatch: pytest.MonkeyPatch, now: float) -> None:
-    monkeypatch.setattr(
-        checkpoint_module, "time", types.SimpleNamespace(time=lambda: now)
-    )
+    monkeypatch.setattr(checkpoint_module, "time", types.SimpleNamespace(time=lambda: now))
 
 
 def test_restore_rebases_start_time_excluding_idle_gap(
@@ -252,9 +250,7 @@ def test_a_stale_context_fails_rather_than_applying_elsewhere(
 
     with pytest.raises(PatchError, match="did not match"):
         _apply(
-            _envelope(
-                "*** Update File: a.py", "@@", " expected", "-old", "+new"
-            ),
+            _envelope("*** Update File: a.py", "@@", " expected", "-old", "+new"),
             tmp_path,
         )
     assert target.read_text() == "completely\ndifferent\ncontent\n"
@@ -306,9 +302,7 @@ def test_hunks_apply_in_order_within_one_file(tmp_path: Path) -> None:
     assert target.read_text() == "first\nmiddle\nsecond\n"
 
 
-@pytest.mark.parametrize(
-    "path", ["../escape.py", "sub/../../escape.py", "/etc/passwd"]
-)
+@pytest.mark.parametrize("path", ["../escape.py", "sub/../../escape.py", "/etc/passwd"])
 def test_paths_outside_the_root_are_refused(tmp_path: Path, path: str) -> None:
     with pytest.raises(PatchError, match=r"relative|outside"):
         _apply(_envelope(f"*** Add File: {path}", "+x"), tmp_path)

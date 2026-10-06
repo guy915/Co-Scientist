@@ -58,9 +58,7 @@ _CHUNK = next(p for p in _CHUNKS if "reduces tumor growth" in p.text)
 _MODES = pytest.mark.parametrize("mode", ["single", "batch"])
 
 
-def _verdict(
-    label: str, supporting: Any = (), contradicting: Any = ()
-) -> dict[str, Any]:
+def _verdict(label: str, supporting: Any = (), contradicting: Any = ()) -> dict[str, Any]:
     return {
         "label": label,
         "supporting": supporting,
@@ -73,24 +71,16 @@ def _cite(passage: Any, quote: str) -> dict[str, Any]:
 
 
 def _reply(mode: str, verdict: dict[str, Any]) -> str:
-    body = (
-        verdict if mode == "single" else {"verdicts": [{"index": 1, **verdict}]}
-    )
+    body = verdict if mode == "single" else {"verdicts": [{"index": 1, **verdict}]}
     return json.dumps(body)
 
 
-def _assess(
-    mode: str, passages: list[EvidencePassage], claim: str = _CLAIM
-) -> ClaimAssessment:
+def _assess(mode: str, passages: list[EvidencePassage], claim: str = _CLAIM) -> ClaimAssessment:
     if mode == "single":
         assessor, assessor_id = make_llm_assessor(_MODEL)
-        return assess_claim(
-            claim, passages, assessor=assessor, assessor_id=assessor_id
-        )
+        return assess_claim(claim, passages, assessor=assessor, assessor_id=assessor_id)
     batch, assessor_id = make_llm_batch_assessor(_MODEL)
-    return assess_claims_batch(
-        [claim], passages, batch_assessor=batch, assessor_id=assessor_id
-    )[0]
+    return assess_claims_batch([claim], passages, batch_assessor=batch, assessor_id=assessor_id)[0]
 
 
 @_MODES
@@ -199,9 +189,7 @@ def test_a_provider_error_falls_back_to_the_deterministic_verdict(
         raise RuntimeError("provider down")
 
     install_completion_backend(monkeypatch, down)
-    result = _assess(
-        mode, [_PASSAGE], "Kinase X inhibition reduces tumor growth in AML."
-    )
+    result = _assess(mode, [_PASSAGE], "Kinase X inhibition reduces tumor growth in AML.")
 
     assert result.label is EntailmentLabel.SUPPORTS
     assert result.verification_method == "deterministic_lexical"
@@ -270,9 +258,7 @@ def test_without_evidence_the_provider_is_never_called(
     draft = single("some claim", [])
     assert draft.label is EntailmentLabel.INSUFFICIENT
     assert draft.verification_method == "no_evidence"
-    assess_claims_batch(
-        ["some claim"], [], batch_assessor=batch, assessor_id="llm:m"
-    )
+    assess_claims_batch(["some claim"], [], batch_assessor=batch, assessor_id="llm:m")
     assert counter[0] == 0
 
 
@@ -287,9 +273,7 @@ def test_batch_verdicts_map_back_to_claims_by_index(
                     "verdicts": [
                         {
                             "index": 2,
-                            **_verdict(
-                                "supports", [_cite(1, "reduces tumor growth")]
-                            ),
+                            **_verdict("supports", [_cite(1, "reduces tumor growth")]),
                         },
                         {"index": 1, **_verdict("insufficient")},
                     ]
@@ -402,11 +386,7 @@ def test_a_contradiction_needs_a_quote_that_negates_the_claim(
 ) -> None:
     install_completion_backend(
         monkeypatch,
-        fake_completion(
-            _reply(
-                mode, _verdict("contradicts", contradicting=[_cite(1, quote)])
-            )
-        ),
+        fake_completion(_reply(mode, _verdict("contradicts", contradicting=[_cite(1, quote)]))),
     )
     result = _assess(mode, [EvidencePassage("ev-1", quote)], claim)
 
@@ -424,9 +404,7 @@ def test_a_contradiction_needs_a_quote_that_negates_the_claim(
 _QUOTE = "Kinase X inhibition increased tumor growth threefold in AML cells."
 
 
-def _install_replies(
-    monkeypatch: pytest.MonkeyPatch, replies: list[Any]
-) -> list[Any]:
+def _install_replies(monkeypatch: pytest.MonkeyPatch, replies: list[Any]) -> list[Any]:
     requests: list[Any] = []
 
     async def completion(**kwargs: Any) -> Any:
@@ -467,16 +445,12 @@ def _assess_opposition(passage_id: str = "ev-1") -> ClaimAssessment:
 def test_directional_opposition_is_verified_and_located(
     monkeypatch: pytest.MonkeyPatch, evidence_id: str
 ) -> None:
-    requests = _install_replies(
-        monkeypatch, [_draft(), {"verdicts": [_confirmation()]}]
-    )
+    requests = _install_replies(monkeypatch, [_draft(), {"verdicts": [_confirmation()]}])
     result = _assess_opposition(evidence_id)
 
     assert result.label is EntailmentLabel.CONTRADICTS
     assert result.verification_method == "model_opposition_verified"
-    assert [s.evidence_id for s in result.contradicting_passages] == [
-        evidence_id
-    ]
+    assert [s.evidence_id for s in result.contradicting_passages] == [evidence_id]
     assert result.contradicting_passages[0].quote == _QUOTE
     assert len(requests) == 2
 
@@ -485,9 +459,7 @@ def test_a_complete_negative_verification_does_not_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     negative = _confirmation(same_conditions=False, mutually_exclusive=False)
-    requests = _install_replies(
-        monkeypatch, [_draft(), {"verdicts": [negative]}]
-    )
+    requests = _install_replies(monkeypatch, [_draft(), {"verdicts": [negative]}])
     result = _assess_opposition()
 
     assert result.label is EntailmentLabel.INSUFFICIENT
@@ -559,13 +531,7 @@ def test_unavailable_verification_is_observable_without_deterministic_fallback(
     rows = telemetry.snapshot().values()
     assert result.label is EntailmentLabel.INSUFFICIENT
     assert result.verification_method == "model_opposition_unconfirmed"
-    assert (
-        sum(
-            r["errors"].get("opposition_verification_unavailable", 0)
-            for r in rows
-        )
-        == 1
-    )
+    assert sum(r["errors"].get("opposition_verification_unavailable", 0) for r in rows) == 1
     assert all(not r["deterministic_fallbacks"] for r in rows)
 
 

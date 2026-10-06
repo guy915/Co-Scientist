@@ -41,17 +41,13 @@ _FAILURE_KINDS = {
 
 def _failure_kind(exc: Exception) -> str | None:
     if isinstance(exc, LLMTimeoutError):
-        return (
-            "llm_timeout" if exc.zero_cost_admitted else "llm_timeout_unknown"
-        )
+        return "llm_timeout" if exc.zero_cost_admitted else "llm_timeout_unknown"
     return _FAILURE_KINDS.get(type(exc))
 
 
 def _failure_error(exc: Exception) -> str | TaskFailure:
     if isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted:
-        return TaskFailure(
-            UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown"
-        )
+        return TaskFailure(UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown")
     kind = _failure_kind(exc)
     return TaskFailure(str(exc), kind) if kind is not None else str(exc)
 
@@ -95,9 +91,7 @@ def _log_rate_limit_park(run_id: str, resume_at: float, reason: str) -> None:
     """Import logging lazily to avoid the logging_setup/store cycle."""
     from app.logging_setup import run_log_context
 
-    parked_until = datetime.fromtimestamp(
-        resume_at, tz=timezone.utc
-    ).isoformat()
+    parked_until = datetime.fromtimestamp(resume_at, tz=timezone.utc).isoformat()
     with run_log_context(run_id):
         _stage_logger.info(
             "rate_limit parked_until=%s reason=%s",
@@ -116,15 +110,9 @@ def _park_rate_limited_task(
     """Waiting for a platform cap is neither failure nor retry and cannot
     double-count the provider request already attempted.
     """
-    resume_at = exc.resume_at + random.uniform(
-        0, _RATE_LIMIT_PARK_JITTER_SECONDS
-    )
-    if not store.park_task_for_rate_limit(
-        task.id, worker_id, str(exc), resume_at, db_path=db_path
-    ):
-        logger.warning(
-            "Task %s lost its lease while rate-limit parked", task.id
-        )
+    resume_at = exc.resume_at + random.uniform(0, _RATE_LIMIT_PARK_JITTER_SECONDS)
+    if not store.park_task_for_rate_limit(task.id, worker_id, str(exc), resume_at, db_path=db_path):
+        logger.warning("Task %s lost its lease while rate-limit parked", task.id)
         return
     _log_rate_limit_park(task.run_id, resume_at, exc.reason)
     logger.info(
@@ -155,9 +143,7 @@ def _cancel_downstream_before_terminal_failure(
 def _fail_permanent_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
-    _cancel_downstream_before_terminal_failure(
-        task, retryable=False, db_path=db_path
-    )
+    _cancel_downstream_before_terminal_failure(task, retryable=False, db_path=db_path)
     tasks.fail_task(
         task.id,
         worker_id,
@@ -184,13 +170,9 @@ def _fail_retryable_task(
         from co_scientist.llm import provider_outage_backoff_seconds
 
         retry_at = time.time() + provider_outage_backoff_seconds(task.attempt)
-    unknown_provider_outcome = (
-        isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted
-    )
+    unknown_provider_outcome = isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted
     if not unknown_provider_outcome:
-        _cancel_downstream_before_terminal_failure(
-            task, retryable=retryable, db_path=db_path
-        )
+        _cancel_downstream_before_terminal_failure(task, retryable=retryable, db_path=db_path)
     tasks.fail_task(
         task.id,
         worker_id,
@@ -201,9 +183,7 @@ def _fail_retryable_task(
         db_path=db_path,
     )
     if isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted:
-        logger.exception(
-            "Task %s failed with an unknown provider outcome", task.id
-        )
+        logger.exception("Task %s failed with an unknown provider outcome", task.id)
     else:
         logger.exception("Task %s failed", task.id)
 

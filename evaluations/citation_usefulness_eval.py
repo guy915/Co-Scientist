@@ -45,9 +45,7 @@ if str(_ROOT / "app") not in sys.path:
 
 from evaluations._artifacts import write_dated_artifact  # noqa: E402
 
-_DATASET = (
-    pathlib.Path(__file__).parent / "datasets" / "citation_usefulness_v1.json"
-)
+_DATASET = pathlib.Path(__file__).parent / "datasets" / "citation_usefulness_v1.json"
 
 _LABELS = ("useful", "partial", "useless")
 
@@ -186,9 +184,7 @@ def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
     return _run(dataset, "deterministic_coverage", live=False)
 
 
-def run_llm(
-    dataset: dict[str, Any], model: str | None = None
-) -> dict[str, Any]:
+def run_llm(dataset: dict[str, Any], model: str | None = None) -> dict[str, Any]:
     from evaluations._live_config import configure_live_environment
 
     return _run(dataset, configure_live_environment(model), live=True)
@@ -197,9 +193,7 @@ def run_llm(
 def _run(dataset: dict[str, Any], model: str, *, live: bool) -> dict[str, Any]:
     from evaluations._identity import capture_panel
 
-    with capture_panel(
-        "citation_usefulness", dataset, model, live=live
-    ) as evidence:
+    with capture_panel("citation_usefulness", dataset, model, live=live) as evidence:
         labelled = (
             asyncio.run(_judge_all(dataset, model))
             if live
@@ -207,9 +201,7 @@ def _run(dataset: dict[str, Any], model: str, *, live: bool) -> dict[str, Any]:
                 (
                     str(item["id"]),
                     str(item["label"]),
-                    deterministic_label(
-                        str(item["question"]), str(item["span"])
-                    ),
+                    deterministic_label(str(item["question"]), str(item["span"])),
                 )
                 for item in dataset["items"]
             ]
@@ -219,21 +211,14 @@ def _run(dataset: dict[str, Any], model: str, *, live: bool) -> dict[str, Any]:
         "judge": model,
         "panel": dataset["name"],
         "metrics": score(labelled),
-        "items": [
-            {"id": i, "expected": want, "predicted": got}
-            for i, want, got in labelled
-        ],
+        "items": [{"id": i, "expected": want, "predicted": got} for i, want, got in labelled],
     }
 
 
-async def _judge_all(
-    dataset: dict[str, Any], model: str
-) -> list[tuple[str, str, str]]:
+async def _judge_all(dataset: dict[str, Any], model: str) -> list[tuple[str, str, str]]:
     from co_scientist.llm import CompletionSpec, call_llm_json
 
-    spec = CompletionSpec(
-        model_name=model, temperature=0.0, json_schema=_JUDGE_SCHEMA
-    )
+    spec = CompletionSpec(model_name=model, temperature=0.0, json_schema=_JUDGE_SCHEMA)
     out: list[tuple[str, str, str]] = []
     for item in dataset["items"]:
         answer = await call_llm_json(
@@ -266,9 +251,7 @@ def main() -> int:
     args = parser.parse_args()
 
     dataset = load_dataset()
-    report = (
-        run_llm(dataset, args.model) if args.llm else run_deterministic(dataset)
-    )
+    report = run_llm(dataset, args.model) if args.llm else run_deterministic(dataset)
     tag = report["judge"].replace("/", "_").replace(":", "_")
     out = write_dated_artifact(report, f"citation-usefulness-{tag}")
 

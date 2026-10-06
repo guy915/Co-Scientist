@@ -75,9 +75,7 @@ _INDRA_CONFIG = str(
 )
 
 
-def test_status_reports_the_offline_backend_and_probes_only_to_operators() -> (
-    None
-):
+def test_status_reports_the_offline_backend_and_probes_only_to_operators() -> None:
     data = _client().get("/status").json()
     assert data["provider"] == "engine"
     assert data["llm_backend"] == "offline"
@@ -98,12 +96,8 @@ def test_docs_and_the_docs_pointer_are_operator_only(operator: bool) -> None:
 
 
 def _seed_interrupted_engine_run(isolated_db: str) -> str:
-    interrupted = seed_run(
-        "interrupted goal", profile="default", db_path=isolated_db
-    )
-    runs.update_run_status(
-        interrupted.id, RunStatus.RUNNING, db_path=isolated_db
-    )
+    interrupted = seed_run("interrupted goal", profile="default", db_path=isolated_db)
+    runs.update_run_status(interrupted.id, RunStatus.RUNNING, db_path=isolated_db)
     seed_checkpoint(
         interrupted.id,
         {"provider": "engine", "state": {"hypotheses": []}},
@@ -126,9 +120,7 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
         provider="mock",
         db_path=isolated_db,
     )
-    runs.update_run_status(
-        interrupted.id, RunStatus.RUNNING, db_path=isolated_db
-    )
+    runs.update_run_status(interrupted.id, RunStatus.RUNNING, db_path=isolated_db)
 
     with TestClient(main_module.app) as client:
         res = client.get("/health")
@@ -247,9 +239,7 @@ def _health_running_run(db_path: str, goal: str = "queue health goal") -> str:
 
 
 def _health_enqueue(run_id: str, key: str, db_path: str, **kwargs: Any) -> str:
-    task = enqueue_task(
-        run_id, "engine.node.ranking", key, **kwargs, db_path=db_path
-    )
+    task = enqueue_task(run_id, "engine.node.ranking", key, **kwargs, db_path=db_path)
     return task.id
 
 
@@ -268,9 +258,7 @@ def _snapshot_with_lease(
     db_path: str, *, max_attempts: int = 3, expired: bool = False
 ) -> tuple[str, QueueHealthSnapshot]:
     run_id = _health_running_run(db_path)
-    task_id = _health_enqueue(
-        run_id, "leased", db_path, max_attempts=max_attempts
-    )
+    task_id = _health_enqueue(run_id, "leased", db_path, max_attempts=max_attempts)
     leased = store.claim_task("w1", run_id=run_id, db_path=db_path)
     assert leased is not None and leased.id == task_id
     if expired:
@@ -281,9 +269,7 @@ def _snapshot_with_lease(
 def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
     # A dead exhausted lease has no owner to fail it; health must expose the
     # stranded running state.
-    run_id, snapshot = _snapshot_with_lease(
-        isolated_db, max_attempts=1, expired=True
-    )
+    run_id, snapshot = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
 
     assert snapshot.stalled_run_ids == (run_id,)
     assert snapshot.rescuable_leases == 0

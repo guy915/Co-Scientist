@@ -53,21 +53,15 @@ if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
 
-def _log_lit_review_context(
-    articles_with_reasoning: str | None, articles: list[Any]
-) -> None:
+def _log_lit_review_context(articles_with_reasoning: str | None, articles: list[Any]) -> None:
     if articles_with_reasoning:
         logger.info("Including lit review summary as context for drafting")
         logger.info(
-            "Warm start: corpus already populated with %s papers"
-            " from literature review",
+            "Warm start: corpus already populated with %s papers from literature review",
             len(articles),
         )
     else:
-        logger.warning(
-            "No lit review summary available"
-            " - agent will examine papers directly"
-        )
+        logger.warning("No lit review summary available - agent will examine papers directly")
 
 
 class _DraftStateContext(NamedTuple):
@@ -116,9 +110,7 @@ def _gather_draft_state_context(
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
         research_expansion_section=build_expansion_section(state),
-        falsified_assumptions_section=build_falsified_assumptions_section(
-            state.get("hypotheses")
-        ),
+        falsified_assumptions_section=build_falsified_assumptions_section(state.get("hypotheses")),
         lab_constraints=state.get("lab_constraints"),
     )
 
@@ -207,9 +199,7 @@ def _setup_tool_provider(
 
     provider = MCPToolProvider(mcp_client=mcp_client)
 
-    mcp_whitelist = _resolve_mcp_whitelist(
-        tool_registry, workflow_name, label, log
-    )
+    mcp_whitelist = _resolve_mcp_whitelist(tool_registry, workflow_name, label, log)
 
     tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
     log.info("Initialized %s provider with %s tools", label, len(tools_dict))
@@ -273,9 +263,7 @@ class DraftSkills:
     max_prompt_tokens: int = DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
 
-def attach_skills(
-    state: WorkflowState, provider: Any, tools: list[Any]
-) -> DraftSkills:
+def attach_skills(state: WorkflowState, provider: Any, tools: list[Any]) -> DraftSkills:
     """Workspace/skill setup failure must retain MCP drafting rather than
     lose the cycle's hypotheses."""
     if campaign_free_mode() or not skills_section():
@@ -329,9 +317,7 @@ class _DraftCall:
 def _parse_draft_response(final_response: str) -> list[dict[str, str]]:
     """An empty failed draft would silently make validation a no-op, so
     parsing failure must propagate."""
-    drafts: list[dict[str, str]] = parse_tool_loop_json(
-        final_response, "drafts", "Draft phase"
-    )
+    drafts: list[dict[str, str]] = parse_tool_loop_json(final_response, "drafts", "Draft phase")
     logger.info("Parsed %s draft hypotheses", len(drafts))
     return drafts
 
@@ -379,9 +365,7 @@ async def _call_draft_llm_with_tools(
         ),
     )
     # Count real tool-loop completions, including the closing assistant turn.
-    return final_response, sum(
-        1 for m in messages if m.get("role") == "assistant"
-    )
+    return final_response, sum(1 for m in messages if m.get("role") == "assistant")
 
 
 async def _invoke_draft_llm(
@@ -402,25 +386,17 @@ async def _call_draft_agent(
     state: WorkflowState,
     call: _DraftCall,
 ) -> tuple[str, int]:
-    draft_max_tokens = _compute_draft_max_tokens(
-        call.count, call.max_iterations
-    )
+    draft_max_tokens = _compute_draft_max_tokens(call.count, call.max_iterations)
     return await _invoke_draft_llm(state, call, draft_max_tokens)
 
 
 def _log_draft_completion(tool_call_counts: dict[str, int]) -> None:
     total_calls = sum(tool_call_counts.values())
-    calls_summary = ", ".join(
-        f"{name}={count}" for name, count in tool_call_counts.items()
-    )
-    logger.info(
-        "Draft phase complete: %s tool calls (%s)", total_calls, calls_summary
-    )
+    calls_summary = ", ".join(f"{name}={count}" for name, count in tool_call_counts.items())
+    logger.info("Draft phase complete: %s tool calls (%s)", total_calls, calls_summary)
 
 
-def _compute_draft_iteration_budget(
-    count: int, is_expansion: bool = False
-) -> int:
+def _compute_draft_iteration_budget(count: int, is_expansion: bool = False) -> int:
 
     max_iterations = get_draft_max_iterations(count)
     if is_expansion:
@@ -474,9 +450,7 @@ async def _run_draft_pipeline(
         state, count, mcp_client, tool_registry, reference_index
     )
 
-    draft_tracked_executor, tool_call_counts = skills.provider.tracked_executor(
-        "Draft"
-    )
+    draft_tracked_executor, tool_call_counts = skills.provider.tracked_executor("Draft")
 
     final_response, llm_calls = await _call_draft_agent(
         state,
@@ -500,9 +474,7 @@ async def draft_hypotheses(
     tool_registry: Optional["ToolRegistry"] = None,
     reference_index: Any | None = None,
 ) -> tuple[list[dict[str, str]], int]:
-    logger.info(
-        "Phase 1: Drafting %s hypotheses by examining literature", count
-    )
+    logger.info("Phase 1: Drafting %s hypotheses by examining literature", count)
 
     final_response, tool_call_counts, llm_calls = await _run_draft_pipeline(
         state, count, mcp_client, tool_registry, reference_index

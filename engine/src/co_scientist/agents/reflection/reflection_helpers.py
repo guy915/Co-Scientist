@@ -140,9 +140,7 @@ def _is_mutation_notation(raw: str) -> bool:
     return len(raw) >= 2 and raw[0].isupper() and raw[1].isdigit()
 
 
-def _add_hyphenated_entities(
-    hyphenated: list[str], seen: set[str], result: list[str]
-) -> None:
+def _add_hyphenated_entities(hyphenated: list[str], seen: set[str], result: list[str]) -> None:
     """Hyphenated names are higher-signal; marking their prefixes prevents a
     second standalone match for the same entity."""
     for raw in hyphenated:
@@ -207,17 +205,13 @@ def get_kg_tools_for_workflow(
         tool_ids = tool_registry.get_tools_for_workflow(workflow_name)
         if not tool_ids:
             return []
-        return tool_registry.get_mcp_tool_names(
-            _knowledge_graph_tool_ids(tool_registry, tool_ids)
-        )
+        return tool_registry.get_mcp_tool_names(_knowledge_graph_tool_ids(tool_registry, tool_ids))
     except Exception:
         # Optional registry failures must not prevent reflection.
         return []
 
 
-def _knowledge_graph_tool_ids(
-    tool_registry: "ToolRegistry", tool_ids: list[str]
-) -> list[str]:
+def _knowledge_graph_tool_ids(tool_registry: "ToolRegistry", tool_ids: list[str]) -> list[str]:
     kept = []
     for tool_id in tool_ids:
         tool = tool_registry.get_tool(tool_id)
@@ -236,9 +230,7 @@ async def _fetch_evidence_result(
     if not tool_name:
         return None
 
-    all_stmts = await _query_entities(
-        client, tool_name, entities, max_statements
-    )
+    all_stmts = await _query_entities(client, tool_name, entities, max_statements)
     if not all_stmts:
         return None
 
@@ -267,9 +259,7 @@ async def fetch_indra_evidence(
     if not entities:
         return empty
 
-    result = await _resolve_indra_result(
-        tool_registry, mcp_names, entities, max_statements
-    )
+    result = await _resolve_indra_result(tool_registry, mcp_names, entities, max_statements)
     return result if result is not None else empty
 
 
@@ -286,9 +276,7 @@ async def _resolve_indra_result(
         # Reuse the shared client rather than opening another connection for
         # each idea.
         client = await get_mcp_client(tool_registry=tool_registry)
-        return await _fetch_evidence_result(
-            client, mcp_names, entities, max_statements
-        )
+        return await _fetch_evidence_result(client, mcp_names, entities, max_statements)
     except Exception as e:
         logger.debug("reflection evidence fetch skipped: %s", e)
         return None
@@ -322,9 +310,7 @@ async def _query_single_entity(
         return cast("list[dict[str, Any]]", result.get("statements", []))
     except Exception as e:
         # One entity failure must not prevent evidence from its peers.
-        logger.debug(
-            "entity query failed for '%s' via %s: %s", entity, tool_name, e
-        )
+        logger.debug("entity query failed for '%s' via %s: %s", entity, tool_name, e)
         return []
 
 
@@ -335,8 +321,7 @@ async def _query_entities(
     max_per_entity: int,
 ) -> list[dict[str, Any]]:
     tasks = [
-        _query_single_entity(client, tool_name, entity, max_per_entity)
-        for entity in entities[:2]
+        _query_single_entity(client, tool_name, entity, max_per_entity) for entity in entities[:2]
     ]
     results = await asyncio.gather(*tasks)
     return [stmt for stmts in results for stmt in stmts]
@@ -350,9 +335,7 @@ def _parse_tool_result(raw: Any) -> dict[str, Any]:
     return decoded if isinstance(decoded, dict) else {}
 
 
-def _format_evidence(
-    statements: list[dict[str, Any]], queried_entities: list[str]
-) -> str:
+def _format_evidence(statements: list[dict[str, Any]], queried_entities: list[str]) -> str:
     header = (
         "Structured knowledge from the INDRA biomedical knowledge graph "
         f"(queried for: {', '.join(queried_entities)}):"
@@ -389,9 +372,7 @@ def parse_indra_statement(stmt: dict[str, Any]) -> IndraStatementCore:
     return IndraStatementCore(
         subj=_agent_name(stmt, "subj"),
         obj=_agent_name(stmt, "obj"),
-        member_names=[
-            m.get("name", "?") for m in members if isinstance(m, dict)
-        ],
+        member_names=[m.get("name", "?") for m in members if isinstance(m, dict)],
         rel_type=stmt.get("type", "Unknown"),
         belief=stmt.get("belief", 0),
         ev_count=len(stmt.get("evidence", [])),

@@ -87,8 +87,7 @@ def _identifiers(value: Any) -> list[str]:
     identifiers = _parse_identifiers(value)
     return list(
         dict.fromkeys(
-            f"{identifier.partition(':')[0].lower()}:"
-            f"{identifier.partition(':')[2]}"
+            f"{identifier.partition(':')[0].lower()}:{identifier.partition(':')[2]}"
             for identifier in identifiers
         )
     )
@@ -127,9 +126,7 @@ def _edge(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _edges(payload: Any) -> list[dict[str, Any]]:
-    if not isinstance(payload, list) or any(
-        not isinstance(row, dict) for row in payload
-    ):
+    if not isinstance(payload, list) or any(not isinstance(row, dict) for row in payload):
         raise ValueError("invalid OpenCitations edge response")
     if len(payload) > _MAX_EDGES:
         raise ValueError("OpenCitations edge count exceeds the 50-edge limit")
@@ -140,9 +137,7 @@ def _normalize_doi(doi: str) -> str:
     normalized_doi = doi.strip()
     if normalized_doi.lower().startswith("doi:"):
         normalized_doi = normalized_doi[4:]
-    if len(normalized_doi) > _MAX_DOI_LENGTH or not _DOI_RE.fullmatch(
-        normalized_doi
-    ):
+    if len(normalized_doi) > _MAX_DOI_LENGTH or not _DOI_RE.fullmatch(normalized_doi):
         raise ValueError("doi must be a valid DOI such as 10.1234/example")
     return normalized_doi
 
@@ -170,31 +165,21 @@ async def _fetch_citation_data(
             ) as client:
                 # Check counts before requesting potentially large unpaginated
                 # edge sets.
-                citation_count = _count(
-                    await _response_json(client, urls["citations_count"])
-                )
-                reference_count = _count(
-                    await _response_json(client, urls["references_count"])
-                )
+                citation_count = _count(await _response_json(client, urls["citations_count"]))
+                reference_count = _count(await _response_json(client, urls["references_count"]))
                 citation_fetched = 0 < citation_count <= _MAX_EDGES
                 reference_fetched = 0 < reference_count <= _MAX_EDGES
                 citation_rows = (
-                    await _response_json(client, urls["citations"])
-                    if citation_fetched
-                    else []
+                    await _response_json(client, urls["citations"]) if citation_fetched else []
                 )
                 reference_rows = (
-                    await _response_json(client, urls["references"])
-                    if reference_fetched
-                    else []
+                    await _response_json(client, urls["references"]) if reference_fetched else []
                 )
                 citations = _edges(citation_rows)
                 references = _edges(reference_rows)
     except (httpx.HTTPError, TimeoutError, ValueError) as exc:
         logger.warning("OpenCitations lookup failed for %s: %s", doi, exc)
-        raise RuntimeError(
-            f"OpenCitations Index unavailable: {type(exc).__name__}: {exc}"
-        ) from exc
+        raise RuntimeError(f"OpenCitations Index unavailable: {type(exc).__name__}: {exc}") from exc
     return citation_count, reference_count, citations, references
 
 

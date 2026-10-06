@@ -86,9 +86,7 @@ _TEST_INTERVAL = 0.05
 
 @pytest.fixture
 def paced(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        entrez_rate_limit, "_request_interval", lambda: _TEST_INTERVAL
-    )
+    monkeypatch.setattr(entrez_rate_limit, "_request_interval", lambda: _TEST_INTERVAL)
     monkeypatch.setattr(entrez_rate_limit, "_next_slot", 0.0)
     # Consume the overdue slot before measuring; interpreter lag otherwise
     # shortens the first gap.
@@ -108,9 +106,7 @@ class TestEntrezRateLimit:
                 issued.append(time.monotonic())
 
         threads = [
-            threading.Thread(
-                target=lambda: entrez_rate_limit.entrez_call(request)
-            )
+            threading.Thread(target=lambda: entrez_rate_limit.entrez_call(request))
             for _ in range(6)
         ]
         for thread in threads:
@@ -134,9 +130,7 @@ class TestEntrezRateLimit:
             started.set()
             release.wait(timeout=5)
 
-        slow_thread = threading.Thread(
-            target=lambda: entrez_rate_limit.entrez_call(slow)
-        )
+        slow_thread = threading.Thread(target=lambda: entrez_rate_limit.entrez_call(slow))
         slow_thread.start()
         assert started.wait(timeout=5)
 
@@ -183,9 +177,7 @@ def test_elink_sends_each_id_as_a_separate_parameter(
 ) -> None:
     requests = _capture_requests(monkeypatch)
 
-    Entrez.elink(
-        dbfrom="pubmed", db="pmc", linkname="pubmed_pmc", id=request_ids
-    )
+    Entrez.elink(dbfrom="pubmed", db="pmc", linkname="pubmed_pmc", id=request_ids)
 
     (request,) = requests
     params = _request_params(request)

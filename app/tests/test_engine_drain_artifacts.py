@@ -59,13 +59,7 @@ from tests._store_helpers import seed_run
             [],
         ),
         (
-            {
-                "config_synthesis": {
-                    "attributes": [
-                        {"name": "Mechanism Novelty", "rubric": "1-5"}
-                    ]
-                }
-            },
+            {"config_synthesis": {"attributes": [{"name": "Mechanism Novelty", "rubric": "1-5"}]}},
             "attributes",
             [{"name": "Mechanism Novelty", "rubric": "1-5"}],
         ),
@@ -174,10 +168,7 @@ def test_persist_writes_each_review_kind_as_its_own_row(
         db_path=isolated_db,
     )
 
-    rows = {
-        row["reviewer_agent"]: row
-        for row in records.list_reviews(run.id, db_path=isolated_db)
-    }
+    rows = {row["reviewer_agent"]: row for row in records.list_reviews(run.id, db_path=isolated_db)}
     assert set(rows) == {
         "review",
         "deep_verification",
@@ -185,17 +176,12 @@ def test_persist_writes_each_review_kind_as_its_own_row(
         "simulation_review",
         "recurrent_review",
     }
-    detail = {
-        agent: json.loads(row["detail_json"] or "{}")
-        for agent, row in rows.items()
-    }
+    detail = {agent: json.loads(row["detail_json"] or "{}") for agent, row in rows.items()}
     review = detail["review"]
     assert review["scores"] == _engine_review()["scores"]
     assert len(review["detailed_feedback"]) == 6
     assert review["already_explored"] == ["Target engagement is documented."]
-    assert review["novel_aspects"] == [
-        "The stress-induced modification is new."
-    ]
+    assert review["novel_aspects"] == ["The stress-induced modification is new."]
     critique = rows["review"]["critique"]
     assert "Aspects already explored:" in critique
     assert "Novel Aspects:" in critique
@@ -217,9 +203,7 @@ def test_persist_writes_each_review_kind_as_its_own_row(
     assert full["summary"] == "Full review verdict: rejected"
     assert "Circular pathway reasoning." in full["critique"]
     assert "The receptor is expressed." in full["critique"]
-    assert detail["full_review"]["reviews_summary"] == {
-        "conclusion": "Worth testing."
-    }
+    assert detail["full_review"]["reviews_summary"] == {"conclusion": "Worth testing."}
     assert detail["full_review"]["assumptions"] == [
         {
             "assumption": "The receptor is expressed.",
@@ -229,13 +213,9 @@ def test_persist_writes_each_review_kind_as_its_own_row(
     ]
     assert detail["full_review"]["feasibility_steps"] == ["Run the pilot."]
     assert "not persisted" not in str(rows)
-    assert rows["simulation_review"]["summary"] == (
-        "Simulation review verdict: breaks_down"
-    )
+    assert rows["simulation_review"]["summary"] == ("Simulation review verdict: breaks_down")
     assert "binding never occurs" in rows["simulation_review"]["critique"]
-    assert rows["recurrent_review"]["summary"] == (
-        "Recurrent review verdict: needs_revision"
-    )
+    assert rows["recurrent_review"]["summary"] == ("Recurrent review verdict: needs_revision")
 
 
 @pytest.mark.parametrize(
@@ -325,9 +305,7 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     assert "Could yield a combination therapy for TNBC." in markdown
 
     evidence = records.list_evidence(run.id, db_path=isolated_db)
-    retracted = next(
-        item for item in evidence if item["title"] == "Retracted CXCR1 report"
-    )
+    retracted = next(item for item in evidence if item["title"] == "Retracted CXCR1 report")
     assert retracted["available"] == 0
 
     _assert_features_proximity_edge(run.id, isolated_db)
@@ -361,9 +339,7 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
     # A pruned parent must not leave a dangling foreign key that aborts the
     # whole drain.
     state = _final_state_with_lineage()
-    state["hypotheses"] = [
-        h for h in state["hypotheses"] if h["id"] != "parent-1"
-    ]
+    state["hypotheses"] = [h for h in state["hypotheses"] if h["id"] != "parent-1"]
     run = seed_run("kinase goal")
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
@@ -386,9 +362,7 @@ def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
 
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store_hypotheses.list_hypotheses(
-            run.id, db_path=isolated_db
-        )
+        for hypothesis in store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     }
     assert by_id["parent-1"]["status"] == "duplicate"
     assert by_id["child-1"]["parent_id"] == "parent-1"
@@ -420,9 +394,7 @@ def test_drain_maps_evidence_outcomes_onto_publication_status(
 
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store_hypotheses.list_hypotheses(
-            run.id, db_path=isolated_db
-        )
+        for hypothesis in store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     }
     assert by_id["parent-1"]["status"] == status
     assert by_id["parent-1"]["verification_verdict"] == verdict
@@ -486,9 +458,7 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
     assert any(e["type"] == "report" for e in first)
     assert second == []
     with db.connect(isolated_db) as conn:
-        count = conn.execute(
-            "SELECT COUNT(*) FROM reports WHERE run_id=?", (run.id,)
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM reports WHERE run_id=?", (run.id,)).fetchone()[0]
     assert count == 1
 
 

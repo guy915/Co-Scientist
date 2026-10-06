@@ -62,8 +62,7 @@ def _transcript(verdict: str, turns: list[tuple[int, str, str]]) -> str:
         {
             "verdict": verdict,
             "turns": [
-                {"turn": turn, "favored": favored, "text": text}
-                for turn, favored, text in turns
+                {"turn": turn, "favored": favored, "text": text} for turn, favored, text in turns
             ],
         }
     )
@@ -99,16 +98,9 @@ def test_a_stored_debate_renders_turns_and_one_closing_verdict() -> None:
     markdown = _debate_markdown([_match()])
 
     assert "## Tournament debates" in markdown
-    assert (
-        "### Debate 1: 1. SGLT2 inhibition in fibroblasts "
-        "vs 2. NHE1 screening" in markdown
-    )
-    assert "**Turn 1 (favors idea 1):** Idea 1 names a measurable target." in (
-        markdown
-    )
-    assert "**Turn 2 (favors idea 1):** The counter-argument does not" in (
-        markdown
-    )
+    assert "### Debate 1: 1. SGLT2 inhibition in fibroblasts vs 2. NHE1 screening" in markdown
+    assert "**Turn 1 (favors idea 1):** Idea 1 names a measurable target." in (markdown)
+    assert "**Turn 2 (favors idea 1):** The counter-argument does not" in (markdown)
     assert "Better idea: 1" in markdown
     assert markdown.count("Better idea:") == 1
 
@@ -124,9 +116,7 @@ def test_a_stored_debate_renders_turns_and_one_closing_verdict() -> None:
         [
             _match(
                 debate_turns=1,
-                debate_transcript=_transcript(
-                    "1", [(1, "1", "Idea 1 is stronger.")]
-                ),
+                debate_transcript=_transcript("1", [(1, "1", "Idea 1 is stronger.")]),
             )
         ],
         # Transcripts quote both ideas in full; withheld participants would

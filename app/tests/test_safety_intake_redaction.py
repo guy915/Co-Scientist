@@ -52,23 +52,15 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
     runs.set_run_title(run_id, f"Study {_STRICT_GOAL}", db_path=isolated_db)
-    runs.set_run_goal_restatement(
-        run_id, f"Investigate {_STRICT_GOAL}", db_path=isolated_db
-    )
+    runs.set_run_goal_restatement(run_id, f"Investigate {_STRICT_GOAL}", db_path=isolated_db)
     assert owner.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
-    task = tasks.claim_task(
-        "cancelled-intake-worker", run_id=run_id, db_path=isolated_db
-    )
+    task = tasks.claim_task("cancelled-intake-worker", run_id=run_id, db_path=isolated_db)
     assert task is not None
 
-    async def cancel_then_return_redaction(
-        *_: Any, **__: Any
-    ) -> SafetyDecision:
+    async def cancel_then_return_redaction(*_: Any, **__: Any) -> SafetyDecision:
         response = owner.post(f"/api/runs/{run_id}/cancel")
         assert response.status_code == 200, response.text
-        return SafetyDecision(
-            stage="intake", decision="redact", matches=["select agent"]
-        )
+        return SafetyDecision(stage="intake", decision="redact", matches=["select agent"])
 
     _install_runtime(monkeypatch).screen = cancel_then_return_redaction
 
@@ -85,20 +77,16 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
     assert stored.goal_restatement == f"Investigate {_STRICT_GOAL}"
     assert [
         decision
-        for decision in records.list_safety_decisions(
-            run_id, db_path=isolated_db
-        )
+        for decision in records.list_safety_decisions(run_id, db_path=isolated_db)
         if decision["stage"] == "intake"
     ] == []
     events = owner.get(f"/api/runs/{run_id}/events?stream=false")
     assert events.status_code == 200, events.text
     timeline = events.json()["events"]
     assert not any(event["type"] == "safety.intake" for event in timeline)
-    assert [
-        event["payload"].get("status")
-        for event in timeline
-        if event["type"] == "status"
-    ][-1] == "cancelled"
+    assert [event["payload"].get("status") for event in timeline if event["type"] == "status"][
+        -1
+    ] == "cancelled"
 
 
 @pytest.mark.asyncio
@@ -111,9 +99,7 @@ async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
     assert owner.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
-    task = tasks.claim_task(
-        "expired-intake-worker", run_id=run_id, db_path=isolated_db
-    )
+    task = tasks.claim_task("expired-intake-worker", run_id=run_id, db_path=isolated_db)
     assert task is not None
 
     async def expire_then_allow(*_: Any, **__: Any) -> SafetyDecision:
@@ -133,16 +119,12 @@ async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
     assert persisted is not None and persisted.status == "queued"
     assert [
         decision
-        for decision in records.list_safety_decisions(
-            run_id, db_path=isolated_db
-        )
+        for decision in records.list_safety_decisions(run_id, db_path=isolated_db)
         if decision["stage"] == "intake"
     ] == []
     events = owner.get(f"/api/runs/{run_id}/events?stream=false")
     assert events.status_code == 200, events.text
-    assert not any(
-        event["type"] == "safety.intake" for event in events.json()["events"]
-    )
+    assert not any(event["type"] == "safety.intake" for event in events.json()["events"])
 
 
 def test_intake_redaction_survives_into_the_report(isolated_db: str) -> None:
@@ -170,11 +152,7 @@ def test_intake_redaction_survives_into_the_report(isolated_db: str) -> None:
 
     safety_response = owner.get(f"/api/runs/{run.id}/safety", headers=headers)
     assert safety_response.status_code == 200, safety_response.text
-    intake = [
-        item
-        for item in safety_response.json()["safety"]
-        if item["stage"] == "intake"
-    ]
+    intake = [item for item in safety_response.json()["safety"] if item["stage"] == "intake"]
     assert len(intake) == 1
     assert intake[0]["decision"] == "redact"
     assert intake[0]["matches"] == ["select agent"]
@@ -183,20 +161,15 @@ def test_intake_redaction_survives_into_the_report(isolated_db: str) -> None:
     assert report_response.status_code == 200, report_response.text
     assert "select agent" not in repr(report_response.json()).lower()
 
-    events_response = owner.get(
-        f"/api/runs/{run.id}/events?stream=false", headers=headers
-    )
+    events_response = owner.get(f"/api/runs/{run.id}/events?stream=false", headers=headers)
     assert events_response.status_code == 200, events_response.text
     events = events_response.json()["events"]
-    safety_event = next(
-        event for event in events if event["type"] == "safety.intake"
-    )
+    safety_event = next(event for event in events if event["type"] == "safety.intake")
     report_event = next(event for event in events if event["type"] == "report")
     completed_event = next(
         event
         for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "completed"
+        if event["type"] == "status" and event["payload"].get("status") == "completed"
     )
     assert safety_event["seq"] < report_event["seq"] < completed_event["seq"]
     assert "select agent" not in repr(report_event["payload"]).lower()

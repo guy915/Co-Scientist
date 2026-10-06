@@ -86,9 +86,7 @@ def _degree_weight(degree: str | None) -> float:
     return _DEGREE_WEIGHT.get((degree or "low").lower(), _DEGREE_WEIGHT["low"])
 
 
-def _resolve_member_id(
-    member: dict[str, Any], survivors: SurvivorIndex
-) -> str | None:
+def _resolve_member_id(member: dict[str, Any], survivors: SurvivorIndex) -> str | None:
     """Indices are the live schema contract; text-only resolution would empty
     the graph on responses that correctly omit echoed text."""
     index = member.get("index")
@@ -102,9 +100,7 @@ def _resolve_member_id(
     return None
 
 
-def _cluster_member_ids(
-    cluster: dict[str, Any], survivors: SurvivorIndex
-) -> list[tuple[str, str]]:
+def _cluster_member_ids(cluster: dict[str, Any], survivors: SurvivorIndex) -> list[tuple[str, str]]:
     members: list[tuple[str, str]] = []
     for member in cluster.get("similar_hypotheses", []):
         hyp_id = _resolve_member_id(member, survivors)
@@ -192,8 +188,7 @@ def _proximity_graph_meta(
         "research_goal": research_goal,
         "updated_at": updated_at,
         "node_count": len(
-            {v["source"] for v in edges.values()}
-            | {v["target"] for v in edges.values()}
+            {v["source"] for v in edges.values()} | {v["target"] for v in edges.values()}
         ),
         "edge_count": len(edges),
         "computed_edge_count": len(computed),
@@ -217,7 +212,5 @@ def build_proximity_graph(
 
     return {
         "edges": list(judged.values()) + computed,
-        "meta": _proximity_graph_meta(
-            judged, computed, research_goal, model, updated_at
-        ),
+        "meta": _proximity_graph_meta(judged, computed, research_goal, model, updated_at),
     }

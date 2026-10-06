@@ -176,7 +176,5 @@ def _build_create_run_config(
         focus=focus,
         tier=tier,
     )
-    overrides = _run_overrides_from_request(
-        req, focus=focus, tier=tier, setup=setup
-    )
+    overrides = _run_overrides_from_request(req, focus=focus, tier=tier, setup=setup)
     return resolved_run_config(overrides), focus, tier

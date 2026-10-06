@@ -36,9 +36,7 @@ def test_lexical_assessor_fails_the_adversarial_challenge_gates() -> None:
     assert gates["passed"] is False
 
 
-def test_usefulness_panel_is_well_formed_and_beats_only_a_lexical_floor() -> (
-    None
-):
+def test_usefulness_panel_is_well_formed_and_beats_only_a_lexical_floor() -> None:
     dataset = load_dataset()
     items = dataset["items"]
     assert {item["label"] for item in items} <= set(_LABELS)
@@ -46,13 +44,8 @@ def test_usefulness_panel_is_well_formed_and_beats_only_a_lexical_floor() -> (
     # On-topic evidence can fail to answer the question.
     labels_by_question: dict[str, set[str]] = {}
     for item in items:
-        labels_by_question.setdefault(item["question"], set()).add(
-            item["label"]
-        )
-    assert any(
-        {"useful", "useless"} <= labels
-        for labels in labels_by_question.values()
-    )
+        labels_by_question.setdefault(item["question"], set()).add(item["label"])
+    assert any({"useful", "useless"} <= labels for labels in labels_by_question.values())
 
     report = run_deterministic(dataset)
 
@@ -93,19 +86,13 @@ def test_a_persisted_ledger_replays_exactly() -> None:
     assert report["evidence_resolution"] == 1.0
 
 
-def test_replay_rejects_rewritten_questions_and_incomplete_result_sets() -> (
-    None
-):
+def test_replay_rejects_rewritten_questions_and_incomplete_result_sets() -> None:
     # Stored ids hash the content, so editing a question breaks identity.
     rewritten = {"id": "0" * 32, "source": "pubmed", "question": "edited"}
     hits = [{"locator": "1"}]
     assert not _rederives({**rewritten, "query": "a query"})
-    assert not _result_set_complete(
-        {"hits": hits, "admitted": ["2"], "dropped": []}
-    )
-    assert _result_set_complete(
-        {"hits": hits, "admitted": ["1"], "dropped": []}
-    )
+    assert not _result_set_complete({"hits": hits, "admitted": ["2"], "dropped": []})
+    assert _result_set_complete({"hits": hits, "admitted": ["1"], "dropped": []})
 
 
 def test_safety_eval_reports_both_arms_and_the_easy_baseline_is_exact() -> None:

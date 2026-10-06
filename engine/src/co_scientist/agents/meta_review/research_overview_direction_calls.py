@@ -49,9 +49,7 @@ def _validate_sub_topic(raw: Any) -> dict[str, Any] | None:
         # json_object can omit required examples; preserve the sub-topic without
         # one rather than failing the whole response.
         "example_idea": raw.get("example_idea") or "",
-        "specific_questions": _validate_specific_questions(
-            raw.get("specific_questions")
-        ),
+        "specific_questions": _validate_specific_questions(raw.get("specific_questions")),
     }
 
 
@@ -87,16 +85,12 @@ def _validate_research_directions(raw_directions: Any) -> Any:
 def format_overview(raw_overview: Any) -> Any:
     """Touch direction fields only when present; preserve missing/malformed
     overview and all established pass-through fields."""
-    has_directions = (
-        isinstance(raw_overview, dict) and "research_directions" in raw_overview
-    )
+    has_directions = isinstance(raw_overview, dict) and "research_directions" in raw_overview
     if not has_directions:
         return raw_overview
     return {
         **raw_overview,
-        "research_directions": _validate_research_directions(
-            raw_overview["research_directions"]
-        ),
+        "research_directions": _validate_research_directions(raw_overview["research_directions"]),
     }
 
 
@@ -140,9 +134,7 @@ def format_direction_titles(directions: list[Any]) -> str:
     )
 
 
-def _material(
-    direction: dict[str, Any], all_directions: str
-) -> DirectionWritingMaterial:
+def _material(direction: dict[str, Any], all_directions: str) -> DirectionWritingMaterial:
     return DirectionWritingMaterial(
         title=str(direction.get("title") or "").strip(),
         rationale=str(direction.get("importance") or "").strip(),
@@ -193,9 +185,7 @@ def _merged(direction: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
     """Lax providers may omit required fields; only answered body fields
     replace the draft so one missing field cannot erase the direction."""
     written = {
-        field: body[field]
-        for field in _BODY_FIELDS
-        if isinstance(body, dict) and body.get(field)
+        field: body[field] for field in _BODY_FIELDS if isinstance(body, dict) and body.get(field)
     }
     return {**direction, **written}
 
@@ -211,9 +201,7 @@ async def develop_research_directions(
     titles = format_direction_titles(directions)
     bodies = await asyncio.gather(
         *(
-            write_direction_body(
-                context, _material(directions[index], titles), ask
-            )
+            write_direction_body(context, _material(directions[index], titles), ask)
             for index in pending
         )
     )
@@ -235,7 +223,5 @@ async def develop_directions_into(
     developed, calls = await develop_research_directions(
         wave, overview.get("research_directions"), ask
     )
-    formatted["overview"] = format_overview(
-        {**overview, "research_directions": developed}
-    )
+    formatted["overview"] = format_overview({**overview, "research_directions": developed})
     return calls

@@ -31,9 +31,7 @@ _SCREENED_FIELDS = (
     "experimental_context",
 )
 
-_REDACTING_OUTCOMES = frozenset(
-    {HypothesisSafetyOutcome.REDACT, HypothesisSafetyOutcome.DUAL_USE}
-)
+_REDACTING_OUTCOMES = frozenset({HypothesisSafetyOutcome.REDACT, HypothesisSafetyOutcome.DUAL_USE})
 
 # Keep redactions and contextual blocks after their triggers disappear.
 # Cleared/uncertain holds re-resolve each pass as text or eligibility changes.
@@ -65,9 +63,7 @@ def _apply_redaction(
     changed = _changed_redacted_fields(hyp)
     if not changed:
         return
-    store.redact_hypothesis_fields(
-        str(hyp["id"]), changed, conn=conn, db_path=db_path
-    )
+    store.redact_hypothesis_fields(str(hyp["id"]), changed, conn=conn, db_path=db_path)
     if isinstance(hyp, dict):
         hyp.update(changed)
     records.add_safety_decision(
@@ -110,9 +106,7 @@ def _hypothesis_decision_row(
         run_id=run_id,
         stage="hypothesis",
         decision=decision,
-        reason=(
-            f"hypothesis {hyp_id}: {review.outcome.value} ({review.reason})"
-        ),
+        reason=(f"hypothesis {hyp_id}: {review.outcome.value} ({review.reason})"),
         matches=list(review.matches),
     )
 
@@ -158,9 +152,7 @@ def screen_hypotheses(
     status_by_id: dict[str, str] = {}
     escalatable: list[HeldHypothesis] = []
     for hyp in hyps:
-        screened = _screen_one_hypothesis(
-            run_id, hyp, conn=conn, db_path=db_path
-        )
+        screened = _screen_one_hypothesis(run_id, hyp, conn=conn, db_path=db_path)
         if screened is None:
             continue
         hyp_id, status, is_blocked, held = screened
@@ -213,9 +205,7 @@ def _screen_one_hypothesis(
     if review.outcome in _REDACTING_OUTCOMES:
         _apply_redaction(run_id, hyp, review, conn=conn, db_path=db_path)
     if review.blocks_tournament:
-        record_hypothesis_block(
-            run_id, hyp_id, review, conn=conn, db_path=db_path
-        )
+        record_hypothesis_block(run_id, hyp_id, review, conn=conn, db_path=db_path)
         logger.warning(
             "Excluding hypothesis %s from the tournament: %s",
             hyp_id,

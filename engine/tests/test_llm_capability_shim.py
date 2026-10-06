@@ -58,22 +58,16 @@ def _serve(
 ) -> list[dict[str, Any]]:
     disable_llm_cache(monkeypatch)
     _registry(monkeypatch, supported)
-    return scripted_backend(
-        monkeypatch, [_completion(_message(c)) for c in contents]
-    ).requests
+    return scripted_backend(monkeypatch, [_completion(_message(c)) for c in contents]).requests
 
 
-@pytest.mark.parametrize(
-    "schema", [NESTED_SCHEMA, _FLAT_SCHEMA], ids=["named", "bare"]
-)
+@pytest.mark.parametrize("schema", [NESTED_SCHEMA, _FLAT_SCHEMA], ids=["named", "bare"])
 async def test_an_unsupported_model_gets_json_object_mode_and_a_schema_prompt(
     monkeypatch: pytest.MonkeyPatch, schema: dict[str, Any]
 ) -> None:
     sent = _serve(monkeypatch, False, "{}")
 
-    await call_llm(
-        "a prompt", CompletionSpec(model_name="test-model", json_schema=schema)
-    )
+    await call_llm("a prompt", CompletionSpec(model_name="test-model", json_schema=schema))
 
     assert sent[0]["response_format"] == {"type": "json_object"}
     assert sent[0]["messages"] == [

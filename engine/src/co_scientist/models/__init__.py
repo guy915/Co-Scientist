@@ -85,9 +85,7 @@ def has_peer_review(hypothesis: "Hypothesis") -> bool:
     """Human verdicts must not satisfy agent review, durable fan-out or
     scheduler review debt.
     """
-    return any(
-        review.reviewer != SCIENTIST_REVIEWER for review in hypothesis.reviews
-    )
+    return any(review.reviewer != SCIENTIST_REVIEWER for review in hypothesis.reviews)
 
 
 def _rebuild_reviews(
@@ -132,9 +130,7 @@ def _assessment_fields(hypothesis: "Hypothesis") -> dict[str, Any]:
         "reflection_notes": hypothesis.reflection_notes,
         "deep_verification_probes": hypothesis.deep_verification_probes,
         "deep_verification_verdict": hypothesis.deep_verification_verdict,
-        "deep_verification_fingerprint": (
-            hypothesis.deep_verification_fingerprint
-        ),
+        "deep_verification_fingerprint": (hypothesis.deep_verification_fingerprint),
         "review_disposition": hypothesis.review_disposition,
         "safety_status": hypothesis.safety_status,
     }
@@ -216,9 +212,7 @@ class HypothesisOrigin(str, enum.Enum):
 
 
 def _strip_computed_fields(data: dict[str, Any]) -> dict[str, Any]:
-    return {
-        k: v for k, v in data.items() if k not in ("total_matches", "win_rate")
-    }
+    return {k: v for k, v in data.items() if k not in ("total_matches", "win_rate")}
 
 
 def _generation_method_value(
@@ -242,9 +236,7 @@ class Hypothesis:
     # lineage consumers.
     parent_ids: list[str] = field(default_factory=list, compare=False)
     generation: int = field(default=0, compare=False)
-    origin: HypothesisOrigin = field(
-        default=HypothesisOrigin.GENERATION, compare=False
-    )
+    origin: HypothesisOrigin = field(default=HypothesisOrigin.GENERATION, compare=False)
     creation_iteration: int | None = field(default=None, compare=False)
     title: str | None = None
     category: str | None = None
@@ -268,9 +260,7 @@ class Hypothesis:
     deep_verification_verdict: str | None = None
     # Only cited-evidence inputs invalidate probes; unrelated new evidence must
     # not force re-verification.
-    deep_verification_fingerprint: str | None = field(
-        default=None, compare=False
-    )
+    deep_verification_fingerprint: str | None = field(default=None, compare=False)
     review_disposition: str | None = field(default=None, compare=False)
     generation_method: GenerationMethod | None = None
     debate_id: None | (int) = None
@@ -337,9 +327,7 @@ class Hypothesis:
             "score": self.score,
             "elo_rating": self.elo_rating,
             **_assessment_fields(self),
-            "generation_method": _generation_method_value(
-                self.generation_method
-            ),
+            "generation_method": _generation_method_value(self.generation_method),
             "debate_id": self.debate_id,
             "win_count": self.win_count,
             "loss_count": self.loss_count,

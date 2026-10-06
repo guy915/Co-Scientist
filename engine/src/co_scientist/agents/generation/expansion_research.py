@@ -136,8 +136,7 @@ async def research_for_expansion(
     )
     result = await _explore(state, retrieval, budget)
     logger.info(
-        "Research expansion (iteration %s): %s threads, %s calls, %s"
-        " findings (%s)",
+        "Research expansion (iteration %s): %s threads, %s calls, %s findings (%s)",
         state.get("current_iteration"),
         len(result.threads),
         len(result.calls),
@@ -188,9 +187,7 @@ async def _prepare(
     config = search_config_for(state)
     if config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = await McpRetrieval.open_for(
-        config, str(state.get("run_id") or "")
-    )
+    retrieval = await McpRetrieval.open_for(config, str(state.get("run_id") or ""))
     budget = budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)
 

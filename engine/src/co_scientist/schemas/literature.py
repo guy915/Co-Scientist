@@ -61,21 +61,17 @@ RESEARCH_EXTRACT_SCHEMA: dict[str, Any] = {
                         "document": {
                             "type": "integer",
                             "description": (
-                                "Index of the document this comes from,"
-                                " as numbered in the prompt"
+                                "Index of the document this comes from, as numbered in the prompt"
                             ),
                         },
                         "claim": {
                             "type": "string",
-                            "description": (
-                                "The finding in your own words, one sentence"
-                            ),
+                            "description": ("The finding in your own words, one sentence"),
                         },
                         "quote": {
                             "type": "string",
                             "description": (
-                                "The passage from that document which"
-                                " supports the claim, verbatim"
+                                "The passage from that document which supports the claim, verbatim"
                             ),
                         },
                     }
@@ -115,15 +111,11 @@ LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
         {
             "queries": {
                 "type": "array",
-                "description": (
-                    "Natural language search queries for PubMed"
-                    " literature search"
-                ),
+                "description": ("Natural language search queries for PubMed literature search"),
                 "items": {
                     "type": "string",
                     "description": (
-                        "A focused search phrase covering a specific"
-                        " aspect of the research goal"
+                        "A focused search phrase covering a specific aspect of the research goal"
                     ),
                 },
             }
@@ -141,9 +133,7 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
             },
             "gaps_identified": {
                 "type": "string",
-                "description": (
-                    "limitations or gaps explicitly mentioned by authors"
-                ),
+                "description": ("limitations or gaps explicitly mentioned by authors"),
             },
             "future_work": {
                 "type": "string",

@@ -71,8 +71,7 @@ async def test_an_arxiv_error_entry_without_an_id_is_not_a_record(
     # papers.
     stub_responses(
         monkeypatch,
-        '<feed xmlns="http://www.w3.org/2005/Atom">'
-        "<entry><title>error</title></entry></feed>",
+        '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>error</title></entry></feed>',
     )
 
     result = await arxiv_search.search_arxiv("resistance reversal")
@@ -82,9 +81,7 @@ async def test_an_arxiv_error_entry_without_an_id_is_not_a_record(
 
 @pytest.fixture
 def _no_retry_wait(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        europepmc_search, "_TRANSPORT_RETRY_DELAYS_SECONDS", (0.0, 0.0)
-    )
+    monkeypatch.setattr(europepmc_search, "_TRANSPORT_RETRY_DELAYS_SECONDS", (0.0, 0.0))
 
 
 def _payload(source: str = "MED", **overrides: object) -> dict[str, object]:
@@ -103,9 +100,7 @@ def _payload(source: str = "MED", **overrides: object) -> dict[str, object]:
 
 @pytest.mark.usefixtures("_no_retry_wait")
 class TestEuropepmcSearch:
-    @pytest.mark.parametrize(
-        ("source", "preprint"), [("PPR", True), ("MED", False)]
-    )
+    @pytest.mark.parametrize(("source", "preprint"), [("PPR", True), ("MED", False)])
     async def test_a_record_says_whether_it_was_peer_reviewed(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -143,9 +138,7 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        client = stub_failure(
-            monkeypatch, httpx.RemoteProtocolError("Server disconnected")
-        )
+        client = stub_failure(monkeypatch, httpx.RemoteProtocolError("Server disconnected"))
 
         with pytest.raises(RuntimeError, match="RemoteProtocolError"):
             await europepmc_search.search_europepmc("PKMYT1")
@@ -204,9 +197,7 @@ async def test_openalex_follows_cursor_pages_and_excludes_retractions(
     first = {**_SAMPLE, "meta": {"next_cursor": "cursor-2"}}
     client = stub_responses(monkeypatch, first, second)
 
-    out = await search_openalex(
-        "nitrogen fixation", max_papers=3, recency_years=5
-    )
+    out = await search_openalex("nitrogen fixation", max_papers=3, recency_years=5)
     capped = stub_responses(monkeypatch, first)
     assert len(await search_openalex("nitrogen fixation", max_papers=1)) == 1
 
@@ -233,9 +224,7 @@ def _install_responses(
     monkeypatch: pytest.MonkeyPatch, responses: list[Any]
 ) -> list[httpx.Request]:
     requests = transport_responses(monkeypatch, *responses)
-    monkeypatch.setattr(
-        opencitations, "_wait_for_request_slot", _no_wait_for_slot
-    )
+    monkeypatch.setattr(opencitations, "_wait_for_request_slot", _no_wait_for_slot)
     return requests
 
 
@@ -294,11 +283,7 @@ _ONE_EDGE = {"oci": "1-2", "citing": f"doi:{_DOI}", "cited": "doi:10.1111/x"}
     ("responses", "error", "request_count"),
     [
         pytest.param(
-            [
-                httpx.Response(
-                    200, content=b"x" * (opencitations._MAX_RESPONSE_BYTES + 1)
-                )
-            ],
+            [httpx.Response(200, content=b"x" * (opencitations._MAX_RESPONSE_BYTES + 1))],
             "1 MB limit",
             1,
             id="large response",

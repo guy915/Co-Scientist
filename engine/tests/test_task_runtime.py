@@ -52,9 +52,7 @@ def test_resolve_treats_a_broken_registry_as_a_barrier(
     assert is_barrier(resolve_tool_effects("pubmed_search"))
 
 
-def _patch_effects(
-    monkeypatch: pytest.MonkeyPatch, mapping: dict[str, list[str]]
-) -> None:
+def _patch_effects(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, list[str]]) -> None:
     monkeypatch.setattr(
         tool_effects,
         "resolve_tool_effects",
@@ -96,9 +94,7 @@ async def test_barrier_tool_never_overlaps_a_sibling(
 async def test_tool_diagnostics_preserve_outcome_without_arguments_or_output(
     caplog: pytest.LogCaptureFixture, outcome: str
 ) -> None:
-    call = make_tool_call(
-        "call-id", "search_literature", '{"query": "private request"}'
-    )
+    call = make_tool_call("call-id", "search_literature", '{"query": "private request"}')
     calls: list[Any] = []
 
     async def execute(value: Any) -> dict[str, Any]:
@@ -123,8 +119,5 @@ async def test_tool_diagnostics_preserve_outcome_without_arguments_or_output(
             }
     assert calls == [call]
     assert "name=search_literature" in caplog.text
-    assert (
-        f"outcome={outcome}" in caplog.text
-        and "duration_seconds=" in caplog.text
-    )
+    assert f"outcome={outcome}" in caplog.text and "duration_seconds=" in caplog.text
     assert "private" not in caplog.text

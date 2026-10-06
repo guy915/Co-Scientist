@@ -56,26 +56,16 @@ from app.store.interviews import NewInterviewTurn
 _revision_router = APIRouter()
 
 
-def _require_revisable_turn(
-    interview: dict[str, Any], turn_id: int, role: str
-) -> None:
-    if store.run_id_for_interview(
-        str(interview["id"]), str(interview["client_id"])
-    ):
-        raise HTTPException(
-            status_code=409, detail="setup has already been consumed by a run"
-        )
+def _require_revisable_turn(interview: dict[str, Any], turn_id: int, role: str) -> None:
+    if store.run_id_for_interview(str(interview["id"]), str(interview["client_id"])):
+        raise HTTPException(status_code=409, detail="setup has already been consumed by a run")
     if interview["status"] == "cancelled":
         raise HTTPException(status_code=409, detail="interview is cancelled")
-    turn = next(
-        (t for t in interview["turns"] if int(t["id"]) == turn_id), None
-    )
+    turn = next((t for t in interview["turns"] if int(t["id"]) == turn_id), None)
     if turn is None:
         raise HTTPException(status_code=404, detail="turn not found")
     if turn["role"] != role:
-        raise HTTPException(
-            status_code=409, detail=f"turn is not a {role} turn"
-        )
+        raise HTTPException(status_code=409, detail=f"turn is not a {role} turn")
 
 
 def _reset_derivation(interview_id: str) -> None:
@@ -115,9 +105,7 @@ def _rewind_and_restream(
     _require_revisable_turn(interview, turn_id, role)
     store.rewind_interview(interview_id, turn_id)
     if replacement is not None:
-        store.append_interview_turn(
-            interview_id, NewInterviewTurn("user", replacement)
-        )
+        store.append_interview_turn(interview_id, NewInterviewTurn("user", replacement))
     _reset_derivation(interview_id)
     return _interview_stream(
         interview_id,
@@ -164,9 +152,7 @@ router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
 
 @router.post("")
-async def create_interview(
-    body: CreateInterviewRequest, request: Request
-) -> StreamingResponse:
+async def create_interview(body: CreateInterviewRequest, request: Request) -> StreamingResponse:
     """Start a durable Agent interview and stream its opening turn.
 
     Any documents named in the body are attached before the opening turn is
@@ -190,9 +176,7 @@ async def create_interview(
         execution_policy=execution_policy,
     )
     _attach_documents(str(interview["id"]), body.document_ids, request)
-    return _interview_stream(
-        str(interview["id"]), byok, execution_policy=execution_policy
-    )
+    return _interview_stream(str(interview["id"]), byok, execution_policy=execution_policy)
 
 
 @router.get("", response_model=list[ChatSummary])
@@ -219,16 +203,12 @@ async def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
     run was already under way.
     """
     interview = _owned_interview(interview_id, request)
-    interview["run_id"] = store.run_id_for_interview(
-        interview_id, client_id(request)
-    )
+    interview["run_id"] = store.run_id_for_interview(interview_id, client_id(request))
     return interview
 
 
 @router.delete("/{interview_id}")
-async def delete_interview(
-    interview_id: str, request: Request
-) -> dict[str, Any]:
+async def delete_interview(interview_id: str, request: Request) -> dict[str, Any]:
     """Permanently delete an owned chat and its transcript.
 
     Unlike a run (see ``app.runs.crud``) a chat has no worker that
@@ -261,9 +241,7 @@ async def add_interview_turn(
     if interview["status"] != "active":
         raise HTTPException(status_code=409, detail="interview is not active")
     _attach_documents(interview_id, body.document_ids, request)
-    store.append_interview_turn(
-        interview_id, NewInterviewTurn("user", body.content)
-    )
+    store.append_interview_turn(interview_id, NewInterviewTurn("user", body.content))
     return _interview_stream(
         interview_id,
         byok,

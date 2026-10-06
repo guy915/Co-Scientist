@@ -25,24 +25,18 @@ class HealthCheckResult(BaseModel):
     """Outcome of one health check."""
 
     ok: bool = Field(..., description="whether the check passed")
-    detail: str | None = Field(
-        None, description="failure detail when the check did not pass"
-    )
+    detail: str | None = Field(None, description="failure detail when the check did not pass")
 
 
 class HealthResponse(BaseModel):
     """Health check response."""
 
-    status: str = Field(
-        ..., description="derived health: healthy | degraded | unhealthy"
-    )
+    status: str = Field(..., description="derived health: healthy | degraded | unhealthy")
     version: str
     model_name: str | None = Field(
         None, description="configured worker model id (operator callers only)"
     )
-    provider: str = Field(
-        ..., description="active workflow provider (always 'engine')"
-    )
+    provider: str = Field(..., description="active workflow provider (always 'engine')")
     checks: dict[str, HealthCheckResult] = Field(
         ...,
         description=(
@@ -70,9 +64,7 @@ class ProbeStatus(BaseModel):
             "(the probe itself failed; availability unknown)"
         ),
     )
-    error: str | None = Field(
-        None, description="probe failure detail when state is 'error'"
-    )
+    error: str | None = Field(None, description="probe failure detail when state is 'error'")
 
 
 class Connector(BaseModel):
@@ -85,18 +77,11 @@ class Connector(BaseModel):
 class SystemStatusResponse(BaseModel):
     """System availability status response."""
 
-    mcp_available: bool = Field(
-        ..., description="whether mcp server is available"
-    )
-    pubmed_available: bool = Field(
-        ..., description="whether pubmed api is available"
-    )
+    mcp_available: bool = Field(..., description="whether mcp server is available")
+    pubmed_available: bool = Field(..., description="whether pubmed api is available")
     literature_review_available: bool = Field(
         ...,
-        description=(
-            "whether literature review is available (requires both mcp "
-            "and pubmed)"
-        ),
+        description=("whether literature review is available (requires both mcp and pubmed)"),
     )
     web_search_available: bool = Field(
         False,
@@ -125,9 +110,7 @@ class SystemStatusResponse(BaseModel):
     mcp_server_url: str | None = Field(
         None, description="configured mcp server url; operator callers only"
     )
-    provider: str = Field(
-        "engine", description="active workflow provider (always 'engine')"
-    )
+    provider: str = Field("engine", description="active workflow provider (always 'engine')")
     llm_backend: str = Field(
         "real",
         description="active LLM backend: 'offline' (deterministic) | 'real'",
@@ -150,15 +133,12 @@ class SystemStatusResponse(BaseModel):
     model_name: str = Field("", description="configured worker model id")
     supervisor_model_name: str | None = Field(
         None,
-        description=(
-            "effective supervisor/meta-review model id; operator callers only"
-        ),
+        description=("effective supervisor/meta-review model id; operator callers only"),
     )
     tools_config: str | None = Field(
         None,
         description=(
-            "configured tools YAML path/URL, or null for defaults/redacted; "
-            "operator callers only"
+            "configured tools YAML path/URL, or null for defaults/redacted; operator callers only"
         ),
     )
     tools_config_valid: bool | None = Field(
@@ -200,9 +180,7 @@ async def root(request: Request) -> dict[str, str | None]:
     }
 
 
-def _redact_health_check(
-    check: HealthCheckResult, operator: bool
-) -> HealthCheckResult:
+def _redact_health_check(check: HealthCheckResult, operator: bool) -> HealthCheckResult:
     """Failure details can reveal paths, exceptions or run IDs; public
     health reads need only the verdict.
     """
@@ -230,21 +208,13 @@ async def health(request: Request, response: Response) -> HealthResponse:
     store_check = diagnostics.check_store()
     engine_check = diagnostics.check_engine()
     queue_check, disk_check = diagnostics.queue_and_disk_health_cached()
-    status = diagnostics.derive_overall_health(
-        store_check, engine_check, queue_check, disk_check
-    )
+    status = diagnostics.derive_overall_health(store_check, engine_check, queue_check, disk_check)
     if status == diagnostics.UNHEALTHY:
         response.status_code = 503
     checks = {
-        "store": HealthCheckResult(
-            ok=store_check.ok, detail=store_check.detail
-        ),
-        "engine": HealthCheckResult(
-            ok=engine_check.ok, detail=engine_check.detail
-        ),
-        "queue": HealthCheckResult(
-            ok=queue_check.ok, detail=queue_check.detail
-        ),
+        "store": HealthCheckResult(ok=store_check.ok, detail=store_check.detail),
+        "engine": HealthCheckResult(ok=engine_check.ok, detail=engine_check.detail),
+        "queue": HealthCheckResult(ok=queue_check.ok, detail=queue_check.detail),
         "disk": HealthCheckResult(ok=disk_check.ok, detail=disk_check.detail),
     }
     return HealthResponse(
@@ -252,10 +222,7 @@ async def health(request: Request, response: Response) -> HealthResponse:
         version=API_VERSION,
         model_name=settings.model_name if operator else None,
         provider=engine_adapter.select_provider(),
-        checks={
-            name: _redact_health_check(check, operator)
-            for name, check in checks.items()
-        },
+        checks={name: _redact_health_check(check, operator) for name, check in checks.items()},
     )
 
 
@@ -348,17 +315,14 @@ _PUBLIC_STATUS_FIELDS = frozenset(
 )
 
 
-def _redact_status_payload(
-    payload: dict[str, Any], operator: bool
-) -> dict[str, Any]:
+def _redact_status_payload(payload: dict[str, Any], operator: bool) -> dict[str, Any]:
     """Compute public connector summaries before removing the raw operator-
     only configuration they depend on.
     """
     if operator:
         return payload
     return {
-        key: (value if key in _PUBLIC_STATUS_FIELDS else None)
-        for key, value in payload.items()
+        key: (value if key in _PUBLIC_STATUS_FIELDS else None) for key, value in payload.items()
     }
 
 
@@ -383,7 +347,5 @@ async def get_system_status(request: Request) -> dict[str, Any]:
     # answer.
     literature_available = mcp.available and pubmed.available
 
-    payload = _build_status_payload(
-        mcp, pubmed, web_search, literature_available, adapter_status
-    )
+    payload = _build_status_payload(mcp, pubmed, web_search, literature_available, adapter_status)
     return _redact_status_payload(payload, is_operator(request))

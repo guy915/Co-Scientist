@@ -48,9 +48,7 @@ def check_engine() -> HealthCheck:
     return HealthCheck(ok=False, detail="co_scientist package not importable")
 
 
-def derive_health_status(
-    store_check: HealthCheck, engine_check: HealthCheck
-) -> str:
+def derive_health_status(store_check: HealthCheck, engine_check: HealthCheck) -> str:
     """Only store unreachability proves the process cannot serve; engine
     diagnostics must not cause a restart spiral.
     """
@@ -75,10 +73,7 @@ def check_queue(db_path: str | None = None) -> HealthCheck:
     ids = ", ".join(snapshot.stalled_run_ids[:5])
     return HealthCheck(
         ok=False,
-        detail=(
-            f"{len(snapshot.stalled_run_ids)} run(s) stalled with no "
-            f"claimable work: {ids}"
-        ),
+        detail=(f"{len(snapshot.stalled_run_ids)} run(s) stalled with no claimable work: {ids}"),
     )
 
 
@@ -91,9 +86,7 @@ def check_disk(
     interrupt still-usable reads.
     """
     threshold = (
-        settings.health_check_min_free_disk_bytes
-        if min_free_bytes is None
-        else min_free_bytes
+        settings.health_check_min_free_disk_bytes if min_free_bytes is None else min_free_bytes
     )
     target = db_path or default_db_path() or "./coscientist.db"
     directory = os.path.dirname(os.path.abspath(target)) or "."
@@ -171,9 +164,7 @@ async def _run_probe(coro: Any, timeout: float) -> ProbeResult:
     """
     try:
         available = bool(await asyncio.wait_for(coro, timeout=timeout))
-        return ProbeResult(
-            available=available, state=PROBE_UP if available else PROBE_DOWN
-        )
+        return ProbeResult(available=available, state=PROBE_UP if available else PROBE_DOWN)
     except asyncio.TimeoutError:
         # On Python 3.10 asyncio.TimeoutError is not yet the built-in
         # TimeoutError alias.
@@ -182,9 +173,7 @@ async def _run_probe(coro: Any, timeout: float) -> ProbeResult:
         return _probe_error(f"{type(exc).__name__}: {exc}")
 
 
-async def _probe_literature_stack() -> tuple[
-    ProbeResult, ProbeResult, ProbeResult
-]:
+async def _probe_literature_stack() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
     """Probe actual provider reachability, not tool registration; a refused
     key can leave a registered tool unable to search.
     """
@@ -206,9 +195,7 @@ async def _probe_literature_stack() -> tuple[
     )
 
 
-_probe_cache: (
-    tuple[float, tuple[ProbeResult, ProbeResult, ProbeResult]] | None
-) = None
+_probe_cache: tuple[float, tuple[ProbeResult, ProbeResult, ProbeResult]] | None = None
 
 
 def clear_probe_cache() -> None:
@@ -216,9 +203,7 @@ def clear_probe_cache() -> None:
     _probe_cache = None
 
 
-async def probe_literature_stack_cached() -> tuple[
-    ProbeResult, ProbeResult, ProbeResult
-]:
+async def probe_literature_stack_cached() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
     global _probe_cache
     now = time.monotonic()
     if _probe_cache is not None and now < _probe_cache[0]:

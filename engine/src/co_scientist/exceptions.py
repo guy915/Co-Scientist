@@ -25,9 +25,7 @@ class LLMTimeoutError(CoScientistError):
     bounded automatic recovery. Other timeouts require explicit recovery.
     """
 
-    def __init__(
-        self, message: str, *, zero_cost_admitted: bool = False
-    ) -> None:
+    def __init__(self, message: str, *, zero_cost_admitted: bool = False) -> None:
         super().__init__(message)
         self.zero_cost_admitted = zero_cost_admitted
 
@@ -77,8 +75,7 @@ class LLMRateLimitParkError(CoScientistError):
         self.resume_at = resume_at
         self.reason = reason
         super().__init__(
-            f"platform rate limit hit ({reason}); resume at "
-            f"{resume_at:.0f} (epoch seconds)"
+            f"platform rate limit hit ({reason}); resume at {resume_at:.0f} (epoch seconds)"
         )
 
 

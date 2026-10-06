@@ -18,9 +18,7 @@ from mcp_server.tests._httpx import (
             "query": "aspirin",
             "source": "ChEMBL",
             "success_payload": {
-                "molecules": [
-                    {"molecule_chembl_id": "CHEMBL25", "pref_name": "ASPIRIN"}
-                ]
+                "molecules": [{"molecule_chembl_id": "CHEMBL25", "pref_name": "ASPIRIN"}]
             },
             "record": {"chembl_id": "CHEMBL25"},
         },
@@ -70,16 +68,13 @@ async def test_registered_biomedical_tools_report_outcome_at_mcp_boundary(
 
     async with registered_tools() as client:
         tool_names = {tool.name for tool in await client.list_tools()}
-        results = [
-            await client.call_tool(tool_name, {"query": query})
-            for _ in range(7)
-        ]
+        results = [await client.call_tool(tool_name, {"query": query}) for _ in range(7)]
 
     success, empty, *failures = results
     assert tool_name in tool_names
-    assert {
-        key: success.data["records"][0][key] for key in tool_case["record"]
-    } == tool_case["record"]
+    assert {key: success.data["records"][0][key] for key in tool_case["record"]} == tool_case[
+        "record"
+    ]
     assert "error" not in success.data
     assert empty.data == envelope
     assert [failure.data for failure in failures] == [
@@ -97,9 +92,7 @@ async def test_registered_biomedical_tools_report_outcome_at_mcp_boundary(
 
 
 _RS_ID = "rs334"
-_ASSOCIATION_URL = (
-    "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/226290633"
-)
+_ASSOCIATION_URL = "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/226290633"
 
 
 def _payload() -> dict[str, Any]:
@@ -120,12 +113,8 @@ def _payload() -> dict[str, Any]:
                     "risk_frequency": "0.9614",
                     "ci_lower": 0.12,
                     "ci_upper": 0.16,
-                    "efo_traits": [
-                        {"efo_id": "EFO_0004309", "efo_trait": "platelet count"}
-                    ],
-                    "reported_trait": [
-                        "platelet count (minimum, inv-norm transformed)"
-                    ],
+                    "efo_traits": [{"efo_id": "EFO_0004309", "efo_trait": "platelet count"}],
+                    "reported_trait": ["platelet count (minimum, inv-norm transformed)"],
                     "mapped_genes": ["HBB"],
                     "pubmed_id": "39024449",
                     "snp_effect_allele": ["rs334-T"],

@@ -27,9 +27,7 @@ if TYPE_CHECKING:
 CONSUMED_STEERING_IDS_OPT = "consumed_steering_ids"
 
 
-def _apply_capability_opts(
-    initial_opts: dict[str, Any], cfg: dict[str, Any]
-) -> None:
+def _apply_capability_opts(initial_opts: dict[str, Any], cfg: dict[str, Any]) -> None:
     """Funded capability flags remain requests; engine checks still enforce
     tools, offline and sandbox availability.
     """
@@ -71,9 +69,7 @@ def _setup_opts_from_cfg(setup: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def _lab_constraints_for_run(
-    cfg: dict[str, Any], db_path: str | None
-) -> list[str]:
+def _lab_constraints_for_run(cfg: dict[str, Any], db_path: str | None) -> list[str]:
     """Interview lab constraints reach feasibility prompts through this
     options boundary, independently of create-request field merging.
     """
@@ -101,9 +97,7 @@ def _apply_private_sources(
         }
 
 
-def build_engine_opts(
-    cfg: dict[str, Any], run_id: str, db_path: str | None
-) -> dict[str, Any]:
+def build_engine_opts(cfg: dict[str, Any], run_id: str, db_path: str | None) -> dict[str, Any]:
     """Reading steering never acknowledges it; acknowledgement belongs to
     the checkpoint transaction that actually applies it.
     """
@@ -113,9 +107,7 @@ def build_engine_opts(
     pending_steering = store.get_pending_steering(run_id, db_path=db_path)
     if pending_steering:
         initial_opts["pending_steering"] = True
-        initial_opts[CONSUMED_STEERING_IDS_OPT] = [
-            message.id for message in pending_steering
-        ]
+        initial_opts[CONSUMED_STEERING_IDS_OPT] = [message.id for message in pending_steering]
     preferences = _steering_preferences(
         str(initial_opts.get("run_setup_guidance") or ""),
         store.list_messages(run_id, db_path=db_path),
@@ -142,8 +134,7 @@ def _resolve_generator_models(
         if campaign_model_name is not None:
             return campaign_model_name, campaign_model_name, None
         return (
-            effective_execution_model(settings.model_name)
-            or settings.model_name,
+            effective_execution_model(settings.model_name) or settings.model_name,
             effective_execution_model(settings.supervisor_model_name),
             None,
         )
@@ -187,9 +178,7 @@ def _generator_kwargs(
             # Configured domain tools must reach the generator; unset paths
             # select the bundled multi-source registry.
             tools_config=settings.tools_config,
-            disable_tools=[]
-            if cfg.get("enable_web_search", True)
-            else ["web_search"],
+            disable_tools=[] if cfg.get("enable_web_search", True) else ["web_search"],
             api_key=api_key,
         ),
     }
@@ -210,8 +199,8 @@ def build_generator(
     enable_cache: bool | None
     campaign_model = effective_execution_model(None)
     if campaign_model is not None and not offline:
-        model_name, supervisor_model_name, enable_cache = (
-            _resolve_generator_models(offline, campaign_model)
+        model_name, supervisor_model_name, enable_cache = _resolve_generator_models(
+            offline, campaign_model
         )
         byok = None
     elif byok is not None:
@@ -221,9 +210,7 @@ def build_generator(
         supervisor_model_name = byok.supervisor_model or byok.model
         enable_cache = None
     else:
-        model_name, supervisor_model_name, enable_cache = (
-            _resolve_generator_models(offline)
-        )
+        model_name, supervisor_model_name, enable_cache = _resolve_generator_models(offline)
     return generator_cls(
         **_generator_kwargs(
             cfg,
@@ -235,17 +222,11 @@ def build_generator(
     )
 
 
-def _steering_preferences(
-    setup_text: str, messages: list[MessageRow]
-) -> str | None:
+def _steering_preferences(setup_text: str, messages: list[MessageRow]) -> str | None:
     """Acknowledged steering remains guidance across subsequent checkpoint
     restores.
     """
-    steering = [
-        f"- {message.content}"
-        for message in messages
-        if message.kind == "steering"
-    ]
+    steering = [f"- {message.content}" for message in messages if message.kind == "steering"]
     parts = [setup_text] if setup_text else []
     if steering:
         parts.append("User steering guidance:\n" + "\n".join(steering))

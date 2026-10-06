@@ -79,11 +79,7 @@ def _select_evolution_pool(
 ) -> list[Hypothesis]:
     """Rank defensively after early exits; exclude blocked and undermined
     parents so unsupported leaders cannot seed later generations."""
-    rankable = [
-        hyp
-        for hyp in hypotheses
-        if hyp.is_rankable() and not hyp.is_undermined()
-    ]
+    rankable = [hyp for hyp in hypotheses if hyp.is_rankable() and not hyp.is_undermined()]
     if not rankable:
         logger.warning(
             "Evolution has no parents: 0 of %s hypotheses are eligible",
@@ -92,9 +88,7 @@ def _select_evolution_pool(
     return rank_by_elo(rankable)[:EVOLUTION_PARENT_COUNT]
 
 
-async def _emit_evolution_start(
-    state: WorkflowState, actual_count: int
-) -> None:
+async def _emit_evolution_start(state: WorkflowState, actual_count: int) -> None:
     logger.info("Evolving top %s hypotheses", actual_count)
 
     await emit_progress(
@@ -120,9 +114,7 @@ async def _prepare_evolution_round(
 
     # Include pruned duplicate text so evolution cannot recreate earlier
     # removals.
-    removed_duplicates = [
-        dup.get("text", "") for dup in state.get("removed_duplicates", [])
-    ]
+    removed_duplicates = [dup.get("text", "") for dup in state.get("removed_duplicates", [])]
     supervisor_guidance = state.get("supervisor_guidance")
 
     return top_k, removed_duplicates, supervisor_guidance
@@ -151,9 +143,7 @@ async def _finalize_evolve_result(
         evolved_count=len(children),
     )
 
-    return _build_evolve_state_delta(
-        children, evolution_details, attempt_count + extra_llm_calls
-    )
+    return _build_evolve_state_delta(children, evolution_details, attempt_count + extra_llm_calls)
 
 
 _build_evolution_context = build_evolution_context
@@ -245,10 +235,7 @@ async def _evolve_llm_response(
 ) -> dict[str, Any]:
     other_hypotheses_texts = [peer.text for peer in other_hypotheses]
     grounding = ""
-    if (
-        operation.operator is EvolutionOperator.ENHANCEMENT
-        and context.state is not None
-    ):
+    if operation.operator is EvolutionOperator.ENHANCEMENT and context.state is not None:
         grounding = await enhancement_grounding_block(context.state, hypothesis)
     full_prompt, schema = _build_evolution_prompt(
         hypothesis,
@@ -267,9 +254,7 @@ async def _evolve_llm_response(
     return {**response, "_evolution_operator": operation.operator.value}
 
 
-def _context_sample_seed(
-    context: EvolutionContext, hypothesis: Hypothesis
-) -> str:
+def _context_sample_seed(context: EvolutionContext, hypothesis: Hypothesis) -> str:
     """Stable run/parent IDs preserve retry samples without concurrent runs
     perturbing a shared RNG."""
     return f"{context.run_id or 'evolution'}:context:{hypothesis.id}"
@@ -309,9 +294,7 @@ async def _evolve_or_none(
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
-        logger.error(
-            "Evolution failed for hypothesis %s: %s", hypothesis_index, e
-        )
+        logger.error("Evolution failed for hypothesis %s: %s", hypothesis_index, e)
         return None, None
 
 
@@ -348,9 +331,7 @@ def _build_evolution_tasks(
     supervisor_guidance: dict[str, Any] | None,
     operators: list[EvolutionOperator],
 ) -> list[Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]]:
-    context = build_evolution_context(
-        state, removed_duplicates, supervisor_guidance
-    )
+    context = build_evolution_context(state, removed_duplicates, supervisor_guidance)
     # Sample from one round-ranked pool so removing a parent cannot reorder
     # peers.
     return [
@@ -386,7 +367,5 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
         children,
         evolution_details,
         attempt_count=len(top_k),
-        extra_llm_calls=grounding_metrics_extra(
-            state, [operator.value for operator in operators]
-        ),
+        extra_llm_calls=grounding_metrics_extra(state, [operator.value for operator in operators]),
     )

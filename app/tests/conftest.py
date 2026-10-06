@@ -27,9 +27,7 @@ def _discard_the_session_cache() -> Iterator[None]:
 
 # Scrub credentials from the shared provider map so newly supported keys cannot
 # leak into paid calls.
-_PROVIDER_KEYS = tuple(
-    name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names
-)
+_PROVIDER_KEYS = tuple(name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -59,9 +57,7 @@ def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         if model.startswith("openrouter/")
     }
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    with free_catalog.using_catalog_reader(
-        free_catalog.CatalogReader(lambda: catalog)
-    ):
+    with free_catalog.using_catalog_reader(free_catalog.CatalogReader(lambda: catalog)):
         yield
 
 
@@ -78,9 +74,7 @@ def _apply_offline_env(monkeypatch: pytest.MonkeyPatch, db_path: str) -> None:
 
 
 @pytest.fixture(autouse=True)
-def isolated_db(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-) -> Iterator[str]:
+def isolated_db(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Iterator[str]:
     db_path = str(tmp_path / "test.db")
     _apply_offline_env(monkeypatch, db_path)
     from app.store import (

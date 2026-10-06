@@ -40,18 +40,14 @@ def create_run(
     headers: dict[str, str] | None = None,
     **fields: Any,
 ) -> Response:
-    return client.post(
-        "/api/runs", headers=headers, json={"research_goal": goal, **fields}
-    )
+    return client.post("/api/runs", headers=headers, json={"research_goal": goal, **fields})
 
 
 def make_operator_client() -> TestClient:
     # Loopback operator access differs from remote client scope.
     from app.main import app
 
-    return TestClient(
-        app, client=("127.0.0.1", 50000), headers=_DEFAULT_HEADERS
-    )
+    return TestClient(app, client=("127.0.0.1", 50000), headers=_DEFAULT_HEADERS)
 
 
 def append_log_row(db_path: str, message: str, **fields: Any) -> int:
@@ -94,9 +90,7 @@ def wait_for_status(
 
     def _reached() -> bool:
         response = client.get(f"/api/runs/{run_id}")
-        return response.status_code == 200 and bool(
-            response.json().get("status") == status
-        )
+        return response.status_code == 200 and bool(response.json().get("status") == status)
 
     return wait_for(_reached, timeout=timeout, interval=interval)
 
@@ -147,11 +141,7 @@ def fake_litellm(
             calls.append(kwargs)
         if raise_exc is not None:
             raise raise_exc
-        response = (
-            retry_chunks
-            if attempts > 1 and retry_chunks is not None
-            else chunks
-        )
+        response = retry_chunks if attempts > 1 and retry_chunks is not None else chunks
         return _chunk_stream(response)
 
     return types.SimpleNamespace(acompletion=_acompletion)

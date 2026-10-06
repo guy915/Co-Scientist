@@ -33,9 +33,7 @@ LATENCY_BUCKETS_SECONDS: tuple[float, ...] = (
 
 def runs_by_status(db_path: str | None = None) -> dict[str, int]:
     with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT status, COUNT(*) AS n FROM runs GROUP BY status"
-        ).fetchall()
+        rows = conn.execute("SELECT status, COUNT(*) AS n FROM runs GROUP BY status").fetchall()
     return {row["status"]: int(row["n"]) for row in rows}
 
 
@@ -80,8 +78,7 @@ def task_latency_by_type(db_path: str | None = None) -> list[TaskLatencyRow]:
     """
     bucket_columns = [f"b{i}" for i in range(len(LATENCY_BUCKETS_SECONDS))]
     bucket_sql = ",".join(
-        "SUM(CASE WHEN (completed_at-started_at)<=? THEN 1 ELSE 0 END)"
-        f" AS {col}"
+        f"SUM(CASE WHEN (completed_at-started_at)<=? THEN 1 ELSE 0 END) AS {col}"
         for col in bucket_columns
     )
     query = (

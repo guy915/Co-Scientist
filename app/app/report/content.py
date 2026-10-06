@@ -27,9 +27,7 @@ from app.text_utils import (
 logger = logging.getLogger(__name__)
 
 
-def _claim_evidence_ids(
-    edge: dict[str, Any], span_key: str = "supporting"
-) -> list[str]:
+def _claim_evidence_ids(edge: dict[str, Any], span_key: str = "supporting") -> list[str]:
     """Provenance lives on spans, not edges; map chunk passage ids to parent
     article ids for reader references.
     """
@@ -50,9 +48,7 @@ def _knowledge_base_topics(
         if not is_supporting(edge):
             continue
         hypothesis_id = str(edge.get("hypothesis_id") or "")
-        references_by_hypothesis.setdefault(hypothesis_id, []).extend(
-            _claim_evidence_ids(edge)
-        )
+        references_by_hypothesis.setdefault(hypothesis_id, []).extend(_claim_evidence_ids(edge))
     topics: list[dict[str, Any]] = []
     for hypothesis in hypotheses[:8]:
         hypothesis_id = str(hypothesis.get("id") or "")
@@ -60,28 +56,18 @@ def _knowledge_base_topics(
             {
                 "id": f"topic-{hypothesis_id}",
                 "title": str(hypothesis.get("title") or "Mechanistic finding"),
-                "summary": str(
-                    hypothesis.get("mechanism")
-                    or hypothesis.get("statement")
-                    or ""
-                ),
+                "summary": str(hypothesis.get("mechanism") or hypothesis.get("statement") or ""),
                 "detail": (
-                    readable_experiment_summary(
-                        str(hypothesis.get("experimental_context") or "")
-                    )
+                    readable_experiment_summary(str(hypothesis.get("experimental_context") or ""))
                     or str(hypothesis.get("expected_effect") or "")
                 ),
-                "reference_ids": sorted(
-                    set(references_by_hypothesis.get(hypothesis_id, []))
-                ),
+                "reference_ids": sorted(set(references_by_hypothesis.get(hypothesis_id, []))),
             }
         )
     return topics
 
 
-def _topic_reference_ids(
-    raw: dict[str, Any], evidence_id_by_title: dict[str, str]
-) -> list[str]:
+def _topic_reference_ids(raw: dict[str, Any], evidence_id_by_title: dict[str, str]) -> list[str]:
     references = raw.get("references") or []
     return sorted(
         {
@@ -122,14 +108,11 @@ def _synthesized_knowledge_base_topics(
     if not isinstance(raw_topics, list):
         return []
     evidence_id_by_title = {
-        str(item.get("title") or ""): str(item.get("id") or "")
-        for item in evidence
+        str(item.get("title") or ""): str(item.get("id") or "") for item in evidence
     }
     topics: list[dict[str, Any]] = []
     for raw in raw_topics:
-        topic = _synthesized_topic_from_raw(
-            raw, evidence_id_by_title, len(topics) + 1
-        )
+        topic = _synthesized_topic_from_raw(raw, evidence_id_by_title, len(topics) + 1)
         if topic is not None:
             topics.append(topic)
     return topics
@@ -138,8 +121,7 @@ def _synthesized_knowledge_base_topics(
 # Contradiction notes must match the release gate: categorical facts withhold;
 # speculative proposals remain published.
 _WITHHELD_CONTRADICTION_NOTE = (
-    "Contradicted by the evidence, so the idea proposing it was withheld "
-    "from the ranked report."
+    "Contradicted by the evidence, so the idea proposing it was withheld from the ranked report."
 )
 _PROPOSAL_CONTRADICTION_NOTE = (
     "Contradicted by the evidence; this is the idea's own proposal, so the "
@@ -189,11 +171,7 @@ def _key_findings(hypotheses: list[dict[str, Any]]) -> list[str]:
     idea two ways; omit blank proposal labels.
     """
     statements = (hypothesis_statement(h) for h in hypotheses[:5])
-    return [
-        f"Proposed hypothesis: {statement}"
-        for statement in statements
-        if statement
-    ]
+    return [f"Proposed hypothesis: {statement}" for statement in statements if statement]
 
 
 def _agent_insights(
@@ -207,13 +185,10 @@ def _agent_insights(
     meta = meta_review or {}
     return {
         "key_findings": _key_findings(hypotheses),
-        "uncertainties": [
-            str(item) for item in meta.get("common_weaknesses", [])
-        ],
+        "uncertainties": [str(item) for item in meta.get("common_weaknesses", [])],
         "contradictions": _contradicted_claims(claim_edges),
         "recommended_directions": [
-            _recommended_direction(item)
-            for item in meta.get("strategic_recommendations", [])
+            _recommended_direction(item) for item in meta.get("strategic_recommendations", [])
         ],
         "next_experiments": [
             summary
@@ -253,24 +228,18 @@ def _high_potential_bucket(
         {
             "id": str(hypothesis.get("id")),
             "title": hypothesis_title(hypothesis),
-            "reason": (
-                "Released by safety and evidence gates and ranked by Elo."
-            ),
+            "reason": ("Released by safety and evidence gates and ranked by Elo."),
         }
         for hypothesis in safe_hypotheses
     ]
 
 
-def _non_viable_reasons(
-    hypothesis: dict[str, Any], edge_reasons: dict[str, set[str]]
-) -> list[str]:
+def _non_viable_reasons(hypothesis: dict[str, Any], edge_reasons: dict[str, set[str]]) -> list[str]:
     """Report causes in release-gate order; distinguish review rejection from
     deduplication to avoid false reader claims.
     """
     if hypothesis.get("status") == "duplicate":
-        return [
-            "Folded into a higher-ranked idea that makes the same proposal."
-        ]
+        return ["Folded into a higher-ranked idea that makes the same proposal."]
     if hypothesis.get("status") == "rejected":
         return [
             "Set aside during review: the reviewer judged it scientifically"
@@ -301,8 +270,7 @@ def _non_viable_bucket(
             {
                 "id": hypothesis_id,
                 "title": hypothesis_title(hypothesis),
-                "reason": " ".join(reasons)
-                or "Withheld from the ranked report.",
+                "reason": " ".join(reasons) or "Withheld from the ranked report.",
             }
         )
     return non_viable
@@ -317,38 +285,25 @@ def _idea_buckets(
     edge_reasons = _claim_edge_reasons(claim_edges)
     return {
         "high_potential": _high_potential_bucket(safe_hypotheses),
-        "non_viable": _non_viable_bucket(
-            all_hypotheses, safe_ids, edge_reasons
-        ),
+        "non_viable": _non_viable_bucket(all_hypotheses, safe_ids, edge_reasons),
     }
 
 
-def _enrich_claim_span(
-    raw_span: Any, sources: dict[str, dict[str, Any]]
-) -> Any:
+def _enrich_claim_span(raw_span: Any, sources: dict[str, dict[str, Any]]) -> Any:
     if not isinstance(raw_span, dict):
         return raw_span
     span = dict(raw_span)
-    source = sources.get(
-        parent_evidence_id(str(span.get("evidence_id") or "")), {}
-    )
-    span["source_title"] = str(
-        span.get("source_title") or source.get("title") or ""
-    )
+    source = sources.get(parent_evidence_id(str(span.get("evidence_id") or "")), {})
+    span["source_title"] = str(span.get("source_title") or source.get("title") or "")
     span["source"] = str(span.get("source") or source.get("source") or "")
     span["url"] = str(span.get("url") or source.get("url") or "")
     return span
 
 
-def _enrich_claim_edge(
-    edge: dict[str, Any], sources: dict[str, dict[str, Any]]
-) -> dict[str, Any]:
+def _enrich_claim_edge(edge: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
     enriched = dict(edge)
     for key in ("supporting", "contradicting"):
-        enriched[key] = [
-            _enrich_claim_span(raw_span, sources)
-            for raw_span in edge.get(key) or []
-        ]
+        enriched[key] = [_enrich_claim_span(raw_span, sources) for raw_span in edge.get(key) or []]
     return enriched
 
 
@@ -357,12 +312,8 @@ def released_claim_evidence(
     claim_edges: list[dict[str, Any]],
     evidence: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    released_ids = {
-        str(hypothesis.get("id") or "") for hypothesis in hypotheses
-    }
-    sources = {
-        str(item.get("id") or ""): item for item in evidence if item.get("id")
-    }
+    released_ids = {str(hypothesis.get("id") or "") for hypothesis in hypotheses}
+    sources = {str(item.get("id") or ""): item for item in evidence if item.get("id")}
     return [
         _enrich_claim_edge(edge, sources)
         for edge in claim_edges
@@ -376,11 +327,7 @@ def format_deep_verification_critique(
     summary = f"Deep verification verdict: {verdict or 'unspecified'}"
     lines = [summary, ""]
     for idx, probe in enumerate(probes, start=1):
-        flag = (
-            "fundamental"
-            if probe.get("assumption_is_fundamental")
-            else "non-fundamental"
-        )
+        flag = "fundamental" if probe.get("assumption_is_fundamental") else "non-fundamental"
         lines.append(f"Probe {idx} ({flag} assumption):")
         for label, key in (
             ("Question", "question"),
@@ -419,9 +366,7 @@ def _fact_row(edge: dict[str, Any]) -> dict[str, Any] | None:
         "evidence_id": evidence_ids[0] if evidence_ids else None,
         "kind": kind,
         "statement": statement,
-        "entities": extract_entity_names(
-            statement, max_entities=_MAX_ENTITIES_PER_FACT
-        ),
+        "entities": extract_entity_names(statement, max_entities=_MAX_ENTITIES_PER_FACT),
         "state": str(edge["label"]),
     }
 

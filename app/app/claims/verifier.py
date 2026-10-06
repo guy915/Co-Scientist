@@ -67,30 +67,23 @@ async def _call_claim_json_async(
         request.prompt(),
         spec,
         max_attempts=max_attempts,
-        options=LLMCallOptions(
-            prompt_name=request.prompt_name, enable_thinking=False
-        ),
+        options=LLMCallOptions(prompt_name=request.prompt_name, enable_thinking=False),
     )
     return result
 
 
-def _call_claim_json(
-    model: str, request: _EntailmentRequest
-) -> dict[str, Any] | None:
+def _call_claim_json(model: str, request: _EntailmentRequest) -> dict[str, Any] | None:
     """The bridge preserves caller policy and credentials; budget exhaustion
     and rate parking must not become fallback success.
     """
     try:
-        return run_coroutine_sync(
-            lambda: _call_claim_json_async(model, request)
-        )
+        return run_coroutine_sync(lambda: _call_claim_json_async(model, request))
     except (LLMCallBudgetExceededError, LLMRateLimitParkError):
         raise
     except Exception as exc:
         batch = request.prompt_name == "claim_verifier_batch"
         logger.warning(
-            "LLM %s assessor failed (%s); falling back to deterministic "
-            "assessor%s",
+            "LLM %s assessor failed (%s); falling back to deterministic assessor%s",
             "batch claim" if batch else "claim",
             exc,
             " for this hypothesis's claims" if batch else "",
@@ -148,17 +141,14 @@ async def _verify(model: str, pairs: list[dict[str, Any]]) -> dict[str, Any]:
     )
 
 
-def _eligible_spans(
-    claim: str, spans: Sequence[SupportSpan]
-) -> list[SupportSpan]:
+def _eligible_spans(claim: str, spans: Sequence[SupportSpan]) -> list[SupportSpan]:
     tokens = _tokens(claim)
     if not tokens:
         return []
     return [
         s
         for s in spans
-        if len(tokens & _tokens(s.quote)) / len(tokens)
-        >= _MIN_CONTRADICTION_COVERAGE
+        if len(tokens & _tokens(s.quote)) / len(tokens) >= _MIN_CONTRADICTION_COVERAGE
     ]
 
 
@@ -176,9 +166,7 @@ def _prepare_candidates(
             passages,
             cites_evidence_ids=draft.cites_evidence_ids,
         )
-        founded = [
-            s for s in spans if _quote_negates_claim(claims[position], s.quote)
-        ]
+        founded = [s for s in spans if _quote_negates_claim(claims[position], s.quote)]
         if founded:
             results[position] = AssessorDraft(
                 EntailmentLabel.CONTRADICTS,
@@ -191,9 +179,7 @@ def _prepare_candidates(
             results[position] = AssessorDraft(
                 EntailmentLabel.INSUFFICIENT,
                 verification_method=(
-                    "model_opposition_unconfirmed"
-                    if eligible
-                    else "contradiction_guard_rejected"
+                    "model_opposition_unconfirmed" if eligible else "contradiction_guard_rejected"
                 ),
             )
             candidates.extend((position, s) for s in eligible)
@@ -214,8 +200,7 @@ def _request_verification(
             ModelCallStats(errors={"opposition_verification_unavailable": 1}),
         )
         logger.warning(
-            "Opposition verification unavailable (%s); "
-            "retaining insufficient verdicts",
+            "Opposition verification unavailable (%s); retaining insufficient verdicts",
             type(exc).__name__,
         )
         return {}
@@ -225,16 +210,11 @@ def _valid_verdicts(data: dict[str, Any], count: int) -> list[dict[str, Any]]:
     verdicts = data.get("verdicts", [])
     if not isinstance(verdicts, list):
         return []
-    indexed = [
-        v
-        for v in verdicts
-        if isinstance(v, dict) and type(v.get("index")) is int
-    ]
+    indexed = [v for v in verdicts if isinstance(v, dict) and type(v.get("index")) is int]
     valid = [
         v
         for v in indexed
-        if type(v.get("same_conditions")) is bool
-        and type(v.get("mutually_exclusive")) is bool
+        if type(v.get("same_conditions")) is bool and type(v.get("mutually_exclusive")) is bool
     ]
     # Ambiguous envelopes cannot shift the pairing of opposition and
     # confirmation
@@ -271,15 +251,11 @@ def guard_contradictions(
     if call_counter is not None:
         call_counter[0] += 1
     with scoped_telemetry_phase("claim_opposition"):
-        verdicts = _valid_verdicts(
-            _request_verification(model, pairs), len(pairs)
-        )
+        verdicts = _valid_verdicts(_request_verification(model, pairs), len(pairs))
         if len(verdicts) != len(pairs):
             record_call(
                 model,
-                ModelCallStats(
-                    errors={"opposition_verification_incomplete": 1}
-                ),
+                ModelCallStats(errors={"opposition_verification_incomplete": 1}),
             )
     _apply_confirmations(verdicts, candidates, results)
     return results
@@ -294,9 +270,7 @@ def _apply_confirmations(
     for verdict in verdicts:
         if verdict["same_conditions"] and verdict["mutually_exclusive"]:
             position, span = candidates[verdict["index"] - 1]
-            confirmed.setdefault(position, []).append(
-                (span.evidence_id, span.quote)
-            )
+            confirmed.setdefault(position, []).append((span.evidence_id, span.quote))
     for position, quotes in confirmed.items():
         results[position] = AssessorDraft(
             EntailmentLabel.CONTRADICTS,
@@ -305,8 +279,7 @@ def _apply_confirmations(
             cites_evidence_ids=True,
         )
     logger.info(
-        "Opposition verification: %d pairs, %d valid answers, "
-        "%d confirmed claims",
+        "Opposition verification: %d pairs, %d valid answers, %d confirmed claims",
         len(candidates),
         len(verdicts),
         len(confirmed),
@@ -375,9 +348,7 @@ _CITATION_ITEM = obj(
 )
 
 # Bare citation objects are normalized before local validation can reject them.
-_CITATION_LIST = {
-    "oneOf": [{"type": "array", "items": _CITATION_ITEM}, _CITATION_ITEM]
-}
+_CITATION_LIST = {"oneOf": [{"type": "array", "items": _CITATION_ITEM}, _CITATION_ITEM]}
 
 _ENTAILMENT_DRAFT_SCHEMA = obj(
     {
@@ -395,9 +366,7 @@ def _render_passages(passages: Sequence[EvidencePassage]) -> str:
     """Prompt positions avoid unreliable model echoes of opaque evidence
     IDs.
     """
-    return "\n\n".join(
-        f"[{i}] {p.text}" for i, p in enumerate(passages, start=1)
-    )
+    return "\n\n".join(f"[{i}] {p.text}" for i, p in enumerate(passages, start=1))
 
 
 def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
@@ -428,12 +397,8 @@ def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
         label=label,
         verification_method="model_primary",
         cites_evidence_ids=False,
-        supporting=_coerce_pairs(
-            data.get("supporting"), "claim_verifier.supporting"
-        ),
-        contradicting=_coerce_pairs(
-            data.get("contradicting"), "claim_verifier.contradicting"
-        ),
+        supporting=_coerce_pairs(data.get("supporting"), "claim_verifier.supporting"),
+        contradicting=_coerce_pairs(data.get("contradicting"), "claim_verifier.contradicting"),
     )
     return draft
 
@@ -442,18 +407,13 @@ def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
     """Shared evidence precedes variable claim text for provider prefix
     caching.
     """
-    return (
-        f"{_SYSTEM_PROMPT}\n\n"
-        f"EVIDENCE:\n{_render_passages(passages)}\n\nCLAIM:\n{claim}"
-    )
+    return f"{_SYSTEM_PROMPT}\n\nEVIDENCE:\n{_render_passages(passages)}\n\nCLAIM:\n{claim}"
 
 
 def make_llm_assessor(model: str) -> tuple[Assessor, str]:
     assessor_id = f"llm:{model}"
 
-    def _assessor(
-        claim: str, passages: Sequence[EvidencePassage]
-    ) -> AssessorDraft:
+    def _assessor(claim: str, passages: Sequence[EvidencePassage]) -> AssessorDraft:
         if not passages:
             return AssessorDraft(
                 label=EntailmentLabel.INSUFFICIENT,
@@ -542,9 +502,7 @@ def _render_claims(claims: Sequence[str]) -> str:
     return "\n".join(f"[{i}] {c}" for i, c in enumerate(claims, start=1))
 
 
-def _batch_entailment_prompt(
-    claims: Sequence[str], passages: Sequence[EvidencePassage]
-) -> str:
+def _batch_entailment_prompt(claims: Sequence[str], passages: Sequence[EvidencePassage]) -> str:
     """Shared evidence precedes variable claims for provider prefix caching."""
     return (
         f"{_BATCH_SYSTEM_PROMPT}\n\n"
@@ -553,9 +511,7 @@ def _batch_entailment_prompt(
     )
 
 
-def _parse_batch_drafts(
-    data: dict[str, Any], claims: Sequence[str]
-) -> list[AssessorDraft | None]:
+def _parse_batch_drafts(data: dict[str, Any], claims: Sequence[str]) -> list[AssessorDraft | None]:
     """Invalid or duplicate indices invalidate only their own assessment,
     not valid neighbors.
     """
@@ -581,9 +537,7 @@ def _parse_batch_drafts(
             label=label,
             verification_method="model_primary",
             cites_evidence_ids=False,
-            supporting=_coerce_pairs(
-                item.get("supporting"), "claim_verifier.batch_supporting"
-            ),
+            supporting=_coerce_pairs(item.get("supporting"), "claim_verifier.batch_supporting"),
             contradicting=_coerce_pairs(
                 item.get("contradicting"), "claim_verifier.batch_contradicting"
             ),

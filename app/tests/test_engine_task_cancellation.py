@@ -50,48 +50,34 @@ async def _advance_to_supervisor(
     generator = _Generator(_task_state(run_id))
     _patch_generator(monkeypatch, generator, screen=True)
     result = await engine_tasks.execute_bootstrap(leased, db_path=db_path)
-    assert lifecycle.complete_task(
-        bootstrap.id, "worker", result, db_path=db_path
-    )
+    assert lifecycle.complete_task(bootstrap.id, "worker", result, db_path=db_path)
     supervisor = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert supervisor is not None
     return supervisor
 
 
-async def _drain_ranking_matches(
-    run_id: str, db_path: str
-) -> tuple[Any, list[int], int]:
+async def _drain_ranking_matches(run_id: str, db_path: str) -> tuple[Any, list[int], int]:
     # Waves observe predecessor checkpoints sequentially; replay a match to
     # exercise idempotency.
     observed_sequences: list[int] = []
     committed = 0
     index = 0
     while True:
-        match = store.claim_task(
-            f"match-{index}", run_id=run_id, db_path=db_path
-        )
+        match = store.claim_task(f"match-{index}", run_id=run_id, db_path=db_path)
         assert match is not None
         if match.task_type != engine_tasks_support.RANKING_MATCH_TASK:
             return match, observed_sequences, committed
         observed_sequences.append(int(match.inputs["checkpoint_seq"]))
-        result = await engine_tasks_ranking.execute_ranking_match(
-            match, db_path=db_path
-        )
+        result = await engine_tasks_ranking.execute_ranking_match(match, db_path=db_path)
         if index == 0:
-            replay = await engine_tasks_ranking.execute_ranking_match(
-                match, db_path=db_path
-            )
+            replay = await engine_tasks_ranking.execute_ranking_match(match, db_path=db_path)
             assert replay["replayed"] is True
         committed = int(result["matches_committed"])
-        assert lifecycle.complete_task(
-            match.id, f"match-{index}", result, db_path=db_path
-        )
+        assert lifecycle.complete_task(match.id, f"match-{index}", result, db_path=db_path)
         index += 1
 
 
-async def _judge_with_telemetry(
-    *_: Any, **kwargs: Any
-) -> tuple[str, dict[str, Any]]:
+async def _judge_with_telemetry(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
     record_call("fixture-model", ModelCallStats(calls=1, prompt_tokens=5))
     return "a", {
         "decision_summary": "A is stronger",
@@ -124,14 +110,10 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     monkeypatch.setattr(ranking_module, "judge_matchup", _judge_with_telemetry)
     await _run_ranking_node(run.id, isolated_db)
 
-    finalizer, observed, committed = await _drain_ranking_matches(
-        run.id, isolated_db
-    )
+    finalizer, observed, committed = await _drain_ranking_matches(run.id, isolated_db)
     assert observed == sorted(set(observed))
     assert committed == 3, "the whole round is judged exactly once"
-    result = await engine_tasks_ranking.execute_ranking_finalize(
-        finalizer, db_path=isolated_db
-    )
+    result = await engine_tasks_ranking.execute_ranking_finalize(finalizer, db_path=isolated_db)
     assert lifecycle.complete_task(
         finalizer.id,
         finalizer.lease_owner or "finalizer",
@@ -169,29 +151,19 @@ async def test_inflight_pause_checkpoints_exact_successor(
     supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
     before_pause = store.list_tasks(run.id, db_path=isolated_db)
 
-    async def execute(
-        _name: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str]:
+    async def execute(_name: str, state: dict[str, Any]) -> tuple[dict[str, Any], str]:
         runs.update_run_status(run.id, StoreRunStatus.PAUSED)
         return state, "generate"
 
     _patch_task_node(monkeypatch, execute)
-    paused = await engine_tasks.execute_node_task(
-        supervisor, db_path=isolated_db
-    )
-    assert lifecycle.complete_task(
-        supervisor.id, "worker", paused, db_path=isolated_db
-    )
+    paused = await engine_tasks.execute_node_task(supervisor, db_path=isolated_db)
+    assert lifecycle.complete_task(supervisor.id, "worker", paused, db_path=isolated_db)
     checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["state"]["resume_successor"] == "engine.node.generate"
-    assert len(store.list_tasks(run.id, db_path=isolated_db)) == len(
-        before_pause
-    )
+    assert len(store.list_tasks(run.id, db_path=isolated_db)) == len(before_pause)
 
-    resumed = task_worker.enqueue_run_workflow(
-        run.id, resume=True, db_path=isolated_db
-    )
+    resumed = task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
     assert resumed.task_type == "engine.node.generate"
     assert resumed.id == before_pause[-1].id, "reuses the pre-planned row"
 
@@ -213,12 +185,8 @@ def _owned_running_run(db_path: str) -> tuple[Any, str]:
     return client, run_id
 
 
-def _leased_task(
-    run_id: str, task_type: str, key: str, db_path: str
-) -> tuple[Any, int]:
-    checkpoint_seq = _seed_checkpoint(
-        run_id, _task_state(run_id), db_path=db_path
-    )
+def _leased_task(run_id: str, task_type: str, key: str, db_path: str) -> tuple[Any, int]:
+    checkpoint_seq = _seed_checkpoint(run_id, _task_state(run_id), db_path=db_path)
     queued = enqueue_task(
         run_id,
         task_type,
@@ -226,9 +194,7 @@ def _leased_task(
         inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
-    task = store.claim_task(
-        "cancel-race-worker", run_id=run_id, db_path=db_path
-    )
+    task = store.claim_task("cancel-race-worker", run_id=run_id, db_path=db_path)
     assert task is not None and task.id == queued.id
     return task, checkpoint_seq
 
@@ -285,9 +251,7 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
         isolated_db,
     )
 
-    async def execute_node(
-        _name: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str]:
+    async def execute_node(_name: str, state: dict[str, Any]) -> tuple[dict[str, Any], str]:
         return state, "generate"
 
     _patch_task_node(monkeypatch, execute_node)
@@ -302,21 +266,19 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == checkpoint_seq
-    assert [
-        row.id for row in store.list_tasks(run_id, db_path=isolated_db)
-    ] == [task.id]
+    assert [row.id for row in store.list_tasks(run_id, db_path=isolated_db)] == [task.id]
     cancelled_task = store.get_task(task.id, db_path=isolated_db)
     assert cancelled_task is not None and cancelled_task.status == "cancelled"
     cancelled_run = runs.get_run(run_id, db_path=isolated_db)
     assert cancelled_run is not None and cancelled_run.status == "cancelled"
 
 
-def test_pause_api_serializes_queued_revocation_with_node_commit(
+def test_pause_transaction_serializes_queued_revocation_with_node_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, run_id = _owned_running_run(isolated_db)
+    _client, run_id = _owned_running_run(isolated_db)
     task, checkpoint_seq = _leased_task(
-        run_id, "engine.node.supervisor", "pause-api-transaction", isolated_db
+        run_id, "engine.node.supervisor", "pause-transaction", isolated_db
     )
     commit_finished = Event()
     commit_attempted = Event()
@@ -338,7 +300,6 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
         finally:
             commit_finished.set()
 
-    original_pause_tasks = lifecycle.pause_run_tasks
     original_transaction = db.transaction
     commit_thread: Thread | None = None
 
@@ -350,25 +311,17 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
         with original_transaction(db_path) as conn:
             yield conn
 
-    def pause_tasks_then_race(
-        target_run_id: str, *, db_path: str | None = None, conn: Any = None
-    ) -> int:
-        nonlocal commit_thread
-        changed = original_pause_tasks(
-            target_run_id, db_path=db_path, conn=conn
+    monkeypatch.setattr(db, "transaction", signal_commit_transaction)
+    with original_transaction(isolated_db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='paused' WHERE run_id=? AND status='queued'",
+            (run_id,),
         )
-        commit_attempted.clear()
+        runs.update_run_status(run_id, StoreRunStatus.PAUSED, conn=conn)
         commit_thread = Thread(target=commit_successor)
         commit_thread.start()
         assert commit_attempted.wait(2), "commit did not reach its transaction"
         assert not commit_finished.wait(0.2), "commit escaped pause transaction"
-        return changed
-
-    monkeypatch.setattr(lifecycle, "pause_run_tasks", pause_tasks_then_race)
-    monkeypatch.setattr(db, "transaction", signal_commit_transaction)
-    response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-    assert response.status_code == 200, response.text
-    assert response.json()["status"] == "paused"
     assert commit_thread is not None
     commit_thread.join(timeout=5)
     assert not commit_thread.is_alive()
@@ -377,23 +330,16 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
     checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
-    assert not any(
-        row.status == "queued"
-        for row in store.list_tasks(run_id, db_path=isolated_db)
-    )
+    assert not any(row.status == "queued" for row in store.list_tasks(run_id, db_path=isolated_db))
 
 
-def _commit_node(
-    task: Any, seq: int, run_id: str, db_path: str
-) -> tuple[int, str | None]:
+def _commit_node(task: Any, seq: int, run_id: str, db_path: str) -> tuple[int, str | None]:
     return engine_tasks_support._save_state_and_enqueue(
         TaskCommit(task, seq, db_path), _task_state(run_id), "generate"
     )
 
 
-def _commit_exact(
-    task: Any, seq: int, run_id: str, db_path: str
-) -> tuple[int, str]:
+def _commit_exact(task: Any, seq: int, run_id: str, db_path: str) -> tuple[int, str]:
     return engine_tasks_support._save_state_and_enqueue_exact(
         TaskCommit(task, seq, db_path),
         _task_state(run_id),
@@ -405,9 +351,7 @@ def _commit_exact(
     )
 
 
-def _commit_generation_plan(
-    task: Any, seq: int, run_id: str, db_path: str
-) -> Any:
+def _commit_generation_plan(task: Any, seq: int, run_id: str, db_path: str) -> Any:
     plan = _GenerationPlan(
         task_specs=[],
         inputs=_StrategyInputs(
@@ -421,9 +365,7 @@ def _commit_generation_plan(
         ),
     )
     envelope = {
-        "last_event_seq": store_events.latest_event_seq(
-            run_id, db_path=db_path
-        ),
+        "last_event_seq": store_events.latest_event_seq(run_id, db_path=db_path),
         "state": {},
     }
     return engine_tasks_fanout_generation._commit_generation_fanout(
@@ -438,9 +380,7 @@ def _re_lease_same_owner(run_id: str, stale: Any, db_path: str) -> None:
             (stale.id,),
         )
     assert (
-        store.claim_task(
-            stale.lease_owner, lease_seconds=60, run_id=run_id, db_path=db_path
-        )
+        store.claim_task(stale.lease_owner, lease_seconds=60, run_id=run_id, db_path=db_path)
         is None
     )
     failed = store.get_task(stale.id, db_path=db_path)
@@ -452,28 +392,20 @@ def _re_lease_same_owner(run_id: str, stale: Any, db_path: str) -> None:
         db_path=db_path,
     )
     runs.update_run_status(run_id, StoreRunStatus.QUEUED, db_path=db_path)
-    current = store.claim_task(
-        stale.lease_owner, lease_seconds=60, run_id=run_id, db_path=db_path
-    )
+    current = store.claim_task(stale.lease_owner, lease_seconds=60, run_id=run_id, db_path=db_path)
     assert current is not None and current.id == stale.id
     assert current.attempt == stale.attempt + 1
 
 
 @pytest.mark.parametrize("cause", ["run-completed", "re-leased"])
-@pytest.mark.parametrize(
-    "commit", [_commit_node, _commit_exact, _commit_generation_plan]
-)
+@pytest.mark.parametrize("commit", [_commit_node, _commit_exact, _commit_generation_plan])
 def test_a_revoked_task_cannot_commit_at_any_boundary(
     isolated_db: str, commit: Callable[..., Any], cause: str
 ) -> None:
     _client, run_id = _owned_running_run(isolated_db)
-    task, seq = _leased_task(
-        run_id, "engine.node.generate", f"revoked-{cause}", isolated_db
-    )
+    task, seq = _leased_task(run_id, "engine.node.generate", f"revoked-{cause}", isolated_db)
     if cause == "run-completed":
-        runs.update_run_status(
-            run_id, StoreRunStatus.COMPLETED, db_path=isolated_db
-        )
+        runs.update_run_status(run_id, StoreRunStatus.COMPLETED, db_path=isolated_db)
     else:
         _re_lease_same_owner(run_id, task, isolated_db)
 
@@ -482,6 +414,4 @@ def test_a_revoked_task_cannot_commit_at_any_boundary(
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == seq
-    assert [
-        row.id for row in store.list_tasks(run_id, db_path=isolated_db)
-    ] == [task.id]
+    assert [row.id for row in store.list_tasks(run_id, db_path=isolated_db)] == [task.id]

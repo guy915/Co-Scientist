@@ -56,9 +56,7 @@ _SEARCH_RETRY_MAX_DELAY_SECONDS = 8.0
 
 
 def _is_tool_reported_error(payload: Any) -> bool:
-    return isinstance(payload, str) and bool(
-        _TOOL_ERROR_ENVELOPE_RE.match(payload.strip())
-    )
+    return isinstance(payload, str) and bool(_TOOL_ERROR_ENVELOPE_RE.match(payload.strip()))
 
 
 def _decode_search_result(result: Any) -> Any:
@@ -96,8 +94,7 @@ async def _call_search_tool(
                 raise
             delay = _search_retry_delay(attempt)
             logger.warning(
-                "Search call to %s failed transiently (%s); retrying in "
-                "%.1fs (attempt %s of %s)",
+                "Search call to %s failed transiently (%s); retrying in %.1fs (attempt %s of %s)",
                 tool_name,
                 describe_exception(exc),
                 delay,
@@ -227,9 +224,7 @@ async def _search_single_query(
     ctx: _SearchRunContext,
     config: SearchConfig,
 ) -> dict[str, dict[str, Any]]:
-    logger.debug(
-        "Searching query %s (%s papers): %s...", index, papers_count, query[:80]
-    )
+    logger.debug("Searching query %s (%s papers): %s...", index, papers_count, query[:80])
     target = _QueryTarget(
         tool_name=config.search_tool_name,
         tool_config=config.search_tool_config,

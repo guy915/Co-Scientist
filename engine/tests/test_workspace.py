@@ -58,9 +58,7 @@ async def test_a_command_runs_inside_the_workspace(tmp_path: Path) -> None:
     assert outcome.result.ok, outcome.result.stderr
     assert outcome.result.stdout.strip() == str(session.root)
     assert not outcome.required_approval
-    written = await session.run_command(
-        ["/usr/bin/touch", "made.txt"], timeout_seconds=30
-    )
+    written = await session.run_command(["/usr/bin/touch", "made.txt"], timeout_seconds=30)
     assert written.result.ok, written.result.stderr
     assert (session.root / "made.txt").exists()
 
@@ -71,9 +69,7 @@ async def test_an_unrecognized_command_is_flagged_for_approval(
 ) -> None:
     """The flag records approval intent; sandbox confinement enforces access."""
     session = _session(tmp_path)
-    flagged = await session.run_command(
-        ["/usr/bin/tee", "out.txt"], timeout_seconds=30
-    )
+    flagged = await session.run_command(["/usr/bin/tee", "out.txt"], timeout_seconds=30)
     assert flagged.required_approval
 
 
@@ -83,9 +79,7 @@ async def test_a_command_cannot_write_outside_the_workspace(
 ) -> None:
     session = _session(tmp_path)
     escape = tmp_path / "escaped.txt"
-    outcome = await session.run_command(
-        ["/usr/bin/touch", str(escape)], timeout_seconds=30
-    )
+    outcome = await session.run_command(["/usr/bin/touch", str(escape)], timeout_seconds=30)
     assert not outcome.result.ok
     assert not escape.exists()
 
@@ -101,9 +95,7 @@ async def test_the_host_environment_is_not_inherited(
 
 
 @pytest.mark.parametrize("path", ["../outside.txt", "sub/../../outside.txt"])
-def test_reading_outside_the_workspace_is_refused(
-    tmp_path: Path, path: str
-) -> None:
+def test_reading_outside_the_workspace_is_refused(tmp_path: Path, path: str) -> None:
     session = _session(tmp_path)
     (tmp_path / "outside.txt").write_text("secret")
     with pytest.raises(PatchError, match="outside the workspace"):
@@ -115,7 +107,7 @@ def test_reading_outside_the_workspace_is_refused(
 async def test_a_carve_out_backend_refuses_to_replace_the_metadata_dir(
     tmp_path: Path,
 ) -> None:
-    """Landlock only adds access; seatbelt/bwrap can protect writable carve-
+    """Landlock only adds access; seatbelt can protect writable carve-
     outs."""
     if sandbox_backend() == "landlock":
         pytest.skip("landlock cannot express a carve-out; see the next test")
@@ -125,9 +117,7 @@ async def test_a_carve_out_backend_refuses_to_replace_the_metadata_dir(
     session = _session(tmp_path)
     metadata = SPILL_DIRECTORY.split("/")[0]
 
-    outcome = await session.run_command(
-        [link, "-sfn", "/tmp", metadata], timeout_seconds=30
-    )
+    outcome = await session.run_command([link, "-sfn", "/tmp", metadata], timeout_seconds=30)
 
     assert not outcome.result.ok
     assert not (session.root / metadata).is_symlink()
@@ -148,9 +138,7 @@ async def test_replacing_the_metadata_dir_cannot_redirect_a_host_write(
     session = _session(tmp_path)
     metadata = SPILL_DIRECTORY.split("/")[0]
 
-    await session.run_command(
-        [link, "-sfn", str(outside), metadata], timeout_seconds=30
-    )
+    await session.run_command([link, "-sfn", str(outside), metadata], timeout_seconds=30)
     OutputRecorder(session.root, preview_chars=50).record("stdout", "x" * 900)
 
     assert list(outside.rglob("*")) == []
@@ -200,9 +188,7 @@ class TestRunWorkspace:
         assert (second.root / "partial.csv").read_text() == "1,2\n"
 
     def test_two_runs_do_not_share_a_workspace(self) -> None:
-        assert (
-            open_run_workspace("run-a").root != open_run_workspace("run-b").root
-        )
+        assert open_run_workspace("run-a").root != open_run_workspace("run-b").root
 
     def test_a_traversing_run_id_stays_under_the_root(self) -> None:
         resolved = workspace_path("../../etc/shadow")
@@ -218,9 +204,7 @@ class TestRunWorkspace:
 
     def test_network_is_off_unless_asked_for(self) -> None:
         assert not open_run_workspace("run-net").policy.allows_network
-        assert open_run_workspace(
-            "run-net-on", network_allowed=True
-        ).policy.allows_network
+        assert open_run_workspace("run-net-on", network_allowed=True).policy.allows_network
 
     def test_the_tool_provider_is_bound_to_the_run(self) -> None:
         provider = build_workspace_tools("run-tools")
@@ -299,9 +283,7 @@ def _loop(names: list[str]) -> ToolLoop:
         return {"role": "tool"}
 
     return ToolLoop(
-        tools=[
-            {"type": "function", "function": {"name": name}} for name in names
-        ],
+        tools=[{"type": "function", "function": {"name": name}} for name in names],
         executor=executor,
     )
 
@@ -314,9 +296,7 @@ def test_local_tools_disable_the_transcript_cache() -> None:
 
 
 def test_mcp_only_loops_keep_their_cache() -> None:
-    guarded = _guard_cache_for_local_tools(
-        _loop(["search_pubmed"]), LLMCallOptions(use_cache=True)
-    )
+    guarded = _guard_cache_for_local_tools(_loop(["search_pubmed"]), LLMCallOptions(use_cache=True))
     assert guarded.use_cache is True
 
 
@@ -378,9 +358,7 @@ async def test_the_file_tools_round_trip_through_tool_calls(
     provider = _provider(tmp_path)
 
     async def call(name: str, **arguments: Any) -> dict[str, Any]:
-        return _content(
-            await provider.execute_tool_call(_call(name, json.dumps(arguments)))
-        )
+        return _content(await provider.execute_tool_call(_call(name, json.dumps(arguments))))
 
     written = await call(WRITE_FILE, path="sub/model.py", content="print(1)\n")
     assert written["bytes"] == len("print(1)\n")
@@ -388,12 +366,8 @@ async def test_the_file_tools_round_trip_through_tool_calls(
     patch = "*** Begin Patch\n*** Add File: hello.py\n+hi\n*** End Patch\n"
     assert (await call(APPLY_PATCH, patch=patch))["changed"] == ["hello.py"]
 
-    assert (await call(READ_FILE, path="sub/model.py"))["content"] == (
-        "print(2)\n"
-    )
+    assert (await call(READ_FILE, path="sub/model.py"))["content"] == ("print(2)\n")
     assert (await call(LIST_FILES))["files"] == ["hello.py", "sub/model.py"]
     # Sibling reads must not observe a half-written workspace tree.
-    batches = batch_by_effects(
-        [_call(READ_FILE), _call(WRITE_FILE), _call(APPLY_PATCH)]
-    )
+    batches = batch_by_effects([_call(READ_FILE), _call(WRITE_FILE), _call(APPLY_PATCH)])
     assert [len(batch) for batch in batches] == [1, 1, 1]

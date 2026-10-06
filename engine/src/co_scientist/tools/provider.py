@@ -39,9 +39,7 @@ def _payload_excerpt(payload: str) -> str:
     return f"{head!r}{suffix}"
 
 
-def tool_result_message(
-    tool_name: str, tool_call_id: str, payload: Any
-) -> dict[str, Any]:
+def tool_result_message(tool_name: str, tool_call_id: str, payload: Any) -> dict[str, Any]:
     return {
         "role": "tool",
         "name": tool_name,
@@ -50,9 +48,7 @@ def tool_result_message(
     }
 
 
-def tool_error_message(
-    tool_name: str, tool_call_id: str, error: str
-) -> dict[str, Any]:
+def tool_error_message(tool_name: str, tool_call_id: str, error: str) -> dict[str, Any]:
     return tool_result_message(tool_name, tool_call_id, {"error": error})
 
 
@@ -88,9 +84,7 @@ class MCPToolProvider:
         # Forward None versus [] unchanged: all tools versus none.
         if self.mcp_client is not None:
             try:
-                tools_dict, openai_tools = self.mcp_client.get_tools(
-                    whitelist=mcp_whitelist
-                )
+                tools_dict, openai_tools = self.mcp_client.get_tools(whitelist=mcp_whitelist)
                 self._tool_names.update(tools_dict.keys())
                 logger.debug("added %s MCP tools", len(tools_dict))
             except Exception as e:

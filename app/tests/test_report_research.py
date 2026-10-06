@@ -7,9 +7,7 @@ def _overview_markdown(payload: dict[str, object]) -> str:
     return "\n".join(render_research_overview_markdown(payload))
 
 
-def test_main_research_directions_sit_immediately_before_top_hypotheses() -> (
-    None
-):
+def test_main_research_directions_sit_immediately_before_top_hypotheses() -> None:
     markdown = render_markdown(
         meta_review={
             "main_research_directions": (
@@ -22,9 +20,7 @@ def test_main_research_directions_sit_immediately_before_top_hypotheses() -> (
 
     assert "One direction is **Metabolic State**, which matters." in markdown
     assert "A second is **MazEF-State Biomarking**." in markdown
-    assert markdown.index("## Main Research Directions") < markdown.index(
-        "## Top hypotheses"
-    )
+    assert markdown.index("## Main Research Directions") < markdown.index("## Top hypotheses")
 
 
 def test_themes_render_with_sub_themes_and_older_flat_shapes() -> None:
@@ -58,9 +54,7 @@ def test_themes_render_with_sub_themes_and_older_flat_shapes() -> None:
             ],
         }
     )
-    bare = _meta_review_markdown(
-        {"emerging_themes": ["Time-resolved state measurements"]}
-    )
+    bare = _meta_review_markdown({"emerging_themes": ["Time-resolved state measurements"]})
 
     assert "### Emerging themes" in markdown
     assert "#### Core Hypothesis" in markdown
@@ -75,9 +69,7 @@ def test_themes_render_with_sub_themes_and_older_flat_shapes() -> None:
     assert "****:" not in markdown
 
 
-def test_recommendations_render_as_a_primary_step_and_a_numbered_roadmap() -> (
-    None
-):
+def test_recommendations_render_as_a_primary_step_and_a_numbered_roadmap() -> None:
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -106,7 +98,5 @@ def test_recommendations_render_as_a_primary_step_and_a_numbered_roadmap() -> (
     )
     assert "The current data is indirect." in markdown
     assert "Recommended idea: Hypothesis 1, building on 4" in markdown
-    assert (
-        "1. Phase A: **Validation**: Confirm the mechanism in vivo." in markdown
-    )
+    assert "1. Phase A: **Validation**: Confirm the mechanism in vivo." in markdown
     assert "2. A bare-string recommendation." in markdown

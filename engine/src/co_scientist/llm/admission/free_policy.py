@@ -83,19 +83,14 @@ class CatalogReader:
     Replacing a reader cannot inherit its predecessor's snapshot.
     """
 
-    def __init__(
-        self, loader: Callable[[], dict[str, Any]] | None = None
-    ) -> None:
+    def __init__(self, loader: Callable[[], dict[str, Any]] | None = None) -> None:
         self._loader = loader if loader is not None else _fetch_catalog
         self._lock = threading.Lock()
         self._snapshot: tuple[float, dict[str, Any]] | None = None
 
     def read(self) -> dict[str, Any]:
         with self._lock:
-            if (
-                self._snapshot is not None
-                and time.monotonic() < self._snapshot[0]
-            ):
+            if self._snapshot is not None and time.monotonic() < self._snapshot[0]:
                 return self._snapshot[1]
             self._snapshot = None
             catalog = self._loader()
@@ -117,9 +112,7 @@ def _fetch_catalog() -> dict[str, Any]:
             raise ValueError("empty or duplicate model entries")
         return catalog
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-        raise FreeModelEligibilityError(
-            "zero-cost catalog unavailable or invalid"
-        ) from exc
+        raise FreeModelEligibilityError("zero-cost catalog unavailable or invalid") from exc
 
 
 # The shared metadata reader must cross worker threads; API-loop ContextVars are
@@ -164,22 +157,16 @@ def _is_zero(value: Any) -> bool:
 def verify_model(model: str, catalog: dict[str, Any]) -> None:
     row = catalog.get(model)
     if not isinstance(row, dict) or model.startswith(("openrouter/", "~")):
-        raise FreeModelEligibilityError(
-            "zero-cost model is not an explicit catalog route"
-        )
+        raise FreeModelEligibilityError("zero-cost model is not an explicit catalog route")
     _verify_expiration(row)
     architecture = row.get("architecture", {})
     if not isinstance(architecture, dict):
-        raise FreeModelEligibilityError(
-            "zero-cost route architecture is invalid"
-        )
+        raise FreeModelEligibilityError("zero-cost route architecture is invalid")
     inputs = architecture.get("input_modalities")
     if not isinstance(inputs, list) or "text" not in inputs:
         raise FreeModelEligibilityError("zero-cost route cannot accept text")
     if architecture.get("output_modalities") != ["text"]:
-        raise FreeModelEligibilityError(
-            "zero-cost route must produce only text"
-        )
+        raise FreeModelEligibilityError("zero-cost route must produce only text")
     _verify_pricing(model, row.get("pricing"))
 
 
@@ -192,20 +179,14 @@ def _verify_expiration(row: dict[str, Any]) -> None:
         return
     value = row["expiration_date"]
     try:
-        expiration = (
-            date.fromisoformat(value) if isinstance(value, str) else None
-        )
+        expiration = date.fromisoformat(value) if isinstance(value, str) else None
     except ValueError:
         expiration = None
     if expiration is None or expiration.isoformat() != value:
-        raise FreeModelEligibilityError(
-            "zero-cost route expiration date is invalid"
-        )
+        raise FreeModelEligibilityError("zero-cost route expiration date is invalid")
     # Catalog expiry is the last valid UTC date, not the first expired day.
     if expiration < _utc_today():
-        raise FreeModelEligibilityError(
-            "zero-cost route expiration date has elapsed"
-        )
+        raise FreeModelEligibilityError("zero-cost route expiration date has elapsed")
 
 
 def _verify_pricing(model: str, pricing: Any) -> None:
@@ -225,15 +206,11 @@ def _verify_pricing(model: str, pricing: Any) -> None:
     if not required <= pricing.keys():
         raise FreeModelEligibilityError("zero-cost pricing is incomplete")
     if pricing.get("overrides", []) != []:
-        raise FreeModelEligibilityError(
-            "zero-cost conditional pricing is not qualified"
-        )
+        raise FreeModelEligibilityError("zero-cost conditional pricing is not qualified")
     rates = dict(pricing)
     rates.pop("overrides", None)
     if not all(_is_zero(value) for value in rates.values()):
-        raise FreeModelEligibilityError(
-            "zero-cost route has paid or invalid pricing"
-        )
+        raise FreeModelEligibilityError("zero-cost route has paid or invalid pricing")
 
 
 def campaign_free_mode() -> bool:
@@ -261,43 +238,27 @@ def scoped_zero_cost_admission(enabled: bool) -> Iterator[None]:
 
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
     model = str(args.get("model", ""))
-    return (
-        campaign_free_mode()
-        or _zero_cost_only.get()
-        or (not byok and is_free_route(model))
-    )
+    return campaign_free_mode() or _zero_cost_only.get() or (not byok and is_free_route(model))
 
 
 def _request_body(args: dict[str, Any]) -> dict[str, Any]:
     if litellm.model_fallbacks or litellm.model_alias_map:
-        raise FreeModelEligibilityError(
-            "zero-cost SDK routing overrides are unqualified"
-        )
+        raise FreeModelEligibilityError("zero-cost SDK routing overrides are unqualified")
     if args.keys() - _REQUEST_FIELDS:
-        raise FreeModelEligibilityError(
-            "zero-cost request contains unqualified options"
-        )
+        raise FreeModelEligibilityError("zero-cost request contains unqualified options")
     if args.get("api_base", _API_BASE) != _API_BASE:
-        raise FreeModelEligibilityError(
-            "zero-cost request uses an unverified endpoint"
-        )
+        raise FreeModelEligibilityError("zero-cost request uses an unverified endpoint")
     body = args.get("extra_body", {})
     if not isinstance(body, dict) or body.keys() - _BODY_FIELDS:
-        raise FreeModelEligibilityError(
-            "zero-cost request contains plugins or unqualified routing"
-        )
+        raise FreeModelEligibilityError("zero-cost request contains plugins or unqualified routing")
     _verify_messages(args.get("messages", []))
     _verify_tools(args.get("tools", []))
     return body
 
 
 def _object_list(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or not all(
-        isinstance(item, dict) for item in value
-    ):
-        raise FreeModelEligibilityError(
-            "zero-cost request requires a list of objects"
-        )
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise FreeModelEligibilityError("zero-cost request requires a list of objects")
     return value
 
 
@@ -305,9 +266,7 @@ def _verify_messages(messages: Any) -> None:
     for message in _object_list(messages):
         content = message.get("content")
         if content is not None and not isinstance(content, str):
-            raise FreeModelEligibilityError(
-                "zero-cost request contains non-text input"
-            )
+            raise FreeModelEligibilityError("zero-cost request contains non-text input")
         if message.keys() - {
             "role",
             "content",
@@ -318,17 +277,13 @@ def _verify_messages(messages: Any) -> None:
             "reasoning",
             "reasoning_details",
         }:
-            raise FreeModelEligibilityError(
-                "zero-cost message contains unqualified fields"
-            )
+            raise FreeModelEligibilityError("zero-cost message contains unqualified fields")
 
 
 def _verify_tools(tools: Any) -> None:
     for tool in _object_list(tools):
         if tool.get("type") != "function" or set(tool) != {"type", "function"}:
-            raise FreeModelEligibilityError(
-                "zero-cost request contains a server tool"
-            )
+            raise FreeModelEligibilityError("zero-cost request contains a server tool")
 
 
 def _routes(args: dict[str, Any], body: dict[str, Any]) -> list[str]:
@@ -336,16 +291,12 @@ def _routes(args: dict[str, Any], body: dict[str, Any]) -> list[str]:
     if not isinstance(primary, str) or not primary.startswith("openrouter/"):
         raise FreeModelEligibilityError("zero-cost requests require OpenRouter")
     fallbacks = body.get("models", [])
-    if not isinstance(fallbacks, list) or not all(
-        isinstance(m, str) for m in fallbacks
-    ):
+    if not isinstance(fallbacks, list) or not all(isinstance(m, str) for m in fallbacks):
         raise FreeModelEligibilityError("zero-cost fallback list is invalid")
     return [primary.removeprefix("openrouter/"), *fallbacks]
 
 
-async def enforce_free_request(
-    args: dict[str, Any], *, byok: bool = False
-) -> bool:
+async def enforce_free_request(args: dict[str, Any], *, byok: bool = False) -> bool:
     """Campaign policy overrides BYOK; a deployment key is not evidence of
     caller-owned credentials.
     """
@@ -358,9 +309,7 @@ async def enforce_free_request(
         verify_model(model, catalog)
     raw_provider = body.get("provider", {})
     if not isinstance(raw_provider, dict):
-        raise FreeModelEligibilityError(
-            "zero-cost provider options must be an object"
-        )
+        raise FreeModelEligibilityError("zero-cost provider options must be an object")
     provider = dict(raw_provider)
     provider["max_price"] = {
         "prompt": 0,

@@ -41,9 +41,7 @@ def _open_raw_connection(db_path: str) -> sqlite3.Connection:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     # Autocommit permits explicit transaction ownership; connections can cross
     # the asynchronous caller's thread boundary.
-    conn = sqlite3.connect(
-        db_path, timeout=30, isolation_level=None, check_same_thread=False
-    )
+    conn = sqlite3.connect(db_path, timeout=30, isolation_level=None, check_same_thread=False)
     conn.row_factory = sqlite3.Row  # Rows behave like dicts: row["col"].
     # WAL NORMAL avoids per-commit fsync saturation; checkpoints sync
     # durability, with recent transactions vulnerable only to OS failure.
@@ -113,15 +111,11 @@ def _use_conn(
 
 def _add_missing_columns(conn: sqlite3.Connection) -> None:
     for table, column, declaration in _ADDED_COLUMNS:
-        present = {
-            row["name"] for row in conn.execute(f"PRAGMA table_info({table})")
-        }
+        present = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
         if column in present:
             continue
         try:
-            conn.execute(
-                f"ALTER TABLE {table} ADD COLUMN {column} {declaration}"
-            )
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {declaration}")
         except sqlite3.OperationalError as exc:
             # Another process starting on the same file may have won the race.
             if "duplicate column" not in str(exc):

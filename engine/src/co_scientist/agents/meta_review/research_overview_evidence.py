@@ -31,11 +31,7 @@ def _build_contact_candidates(
         for author_index, raw_name in enumerate(article.authors or []):
             name = raw_name.strip()
             normalized = name.casefold()
-            if (
-                not name
-                or normalized in seen_names
-                or len(candidates) >= _MAX_CONTACT_CANDIDATES
-            ):
+            if not name or normalized in seen_names or len(candidates) >= _MAX_CONTACT_CANDIDATES:
                 continue
             candidate_id = f"author-{article_index + 1}-{author_index + 1}"
             candidates[candidate_id] = {
@@ -63,10 +59,7 @@ def _format_contact_candidates(
 ) -> str:
     return _format_or_placeholder(
         candidates,
-        (
-            "- {candidate_id}: {name}; paper={source_title}; "
-            "source_id={source_id}; url={source_url}"
-        ),
+        ("- {candidate_id}: {name}; paper={source_title}; source_id={source_id}; url={source_url}"),
         "No verified literature authors available.",
     )
 
@@ -124,9 +117,7 @@ def _validate_research_contacts(
             **candidate,
             "expertise": str(raw.get("expertise") or "").strip(),
             "justification": str(raw.get("justification") or "").strip(),
-            "research_direction": str(
-                raw.get("research_direction") or ""
-            ).strip(),
+            "research_direction": str(raw.get("research_direction") or "").strip(),
         }
         for raw, candidate in matches
     ]
@@ -171,10 +162,7 @@ def _validate_research_contact_groups(
     render no contacts rather than inventing associations."""
     if not isinstance(raw_groups, list):
         return []
-    validated = (
-        _validate_research_contact_group(raw, hypothesis_by_index)
-        for raw in raw_groups
-    )
+    validated = (_validate_research_contact_group(raw, hypothesis_by_index) for raw in raw_groups)
     return list(
         itertools.islice(
             (group for group in validated if group is not None),
@@ -210,9 +198,7 @@ def _build_evidence_corpus(
 ) -> dict[str, dict[str, Any]]:
     """Do not globally score-sort: web scores floor at zero and would
     disappear. Contiguous evidence IDs are opaque handles, not a ranking."""
-    analyzed = [
-        article for article in (articles or []) if article.used_in_analysis
-    ]
+    analyzed = [article for article in (articles or []) if article.used_in_analysis]
     selected = _interleave_by_source(analyzed)[:RESEARCH_OVERVIEW_MAX_SOURCES]
     corpus: dict[str, dict[str, Any]] = {}
     for index, article in enumerate(selected):

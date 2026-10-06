@@ -42,13 +42,9 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     return _build_supervisor_result(supervisor_guidance, key_areas)
 
 
-async def _announce_supervisor_start(
-    state: WorkflowState, prompt_context: dict[str, Any]
-) -> None:
+async def _announce_supervisor_start(state: WorkflowState, prompt_context: dict[str, Any]) -> None:
     research_goal = prompt_context["inputs"].research_goal
-    logger.info(
-        "Supervisor analyzing research goal: %s...", research_goal[:100]
-    )
+    logger.info("Supervisor analyzing research goal: %s...", research_goal[:100])
     await emit_progress(
         state,
         "supervisor_start",
@@ -57,9 +53,7 @@ async def _announce_supervisor_start(
     )
 
 
-async def _announce_supervisor_complete(
-    state: WorkflowState, key_areas: list[str]
-) -> None:
+async def _announce_supervisor_complete(state: WorkflowState, key_areas: list[str]) -> None:
     await emit_progress(
         state,
         "supervisor_complete",
@@ -79,9 +73,7 @@ async def _run_supervisor_planning(
 
 def _log_key_areas(key_areas: list[str]) -> None:
     if key_areas:
-        logger.info(
-            "Key research areas identified: %s", ", ".join(key_areas[:3])
-        )
+        logger.info("Key research areas identified: %s", ", ".join(key_areas[:3]))
 
 
 async def _call_supervisor_llm(
@@ -161,8 +153,6 @@ def _build_supervisor_guidance(response: dict[str, Any]) -> dict[str, Any]:
         "workflow_plan": response.get("workflow_plan", {}),
         "config_synthesis": response.get("config_synthesis", {}),
         "performance_assessment": response.get("performance_assessment", {}),
-        "adjustment_recommendations": response.get(
-            "adjustment_recommendations", []
-        ),
+        "adjustment_recommendations": response.get("adjustment_recommendations", []),
         "output_preparation": response.get("output_preparation", {}),
     }

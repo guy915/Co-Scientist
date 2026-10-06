@@ -73,9 +73,7 @@ def _default_budget(state: WorkflowState) -> Budget:
 
 
 def _yields(pool_size: int, book: dict[str, Any]) -> tuple[float, float]:
-    delta = max(
-        0, pool_size - int(book.get("pool_at_last_decision", pool_size))
-    )
+    delta = max(0, pool_size - int(book.get("pool_at_last_decision", pool_size)))
     last = book.get("last_work_task")
     if last == TaskType.GENERATE.value:
         return float(delta), 0.0
@@ -84,9 +82,7 @@ def _yields(pool_size: int, book: dict[str, Any]) -> tuple[float, float]:
     return 0.0, 0.0
 
 
-def _rank_stable_cycles(
-    top_elo: int, total_matches: int, book: dict[str, Any]
-) -> int:
+def _rank_stable_cycles(top_elo: int, total_matches: int, book: dict[str, Any]) -> int:
     """Untouched seed Elo and the first decision cannot establish
     convergence."""
     prev = book.get("prev_top_elo")
@@ -96,15 +92,11 @@ def _rank_stable_cycles(
     return 0
 
 
-def _compute_stats(
-    state: WorkflowState, book: dict[str, Any]
-) -> SchedulerStats:
+def _compute_stats(state: WorkflowState, book: dict[str, Any]) -> SchedulerStats:
     hyps: list[Hypothesis] = state["hypotheses"]
     pool_size = len(hyps)
     rankable_count, avg_coverage, unmatched = _rankable_coverage(hyps)
-    llm_calls, gen_yield, evo_yield, elapsed_s = _scheduler_scalars(
-        state, book, pool_size
-    )
+    llm_calls, gen_yield, evo_yield, elapsed_s = _scheduler_scalars(state, book, pool_size)
     scalars = _StatsScalars(
         pool_size=pool_size,
         reviewed=sum(1 for h in hyps if has_peer_review(h)),
@@ -135,9 +127,7 @@ def _rankable_coverage(
     avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
     # Count unmatched over the same reviewed, rankable population as the quoted
     # floor so the observable reason cannot contradict its debt.
-    unmatched = sum(
-        1 for h in rankable if h.total_matches == 0 and has_peer_review(h)
-    )
+    unmatched = sum(1 for h in rankable if h.total_matches == 0 and has_peer_review(h))
     return rankable_count, avg_coverage, unmatched
 
 
@@ -180,9 +170,7 @@ def _cadence_signals(
         "pool_grew_since_proximity": (
             pool_size > int(book.get("pool_at_last_proximity", pool_size))
         ),
-        "rank_stable_cycles": _rank_stable_cycles(
-            scalars.top_elo, scalars.total_matches, book
-        ),
+        "rank_stable_cycles": _rank_stable_cycles(scalars.top_elo, scalars.total_matches, book),
         "iterations_since_meta_review": meta_cycles,
         "feedback_since_meta_review": meta_material,
         "iterations_since_research_overview": max(
@@ -213,9 +201,7 @@ def _build_scheduler_stats(
         owed_coverage_rounds=scalars.owed_coverage_rounds,
         settlement_allowance=book.get("settlement_allowance"),
         owed_at_last_settlement=book.get("owed_at_last_settlement"),
-        tournament_rounds_remaining=_tournament_round_count(
-            state, state.get("hypotheses") or []
-        ),
+        tournament_rounds_remaining=_tournament_round_count(state, state.get("hypotheses") or []),
         top_elo=scalars.top_elo,
         generation_yield=scalars.gen_yield,
         evolution_yield=scalars.evo_yield,
@@ -270,9 +256,7 @@ def _routes_through_meta_review(decision: SupervisorDecision) -> bool:
     anchoring, companions repeat at every loop point."""
     if decision.next_task in _META_REVIEW_ROUTED_TASKS:
         return True
-    return TaskType.META_REVIEW.value in stacked_task_values(
-        decision.queue_actions
-    )
+    return TaskType.META_REVIEW.value in stacked_task_values(decision.queue_actions)
 
 
 def _schedules_research_overview(decision: SupervisorDecision) -> bool:
@@ -280,9 +264,7 @@ def _schedules_research_overview(decision: SupervisorDecision) -> bool:
     either to prevent repeated companion work."""
     if decision.next_task is TaskType.SYNTHESIZE:
         return True
-    return TaskType.SYNTHESIZE.value in stacked_task_values(
-        decision.queue_actions
-    )
+    return TaskType.SYNTHESIZE.value in stacked_task_values(decision.queue_actions)
 
 
 def _research_overview_anchor(
@@ -329,15 +311,10 @@ def _evolved_since_stable(
     return bool(book.get("evolved_since_stable", False))
 
 
-def _is_settlement_rank(
-    stats: SchedulerStats, decision: SupervisorDecision
-) -> bool:
+def _is_settlement_rank(stats: SchedulerStats, decision: SupervisorDecision) -> bool:
     """Charge only rounds requested by the policy coverage check; ordinary
     calibration must not drain settlement allowance before its episode."""
-    return (
-        decision.next_task is TaskType.RANK
-        and policy._check_owed_coverage(stats) is not None
-    )
+    return decision.next_task is TaskType.RANK and policy._check_owed_coverage(stats) is not None
 
 
 def _is_owed_review_override(stats: SchedulerStats, budget: Budget) -> bool:
@@ -358,9 +335,7 @@ def _owed_review_override_marks(
     return hypotheses
 
 
-def _owed_review_hypotheses_delta(
-    state: WorkflowState, stats: SchedulerStats
-) -> list[Hypothesis]:
+def _owed_review_hypotheses_delta(state: WorkflowState, stats: SchedulerStats) -> list[Hypothesis]:
     budget = _default_budget(state)
     return _owed_review_override_marks(stats, budget, state["hypotheses"])
 
@@ -418,9 +393,7 @@ def _next_bookkeeping(
     updated["iteration_at_last_research_overview"] = _research_overview_anchor(
         book, stats, decision
     )
-    updated["evolved_since_stable"] = _evolved_since_stable(
-        book, stats, decision
-    )
+    updated["evolved_since_stable"] = _evolved_since_stable(book, stats, decision)
     return updated
 
 
@@ -442,9 +415,7 @@ def _appended_task_record(
 ) -> list[dict[str, Any]]:
     record = TaskRecord(
         task_type=decision.next_task,
-        status=(
-            TaskStatus.COMPLETED if decision.terminate else TaskStatus.QUEUED
-        ),
+        status=(TaskStatus.COMPLETED if decision.terminate else TaskStatus.QUEUED),
         reason=observable_reason,
         iteration=iteration,
         termination_reason=decision.termination_reason,
@@ -475,9 +446,7 @@ def _observable_decision_reason(
 
 
 async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
-    book = state.get("orchestrator_state") or _init_bookkeeping(
-        state["hypotheses"]
-    )
+    book = state.get("orchestrator_state") or _init_bookkeeping(state["hypotheses"])
     (
         stats,
         decision,
@@ -513,9 +482,7 @@ async def _run_supervisor_decision(
 ) -> tuple[SchedulerStats, SupervisorDecision, str, int]:
     stats = _compute_stats(state, book)
     budget = _default_budget(state)
-    decision, decision_provenance, llm_calls = await choose_supervisor_task(
-        state, stats, budget
-    )
+    decision, decision_provenance, llm_calls = await choose_supervisor_task(state, stats, budget)
     # Stack companions after planner guards; rebuilding the baseline earlier
     # would discard already attached companions.
     return (
@@ -526,9 +493,7 @@ async def _run_supervisor_decision(
     )
 
 
-def _advance_iteration(
-    state: WorkflowState, decision: SupervisorDecision
-) -> int:
+def _advance_iteration(state: WorkflowState, decision: SupervisorDecision) -> int:
     iteration = state.get("current_iteration", 0)
     if decision.next_task in WORK_TASKS:
         iteration += 1
@@ -541,9 +506,7 @@ def _decision_context(
     iteration = _advance_iteration(state, decision)
     observable_reason = _observable_decision_reason(stats, decision)
     termination_reason_value = (
-        decision.termination_reason.value
-        if decision.termination_reason is not None
-        else None
+        decision.termination_reason.value if decision.termination_reason is not None else None
     )
     return iteration, observable_reason, termination_reason_value
 
@@ -584,9 +547,7 @@ def _orchestrator_result(
         "task_history": _appended_task_record(
             state, decision, outcome.iteration, outcome.observable_reason
         ),
-        "orchestrator_state": _next_bookkeeping(
-            book, stats, decision, state["hypotheses"]
-        ),
+        "orchestrator_state": _next_bookkeeping(book, stats, decision, state["hypotheses"]),
         "hypotheses": _owed_review_hypotheses_delta(state, stats),
         "supervisor_decision_provenance": outcome.decision_provenance,
         "current_iteration": outcome.iteration,
@@ -599,7 +560,5 @@ def _orchestrator_result(
             outcome.observable_reason,
             next_task=decision.next_task.value,
         ),
-        "metrics": create_metrics_update(
-            deltas=MetricDeltas(llm_calls=outcome.llm_calls)
-        ),
+        "metrics": create_metrics_update(deltas=MetricDeltas(llm_calls=outcome.llm_calls)),
     }

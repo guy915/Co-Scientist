@@ -36,10 +36,7 @@ def _split_long_unit(unit: str, max_chars: int) -> list[str]:
         if len(sentence) <= max_chars:
             windows.append(sentence)
         else:
-            windows.extend(
-                sentence[i : i + max_chars]
-                for i in range(0, len(sentence), max_chars)
-            )
+            windows.extend(sentence[i : i + max_chars] for i in range(0, len(sentence), max_chars))
     return windows
 
 
@@ -77,9 +74,7 @@ def chunk_text(
     stripped = text.strip()
     if not stripped:
         return []
-    paragraphs = [
-        p.strip() for p in _PARAGRAPH_SPLIT.split(stripped) if p.strip()
-    ] or [stripped]
+    paragraphs = [p.strip() for p in _PARAGRAPH_SPLIT.split(stripped) if p.strip()] or [stripped]
     units: list[str] = []
     for paragraph in paragraphs:
         if len(paragraph) <= max_chars:
@@ -113,8 +108,6 @@ def chunk_evidence_passage(
             )
         ]
     return [
-        EvidencePassage(
-            evidence_id=f"{article_id}#{i}", text=chunk, source=source, url=url
-        )
+        EvidencePassage(evidence_id=f"{article_id}#{i}", text=chunk, source=source, url=url)
         for i, chunk in enumerate(all_chunks)
     ]

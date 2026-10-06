@@ -31,16 +31,12 @@ class FeedbackRequest(BaseModel):
 
 
 @router.post("/api/feedback", status_code=201)
-async def submit_feedback(
-    body: FeedbackRequest, request: Request
-) -> dict[str, str]:
+async def submit_feedback(body: FeedbackRequest, request: Request) -> dict[str, str]:
     owner = require_client_scope(request)
     host = request.client.host if request.client else "unknown"
     host_key = hashlib.sha256(host.encode()).hexdigest()
     try:
-        identity = feedback.submit(
-            owner, host_key, feedback.Submission(**body.model_dump())
-        )
+        identity = feedback.submit(owner, host_key, feedback.Submission(**body.model_dump()))
     except feedback.RateExceededError as exc:
         raise HTTPException(
             status_code=429, detail=str(exc), headers={"Retry-After": "60"}
@@ -59,7 +55,5 @@ async def read_feedback(
     supplied = request.headers.get("X-Logs-Token", "")
     token = settings.logs_admin_token
     if not token or not supplied or not hmac.compare_digest(supplied, token):
-        raise HTTPException(
-            status_code=403, detail="maintainer access required"
-        )
+        raise HTTPException(status_code=403, detail="maintainer access required")
     return {"feedback": feedback.list_feedback(limit=limit, offset=offset)}

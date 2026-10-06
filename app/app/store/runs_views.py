@@ -30,13 +30,10 @@ def _fail_interrupted_run(
     reason: str,
 ) -> None:
     conn.execute(
-        "UPDATE runs SET status=?, error=?, updated_at=?, "
-        "completed_at=? WHERE id=?",
+        "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",
         (RunStatus.FAILED.value, reason, now, now, run_id),
     )
-    _append_event(
-        conn, run_id, "status", {"status": "failed", "error": reason}, now
-    )
+    _append_event(conn, run_id, "status", {"status": "failed", "error": reason}, now)
 
 
 def _settle_run_out_of_work(
@@ -50,8 +47,7 @@ def _settle_run_out_of_work(
     transaction; sibling work may still produce successors.
     """
     row = conn.execute(
-        "SELECT 1 FROM scientific_tasks WHERE run_id=? "
-        "AND status IN ('queued','leased') LIMIT 1",
+        "SELECT 1 FROM scientific_tasks WHERE run_id=? AND status IN ('queued','leased') LIMIT 1",
         (run_id,),
     ).fetchone()
     if row is not None:
@@ -102,14 +98,10 @@ def _settle_run_for_failed_task(
         _now(),
         failure_kind=failure.failure_kind,
     ):
-        logger.info(
-            "Run %s failed: no claimable work remains (%s)", run_id, reason
-        )
+        logger.info("Run %s failed: no claimable work remains (%s)", run_id, reason)
 
 
-def _reconcile_one_run(
-    conn: sqlite3.Connection, run_id: str, now: float, reason: str
-) -> str:
+def _reconcile_one_run(conn: sqlite3.Connection, run_id: str, now: float, reason: str) -> str:
     if has_checkpoint(run_id, conn=conn):
         _append_event(
             conn,
@@ -123,9 +115,7 @@ def _reconcile_one_run(
     return "failed"
 
 
-def _fail_ambiguous_expired_provider_leases(
-    db_path: str | None, now: float
-) -> None:
+def _fail_ambiguous_expired_provider_leases(db_path: str | None, now: float) -> None:
     from app.store.tasks import _fail_ambiguous_expired_leases
 
     with transaction(db_path) as conn:
@@ -206,9 +196,7 @@ _REPLAYABLE_ARTIFACT_TABLES: tuple[str, ...] = (
 )
 
 
-def _top_hypotheses_by_run(
-    conn: sqlite3.Connection, run_ids: list[str]
-) -> dict[str, list[str]]:
+def _top_hypotheses_by_run(conn: sqlite3.Connection, run_ids: list[str]) -> dict[str, list[str]]:
     if not run_ids:
         return {}
     placeholders = ",".join("?" for _ in run_ids)
@@ -230,9 +218,7 @@ def _top_hypotheses_by_run(
     return by_run
 
 
-def _latest_stage_by_run(
-    conn: sqlite3.Connection, run_ids: list[str]
-) -> dict[str, str]:
+def _latest_stage_by_run(conn: sqlite3.Connection, run_ids: list[str]) -> dict[str, str]:
     if not run_ids:
         return {}
     run_placeholders = ",".join("?" for _ in run_ids)
@@ -251,9 +237,7 @@ def _latest_stage_by_run(
     return {row["run_id"]: row["type"] for row in rows}
 
 
-def list_expired_terminal_runs(
-    cutoff: float, db_path: str | None = None
-) -> list[RunRow]:
+def list_expired_terminal_runs(cutoff: float, db_path: str | None = None) -> list[RunRow]:
     placeholders = ",".join("?" for _ in TERMINAL_STATUSES)
     with connect(db_path) as conn:
         rows = conn.execute(
@@ -265,9 +249,7 @@ def list_expired_terminal_runs(
     return [_row_to_run(row) for row in rows]
 
 
-def list_runs(
-    client_id: str = "", limit: int = 100, db_path: str | None = None
-) -> list[RunRow]:
+def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT r.*, t.top_elo FROM runs r "
@@ -324,9 +306,7 @@ def _delete_agent_derived_rows(conn: sqlite3.Connection, run_id: str) -> None:
     _reset_retained_hypothesis_state(conn, run_id)
 
 
-def _reset_retained_hypothesis_state(
-    conn: sqlite3.Connection, run_id: str
-) -> None:
+def _reset_retained_hypothesis_state(conn: sqlite3.Connection, run_id: str) -> None:
     """Drain counters are deltas, so replay must clear retained scientist
     counters to avoid counting the same tournament twice.
     """
@@ -380,7 +360,6 @@ def clear_publication_artifacts(
         for table in _REPLAYABLE_ARTIFACT_TABLES:
             active.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
         active.execute(
-            "DELETE FROM safety_decisions WHERE run_id=? "
-            "AND stage='hypothesis'",
+            "DELETE FROM safety_decisions WHERE run_id=? AND stage='hypothesis'",
             (run_id,),
         )

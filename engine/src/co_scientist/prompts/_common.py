@@ -28,9 +28,7 @@ class PromptSections:
 
 
 def _run_guidance_section(context: PromptRunContext) -> str:
-    return _format_run_guidance(
-        context.run_setup_guidance, context.run_focus_guidance
-    )
+    return _format_run_guidance(context.run_setup_guidance, context.run_focus_guidance)
 
 
 def _format_bullet_section(
@@ -101,8 +99,7 @@ def _format_meta_review_context(
 
     sections = [
         "## Meta-Review Context\n",
-        "The following insights were synthesized from previous reviews"
-        " of all hypotheses:\n\n",
+        "The following insights were synthesized from previous reviews of all hypotheses:\n\n",
         _format_bullet_section(
             "Common Strengths Across Hypotheses",
             meta_review.get("common_strengths", []),
@@ -160,9 +157,7 @@ def format_lab_constraints_section(
     )
 
 
-def _format_bullet_list(
-    items: list[str] | None, *, truncate_chars: int | None = None
-) -> str:
+def _format_bullet_list(items: list[str] | None, *, truncate_chars: int | None = None) -> str:
     if not items:
         return "None provided"
     if truncate_chars is not None:

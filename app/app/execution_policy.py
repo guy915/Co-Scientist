@@ -16,17 +16,11 @@ STANDARD = "standard"
 CAMPAIGN = "campaign"
 CAMPAIGN_MODEL_CONFIG_KEY = "campaign_model_name"
 CAMPAIGN_MODEL_NAME = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
-_campaign_model: ContextVar[str | None] = ContextVar(
-    "campaign_model", default=None
-)
+_campaign_model: ContextVar[str | None] = ContextVar("campaign_model", default=None)
 
 
 def campaign_model_for_config(config: Any = None) -> str | None:
-    value = (
-        config.get(CAMPAIGN_MODEL_CONFIG_KEY)
-        if isinstance(config, dict)
-        else None
-    )
+    value = config.get(CAMPAIGN_MODEL_CONFIG_KEY) if isinstance(config, dict) else None
     return value if isinstance(value, str) and value.strip() else None
 
 
@@ -68,9 +62,7 @@ def scoped_execution_policy(
             _campaign_model.reset(token)
 
 
-def resolve_execution_policy(
-    request: Request, interview: dict[str, Any] | None = None
-) -> str:
+def resolve_execution_policy(request: Request, interview: dict[str, Any] | None = None) -> str:
     """Campaign policy derives monotonically from trusted persisted state,
     never caller-controlled identity headers.
     """

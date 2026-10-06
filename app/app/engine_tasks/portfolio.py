@@ -39,9 +39,7 @@ def _apply_single_queue_action(
         return
     priority = action.get("priority")
     if kind == "reprioritize" and priority is not None:
-        lifecycle.reprioritize_task(
-            task_id, int(priority), reason=reason, conn=conn
-        )
+        lifecycle.reprioritize_task(task_id, int(priority), reason=reason, conn=conn)
 
 
 def _apply_supervisor_queue_actions(
@@ -80,14 +78,10 @@ def _apply_supervisor_enqueue_actions(
         node = TASK_ROUTES.get(value)
         if node is None:
             continue
-        predecessor = _enqueue_after(
-            predecessor, f"{NODE_TASK_PREFIX}{node}", priority, conn
-        )
+        predecessor = _enqueue_after(predecessor, f"{NODE_TASK_PREFIX}{node}", priority, conn)
 
 
-def _durable_queue_snapshot(
-    run_id: str, db_path: str | None
-) -> list[dict[str, Any]]:
+def _durable_queue_snapshot(run_id: str, db_path: str | None) -> list[dict[str, Any]]:
     return [
         {
             "task_id": task.id,
@@ -140,10 +134,7 @@ def _is_stale_dependent(
         return False
     if not candidate.task_type.startswith(node_prefix):
         return False
-    if (
-        not candidate.dependencies
-        or candidate.dependencies[0] not in poisoned_ids
-    ):
+    if not candidate.dependencies or candidate.dependencies[0] not in poisoned_ids:
         return False
     return protect_type is None or candidate.task_type != protect_type
 
@@ -157,9 +148,7 @@ def _cancel_dependents(
 ) -> set[str]:
     cancelled: set[str] = set()
     for candidate in candidates:
-        if not _is_stale_dependent(
-            candidate, poisoned_ids, protect_type, node_prefix
-        ):
+        if not _is_stale_dependent(candidate, poisoned_ids, protect_type, node_prefix):
             continue
         lifecycle.cancel_task(
             candidate.id,
@@ -180,9 +169,7 @@ def _cancel_downstream(
     poisoned = start_ids
     protect = protect_type
     while poisoned:
-        poisoned = _cancel_dependents(
-            candidates, poisoned, protect, node_prefix, conn
-        )
+        poisoned = _cancel_dependents(candidates, poisoned, protect, node_prefix, conn)
         protect = None
 
 
@@ -200,9 +187,7 @@ def _cancel_stale_planned_chain(
     _cancel_downstream(candidates, {task.id}, keep_type, NODE_TASK_PREFIX, conn)
 
 
-def cancel_downstream_portfolio_chain(
-    task: ScientificTask, db_path: str | None
-) -> None:
+def cancel_downstream_portfolio_chain(task: ScientificTask, db_path: str | None) -> None:
     """Cancel downstream only on terminal failure and before failure
     settlement; ordinary retries must retain reusable successors.
     """
@@ -228,9 +213,7 @@ def _enqueue_lookahead_tail(
 
     predecessor = head
     for hop in plan_portfolio(successor, state)[1:]:
-        predecessor = _enqueue_after(
-            predecessor, f"{NODE_TASK_PREFIX}{hop}", 90, conn
-        )
+        predecessor = _enqueue_after(predecessor, f"{NODE_TASK_PREFIX}{hop}", 90, conn)
 
 
 def _enqueue_node_portfolio(
@@ -247,9 +230,7 @@ def _enqueue_node_portfolio(
         _apply_supervisor_queue_actions(
             task.run_id, state.get("supervisor_queue_actions") or [], conn
         )
-    priority = (
-        int(state.get("next_task_priority", 90)) if is_orchestrator else 90
-    )
+    priority = int(state.get("next_task_priority", 90)) if is_orchestrator else 90
     _cancel_stale_planned_chain(task, successor_type, conn)
     head = _enqueue_after(task, successor_type, priority, conn)
     if is_orchestrator:

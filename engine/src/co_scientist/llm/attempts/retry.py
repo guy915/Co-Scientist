@@ -107,9 +107,7 @@ _PER_MINUTE_DEFAULT_SECONDS = 60.0
 
 def _next_utc_midnight_epoch(now: float) -> float:
     current = datetime.fromtimestamp(now, tz=timezone.utc)
-    tomorrow = (current + timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    tomorrow = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return tomorrow.timestamp()
 
 
@@ -122,9 +120,7 @@ def _parse_float(value: str | None) -> float | None:
         return None
 
 
-def _platform_reset_from_headers(
-    error: Exception, now: float
-) -> tuple[float, str] | None:
+def _platform_reset_from_headers(error: Exception, now: float) -> tuple[float, str] | None:
     """LiteLLM exposes upstream headers through response, not a headers
     shortcut.
     """
@@ -141,9 +137,7 @@ def _platform_reset_from_headers(
     return None
 
 
-def _platform_reset_from_message(
-    error: Exception, now: float
-) -> tuple[float, str] | None:
+def _platform_reset_from_message(error: Exception, now: float) -> tuple[float, str] | None:
     """Without headers, daily caps use UTC reset; short burst waits stay
     below the park threshold.
     """
@@ -164,9 +158,7 @@ def platform_rate_limit_park(
     in ordinary backoff.
     """
     now = time.time()
-    resolved = _platform_reset_from_headers(
-        error, now
-    ) or _platform_reset_from_message(error, now)
+    resolved = _platform_reset_from_headers(error, now) or _platform_reset_from_message(error, now)
     if resolved is None:
         return None
     resume_at, reason = resolved
@@ -189,9 +181,7 @@ def _rate_limit_backoff_seconds(attempt: int) -> float:
     """The attempt budget bounds this uncapped wait; jitter avoids
     synchronized retry bursts.
     """
-    return jittered_backoff_seconds(
-        attempt, base_seconds=_RATE_LIMIT_BACKOFF_BASE_SECONDS
-    )
+    return jittered_backoff_seconds(attempt, base_seconds=_RATE_LIMIT_BACKOFF_BASE_SECONDS)
 
 
 def provider_outage_backoff_seconds(attempt: int) -> float:
@@ -369,9 +359,7 @@ class _AttemptRun(Generic[R, T]):
                 await _answer_call_failure(error, attempt)
             return Rejected(error)
 
-    def _judge_response(
-        self, response: R, attempt: Attempt
-    ) -> Accepted[T] | Rejected:
+    def _judge_response(self, response: R, attempt: Attempt) -> Accepted[T] | Rejected:
         if self._judge is None:
             return Accepted(cast(T, response))
         return self._judge.verdict(response, attempt)
@@ -397,18 +385,14 @@ class _AttemptRun(Generic[R, T]):
 
     def _exhausted(self) -> T:
         if self._judge is None:
-            raise AssertionError(
-                "unreachable: a final attempt's failure always re-raises"
-            )
+            raise AssertionError("unreachable: a final attempt's failure always re-raises")
         # A zero-attempt plan has no rejection to give the judge.
         last = self._last or Rejected(ValueError("no attempt was made"))
         return self._judge.exhausted(Rejected(last.error, self._response_text))
 
 
 @overload
-async def run_attempts(
-    make_attempt: Callable[[Attempt], Awaitable[R]], plan: AttemptPlan
-) -> R: ...
+async def run_attempts(make_attempt: Callable[[Attempt], Awaitable[R]], plan: AttemptPlan) -> R: ...
 
 
 @overload

@@ -116,10 +116,7 @@ def read_file_schema() -> dict[str, Any]:
         "type": "function",
         "function": {
             "name": READ_FILE,
-            "description": (
-                "Read one file from the workspace as text. Large files are "
-                "truncated."
-            ),
+            "description": ("Read one file from the workspace as text. Large files are truncated."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -172,10 +169,7 @@ def list_files_schema() -> dict[str, Any]:
         "type": "function",
         "function": {
             "name": LIST_FILES,
-            "description": (
-                "List every file currently in the workspace, relative to "
-                "its root."
-            ),
+            "description": ("List every file currently in the workspace, relative to its root."),
             "parameters": {"type": "object", "properties": {}},
         },
     }

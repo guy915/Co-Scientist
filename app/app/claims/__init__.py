@@ -97,10 +97,7 @@ def _passage_lookup(
     lookup: dict[str, list[EvidencePassage]] = (
         {}
         if cites_evidence_ids
-        else {
-            str(position): [passage]
-            for position, passage in enumerate(passages, start=1)
-        }
+        else {str(position): [passage] for position, passage in enumerate(passages, start=1)}
     )
     for passage in passages:
         key = _normalize_key(passage.evidence_id)
@@ -109,9 +106,7 @@ def _passage_lookup(
     exact_keys = set(lookup)
     for passage in passages:
         parent = _normalize_key(parent_evidence_id(passage.evidence_id))
-        if (
-            cites_evidence_ids or not parent.isdigit()
-        ) and parent not in exact_keys:
+        if (cites_evidence_ids or not parent.isdigit()) and parent not in exact_keys:
             lookup.setdefault(parent, []).append(passage)
     return lookup
 
@@ -182,9 +177,7 @@ def _round_robin_by_rank(
     ]
 
 
-def _dedupe_capped(
-    passages: Sequence[EvidencePassage], cap: int
-) -> list[EvidencePassage]:
+def _dedupe_capped(passages: Sequence[EvidencePassage], cap: int) -> list[EvidencePassage]:
     seen: set[str] = set()
     union: list[EvidencePassage] = []
     for passage in passages:
@@ -280,9 +273,7 @@ def _assess_one_batch(
     assessor_id: str,
     top_k: int,
 ) -> list[ClaimAssessment]:
-    per_claim_candidates = [
-        retrieve_passages(claim, passages, top_k=top_k) for claim in claims
-    ]
+    per_claim_candidates = [retrieve_passages(claim, passages, top_k=top_k) for claim in claims]
     union = _union_evidence(per_claim_candidates)
     if not union:
         # No evidence means no provider call can establish grounding.
@@ -312,9 +303,7 @@ def _assess_from_draft(
         if shown and assessor_id.startswith("llm:"):
             record_deterministic_fallback(assessor_id[4:], "claim_batch")
         return _fallback_assessment(claim, own_candidates, assessor_id)
-    supporting = _locate_all(
-        draft.supporting, shown, cites_evidence_ids=draft.cites_evidence_ids
-    )
+    supporting = _locate_all(draft.supporting, shown, cites_evidence_ids=draft.cites_evidence_ids)
     contradicting = _locate_all(
         draft.contradicting, shown, cites_evidence_ids=draft.cites_evidence_ids
     )
@@ -411,9 +400,7 @@ def assess_claim(
         supporting_passages=tuple(supporting),
         contradicting_passages=tuple(contradicting),
         assessor=assessor_id,
-        verification_method=(
-            draft.verification_method if candidates else "no_evidence"
-        ),
+        verification_method=(draft.verification_method if candidates else "no_evidence"),
     )
 
 

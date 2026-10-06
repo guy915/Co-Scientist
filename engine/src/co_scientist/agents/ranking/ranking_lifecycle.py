@@ -87,8 +87,7 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     if len(rankable) < 2:
         return 0
     owed_per_idea = [
-        max(0, TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS - h.total_matches)
-        for h in rankable
+        max(0, TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS - h.total_matches) for h in rankable
     ]
     owed = sum(owed_per_idea)
     if not owed:
@@ -98,9 +97,7 @@ def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
     return min(rounds, max_pairs)
 
 
-def _tournament_budget(
-    state: WorkflowState, hypotheses: list[Hypothesis]
-) -> int:
+def _tournament_budget(state: WorkflowState, hypotheses: list[Hypothesis]) -> int:
     """Evolution adds ideas after the tier allowance runs out; scaling by
     pool size funds later children beyond minimal coverage."""
     configured = max(1, int(state.get("tournament_pairs") or len(hypotheses)))
@@ -109,9 +106,7 @@ def _tournament_budget(
     return max(configured, scaled)
 
 
-def remaining_ranking_rounds(
-    state: WorkflowState, hypotheses: list[Hypothesis]
-) -> int:
+def remaining_ranking_rounds(state: WorkflowState, hypotheses: list[Hypothesis]) -> int:
     """This is a whole-run allowance; coverage still funds unmatched reviewed
     ideas so seed Elo is not presented as an earned tournament rating."""
     budget = _tournament_budget(state, hypotheses)
@@ -126,9 +121,7 @@ def remaining_ranking_rounds(
             floor,
         )
         return floor
-    logger.info(
-        "Tournament budget: %s of %s rounds remaining", remaining, budget
-    )
+    logger.info("Tournament budget: %s of %s rounds remaining", remaining, budget)
     return remaining
 
 
@@ -155,9 +148,7 @@ def _sort_hypotheses_by_elo(
 ) -> list[Hypothesis]:
     """Canonical ordering aligns tournament ties and research top-k;
     publication bands demote undermined ideas despite high Elo."""
-    return sorted(
-        rank_for_publication(hypotheses), key=lambda h: not h.is_rankable()
-    )
+    return sorted(rank_for_publication(hypotheses), key=lambda h: not h.is_rankable())
 
 
 async def finalize_ranking(
@@ -183,9 +174,7 @@ async def finalize_ranking(
         top_hypothesis=truncate(hypotheses[0].text),
     )
 
-    return _build_ranking_delta(
-        hypotheses, matchup_details, tournament_rounds, total_llm_calls
-    )
+    return _build_ranking_delta(hypotheses, matchup_details, tournament_rounds, total_llm_calls)
 
 
 _TournamentGuidance = TournamentGuidance

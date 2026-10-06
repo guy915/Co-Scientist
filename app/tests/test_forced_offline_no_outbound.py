@@ -34,9 +34,7 @@ def attempts(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         if is_offline_model(str(kwargs.get("model") or "")):
             return await original(**kwargs)
         recorded.append(kwargs)
-        raise AssertionError(
-            "outbound completion attempted under COSCIENTIST_FORCE_OFFLINE=1"
-        )
+        raise AssertionError("outbound completion attempted under COSCIENTIST_FORCE_OFFLINE=1")
 
     monkeypatch.setattr(litellm, "acompletion", _guard)
     return recorded
@@ -49,9 +47,7 @@ def test_interview_turn_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
     with make_client() as client:
-        response = client.post(
-            "/api/interviews", json={"research_challenge": _GOAL}
-        )
+        response = client.post("/api/interviews", json={"research_challenge": _GOAL})
     assert response.status_code == 200
     interview = _interview_payload(response)
     assert interview["turns"], "the turn resolved to nothing at all"

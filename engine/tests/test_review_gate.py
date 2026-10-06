@@ -105,9 +105,7 @@ def test_only_a_serious_safety_score_blocks_the_idea(
 ) -> None:
     hypothesis = make_hypothesis(text="idea")
 
-    _apply_initial_review_gate(
-        [hypothesis], [_review_with_scores(scores)], criteria=None
-    )
+    _apply_initial_review_gate([hypothesis], [_review_with_scores(scores)], criteria=None)
 
     assert hypothesis.review_disposition == disposition
     assert hypothesis.is_rankable() == (disposition == "viable")
@@ -121,9 +119,7 @@ def test_a_fatal_criterion_axis_blocks_where_the_default_gate_would_not(
     criteria: list[str] | None, disposition: str
 ) -> None:
     hypothesis = make_hypothesis(text="idea")
-    review = _review_with_scores(
-        {"scientific_soundness": 8, "novelty": 8, "testability": 1}
-    )
+    review = _review_with_scores({"scientific_soundness": 8, "novelty": 8, "testability": 1})
 
     _apply_initial_review_gate([hypothesis], [review], criteria=criteria)
 
@@ -139,9 +135,7 @@ def test_a_fatal_criterion_axis_blocks_where_the_default_gate_would_not(
     ],
     ids=["rework_band_on_criterion_axis", "strong_on_selected_axis"],
 )
-def test_criterion_axes_use_the_same_quality_bands(
-    criteria: list[str], expected: str
-) -> None:
+def test_criterion_axes_use_the_same_quality_bands(criteria: list[str], expected: str) -> None:
     hypothesis = make_hypothesis(text="idea")
     review = _review_with_scores(
         {
@@ -163,9 +157,7 @@ def test_canonical_axes_keep_their_disposition_names_under_criteria() -> None:
     review_unsound = _review_with_scores(
         {"scientific_soundness": 2, "novelty": 8, "testability": 8}
     )
-    review_stale = _review_with_scores(
-        {"scientific_soundness": 8, "novelty": 1, "testability": 8}
-    )
+    review_stale = _review_with_scores({"scientific_soundness": 8, "novelty": 1, "testability": 8})
 
     _apply_initial_review_gate(
         [unsound, stale],
@@ -200,9 +192,7 @@ def _review_disposition_revisable_scientist_review() -> HypothesisReview:
 
 
 def _blocked_hypothesis(**overrides: Any) -> Hypothesis:
-    hypothesis = make_hypothesis(
-        reviews=[_gate_review(soundness=2, novelty=8)], **overrides
-    )
+    hypothesis = make_hypothesis(reviews=[_gate_review(soundness=2, novelty=8)], **overrides)
     hypothesis.review_disposition = "inaccurate"
     return hypothesis
 
@@ -225,9 +215,7 @@ def test_a_deeper_review_clears_the_initial_screen_block() -> None:
 def test_a_deeper_review_can_still_block() -> None:
     hypothesis = make_hypothesis(reviews=[_gate_review(8, 8)])
     hypothesis.review_disposition = "viable"
-    hypothesis.enrichments[ReviewType.FULL.value] = _full_review_result(
-        "rejected"
-    )
+    hypothesis.enrichments[ReviewType.FULL.value] = _full_review_result("rejected")
 
     refresh_review_dispositions([hypothesis])
 
@@ -239,9 +227,7 @@ def test_a_narrower_later_review_does_not_undo_a_fatal_one() -> None:
     """A mechanism simulation cannot overturn correctness rejected by the
     full review."""
     hypothesis = make_hypothesis(reviews=[_gate_review(8, 8)])
-    hypothesis.enrichments[ReviewType.FULL.value] = _full_review_result(
-        "rejected"
-    )
+    hypothesis.enrichments[ReviewType.FULL.value] = _full_review_result("rejected")
     hypothesis.enrichments[ReviewType.SIMULATION.value] = {"verdict": "holds"}
 
     refresh_review_dispositions([hypothesis])
@@ -281,9 +267,7 @@ def test_the_most_recent_gated_review_wins_over_the_first() -> None:
     assert derive_review_disposition(hypothesis) == "viable"
 
 
-@pytest.mark.parametrize(
-    "foreign", ["evidence_blocked", "review_failed", "duplicate"]
-)
+@pytest.mark.parametrize("foreign", ["evidence_blocked", "review_failed", "duplicate"])
 def test_dispositions_owned_elsewhere_are_left_alone(foreign: str) -> None:
     """Evidence gates, failed calls and proximity own their separate
     dispositions."""
@@ -306,9 +290,7 @@ async def test_review_node_revisits_dispositions_with_nothing_to_review(
     async def _fail(*args: Any, **kwargs: Any) -> dict[str, Any]:
         raise AssertionError("review_node must not call the LLM here")
 
-    monkeypatch.setattr(
-        "co_scientist.agents.reflection.review.call_llm_json", _fail
-    )
+    monkeypatch.setattr("co_scientist.agents.reflection.review.call_llm_json", _fail)
 
     await review_node(state)
 
@@ -370,11 +352,7 @@ def test_full_review_prompt_names_every_required_field() -> None:
             "tool_instructions": "",
         },
     )[0]
-    unnamed = [
-        field
-        for field in schema["schema"]["required"]
-        if f"`{field}`" not in template
-    ]
+    unnamed = [field for field in schema["schema"]["required"] if f"`{field}`" not in template]
     assert not unnamed, f"full_review.md does not name {unnamed}"
 
 
@@ -424,22 +402,16 @@ def _hypothesis_with(*reviews: HypothesisReview) -> Hypothesis:
 
 
 def test_a_scientist_review_alone_is_not_a_peer_review() -> None:
-    assert not has_peer_review(
-        _hypothesis_with(_scientist_review_gate_scientist_review(2))
-    )
+    assert not has_peer_review(_hypothesis_with(_scientist_review_gate_scientist_review(2)))
     assert has_peer_review(_hypothesis_with(_agent_review()))
     assert has_peer_review(
-        _hypothesis_with(
-            _scientist_review_gate_scientist_review(2), _agent_review()
-        )
+        _hypothesis_with(_scientist_review_gate_scientist_review(2), _agent_review())
     )
 
 
 def test_the_scheduler_still_counts_a_human_reviewed_idea_unreviewed() -> None:
     state = make_state()
-    state["hypotheses"] = [
-        _hypothesis_with(_scientist_review_gate_scientist_review(8))
-    ]
+    state["hypotheses"] = [_hypothesis_with(_scientist_review_gate_scientist_review(8))]
 
     stats = _compute_stats(state, {})
 
@@ -498,9 +470,7 @@ def test_the_latest_scientist_verdict_wins() -> None:
 
 
 def test_a_scientist_verdict_cannot_reopen_a_foreign_disposition() -> None:
-    hypothesis = _hypothesis_with(
-        _agent_review(), _scientist_review_gate_scientist_review(8)
-    )
+    hypothesis = _hypothesis_with(_agent_review(), _scientist_review_gate_scientist_review(8))
     hypothesis.review_disposition = "evidence_blocked"
 
     assert refresh_review_dispositions([hypothesis]) == 0
@@ -523,9 +493,7 @@ def test_an_admitted_idea_does_not_pull_the_run_into_ranking() -> None:
     become rankable debt."""
     state = _scheduler_pool()
 
-    decision = required_transition(
-        _compute_stats(state, {}), _default_budget(state)
-    )
+    decision = required_transition(_compute_stats(state, {}), _default_budget(state))
 
     assert decision is not None
     assert decision.next_task is TaskType.REFLECT

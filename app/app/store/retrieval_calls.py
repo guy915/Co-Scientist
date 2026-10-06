@@ -136,9 +136,7 @@ class _Origin(NamedTuple):
 _UNKNOWN = _Origin(depth=0, question_id="")
 
 
-def retrieval_call_rows(
-    run_id: str, result: ResearchResult
-) -> list[NewRetrievalCall]:
+def retrieval_call_rows(run_id: str, result: ResearchResult) -> list[NewRetrievalCall]:
     """Persist failures and empty searches separately; otherwise coverage
     cannot distinguish an unreachable source from no results.
     """

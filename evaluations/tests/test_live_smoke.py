@@ -52,9 +52,7 @@ def test_prod_smoke_checks_judge_the_response(
 def test_prod_smoke_runs_every_check_and_status_probes_never_block() -> None:
     transport = httpx.MockTransport(
         lambda request: (
-            httpx.Response(
-                200, json={"status": "healthy", "mcp_available": False}
-            )
+            httpx.Response(200, json={"status": "healthy", "mcp_available": False})
             if "/health" in str(request.url) or "/status" in str(request.url)
             else httpx.Response(404)
         )
@@ -91,9 +89,7 @@ def test_mcp_main_fails_when_any_check_fails(
 
 
 def _reply(status: int, body: object) -> Callable[..., httpx.Response]:
-    response = httpx.Response(
-        status, json=body, request=httpx.Request("GET", "https://x")
-    )
+    response = httpx.Response(status, json=body, request=httpx.Request("GET", "https://x"))
     return lambda *args, **kwargs: response
 
 

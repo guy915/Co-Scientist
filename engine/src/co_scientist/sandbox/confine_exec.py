@@ -48,9 +48,7 @@ def policy_from_json(raw: str) -> SandboxPolicy:
 def _refuse_inexpressible(policy: SandboxPolicy) -> None:
     if landlock.can_enforce(policy):
         return
-    offending = ", ".join(
-        str(root) for root in landlock.unenforceable_roots(policy)
-    )
+    offending = ", ".join(str(root) for root in landlock.unenforceable_roots(policy))
     _fail(
         EXIT_POLICY_REFUSED,
         "landlock cannot express a writable root containing protected "

@@ -24,9 +24,7 @@ from tests._research_fakes import (
 from tests._state import make_state
 
 
-def test_published_retraction_metadata_is_explicit_even_outside_search() -> (
-    None
-):
+def test_published_retraction_metadata_is_explicit_even_outside_search() -> None:
     # Search excludes withdrawn records; attachments and probes also project
     # articles through this shared publishing boundary.
     articles = article_support.build_articles_from_metadata(
@@ -42,8 +40,7 @@ def test_published_retraction_metadata_is_explicit_even_outside_search() -> (
         "pubmed",
     )
     assert all(
-        article.is_retracted and article.correction_status == "retracted"
-        for article in articles
+        article.is_retracted and article.correction_status == "retracted" for article in articles
     )
 
 
@@ -150,16 +147,12 @@ async def _ranked_review(
     count: int | None = None,
 ) -> dict[str, Any]:
     _stub_node(monkeypatch, server_available=True, search_payload=pool)
-    monkeypatch.setattr(
-        search, "merge_search_results", lambda *args, **kwargs: (pool, {})
-    )
+    monkeypatch.setattr(search, "merge_search_results", lambda *args, **kwargs: (pool, {}))
     result = await literature_review_node(
         make_state(
             research_goal=goal,
             model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            literature_review_papers_count=len(pool)
-            if count is None
-            else count,
+            literature_review_papers_count=len(pool) if count is None else count,
         )
     )
     return {article.source_id: article for article in result["articles"]}
@@ -184,6 +177,5 @@ async def test_review_with_negative_budget_keeps_only_lexical_scores(
     assert result["low"].retrieval_score == 0.0
     assert result["high"].retrieval_score == 1.0
     assert all(
-        article.retriever_version == relevance._LEXICAL_ONLY_VERSION
-        for article in result.values()
+        article.retriever_version == relevance._LEXICAL_ONLY_VERSION for article in result.values()
     )

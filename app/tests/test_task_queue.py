@@ -15,9 +15,7 @@ from tests._engine_tasks_helpers import _enqueue, _run, _three_control_tasks
 from tests._store_helpers import enqueue_task
 
 # Lease contention needs real processes; allow for shared CPU contention.
-_SUBPROCESS_TIMEOUT_SECONDS = float(
-    os.getenv("COSCIENTIST_TEST_SUBPROCESS_TIMEOUT_SECONDS", "60")
-)
+_SUBPROCESS_TIMEOUT_SECONDS = float(os.getenv("COSCIENTIST_TEST_SUBPROCESS_TIMEOUT_SECONDS", "60"))
 
 _CLAIM_SCRIPT = """
 import sys
@@ -95,9 +93,7 @@ def test_claim_respects_priority_and_dependencies(isolated_db: str) -> None:
     leased = tasks.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
     assert leased is not None
     assert leased.id == prerequisite.id
-    assert lifecycle.complete_task(
-        leased.id, "worker-a", {"evidence": 2}, db_path=isolated_db
-    )
+    assert lifecycle.complete_task(leased.id, "worker-a", {"evidence": 2}, db_path=isolated_db)
     review = tasks.claim_task("worker-b", run_id=run_id, db_path=isolated_db)
     assert review is not None
     assert review.task_type == "reflection.full"
@@ -105,17 +101,11 @@ def test_claim_respects_priority_and_dependencies(isolated_db: str) -> None:
 
 def test_completion_is_exactly_once(isolated_db: str) -> None:
     run_id = _run()
-    task = enqueue_task(
-        run_id, "ranking.debate", "match:a:b:0", db_path=isolated_db
-    )
+    task = enqueue_task(run_id, "ranking.debate", "match:a:b:0", db_path=isolated_db)
     leased = tasks.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
-    assert lifecycle.complete_task(
-        task.id, "worker-a", {"winner": "a"}, db_path=isolated_db
-    )
-    assert not lifecycle.complete_task(
-        task.id, "worker-a", {"winner": "b"}, db_path=isolated_db
-    )
+    assert lifecycle.complete_task(task.id, "worker-a", {"winner": "a"}, db_path=isolated_db)
+    assert not lifecycle.complete_task(task.id, "worker-a", {"winner": "b"}, db_path=isolated_db)
     [saved] = tasks.list_tasks(run_id, db_path=isolated_db)
     assert saved.result == {"winner": "a"}
 
@@ -124,9 +114,7 @@ def test_multi_process_claim_has_single_lease_winner(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    task = enqueue_task(
-        run_id, "ranking.debate", "multi-process-claim", db_path=isolated_db
-    )
+    task = enqueue_task(run_id, "ranking.debate", "multi-process-claim", db_path=isolated_db)
 
     claimed_ids = _parallel_scripts(
         _CLAIM_SCRIPT,
@@ -150,9 +138,7 @@ def test_multi_process_duplicate_completion_commits_one_effect(
         "multi-process-completion",
         db_path=isolated_db,
     )
-    leased = tasks.claim_task(
-        "shared-worker", run_id=run_id, db_path=isolated_db
-    )
+    leased = tasks.claim_task("shared-worker", run_id=run_id, db_path=isolated_db)
     assert leased is not None
 
     outcomes = _parallel_scripts(
@@ -186,15 +172,11 @@ def test_crashed_process_lease_is_redelivered_after_restart(
         "run_id=sys.argv[2], db_path=sys.argv[1], lease_seconds=0.01",
     )
 
-    [claimed] = _parallel_scripts(
-        crash_script, [[isolated_db, run_id, "crashed-worker"]]
-    )
+    [claimed] = _parallel_scripts(crash_script, [[isolated_db, run_id, "crashed-worker"]])
     assert claimed == task.id
     time.sleep(0.02)
 
-    recovered = tasks.claim_task(
-        "restart-worker", run_id=run_id, db_path=isolated_db
-    )
+    recovered = tasks.claim_task("restart-worker", run_id=run_id, db_path=isolated_db)
     assert recovered is not None
     assert recovered.id == task.id
     assert recovered.attempt == 2
@@ -210,23 +192,13 @@ def test_owned_lease_can_be_renewed_without_redelivery(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    queued = enqueue_task(
-        run_id, "verification.deep", "renew:0", db_path=isolated_db
-    )
-    leased = tasks.claim_task(
-        "worker-a", lease_seconds=0.01, run_id=run_id, db_path=isolated_db
-    )
+    queued = enqueue_task(run_id, "verification.deep", "renew:0", db_path=isolated_db)
+    leased = tasks.claim_task("worker-a", lease_seconds=0.01, run_id=run_id, db_path=isolated_db)
     assert leased is not None
-    assert lifecycle.renew_task_lease(
-        queued.id, "worker-a", 1.0, db_path=isolated_db
-    )
+    assert lifecycle.renew_task_lease(queued.id, "worker-a", 1.0, db_path=isolated_db)
     time.sleep(0.02)
-    assert (
-        tasks.claim_task("worker-b", run_id=run_id, db_path=isolated_db) is None
-    )
-    assert not lifecycle.renew_task_lease(
-        queued.id, "worker-b", 1.0, db_path=isolated_db
-    )
+    assert tasks.claim_task("worker-b", run_id=run_id, db_path=isolated_db) is None
+    assert not lifecycle.renew_task_lease(queued.id, "worker-b", 1.0, db_path=isolated_db)
 
 
 def test_failure_retries_then_stops(isolated_db: str) -> None:
@@ -243,12 +215,8 @@ def test_failure_retries_then_stops(isolated_db: str) -> None:
     assert tasks.fail_task(first.id, "worker-a", "timeout", db_path=isolated_db)
     second = tasks.claim_task("worker-b", run_id=run_id, db_path=isolated_db)
     assert second is not None and second.attempt == 2
-    assert tasks.fail_task(
-        second.id, "worker-b", "timeout", db_path=isolated_db
-    )
-    assert (
-        tasks.claim_task("worker-c", run_id=run_id, db_path=isolated_db) is None
-    )
+    assert tasks.fail_task(second.id, "worker-b", "timeout", db_path=isolated_db)
+    assert tasks.claim_task("worker-c", run_id=run_id, db_path=isolated_db) is None
     [saved] = tasks.list_tasks(run_id, db_path=isolated_db)
     assert saved.status == "failed"
 
@@ -257,9 +225,7 @@ def test_task_progress_is_monotonic_and_budget_derived(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    first = _enqueue(
-        run_id, "retrieval.pubmed", "progress:retrieval", isolated_db
-    )
+    first = _enqueue(run_id, "retrieval.pubmed", "progress:retrieval", isolated_db)
     _enqueue(run_id, "generation.initial", "progress:generation", isolated_db)
     initial = tasks.task_progress(run_id, db_path=isolated_db)
     assert initial == {
@@ -277,9 +243,7 @@ def test_task_progress_is_monotonic_and_budget_derived(
     assert active["fraction"] == 0.0
     assert active["active_task"] == "retrieval.pubmed"
 
-    assert lifecycle.complete_task(
-        first.id, "worker", {"count": 4}, db_path=isolated_db
-    )
+    assert lifecycle.complete_task(first.id, "worker", {"count": 4}, db_path=isolated_db)
     completed = tasks.task_progress(run_id, db_path=isolated_db)
     assert completed["fraction"] == 0.5
     assert completed["completed_tasks"] == 1
@@ -289,9 +253,7 @@ def test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    enqueue_task(
-        run_id, "engine.bootstrap", "engine-bootstrap", db_path=isolated_db
-    )
+    enqueue_task(run_id, "engine.bootstrap", "engine-bootstrap", db_path=isolated_db)
     progress = tasks.task_progress(run_id, db_path=isolated_db)
     assert progress["determinate"] is False
     assert progress["fraction"] is None
@@ -302,24 +264,19 @@ def test_cancel_run_tasks_revokes_queued_leased_and_paused_work(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    first = enqueue_task(
-        run_id, "engine.node.review", "cancel:first", db_path=isolated_db
-    )
-    enqueue_task(
-        run_id, "engine.node.ranking", "cancel:second", db_path=isolated_db
-    )
-    enqueue_task(
-        run_id, "engine.node.review", "cancel:paused", db_path=isolated_db
-    )
+    first = enqueue_task(run_id, "engine.node.review", "cancel:first", db_path=isolated_db)
+    enqueue_task(run_id, "engine.node.ranking", "cancel:second", db_path=isolated_db)
+    enqueue_task(run_id, "engine.node.review", "cancel:paused", db_path=isolated_db)
     assert tasks.claim_task("worker", run_id=run_id, db_path=isolated_db)
-    assert lifecycle.pause_run_tasks(run_id, db_path=isolated_db) == 2
+    with db.transaction(isolated_db) as conn:
+        parked = conn.execute(
+            "UPDATE scientific_tasks SET status='paused' WHERE run_id=? AND status='queued'",
+            (run_id,),
+        ).rowcount
+    assert parked == 2
     assert lifecycle.cancel_run_tasks(run_id, db_path=isolated_db) == 3
-    assert not lifecycle.complete_task(
-        first.id, "worker", {"late": True}, db_path=isolated_db
-    )
-    statuses = {
-        task.status for task in tasks.list_tasks(run_id, db_path=isolated_db)
-    }
+    assert not lifecycle.complete_task(first.id, "worker", {"late": True}, db_path=isolated_db)
+    statuses = {task.status for task in tasks.list_tasks(run_id, db_path=isolated_db)}
     assert statuses == {"cancelled"}
 
 
@@ -342,24 +299,19 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
         "pause:predecessor",
         db_path=isolated_db,
     )
-    leased = tasks.claim_task(
-        "predecessor-worker", run_id=run_id, db_path=isolated_db
-    )
+    leased = tasks.claim_task("predecessor-worker", run_id=run_id, db_path=isolated_db)
     assert leased is not None and leased.id == predecessor.id
-    assert lifecycle.complete_task(
-        predecessor.id, "predecessor-worker", {}, db_path=isolated_db
-    )
+    assert lifecycle.complete_task(predecessor.id, "predecessor-worker", {}, db_path=isolated_db)
 
-    active = enqueue_task(
-        run_id, "engine.node.ranking", "pause:active-lease", db_path=isolated_db
-    )
-    leased = tasks.claim_task(
-        "active-worker", run_id=run_id, db_path=isolated_db
-    )
+    active = enqueue_task(run_id, "engine.node.ranking", "pause:active-lease", db_path=isolated_db)
+    leased = tasks.claim_task("active-worker", run_id=run_id, db_path=isolated_db)
     assert leased is not None and leased.id == active.id
 
     with db.transaction(isolated_db) as conn:
-        lifecycle.pause_run_tasks(run_id, conn=conn)
+        conn.execute(
+            "UPDATE scientific_tasks SET status='paused' WHERE run_id=? AND status='queued'",
+            (run_id,),
+        )
         runs.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
 
     enqueue_task(
@@ -381,18 +333,13 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
             (time.time() + 3600, delayed.id),
         )
 
-    assert (
-        tasks.claim_task("new-worker", run_id=run_id, db_path=isolated_db)
-        is None
-    )
+    assert tasks.claim_task("new-worker", run_id=run_id, db_path=isolated_db) is None
     assert lifecycle.cohort_poll(run_id, db_path=isolated_db) == (
         False,
         True,
         None,
     )
-    assert lifecycle.complete_task(
-        active.id, "active-worker", {}, db_path=isolated_db
-    )
+    assert lifecycle.complete_task(active.id, "active-worker", {}, db_path=isolated_db)
     assert lifecycle.cohort_poll(run_id, db_path=isolated_db) == (
         False,
         False,
@@ -407,19 +354,14 @@ def test_claim_rechecks_pause_after_advisory_probe(
     task = _enqueue(run_id, "engine.node.generate", "pause:racing", isolated_db)
     advisory_probe = task_store._has_claimable_task
 
-    def pause_after_probe(
-        probed_run_id: str | None, db_path: str | None
-    ) -> bool:
+    def pause_after_probe(probed_run_id: str | None, db_path: str | None) -> bool:
         claimable = advisory_probe(probed_run_id, db_path)
         runs.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)
         return claimable
 
     monkeypatch.setattr(task_store, "_has_claimable_task", pause_after_probe)
 
-    assert (
-        tasks.claim_task("racing-worker", run_id=run_id, db_path=isolated_db)
-        is None
-    )
+    assert tasks.claim_task("racing-worker", run_id=run_id, db_path=isolated_db) is None
     still_queued = tasks.get_task(task.id, db_path=isolated_db)
     assert still_queued is not None and still_queued.status == "queued"
 
@@ -428,12 +370,8 @@ def test_paused_cohort_does_not_wait_for_expired_retryable_engine_lease(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    task = _enqueue(
-        run_id, "engine.node.generate", "pause:expired", isolated_db
-    )
-    leased = tasks.claim_task(
-        "expired-worker", run_id=run_id, db_path=isolated_db
-    )
+    task = _enqueue(run_id, "engine.node.generate", "pause:expired", isolated_db)
+    leased = tasks.claim_task("expired-worker", run_id=run_id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
     with db.connect(isolated_db) as conn:
         conn.execute(
@@ -453,9 +391,7 @@ def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    promoted_id, cancelled_id, failed_id = _three_control_tasks(
-        run_id, isolated_db
-    )
+    promoted_id, cancelled_id, failed_id = _three_control_tasks(run_id, isolated_db)
 
     assert lifecycle.reprioritize_task(
         promoted_id,
@@ -474,9 +410,7 @@ def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
         db_path=isolated_db,
     )
 
-    by_id = {
-        task.id: task for task in tasks.list_tasks(run_id, db_path=isolated_db)
-    }
+    by_id = {task.id: task for task in tasks.list_tasks(run_id, db_path=isolated_db)}
     assert by_id[promoted_id].priority == 99
     assert by_id[cancelled_id].status == "cancelled"
     assert by_id[failed_id].status == "queued"

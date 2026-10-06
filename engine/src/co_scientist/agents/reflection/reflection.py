@@ -50,15 +50,11 @@ def _format_confirmed_strengths(positives: list[str]) -> str:
     return "\n".join(lines)
 
 
-def apply_observation_result(
-    hypothesis: Hypothesis, result: dict[str, Any] | None
-) -> None:
+def apply_observation_result(hypothesis: Hypothesis, result: dict[str, Any] | None) -> None:
     """Ranking parses the Classification suffix; preserve it even on failure.
     Absent strengths retain the legacy no-finding record shape."""
     if result is None:
-        hypothesis.reflection_notes = (
-            "Analysis failed\n\nClassification: neutral"
-        )
+        hypothesis.reflection_notes = "Analysis failed\n\nClassification: neutral"
         return
 
     classification = str(result.get("classification", "neutral"))
@@ -80,9 +76,7 @@ def apply_observation_result(
     hypothesis.enrichments["observation"] = observation
 
 
-def store_indra_enrichment(
-    hypothesis: Hypothesis, result: dict[str, Any]
-) -> None:
+def store_indra_enrichment(hypothesis: Hypothesis, result: dict[str, Any]) -> None:
     enrichment_items = result.get("indra_enrichment_items", [])
     if enrichment_items:
         hypothesis.enrichments["indra_evidence"] = enrichment_items
@@ -118,9 +112,7 @@ async def observe_hypothesis(
         tool_registry=state.get("tool_registry"),
         meta_review=state.get("meta_review"),
     )
-    return await analyze_single_hypothesis(
-        hypothesis, hypothesis_index, total_count, context
-    )
+    return await analyze_single_hypothesis(hypothesis, hypothesis_index, total_count, context)
 
 
 async def analyze_single_hypothesis(
@@ -129,13 +121,9 @@ async def analyze_single_hypothesis(
     total_count: int,
     context: _ReflectionContext,
 ) -> dict[str, Any] | None:
-    logger.debug(
-        "\n→ analyzing hypothesis %s/%s", hypothesis_index, total_count
-    )
+    logger.debug("\n→ analyzing hypothesis %s/%s", hypothesis_index, total_count)
     call = await _prepare_reflection_call(hypothesis, context, hypothesis_index)
-    return await _run_reflection_llm_or_none(
-        call, context, hypothesis_index, total_count
-    )
+    return await _run_reflection_llm_or_none(call, context, hypothesis_index, total_count)
 
 
 async def _run_reflection_llm_or_none(
@@ -148,15 +136,11 @@ async def _run_reflection_llm_or_none(
     their reviews."""
     try:
         response = await _call_reflection_llm(call, context, hypothesis_index)
-        return _format_reflection_result(
-            response, call.indra_data, hypothesis_index
-        )
+        return _format_reflection_result(response, call.indra_data, hypothesis_index)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
-        logger.error(
-            "Reflection failed for hypothesis %s: %s", hypothesis_index, e
-        )
+        logger.error("Reflection failed for hypothesis %s: %s", hypothesis_index, e)
         return None
 
 
@@ -213,9 +197,7 @@ def _format_reflection_result(
     classification = response.get("classification", "neutral")
     reasoning = response.get("reasoning", "")
 
-    logger.debug(
-        "hypothesis %s classification: %s", hypothesis_index, classification
-    )
+    logger.debug("hypothesis %s classification: %s", hypothesis_index, classification)
 
     return {
         "classification": classification,
@@ -240,9 +222,7 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
 
     await _run_reflection_phase(state, hypotheses, articles_with_reasoning)
 
-    logger.info(
-        "Completed reflection analysis for %s hypotheses", len(hypotheses)
-    )
+    logger.info("Completed reflection analysis for %s hypotheses", len(hypotheses))
 
     return _build_reflection_result(hypotheses)
 
@@ -261,9 +241,7 @@ async def _run_reflection_phase(
     )
 
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
-    analysis_results = await _run_reflection_analysis(
-        state, hypotheses, articles_with_reasoning
-    )
+    analysis_results = await _run_reflection_analysis(state, hypotheses, articles_with_reasoning)
 
     _apply_reflection_results(hypotheses, analysis_results)
 
@@ -283,9 +261,7 @@ async def _run_reflection_analysis(
 ) -> list[dict[str, Any] | None]:
     """gather preserves input order so positional hypothesis/result pairing
     stays valid."""
-    analysis_tasks = _build_analysis_tasks(
-        state, hypotheses, articles_with_reasoning
-    )
+    analysis_tasks = _build_analysis_tasks(state, hypotheses, articles_with_reasoning)
     return await asyncio.gather(*analysis_tasks)
 
 
@@ -306,9 +282,7 @@ def _extract_reflection_inputs(
 ) -> tuple[str, list[Hypothesis]] | None:
     articles_with_reasoning = state.get("articles_with_reasoning")
     if not articles_with_reasoning:
-        logger.warning(
-            "No articles_with_reasoning in state, skipping reflection"
-        )
+        logger.warning("No articles_with_reasoning in state, skipping reflection")
         return None
 
     hypotheses = state.get("hypotheses", [])
@@ -377,7 +351,5 @@ async def _fetch_indra_for_hypothesis(
             )
         return result
     except Exception as e:
-        logger.debug(
-            "hypothesis %s: INDRA fetch skipped: %s", hypothesis_index, e
-        )
+        logger.debug("hypothesis %s: INDRA fetch skipped: %s", hypothesis_index, e)
         return empty

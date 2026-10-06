@@ -69,9 +69,7 @@ def make_verification_response(**overrides: Any) -> dict[str, Any]:
     }
 
 
-def make_ranking_response(
-    winner: str = "a", **overrides: Any
-) -> dict[str, Any]:
+def make_ranking_response(winner: str = "a", **overrides: Any) -> dict[str, Any]:
     return {
         "winner": winner,
         "decision_summary": "stub decision",
@@ -80,9 +78,7 @@ def make_ranking_response(
     }
 
 
-def make_allocation_response(
-    task: str, reason: str, **overrides: Any
-) -> dict[str, Any]:
+def make_allocation_response(task: str, reason: str, **overrides: Any) -> dict[str, Any]:
     return {"next_task": task, "reason": reason, **overrides}
 
 
@@ -147,9 +143,7 @@ def make_state(**overrides: Any) -> WorkflowState:
 
 
 class _ToolsRecorder:
-    def __init__(
-        self, hypotheses: list[Hypothesis], llm_calls: int = 0
-    ) -> None:
+    def __init__(self, hypotheses: list[Hypothesis], llm_calls: int = 0) -> None:
         self._hypotheses = hypotheses
         self.llm_calls = llm_calls
         self.called = False
@@ -192,9 +186,7 @@ class _DebateRecorder:
 
 
 class _AssumptionsRecorder:
-    def __init__(
-        self, hypotheses: list[Hypothesis], llm_calls: int = 0
-    ) -> None:
+    def __init__(self, hypotheses: list[Hypothesis], llm_calls: int = 0) -> None:
         self._hypotheses = hypotheses
         self.llm_calls = llm_calls
         self.called = False
@@ -249,10 +241,7 @@ def healthy_stats(**overrides: object) -> SchedulerStats:
 
 
 def _stacked(*companions: str) -> list[dict[str, Any]]:
-    return [
-        {"action": "enqueue", "task_type": task, "reason": "stacked"}
-        for task in companions
-    ]
+    return [{"action": "enqueue", "task_type": task, "reason": "stacked"} for task in companions]
 
 
 def decision_states() -> list[WorkflowState]:

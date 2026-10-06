@@ -24,9 +24,7 @@ from co_scientist.state import WorkflowState
 CHECKPOINT_VERSION = 1
 
 # Runtime collection objects need explicit JSON serialization.
-_SPECIAL_COLLECTION_KEYS = frozenset(
-    {"hypotheses", "metrics", "articles", "messages"}
-)
+_SPECIAL_COLLECTION_KEYS = frozenset({"hypotheses", "metrics", "articles", "messages"})
 
 
 def _serialize_messages(messages: Any) -> list[dict[str, Any]]:
@@ -44,9 +42,7 @@ def _deserialize_messages(raw: Any) -> list[Any]:
     pass through.
     """
     items = list(raw or [])
-    if items and all(
-        isinstance(m, dict) and "type" in m and "data" in m for m in items
-    ):
+    if items and all(isinstance(m, dict) and "type" in m and "data" in m for m in items):
         return list(messages_from_dict(items))
     return items
 
@@ -56,9 +52,7 @@ _EXCLUDED_RUNTIME_KEYS = frozenset({"progress_callback", "tool_registry"})
 
 # Do not checkpoint attempt-local retry rights or steering flags; restore them
 # from durable owners.
-_TRANSIENT_CONTROL_KEYS = frozenset(
-    {"resume", "pending_steering", "durable_retries_remain"}
-)
+_TRANSIENT_CONTROL_KEYS = frozenset({"resume", "pending_steering", "durable_retries_remain"})
 
 # Persist active seconds so checkpoint pauses do not consume wall-clock budgets.
 _REBASED_TIME_KEYS = frozenset({"start_time"})
@@ -111,9 +105,7 @@ def serialize_workflow_state(
     """
     payload: dict[str, Any] = {key: state.get(key) for key in _PLAIN_STATE_KEYS}
     start_time = state.get("start_time")
-    payload["elapsed_active_s"] = (
-        max(0.0, time.time() - float(start_time)) if start_time else 0.0
-    )
+    payload["elapsed_active_s"] = max(0.0, time.time() - float(start_time)) if start_time else 0.0
     payload.update(_serialize_typed_collections(state))
 
     return {
@@ -126,16 +118,10 @@ def serialize_workflow_state(
 
 
 def _restore_typed_collections(payload: dict[str, Any]) -> None:
-    payload["hypotheses"] = [
-        Hypothesis.from_dict(h) for h in payload.get("hypotheses", [])
-    ]
-    payload["metrics"] = ExecutionMetrics.from_dict(
-        payload.get("metrics") or {}
-    )
+    payload["hypotheses"] = [Hypothesis.from_dict(h) for h in payload.get("hypotheses", [])]
+    payload["metrics"] = ExecutionMetrics.from_dict(payload.get("metrics") or {})
     articles = payload.get("articles")
-    payload["articles"] = (
-        [Article.from_dict(a) for a in articles] if articles else articles
-    )
+    payload["articles"] = [Article.from_dict(a) for a in articles] if articles else articles
     payload["messages"] = _deserialize_messages(payload.get("messages"))
 
 

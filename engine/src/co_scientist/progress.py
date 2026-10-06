@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Task-local state keeps concurrent runs' fallback records isolated.
-_ACTIVE_WORKFLOW_STATE: contextvars.ContextVar["WorkflowState | None"] = (
-    contextvars.ContextVar("co_scientist_active_workflow_state", default=None)
+_ACTIVE_WORKFLOW_STATE: contextvars.ContextVar["WorkflowState | None"] = contextvars.ContextVar(
+    "co_scientist_active_workflow_state", default=None
 )
 
 # Keep strong references until asynchronous delivery completes; loops may
@@ -43,9 +43,7 @@ async def emit_progress(
         )
 
 
-def record_schema_degradation(
-    schema_name: str, state: "WorkflowState | None" = None
-) -> None:
+def record_schema_degradation(schema_name: str, state: "WorkflowState | None" = None) -> None:
     """Prefer losing a degradation label to recording it in another run.
     Explicit state avoids depending on whether the node emitted progress
     first.

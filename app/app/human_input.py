@@ -123,9 +123,7 @@ def build_human_review(
 ) -> HumanReview:
     normalized = verdict.strip().lower()
     if normalized not in _VALID_VERDICTS:
-        raise ValueError(
-            f"verdict must be one of {sorted(_VALID_VERDICTS)}, got {verdict!r}"
-        )
+        raise ValueError(f"verdict must be one of {sorted(_VALID_VERDICTS)}, got {verdict!r}")
     return HumanReview(
         hypothesis_id=hypothesis_id,
         author=author,

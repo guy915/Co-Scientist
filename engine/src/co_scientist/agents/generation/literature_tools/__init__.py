@@ -33,24 +33,21 @@ def _log_warm_start_diagnostics(articles: list[Any] | None) -> None:
 
     used_count = _count_used_articles(articles)
     logger.debug(
-        "state.articles contains %s total articles,"
-        " %s with used_in_analysis=True",
+        "state.articles contains %s total articles, %s with used_in_analysis=True",
         len(articles),
         used_count,
     )
     if used_count > 0:
         articles_with_pdfs = _count_used_articles_with_pdfs(articles)
         logger.info(
-            "Including %s analyzed articles in prompt"
-            " (%s with PDFs, %s abstract-only)",
+            "Including %s analyzed articles in prompt (%s with PDFs, %s abstract-only)",
             used_count,
             articles_with_pdfs,
             used_count - articles_with_pdfs,
         )
     else:
         logger.warning(
-            "No articles with used_in_analysis=True found in state"
-            " - agent will search fresh"
+            "No articles with used_in_analysis=True found in state - agent will search fresh"
         )
 
 
@@ -116,9 +113,7 @@ async def generate_with_tools(
     count: int,
     reference_index: Optional["ReferenceIndex"] = None,
 ) -> tuple[list[Hypothesis], int]:
-    logger.info(
-        "Generating %s hypotheses with two-phase tool-based process", count
-    )
+    logger.info("Generating %s hypotheses with two-phase tool-based process", count)
 
     tool_registry = state.get("tool_registry")
     mcp_client = await _get_mcp_client_for_generation(tool_registry)

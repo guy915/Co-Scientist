@@ -33,18 +33,14 @@ def applies(
     execution_policy: str,
     llm_backend: str,
 ) -> bool:
-    return (
-        byok is None and execution_policy != CAMPAIGN and llm_backend == "real"
-    )
+    return byok is None and execution_policy != CAMPAIGN and llm_backend == "real"
 
 
 def check_request(req: CreateRunRequest, tier: str) -> None:
     """Numeric overrides cannot enlarge a free express run beyond its funded
     envelope.
     """
-    if tier != FREE_TIER or any(
-        getattr(req, knob) is not None for knob in _NUMERIC_KNOBS
-    ):
+    if tier != FREE_TIER or any(getattr(req, knob) is not None for knob in _NUMERIC_KNOBS):
         raise HTTPException(
             status_code=403,
             detail=(
@@ -68,8 +64,7 @@ def _day_bounds(now: float) -> tuple[float, float]:
 def used_today(conn: sqlite3.Connection, owner: str, now: float) -> int:
     start, _ = _day_bounds(now)
     row = conn.execute(
-        "SELECT COUNT(*) FROM free_run_usage "
-        "WHERE client_id=? AND created_at>=?",
+        "SELECT COUNT(*) FROM free_run_usage WHERE client_id=? AND created_at>=?",
         (owner, start),
     ).fetchone()
     return int(row[0])
@@ -86,8 +81,7 @@ def claim_free_run(conn: sqlite3.Connection, owner: str, run_id: str) -> None:
     if limit is not None and used_today(conn, owner, now) >= limit:
         raise FreeUsageExhaustedError
     conn.execute(
-        "INSERT INTO free_run_usage (run_id, client_id, created_at) "
-        "VALUES (?,?,?)",
+        "INSERT INTO free_run_usage (run_id, client_id, created_at) VALUES (?,?,?)",
         (run_id, owner, now),
     )
 

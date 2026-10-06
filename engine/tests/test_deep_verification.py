@@ -130,8 +130,6 @@ async def test_verification_grounds_probes_in_corpus_when_mcp_down(
     assert "Sertraline membrane study" in probe_evidence
     assert "Unrelated ecology survey" not in probe_evidence
     assert "Retracted sertraline study" not in second_prompt
-    result_errors = output["hypotheses"][0].enrichments["deep_verification"][
-        "retrieval_errors"
-    ]
+    result_errors = output["hypotheses"][0].enrichments["deep_verification"]["retrieval_errors"]
     assert dve.CORPUS_FALLBACK_NOTE in result_errors
     assert output["hypotheses"][0].deep_verification_verdict == "holds"

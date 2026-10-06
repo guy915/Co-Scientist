@@ -82,12 +82,9 @@ def resolve_tool_effects(mcp_tool_name: str) -> ToolEffect:
         from co_scientist.config.registry import get_tool_registry
 
         tool = get_tool_registry().get_tool_by_mcp_name(mcp_tool_name)
-    except (
-        Exception
-    ):  # Lookup failure must degrade to serial execution, never break a run.
+    except Exception:  # Lookup failure must degrade to serial execution, never break a run.
         logger.warning(
-            "tool registry unavailable resolving effects for %r; "
-            "treating the tool as a barrier",
+            "tool registry unavailable resolving effects for %r; treating the tool as a barrier",
             mcp_tool_name,
         )
         return UNDECLARED_EFFECTS

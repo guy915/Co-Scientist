@@ -6,12 +6,12 @@ from typing import Any, TypedDict
 
 from typing_extensions import Unpack
 
-from app.store import checkpoints, runs, tasks
+from app.store import checkpoints, events, runs, tasks
 from app.store import db as store_db
 from app.store import hypotheses as store
 from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import NewHypothesis
-from app.store.models import RunRow, ScientificTask
+from app.store.models import RunRow, RunStatus, ScientificTask
 from app.store.runs import RunCreateOptions
 from app.store.tasks import NewTask
 
@@ -24,9 +24,7 @@ def _add(
     mechanism: str = "",
 ) -> str:
     return store.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id, title=title, statement=statement, mechanism=mechanism
-        ),
+        NewHypothesis(run_id=run_id, title=title, statement=statement, mechanism=mechanism),
         db_path=db,
     )
 
@@ -47,10 +45,7 @@ def seed_run(
         profile,
         provider,
         {} if config is None else config,
-        options
-        or RunCreateOptions(
-            client_id=client_id, llm_backend=llm_backend, db_path=db_path
-        ),
+        options or RunCreateOptions(client_id=client_id, llm_backend=llm_backend, db_path=db_path),
     )
 
 
@@ -178,3 +173,33 @@ def event_seqs(
         if event["type"] == event_type
         and all(event["payload"].get(k) == v for k, v in payload.items())
     ]
+
+
+def pause_run(run_id: str, *, db_path: str | None = None) -> None:
+    """Seed the paused state a safety hold leaves: queued tasks parked, run PAUSED."""
+    with store_db.transaction(db_path) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='paused' WHERE run_id=? AND status='queued'",
+            (run_id,),
+        )
+        runs.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
+        events.append_event(run_id, "lifecycle", {"event": "pause_requested"}, conn=conn)
+
+
+async def resume_run_async(run_id: str) -> None:
+    """Drive the resume path the safety-hold release and startup recovery share."""
+    import asyncio
+
+    from app.runs import lifecycle as runs_lifecycle
+
+    await runs_lifecycle._launch_resume(run_id)
+    await asyncio.gather(*list(runs_lifecycle._resume_tasks))
+
+
+def resume_run(run_id: str) -> None:
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    # A fresh thread has no running loop, so callers may sit inside one.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(asyncio.run, resume_run_async(run_id)).result()

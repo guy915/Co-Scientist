@@ -30,9 +30,7 @@ from app.store import runs_views as views
 from app.store.models import RunRow, RunStatus, ScientificTask
 
 
-def _finalize_replay_or_none(
-    run: RunRow, *, db_path: str | None
-) -> dict[str, Any] | None:
+def _finalize_replay_or_none(run: RunRow, *, db_path: str | None) -> dict[str, Any] | None:
     if run.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled before finalization")
     already_published = (
@@ -44,9 +42,7 @@ def _finalize_replay_or_none(
     return None
 
 
-def _settle_finalize_outcome(
-    run_id: str, db_path: str | None
-) -> dict[str, Any]:
+def _settle_finalize_outcome(run_id: str, db_path: str | None) -> dict[str, Any]:
     run = runs.get_run(run_id, db_path=db_path)
     status = run.status if run else "missing"
     if (
@@ -63,9 +59,7 @@ def _pause_finalize_if_requested(
     run = runs.get_run(commit.task.run_id, db_path=commit.db_path)
     if run is None or run.status != RunStatus.PAUSED.value:
         return None
-    checkpoint_seq = _save_paused_state_if_requested(
-        commit, state, FINALIZE_TASK
-    )
+    checkpoint_seq = _save_paused_state_if_requested(commit, state, FINALIZE_TASK)
     if checkpoint_seq is None:
         return None
     return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
@@ -83,14 +77,12 @@ def _commit_finalize_drain(
     envelope = serialize_workflow_state(state, last_event_seq=0)
     with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
-        status = conn.execute(
-            "SELECT status FROM runs WHERE id=?", (task.run_id,)
-        ).fetchone()["status"]
+        status = conn.execute("SELECT status FROM runs WHERE id=?", (task.run_id,)).fetchone()[
+            "status"
+        ]
         if status == RunStatus.PAUSED.value:
             views.clear_publication_artifacts(task.run_id, conn=conn)
-            envelope["last_event_seq"] = events.latest_event_seq(
-                task.run_id, conn=conn
-            )
+            envelope["last_event_seq"] = events.latest_event_seq(task.run_id, conn=conn)
             checkpoint_seq = _save_paused_checkpoint(
                 commit,
                 state,
@@ -131,8 +123,7 @@ def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
         stage=MONITOR_STAGE,
         decision="block",
         reason=str(
-            record.get("reason")
-            or "The research direction reached prohibited content mid-run."
+            record.get("reason") or "The research direction reached prohibited content mid-run."
         ),
         matches=[str(match) for match in (record.get("matches") or [])],
         category=str(record.get("outcome") or "prohibited"),
@@ -153,9 +144,7 @@ async def _halt_finalize_if_blocked(
         return None
     decision = _monitor_halt_decision(state)
     emit = make_emitter(run.id, db_path=db_path)
-    async for _ in apply_safety_gate(
-        run.id, decision, emit, db_path=db_path, task=task
-    ):
+    async for _ in apply_safety_gate(run.id, decision, emit, db_path=db_path, task=task):
         pass
     return {"run_id": run.id, "status": RunStatus.BLOCKED.value}
 
@@ -167,9 +156,7 @@ async def _drain_and_persist_final_state(
 ) -> tuple[Any, float, dict[str, Any]]:
     final_state = _plain_final_state(state)
     views.clear_publication_artifacts(run.id, db_path=db_path)
-    drained = await persist_final_state(
-        run_id=run.id, final_state=final_state, db_path=db_path
-    )
+    drained = await persist_final_state(run_id=run.id, final_state=final_state, db_path=db_path)
     metrics = _metrics_snapshot(final_state)
     execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
     return drained, execution_time, metrics
@@ -210,9 +197,7 @@ async def _publish_finalize_report(
         pass
 
 
-async def execute_finalize(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
+async def execute_finalize(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
     run = _require_run(task, db_path)
     replayed = _finalize_replay_or_none(run, db_path=db_path)
     if replayed is not None:
@@ -231,9 +216,7 @@ async def execute_finalize(
     if paused is not None:
         return paused
     emit = make_emitter(run.id, db_path=db_path)
-    await _publish_finalize_report(
-        run, task, drained, execution_time, emit, db_path
-    )
+    await _publish_finalize_report(run, task, drained, execution_time, emit, db_path)
     # Input posted during publication has no continuation task yet; reopen
     # completed runs with pending contributions.
     reopen_for_pending_scientist_input(run.id, db_path=db_path)

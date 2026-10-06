@@ -34,15 +34,9 @@ def _render_research_goal_details(
     if not isinstance(setup, dict):
         return []
     fields = [
-        _render_setup_list(
-            "Requirements", _plain_setup_strings(setup.get("requirements"))
-        ),
-        _render_setup_list(
-            "Attributes", attribute_display_strings(setup.get("attributes"))
-        ),
-        _render_setup_list(
-            "Criteria", criteria_display_strings(setup.get("criteria"))
-        ),
+        _render_setup_list("Requirements", _plain_setup_strings(setup.get("requirements"))),
+        _render_setup_list("Attributes", attribute_display_strings(setup.get("attributes"))),
+        _render_setup_list("Criteria", criteria_display_strings(setup.get("criteria"))),
     ]
     if not any(fields):
         return []
@@ -56,12 +50,9 @@ def _render_provenance_line(prepared_at: float | None) -> list[str]:
     """Omit unknown timestamps rather than invent report provenance."""
     if prepared_at is None:
         return []
-    date = datetime.datetime.fromtimestamp(
-        prepared_at, tz=datetime.timezone.utc
-    ).date()
+    date = datetime.datetime.fromtimestamp(prepared_at, tz=datetime.timezone.utc).date()
     return [
-        f"_Prepared by {_SYSTEM_NAME} on {date.isoformat()}."
-        " For research purposes only._",
+        f"_Prepared by {_SYSTEM_NAME} on {date.isoformat()}. For research purposes only._",
         "",
     ]
 
@@ -95,11 +86,7 @@ def _section_heading(section: list[str]) -> str | None:
 
 
 def _render_table_of_contents(sections: list[list[str]]) -> list[str]:
-    labels = [
-        heading
-        for section in sections
-        if (heading := _section_heading(section)) is not None
-    ]
+    labels = [heading for section in sections if (heading := _section_heading(section)) is not None]
     if not labels:
         return []
     lines = ["#### Table of contents:", ""]
@@ -209,9 +196,7 @@ def _render_knowledge_base_markdown(topics: list[dict[str, Any]]) -> list[str]:
     return ["\n## Knowledge Base\n", *lines]
 
 
-def _theme_heading(
-    topic: dict[str, Any], current: str
-) -> tuple[str, list[str]]:
+def _theme_heading(topic: dict[str, Any], current: str) -> tuple[str, list[str]]:
     label = str(topic.get("theme") or "").strip() or _FLAT_LABEL
     if label == current:
         return label, []

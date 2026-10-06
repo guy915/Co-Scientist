@@ -15,9 +15,7 @@ def test_comparison_a_populated_comparison_renders_domain_aware_axes() -> None:
     markdown = _meta_review_markdown(
         {
             "candidate_comparison": {
-                "thematic_summary": (
-                    "The ideas split into two mechanistic themes."
-                ),
+                "thematic_summary": ("The ideas split into two mechanistic themes."),
                 "axes": ["Off-target risk", "Model system"],
                 "ideas": [
                     {
@@ -56,9 +54,7 @@ def test_unreviewed_scientist_admission_notice_leads_the_entry() -> None:
         "statement": "A contributed statement.",
     }
 
-    lines = report_markdown_hypothesis._render_hypothesis_entry(
-        1, hyp, [], [], []
-    )
+    lines = report_markdown_hypothesis._render_hypothesis_entry(1, hyp, [], [], [])
 
     assert lines[1] == _HYPOTHESIS_DISCLAIMER
     assert lines[2] == ""
@@ -71,9 +67,7 @@ def test_unreviewed_scientist_admission_notice_leads_the_entry() -> None:
 # settled facts.
 
 
-def _hypothesis(
-    identifier: str, title: str, **extra: object
-) -> dict[str, object]:
+def _hypothesis(identifier: str, title: str, **extra: object) -> dict[str, object]:
     return {
         "id": identifier,
         "title": title,

@@ -92,13 +92,9 @@ def test_repeated_captures_collapse_and_distinct_papers_survive() -> None:
             _evidence("ev-3", title="Paper A", pmid="111"),
             _evidence("ev-4", title="Paper A (variant)", pmid="111"),
             _evidence("ev-5", title="Paper B", url="https://x.example/b"),
-            _evidence(
-                "ev-6", title="Paper B (variant)", url="https://x.example/b"
-            ),
+            _evidence("ev-6", title="Paper B (variant)", url="https://x.example/b"),
             _evidence("ev-7", title="Paper C", url="", authors=[], year=None),
-            _evidence(
-                "ev-8", title="  paper c  ", url="", authors=[], year=None
-            ),
+            _evidence("ev-8", title="  paper c  ", url="", authors=[], year=None),
             _evidence("ev-9", title="Paper E", doi="10.1/e"),
             _evidence("ev-10", title="Paper F", doi="10.1/f"),
         ]
@@ -148,17 +144,13 @@ def _bibliography_markdown(
     citations: list[dict[str, object]] | None = None,
     evidence: list[dict[str, object]] | None = None,
 ) -> str:
-    return render_markdown(
-        top_hypotheses=hypotheses, citations=citations, evidence=evidence
-    )
+    return render_markdown(top_hypotheses=hypotheses, citations=citations, evidence=evidence)
 
 
 def test_a_resolvable_key_prints_its_reference_entry_in_numeric_order() -> None:
     markdown = _bibliography_markdown(
         [
-            _referenced_hypothesis(
-                "h1", "RSK1 acts on NHE1 [C1], confirmed in vivo [C2]."
-            ),
+            _referenced_hypothesis("h1", "RSK1 acts on NHE1 [C1], confirmed in vivo [C2]."),
             _referenced_hypothesis("h2", "A second, uncited idea."),
         ],
         citations=[
@@ -270,15 +262,11 @@ def test_a_well_formed_overview_renders_every_block() -> None:
         "### Pilot Evaluation",
     ):
         assert fragment in text
-    assert text.index("We will be focusing") < text.index(
-        "### Mitochondrial dysfunction"
-    )
+    assert text.index("We will be focusing") < text.index("### Mitochondrial dysfunction")
     assert "- RNA processing defects" in text
 
 
-def test_table_of_contents_lists_only_the_sections_this_render_produced() -> (
-    None
-):
+def test_table_of_contents_lists_only_the_sections_this_render_produced() -> None:
     markdown = render_markdown(
         attributes=[{"name": "Human Relevance", "rubric": "1-5 scale."}],
         meta_review={"summary": "Ideas converge on a shared mechanism."},

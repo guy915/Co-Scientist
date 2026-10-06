@@ -72,47 +72,29 @@ async def _advance_to_review_parent(
 
     _patch_task_node(monkeypatch, supervisor_to_review)
     result = await engine_tasks.execute_node_task(supervisor, db_path=db_path)
-    assert lifecycle.complete_task(
-        supervisor.id, "supervisor", result, db_path=db_path
-    )
+    assert lifecycle.complete_task(supervisor.id, "supervisor", result, db_path=db_path)
     review_parent = store.claim_task("parent", run_id=run_id, db_path=db_path)
     assert review_parent is not None
-    parent_result = await engine_tasks.execute_node_task(
-        review_parent, db_path=db_path
-    )
-    assert lifecycle.complete_task(
-        review_parent.id, "parent", parent_result, db_path=db_path
-    )
+    parent_result = await engine_tasks.execute_node_task(review_parent, db_path=db_path)
+    assert lifecycle.complete_task(review_parent.id, "parent", parent_result, db_path=db_path)
 
 
 async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
     first = store.claim_task("child-a", run_id=run_id, db_path=db_path)
     second = store.claim_task("child-b", run_id=run_id, db_path=db_path)
     assert first is not None and second is not None
-    assert (
-        first.task_type
-        == second.task_type
-        == engine_tasks_support.REVIEW_ITEM_TASK
-    )
+    assert first.task_type == second.task_type == engine_tasks_support.REVIEW_ITEM_TASK
     first_result, second_result = await asyncio.gather(
         items.execute_review_item(first, db_path=db_path),
         items.execute_review_item(second, db_path=db_path),
     )
-    assert lifecycle.complete_task(
-        first.id, "child-a", first_result, db_path=db_path
-    )
-    assert lifecycle.complete_task(
-        second.id, "child-b", second_result, db_path=db_path
-    )
+    assert lifecycle.complete_task(first.id, "child-a", first_result, db_path=db_path)
+    assert lifecycle.complete_task(second.id, "child-b", second_result, db_path=db_path)
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    aggregate_result = await aggregates.execute_review_aggregate(
-        aggregate, db_path=db_path
-    )
+    aggregate_result = await aggregates.execute_review_aggregate(aggregate, db_path=db_path)
     assert aggregate_result["successful_reviews"] == 2
-    assert lifecycle.complete_task(
-        aggregate.id, "aggregate", aggregate_result, db_path=db_path
-    )
+    assert lifecycle.complete_task(aggregate.id, "aggregate", aggregate_result, db_path=db_path)
 
 
 @pytest.mark.asyncio
@@ -122,9 +104,7 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     run = seed_run("Task-level science")
     state = _task_state(run.id)
     state["hypotheses"] = [Hypothesis(text="alpha"), Hypothesis(text="beta")]
-    await _advance_to_review_parent(
-        run.id, monkeypatch, _Generator(state), isolated_db
-    )
+    await _advance_to_review_parent(run.id, monkeypatch, _Generator(state), isolated_db)
 
     import co_scientist.agents.reflection.review as review_module
 
@@ -137,15 +117,11 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     assert [hypothesis["score"] for hypothesis in persisted] == [8.0, 8.0]
     review_events = _task_events(run.id, "review", db_path=isolated_db)
     assert len(review_events) == 1
-    assert (
-        review_events[0]["payload"]["successor"] == "comprehensive_reflection"
-    )
+    assert review_events[0]["payload"]["successor"] == "comprehensive_reflection"
     usage = restore_workflow_state(checkpoint["state"])["metrics"].model_usage
     assert (
         usage["review::fixture-model"]
-        == ModelCallStats(
-            calls=2, prompt_tokens=40, completion_tokens=20
-        ).as_dict()
+        == ModelCallStats(calls=2, prompt_tokens=40, completion_tokens=20).as_dict()
     )
 
 
@@ -216,9 +192,7 @@ def _seed_mature_review_item(
     return leased
 
 
-def _install_failing_review(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> None:
+def _install_failing_review(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
     # Inject failures inside the review provider seam; replacing the whole
     # handler would hide swallowed parks.
     import co_scientist.agents.reflection.comprehensive_reflection as comp
@@ -291,9 +265,7 @@ def _dispositions_blocking_review() -> HypothesisReview:
 
 
 def _dispositions_blocked_hypothesis() -> Hypothesis:
-    hypothesis = Hypothesis(
-        text="alpha", reviews=[_dispositions_blocking_review()]
-    )
+    hypothesis = Hypothesis(text="alpha", reviews=[_dispositions_blocking_review()])
     hypothesis.review_disposition = "inaccurate"
     return hypothesis
 
@@ -302,9 +274,7 @@ def test_aggregate_reopens_an_idea_a_deeper_review_cleared() -> None:
     hypothesis = _dispositions_blocked_hypothesis()
     hypothesis.enrichments["full"] = {"verdict": "sound"}
 
-    successful, failed, _ = _apply_review_items(
-        {hypothesis.id: hypothesis}, [], None
-    )
+    successful, failed, _ = _apply_review_items({hypothesis.id: hypothesis}, [], None)
 
     assert (successful, failed) == (0, 0)
     assert hypothesis.is_rankable()
@@ -325,12 +295,8 @@ def test_aggregate_leaves_the_evidence_gate_s_disposition_alone() -> None:
 def _restore_item(monkeypatch: pytest.MonkeyPatch, mode: str = "full") -> Any:
     idea = Hypothesis(id="idea", text="Scientific claim")
     state = {"hypotheses": [idea], "articles_with_reasoning": "Literature"}
-    monkeypatch.setattr(
-        items, "_restore_item_checkpoint", lambda *args, **kwargs: (state, 7)
-    )
-    return SimpleNamespace(
-        inputs={"hypothesis_id": idea.id, "review_mode": mode}
-    )
+    monkeypatch.setattr(items, "_restore_item_checkpoint", lambda *args, **kwargs: (state, 7))
+    return SimpleNamespace(inputs={"hypothesis_id": idea.id, "review_mode": mode})
 
 
 @pytest.mark.asyncio
@@ -397,9 +363,7 @@ async def test_observation_rejects_missing_literature_before_call(
 
 
 def _recheck_blocked_hypothesis(text: str = "alpha") -> Hypothesis:
-    hypothesis = Hypothesis(
-        text=text, reviews=[_dispositions_blocking_review()]
-    )
+    hypothesis = Hypothesis(text=text, reviews=[_dispositions_blocking_review()])
     hypothesis.review_disposition = "inaccurate"
     return hypothesis
 
@@ -423,9 +387,7 @@ def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
         status="failed",
     )
 
-    aggregates._apply_mature_reflection_items(
-        {hypothesis.id: hypothesis}, ["item-1"], 0, None
-    )
+    aggregates._apply_mature_reflection_items({hypothesis.id: hypothesis}, ["item-1"], 0, None)
 
     owed = _mature_reflection_specs(_state([hypothesis]))
     assert len(owed) == (0 if recheck else 1)
@@ -451,9 +413,7 @@ def _patch_items(
     monkeypatch.setattr(
         aggregates,
         "_require_item_task",
-        lambda item_id, db_path, kind="": _Item(
-            (results or {}).get(str(item_id))
-        ),
+        lambda item_id, db_path, kind="": _Item((results or {}).get(str(item_id))),
     )
 
 
@@ -481,9 +441,7 @@ def test_mature_reflection_aggregate_applies_fatal_dispositions(
                 "full",
                 {"verdict": "rejected", "justification": "circular"},
             ),
-            "item-simulation": _mature_item(
-                hypothesis, "simulation", {"verdict": "holds"}
-            ),
+            "item-simulation": _mature_item(hypothesis, "simulation", {"verdict": "holds"}),
         },
     )
 
@@ -540,9 +498,7 @@ def test_review_aggregate_gates_on_the_run_criteria_when_it_has_any(
     assert hypothesis.is_rankable() is (disposition == "viable")
 
 
-@pytest.mark.parametrize(
-    "ledger", [{"goal": "reverse fibrosis", "calls": []}, None]
-)
+@pytest.mark.parametrize("ledger", [{"goal": "reverse fibrosis", "calls": []}, None])
 def test_the_aggregate_carries_each_items_research_to_the_run_once(
     monkeypatch: pytest.MonkeyPatch, ledger: dict[str, Any] | None
 ) -> None:

@@ -54,12 +54,8 @@ def test_mid_run_reads_committed_science_without_draining_or_writing(
                 ],
             }
         ],
-        "articles": [
-            {"title": "Full literature", "abstract": "Grounding text"}
-        ],
-        "tournament_matchups": [
-            {"winner_id": "h1", "rationale": "Better controlled"}
-        ],
+        "articles": [{"title": "Full literature", "abstract": "Grounding text"}],
+        "tournament_matchups": [{"winner_id": "h1", "rationale": "Better controlled"}],
         "meta_review": {"conclusion": "Still preliminary"},
         "supervisor_guidance": {"goal": "Test replication"},
         "constraints": ["Human cells"],
@@ -92,14 +88,11 @@ def test_mid_run_reads_committed_science_without_draining_or_writing(
         "supervisor_guidance",
         "constraints",
     ):
-        result = json.loads(
-            artifacts.retrieve(context.artifacts, {"section": section})
-        )
+        result = json.loads(artifacts.retrieve(context.artifacts, {"section": section}))
         assert result["records"]
     assert "secret runtime route" not in json.dumps(context.artifacts)
     assert not any(
-        sql.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))
-        for sql in writes
+        sql.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for sql in writes
     )
 
 

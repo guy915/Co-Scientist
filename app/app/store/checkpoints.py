@@ -17,9 +17,7 @@ class NewCheckpoint:
     state: dict[str, Any]
 
 
-def _insert_checkpoint_row(
-    conn: sqlite3.Connection, run_id: str, checkpoint: NewCheckpoint
-) -> int:
+def _insert_checkpoint_row(conn: sqlite3.Connection, run_id: str, checkpoint: NewCheckpoint) -> int:
     # Allocate the sequence and insert in one SQL statement; concurrent
     # checkpoint writers must not choose the same sequence.
     row = conn.execute(
@@ -40,15 +38,11 @@ def _insert_checkpoint_row(
     return int(row["seq"])
 
 
-def _prune_older_checkpoints(
-    conn: sqlite3.Connection, run_id: str, seq: int
-) -> None:
+def _prune_older_checkpoints(conn: sqlite3.Connection, run_id: str, seq: int) -> None:
     """Only the newest checkpoint is resumable; retaining its sequence
     preserves monotonic ordering while bounding storage per run.
     """
-    conn.execute(
-        "DELETE FROM checkpoints WHERE run_id=? AND seq<?", (run_id, seq)
-    )
+    conn.execute("DELETE FROM checkpoints WHERE run_id=? AND seq<?", (run_id, seq))
 
 
 def save_checkpoint(
@@ -123,9 +117,7 @@ def prune_superseded_checkpoints(db_path: str | None = None) -> int:
     total = 0
     while True:
         with connect(db_path) as owned:
-            deleted = int(
-                (owned.execute(delete, (_PRUNE_BATCH_ROWS,)).rowcount) or 0
-            )
+            deleted = int((owned.execute(delete, (_PRUNE_BATCH_ROWS,)).rowcount) or 0)
         if deleted == 0:
             return total
         total += deleted

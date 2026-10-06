@@ -51,9 +51,7 @@ def _thinking_only() -> Any:
     message = types.SimpleNamespace(content="")
     details = types.SimpleNamespace(reasoning_tokens=900)
     usage = types.SimpleNamespace(completion_tokens_details=details)
-    return types.SimpleNamespace(
-        choices=[types.SimpleNamespace(message=message)], usage=usage
-    )
+    return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)], usage=usage)
 
 
 @pytest.mark.parametrize(("generate", "answer"), _GENERATORS)

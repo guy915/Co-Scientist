@@ -53,18 +53,14 @@ AGREEMENT_SCALE: tuple[str, ...] = (
 )
 
 
-def build_specific_aims_export(
-    run_id: str, hypotheses: list[dict[str, Any]]
-) -> dict[str, Any]:
+def build_specific_aims_export(run_id: str, hypotheses: list[dict[str, Any]]) -> dict[str, Any]:
     """Blind source identity while retaining the separate fifteen-axis
     agreement instrument.
     """
     return {
         "schema_version": SPECIFIC_AIMS_SCHEMA_VERSION,
         "instrument": "specific_aims_rubric_v1",
-        "domains": {
-            domain: list(axes) for domain, axes in SPECIFIC_AIMS_DOMAINS.items()
-        },
+        "domains": {domain: list(axes) for domain, axes in SPECIFIC_AIMS_DOMAINS.items()},
         "axes": list(SPECIFIC_AIMS_AXES),
         "agreement_scale": list(AGREEMENT_SCALE),
         "items": [
@@ -115,9 +111,7 @@ def parse_specific_aims_ratings(
         rater_id, item_id = _validate_ids(raw)
         identity = (rater_id, item_id)
         if identity in seen:
-            raise ExpertReviewValidationError(
-                f"duplicate rating for rater/item {identity!r}"
-            )
+            raise ExpertReviewValidationError(f"duplicate rating for rater/item {identity!r}")
         seen.add(identity)
         ratings.append(
             SpecificAimsRating(

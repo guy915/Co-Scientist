@@ -55,16 +55,12 @@ def get_supervisor_plan(
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
     with _use_conn(conn, db_path) as active:
-        row = active.execute(
-            "SELECT * FROM supervisor_plan WHERE run_id=?", (run_id,)
-        ).fetchone()
+        row = active.execute("SELECT * FROM supervisor_plan WHERE run_id=?", (run_id,)).fetchone()
     if row is None:
         return None
     result = dict(row)
     result["plan"] = json.loads(result.pop("plan_json"))
-    result["orchestrator_state"] = json.loads(
-        result.pop("orchestrator_state_json")
-    )
+    result["orchestrator_state"] = json.loads(result.pop("orchestrator_state_json"))
     return result
 
 
@@ -79,9 +75,7 @@ def replace_supervisor_allocations(
     cannot recover that order.
     """
     with _use_conn(conn, db_path) as active:
-        active.execute(
-            "DELETE FROM supervisor_allocations WHERE run_id = ?", (run_id,)
-        )
+        active.execute("DELETE FROM supervisor_allocations WHERE run_id = ?", (run_id,))
         now = _now()
         active.executemany(
             "INSERT INTO supervisor_allocations (run_id, seq, iteration, "
@@ -113,8 +107,7 @@ def list_supervisor_allocations(
 ) -> list[dict[str, Any]]:
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
-            "SELECT * FROM supervisor_allocations WHERE run_id=? "
-            "ORDER BY seq ASC",
+            "SELECT * FROM supervisor_allocations WHERE run_id=? ORDER BY seq ASC",
             (run_id,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -129,9 +122,7 @@ def _count_supervisor_allocations(run_id: str, conn: sqlite3.Connection) -> int:
 
 
 def _has_supervisor_plan(run_id: str, conn: sqlite3.Connection) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM supervisor_plan WHERE run_id=? LIMIT 1", (run_id,)
-    ).fetchone()
+    row = conn.execute("SELECT 1 FROM supervisor_plan WHERE run_id=? LIMIT 1", (run_id,)).fetchone()
     return row is not None
 
 
@@ -168,9 +159,7 @@ def _sync_plan_from_checkpoint(
             run_id=run_id,
             guidance=guidance,
             termination_reason=workflow_state.get("termination_reason"),
-            decision_provenance=workflow_state.get(
-                "supervisor_decision_provenance"
-            ),
+            decision_provenance=workflow_state.get("supervisor_decision_provenance"),
             orchestrator_state=workflow_state.get("orchestrator_state") or {},
         ),
         conn=conn,

@@ -56,9 +56,7 @@ def has_valid_verification(result: Mapping[str, Any] | None) -> bool:
     return isinstance(verdict, str) and verdict in _VALID_VERDICTS
 
 
-async def verify_hypothesis(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> dict[str, Any] | None:
+async def verify_hypothesis(state: WorkflowState, hypothesis: Hypothesis) -> dict[str, Any] | None:
     """Durable items need call-local guards; event-loop primitives cannot be
     shared."""
     context = _VerificationContext(
@@ -141,11 +139,7 @@ def select_hypotheses_to_verify(
 ) -> list[Hypothesis]:
     """Verification precedes ranking, so no tournament Elo ordering exists
     yet."""
-    return [
-        hypothesis
-        for hypothesis in hypotheses
-        if _needs_verification(hypothesis, model_name)
-    ]
+    return [hypothesis for hypothesis in hypotheses if _needs_verification(hypothesis, model_name)]
 
 
 _select_hypotheses_to_verify = select_hypotheses_to_verify
@@ -194,12 +188,8 @@ async def _verify_one(
     semaphore: asyncio.Semaphore,
     evidence_context: str,
 ) -> dict[str, Any] | None:
-    evidence_context = _augment_evidence_context_with_meta_review(
-        evidence_context, context.state
-    )
-    return await _verify_within_semaphore(
-        semaphore, hypothesis, context, evidence_context
-    )
+    evidence_context = _augment_evidence_context_with_meta_review(evidence_context, context.state)
+    return await _verify_within_semaphore(semaphore, hypothesis, context, evidence_context)
 
 
 async def _verify_within_semaphore(
@@ -212,9 +202,7 @@ async def _verify_within_semaphore(
     and spend errors propagate."""
     async with semaphore:
         try:
-            return await _verify_with_probes(
-                hypothesis, context, evidence_context
-            )
+            return await _verify_with_probes(hypothesis, context, evidence_context)
         except TASK_CONTROL_FLOW_ERRORS:
             raise
         except Exception as e:
@@ -231,9 +219,7 @@ async def _verify_with_probes(
     search round."""
     initial = await _call_verification(hypothesis, context, evidence_context)
     queries = _probe_queries(initial)
-    probed, retrieval_errors = await _retrieve_probe_evidence(
-        context.state, queries
-    )
+    probed, retrieval_errors = await _retrieve_probe_evidence(context.state, queries)
     articles = _with_researched(context.state, hypothesis, probed)
     if not articles:
         initial["retrieval_queries"] = queries
@@ -284,14 +270,10 @@ def _bounded_verification(result: dict[str, Any]) -> dict[str, Any]:
     checkpoints."""
     bounded = dict(result)
     bounded["sub_assumptions"] = list(
-        (result.get("sub_assumptions") or [])[
-            :DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS
-        ]
+        (result.get("sub_assumptions") or [])[:DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS]
     )
     bounded["decontextualizations"] = list(
-        (result.get("decontextualizations") or [])[
-            :DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS
-        ]
+        (result.get("decontextualizations") or [])[:DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS]
     )
     return bounded
 
@@ -313,12 +295,8 @@ def _apply_verification_results(
         assert result is not None
         hypothesis.deep_verification_probes = result.get("probes", [])
         hypothesis.deep_verification_verdict = result.get("verdict")
-        hypothesis.enrichments["deep_verification"] = _bounded_verification(
-            result
-        )
-        hypothesis.deep_verification_fingerprint = verification_fingerprint(
-            hypothesis, model_name
-        )
+        hypothesis.enrichments["deep_verification"] = _bounded_verification(result)
+        hypothesis.deep_verification_fingerprint = verification_fingerprint(hypothesis, model_name)
         verified_count += 1
     return verified_count, unverified_count
 
@@ -342,12 +320,8 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
         )
         return {}
 
-    verified, unverified, llm_calls = await _run_verification_batch(
-        state, to_verify
-    )
-    return _deep_verification_result(
-        hypotheses, state["articles"], verified, unverified, llm_calls
-    )
+    verified, unverified, llm_calls = await _run_verification_batch(state, to_verify)
+    return _deep_verification_result(hypotheses, state["articles"], verified, unverified, llm_calls)
 
 
 def _deep_verification_result(
@@ -364,10 +338,7 @@ def _deep_verification_result(
     )
     message = f"Deep-verified {verified_count} top hypotheses"
     if unverified_count:
-        message += (
-            f"; {unverified_count} left explicitly unverified after a"
-            " verification failure"
-        )
+        message += f"; {unverified_count} left explicitly unverified after a verification failure"
     metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=llm_calls))
     return {
         "hypotheses": hypotheses,
@@ -394,9 +365,7 @@ async def _run_verification_batch(
 
     tool_registry = state.get("tool_registry")
     evidence_context = _verification_evidence_context(state)
-    results = await _gather_verification_results(
-        to_verify, state, tool_registry, evidence_context
-    )
+    results = await _gather_verification_results(to_verify, state, tool_registry, evidence_context)
     verified_count, unverified_count, llm_calls = _finalize_verification_batch(
         to_verify, results, state
     )
@@ -426,10 +395,7 @@ async def _gather_verification_results(
         state=state,
     )
     return await asyncio.gather(
-        *[
-            _verify_one(h, context, semaphore, evidence_context)
-            for h in to_verify
-        ]
+        *[_verify_one(h, context, semaphore, evidence_context) for h in to_verify]
     )
 
 
@@ -445,8 +411,6 @@ def _finalize_verification_batch(
     )
     state["articles"] = merge_retrieved_articles(state.get("articles"), results)
     llm_calls = sum(
-        int(result.get("verification_llm_calls", 1))
-        for result in results
-        if result is not None
+        int(result.get("verification_llm_calls", 1)) for result in results if result is not None
     )
     return verified_count, unverified_count, llm_calls

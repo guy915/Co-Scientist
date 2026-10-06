@@ -42,7 +42,7 @@ from tests._engine_tasks_helpers import (
     _task_events,
     _task_state,
 )
-from tests._store_helpers import enqueue_task, seed_run
+from tests._store_helpers import enqueue_task, pause_run, resume_run_async, seed_run
 
 _debate_calls: list[dict[str, Any]] = []
 
@@ -61,9 +61,7 @@ async def _fake_debate(
     return hypotheses, [{"strategy": "debate"}], len(hypotheses)
 
 
-async def _fake_assumptions(
-    _state: Any, count: int
-) -> tuple[list[Hypothesis], int]:
+async def _fake_assumptions(_state: Any, count: int) -> tuple[list[Hypothesis], int]:
     hypotheses = [
         Hypothesis(
             text=f"assumption-{index}",
@@ -99,16 +97,12 @@ async def _advance_generation_node(
     import co_scientist.agents.generation.debate as debate_module
 
     monkeypatch.setattr(debate_module, "generate_with_debate", _fake_debate)
-    monkeypatch.setattr(
-        assumptions_module, "generate_with_assumptions", _fake_assumptions
-    )
+    monkeypatch.setattr(assumptions_module, "generate_with_assumptions", _fake_assumptions)
     leased = store.claim_task("planner", run_id=run_id, db_path=db_path)
     assert leased is not None and leased.id == node.id
     planned = await engine_tasks.execute_node_task(leased, db_path=db_path)
     assert len(planned["fanout_task_ids"]) == 7
-    assert lifecycle.complete_task(
-        leased.id, "planner", planned, db_path=db_path
-    )
+    assert lifecycle.complete_task(leased.id, "planner", planned, db_path=db_path)
 
 
 def _assert_debate_fanout_carries_the_batch_shape(
@@ -119,42 +113,35 @@ def _assert_debate_fanout_carries_the_batch_shape(
     debate_tasks = [
         item
         for item in strategies
-        if item is not None
-        and str(item.inputs["strategy"]).startswith("debate")
+        if item is not None and str(item.inputs["strategy"]).startswith("debate")
     ]
     assert debate_tasks, "expected debate strategy tasks in the fan-out"
     by_strategy: dict[str, list[Any]] = {}
     for item in debate_tasks:
         by_strategy.setdefault(str(item.inputs["strategy"]), []).append(item)
     for strategy, items in by_strategy.items():
-        assert all(
-            int(item.inputs["debate_total"]) == len(items) for item in items
-        ), f"{strategy} tasks must carry the family's batch size"
-        assert sorted(
-            int(item.inputs["strategy_index"]) for item in items
-        ) == list(range(len(items)))
+        assert all(int(item.inputs["debate_total"]) == len(items) for item in items), (
+            f"{strategy} tasks must carry the family's batch size"
+        )
+        assert sorted(int(item.inputs["strategy_index"]) for item in items) == list(
+            range(len(items))
+        )
 
 
-async def _run_generation_strategies_and_aggregate(
-    run_id: str, db_path: str
-) -> None:
+async def _run_generation_strategies_and_aggregate(run_id: str, db_path: str) -> None:
     strategies = [
-        store.claim_task(f"strategy-{index}", run_id=run_id, db_path=db_path)
-        for index in range(7)
+        store.claim_task(f"strategy-{index}", run_id=run_id, db_path=db_path) for index in range(7)
     ]
     assert all(item is not None for item in strategies)
     assert all(
-        item is not None
-        and item.task_type == engine_tasks_support.GENERATION_STRATEGY_TASK
+        item is not None and item.task_type == engine_tasks_support.GENERATION_STRATEGY_TASK
         for item in strategies
     )
     _assert_debate_fanout_carries_the_batch_shape(strategies)
     _debate_calls.clear()
     strategy_results = await asyncio.gather(
         *[
-            engine_tasks_fanout_generation.execute_generation_strategy(
-                item, db_path=db_path
-            )
+            engine_tasks_fanout_generation.execute_generation_strategy(item, db_path=db_path)
             for item in strategies
             if item is not None
         ]
@@ -162,36 +149,26 @@ async def _run_generation_strategies_and_aggregate(
     debate_tasks = [
         item
         for item in strategies
-        if item is not None
-        and str(item.inputs["strategy"]).startswith("debate")
+        if item is not None and str(item.inputs["strategy"]).startswith("debate")
     ]
     assert len({str(item.inputs["strategy"]) for item in debate_tasks}) == 1
     assert len(_debate_calls) == len(debate_tasks)
     batch_size = len(debate_tasks)
     positions = [call["batch_position"] for call in _debate_calls]
     assert all(position is not None for position in positions)
-    assert sorted(
-        (position.debate_index, position.total_debates)
-        for position in positions
-    ) == [(index, batch_size) for index in range(batch_size)]
-    for index, (item, result) in enumerate(
-        zip(strategies, strategy_results, strict=True)
-    ):
+    assert sorted((position.debate_index, position.total_debates) for position in positions) == [
+        (index, batch_size) for index in range(batch_size)
+    ]
+    for index, (item, result) in enumerate(zip(strategies, strategy_results, strict=True)):
         assert item is not None
-        assert lifecycle.complete_task(
-            item.id, f"strategy-{index}", result, db_path=db_path
-        )
+        assert lifecycle.complete_task(item.id, f"strategy-{index}", result, db_path=db_path)
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    aggregated = (
-        await engine_tasks_fanout_aggregates.execute_generation_aggregate(
-            aggregate, db_path=db_path
-        )
+    aggregated = await engine_tasks_fanout_aggregates.execute_generation_aggregate(
+        aggregate, db_path=db_path
     )
     assert aggregated["hypotheses_generated"] == 8
-    assert lifecycle.complete_task(
-        aggregate.id, "aggregate", aggregated, db_path=db_path
-    )
+    assert lifecycle.complete_task(aggregate.id, "aggregate", aggregated, db_path=db_path)
 
 
 def _assert_generation_committed(run_id: str, db_path: str) -> None:
@@ -200,14 +177,10 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
     checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None
     restored = restore_workflow_state(checkpoint["state"])
-    methods = {
-        hypothesis.generation_method for hypothesis in restored["hypotheses"]
-    }
+    methods = {hypothesis.generation_method for hypothesis in restored["hypotheses"]}
     assert methods == {GenerationMethod.DEBATE, GenerationMethod.ASSUMPTIONS}
     assert restored["metrics"].llm_calls == 8
-    assert _milestones(run_id, db_path=db_path) == [
-        "3 hypotheses generated (initial)"
-    ]
+    assert _milestones(run_id, db_path=db_path) == ["3 hypotheses generated (initial)"]
     generate_events = _task_events(run_id, "generate", db_path=db_path)
     assert len(generate_events) == 1
     assert generate_events[0]["payload"]["successor"] == "review"
@@ -247,16 +220,10 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
             db_path: str | None,
         ) -> dict[str, Any] | None:
             if node_name == "generate":
-                paused = client.post(f"/api/runs/{run_id}/pause")
-                assert paused.status_code == 200, paused.text
-                assert paused.json()["status"] == "paused"
-            return await original_dispatch(
-                task, state, node_name, checkpoint_seq, db_path
-            )
+                pause_run(run_id, db_path=db_path)
+            return await original_dispatch(task, state, node_name, checkpoint_seq, db_path)
 
-        monkeypatch.setattr(
-            engine_tasks_node, "_dispatch_node_fanout", pause_during_dispatch
-        )
+        monkeypatch.setattr(engine_tasks_node, "_dispatch_node_fanout", pause_during_dispatch)
         await _advance_generation_node(run_id, monkeypatch, isolated_db)
 
         scheduled = store.list_tasks(run_id, db_path=isolated_db)
@@ -268,29 +235,18 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
         assert fanout
         saved_run = runs.get_run(run_id, db_path=isolated_db)
         assert saved_run is not None and saved_run.status == "paused"
-        assert (
-            store.claim_task(
-                "before-resume", run_id=run_id, db_path=isolated_db
-            )
-            is None
-        )
+        assert store.claim_task("before-resume", run_id=run_id, db_path=isolated_db) is None
 
-        resumed = client.post(f"/api/runs/{run_id}/resume")
-        assert resumed.status_code == 200, resumed.text
-        assert resumed.json()["status"] == "queued"
+        await resume_run_async(run_id)
         aggregate = next(
             task
             for task in store.list_tasks(run_id, db_path=isolated_db)
             if task.task_type == engine_tasks_support.GENERATION_AGGREGATE_TASK
         )
         assert aggregate.status == "queued"
-        claimed = store.claim_task(
-            "after-resume", run_id=run_id, db_path=isolated_db
-        )
+        claimed = store.claim_task("after-resume", run_id=run_id, db_path=isolated_db)
         assert claimed is not None
-        assert (
-            claimed.task_type == engine_tasks_support.GENERATION_STRATEGY_TASK
-        )
+        assert claimed.task_type == engine_tasks_support.GENERATION_STRATEGY_TASK
 
 
 def _hypotheses(strategy: str, count: int, start: int = 0) -> list[Hypothesis]:
@@ -318,9 +274,7 @@ class _Strategies:
     async def tools(
         self, _state: Any, count: int, reference_index: Any
     ) -> tuple[list[Hypothesis], int]:
-        self.calls.append(
-            {"strategy": "tools", "count": count, "refs": reference_index}
-        )
+        self.calls.append({"strategy": "tools", "count": count, "refs": reference_index})
         return _hypotheses("tools", count), 4
 
     async def debate(
@@ -377,9 +331,7 @@ def _install_strategies(
     for module in (coordinator, debate):
         monkeypatch.setattr(module, "generate_with_debate", strategies.debate)
     for module in (coordinator, assumptions):
-        monkeypatch.setattr(
-            module, "generate_with_assumptions", strategies.assumptions
-        )
+        monkeypatch.setattr(module, "generate_with_assumptions", strategies.assumptions)
     expansion_calls: list[str] = []
 
     async def no_expansion(state: Any) -> None:
@@ -422,13 +374,8 @@ async def _schedule_generation(
     planned = await fanout._enqueue_generation_fanout(
         leased, state, checkpoint_seq, db_path=db_path
     )
-    assert lifecycle.complete_task(
-        leased.id, "planner", planned, db_path=db_path
-    )
-    tasks = [
-        store.get_task(task_id, db_path=db_path)
-        for task_id in planned["fanout_task_ids"]
-    ]
+    assert lifecycle.complete_task(leased.id, "planner", planned, db_path=db_path)
+    tasks = [store.get_task(task_id, db_path=db_path) for task_id in planned["fanout_task_ids"]]
     assert all(task is not None for task in tasks)
     return planned, [task for task in tasks if task is not None]
 
@@ -450,15 +397,11 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
     monkeypatch.setattr(literature_tools, "generate_with_tools", failed_tools)
     planned, tasks = await _schedule_generation(state, isolated_db)
     for _ in tasks:
-        leased = store.claim_task(
-            "strategy", run_id=run.id, db_path=isolated_db
-        )
+        leased = store.claim_task("strategy", run_id=run.id, db_path=isolated_db)
         assert leased is not None
         if leased.inputs["strategy"] == "tools":
             with pytest.raises(RuntimeError, match="draft failed"):
-                await fanout.execute_generation_strategy(
-                    leased, db_path=isolated_db
-                )
+                await fanout.execute_generation_strategy(leased, db_path=isolated_db)
             assert store.fail_task(
                 leased.id,
                 "strategy",
@@ -467,26 +410,14 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
                 db_path=isolated_db,
             )
         else:
-            result = await fanout.execute_generation_strategy(
-                leased, db_path=isolated_db
-            )
+            result = await fanout.execute_generation_strategy(leased, db_path=isolated_db)
             result["skills_used"] = {"pubmed": 1}
-            result["model_usage"] = {
-                "generate:fixture": {"calls": 1, "prompt_tokens": 10}
-            }
-            assert lifecycle.complete_task(
-                leased.id, "strategy", result, db_path=isolated_db
-            )
+            result["model_usage"] = {"generate:fixture": {"calls": 1, "prompt_tokens": 10}}
+            assert lifecycle.complete_task(leased.id, "strategy", result, db_path=isolated_db)
 
-    aggregate = store.claim_task(
-        "aggregate", run_id=run.id, db_path=isolated_db
-    )
-    assert (
-        aggregate is not None and aggregate.id == planned["aggregate_task_id"]
-    )
-    result = await aggregates.execute_generation_aggregate(
-        aggregate, db_path=isolated_db
-    )
+    aggregate = store.claim_task("aggregate", run_id=run.id, db_path=isolated_db)
+    assert aggregate is not None and aggregate.id == planned["aggregate_task_id"]
+    result = await aggregates.execute_generation_aggregate(aggregate, db_path=isolated_db)
     assert result["failed_strategies"] == 1
     assert result["hypotheses_generated"] == 5
     checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
@@ -503,10 +434,7 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
     assert committed["metrics"].llm_calls == 9
     assert committed["metrics"].skills_used == {"pubmed": 4}
     assert committed["metrics"].model_usage["generate:fixture"]["calls"] == 4
-    assert (
-        committed["metrics"].model_usage["generate:fixture"]["prompt_tokens"]
-        == 40
-    )
+    assert committed["metrics"].model_usage["generate:fixture"]["prompt_tokens"] == 40
     assert [item["debate_id"] for item in committed["debate_transcripts"]] == [
         "debate_lit-0",
         "debate_lit-1",
@@ -532,39 +460,28 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
     for task in tasks:
         inputs = task.inputs
         assert task.idempotency_key == (
-            f"generation:{inputs['strategy']}:{seq}:"
-            f"{inputs['strategy_index']}:{inputs['count']}"
+            f"generation:{inputs['strategy']}:{seq}:{inputs['strategy_index']}:{inputs['count']}"
         )
         assert inputs["reference_sources"] == plan.reference_index.sources
         assert inputs["reference_text"] == plan.reference_index.text
         assert inputs["literature"] == plan.literature
         assert task.priority == 87
         assert len(task.dependencies) == 1
-    aggregate = store.get_task(
-        planned["aggregate_task_id"], db_path=isolated_db
-    )
+    aggregate = store.get_task(planned["aggregate_task_id"], db_path=isolated_db)
     assert aggregate is not None
     assert aggregate.inputs["counts"] == dataclasses.asdict(plan.counts)
     assert aggregate.dependencies == tuple(task.id for task in tasks)
     assert aggregate.idempotency_key == f"generation:aggregate:{seq}"
 
     for _ in tasks:
-        leased = store.claim_task(
-            "strategy", run_id=run.id, db_path=isolated_db
-        )
+        leased = store.claim_task("strategy", run_id=run.id, db_path=isolated_db)
         assert leased is not None
-        result = await fanout.execute_generation_strategy(
-            leased, db_path=isolated_db
-        )
-        assert lifecycle.complete_task(
-            leased.id, "strategy", result, db_path=isolated_db
-        )
+        result = await fanout.execute_generation_strategy(leased, db_path=isolated_db)
+        assert lifecycle.complete_task(leased.id, "strategy", result, db_path=isolated_db)
     durable_calls = list(strategies.calls)
     leased = store.claim_task("aggregate", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == aggregate.id
-    result = await aggregates.execute_generation_aggregate(
-        leased, db_path=isolated_db
-    )
+    result = await aggregates.execute_generation_aggregate(leased, db_path=isolated_db)
     assert result["failed_strategies"] == 0
     checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
@@ -597,27 +514,16 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
     )
     assert expansion_calls == [run.id]
 
-    graph_assumptions = next(
-        call for call in graph_calls if call["strategy"] == "assumptions"
-    )
-    durable_assumptions = next(
-        call for call in durable_calls if call["strategy"] == "assumptions"
-    )
+    graph_assumptions = next(call for call in graph_calls if call["strategy"] == "assumptions")
+    durable_assumptions = next(call for call in durable_calls if call["strategy"] == "assumptions")
     assert graph_assumptions["literature"] == plan.literature
     assert graph_assumptions["refs"].sources == plan.reference_index.sources
     assert durable_assumptions["literature"] is None
     assert durable_assumptions["refs"] is None
-    debate_calls = [
-        call for call in durable_calls if call["strategy"].startswith("debate")
-    ]
+    debate_calls = [call for call in durable_calls if call["strategy"].startswith("debate")]
     for call in debate_calls:
-        assert call["refs"].sources == (
-            plan.reference_index.sources if mode != "no_lit" else {}
-        )
-        assert call["literature"] == (
-            plan.literature if mode != "no_lit" else None
-        )
+        assert call["refs"].sources == (plan.reference_index.sources if mode != "no_lit" else {})
+        assert call["literature"] == (plan.literature if mode != "no_lit" else None)
     assert sorted(
-        (call["position"].debate_index, call["position"].total_debates)
-        for call in debate_calls
+        (call["position"].debate_index, call["position"].total_debates) for call in debate_calls
     ) == [(index, len(debate_calls)) for index in range(len(debate_calls))]

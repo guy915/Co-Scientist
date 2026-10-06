@@ -94,9 +94,7 @@ async def _execute_tool_calls(
     results: list[dict[str, Any]] = []
     for batch in batch_by_effects(tool_calls):
         results.extend(
-            await asyncio.gather(
-                *[_execute_logged_tool(tc, tool_executor) for tc in batch]
-            )
+            await asyncio.gather(*[_execute_logged_tool(tc, tool_executor) for tc in batch])
         )
     return results
 
@@ -152,9 +150,7 @@ async def _answered_completion(
         )
         return response, _final_content(response, request.model_name)
 
-    return await run_attempts(
-        make_attempt, AttemptPlan(request.model_name, max_attempts=3)
-    )
+    return await run_attempts(make_attempt, AttemptPlan(request.model_name, max_attempts=3))
 
 
 async def _run_tool_call_iteration(
@@ -169,9 +165,7 @@ async def _run_tool_call_iteration(
     if final is None:
         logger.debug("llm requested %s tool calls", len(message.tool_calls))
         messages.append(_message_to_history_dict(message))
-        messages.extend(
-            await _execute_tool_calls(message.tool_calls, tool_executor)
-        )
+        messages.extend(await _execute_tool_calls(message.tool_calls, tool_executor))
         return False, None
 
     # Do not retain answerless assistant turns: the answering retry would resend
@@ -187,9 +181,7 @@ async def _run_iteration_logged(
     iteration: int,
 ) -> tuple[bool, str | None]:
     """The attempt boundary logs because it knows whether a retry follows."""
-    return await _run_tool_call_iteration(
-        messages, request, tool_executor, iteration
-    )
+    return await _run_tool_call_iteration(messages, request, tool_executor, iteration)
 
 
 async def _answer_without_tools(
@@ -200,9 +192,7 @@ async def _answer_without_tools(
     Provider-call budget errors must propagate, never become empty fallbacks.
     """
     closing = replace(request, tools=[])
-    args = _build_tool_loop_completion_args(
-        [*messages, closing_message()], closing
-    )
+    args = _build_tool_loop_completion_args([*messages, closing_message()], closing)
     args.pop("tools", None)
     try:
         response = await _acompletion_within_timeout(args, request.model_name)
@@ -244,8 +234,7 @@ def _finalize_tool_loop_success(
 
 def _raise_budget_exhausted(loop: ToolLoop) -> NoReturn:
     logger.warning(
-        "Tool call loop gave no final answer within %s iterations /"
-        " %s prompt tokens",
+        "Tool call loop gave no final answer within %s iterations / %s prompt tokens",
         loop.max_iterations,
         loop.max_prompt_tokens,
     )
@@ -260,8 +249,7 @@ def _spend_exhausted(spent: int, loop: ToolLoop, iteration: int) -> bool:
     if spent < loop.max_prompt_tokens:
         return False
     logger.warning(
-        "Token budget (%s) reached in tool call loop after %s iterations;"
-        " %s tokens re-sent",
+        "Token budget (%s) reached in tool call loop after %s iterations; %s tokens re-sent",
         loop.max_prompt_tokens,
         iteration,
         spent,
@@ -306,8 +294,7 @@ async def _harvest_partial_answer(
     if not answer:
         _raise_budget_exhausted(loop)
     logger.info(
-        "Tool call loop ran out of room; harvested a %s-character partial"
-        " answer",
+        "Tool call loop ran out of room; harvested a %s-character partial answer",
         len(answer),
     )
     return answer, messages
@@ -328,29 +315,21 @@ async def _run_tool_call_loop(
     handed_off = False
     spent = 0
     for iteration in range(max_iterations):
-        logger.debug(
-            "llm tool call iteration %s/%s", iteration + 1, max_iterations
-        )
+        logger.debug("llm tool call iteration %s/%s", iteration + 1, max_iterations)
         _drop_dead_context(messages)
         spent += transcript_tokens(messages)
         if _spend_exhausted(spent, loop, iteration):
             return await _harvest_partial_answer(request, messages, loop)
         if _handoff_due(iteration, handoff_at, spent, loop, handed_off):
             handed_off = True
-            messages.append(
-                _handoff_message(
-                    _turns_remaining(iteration, spent, loop, messages)
-                )
-            )
+            messages.append(_handoff_message(_turns_remaining(iteration, spent, loop, messages)))
         done, final_content = await _run_iteration_logged(
             messages, request, tool_executor, iteration
         )
         if done:
             assert final_content is not None
             logger.debug("llm finished after %s iterations", iteration + 1)
-            return _finalize_tool_loop_success(
-                cache, request, final_content, messages
-            )
+            return _finalize_tool_loop_success(cache, request, final_content, messages)
 
     return await _harvest_partial_answer(request, messages, loop)
 
@@ -412,6 +391,4 @@ async def call_llm_with_tools(
         if cached_result is not None:
             return cached_result
         messages = [{"role": "user", "content": prompt}]
-        return await _run_tool_call_loop(
-            request, messages, loop.executor, loop, cache
-        )
+        return await _run_tool_call_loop(request, messages, loop.executor, loop, cache)

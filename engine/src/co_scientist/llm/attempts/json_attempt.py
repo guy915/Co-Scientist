@@ -71,9 +71,7 @@ def _report_call_llm_failure(
     _failure_logger.warning(
         "LLM call failed (model %s, max_tokens %s, call site asked for %s): %s",
         spec.model_name,
-        effective_max_tokens(
-            spec.model_name, spec.max_tokens, opt.enable_thinking
-        ),
+        effective_max_tokens(spec.model_name, spec.max_tokens, opt.enable_thinking),
         spec.max_tokens,
         short_error_text(error),
     )
@@ -99,9 +97,7 @@ async def _call_llm_and_cache(
         ),
     )
     _apply_api_key(completion_args)
-    response = await _acompletion_within_timeout(
-        completion_args, request.model_name
-    )
+    response = await _acompletion_within_timeout(completion_args, request.model_name)
     content = _extract_completion_content(response, request.model_name)
     cache.set(request, {"text": content})
     return content
@@ -127,9 +123,7 @@ async def _call_llm_single_attempt(
             logger.debug("using cached llm response")
             return cast(str, cached_response["text"])
         try:
-            return await _call_llm_and_cache(
-                request, opt.enable_thinking, cache
-            )
+            return await _call_llm_and_cache(request, opt.enable_thinking, cache)
         except Exception as e:
             _report_call_llm_failure(spec, opt, e)
             raise
@@ -162,9 +156,7 @@ def _parse_or_repair_json(
 
     repaired = False
     if result is None:
-        result, _ = attempt_json_repair(
-            response_text, allow_major_repairs=is_final_attempt
-        )
+        result, _ = attempt_json_repair(response_text, allow_major_repairs=is_final_attempt)
         repaired = result is not None
 
     return _ParsedResponse(result, repaired, parse_error)
@@ -208,22 +200,17 @@ class JsonJudge:
     def prompt_for(self, attempt: Attempt) -> str:
         return self.original_prompt + (attempt.feedback or "")
 
-    def verdict(
-        self, response_text: str, attempt: Attempt
-    ) -> Accepted[dict[str, Any]] | Rejected:
+    def verdict(self, response_text: str, attempt: Attempt) -> Accepted[dict[str, Any]] | Rejected:
         """Validation and parse failures carry corrective feedback; genuine
         call failures bypass judging.
         """
         parsed = _parse_or_repair_json(response_text, attempt.is_final)
         if parsed.result is None:
             return Rejected(
-                parsed.parse_error
-                or ValueError("All repair strategies failed"),
+                parsed.parse_error or ValueError("All repair strategies failed"),
                 response_text,
             )
-        return self._validated(
-            parsed.result, parsed.repaired, response_text, attempt
-        )
+        return self._validated(parsed.result, parsed.repaired, response_text, attempt)
 
     def _validated(
         self,
@@ -234,9 +221,7 @@ class JsonJudge:
     ) -> Accepted[dict[str, Any]] | Rejected:
         try:
             if self.spec.json_schema is not None:
-                _backfill_and_validate(
-                    result, self.spec.json_schema, self.spec.model_name
-                )
+                _backfill_and_validate(result, self.spec.json_schema, self.spec.model_name)
         except ValidationError as e:
             return _validation_failure(e, response_text, attempt, repaired)
         self._cache_result(self.prompt_for(attempt), result)

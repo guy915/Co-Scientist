@@ -217,9 +217,7 @@ DEFAULT_COMMAND_TIMEOUT_SECONDS = 300.0
 
 
 def _ensure_metadata_directory(root: Path) -> None:
-    """Bubblewrap skips absent ro-bind-try paths; create metadata before
-    commands can symlink it.
-    """
+    """Create metadata before commands can symlink it."""
     try:
         (root / SPILL_DIRECTORY).mkdir(parents=True, exist_ok=True)
     except OSError as exc:  # pragma: no cover - filesystem-dependent
@@ -266,8 +264,7 @@ class WorkspaceSession:
         self.root = root.resolve()
         _ensure_metadata_directory(self.root)
         self.policy = campaign_workspace_policy(
-            policy
-            or workspace_write(self.root, network_allowed=network_allowed)
+            policy or workspace_write(self.root, network_allowed=network_allowed)
         )
         self.skills_enabled = skills_enabled
         self.sessions = SessionRegistry()
@@ -334,8 +331,7 @@ class WorkspaceSession:
             sorted(
                 str(relative)
                 for path in self.root.rglob("*")
-                if path.is_file()
-                and not _is_metadata(relative := path.relative_to(self.root))
+                if path.is_file() and not _is_metadata(relative := path.relative_to(self.root))
             )
         )
 
@@ -345,7 +341,5 @@ class WorkspaceSession:
         """
         candidate = (self.root / relative).resolve()
         if candidate != self.root and self.root not in candidate.parents:
-            raise PatchError(
-                f"path {relative!r} resolves outside the workspace"
-            )
+            raise PatchError(f"path {relative!r} resolves outside the workspace")
         return candidate

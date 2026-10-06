@@ -36,9 +36,7 @@ _ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
     BudgetEscalation.NONE: BudgetEscalation.RAISED_BUDGET,
     BudgetEscalation.RAISED_BUDGET: BudgetEscalation.NO_THINKING,
     BudgetEscalation.NO_THINKING: BudgetEscalation.NO_THINKING,
-    BudgetEscalation.MINIMAL_REASONING_REQUIRED: (
-        BudgetEscalation.MINIMAL_REASONING_REQUIRED
-    ),
+    BudgetEscalation.MINIMAL_REASONING_REQUIRED: (BudgetEscalation.MINIMAL_REASONING_REQUIRED),
 }
 
 
@@ -139,14 +137,10 @@ def _is_reasoning_cap_rejected(error: BaseException | None) -> bool:
 
 
 def _is_reasoning_instruction_refused(error: BaseException | None) -> bool:
-    return _is_reasoning_mandatory_error(error) or _is_reasoning_cap_rejected(
-        error
-    )
+    return _is_reasoning_mandatory_error(error) or _is_reasoning_cap_rejected(error)
 
 
-def _escalate_once(
-    current: BudgetEscalation, target: BudgetEscalation
-) -> BudgetEscalation | None:
+def _escalate_once(current: BudgetEscalation, target: BudgetEscalation) -> BudgetEscalation | None:
     """A repeated fixed recovery rung cannot answer the same failure again."""
     return None if current is target else target
 
@@ -158,9 +152,7 @@ def escalation_for_error(
     Provider aborts remain retries even after reasoning spend.
     """
     if _is_reasoning_instruction_refused(error):
-        return _escalate_once(
-            current, BudgetEscalation.MINIMAL_REASONING_REQUIRED
-        )
+        return _escalate_once(current, BudgetEscalation.MINIMAL_REASONING_REQUIRED)
     if isinstance(error, LLMThinkingOnlyError):
         return _escalate_once(current, BudgetEscalation.NO_THINKING)
     if not isinstance(error, LLMBudgetExhaustedError):
@@ -233,11 +225,7 @@ class _JsonCallSpec:
     json_schema: dict[str, Any] | None
 
 
-def escalated_spec(
-    spec: _JsonCallSpec, escalation: BudgetEscalation
-) -> _JsonCallSpec:
+def escalated_spec(spec: _JsonCallSpec, escalation: BudgetEscalation) -> _JsonCallSpec:
     if escalation is BudgetEscalation.NONE:
         return spec
-    return dataclasses.replace(
-        spec, max_tokens=escalated_max_tokens(spec.max_tokens, escalation)
-    )
+    return dataclasses.replace(spec, max_tokens=escalated_max_tokens(spec.max_tokens, escalation))

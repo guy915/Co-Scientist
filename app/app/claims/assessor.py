@@ -106,10 +106,7 @@ class EvidencePassage:
 
 
 def as_passages(texts: Sequence[str]) -> list[EvidencePassage]:
-    return [
-        EvidencePassage(evidence_id=f"passage-{i}", text=t)
-        for i, t in enumerate(texts)
-    ]
+    return [EvidencePassage(evidence_id=f"passage-{i}", text=t) for i, t in enumerate(texts)]
 
 
 # Extraction and evidence chunking share sentence boundaries so quoted offsets
@@ -261,10 +258,7 @@ def retrieve_passages(
     masquerading as grounding; ties retain input order.
     """
     query = _retrieval_tokens(claim)
-    scored = [
-        (i, p, len(query & _retrieval_tokens(p.text)))
-        for i, p in enumerate(passages)
-    ]
+    scored = [(i, p, len(query & _retrieval_tokens(p.text))) for i, p in enumerate(passages)]
     relevant = [(i, p, s) for i, p, s in scored if s > 0.0]
     relevant.sort(key=lambda t: (-t[2], t[0]))
     return [p for _, p, _ in relevant[: max(0, top_k)]]
@@ -289,9 +283,7 @@ def _contradicting_sentence(claim: str, text: str) -> str | None:
     quote must do so.
     """
     negating = [
-        sentence
-        for sentence in _split_sentences(text)
-        if _quote_negates_claim(claim, sentence)
+        sentence for sentence in _split_sentences(text) if _quote_negates_claim(claim, sentence)
     ]
     if not negating:
         return None
@@ -358,9 +350,7 @@ def deterministic_assessor(
     partial: list[tuple[str, str]] = []
     contradicting: list[tuple[str, str]] = []
     for passage in passages:
-        classified = _classify_passage(
-            claim, passage, support_threshold, partial_threshold
-        )
+        classified = _classify_passage(claim, passage, support_threshold, partial_threshold)
         if classified is None:
             continue
         kind, entry = classified
@@ -375,8 +365,6 @@ def deterministic_assessor(
         label=_entailment_label(supporting, partial, contradicting),
         supporting=tuple(supporting) + tuple(partial),
         contradicting=tuple(contradicting),
-        verification_method="deterministic_lexical"
-        if passages
-        else "no_evidence",
+        verification_method="deterministic_lexical" if passages else "no_evidence",
         cites_evidence_ids=True,
     )

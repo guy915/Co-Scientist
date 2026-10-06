@@ -69,9 +69,7 @@ logger = logging.getLogger(__name__)
 _LITERATURE_CACHE_SCHEMA_VERSION = 3
 
 
-def _literature_cache_params(
-    state: WorkflowState, config: SearchConfig
-) -> dict[str, Any]:
+def _literature_cache_params(state: WorkflowState, config: SearchConfig) -> dict[str, Any]:
     """Key every result-affecting input, including source semantics, research
     budget and critique; store only the config digest."""
     registry = config.tool_registry
@@ -170,9 +168,7 @@ async def _check_server_available(
 ) -> dict[str, Any] | None:
     """Only an unreachable MCP server vetoes review; a single unavailable
     source must not block reachable siblings."""
-    server_available = await check_mcp_available(
-        tool_registry=config.tool_registry
-    )
+    server_available = await check_mcp_available(tool_registry=config.tool_registry)
     if server_available:
         return None
 
@@ -194,14 +190,10 @@ async def _check_server_available(
     return result
 
 
-def _with_llm_call_metrics(
-    result: dict[str, Any], llm_calls: int
-) -> dict[str, Any]:
+def _with_llm_call_metrics(result: dict[str, Any], llm_calls: int) -> dict[str, Any]:
     """Every exit must retain real node spend so early failures cannot bypass
     max_llm_calls."""
-    result["metrics"] = create_metrics_update(
-        deltas=MetricDeltas(llm_calls=llm_calls)
-    )
+    result["metrics"] = create_metrics_update(deltas=MetricDeltas(llm_calls=llm_calls))
     return result
 
 
@@ -218,9 +210,7 @@ async def _prepare_review(
     if unavailable_result is not None:
         return unavailable_result
 
-    await emit_progress(
-        state, "literature_review_start", "Conducting literature review...", 0.1
-    )
+    await emit_progress(state, "literature_review_start", "Conducting literature review...", 0.1)
 
     mcp_client = await get_mcp_client(tool_registry=config.tool_registry)
     return config, cache_plan, mcp_client
@@ -251,9 +241,7 @@ def _merge_research(output: _ReviewOutput) -> str:
     return output.reviewed.text + research.section
 
 
-async def _finalize_review(
-    state: WorkflowState, output: _ReviewOutput
-) -> dict[str, Any]:
+async def _finalize_review(state: WorkflowState, output: _ReviewOutput) -> dict[str, Any]:
     collected = output.collected
     queries = output.query_result.queries
     synthesis, articles = _finalize_synthesis_and_articles(
@@ -263,21 +251,15 @@ async def _finalize_review(
         output.config.source_name,
     )
 
-    await _emit_and_log_completion(
-        state, queries, articles, collected.search_errors, synthesis
-    )
+    await _emit_and_log_completion(state, queries, articles, collected.search_errors, synthesis)
 
     result = make_success_result(synthesis, queries, articles)
     if collected.context_enrichment_sources:
-        result["context_enrichment_sources"] = (
-            collected.context_enrichment_sources
-        )
+        result["context_enrichment_sources"] = collected.context_enrichment_sources
     if output.research is not None:
         result["research_ledgers"] = [output.research.ledger]
     result = _cache_result(result, output.cache_plan)
-    return _with_llm_call_metrics(
-        result, output.query_result.llm_calls + output.reviewed.llm_calls
-    )
+    return _with_llm_call_metrics(result, output.query_result.llm_calls + output.reviewed.llm_calls)
 
 
 async def _run_search_phases(
@@ -288,13 +270,9 @@ async def _run_search_phases(
     query_result = await _phase1_generate_queries(state, config, mcp_client)
     queries = query_result.queries
 
-    collected = await _collect_and_enrich_papers(
-        queries, state, config, mcp_client
-    )
+    collected = await _collect_and_enrich_papers(queries, state, config, mcp_client)
 
-    edge_case_result = await _handle_collection_edge_cases(
-        state, collected, queries, config
-    )
+    edge_case_result = await _handle_collection_edge_cases(state, collected, queries, config)
     if edge_case_result is not None:
         return _with_llm_call_metrics(edge_case_result, query_result.llm_calls)
 
@@ -318,9 +296,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     reviewed = await _analyze_and_synthesize(
         collected.all_paper_metadata, state, collected.background_context
     )
-    research = await run_research_phase(
-        state, config, mcp_client, reviewed.analyses
-    )
+    research = await run_research_phase(state, config, mcp_client, reviewed.analyses)
 
     return await _finalize_review(
         state,

@@ -27,9 +27,7 @@ class EngineTaskRuntime(Protocol):
         self, task: ScientificTask, db_path: str | None
     ) -> tuple[Any, dict[str, Any]]: ...
 
-    def generator_for_restore(
-        self, task: ScientificTask, db_path: str | None
-    ) -> Any: ...
+    def generator_for_restore(self, task: ScientificTask, db_path: str | None) -> Any: ...
 
     async def screen(
         self,
@@ -60,9 +58,7 @@ class ProductionEngineTaskRuntime:
 
         return _generator_and_opts(task, db_path)
 
-    def generator_for_restore(
-        self, task: ScientificTask, db_path: str | None
-    ) -> Any:
+    def generator_for_restore(self, task: ScientificTask, db_path: str | None) -> Any:
         from app.engine_tasks.support import _generator_for_restore
 
         return _generator_for_restore(task, db_path)
@@ -77,9 +73,7 @@ class ProductionEngineTaskRuntime:
     ) -> SafetyDecision:
         from app.safety import screen_with_escalation
 
-        return await screen_with_escalation(
-            run_id, subject, provider=provider, db_path=db_path
-        )
+        return await screen_with_escalation(run_id, subject, provider=provider, db_path=db_path)
 
     async def drain_final_state(
         self,
@@ -93,9 +87,7 @@ class ProductionEngineTaskRuntime:
 
 
 _installed: EngineTaskRuntime = ProductionEngineTaskRuntime()
-_bound: ContextVar[EngineTaskRuntime | None] = ContextVar(
-    "engine_task_runtime", default=None
-)
+_bound: ContextVar[EngineTaskRuntime | None] = ContextVar("engine_task_runtime", default=None)
 
 
 def active() -> EngineTaskRuntime:

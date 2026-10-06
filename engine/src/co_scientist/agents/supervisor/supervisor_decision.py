@@ -36,9 +36,7 @@ def _owed_coverage_is_affordable(stats: SchedulerStats) -> bool:
     """Read actual settlement allowance, not a baseline task the model may
     divert; deferral must see the same debt as the forced scheduler check."""
     allowance = stats.settlement_allowance
-    return stats.owed_coverage_rounds > 0 and (
-        allowance is None or allowance > 0
-    )
+    return stats.owed_coverage_rounds > 0 and (allowance is None or allowance > 0)
 
 
 def _owed_review_is_affordable(
@@ -59,22 +57,12 @@ def _max_ideas_exceeded(stats: SchedulerStats, budget: Budget) -> bool:
     """Review backlog must drain before a pool ceiling can stop newly
     admitted ideas."""
     limit = budget.max_ideas
-    return (
-        limit is not None
-        and stats.unreviewed_count == 0
-        and stats.pool_size >= limit
-    )
+    return limit is not None and stats.unreviewed_count == 0 and stats.pool_size >= limit
 
 
-def _max_matches_per_idea_exceeded(
-    stats: SchedulerStats, budget: Budget
-) -> bool:
+def _max_matches_per_idea_exceeded(stats: SchedulerStats, budget: Budget) -> bool:
     limit = budget.max_matches_per_idea
-    return (
-        limit is not None
-        and stats.rankable_count >= 2
-        and stats.match_coverage >= limit
-    )
+    return limit is not None and stats.rankable_count >= 2 and stats.match_coverage >= limit
 
 
 def _hard_stop_checks(
@@ -133,8 +121,7 @@ def _hard_stop(
         return baseline if baseline.terminate else None
     termination_reason, message = reason
     if (
-        _owed_coverage_is_affordable(stats)
-        or _owed_review_is_affordable(stats, termination_reason)
+        _owed_coverage_is_affordable(stats) or _owed_review_is_affordable(stats, termination_reason)
     ) and termination_reason not in _IMMEDIATE_STOP_REASONS:
         # Finite allowance/issue markers bound cleanup deferral; no failed
         # review may refill its spent override.
@@ -199,9 +186,7 @@ _DECISION_SCHEMA: dict[str, Any] = {
 }
 
 
-def _planning_prompt(
-    state: WorkflowState, stats: SchedulerStats, budget: Budget
-) -> str:
+def _planning_prompt(state: WorkflowState, stats: SchedulerStats, budget: Budget) -> str:
     context = {
         "research_goal": state["research_goal"],
         "research_plan": state.get("supervisor_guidance") or {},
@@ -248,8 +233,7 @@ def _needs_queue_adjudication(state: WorkflowState) -> bool:
     """Spent failed tasks have no automatic revival; only model queue actions
     can recover them, so forced transitions still need this planning call."""
     return any(
-        str(entry.get("status")) == "failed"
-        for entry in state.get("durable_task_queue") or ()
+        str(entry.get("status")) == "failed" for entry in state.get("durable_task_queue") or ()
     )
 
 
@@ -272,9 +256,7 @@ async def choose_supervisor_task(
 
     try:
         validated = await _call_supervisor_planner(state, stats, budget)
-        decision, provenance = _resolve_planner_decision(
-            state, stats, budget, baseline, validated
-        )
+        decision, provenance = _resolve_planner_decision(state, stats, budget, baseline, validated)
         return decision, provenance, 1
     except TASK_CONTROL_FLOW_ERRORS:
         raise
@@ -312,9 +294,7 @@ async def _call_supervisor_planner(
     return validate_decision(proposed, stats)
 
 
-def _overruled(
-    baseline: SupervisorDecision, validated: SupervisorDecision
-) -> SupervisorDecision:
+def _overruled(baseline: SupervisorDecision, validated: SupervisorDecision) -> SupervisorDecision:
     """Overruled next tasks keep independent recovery queue actions;
     termination short-circuits before any carry-through can revive work."""
     if not validated.queue_actions:

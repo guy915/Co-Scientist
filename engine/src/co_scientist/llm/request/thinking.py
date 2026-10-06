@@ -56,9 +56,7 @@ def _upstream_order() -> tuple[str, ...]:
 _GATEWAY_MAX_FALLBACKS: Final[int] = 3
 
 
-def _apply_provider_pin(
-    provider: dict[str, Any], profile: ModelProfile
-) -> None:
+def _apply_provider_pin(provider: dict[str, Any], profile: ModelProfile) -> None:
     if profile.verified_provider:
         provider.pop("order", None)
         provider["only"] = [profile.verified_provider]
@@ -95,9 +93,7 @@ _REASONING_EFFORT: Final[str] = "high"
 _MINIMAL_REASONING_EFFORT: Final[str] = "low"
 
 # Task-local recovery cannot leak into concurrent requests sharing the process.
-_minimal_reasoning_forced: ContextVar[bool] = ContextVar(
-    "minimal_reasoning_forced", default=False
-)
+_minimal_reasoning_forced: ContextVar[bool] = ContextVar("minimal_reasoning_forced", default=False)
 
 
 @contextlib.contextmanager
@@ -126,15 +122,10 @@ def effective_thinking_enabled(model_name: str, enable_thinking: bool) -> bool:
     if profile.thinking is Thinking.NONE:
         # No knob is sent, so a model that reasons by default keeps reasoning.
         return profile.reasons
-    return (
-        profile.thinking is Thinking.GATEWAY
-        and not profile.reasoning_can_disable
-    )
+    return profile.thinking is Thinking.GATEWAY and not profile.reasoning_can_disable
 
 
-def deepseek_thinking_extra_body(
-    model_name: str, *, enabled: bool = True
-) -> dict[str, Any]:
+def deepseek_thinking_extra_body(model_name: str, *, enabled: bool = True) -> dict[str, Any]:
     """DeepSeek separates reasoning_content from content; JSON parsing still
     needs room for an answer.
     """
@@ -147,9 +138,7 @@ def deepseek_thinking_extra_body(
     return _gateway_body(lowered, profile, enabled)
 
 
-def _gateway_body(
-    lowered: str, profile: ModelProfile, enabled: bool
-) -> dict[str, Any]:
+def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[str, Any]:
     body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
     if profile.fallbacks:
         body["models"] = list(profile.fallbacks)
@@ -173,9 +162,7 @@ def model_reasons(model_name: str) -> bool:
     return model_profile(model_name).reasons
 
 
-def reasoning_effort_args(
-    model_name: str, *, enabled: bool = True
-) -> dict[str, Any]:
+def reasoning_effort_args(model_name: str, *, enabled: bool = True) -> dict[str, Any]:
     """DeepSeek high is its lowest tier; gateway routes already carry the
     tier and reject duplicates.
     """
@@ -184,16 +171,11 @@ def reasoning_effort_args(
     return {}
 
 
-def effective_max_tokens(
-    model_name: str, max_tokens: int, enable_thinking: bool
-) -> int:
+def effective_max_tokens(model_name: str, max_tokens: int, enable_thinking: bool) -> int:
     """Funding and failure records must share the wire budget, including
     forced reasoning.
     """
-    if not (
-        effective_thinking_enabled(model_name, enable_thinking)
-        and model_reasons(model_name)
-    ):
+    if not (effective_thinking_enabled(model_name, enable_thinking) and model_reasons(model_name)):
         return max_tokens
     return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
 
@@ -207,18 +189,14 @@ def _apply_thinking_args(
     thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
     if thinking:
         completion_args["extra_body"] = thinking
-        completion_args.update(
-            reasoning_effort_args(model_name, enabled=enable_thinking)
-        )
+        completion_args.update(reasoning_effort_args(model_name, enabled=enable_thinking))
 
     completion_args["max_tokens"] = effective_max_tokens(
         model_name, completion_args["max_tokens"], enable_thinking
     )
 
 
-def apply_provider_constraints(
-    completion_args: dict[str, Any], model_name: str
-) -> None:
+def apply_provider_constraints(completion_args: dict[str, Any], model_name: str) -> None:
     """Every physical call passes here, so engine and app requests share the
     provider's wire rules.
     """
@@ -227,9 +205,7 @@ def apply_provider_constraints(
         completion_args.pop("temperature", None)
         completion_args.pop("top_p", None)
     if profile.max_completion_tokens and "max_tokens" in completion_args:
-        completion_args["max_completion_tokens"] = completion_args.pop(
-            "max_tokens"
-        )
+        completion_args["max_completion_tokens"] = completion_args.pop("max_tokens")
     if profile.responses_api and "/responses/" not in completion_args["model"]:
         # LiteLLM's Responses bridge keeps the chat-completion shape callers
         # parse, including tool calls.

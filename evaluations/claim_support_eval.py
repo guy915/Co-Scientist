@@ -68,9 +68,7 @@ def score_claims(annotated: list[dict[str, Any]]) -> dict[str, Any]:
     assessed = sum(int(h.get("assessed_claims") or 0) for h in annotated)
     supported = sum(int(h.get("verified_claims") or 0) for h in annotated)
     with_claims = [h for h in annotated if int(h.get("assessed_claims") or 0)]
-    unverified = [
-        h for h in with_claims if not int(h.get("verified_claims") or 0)
-    ]
+    unverified = [h for h in with_claims if not int(h.get("verified_claims") or 0)]
     return {
         "ideas": len(annotated),
         "ideas_with_assessed_claims": len(with_claims),
@@ -99,9 +97,7 @@ def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     return {
         "run_id": run_id,
         "configured_backend": run.llm_backend if run is not None else None,
-        "evaluation_identity": (
-            run.config.get("evaluation_identity") if run is not None else None
-        ),
+        "evaluation_identity": (run.config.get("evaluation_identity") if run is not None else None),
         "usage_evidence": summarize_usage(metrics.get("model_usage") or {}),
         **score_claims(hypotheses_with_claim_counts(hyps, edges)),
     }
@@ -139,9 +135,7 @@ def drive_and_score(
     }
 
 
-def run(
-    run_id: str | None, *, live: bool = False, tier: str = "express"
-) -> dict[str, Any]:
+def run(run_id: str | None, *, live: bool = False, tier: str = "express") -> dict[str, Any]:
     if run_id:
         return {
             "mode": "persisted_run",

@@ -8,9 +8,7 @@ from typing import Literal, TypedDict, cast
 
 from app.store import db
 
-Category = Literal[
-    "Bug", "Security", "Results quality", "Feature request", "Other"
-]
+Category = Literal["Bug", "Security", "Results quality", "Feature request", "Other"]
 MAX_ROWS = 200
 MAX_BYTES = 10 * 1024 * 1024
 RETENTION_SECONDS = 30 * 24 * 60 * 60
@@ -67,22 +65,14 @@ def submit(owner: str, host_key: str, submission: Submission) -> str:
     if size > MAX_BYTES:
         raise ValueError("feedback exceeds the storage limit")
     with db.transaction() as conn:
-        conn.execute(
-            "DELETE FROM feedback_admissions WHERE created_at<=?", (now - 60,)
-        )
+        conn.execute("DELETE FROM feedback_admissions WHERE created_at<=?", (now - 60,))
         total, owned, hosted = conn.execute(
             "SELECT COUNT(*),COALESCE(SUM(client_id=?),0),"
             "COALESCE(SUM(host_key=?),0) FROM feedback_admissions",
             (owner, host_key),
         ).fetchone()
-        if (
-            total >= GLOBAL_PER_MINUTE
-            or owned >= OWNER_PER_MINUTE
-            or hosted >= HOST_PER_MINUTE
-        ):
-            raise RateExceededError(
-                "Please wait a minute before sending more feedback."
-            )
+        if total >= GLOBAL_PER_MINUTE or owned >= OWNER_PER_MINUTE or hosted >= HOST_PER_MINUTE:
+            raise RateExceededError("Please wait a minute before sending more feedback.")
         conn.execute(
             "INSERT INTO feedback_admissions VALUES (?,?,?)",
             (owner, host_key, now),

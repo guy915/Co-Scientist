@@ -81,10 +81,7 @@ def _log_filters(filters: LogFilters) -> tuple[str, list[Any]]:
     if filters.scope_client_id is not None:
         # Clients see their submitted logs and owned-run logs; ownerless server
         # records remain operator-only.
-        where.append(
-            "(client_id = ? OR run_id IN "
-            "(SELECT id FROM runs WHERE client_id = ?))"
-        )
+        where.append("(client_id = ? OR run_id IN (SELECT id FROM runs WHERE client_id = ?))")
         params.extend([filters.scope_client_id, filters.scope_client_id])
     return " AND ".join(where), params
 
@@ -164,9 +161,7 @@ def clear_logs(
     if scope_client_id is not None:
         # Scoped clears must not reset the shared ID sequence used by other
         # clients' cursors.
-        where, params = _log_filters(
-            LogFilters(scope_client_id=scope_client_id)
-        )
+        where, params = _log_filters(LogFilters(scope_client_id=scope_client_id))
         with _use_conn(conn, db_path) as c:
             cur = c.execute(f"DELETE FROM app_logs WHERE {where}", params)
             return int(cur.rowcount or 0)
@@ -196,9 +191,7 @@ def count_logs_for_run(
     history; permanent deletion accounts for them explicitly.
     """
     with _use_conn(conn, db_path) as c:
-        row = c.execute(
-            "SELECT COUNT(*) AS n FROM app_logs WHERE run_id=?", (run_id,)
-        ).fetchone()
+        row = c.execute("SELECT COUNT(*) AS n FROM app_logs WHERE run_id=?", (run_id,)).fetchone()
     return int(row["n"])
 
 

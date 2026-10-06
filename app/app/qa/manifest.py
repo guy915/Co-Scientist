@@ -107,9 +107,7 @@ def gather_run_progress(
     return RunProgress(
         status=run.status,
         elapsed_seconds=(
-            max(0.0, (finished_at or now) - started_at)
-            if started_at is not None
-            else None
+            max(0.0, (finished_at or now) - started_at) if started_at is not None else None
         ),
         idea_count=counts.get("ideas", 0),
         evidence_count=counts.get("evidence", 0),
@@ -138,10 +136,7 @@ def _rendered_recommendations(raw: Any, cap: int) -> list[str]:
     lines: list[str] = []
     for item in raw[:cap]:
         if isinstance(item, dict):
-            parts = [
-                str(item.get(key) or "").strip()
-                for key in ("focus_area", "recommendation")
-            ]
+            parts = [str(item.get(key) or "").strip() for key in ("focus_area", "recommendation")]
             line = ": ".join(part for part in parts if part)
         else:
             line = str(item).strip()
@@ -177,9 +172,7 @@ def build_report_facts(payload: dict[str, Any]) -> ReportFacts:
         key_findings=_string_list(insights.get("key_findings"), 6),
         strengths=_string_list(meta.get("common_strengths"), 5),
         weaknesses=_string_list(meta.get("common_weaknesses"), 5),
-        recommendations=_rendered_recommendations(
-            meta.get("strategic_recommendations"), 5
-        ),
+        recommendations=_rendered_recommendations(meta.get("strategic_recommendations"), 5),
         counts=_report_counts(payload),
     )
 
@@ -224,9 +217,7 @@ def render_progress(progress: RunProgress) -> str:
             f"{progress.queued_tasks} queued)"
         )
     if progress.steps:
-        lines.append(
-            f"Steps so far (oldest first): {', '.join(progress.steps)}"
-        )
+        lines.append(f"Steps so far (oldest first): {', '.join(progress.steps)}")
     if progress.conclusions:
         lines.append("Conclusions drawn so far:")
         lines.append(_bullets(progress.conclusions))
@@ -345,9 +336,7 @@ def _score(query_tokens: frozenset[str], hyp: dict[str, Any]) -> int:
     """
     title_tokens = _tokenize(str(hyp.get("title") or ""))
     body_tokens = _tokenize(_searchable_text(hyp))
-    return 2 * len(query_tokens & title_tokens) + len(
-        query_tokens & body_tokens
-    )
+    return 2 * len(query_tokens & title_tokens) + len(query_tokens & body_tokens)
 
 
 def _clip(text: str, limit: int = _FIELD_MAX_CHARS) -> str:
@@ -413,30 +402,22 @@ def _tool_arguments(raw: str) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {"query": str(parsed)}
 
 
-def run_tool_call(
-    call: dict[str, Any], hypotheses: list[dict[str, Any]]
-) -> str:
+def run_tool_call(call: dict[str, Any], hypotheses: list[dict[str, Any]]) -> str:
     if call.get("name") != SEARCH_IDEAS_TOOL:
         logger.warning("Q&A model called unknown tool %s", call.get("name"))
         return json.dumps({"error": f"unknown tool {call.get('name')}"})
     args = _tool_arguments(str(call.get("arguments") or ""))
-    results = search_ideas(
-        hypotheses, str(args.get("query") or ""), args.get("limit")
-    )
+    results = search_ideas(hypotheses, str(args.get("query") or ""), args.get("limit"))
     return json.dumps({"ideas": results})
 
 
-def accumulate_tool_calls(
-    accumulated: dict[int, dict[str, Any]], delta: Any
-) -> None:
+def accumulate_tool_calls(accumulated: dict[int, dict[str, Any]], delta: Any) -> None:
     """Providers fragment names and arguments across chunks; reassemble them by
     call index.
     """
     for fragment in getattr(delta, "tool_calls", None) or []:
         index = int(getattr(fragment, "index", 0) or 0)
-        call = accumulated.setdefault(
-            index, {"id": None, "name": None, "arguments": ""}
-        )
+        call = accumulated.setdefault(index, {"id": None, "name": None, "arguments": ""})
         if getattr(fragment, "id", None):
             call["id"] = fragment.id
         function = getattr(fragment, "function", None)
@@ -538,8 +519,7 @@ def _withhold_uncitable(
     return [
         eid
         for eid in ordered_ids
-        if _resolve_entry_state(by_id[eid], cited_state.get(eid))
-        not in _UNCITABLE_STATES
+        if _resolve_entry_state(by_id[eid], cited_state.get(eid)) not in _UNCITABLE_STATES
     ]
 
 
@@ -587,15 +567,9 @@ def build_evidence_manifest(
 def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:
     lines = []
     for entry in manifest:
-        meta = ", ".join(
-            str(part)
-            for part in (entry.get("source"), entry.get("year"))
-            if part
-        )
+        meta = ", ".join(str(part) for part in (entry.get("source"), entry.get("year")) if part)
         suffix = f" ({meta})" if meta else ""
-        lines.append(
-            f"[{entry['n']}] {entry['title']}{suffix} — {entry['state']}"
-        )
+        lines.append(f"[{entry['n']}] {entry['title']}{suffix} — {entry['state']}")
         passage = entry.get("passage")
         if passage:
             lines.append(f'    "{passage}"')
@@ -631,8 +605,7 @@ def _summarize_run_context(context: QaRunContext) -> _PromptSections:
     return _PromptSections(
         ideas=render_idea_index(context.hypotheses),
         reviews="\n".join(
-            f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: "
-            f"{r['summary'][:120]}"
+            f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"
             for r in context.reviews[-5:]
         ),
         matches="\n".join(
@@ -643,8 +616,7 @@ def _summarize_run_context(context: QaRunContext) -> _PromptSections:
         ),
         evidence=_format_manifest_for_prompt(context.manifest),
         conversation="\n".join(
-            f"{'User' if m.sender == 'user' else 'Assistant'}: "
-            f"{_clip(m.content, 800)}"
+            f"{'User' if m.sender == 'user' else 'Assistant'}: {_clip(m.content, 800)}"
             for m in context.history[-10:]
         ),
     )
@@ -704,15 +676,9 @@ def build_system_prompt(context: QaRunContext) -> str:
         "an AI-driven hypothesis generation run.",
         f"Research goal: {_clip(context.research_goal, 2400)}",
         "Artifact inventory (search_run_artifacts sections, record counts):\n"
-        + ", ".join(
-            f"{key}: {len(items)}" for key, items in context.artifacts.items()
-        ),
+        + ", ".join(f"{key}: {len(items)}" for key, items in context.artifacts.items()),
         *_state_sections(context),
         *_artifact_sections(sections),
         _ANSWER_RULES,
     ]
-    return (
-        "\n\n".join(_clip(block, 8000) for block in blocks[:-1])[:24000]
-        + "\n\n"
-        + _ANSWER_RULES
-    )
+    return "\n\n".join(_clip(block, 8000) for block in blocks[:-1])[:24000] + "\n\n" + _ANSWER_RULES
