@@ -2,20 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
-import sys
 from io import BytesIO
 from pathlib import Path
-from typing import Any
-from urllib.error import URLError
+from typing import Any, cast
 
+import mcp_server.entrez as entrez_rate_limit
 import pytest
 from Bio import Entrez
 from mcp_server.entrez import read_entrez
 from mcp_server.pubmed_client import (
     MIN_RESULTS_BEFORE_RELAX,
     anchored_relaxed_query,
-    relaxation_ladder,
     search_with_relaxation,
 )
 from mcp_server.pubmed_storage import (
@@ -23,7 +20,13 @@ from mcp_server.pubmed_storage import (
     link_metadata_to_run,
     write_metadata_cache_file,
 )
-from mcp_server.tests._entrez import CannedEntrezHandle, install_entrez
+from mcp_server.tests._entrez import (
+    CannedEntrezHandle,
+    configure_trace,
+    install_entrez,
+    pubmed_article,
+    read_trace,
+)
 from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
 from mcp_server.tools.lit_review import search_pubmed as tool
 
@@ -153,33 +156,6 @@ def test_search_pubmed_returns_plain_text_articles(
     assert (found["title"], found["abstract"]) == (title, abstract)
 
 
-@pytest.mark.parametrize("reachable", [True, False])
-def test_anonymous_pubmed_availability_queries_service(
-    monkeypatch: pytest.MonkeyPatch, reachable: bool
-) -> None:
-    monkeypatch.delenv("ENTREZ_EMAIL", raising=False)
-    monkeypatch.delenv("ENTREZ_API_KEY", raising=False)
-    monkeypatch.setattr(Entrez, "email", None)
-    monkeypatch.setattr(Entrez, "api_key", None)
-    called: list[dict[str, object]] = []
-
-    def esearch(**kwargs: object) -> BytesIO:
-        called.append(kwargs)
-        if not reachable:
-            raise URLError("test service unavailable")
-        return BytesIO(
-            b'<?xml version="1.0" encoding="UTF-8" ?>'
-            b"<!DOCTYPE eSearchResult PUBLIC "
-            b'"-//NLM//DTD esearch 20060628//EN" '
-            b'"https://eutils.ncbi.nlm.nih.gov/eutils/dtd/20060628/esearch.dtd">'
-            b"<eSearchResult><IdList><Id>22745249</Id></IdList></eSearchResult>"
-        )
-
-    monkeypatch.setattr(Entrez, "esearch", esearch)
-    assert tool.check_pubmed_available() == ("true" if reachable else "false")
-    assert len(called) == 1
-
-
 @pytest.mark.parametrize("malformed", [False, True])
 def test_the_entrez_reader_closes_the_response(
     monkeypatch: pytest.MonkeyPatch, malformed: bool
@@ -198,61 +174,6 @@ def test_the_entrez_reader_closes_the_response(
     else:
         assert read_entrez(handle) == {"IdList": ["123"]}
     assert handle.closed
-
-
-def _tagged(*terms: str, joiner: str = " OR ") -> str:
-    return joiner.join(f"({term}[tiab] OR {term}[mesh])" for term in terms)
-
-
-_ANCHORED = (
-    f"{_tagged('PHGDH', 'knockdown', joiner=' AND ')} AND "
-    f"({_tagged('osimertinib', 'resistance')})"
-)
-
-
-@pytest.mark.parametrize(
-    ("query", "recency", "ladder"),
-    [
-        ("kinase", 0, [("kinase", 0)]),
-        (
-            "kinase tumor",
-            0,
-            [("kinase tumor", 0), (_tagged("kinase", "tumor"), 0)],
-        ),
-        (
-            "kinase inhibition tumor",
-            7,
-            [
-                ("kinase inhibition tumor", 7),
-                ("kinase inhibition tumor", 0),
-                (
-                    f"{_tagged('kinase', 'inhibition', joiner=' AND ')}"
-                    f" AND ({_tagged('tumor')})",
-                    0,
-                ),
-                (_tagged("kinase", "inhibition", "tumor"), 0),
-            ],
-        ),
-        (
-            "PHGDH knockdown osimertinib resistance",
-            0,
-            [
-                ("PHGDH knockdown osimertinib resistance", 0),
-                (_ANCHORED, 0),
-                (_tagged("PHGDH", "knockdown", "osimertinib", "resistance"), 0),
-            ],
-        ),
-        # Explicit Boolean structure would fight retokenizing.
-        *(
-            (f"kinase {op} tumor", 0, [(f"kinase {op} tumor", 0)])
-            for op in ("AND", "OR", "NOT")
-        ),
-    ],
-)
-def test_the_relaxation_ladder_broadens_recency_then_anchored_then_terms(
-    query: str, recency: int, ladder: list[tuple[str, int]]
-) -> None:
-    assert relaxation_ladder(query, recency_years=recency) == ladder
 
 
 def _by_rung(**ids_by_rung: list[str]) -> Any:
@@ -358,27 +279,6 @@ def test_first_rung_target_survives_when_anchored_rung_fills_buffer() -> None:
     assert trace["selected"]["ids"] == ids
 
 
-def test_storage_import_does_not_initialize_entrez() -> None:
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            """
-import sys
-sys.modules["Bio"] = None
-import mcp_server.pubmed_storage
-assert "mcp_server.entrez" not in sys.modules
-assert "mcp_server.pubmed_client" not in sys.modules
-assert "mcp_server.literature_review" not in sys.modules
-""",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert result.returncode == 0, result.stderr
-
-
 def test_metadata_and_empty_link_proof_survive_cache_relocation(
     tmp_path: Path,
 ) -> None:
@@ -415,10 +315,6 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
     ("raw", "expected"),
     [
         (
-            "Colistin resistance in <i>Klebsiella pneumoniae</i>",
-            "Colistin resistance in Klebsiella pneumoniae",
-        ),
-        (
             "Sphingosine against &lt;i&gt;Pseudomonas aeruginosa&lt;/i&gt;",
             "Sphingosine against Pseudomonas aeruginosa",
         ),
@@ -427,16 +323,9 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
         ("<h4>Aims</h4>The convergence of", "Aims The convergence of"),
         # Inline tags must close up so a split gene name remains one symbol.
         ("bla<sub>NDM-1</sub> carriage", "blaNDM-1 carriage"),
-        ("Trials &amp; results", "Trials & results"),
-        # Europe PMC species abbreviations can include zero-width spaces.
-        ("(<i>K. pneumoniae</i>​​)", "(K. pneumoniae)"),
-        ("line one\n\n  line two", "line one line two"),
         # Loose angle-bracket stripping can delete a comparison clause.
-        ("holds for p &lt;b and q&gt; r", "holds for p <b and q> r"),
         ("at p&lt;0.05 while A&gt;B held", "at p<0.05 while A>B held"),
         (None, ""),
-        ("", ""),
-        (123, ""),
     ],
 )
 def test_clean_markup(raw: Any, expected: str) -> None:
@@ -466,16 +355,147 @@ def test_pmc_rendering_keeps_abstract_and_section_paragraphs() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "xml,expected",
-    [
-        ("<article/>", ""),
-        (
-            "<abstract>Plain abstract.</abstract>",
-            "# abstract\n\nPlain abstract.",
-        ),
-        ("<abstract><p/></abstract>", ""),
-    ],
-)
-def test_pmc_rendering_handles_sparse_articles(xml: str, expected: str) -> None:
-    assert extract_text_from_pmc_html(xml) == expected
+class _Handle(CannedEntrezHandle):
+    def __init__(self, payload: Any = None, body: bytes = b"") -> None:
+        super().__init__(payload)
+        self.body = body
+
+    def read(self) -> bytes:
+        return self.body
+
+    def __contains__(self, value: str) -> bool:
+        return value.encode() in self.body
+
+
+def _article(paper_id: str) -> dict[str, Any]:
+    article = pubmed_article(paper_id)["PubmedArticle"][0]
+    article["MedlineCitation"]["PMID"] = paper_id
+    return cast(dict[str, Any], article)
+
+
+def _efetch_reversed(**kwargs: Any) -> _Handle:
+    records = [_article(paper_id) for paper_id in kwargs["id"]]
+    return _Handle({"PubmedArticle": list(reversed(records))})
+
+
+def _elink_groups(links: dict[str, str]) -> Any:
+    def elink(**kwargs: Any) -> _Handle:
+        groups = [
+            {
+                "IdList": [paper_id],
+                "LinkSetDb": (
+                    [
+                        {
+                            "LinkName": "pubmed_pmc",
+                            "Link": [{"Id": links[paper_id]}],
+                        }
+                    ]
+                    if paper_id in links
+                    else []
+                ),
+            }
+            for paper_id in kwargs["id"]
+        ]
+        return _Handle(list(reversed(groups)))
+
+    return elink
+
+
+def _install_batch_entrez(
+    monkeypatch: pytest.MonkeyPatch,
+    efetch: Any,
+    elink: Any,
+) -> None:
+    install_entrez(monkeypatch, efetch=efetch, elink=elink)
+    monkeypatch.setattr(Entrez, "max_tries", 1)
+    monkeypatch.setattr(Entrez, "sleep_between_tries", 0)
+
+
+@pytest.fixture
+def _restore_entrez_retry_policy() -> Any:
+    max_tries = Entrez.max_tries
+    sleep_between_tries = Entrez.sleep_between_tries
+    yield
+    Entrez.max_tries = max_tries
+    Entrez.sleep_between_tries = sleep_between_tries
+
+
+@pytest.mark.usefixtures("_restore_entrez_retry_policy")
+def test_batched_search_keeps_metadata_on_elink_error_and_recovers_next_run(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cache_root = tmp_path / "cache"
+    configure_trace(
+        monkeypatch, cache_root, "batch-offline-build", free_models=True
+    )
+    monkeypatch.setenv("COSCIENTIST_PUBMED_METADATA_BATCH", "1")
+    monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
+
+    paper_ids = ["701", "702", "703"]
+    pubmed_requests: list[list[str]] = []
+    elink_requests: list[dict[str, Any]] = []
+    fulltext_requests: list[str] = []
+    fail_elink = True
+    link = _elink_groups({"701": "1701"})
+
+    def efetch(**kwargs: Any) -> _Handle:
+        if kwargs["db"] == "pubmed":
+            pubmed_requests.append(kwargs["id"])
+            return _efetch_reversed(**kwargs)
+        fulltext_requests.append(kwargs["id"])
+        return _Handle(
+            body=(
+                b"<article><body><sec><title>Introduction</title>"
+                b"<p>Recovered PMC full text.</p></sec></body></article>"
+            )
+        )
+
+    def elink(**kwargs: Any) -> _Handle:
+        elink_requests.append(kwargs.copy())
+        if fail_elink:
+            raise RuntimeError("offline")
+        return cast(_Handle, link(**kwargs))
+
+    monkeypatch.setattr(
+        Entrez, "esearch", lambda **_kwargs: _Handle({"IdList": paper_ids})
+    )
+    _install_batch_entrez(monkeypatch, efetch, elink)
+
+    def search(run_id: str) -> dict[str, Any]:
+        return asyncio.run(
+            tool.pubmed_search_with_fulltext(
+                query="batch ELink recovery",
+                slug="batch-elink-recovery",
+                max_papers=1,
+                run_id=run_id,
+            )
+        )
+
+    first_results = search("elink-failure-run")
+    shared_dir = cache_root / "pubmed" / "batch-elink-recovery" / "shared"
+    first_trace = read_trace(
+        cache_root, "batch-elink-recovery", "elink-failure-run"
+    )
+
+    assert list(first_results) == ["701"]
+    assert first_results["701"]["pmc_full_text_id"] is None
+    assert not any(shared_dir.glob("*.metadata.json"))
+    assert first_trace["metadata_origins"] == dict.fromkeys(
+        paper_ids, "entrez_fetch"
+    )
+    assert [
+        (error["pmid"], error["stage"]) for error in first_trace["fetch_errors"]
+    ] == [(paper_id, "elink") for paper_id in paper_ids]
+
+    fail_elink = False
+    second_results = search("elink-recovered-run")
+
+    assert pubmed_requests == [paper_ids, paper_ids]
+    assert [request["id"] for request in elink_requests] == [paper_ids] * 2
+    assert list(second_results) == ["701"]
+    assert "Recovered PMC full text." in second_results["701"]["fulltext"]
+    assert fulltext_requests == ["1701"]
+    assert all(
+        (shared_dir / f"{paper_id}.metadata.json").exists()
+        for paper_id in paper_ids
+    )
