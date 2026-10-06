@@ -22,7 +22,7 @@ from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import enqueue_task, resume_run, seed_checkpoint, seed_run
 
 
 def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
@@ -101,12 +101,11 @@ def test_checkpointed_run_is_resumed_not_restarted(
     restart = client.post(f"/api/runs/{rid}/start", json={})
 
     assert restart.status_code == 409
-    assert "use /resume" in restart.json()["detail"]
+    assert "cannot be restarted" in restart.json()["detail"]
     assert store.list_tasks(rid, db_path=isolated_db) == []
 
-    resumed = client.post(f"/api/runs/{rid}/resume")
+    resume_run(rid)
 
-    assert resumed.status_code == 200
     assert runs.get_run(rid, db_path=isolated_db).status == "queued"  # type: ignore[union-attr]
     [task] = store.list_tasks(rid, db_path=isolated_db)
     assert task.task_type == "engine.node.orchestrator"
@@ -324,8 +323,7 @@ def _assert_resume_reuses_successor(
     before = store.list_tasks(state.run_id, db_path=db_path)
     before_ids = {task.id for task in before}
     assert before_ids == {state.writer_id, state.successor_id}
-    response = client.post(f"/api/runs/{state.run_id}/resume")
-    assert response.status_code == 200, response.text
+    resume_run(state.run_id)
     assert probe.worker_started.wait(5), "explicit resume did not launch"
     assert probe.cohort_run_ids == [state.run_id]
     after = store.list_tasks(state.run_id, db_path=db_path)

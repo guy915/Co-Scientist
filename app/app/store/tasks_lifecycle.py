@@ -464,22 +464,6 @@ def cancel_run_tasks(
     return int(changed)
 
 
-def pause_run_tasks(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
-    now = _now()
-    with _use_conn(conn, db_path) as active:
-        changed = active.execute(
-            "UPDATE scientific_tasks SET status='paused', updated_at=? "
-            "WHERE run_id=? AND status='queued'",
-            (now, run_id),
-        ).rowcount
-    return int(changed)
-
-
 def park_task(
     task_id: str,
     worker_id: str,

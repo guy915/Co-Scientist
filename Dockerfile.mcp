@@ -9,20 +9,19 @@ COPY requirements/mcp.txt /tmp/requirements-mcp.txt
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements-mcp.txt
 COPY LICENSE NOTICE /usr/share/doc/co-scientist/
 
-RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
-
 # Editable package mapping needs the listed subpackage directories before source COPY.
 COPY engine/mcp_server/pyproject.toml engine/mcp_server/README.md engine/mcp_server/LICENSE engine/mcp_server/NOTICE ./mcp_server/
 RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review \
     && pip install --no-cache-dir --no-deps -e ./mcp_server
-COPY engine/mcp_server/ ./mcp_server/
 
 ENV PYTHONUNBUFFERED=1
 
-# Set ownership before dropping root; an unprivileged user cannot chown later.
+# Set ownership before dropping root; an unprivileged user cannot chown later. Source
+# arrives already owned, so a source edit reuses this layer.
 RUN groupadd --system coscientist \
     && useradd --system --gid coscientist --home-dir /app coscientist \
     && chown -R coscientist:coscientist /app
+COPY --chown=coscientist:coscientist engine/mcp_server/ ./mcp_server/
 USER coscientist
 
 EXPOSE 8888
