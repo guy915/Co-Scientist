@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pathlib
 from typing import Any, ClassVar
 
 import pytest
@@ -299,17 +298,6 @@ def test_each_run_gets_its_own_connector_topology() -> None:
 
     registries = {id(generator._tool_registry) for generator in seen}
     assert len(registries) == len(seen)
-
-
-_INDRA_CONFIG = str(
-    pathlib.Path(__file__).resolve().parents[2]
-    / "engine"
-    / "src"
-    / "co_scientist"
-    / "config"
-    / "examples"
-    / "indra_cancer.yaml"
-)
 
 
 class _FakeGenerator:

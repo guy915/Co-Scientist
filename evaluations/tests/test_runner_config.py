@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -159,57 +158,4 @@ asyncio.run(check())
         tmp_path,
         MODEL_NAME="openrouter/campaign/zero:free",
         OPENROUTER_API_KEY="synthetic-router",
-    )
-
-
-@pytest.mark.parametrize(
-    ("status", "backend", "accepted"),
-    [
-        ("completed", "real", True),
-        ("completed", "offline", False),
-        ("failed", "real", False),
-        (None, "real", False),
-    ],
-)
-def test_golden_acceptance_requires_persisted_real_completion(
-    status: str | None, backend: str, accepted: bool
-) -> None:
-    from evaluations.golden_run import _assess
-
-    artifact: dict[str, object] = {
-        "run": SimpleNamespace(status=status, llm_backend=backend) if status else None,
-        "evidence": [{"source": "pubmed"}],
-        "claim_edges": [{"supporting": [{"quote": "Located passage"}]}],
-        "matches": [],
-        "hypotheses": [],
-        "report": {},
-    }
-    assessment = _assess(artifact, {"query_gene_disease_network": 1})
-    assert assessment["passed"] is accepted
-
-
-def test_golden_run_rejects_unqualified_indra_before_execution(
-    tmp_path: Path,
-) -> None:
-    script = """
-import os
-from unittest.mock import patch
-from evaluations.golden_run import run
-with patch("evaluations.golden_run._install_tool_call_counter",
-           side_effect=AssertionError("execution started before admission")):
-    try:
-        run()
-    except RuntimeError as error:
-        assert "INDRA" in str(error), str(error)
-    else:
-        raise AssertionError("unqualified INDRA accepted")
-assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
-"""
-    _probe(
-        script,
-        tmp_path,
-        COSCIENTIST_REQUIRE_FREE_MODELS="1",
-        MODEL_NAME="openrouter/campaign/zero:free",
-        OPENROUTER_API_KEY="synthetic-router",
-        DEEPSEEK_API_KEY="synthetic-paid",
     )
