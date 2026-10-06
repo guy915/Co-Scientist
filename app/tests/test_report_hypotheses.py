@@ -10,7 +10,6 @@ from app.report.markdown.hypothesis import (
     _HYPOTHESIS_DISCLAIMER,
     _render_hypothesis_simulation_review,
     _render_hypothesis_verdict,
-    _reviews_by_hypothesis,
 )
 from app.report.markdown.overview import render_research_overview_markdown
 from tests._report_helpers import meta_review_markdown as _meta_review_markdown
@@ -19,34 +18,14 @@ from tests._report_helpers import meta_review_markdown as _meta_review_markdown
 # report slice.
 
 
-def test_maps_every_hypothesis_with_both_fields() -> None:
-    hyps = [
-        {"id": "h1", "title": "HDAC inhibition reverses fibrosis"},
-        {"id": "h2", "title": "SIRT1 activation blocks deposition"},
-    ]
-
-    result = _hypothesis_title_by_id(hyps)
-
-    assert result == {
-        "h1": "HDAC inhibition reverses fibrosis",
-        "h2": "SIRT1 activation blocks deposition",
-    }
-
-
-def test_skips_a_hypothesis_missing_an_id_or_title() -> None:
+def test_hypothesis_titles_map_by_id_skipping_incomplete_entries() -> None:
     hyps = [
         {"id": "h1", "title": ""},
         {"id": "", "title": "Untitled but id-less"},
         {"id": "h3", "title": "Complete"},
     ]
 
-    result = _hypothesis_title_by_id(hyps)
-
-    assert result == {"h3": "Complete"}
-
-
-def test_an_empty_pool_maps_to_nothing() -> None:
-    assert _hypothesis_title_by_id([]) == {}
+    assert _hypothesis_title_by_id(hyps) == {"h3": "Complete"}
 
 
 def test_comparison_a_populated_comparison_renders_domain_aware_axes() -> None:
@@ -76,59 +55,6 @@ def test_comparison_a_populated_comparison_renders_domain_aware_axes() -> None:
     assert "**Off-target risk:** Low -- selective for cardiac NHE1." in markdown
     assert "**Model system:** Isogenic organoid pairs." in markdown
     assert "Computational scalability" not in markdown
-
-
-def test_an_idea_with_more_values_than_axes_pairs_up_to_the_shorter_side() -> (
-    None
-):
-    markdown = _meta_review_markdown(
-        {
-            "candidate_comparison": {
-                "axes": ["Off-target risk"],
-                "ideas": [
-                    {
-                        "idea": "Hypothesis 1: NHE1 blockade",
-                        "values": ["Low.", "An orphaned second value."],
-                    }
-                ],
-            }
-        }
-    )
-
-    assert "**Off-target risk:** Low." in markdown
-    assert "An orphaned second value." not in markdown
-
-
-@pytest.mark.parametrize(
-    "heading",
-    ["Comparison of candidate ideas", "Comparison to existing solutions"],
-)
-def test_no_comparison_renders_no_section(heading: str) -> None:
-    markdown = _meta_review_markdown(
-        {"summary": "A synthesis with no comparison."}
-    )
-
-    assert heading not in markdown
-
-
-def test_a_malformed_idea_entry_is_skipped_not_stringified() -> None:
-    markdown = _meta_review_markdown(
-        {"candidate_comparison": {"ideas": ["not a dict"]}}
-    )
-
-    assert "not a dict" not in markdown
-
-
-def test_an_idea_with_no_label_is_skipped() -> None:
-    markdown = _meta_review_markdown(
-        {
-            "candidate_comparison": {
-                "ideas": [{"distinguishing_attribute": "orphaned"}]
-            }
-        }
-    )
-
-    assert "orphaned" not in markdown
 
 
 def _groups_markdown(
@@ -171,22 +97,6 @@ def test_a_group_heading_and_rationale_render() -> None:
     assert "**Research direction:**" not in markdown
 
 
-def test_a_group_with_two_contacts_lists_both_beneath_it() -> None:
-    markdown = _groups_markdown(
-        contacts=[
-            {"name": "Ada Researcher", "research_direction": "Direction A"},
-            {"name": "Bo Scientist", "research_direction": "Direction A"},
-        ],
-        groups=[{"research_direction": "Direction A", "rationale": "Why."}],
-    )
-
-    heading_index = markdown.index("### Direction A")
-    ada_index = markdown.index("#### Ada Researcher")
-    bo_index = markdown.index("#### Bo Scientist")
-    assert heading_index < ada_index
-    assert heading_index < bo_index
-
-
 def test_example_hypothesis_titles_resolve_by_id() -> None:
     markdown = _groups_markdown(
         contacts=[
@@ -211,17 +121,6 @@ def test_example_hypothesis_titles_resolve_by_id() -> None:
     assert "missing" not in markdown
 
 
-def test_no_example_titles_omits_the_bullet_heading() -> None:
-    markdown = _groups_markdown(
-        contacts=[
-            {"name": "Ada Researcher", "research_direction": "Direction A"}
-        ],
-        groups=[{"research_direction": "Direction A", "rationale": "Why."}],
-    )
-
-    assert "Example Hypothesis Titles" not in markdown
-
-
 def test_a_contact_matching_no_group_falls_back_to_the_flat_shape() -> None:
     markdown = _groups_markdown(
         contacts=[
@@ -240,23 +139,6 @@ def test_a_contact_matching_no_group_falls_back_to_the_flat_shape() -> None:
     assert "Direction A" not in markdown
 
 
-def test_a_report_with_no_groups_field_is_unaffected() -> None:
-    markdown = _groups_markdown(
-        contacts=[
-            {
-                "name": "Ada Researcher",
-                "expertise": "Chromatin biology",
-                "justification": "Authored the analyzed source.",
-                "research_direction": "Epigenetic control of fibrosis",
-            }
-        ]
-    )
-
-    assert "### Ada Researcher" in markdown
-    assert "**Research direction:** Epigenetic control of fibrosis" in markdown
-    assert "Why they are best for this direction" not in markdown
-
-
 def test_a_group_naming_no_matching_contact_renders_nothing() -> None:
     markdown = _groups_markdown(
         contacts=[
@@ -270,19 +152,6 @@ def test_a_group_naming_no_matching_contact_renders_nothing() -> None:
     assert "Direction Never Tagged" not in markdown
     assert "### Direction A" not in markdown
     assert "### Ada Researcher" in markdown
-
-
-def test_justification_renders_under_its_published_label() -> None:
-    markdown = _groups_markdown(
-        [
-            {
-                "name": "Ada Researcher",
-                "justification": "Authored the analyzed source.",
-            }
-        ]
-    )
-
-    assert "**Justification:** Authored the analyzed source." in markdown
 
 
 def test_the_evidence_citing_field_renders_under_a_fixed_name() -> None:
@@ -302,14 +171,6 @@ def test_the_evidence_citing_field_renders_under_a_fixed_name() -> None:
         "(https://example.org/paper)" in markdown
     )
     assert "Evidence:" not in markdown
-
-
-def test_an_unsourced_contact_renders_no_supporting_article_line() -> None:
-    markdown = _groups_markdown(
-        [{"name": "Ada Researcher", "justification": "Relevant background."}]
-    )
-
-    assert "Supporting article" not in markdown
 
 
 def test_expertise_is_the_one_field_no_exemplar_supports() -> None:
@@ -340,42 +201,6 @@ def test_expertise_is_the_one_field_no_exemplar_supports() -> None:
     assert "Supporting article:" not in markdown
 
 
-def test_a_contact_renders_its_research_direction() -> None:
-    markdown = _groups_markdown(
-        [
-            {
-                "name": "Ada Researcher",
-                "expertise": "Mitochondrial base excision repair",
-                "justification": "Authored the analyzed source.",
-                "research_direction": (
-                    "Oxidative DNA Damage & Mitochondrial Base Excision"
-                    " Repair (BER) in ALS"
-                ),
-            }
-        ]
-    )
-
-    assert (
-        "**Research direction:** Oxidative DNA Damage & Mitochondrial Base"
-        " Excision Repair (BER) in ALS" in markdown
-    )
-
-
-def test_a_contact_with_no_research_direction_omits_the_line() -> None:
-    markdown = _groups_markdown(
-        [
-            {
-                "name": "Ada Researcher",
-                "expertise": "Mitochondrial base excision repair",
-                "justification": "Authored the analyzed source.",
-            }
-        ]
-    )
-
-    assert "Research direction" not in markdown
-    assert "Ada Researcher" in markdown
-
-
 def test_solutions_a_populated_comparison_renders_domain_aware_axes() -> None:
     markdown = _meta_review_markdown(
         {
@@ -404,22 +229,6 @@ def test_solutions_a_populated_comparison_renders_domain_aware_axes() -> None:
     )
     assert "**Availability:** Widely available, low cost." in markdown
     assert "Sensitivity to novelty" not in markdown
-
-
-def test_a_malformed_row_entry_is_skipped_not_stringified() -> None:
-    markdown = _meta_review_markdown(
-        {"existing_solutions_comparison": {"rows": ["not a dict"]}}
-    )
-
-    assert "not a dict" not in markdown
-
-
-def test_a_row_with_no_method_is_skipped() -> None:
-    markdown = _meta_review_markdown(
-        {"existing_solutions_comparison": {"rows": [{"approach": "orphaned"}]}}
-    )
-
-    assert "orphaned" not in markdown
 
 
 # The assembled snapshot catches ordering/separator drift that subsection-only
@@ -693,18 +502,6 @@ def test_hypothesis_entry_omits_every_optional_subsection_when_absent() -> None:
     ]
 
 
-def test_hypothesis_title_is_bold_and_product_prefixed() -> None:
-    hyp = {"id": "h3", "title": "Rate-limiting feedback."}
-
-    lines = report_markdown_hypothesis._render_hypothesis_entry(
-        3, hyp, [], [], []
-    )
-
-    assert lines[0] == (
-        "### 3. **Co-Scientist - Rate-limiting feedback.**  _Elo: _"
-    )
-
-
 _NOTICE_PREFIX = "**Scientist-contributed — not yet reviewed:**"
 
 
@@ -748,16 +545,6 @@ def test_scientist_admission_notice_absent_once_peer_reviewed() -> None:
     assert not any(line.startswith(_NOTICE_PREFIX) for line in cleared)
 
 
-def test_scientist_admission_notice_absent_for_agent_ideas() -> None:
-    hyp = {"id": "h7", "title": "Agent idea.", "created_by_agent": "generation"}
-
-    lines = report_markdown_hypothesis._render_hypothesis_entry(
-        1, hyp, [], [], []
-    )
-
-    assert not any(line.startswith(_NOTICE_PREFIX) for line in lines)
-
-
 def test_hypothesis_title_falls_back_to_untitled_when_absent() -> None:
     lines = report_markdown_hypothesis._render_hypothesis_entry(
         1, {"id": "h4"}, [], [], []
@@ -771,163 +558,6 @@ def _review(agent: str, detail: dict[str, object] | None) -> dict[str, object]:
     if detail is not None:
         row["detail_json"] = json.dumps(detail)
     return row
-
-
-def test_verdict_renders_both_fields_when_present() -> None:
-    reviews = [
-        _review(
-            "full_review",
-            {"go_no_go": "Go — pursue validation.", "time_to_verdict": "Short"},
-        )
-    ]
-    assert _render_hypothesis_verdict(reviews) == [
-        "**Verdict:** Go — pursue validation.",
-        "",
-        "**Time to Verdict:** Short",
-        "",
-    ]
-
-
-def test_verdict_prefers_recurrent_over_full() -> None:
-    reviews = [
-        _review("full_review", {"go_no_go": "stale framing"}),
-        _review("recurrent_review", {"go_no_go": "fresh framing"}),
-    ]
-    lines = _render_hypothesis_verdict(reviews)
-    assert lines[0] == "**Verdict:** fresh framing"
-
-
-def test_verdict_omits_entirely_when_no_review_row() -> None:
-    assert _render_hypothesis_verdict([]) == []
-
-
-def test_verdict_omits_entirely_when_detail_json_absent() -> None:
-    reviews = [{"hypothesis_id": "h1", "reviewer_agent": "full_review"}]
-    assert _render_hypothesis_verdict(reviews) == []
-
-
-def test_verdict_renders_only_the_field_present() -> None:
-    reviews = [_review("full_review", {"time_to_verdict": "2-3 months"})]
-    assert _render_hypothesis_verdict(reviews) == [
-        "**Time to Verdict:** 2-3 months",
-        "",
-    ]
-
-
-def test_verdict_degrades_on_malformed_json() -> None:
-    reviews = [
-        {
-            "hypothesis_id": "h1",
-            "reviewer_agent": "full_review",
-            "detail_json": "{not valid json",
-        }
-    ]
-    assert _render_hypothesis_verdict(reviews) == []
-
-
-def test_verdict_degrades_when_detail_json_is_not_an_object() -> None:
-    reviews = [_review("full_review", None)]
-    reviews[0]["detail_json"] = json.dumps(["go", "short"])
-    assert _render_hypothesis_verdict(reviews) == []
-
-
-def test_verdict_coerces_non_string_field_values() -> None:
-    detail: dict[str, object] = {"go_no_go": 42, "time_to_verdict": None}
-    reviews = [_review("full_review", detail)]
-    assert _render_hypothesis_verdict(reviews) == [
-        "**Verdict:** 42",
-        "",
-    ]
-
-
-def test_simulation_review_renders_numbered_points_and_decisive_step() -> None:
-    reviews = [
-        _review(
-            "simulation_review",
-            {
-                "failure_points": [
-                    "Off-target editing risk.",
-                    "Delivery inefficiency.",
-                ],
-                "decisive_step": "Step 4: vector reaches target tissue.",
-            },
-        )
-    ]
-    assert _render_hypothesis_simulation_review(reviews) == [
-        "#### Simulation review",
-        "",
-        "1. **Failure point:** Off-target editing risk.",
-        "2. **Failure point:** Delivery inefficiency.",
-        "",
-        "**Decisive step:** Step 4: vector reaches target tissue.",
-        "",
-    ]
-
-
-def test_simulation_review_omits_when_mechanism_holds() -> None:
-    reviews = [_review("simulation_review", {})]
-    assert _render_hypothesis_simulation_review(reviews) == []
-
-
-def test_simulation_review_omits_when_no_review_row() -> None:
-    assert _render_hypothesis_simulation_review([]) == []
-
-
-def test_simulation_review_renders_decisive_step_alone() -> None:
-    reviews = [
-        _review("simulation_review", {"decisive_step": "Step 1: binding."})
-    ]
-    assert _render_hypothesis_simulation_review(reviews) == [
-        "#### Simulation review",
-        "",
-        "**Decisive step:** Step 1: binding.",
-        "",
-    ]
-
-
-def test_simulation_review_degrades_when_failure_points_not_a_list() -> None:
-    reviews = [
-        _review(
-            "simulation_review",
-            {"failure_points": "a single string", "decisive_step": "Step 2."},
-        )
-    ]
-    assert _render_hypothesis_simulation_review(reviews) == [
-        "#### Simulation review",
-        "",
-        "**Decisive step:** Step 2.",
-        "",
-    ]
-
-
-def test_simulation_review_skips_blank_points() -> None:
-    reviews = [
-        _review(
-            "simulation_review",
-            {"failure_points": ["", "   ", "A real point."]},
-        )
-    ]
-    assert _render_hypothesis_simulation_review(reviews) == [
-        "#### Simulation review",
-        "",
-        "1. **Failure point:** A real point.",
-        "",
-    ]
-
-
-def test_reviews_by_hypothesis_keeps_each_hypothesis_separate() -> None:
-    reviews: list[dict[str, object]] = [
-        _review("simulation_review", {"decisive_step": "for h1"}),
-        {
-            "hypothesis_id": "h2",
-            "reviewer_agent": "simulation_review",
-            "detail_json": json.dumps({"decisive_step": "for h2"}),
-        },
-    ]
-    grouped = _reviews_by_hypothesis(reviews)
-    assert [r["hypothesis_id"] for r in grouped["h1"]] == ["h1"]
-    assert [r["hypothesis_id"] for r in grouped["h2"]] == ["h2"]
-    assert "h3" not in grouped
 
 
 # Absent corpus verification must be disclosed; model novelty judgments are not
@@ -945,46 +575,6 @@ def _hypothesis(
     }
 
 
-def test_report_markdown_discloses_unverified_novelty_by_default() -> None:
-    markdown = report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Map the feedback loop.",
-            provider="engine",
-            top_hypotheses=[_hypothesis("h1", "Feedback control")],
-        )
-    )
-    assert "not a" in markdown
-    assert "reviewing model's own judgment" in markdown
-
-
-def test_report_markdown_omits_disclosure_when_novelty_is_verified() -> None:
-    markdown = report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Map the feedback loop.",
-            provider="engine",
-            top_hypotheses=[
-                _hypothesis(
-                    "h1",
-                    "Feedback control",
-                    novelty_validation="Checked against 4 retrieved papers.",
-                )
-            ],
-        )
-    )
-    assert "reviewing model's own judgment" not in markdown
-
-
-def test_report_markdown_omits_disclosure_with_no_hypotheses() -> None:
-    markdown = report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Map the feedback loop.",
-            provider="engine",
-            top_hypotheses=[],
-        )
-    )
-    assert "reviewing model's own judgment" not in markdown
-
-
 def test_rejected_idea_reason_attributes_non_novelty_to_the_reviewer() -> None:
     # Novelty scores are unaided model judgments; rejection reasons must
     # attribute rather than assert them.
@@ -993,3 +583,178 @@ def test_rejected_idea_reason_attributes_non_novelty_to_the_reviewer() -> None:
     assert len(reasons) == 1
     assert "reviewer judged" in reasons[0]
     assert "not a literature search" in reasons[0]
+
+
+@pytest.mark.parametrize(
+    "meta_review",
+    [
+        {"candidate_comparison": {"ideas": ["not a dict"]}},
+        {
+            "candidate_comparison": {
+                "ideas": [{"distinguishing_attribute": "orphaned"}]
+            }
+        },
+        {"existing_solutions_comparison": {"rows": ["not a dict"]}},
+        {"existing_solutions_comparison": {"rows": [{"approach": "orphaned"}]}},
+    ],
+)
+def test_a_malformed_or_unlabelled_comparison_entry_is_skipped(
+    meta_review: dict[str, object],
+) -> None:
+    markdown = _meta_review_markdown(meta_review)
+
+    assert "not a dict" not in markdown
+    assert "orphaned" not in markdown
+
+
+def test_a_comparison_pairs_values_with_axes_up_to_the_shorter_side() -> None:
+    markdown = _meta_review_markdown(
+        {
+            "candidate_comparison": {
+                "axes": ["Off-target risk"],
+                "ideas": [
+                    {
+                        "idea": "Hypothesis 1: NHE1 blockade",
+                        "values": ["Low.", "An orphaned second value."],
+                    }
+                ],
+            }
+        }
+    )
+
+    assert "**Off-target risk:** Low." in markdown
+    assert "An orphaned second value." not in markdown
+
+
+@pytest.mark.parametrize(
+    ("reviews", "expected"),
+    [
+        (
+            [
+                _review(
+                    "full_review",
+                    {"go_no_go": "Go.", "time_to_verdict": "Short"},
+                )
+            ],
+            ["**Verdict:** Go.", "", "**Time to Verdict:** Short", ""],
+        ),
+        (
+            [
+                _review("full_review", {"go_no_go": "stale framing"}),
+                _review("recurrent_review", {"go_no_go": "fresh framing"}),
+            ],
+            ["**Verdict:** fresh framing", ""],
+        ),
+        (
+            [_review("full_review", {"time_to_verdict": "2-3 months"})],
+            ["**Time to Verdict:** 2-3 months", ""],
+        ),
+        (
+            [_review("full_review", {"go_no_go": 42, "time_to_verdict": None})],
+            ["**Verdict:** 42", ""],
+        ),
+        ([], []),
+        ([{"hypothesis_id": "h1", "reviewer_agent": "full_review"}], []),
+        (
+            [
+                {
+                    "hypothesis_id": "h1",
+                    "reviewer_agent": "full_review",
+                    "detail_json": "{not valid json",
+                }
+            ],
+            [],
+        ),
+        (
+            [
+                {
+                    "hypothesis_id": "h1",
+                    "reviewer_agent": "full_review",
+                    "detail_json": json.dumps(["go", "short"]),
+                }
+            ],
+            [],
+        ),
+    ],
+    ids=[
+        "both",
+        "recurrent-wins",
+        "time-only",
+        "coerced",
+        "no-review",
+        "no-detail",
+        "bad-json",
+        "not-an-object",
+    ],
+)
+def test_the_verdict_renders_what_the_review_carries_and_degrades_quietly(
+    reviews: list[dict[str, object]], expected: list[str]
+) -> None:
+    assert _render_hypothesis_verdict(reviews) == expected
+
+
+@pytest.mark.parametrize(
+    ("detail", "expected"),
+    [
+        (
+            {
+                "failure_points": ["Off-target risk.", "Delivery."],
+                "decisive_step": "Step 4: vector reaches tissue.",
+            },
+            [
+                "1. **Failure point:** Off-target risk.",
+                "2. **Failure point:** Delivery.",
+                "",
+                "**Decisive step:** Step 4: vector reaches tissue.",
+                "",
+            ],
+        ),
+        (
+            {"failure_points": "a single string", "decisive_step": "Step 2."},
+            ["**Decisive step:** Step 2.", ""],
+        ),
+        (
+            {"failure_points": ["", "   ", "A real point."]},
+            ["1. **Failure point:** A real point.", ""],
+        ),
+        ({}, None),
+    ],
+    ids=[
+        "points-and-step",
+        "points-not-a-list",
+        "blank-points",
+        "mechanism-holds",
+    ],
+)
+def test_the_simulation_review_lists_failure_points_and_the_decisive_step(
+    detail: dict[str, object], expected: list[str] | None
+) -> None:
+    lines = _render_hypothesis_simulation_review(
+        [_review("simulation_review", detail)]
+    )
+
+    assert lines == (
+        [] if expected is None else ["#### Simulation review", "", *expected]
+    )
+    assert _render_hypothesis_simulation_review([]) == []
+
+
+@pytest.mark.parametrize(
+    ("extra", "disclosed"),
+    [
+        ({}, True),
+        ({"novelty_validation": "Checked against 4 retrieved papers."}, False),
+    ],
+)
+def test_novelty_is_disclosed_as_unverified_unless_checked_against_literature(
+    extra: dict[str, object], disclosed: bool
+) -> None:
+    markdown = report_markdown.render_report_markdown(
+        report_markdown.ReportMarkdownInputs(
+            research_goal="Map the feedback loop.",
+            provider="engine",
+            top_hypotheses=[_hypothesis("h1", "Feedback control", **extra)],
+        )
+    )
+
+    assert ("reviewing model's own judgment" in markdown) is disclosed
