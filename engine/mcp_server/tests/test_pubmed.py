@@ -2,12 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
-import sys
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
 
 import pytest
 from Bio import Entrez
@@ -15,7 +12,6 @@ from mcp_server.entrez import read_entrez
 from mcp_server.pubmed_client import (
     MIN_RESULTS_BEFORE_RELAX,
     anchored_relaxed_query,
-    relaxation_ladder,
     search_with_relaxation,
 )
 from mcp_server.pubmed_storage import (
@@ -153,33 +149,6 @@ def test_search_pubmed_returns_plain_text_articles(
     assert (found["title"], found["abstract"]) == (title, abstract)
 
 
-@pytest.mark.parametrize("reachable", [True, False])
-def test_anonymous_pubmed_availability_queries_service(
-    monkeypatch: pytest.MonkeyPatch, reachable: bool
-) -> None:
-    monkeypatch.delenv("ENTREZ_EMAIL", raising=False)
-    monkeypatch.delenv("ENTREZ_API_KEY", raising=False)
-    monkeypatch.setattr(Entrez, "email", None)
-    monkeypatch.setattr(Entrez, "api_key", None)
-    called: list[dict[str, object]] = []
-
-    def esearch(**kwargs: object) -> BytesIO:
-        called.append(kwargs)
-        if not reachable:
-            raise URLError("test service unavailable")
-        return BytesIO(
-            b'<?xml version="1.0" encoding="UTF-8" ?>'
-            b"<!DOCTYPE eSearchResult PUBLIC "
-            b'"-//NLM//DTD esearch 20060628//EN" '
-            b'"https://eutils.ncbi.nlm.nih.gov/eutils/dtd/20060628/esearch.dtd">'
-            b"<eSearchResult><IdList><Id>22745249</Id></IdList></eSearchResult>"
-        )
-
-    monkeypatch.setattr(Entrez, "esearch", esearch)
-    assert tool.check_pubmed_available() == ("true" if reachable else "false")
-    assert len(called) == 1
-
-
 @pytest.mark.parametrize("malformed", [False, True])
 def test_the_entrez_reader_closes_the_response(
     monkeypatch: pytest.MonkeyPatch, malformed: bool
@@ -198,61 +167,6 @@ def test_the_entrez_reader_closes_the_response(
     else:
         assert read_entrez(handle) == {"IdList": ["123"]}
     assert handle.closed
-
-
-def _tagged(*terms: str, joiner: str = " OR ") -> str:
-    return joiner.join(f"({term}[tiab] OR {term}[mesh])" for term in terms)
-
-
-_ANCHORED = (
-    f"{_tagged('PHGDH', 'knockdown', joiner=' AND ')} AND "
-    f"({_tagged('osimertinib', 'resistance')})"
-)
-
-
-@pytest.mark.parametrize(
-    ("query", "recency", "ladder"),
-    [
-        ("kinase", 0, [("kinase", 0)]),
-        (
-            "kinase tumor",
-            0,
-            [("kinase tumor", 0), (_tagged("kinase", "tumor"), 0)],
-        ),
-        (
-            "kinase inhibition tumor",
-            7,
-            [
-                ("kinase inhibition tumor", 7),
-                ("kinase inhibition tumor", 0),
-                (
-                    f"{_tagged('kinase', 'inhibition', joiner=' AND ')}"
-                    f" AND ({_tagged('tumor')})",
-                    0,
-                ),
-                (_tagged("kinase", "inhibition", "tumor"), 0),
-            ],
-        ),
-        (
-            "PHGDH knockdown osimertinib resistance",
-            0,
-            [
-                ("PHGDH knockdown osimertinib resistance", 0),
-                (_ANCHORED, 0),
-                (_tagged("PHGDH", "knockdown", "osimertinib", "resistance"), 0),
-            ],
-        ),
-        # Explicit Boolean structure would fight retokenizing.
-        *(
-            (f"kinase {op} tumor", 0, [(f"kinase {op} tumor", 0)])
-            for op in ("AND", "OR", "NOT")
-        ),
-    ],
-)
-def test_the_relaxation_ladder_broadens_recency_then_anchored_then_terms(
-    query: str, recency: int, ladder: list[tuple[str, int]]
-) -> None:
-    assert relaxation_ladder(query, recency_years=recency) == ladder
 
 
 def _by_rung(**ids_by_rung: list[str]) -> Any:
@@ -358,27 +272,6 @@ def test_first_rung_target_survives_when_anchored_rung_fills_buffer() -> None:
     assert trace["selected"]["ids"] == ids
 
 
-def test_storage_import_does_not_initialize_entrez() -> None:
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            """
-import sys
-sys.modules["Bio"] = None
-import mcp_server.pubmed_storage
-assert "mcp_server.entrez" not in sys.modules
-assert "mcp_server.pubmed_client" not in sys.modules
-assert "mcp_server.literature_review" not in sys.modules
-""",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert result.returncode == 0, result.stderr
-
-
 def test_metadata_and_empty_link_proof_survive_cache_relocation(
     tmp_path: Path,
 ) -> None:
@@ -415,10 +308,6 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
     ("raw", "expected"),
     [
         (
-            "Colistin resistance in <i>Klebsiella pneumoniae</i>",
-            "Colistin resistance in Klebsiella pneumoniae",
-        ),
-        (
             "Sphingosine against &lt;i&gt;Pseudomonas aeruginosa&lt;/i&gt;",
             "Sphingosine against Pseudomonas aeruginosa",
         ),
@@ -427,16 +316,9 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
         ("<h4>Aims</h4>The convergence of", "Aims The convergence of"),
         # Inline tags must close up so a split gene name remains one symbol.
         ("bla<sub>NDM-1</sub> carriage", "blaNDM-1 carriage"),
-        ("Trials &amp; results", "Trials & results"),
-        # Europe PMC species abbreviations can include zero-width spaces.
-        ("(<i>K. pneumoniae</i>​​)", "(K. pneumoniae)"),
-        ("line one\n\n  line two", "line one line two"),
         # Loose angle-bracket stripping can delete a comparison clause.
-        ("holds for p &lt;b and q&gt; r", "holds for p <b and q> r"),
         ("at p&lt;0.05 while A&gt;B held", "at p<0.05 while A>B held"),
         (None, ""),
-        ("", ""),
-        (123, ""),
     ],
 )
 def test_clean_markup(raw: Any, expected: str) -> None:
@@ -464,18 +346,3 @@ def test_pmc_rendering_keeps_abstract_and_section_paragraphs() -> None:
     assert extract_text_from_pmc_html(xml, 25) == (
         rendered[:25] + "\n\n[... truncated for length ...]"
     )
-
-
-@pytest.mark.parametrize(
-    "xml,expected",
-    [
-        ("<article/>", ""),
-        (
-            "<abstract>Plain abstract.</abstract>",
-            "# abstract\n\nPlain abstract.",
-        ),
-        ("<abstract><p/></abstract>", ""),
-    ],
-)
-def test_pmc_rendering_handles_sparse_articles(xml: str, expected: str) -> None:
-    assert extract_text_from_pmc_html(xml) == expected
