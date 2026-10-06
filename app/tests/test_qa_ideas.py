@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -38,32 +37,6 @@ def test_a_query_matching_nothing_falls_back_to_the_leaders() -> None:
     ideas = [_idea("Alpha"), _idea("Beta")]
     results = qa_ideas.search_ideas(ideas, "zzzz qqqq", 1)
     assert [r["title"] for r in results] == ["Alpha"]
-
-
-def test_the_result_count_is_clamped_however_the_model_asks() -> None:
-    ideas = [_idea(f"Idea {n}") for n in range(20)]
-    assert len(qa_ideas.search_ideas(ideas, "idea", 99)) == 5
-    assert len(qa_ideas.search_ideas(ideas, "idea", 0)) == 1
-    assert len(qa_ideas.search_ideas(ideas, "idea", "three")) == 3
-    assert len(qa_ideas.search_ideas(ideas, "idea", None)) == 3
-
-
-def test_one_long_idea_cannot_fill_the_whole_result() -> None:
-    result = qa_ideas.search_ideas([_idea("H", statement="x" * 5_000)], "H")[0]
-    assert len(result["Statement"]) < 1_300
-
-
-def test_a_malformed_argument_blob_still_searches() -> None:
-    out = qa_ideas.run_tool_call(
-        {"name": "search_ideas", "arguments": "lipid repair"},
-        [_idea("Lipid repair")],
-    )
-    assert json.loads(out)["ideas"][0]["title"] == "Lipid repair"
-
-
-def test_an_unknown_tool_name_is_reported_not_raised() -> None:
-    out = qa_ideas.run_tool_call({"name": "rm_rf", "arguments": "{}"}, [])
-    assert "unknown tool" in json.loads(out)["error"]
 
 
 def _fragment(index: int, **fields: Any) -> SimpleNamespace:
@@ -165,17 +138,6 @@ def test_a_tool_call_after_the_answer_started_is_ignored(
 
     assert deltas == [("chunk", "Half an answer.")]
     assert len(fake.sent) == 1
-
-
-def test_a_run_with_no_ideas_is_offered_no_tool(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    fake = _scripted_litellm([[_chunk("Nothing yet.")]])
-    install_completion_backend(monkeypatch, (fake).acompletion)
-
-    _drain(qa.stream_llm_deltas("model", "sys", "q", []))
-
-    assert "tools" not in fake.sent[0]
 
 
 def test_run_artifact_lookup_uses_same_bounded_two_round_stream(

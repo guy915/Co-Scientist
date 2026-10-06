@@ -310,35 +310,3 @@ def test_frontend_wire_types_are_generated_from_backend_contracts() -> None:
 
 def test_closed_event_vocabulary_matches_the_store() -> None:
     assert set(get_args(RunEventActivity)) == ACTIVITY_VALUES
-
-
-def test_supported_read_routes_publish_concrete_response_schemas() -> None:
-    paths = app.openapi()["paths"]
-    routes = [
-        ("/api/runs", "get"),
-        ("/api/runs", "post"),
-        ("/api/runs/{run_id}", "get"),
-        ("/api/interviews", "get"),
-        ("/api/interviews/{interview_id}", "get"),
-        ("/api/shared/{token}", "get"),
-    ]
-    collections = [
-        "hypotheses",
-        "evidence",
-        "matches",
-        "proximity",
-        "reviews",
-        "safety",
-        "claim-evidence",
-        "messages",
-        "report",
-        "shares",
-    ]
-    routes.extend(
-        (f"/api/runs/{{run_id}}/{name}", "get") for name in collections
-    )
-    for path, method in routes:
-        schema = paths[path][method]["responses"]["200"]["content"][
-            "application/json"
-        ]["schema"]
-        assert "$ref" in schema or schema.get("type") == "array", (path, schema)

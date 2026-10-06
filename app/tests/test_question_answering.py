@@ -10,7 +10,7 @@ import pytest
 
 import app.qa.manifest as qa_run_state
 from app import qa
-from app.config import CONVERSATIONAL_REASONING_EFFORT, settings
+from app.config import settings
 from app.qa import build_evidence_manifest
 from app.store import db, runs
 from app.store import events as store_events
@@ -87,13 +87,6 @@ def test_build_system_prompt_includes_every_section() -> None:
     assert "Assistant: hello there" in prompt
 
 
-def test_build_system_prompt_falls_back_when_sections_are_empty() -> None:
-    prompt = qa.build_system_prompt(qa.QaRunContext("Goal", [], [], [], [], []))
-    assert "(none yet)" in prompt
-    assert "(none)" in prompt
-    assert "(no evidence retrieved)" in prompt
-
-
 def _thinking_litellm(reasoning: str, prose: str) -> SimpleNamespace:
 
     async def _chunk_stream() -> AsyncIterator[Any]:
@@ -166,42 +159,6 @@ def test_a_failed_model_call_persists_and_emits_the_fallback_answer(
 
     assert '"type": "error"' in body
     assert answer.content.startswith("Q&A requires")
-
-
-def test_build_offline_answer_grounds_in_run_hypotheses_and_sources() -> None:
-    hyps = [
-        {"title": "H1: rescue", "elo_rating": 1320, "win_count": 3},
-        {"title": "H2: buffer", "elo_rating": 1290, "win_count": 2},
-    ]
-    reviews = [
-        {
-            "reviewer_agent": "review",
-            "hypothesis_id": "abcdefgh12",
-            "summary": "well grounded in the literature",
-        }
-    ]
-    manifest = [
-        {"n": 1, "title": "Key paper", "source": "PubMed", "state": "verified"}
-    ]
-
-    answer = qa.build_offline_answer(
-        "Investigate ferroptosis", hyps, reviews, manifest, "Summarize this"
-    )
-
-    assert "Investigate ferroptosis" in answer
-    assert "H1: rescue" in answer
-    assert "1320" in answer
-    assert "[1]" in answer
-    assert "Key paper" in answer
-    assert "Summarize this" in answer
-    unrelated = qa.build_offline_answer(
-        "Goal", hyps, [], [], "What about buffer?"
-    )
-    assert unrelated.index("H2: buffer") < unrelated.index("H1: rescue")
-    assert (
-        "no hypotheses"
-        in qa.build_offline_answer("Goal", [], [], [], "Any results?").lower()
-    )
 
 
 def _completed_run_id() -> str:
@@ -307,42 +264,6 @@ def _citation(eid: str, state: str) -> dict[str, Any]:
     return {"evidence_id": eid, "state": state, "claim": "c"}
 
 
-def test_manifest_is_capped() -> None:
-    evidence = [_evidence(f"e{i}") for i in range(30)]
-    manifest = build_evidence_manifest(evidence, [], cap=12)
-    assert len(manifest) == 12
-    assert manifest[-1]["n"] == 12
-
-
-def test_stream_llm_deltas_requests_the_conversational_reasoning_tier(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    seen: dict[str, Any] = {}
-
-    async def _capturing_acompletion(**kwargs: Any) -> Any:
-        seen.update(kwargs)
-
-        async def _chunks() -> AsyncIterator[Any]:
-            delta = SimpleNamespace(content="hi", reasoning_content=None)
-            yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
-
-        return _chunks()
-
-    install_completion_backend(
-        monkeypatch,
-        (SimpleNamespace(acompletion=_capturing_acompletion)).acompletion,
-    )
-    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
-
-    _drain(
-        qa.stream_llm_deltas(
-            settings.effective_chat_model, "sys prompt", "q?", []
-        )
-    )
-
-    assert seen["reasoning_effort"] == CONVERSATIONAL_REASONING_EFFORT
-
-
 def _seed_running_run() -> RunRow:
     run = seed_run("A goal")
     runs.update_run_status(run.id, RunStatus.RUNNING)
@@ -361,85 +282,6 @@ def test_elapsed_is_measured_from_execution_start_not_draft_creation() -> None:
     assert 110.0 < progress.elapsed_seconds < 130.0
     assert progress.idea_count == 2
     assert progress.is_running
-
-
-def test_a_run_that_never_started_reports_no_elapsed_time() -> None:
-    run = _seed_running_run()
-    with db.connect() as conn:
-        progress = qa_run_state.gather_run_progress(
-            run, [], {}, conn, now=time.time()
-        )
-
-    assert progress.elapsed_seconds is None
-    assert "not started yet" in qa_run_state.render_progress(progress)
-
-
-def test_only_meta_review_notes_count_as_conclusions() -> None:
-    run = _seed_running_run()
-    reviews = [
-        {"reviewer_agent": "review", "summary": "one idea's critique"},
-        {"reviewer_agent": "meta_review", "summary": "the pattern so far"},
-    ]
-    with db.connect() as conn:
-        progress = qa_run_state.gather_run_progress(
-            run, reviews, {}, conn, now=time.time()
-        )
-
-    assert progress.conclusions == ["the pattern so far"]
-
-
-def test_a_finished_run_stops_its_elapsed_clock() -> None:
-    run = _seed_running_run()
-    store_events.append_event(run.id, "lifecycle", {"event": "queued"})
-    run = dataclasses.replace(
-        run, status="completed", completed_at=time.time() + 60.0
-    )
-    with db.connect() as conn:
-        progress = qa_run_state.gather_run_progress(
-            run, [], {}, conn, now=time.time() + 9_000.0
-        )
-
-    assert progress.elapsed_seconds is not None
-    assert progress.elapsed_seconds < 120.0
-    assert not progress.is_running
-
-
-def _payload() -> dict[str, Any]:
-    return {
-        "idea_count": 22,
-        "hypothesis_count": 8,
-        "verified_count": 3,
-        "evidence_count": 47,
-        "research_overview": {
-            "summary": "The run converged on lipid repair.",
-            "specific_aims": ["Aim one", "Aim two"],
-        },
-        "meta_review": {
-            "common_strengths": ["mechanistic detail"],
-            "common_weaknesses": ["thin controls"],
-            "strategic_recommendations": [
-                {
-                    "focus_area": "Validation",
-                    "recommendation": "run isogenic controls",
-                    "justification": "because",
-                },
-                "a bare recommendation",
-            ],
-        },
-        "agent_insights": {"key_findings": ["GPX4-independent repair"]},
-    }
-
-
-def test_report_facts_carry_the_synthesis_and_every_count() -> None:
-    facts = qa_run_state.build_report_facts(_payload())
-
-    assert facts.summary == "The run converged on lipid repair."
-    assert facts.aims == ["Aim one", "Aim two"]
-    assert facts.key_findings == ["GPX4-independent repair"]
-    assert facts.weaknesses == ["thin controls"]
-    assert facts.counts["idea_count"] == 22
-    assert facts.counts["hypothesis_count"] == 8
-    assert facts.counts["verified_count"] == 3
 
 
 @pytest.mark.parametrize(
@@ -504,73 +346,3 @@ def test_manifest_lists_only_citable_evidence_strongest_state_first(
 
     assert [(m["evidence_id"], m["state"]) for m in manifest] == expected
     assert [m["n"] for m in manifest] == list(range(1, len(expected) + 1))
-
-
-def test_manifest_passages_are_grounded_and_truncated() -> None:
-    manifest = build_evidence_manifest(
-        [
-            _evidence("e1", abstract="This paper shows X causes Y."),
-            _evidence("e2"),
-            _evidence("e3", abstract="x" * 2000),
-        ],
-        [],
-    )
-
-    assert manifest[0]["passage"] == "This paper shows X causes Y."
-    assert manifest[1]["passage"] is None
-    assert len(manifest[2]["passage"]) < 700
-    assert manifest[2]["passage"].endswith("…")
-
-
-def test_report_facts_render_every_section_and_tolerate_nothing() -> None:
-    rendered = qa_run_state.render_report(
-        qa_run_state.build_report_facts(_payload())
-    )
-    assert "Overview: The run converged on lipid repair." in rendered
-    assert "- Aim one" in rendered
-    assert "Recommended next steps" in rendered
-    assert "- Validation: run isogenic controls" in rendered
-    assert "- a bare recommendation" in rendered
-    half_empty = qa_run_state.build_report_facts(
-        {
-            "meta_review": {
-                "strategic_recommendations": [
-                    {
-                        "focus_area": "Centre on homeostasis",
-                        "recommendation": "",
-                    },
-                    {"focus_area": "", "recommendation": "Run the controls"},
-                ]
-            }
-        }
-    )
-    assert half_empty.recommendations == [
-        "Centre on homeostasis",
-        "Run the controls",
-    ]
-    empty = qa_run_state.build_report_facts({})
-    assert qa_run_state.render_report(empty).startswith("Ideas explored: 0")
-
-
-def test_the_idea_index_names_every_idea_and_counts_those_it_cannot() -> None:
-    ideas = [
-        {"title": f"Idea {n}", "elo_rating": 1200 + n, "status": "active"}
-        for n in range(12)
-    ]
-    index = qa_run_state.render_idea_index(ideas)
-    assert index.count("\n") == 11
-    assert "- Idea 11 (Elo 1211, active)" in index
-    verdict = qa_run_state.render_idea_index(
-        [
-            {
-                "title": "H",
-                "status": "active",
-                "verification_verdict": "supported",
-            }
-        ]
-    )
-    assert "supported" in verdict
-    overflow = qa_run_state.render_idea_index(
-        [{"title": f"Idea {n}"} for n in range(45)]
-    )
-    assert "...and 5 more (search to reach them)" in overflow

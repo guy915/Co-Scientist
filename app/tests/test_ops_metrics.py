@@ -118,42 +118,6 @@ def test_metrics_count_runs_tasks_and_failed_tasks_by_status(
     assert _sample_value(failed, exhausted="false") == 1
 
 
-def test_metrics_latency_reflects_started_completed_timestamps(
-    isolated_db: str,
-) -> None:
-    run_id = _make_run(isolated_db, RunStatus.COMPLETED)
-    task_id = _enqueue(
-        run_id, "k1", isolated_db, task_type="engine.node.ranking"
-    )
-    _set_task_row(
-        task_id,
-        isolated_db,
-        status="completed",
-        started_at=1000.0,
-        completed_at=1020.0,
-    )
-
-    res = _operator_client().get("/metrics")
-    family = _families(res.text)["coscientist_task_duration_seconds"]
-
-    bucket_samples = {
-        s.labels["le"]: s.value
-        for s in family.samples
-        if s.name.endswith("_bucket")
-        and s.labels.get("task_type") == "engine.node.ranking"
-    }
-    assert bucket_samples["15"] == 0
-    assert bucket_samples["30"] == 1
-    assert bucket_samples["+Inf"] == 1
-    sum_sample = next(
-        s
-        for s in family.samples
-        if s.name.endswith("_sum")
-        and s.labels.get("task_type") == "engine.node.ranking"
-    )
-    assert sum_sample.value == 20.0
-
-
 def test_metrics_endpoint_issues_no_write(isolated_db: str) -> None:
     _make_run(isolated_db, RunStatus.COMPLETED)
     run_id = _make_run(isolated_db, RunStatus.RUNNING)

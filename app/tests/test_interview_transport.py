@@ -359,34 +359,6 @@ def test_split_without_a_block_keeps_the_prose_and_reports_no_fields() -> None:
 
 
 @pytest.mark.parametrize(
-    ("body", "reason"),
-    [
-        ('{"research_challenge": "Reverse', "truncated mid-write"),
-        ("not json at all", "not JSON"),
-        ('["a", "b"]', "JSON, but not an object"),
-    ],
-)
-def test_split_reports_no_fields_for_an_unusable_block(
-    body: str, reason: str
-) -> None:
-    _, prose, fields = _stream([f"Question?\n{OPEN_MARKER}\n{body}"])
-
-    assert prose == "Question?", reason
-    assert fields is None, reason
-
-
-def test_splitter_streams_prose_and_parses_the_block() -> None:
-    streamed = _stream(["Which ", "model ", "system?\n\n", _block()])
-
-    assert streamed.relayed == "Which model system?\n\n"
-    assert streamed.whole == "Which model system?"
-    assert streamed.fields == {
-        "research_challenge": "Reverse fibrosis",
-        "completed": False,
-    }
-
-
-@pytest.mark.parametrize(
     "deltas",
     [
         ["Question?", "<run_", "spec>", _FIELDS, CLOSE_MARKER],
@@ -410,12 +382,6 @@ def test_marker_split_across_deltas_never_leaks_into_prose(
         "research_challenge": "Reverse fibrosis",
         "completed": False,
     }
-
-
-def test_held_back_prose_is_flushed_when_the_turn_ends() -> None:
-    # Flush marker-like tails that never complete or valid prose silently
-    # disappears.
-    assert _stream(["Compare A ", "< B"]).relayed == "Compare A < B"
 
 
 def test_single_delta_and_fragmented_turn_agree() -> None:

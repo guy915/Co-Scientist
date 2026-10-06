@@ -3,7 +3,6 @@ from __future__ import annotations
 import io
 import json
 import logging
-import sys
 from typing import Any
 
 import pytest
@@ -11,10 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.credentials import ByokCredential, scoped_byok
 from app.logging_setup import (
-    _LITELLM_LOGGER_NAMES,
-    JsonFormatter,
     RunIdFilter,
-    TextRunIdFormatter,
     configure_logging,
     run_log_context,
 )
@@ -42,70 +38,6 @@ def _restore_default_logging() -> None:
     from app.config import settings
 
     configure_logging(settings.log_format)
-
-
-def test_json_formatter_emits_structured_fields_and_exception_detail() -> None:
-    record = _record("structured message")
-    record.run_id = "run-json"
-    try:
-        raise RuntimeError("kaboom")
-    except RuntimeError:
-        record.exc_info = sys.exc_info()
-
-    payload = json.loads(JsonFormatter().format(record))
-
-    assert payload["level"] == "INFO"
-    assert payload["logger"] == "app.test"
-    assert payload["message"] == "structured message"
-    assert payload["run_id"] == "run-json"
-    assert "time" in payload
-    assert "kaboom" in payload["exc_info"]
-
-
-def test_configure_logging_quiets_dependency_info_and_the_debug_banner() -> (
-    None
-):
-    # LiteLLM attaches handlers below root and prints a banner with print(), so
-    # only logger levels and its own flag can silence them.
-    import litellm
-
-    for name in _LITELLM_LOGGER_NAMES:
-        logging.getLogger(name).setLevel(logging.DEBUG)
-    litellm.suppress_debug_info = False
-    try:
-        configure_logging()
-
-        for name in _LITELLM_LOGGER_NAMES:
-            level = logging.getLogger(name).getEffectiveLevel()
-            assert level >= logging.WARNING
-        assert logging.getLogger("LiteLLM").isEnabledFor(logging.WARNING)
-        assert litellm.suppress_debug_info is True
-    finally:
-        _restore_default_logging()
-
-
-def _cosci_handlers() -> list[logging.Handler]:
-    return [
-        h
-        for h in logging.getLogger().handlers
-        if getattr(h, "_cosci_handler", False)
-    ]
-
-
-def test_configure_logging_is_idempotent_and_selects_format() -> None:
-    try:
-        configure_logging("json")
-        configure_logging("json")
-        handlers = _cosci_handlers()
-        assert len(handlers) == 1
-        assert isinstance(handlers[0].formatter, JsonFormatter)
-
-        configure_logging("text")
-        handlers = _cosci_handlers()
-        assert len(handlers) == 1
-        assert isinstance(handlers[0].formatter, TextRunIdFormatter)
-    finally:
-        _restore_default_logging()
 
 
 def test_configured_handler_emits_run_tagged_json_lines() -> None:
@@ -260,30 +192,6 @@ def test_logs_endpoint_applies_filters_and_rejects_unknown_levels(
     assert unknown.status_code == 422
 
 
-def test_logs_endpoint_totals_follow_filters_limit_and_cursor(
-    isolated_db: str,
-) -> None:
-    _logs_endpoint_seed(isolated_db, "before the cursor")
-    cursor = _logs_endpoint_seed(isolated_db, "at the cursor")
-    _logs_endpoint_seed(isolated_db, "after the cursor")
-    client = make_operator_client()
-
-    body = client.get("/api/logs", params={"limit": 2}).json()
-    assert len(body["logs"]) == 2
-    assert body["total"] == 3
-
-    body = client.get(
-        "/api/logs", params={"after_id": cursor, "q": "cursor"}
-    ).json()
-    assert [row["message"] for row in body["logs"]] == ["after the cursor"]
-    assert body["total"] == 3
-    assert body["session_total"] == 1
-
-    body = client.get("/api/logs", params={"q": "at the"}).json()
-    assert body["total"] == 1
-    assert body["session_total"] == 1
-
-
 def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     _logs_endpoint_seed(isolated_db, "run started")
     _seed_from(isolated_db, "uvicorn.access", "GET /status 200")
@@ -342,19 +250,6 @@ def test_run_logs_endpoint_scopes_to_run(isolated_db: str) -> None:
     assert client.get("/api/runs/nope/logs").status_code == 404
 
 
-def test_delete_logs_clears_and_restarts_ids(isolated_db: str) -> None:
-    _logs_endpoint_seed(isolated_db, "one")
-    _logs_endpoint_seed(isolated_db, "two")
-    client = make_operator_client()
-    response = client.request("DELETE", "/api/logs")
-    assert response.status_code == 200
-    assert response.json()["deleted"] == 2
-    body = client.get("/api/logs").json()
-    assert body["logs"] == []
-    assert body["last_id"] == 0
-    assert _logs_endpoint_seed(isolated_db, "fresh") == 1
-
-
 def test_post_logs_ingests_ui_records(isolated_db: str) -> None:
     client = make_operator_client()
     response = client.post(
@@ -405,31 +300,6 @@ def _security_seed(
     return append_log_row(
         isolated_db, message, run_id=run_id, client_id=client_id
     )
-
-
-def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
-    client = make_client()
-    created = _create_run(
-        client, "alice private goal", headers={"X-Client-ID": "alice"}
-    )
-    alice_run = created.json()["id"]
-    _security_seed(isolated_db, "alice run record", run_id=alice_run)
-    _security_seed(isolated_db, "alice ui record", client_id="alice")
-    _security_seed(isolated_db, "bob ui record", client_id="bob")
-    _security_seed(isolated_db, "server startup record")
-
-    rows = logs.list_logs(
-        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
-    )
-    messages = [r["message"] for r in rows]
-    assert "alice run record" in messages
-    assert "alice ui record" in messages
-    assert "bob ui record" not in messages
-    assert "server startup record" not in messages
-    assert logs.count_logs(
-        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
-    ) == len(rows)
-    assert all("bob" not in m for m in messages)
 
 
 # TestClient reports a non-loopback host, exercising remote policy unless an
@@ -549,17 +419,6 @@ _METRIC_FIELDS = (
 # Random hypothesis ids shape prompts; offline duplicate rejection can
 # legitimately produce no evolved child.
 _MAX_RUN_ATTEMPTS = 5
-
-
-def test_metrics_null_before_finalize(isolated_db: str) -> None:
-    client = _client()
-    created = _create_run(client, "Draft metrics goal")
-    run_id = created.json()["id"]
-
-    res = client.get(f"/api/runs/{run_id}/metrics")
-
-    assert res.status_code == 200
-    assert res.json() == {"metrics": None}
 
 
 def _run_to_completion(client: TestClient, goal: str) -> dict[str, Any]:

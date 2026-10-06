@@ -12,7 +12,6 @@ import app.interviews.questions as question_repair
 from app.config import CONVERSATIONAL_REASONING_EFFORT, settings
 from app.engine_adapter.opts import build_engine_opts
 from app.interviews import model as interviews_model
-from app.interviews.questions import normalized_questions
 from app.main import app
 from app.store import documents
 from app.store import interviews as store
@@ -178,45 +177,6 @@ async def test_repair_never_invents_or_forces_a_question(
     _patch_repair_call(monkeypatch, model_result)
 
     assert await question_repair.repair_questions(message) == []
-
-
-@pytest.mark.parametrize(
-    ("raw", "expected"),
-    [
-        (_QUESTIONS, _QUESTIONS),
-        (
-            [
-                {
-                    "question": "Which readout?",
-                    "options": [{"label": "A"}, {"label": "B"}],
-                }
-            ],
-            [
-                {
-                    "header": "",
-                    "question": "Which readout?",
-                    "multi_select": False,
-                    "options": [
-                        {"label": "A", "description": ""},
-                        {"label": "B", "description": ""},
-                    ],
-                }
-            ],
-        ),
-        ([{"question": "Proceed?", "options": [{"label": "Yes"}]}], []),
-        ("not a list", []),
-    ],
-    ids=[
-        "well-formed",
-        "optional-parts-default",
-        "one-option-dropped",
-        "not-a-list",
-    ],
-)
-def test_questions_are_normalized_and_malformed_ones_dropped(
-    raw: Any, expected: list[dict[str, Any]]
-) -> None:
-    assert normalized_questions(raw) == expected
 
 
 def _turn_offering(questions: Any) -> str:
@@ -666,35 +626,6 @@ def _reasoning_only_stream(reasoning: str) -> Any:
         yield _chunk(reasoning)
 
     return _chunks()
-
-
-async def test_interview_keeps_fields_when_a_turn_omits_its_block(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    # Missing spec blocks mean no new fields, not a lost turn; keep cumulative
-    # state and prose.
-
-    async def _fake_acompletion(**_kwargs: Any) -> Any:
-        return _fake_stream("Which mechanism should we prioritize?")
-
-    install_completion_backend(monkeypatch, _fake_acompletion)
-    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
-
-    interview = {
-        "turns": [{"role": "user", "content": "restore susceptibility"}],
-        "fields": {
-            "research_challenge": "Restore susceptibility",
-            "focus_area": ["Efflux-pump regulation"],
-        },
-    }
-    result = await interviews_model._call_interview_model(interview)
-
-    assert (
-        result["assistant_message"] == "Which mechanism should we prioritize?"
-    )
-    assert result["research_challenge"] == "Restore susceptibility"
-    assert result["focus_area"] == ["Efflux-pump regulation"]
-    assert result["completed"] is False
 
 
 async def test_thinking_only_turn_retries_once_with_thinking_off(

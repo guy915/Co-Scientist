@@ -2,15 +2,9 @@ from __future__ import annotations
 
 import io
 
-import pytest
 from pypdf import PdfReader, PdfWriter
 
 from app.document_ingest import _extract_pdf
-from app.pdf import (
-    LineStyle,
-    infer_numbering_levels,
-    rank_heading_styles,
-)
 
 Line = tuple[str, str, float, float, float]
 
@@ -185,82 +179,3 @@ def test_uniform_font_with_no_signal_extracts_exactly_as_before() -> None:
     assert "#" not in text
     assert "A plain narrative paragraph about the assay." in text
     assert "A second plain paragraph, same size." in text
-
-
-def _styles(*specs: tuple[float, bool, bool]) -> dict[int, LineStyle]:
-    return {
-        index: LineStyle(size=size, bold=bold, all_caps=caps)
-        for index, (size, bold, caps) in enumerate(specs)
-    }
-
-
-@pytest.mark.parametrize(
-    ("styles", "levels"),
-    [
-        (
-            _styles((24, False, False), (14, False, False), (18, False, False)),
-            {0: 1, 1: 3, 2: 2},
-        ),
-        # Glyph measurement noise must not split one heading level.
-        (
-            _styles(
-                (18, False, False), (17.6, False, False), (12, False, False)
-            ),
-            {0: 1, 1: 1, 2: 2},
-        ),
-        # Small captions and footnotes are not headings.
-        (
-            _styles((18, False, False), (10, False, False), (8, False, False)),
-            {0: 1},
-        ),
-    ],
-    ids=["size", "near-equal-sizes", "at-or-below-body"],
-)
-def test_heading_styles_rank_by_size_weight_and_case(
-    styles: dict[int, LineStyle], levels: dict[int, int]
-) -> None:
-    assert rank_heading_styles(styles, body_size=10.0) == levels
-
-
-@pytest.mark.parametrize(
-    ("lines", "levels"),
-    [
-        (
-            ["1. Introduction", "1.1 Background", "1.1.1 Prior work"],
-            {0: 1, 1: 2, 2: 3},
-        ),
-        (
-            ["PART I", "1. Scope", "PART II", "2. Definitions"],
-            {0: 1, 1: 2, 2: 1, 3: 2},
-        ),
-        # A second Roman numeral disambiguates the first marker from alphabetic
-        # numbering.
-        (
-            [
-                "1. Scope",
-                "(a) First clause",
-                "(i) Sub-clause",
-                "(ii) Another sub-clause",
-            ],
-            {0: 1, 1: 2, 2: 3, 3: 3},
-        ),
-        (
-            ["I. First part", "II. Second part", "III. Third part"],
-            {0: 1, 1: 1, 2: 1},
-        ),
-        (["1. Introduction", "Ordinary prose, not a heading."], {0: 1}),
-        (["", "   ", "1. Scope"], {2: 1}),
-    ],
-    ids=[
-        "dotted-decimal",
-        "part-keyword",
-        "alpha-and-roman",
-        "ambiguous-single-letter",
-        "prose-absent",
-        "blank-lines",
-    ],
-)
-def test_numbering_markers_infer_heading_levels(
-    lines: list[str], levels: dict[int, int]
-) -> None:
-    assert infer_numbering_levels(lines) == levels

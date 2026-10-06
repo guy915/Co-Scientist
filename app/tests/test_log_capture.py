@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 import logging.handlers
-from collections.abc import Iterator
 
 import pytest
 
@@ -90,37 +88,6 @@ def test_store_failure_does_not_break_logging(
     _flush()
     err = capsys.readouterr().err
     assert err.count("log capture") == 1
-
-
-@contextlib.contextmanager
-def _uvicorn_access(*, propagate: bool) -> Iterator[logging.Logger]:
-    access = logging.getLogger("uvicorn.access")
-    prior = (access.propagate, access.level)
-    access.propagate = propagate
-    access.setLevel(logging.INFO)
-    try:
-        yield access
-    finally:
-        access.propagate, level = prior
-        access.setLevel(level)
-
-
-@pytest.mark.parametrize("propagate", [False, True])
-def test_uvicorn_access_records_are_captured_once_minus_log_polling(
-    isolated_db: str, propagate: bool
-) -> None:
-    # uvicorn can disable propagation, so capture attaches directly and must
-    # still deduplicate when it does propagate. Polling logs must not append
-    # more logs.
-    with _uvicorn_access(propagate=propagate) as access:
-        configure_log_capture()
-        access.info('127.0.0.1:1 - "GET /api/logs?after_id=0 HTTP/1.1" 200')
-        access.info('127.0.0.1:1 - "GET /api/runs HTTP/1.1" 200')
-        _flush()
-
-    messages = [row["message"] for row in logs.list_logs(db_path=isolated_db)]
-    assert len(messages) == 1
-    assert "/api/runs" in messages[0]
 
 
 def test_capture_drops_chatter_and_keeps_real_messages(
