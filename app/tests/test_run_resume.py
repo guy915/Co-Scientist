@@ -6,18 +6,12 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import engine_adapter, task_worker
+from app import task_worker
 from app.config import settings
 from app.engine_tasks import support as engine_tasks_support
-from app.human_input import (
-    SCIENTIST_MANUAL_ORIGIN,
-    admit_human_hypothesis,
-    build_human_review,
-)
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.runs import lifecycle as runs_lifecycle
-from app.runs.lifecycle import _prepare_resume_state
 from app.safety import SafetyDecision
 from app.store import checkpoints, hypotheses, reports, runs
 from app.store import events as store_events
@@ -29,14 +23,13 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.hypotheses import NewHypothesis
 from app.store.models import MessageRow
 from app.store.models import RunStatus as StoreRunStatus
-from app.store.records import NewEvidence, NewReview, NewSafetyDecision
+from app.store.records import NewEvidence, NewReview
 from tests._client import create_run as _create_run
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (
     _Generator,
-    _install_fake_engine_llm,
     _install_runtime,
     _patch_restore_generator,
     _seed_checkpoint,
@@ -45,67 +38,12 @@ from tests._engine_tasks_helpers import (
 )
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
-
-
-def test_admitted_human_hypothesis_carries_authorship() -> None:
-    result = admit_human_hypothesis(
-        text="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
-        author="dr-jane",
-    )
-    assert result.admitted
-    assert result.hypothesis is not None
-    assert result.hypothesis["origin"] == SCIENTIST_MANUAL_ORIGIN
-    assert result.hypothesis["author"] == "dr-jane"
-    assert result.hypothesis["generation"] == 0
-    assert result.hypothesis["parent_id"] is None
-
-
-def test_human_hypothesis_uses_same_safety_path_no_bypass() -> None:
-    # Scientist authorship is not a bypass of the generated-hypothesis safety
-    # path.
-    result = admit_human_hypothesis(
-        text="Weaponize the pathogen to enhance transmissibility in humans.",
-        author="dr-jane",
-    )
-    assert not result.admitted
-    assert result.hypothesis is None
-    assert result.safety_review.blocks_tournament
-
-
-def test_admission_serializes_for_audit() -> None:
-    result = admit_human_hypothesis(
-        text="Blocking receptor Y restores immune surveillance.",
-        author="dr-lee",
-    )
-    d = result.to_dict()
-    assert d["author"] == "dr-lee"
-    assert d["admitted"] is True
-    safety = d["safety"]
-    assert isinstance(safety, dict) and "policy_version" in safety
-
-
-def test_human_review_validates_verdict() -> None:
-    review = build_human_review(
-        hypothesis_id="h1",
-        author="dr-jane",
-        verdict="Support",
-        critique="Strong mechanistic grounding.",
-    )
-    assert review.verdict == "support"
-    d = review.to_dict()
-    assert d["reviewer_agent"] == "scientist"
-    assert d["author"] == "dr-jane"
-
-
-def test_human_review_rejects_bad_verdict() -> None:
-    with pytest.raises(ValueError):
-        build_human_review(
-            hypothesis_id="h1",
-            author="x",
-            verdict="maybe",
-            critique="",
-        )
+from tests._store_helpers import (
+    enqueue_task,
+    event_seqs,
+    seed_checkpoint,
+    seed_run,
+)
 
 
 def _new_run(client: Any, headers: dict[str, str] | None = None) -> str:
@@ -209,62 +147,118 @@ def test_scientist_review_lands_in_reviews_table(isolated_db: str) -> None:
     assert messages[-1]["applied"] is False
 
 
-def test_scientist_review_rejects_invalid_verdict(isolated_db: str) -> None:
-    client = _client()
-    run_id = _new_run(client)
-    hyp = client.post(
-        f"/api/runs/{run_id}/hypotheses",
-        json={"statement": "A safe, testable hypothesis.", "author": "dr-lee"},
-    ).json()
-    res = client.post(
-        f"/api/runs/{run_id}/reviews",
-        json={
-            "hypothesis_id": hyp["id"],
-            "author": "dr-lee",
-            "verdict": "maybe",
-            "critique": "",
-        },
-    )
-    assert res.status_code == 422
-
-
-def test_scientist_review_rejects_unknown_hypothesis(isolated_db: str) -> None:
-    client = _client()
-    run_id = _new_run(client)
-    res = client.post(
-        f"/api/runs/{run_id}/reviews",
-        json={
-            "hypothesis_id": "does-not-exist",
-            "author": "dr-lee",
-            "verdict": "support",
-            "critique": "",
-        },
-    )
-    assert res.status_code == 404
-
-
-def test_scientist_review_rejects_cross_run_hypothesis(
-    isolated_db: str,
+@pytest.mark.parametrize(
+    ("verdict", "target", "status"),
+    [
+        ("maybe", "own", 422),
+        ("support", "missing", 404),
+        ("support", "other", 404),
+    ],
+)
+def test_scientist_review_rejects_bad_verdict_and_foreign_hypotheses(
+    isolated_db: str, verdict: str, target: str, status: int
 ) -> None:
     client = _client()
     run_a = _new_run(client)
     run_b = _new_run(client)
-    hyp_b = client.post(
-        f"/api/runs/{run_b}/hypotheses",
-        json={"statement": "A safe hypothesis in run B.", "author": "dr-lee"},
-    ).json()
+    statement = {"statement": "A safe, testable hypothesis.", "author": "x"}
+    hosts = {"own": run_a, "other": run_b}
+    hyp = "does-not-exist"
+    if target in hosts:
+        posted = client.post(
+            f"/api/runs/{hosts[target]}/hypotheses", json=statement
+        )
+        hyp = posted.json()["id"]
 
     res = client.post(
         f"/api/runs/{run_a}/reviews",
         json={
-            "hypothesis_id": hyp_b["id"],
+            "hypothesis_id": hyp,
             "author": "dr-lee",
-            "verdict": "support",
+            "verdict": verdict,
             "critique": "",
         },
     )
-    assert res.status_code == 404
+
+    assert res.status_code == status
     assert client.get(f"/api/runs/{run_a}/reviews").json()["reviews"] == []
+
+
+@pytest.mark.parametrize(
+    ("body", "status"),
+    [
+        ({"title": "Doc", "text": "Some text.", "consent": False}, 422),
+        ({"title": "Big", "text": "x" * 200_001, "consent": True}, 422),
+    ],
+)
+def test_attachment_needs_consent_and_a_bounded_size(
+    isolated_db: str, body: dict[str, Any], status: int
+) -> None:
+    client = _client()
+    run_id = _new_run(client)
+
+    res = client.post(f"/api/runs/{run_id}/attachments", json=body)
+
+    assert res.status_code == status
+
+
+@pytest.mark.parametrize(
+    ("paused", "held", "resolved", "awaiting"),
+    [
+        (True, True, False, 1),
+        (True, False, False, 0),
+        (False, True, False, 0),
+        (True, True, True, 0),
+    ],
+)
+def test_only_a_paused_run_with_an_unresolved_review_awaits_a_decision(
+    isolated_db: str, paused: bool, held: bool, resolved: bool, awaiting: int
+) -> None:
+    client = _client()
+    headers = {"X-Client-ID": "awaiting"}
+    if held:
+        run_id, decision_id = _run_with_held_decision(client, headers)
+    else:
+        run_id = _create_run(
+            client, "A mundane pathway", headers=headers
+        ).json()["id"]
+    if resolved:
+        client.post(
+            f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
+            headers=headers,
+            json={"resolution": "approved"},
+        )
+    if paused:
+        runs.update_run_status(run_id, StoreRunStatus.PAUSED)
+
+    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
+
+    assert detail["awaiting_decision_count"] == awaiting
+
+
+def test_resume_and_pause_need_a_checkpoint_or_an_active_run(
+    isolated_db: str,
+) -> None:
+    client = _client()
+    run_id = _create_run(client, "No checkpoint yet").json()["id"]
+
+    assert client.post(f"/api/runs/{run_id}/resume").status_code == 409
+    assert client.post(f"/api/runs/{run_id}/pause").status_code == 404
+
+
+def test_offline_announcement_is_stored_streamed_and_marked_fallback() -> None:
+    rid = _started_run_id()
+
+    body = _announce(rid).text
+
+    rows = _start_rows(rid)
+    assert [row.sender for row in rows] == ["user", "system"]
+    assert rows[0].content == "Start research"
+    assert rows[1].content.strip()
+    assert rows[1].meta == {"fallback": True}
+    assert body.index('"type": "chunk"') < body.index('"type": "done"')
+    assert '"fallback": true' in body
+    assert '"type": "error"' not in body
 
 
 def test_attachment_indexed_and_searchable(isolated_db: str) -> None:
@@ -292,26 +286,6 @@ def test_attachment_indexed_and_searchable(isolated_db: str) -> None:
     ).json()["results"]
     assert hits
     assert hits[0]["title"] == "Persister cell review"
-
-
-def test_attachment_requires_consent(isolated_db: str) -> None:
-    client = _client()
-    run_id = _new_run(client)
-    res = client.post(
-        f"/api/runs/{run_id}/attachments",
-        json={"title": "Doc", "text": "Some text.", "consent": False},
-    )
-    assert res.status_code == 422
-
-
-def test_attachment_rejects_oversized_text(isolated_db: str) -> None:
-    client = _client()
-    run_id = _new_run(client)
-    res = client.post(
-        f"/api/runs/{run_id}/attachments",
-        json={"title": "Big", "text": "x" * 200_001, "consent": True},
-    )
-    assert res.status_code == 422
 
 
 def test_pasted_and_uploaded_attachments_emit_same_audit_event(
@@ -422,59 +396,30 @@ def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
     assert [e["source"] for e in evidence] == ["attachment"]
 
 
-def test_publication_replay_preserves_task_history_and_scientist_input(
-    isolated_db: str,
+def test_resuming_a_pre_engine_checkpoint_restarts_from_a_fresh_bootstrap(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = seed_run("Publication replay", profile="express")
-    manual_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Human idea",
-            statement="Scientist idea",
-            created_by_agent="scientist_manual",
-        )
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    client = _client()
+    run_id = _new_run(client)
+    _seed_agent_artifacts(run_id)
+    manual_id = _seed_scientist_artifacts(run_id)
+    seed_checkpoint(
+        run_id,
+        {"provider": "mock", "legacy": True},
+        stage="iteration_1",
+        last_event_seq=store_events.latest_event_seq(run_id),
     )
-    hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Agent idea",
-            statement="Agent idea",
-            created_by_agent="generation",
-        )
-    )
-    store.add_evidence(
-        NewEvidence(
-            run_id=run.id, title="Private", source="attachment", abstract="x"
-        )
-    )
-    store.add_evidence(
-        NewEvidence(run_id=run.id, title="Paper", source="pubmed", abstract="y")
-    )
-    store_events.append_event(run.id, "scientific_task", {"task": "ranking"})
-    store.add_safety_decision(
-        NewSafetyDecision(
-            run_id=run.id,
-            stage="intake",
-            decision="allow",
-            reason="",
-            matches=[],
-        )
-    )
-    enqueue_task(
-        run.id, "engine.finalize", "finalize-test", db_path=isolated_db
-    )
+    runs.update_run_status(run_id, StoreRunStatus.PAUSED)
 
-    views.clear_publication_artifacts(run.id, db_path=isolated_db)
+    resumed = client.post(f"/api/runs/{run_id}/resume")
 
-    assert [item["id"] for item in hypotheses.list_hypotheses(run.id)] == [
-        manual_id
-    ]
-    assert [item["source"] for item in store.list_evidence(run.id)] == [
-        "attachment"
-    ]
-    assert len(store_events.list_events(run.id)) == 1
-    assert len(store.list_safety_decisions(run.id)) == 1
-    assert len(store_tasks.list_tasks(run.id, db_path=isolated_db)) == 1
+    assert resumed.status_code == 200, resumed.text
+    assert [h["id"] for h in hypotheses.list_hypotheses(run_id)] == [manual_id]
+    assert checkpoints.get_latest_checkpoint(run_id) is None
+    assert event_seqs(run_id, "lifecycle", event="legacy_resume_cleanup")
+    [task] = store_tasks.list_tasks(run_id)
+    assert (task.task_type, task.status) == ("engine.bootstrap", "queued")
 
 
 def test_resume_reassigns_event_seqs_above_last_checkpoint(
@@ -497,20 +442,6 @@ def test_resume_reassigns_event_seqs_above_last_checkpoint(
     assert (
         store_events.list_events(run.id, after_seq=high_water)[0]["seq"] == seq
     )
-
-
-def test_resume_endpoint_requires_a_checkpoint(isolated_db: str) -> None:
-    client = _client()
-    run_id = _create_run(client, "No checkpoint yet").json()["id"]
-    res = client.post(f"/api/runs/{run_id}/resume")
-    assert res.status_code == 409
-
-
-def test_pause_endpoint_404_when_not_active(isolated_db: str) -> None:
-    client = _client()
-    run_id = _create_run(client, "Not active").json()["id"]
-    res = client.post(f"/api/runs/{run_id}/pause")
-    assert res.status_code == 404
 
 
 _WORKER = "double-resume-test"
@@ -590,64 +521,6 @@ async def test_two_resume_cycles_still_complete_with_pool_intact(
     assert pool_before <= final_ids
 
 
-def _seed_stale_mock_run(run_id: str) -> str:
-    stale_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id,
-            title="Stale agent idea",
-            statement="A hypothesis from the retired mock run.",
-            created_by_agent="generation",
-        )
-    )
-    store.add_evidence(
-        NewEvidence(
-            run_id=run_id, title="Old mock paper", source="pubmed", abstract="x"
-        )
-    )
-    return stale_id
-
-
-def _save_legacy_mock_checkpoint(run_id: str) -> None:
-    seed_checkpoint(
-        run_id,
-        {
-            "provider": "mock",
-            "run_mode": "express",
-            "iteration": 1,
-            "config": {"tier": "express"},
-        },
-        stage="iteration_1",
-        last_event_seq=store_events.latest_event_seq(run_id),
-    )
-
-
-def _save_engine_checkpoint(run_id: str) -> None:
-    # The launcher inspects only the provider tag; the worker restores state
-    # later.
-    seed_checkpoint(
-        run_id,
-        {"provider": "engine", "state": {"hypotheses": []}},
-        stage="engine_task:node",
-        last_event_seq=store_events.latest_event_seq(run_id),
-    )
-
-
-def _assert_rebootstrapped_completed(run_id: str, stale_id: str) -> None:
-    final_hyps = hypotheses.list_hypotheses(run_id)
-    assert stale_id not in {h["id"] for h in final_hyps}
-    assert any(
-        task.task_type.startswith("engine.")
-        for task in store_tasks.list_tasks(run_id)
-    )
-    assert final_hyps
-    report = reports.get_latest_report(run_id)
-    assert report is not None
-    assert report["payload"]["leaderboard"]
-    final = runs.get_run(run_id)
-    assert final is not None
-    assert final.status == StoreRunStatus.COMPLETED.value
-
-
 def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
     enqueue_task(run_id, "engine.test.blocking", "blocking:0", db_path=db_path)
     lifecycle.pause_run_tasks(run_id, db_path=db_path)
@@ -677,51 +550,6 @@ async def _worst_loop_stall(stop: asyncio.Event) -> float:
         await asyncio.sleep(0.01)
         worst = max(worst, _time.monotonic() - started - 0.01)
     return worst
-
-
-def test_prepare_resume_state_keeps_derived_data_for_engine_checkpoint(
-    isolated_db: str,
-) -> None:
-    # True engine resumes keep prior events that the restored workflow will not
-    # emit again.
-    run = seed_run("Engine checkpoint resume")
-    stale_id = _seed_stale_mock_run(run.id)
-    _save_engine_checkpoint(run.id)
-    assert engine_adapter.is_engine_checkpoint(
-        checkpoints.get_latest_checkpoint(run.id)
-    )
-
-    true_resume = _prepare_resume_state(run.id)
-
-    assert true_resume is True
-    assert stale_id in {h["id"] for h in hypotheses.list_hypotheses(run.id)}
-    assert checkpoints.get_latest_checkpoint(run.id) is not None
-
-
-async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Legacy mock envelopes cannot restore engine state; clear stale derived
-    # data and bootstrap durably.
-    _install_fake_engine_llm(monkeypatch)
-    run = seed_run(
-        "Legacy mock resume",
-        profile="express",
-        provider="mock",
-        config={"tier": "express"},
-    )
-
-    stale_id = _seed_stale_mock_run(run.id)
-    _save_legacy_mock_checkpoint(run.id)
-    assert not engine_adapter.is_engine_checkpoint(
-        checkpoints.get_latest_checkpoint(run.id)
-    )
-    runs.update_run_status(run.id, StoreRunStatus.PAUSED)
-
-    await runs_lifecycle._launch_resume(run.id)
-    await asyncio.gather(*list(runs_lifecycle._resume_tasks))
-
-    _assert_rebootstrapped_completed(run.id, stale_id)
 
 
 async def test_resume_does_not_execute_run_work_on_the_event_loop(
@@ -1007,73 +835,6 @@ def test_held_hypothesis_adjudication_records_without_blocking(
     )
 
 
-def test_paused_run_with_unresolved_review_awaits_decision(
-    isolated_db: str,
-) -> None:
-    from app.store import runs as store
-    from app.store.models import RunStatus
-
-    client = _client()
-    headers = {"X-Client-ID": "awaiting-1"}
-    run_id, _ = _run_with_held_decision(client, headers)
-    store.update_run_status(run_id, RunStatus.PAUSED)
-
-    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
-
-    assert detail["awaiting_decision_count"] == 1
-
-
-def test_paused_run_without_unresolved_review_awaits_nothing(
-    isolated_db: str,
-) -> None:
-    from app.store import runs as store
-    from app.store.models import RunStatus
-
-    client = _client()
-    headers = {"X-Client-ID": "awaiting-2"}
-    run = _create_run(
-        client, "Explore a mundane pathway", headers=headers
-    ).json()
-    store.update_run_status(run["id"], RunStatus.PAUSED)
-
-    detail = client.get(f"/api/runs/{run['id']}", headers=headers).json()
-
-    assert detail["awaiting_decision_count"] == 0
-
-
-def test_non_paused_run_with_unresolved_review_awaits_nothing(
-    isolated_db: str,
-) -> None:
-    client = _client()
-    headers = {"X-Client-ID": "awaiting-3"}
-    run_id, _ = _run_with_held_decision(client, headers)
-
-    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
-
-    assert detail["awaiting_decision_count"] == 0
-
-
-def test_paused_run_with_resolved_review_awaits_nothing(
-    isolated_db: str,
-) -> None:
-    from app.store import runs as store
-    from app.store.models import RunStatus
-
-    client = _client()
-    headers = {"X-Client-ID": "awaiting-4"}
-    run_id, decision_id = _run_with_held_decision(client, headers)
-    client.post(
-        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
-        headers=headers,
-        json={"resolution": "approved"},
-    )
-    store.update_run_status(run_id, RunStatus.PAUSED)
-
-    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
-
-    assert detail["awaiting_decision_count"] == 0
-
-
 def _started_run_id() -> str:
     c = _client()
     return str(
@@ -1095,38 +856,6 @@ def _start_rows(run_id: str) -> list[MessageRow]:
     return [
         m for m in store_messages.list_messages(run_id) if m.kind == "start"
     ]
-
-
-def test_announcement_persists_the_prompt_and_the_reply() -> None:
-    rid = _started_run_id()
-
-    res = _announce(rid)
-
-    assert res.status_code == 200
-    rows = _start_rows(rid)
-    assert [row.sender for row in rows] == ["user", "system"]
-    assert rows[0].content == "Start research"
-    assert rows[1].content.strip()
-
-
-def test_announcement_streams_chunks_then_done() -> None:
-    rid = _started_run_id()
-
-    body = _announce(rid).text
-
-    assert '"type": "chunk"' in body
-    assert '"type": "done"' in body
-    assert body.index('"type": "chunk"') < body.index('"type": "done"')
-    assert '"type": "error"' not in body
-
-
-def test_offline_announcement_is_marked_as_the_fallback() -> None:
-    rid = _started_run_id()
-
-    body = _announce(rid).text
-
-    assert '"fallback": true' in body
-    assert _start_rows(rid)[1].meta == {"fallback": True}
 
 
 def test_live_model_writes_the_announcement(

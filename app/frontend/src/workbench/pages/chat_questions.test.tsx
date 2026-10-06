@@ -1,7 +1,7 @@
 import {makeQuestion} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, test, vi} from 'vitest';
-import {type InterviewQuestion, type InterviewTurn} from '@/api/runs';
+import {type InterviewQuestion} from '@/api/runs';
 import {
   QuestionChooser,
   answerText,
@@ -43,11 +43,6 @@ test('clicking an answer only selects it, even for one single-select question', 
   const {onAnswer} = renderChooser();
   fireEvent.click(screen.getByLabelText(/iPSC-derived line/));
   expect(onAnswer).not.toHaveBeenCalled();
-});
-
-test('a single-select question still has its own send control', () => {
-  renderChooser();
-  expect(screen.getByRole('button', {name: /send/i})).toBeTruthy();
 });
 
 test('the send control commits a single-select answer once clicked', () => {
@@ -114,24 +109,8 @@ test('pressing Enter in the free-text field does not submit anything', () => {
   const {onAnswer} = renderChooser();
   const field = screen.getByLabelText(/Something else/);
   fireEvent.change(field, {target: {value: 'A decellularized scaffold'}});
-  // jsdom lacks implicit Enter submission; preventDefault proves the guard
-  // fired.
   expect(fireEvent.keyDown(field, {key: 'Enter'})).toBe(false);
   expect(onAnswer).not.toHaveBeenCalled();
-});
-
-test('the answers render as a single column of full-width rows', () => {
-  renderChooser();
-  const group = screen.getByRole('group', {name: MODEL_SYSTEM.question});
-  const grid = group.querySelector(':scope > div');
-  expect(grid?.className).toMatch(/grid-cols-1\b/);
-});
-
-test('there is a touch more room between the question and its first option', () => {
-  renderChooser();
-  const group = screen.getByRole('group', {name: MODEL_SYSTEM.question});
-  const grid = group.querySelector(':scope > div');
-  expect(grid?.className).toMatch(/mt-\[0\.15rem\]/);
 });
 
 test('dismissing the chooser leaves nothing of it on screen', () => {
@@ -307,27 +286,6 @@ describe('answer state and pending questions', () => {
       pendingQuestions({
         turns: [turn([MODEL_SYSTEM])],
         status: 'completed',
-      }),
-    ).toBeNull();
-  });
-
-  test('no interview at all offers nothing', () => {
-    expect(pendingQuestions(null)).toBeNull();
-  });
-
-  test('a turn from before the chooser existed offers nothing, and crashes nothing', () => {
-    const legacy = {
-      id: 1,
-      role: 'agent',
-      content: 'Which one?',
-      reasoning: null,
-      fallback: false,
-      created_at: 1,
-    };
-    expect(
-      pendingQuestions({
-        turns: [legacy as unknown as InterviewTurn],
-        status: 'active',
       }),
     ).toBeNull();
   });

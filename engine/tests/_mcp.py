@@ -7,8 +7,6 @@ import pytest
 from langchain_core.tools import StructuredTool
 
 from co_scientist.config.schema import ToolConfig
-from co_scientist.generator.core import HypothesisGenerator
-from co_scientist.generator.run_setup import GeneratorOptions
 from co_scientist.offline import llm as offline_llm
 from tests._llm_fake import restore_backend_at_teardown
 
@@ -212,16 +210,3 @@ def isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
     start fresh."""
     restore_backend_at_teardown(monkeypatch)
     monkeypatch.setattr(offline_llm, "_installed", False)
-
-
-def make_offline_generator() -> HypothesisGenerator:
-    return HypothesisGenerator(
-        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-        max_iterations=1,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        options=GeneratorOptions(
-            tournament_pairs=2,
-            enable_cache=False,
-        ),
-    )

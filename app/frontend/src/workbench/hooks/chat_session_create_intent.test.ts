@@ -81,70 +81,58 @@ describe('pending create intent', () => {
     });
   });
 
-  it('rotates the key when the owner changes', async () => {
-    setAccessToken('bearer-secret-one');
+  it.each([
+    [
+      'the owner changes',
+      () => setAccessToken('bearer-secret-one'),
+      () => setAccessToken('bearer-secret-two'),
+      PAYLOAD,
+    ],
+    [
+      'auth falls back from bearer to client id',
+      () => setAccessToken('bearer-secret'),
+      () => clearAccessToken(),
+      PAYLOAD,
+    ],
+    [
+      'the create payload changes',
+      () => undefined,
+      () => undefined,
+      {...PAYLOAD, research_goal: 'a different goal'},
+    ],
+    [
+      'the explicit BYOK credential changes',
+      () => {
+        setStoredApiProvider('openai');
+        setStoredApiKey('sk-secret-one');
+      },
+      () => setStoredApiKey('sk-secret-two'),
+      PAYLOAD,
+    ],
+    [
+      'the supervisor credential changes',
+      () => {
+        setStoredApiProvider('openai');
+        setStoredApiKey('sk-worker');
+        setStoredApiKey('sk-supervisor-one', 'gemini');
+        setStoredModel('supervisor', {
+          provider: 'gemini',
+          model: 'gemini/gemini-3.8-flash',
+        });
+      },
+      () => setStoredApiKey('sk-supervisor-two', 'gemini'),
+      PAYLOAD,
+    ],
+  ])('rotates the key when %s', async (_name, before, change, payload) => {
+    before();
     const first = await getPendingCreateIntent('chat-1', PAYLOAD);
-    setAccessToken('bearer-secret-two');
+    change();
 
-    const second = await getPendingCreateIntent('chat-1', PAYLOAD);
+    const second = await getPendingCreateIntent('chat-1', payload);
 
     expect(second.key).not.toBe(first.key);
     expect(
       sessionStorage.getItem('co_scientist_pending_run_create:chat-1'),
-    ).not.toContain('bearer-secret-two');
-  });
-
-  it('rotates the key when auth falls back from bearer to client id', async () => {
-    setAccessToken('bearer-secret');
-    const authenticated = await getPendingCreateIntent('chat-1', PAYLOAD);
-    clearAccessToken();
-
-    const clientOwned = await getPendingCreateIntent('chat-1', PAYLOAD);
-
-    expect(clientOwned.key).not.toBe(authenticated.key);
-  });
-
-  it('rotates the key when the create payload changes', async () => {
-    const first = await getPendingCreateIntent('chat-1', PAYLOAD);
-
-    const second = await getPendingCreateIntent('chat-1', {
-      ...PAYLOAD,
-      research_goal: 'a different goal',
-    });
-
-    expect(second.key).not.toBe(first.key);
-    expect(second.payload.research_goal).toBe('a different goal');
-  });
-
-  it('rotates the key when the explicit BYOK credential changes', async () => {
-    setStoredApiProvider('openai');
-    setStoredApiKey('sk-secret-one');
-    const first = await getPendingCreateIntent('chat-1', PAYLOAD);
-    setStoredApiKey('sk-secret-two');
-
-    const second = await getPendingCreateIntent('chat-1', PAYLOAD);
-
-    expect(second.key).not.toBe(first.key);
-    const stored = sessionStorage.getItem(
-      'co_scientist_pending_run_create:chat-1',
-    );
-    expect(stored).not.toContain('sk-secret-one');
-    expect(stored).not.toContain('sk-secret-two');
-  });
-
-  it('rotates the key when the supervisor credential changes', async () => {
-    setStoredApiProvider('openai');
-    setStoredApiKey('sk-worker');
-    setStoredApiKey('sk-supervisor-one', 'gemini');
-    setStoredModel('supervisor', {
-      provider: 'gemini',
-      model: 'gemini/gemini-3.8-flash',
-    });
-    const first = await getPendingCreateIntent('chat-1', PAYLOAD);
-    setStoredApiKey('sk-supervisor-two', 'gemini');
-
-    const second = await getPendingCreateIntent('chat-1', PAYLOAD);
-
-    expect(second.key).not.toBe(first.key);
+    ).not.toMatch(/secret|sk-/);
   });
 });

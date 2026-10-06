@@ -1,4 +1,3 @@
-import asyncio
 import json
 import threading
 from pathlib import Path
@@ -9,11 +8,20 @@ import pytest
 from Bio import Entrez
 from mcp_server import pubmed_client
 from mcp_server.tests._entrez import CannedEntrezHandle as _CannedEntrezHandle
-from mcp_server.tests._entrez import configure_trace, install_entrez
+from mcp_server.tests._entrez import (
+    configure_trace,
+    efetch_article,
+    elink_without_pmc,
+    esearch_ids,
+    install_entrez,
+    raising,
+    read_trace,
+    search,
+    seed_shared_pool,
+    trace_path,
+)
 from mcp_server.tests._entrez import install_fake_entrez as _install_fake_entrez
-from mcp_server.tests._entrez import pubmed_article as _pubmed_article
 from mcp_server.tests._httpx import _trace_evidence
-from mcp_server.tools.lit_review import search_pubmed as tool
 
 _DEFAULT_ENTREZ_MAX_TRIES = Entrez.max_tries
 _DEFAULT_ENTREZ_SLEEP_BETWEEN_TRIES = Entrez.sleep_between_tries
@@ -25,10 +33,6 @@ def restore_biopython_retry_policy() -> Any:
     yield
     Entrez.max_tries = _DEFAULT_ENTREZ_MAX_TRIES
     Entrez.sleep_between_tries = _DEFAULT_ENTREZ_SLEEP_BETWEEN_TRIES
-
-
-def _fixture_trace_reader() -> Any:
-    return _trace_evidence
 
 
 @pytest.mark.usefixtures("restore_biopython_retry_policy")
@@ -44,25 +48,11 @@ class TestPubmedPilotTrace:
 
         esearch_calls = _install_fake_entrez(monkeypatch, ["101", "102", "103"])
 
-        results = asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="pubmed trace readiness",
-                slug=slug,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
+        results = search("pubmed trace readiness", run_id, slug=slug)
 
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / slug
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        evidence = _fixture_trace_reader()(trace_path, run_id, build_id)
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        trace_file = trace_path(cache_root, slug, run_id)
+        evidence = _trace_evidence(trace_file, run_id, build_id)
+        trace = json.loads(trace_file.read_text(encoding="utf-8"))
 
         assert list(results) == ["101"]
         assert len(esearch_calls) == 1
@@ -106,10 +96,10 @@ class TestPubmedPilotTrace:
             item["metadata_origin"] == "entrez_fetch"
             for item in trace["fetched"]
         )
-        trace_text = trace_path.read_text(encoding="utf-8")
+        trace_text = trace_file.read_text(encoding="utf-8")
         assert "A real-shaped abstract." not in trace_text
-        assert list(trace_path.parent.glob(".search-trace-*.tmp")) == []
-        assert trace_path.stat().st_mode & 0o777 == 0o600
+        assert list(trace_file.parent.glob(".search-trace-*.tmp")) == []
+        assert trace_file.stat().st_mode & 0o777 == 0o600
 
     def test_trace_call_fails_closed_if_retry_policy_changes(
         self,
@@ -147,14 +137,7 @@ class TestPubmedPilotTrace:
         monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(cache_root))
         esearch_calls = _install_fake_entrez(monkeypatch, ["201", "202", "203"])
 
-        results = asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="ordinary retrieval parity",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
+        results = search("ordinary retrieval parity", run_id)
 
         run_dir = cache_root / "pubmed" / run_id / "runs" / run_id
         assert list(results) == ["201"]
@@ -178,25 +161,11 @@ class TestPubmedPilotTrace:
         configure_trace(monkeypatch, cache_root, "reuse-test-build")
         esearch_calls = _install_fake_entrez(monkeypatch, ["301", "302", "303"])
 
-        asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="first unique trace",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
+        search("first unique trace", run_id)
         esearch_calls.clear()
 
         with pytest.raises(ValueError, match="trace run_id is not empty"):
-            asyncio.run(
-                tool.pubmed_search_with_fulltext(
-                    query="second unique trace",
-                    slug=run_id,
-                    max_papers=1,
-                    run_id=run_id,
-                )
-            )
+            search("second unique trace", run_id)
         assert esearch_calls == []
 
     def test_nonempty_untraced_run_directory_is_rejected_before_entrez(
@@ -214,14 +183,7 @@ class TestPubmedPilotTrace:
         esearch_calls = _install_fake_entrez(monkeypatch, ["101"])
 
         with pytest.raises(ValueError, match="trace run_id is not empty"):
-            asyncio.run(
-                tool.pubmed_search_with_fulltext(
-                    query="do not replay an existing run",
-                    slug=run_id,
-                    max_papers=1,
-                    run_id=run_id,
-                )
-            )
+            search("do not replay an existing run", run_id)
 
         assert esearch_calls == []
         assert (run_dir / "101.metadata.json").is_symlink()
@@ -242,14 +204,7 @@ class TestPubmedPilotTrace:
         install_entrez(monkeypatch, esearch=failed_esearch)
 
         def call() -> Any:
-            return asyncio.run(
-                tool.pubmed_search_with_fulltext(
-                    query="one failed request only",
-                    slug=run_id,
-                    max_papers=1,
-                    run_id=run_id,
-                )
-            )
+            return search("one failed request only", run_id)
 
         with pytest.raises(TimeoutError, match="offline fake timeout"):
             call()
@@ -280,23 +235,14 @@ class TestPubmedPilotTrace:
         install_entrez(
             monkeypatch,
             esearch=blocked_esearch,
-            efetch=lambda **kwargs: _CannedEntrezHandle(
-                _pubmed_article(str(kwargs["id"]))
-            ),
-            elink=lambda **_kwargs: _CannedEntrezHandle([{"LinkSetDb": []}]),
+            efetch=efetch_article,
+            elink=elink_without_pmc,
         )
         failures: list[Exception] = []
 
         def run_first() -> None:
             try:
-                asyncio.run(
-                    tool.pubmed_search_with_fulltext(
-                        query="first owner",
-                        slug=run_id,
-                        max_papers=1,
-                        run_id=run_id,
-                    )
-                )
+                search("first owner", run_id)
             except Exception as exc:
                 failures.append(exc)
 
@@ -305,14 +251,7 @@ class TestPubmedPilotTrace:
         assert entered_search.wait(timeout=5)
         try:
             with pytest.raises(ValueError, match="trace run_id is not empty"):
-                asyncio.run(
-                    tool.pubmed_search_with_fulltext(
-                        query="concurrent duplicate",
-                        slug=run_id,
-                        max_papers=1,
-                        run_id=run_id,
-                    )
-                )
+                search("concurrent duplicate", run_id)
         finally:
             release_search.set()
             first.join(timeout=5)
@@ -332,31 +271,14 @@ class TestPubmedPilotTraceOutcomes:
         build_id = "metadata-errors-build"
         configure_trace(monkeypatch, cache_root, build_id, free_models=True)
 
-        def fake_esearch(**_kwargs: Any) -> _CannedEntrezHandle:
-            return _CannedEntrezHandle({"IdList": ["801", "802", "803"]})
-
-        def failed_efetch(**_kwargs: Any) -> _CannedEntrezHandle:
-            raise OSError("fake efetch failure")
-
-        install_entrez(monkeypatch, esearch=fake_esearch, efetch=failed_efetch)
-
-        results = asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="controlled fetch failures",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
+        install_entrez(
+            monkeypatch,
+            esearch=esearch_ids("801", "802", "803"),
+            efetch=raising(OSError("fake efetch failure")),
         )
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+
+        results = search("controlled fetch failures", run_id)
+        trace = read_trace(cache_root, run_id, run_id)
 
         assert results == {}
         assert trace["incomplete_fetch_count"] == 3
@@ -384,38 +306,15 @@ class TestPubmedPilotTraceOutcomes:
             monkeypatch, cache_root, "elink-errors-build", free_models=True
         )
 
-        def fake_esearch(**_kwargs: Any) -> _CannedEntrezHandle:
-            return _CannedEntrezHandle({"IdList": ["811", "812", "813"]})
-
-        def failed_elink(**_kwargs: Any) -> _CannedEntrezHandle:
-            raise TimeoutError("fake elink failure")
-
         install_entrez(
             monkeypatch,
-            esearch=fake_esearch,
-            efetch=lambda **kwargs: _CannedEntrezHandle(
-                _pubmed_article(str(kwargs["id"]))
-            ),
-            elink=failed_elink,
+            esearch=esearch_ids("811", "812", "813"),
+            efetch=efetch_article,
+            elink=raising(TimeoutError("fake elink failure")),
         )
 
-        results = asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="controlled ELink failure",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        results = search("controlled ELink failure", run_id)
+        trace = read_trace(cache_root, run_id, run_id)
 
         assert list(results) == ["811"]
         assert trace["incomplete_fetch_count"] == 3
@@ -436,46 +335,22 @@ class TestPubmedPilotTraceOutcomes:
             monkeypatch, cache_root, "fulltext-errors-build", free_models=True
         )
 
-        def pubmed_fetch(**kwargs: Any) -> _CannedEntrezHandle:
-            return _CannedEntrezHandle(_pubmed_article(str(kwargs["id"])))
-
-        def failed_pmc_fetch(**_kwargs: Any) -> _CannedEntrezHandle:
-            raise OSError("fake PMC fulltext failure")
-
-        def fake_elink(**_kwargs: Any) -> _CannedEntrezHandle:
-            return _CannedEntrezHandle(
-                [{"LinkSetDb": [{"Link": [{"Id": "PMC901"}]}]}]
-            )
+        failed_pmc_fetch = raising(OSError("fake PMC fulltext failure"))
 
         install_entrez(
             monkeypatch,
-            esearch=lambda **_kwargs: _CannedEntrezHandle(
-                {"IdList": ["901", "902", "903"]}
-            ),
+            esearch=esearch_ids("901", "902", "903"),
             efetch=lambda **kwargs: {
-                "pubmed": pubmed_fetch,
+                "pubmed": efetch_article,
                 "pmc": failed_pmc_fetch,
             }[str(kwargs["db"])](**kwargs),
-            elink=fake_elink,
+            elink=lambda **_kwargs: _CannedEntrezHandle(
+                [{"LinkSetDb": [{"Link": [{"Id": "PMC901"}]}]}]
+            ),
         )
 
-        asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="controlled PMC fulltext failure",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        search("controlled PMC fulltext failure", run_id)
+        trace = read_trace(cache_root, run_id, run_id)
 
         assert trace["incomplete_fetch_count"] == 1
         assert trace["fetch_errors"] == [
@@ -488,44 +363,17 @@ class TestPubmedPilotTraceOutcomes:
     ) -> None:
         cache_root = tmp_path / "pool-cache"
         run_id = "pool-trace-readiness"
-        slug_dir = cache_root / "pubmed" / run_id
-        shared_dir = slug_dir / "shared"
-        shared_dir.mkdir(parents=True)
-        (shared_dir / "999.metadata.json").write_text(
-            json.dumps(
-                {
-                    "date_revised": "2023/1/1",
-                    "title": "Cached paper",
-                    "abstract": "Cached abstract.",
-                    "authors": [],
-                    "publication": "Example Journal",
-                    "pmc_full_text_id": "PMC999",
-                }
-            ),
-            encoding="utf-8",
-        )
-        (shared_dir / "PMC999.fulltext.html").write_text(
-            "<html><body>Cached full text.</body></html>", encoding="utf-8"
-        )
+        seed_shared_pool(cache_root, run_id, "999")
         configure_trace(
             monkeypatch, cache_root, "pool-test-build", free_models=True
         )
         _install_fake_entrez(monkeypatch, ["401", "402", "403"])
 
-        results = asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="pool supplement provenance",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
+        results = search("pool supplement provenance", run_id)
 
-        trace_path = slug_dir / "runs" / run_id / ".search-trace.json"
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
-        evidence = _fixture_trace_reader()(
-            trace_path, run_id, "pool-test-build"
-        )
+        trace_file = trace_path(cache_root, run_id, run_id)
+        trace = read_trace(cache_root, run_id, run_id)
+        evidence = _trace_evidence(trace_file, run_id, "pool-test-build")
         assert list(results) == ["999"]
         assert trace["pre_search_shared_pool"] == {
             "file_count": 2,
@@ -542,54 +390,22 @@ class TestPubmedPilotTraceOutcomes:
             }
         ]
         assert evidence["final_ids"] == ["999"]
-        assert (trace_path.parent / ".manifest.json").is_file()
+        assert (trace_file.parent / ".manifest.json").is_file()
 
     def test_trace_distinguishes_selected_shared_cache_hits(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         cache_root = tmp_path / "cache-hit-cache"
         run_id = "cache-hit-trace"
-        shared_dir = cache_root / "pubmed" / run_id / "shared"
-        shared_dir.mkdir(parents=True)
-        (shared_dir / "901.metadata.json").write_text(
-            json.dumps(
-                {
-                    "date_revised": "2024/1/1",
-                    "title": "Cached paper",
-                    "abstract": "Cached abstract.",
-                    "authors": [],
-                    "publication": "Example Journal",
-                    "pmc_full_text_id": "PMC901",
-                }
-            ),
-            encoding="utf-8",
-        )
-        (shared_dir / "PMC901.fulltext.html").write_text(
-            "<html><body>Cached full text.</body></html>", encoding="utf-8"
-        )
+        seed_shared_pool(cache_root, run_id, "901")
         configure_trace(
             monkeypatch, cache_root, "cache-hit-build", free_models=True
         )
         esearch_calls = _install_fake_entrez(monkeypatch, ["901", "902", "903"])
 
-        results = asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="shared metadata cache hit",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
+        results = search("shared metadata cache hit", run_id)
 
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        trace = read_trace(cache_root, run_id, run_id)
         assert list(results) == ["901"]
         assert len(esearch_calls) == 1
         assert trace["metadata_origins"] == {
@@ -618,26 +434,11 @@ class TestPubmedPilotTraceOutcomes:
 
         install_entrez(monkeypatch, esearch=fake_esearch)
 
-        results = asyncio.run(
-            tool.pubmed_search_with_fulltext(
-                query="alpha beta gamma",
-                slug=run_id,
-                max_papers=1,
-                recency_years=1,
-                run_id=run_id,
-            )
-        )
+        results = search("alpha beta gamma", run_id, recency_years=1)
 
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        evidence = _fixture_trace_reader()(trace_path, run_id, build_id)
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        trace_file = trace_path(cache_root, run_id, run_id)
+        evidence = _trace_evidence(trace_file, run_id, build_id)
+        trace = read_trace(cache_root, run_id, run_id)
         assert results == {}
         assert len(evidence["attempts"]) == len(esearch_calls) == 4
         assert [item["rung_type"] for item in evidence["attempts"]] == [
@@ -662,32 +463,16 @@ class TestPubmedPilotTraceOutcomes:
         build_id = "error-test-build"
         configure_trace(monkeypatch, cache_root, build_id, free_models=True)
 
-        def failed_esearch(**_kwargs: Any) -> _CannedEntrezHandle:
-            raise TimeoutError("fake Entrez timeout")
-
-        monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
-        monkeypatch.setattr(Entrez, "esearch", failed_esearch)
+        install_entrez(
+            monkeypatch, esearch=raising(TimeoutError("fake Entrez timeout"))
+        )
 
         with pytest.raises(TimeoutError, match="fake Entrez timeout"):
-            asyncio.run(
-                tool.pubmed_search_with_fulltext(
-                    query="timeout query",
-                    slug=run_id,
-                    max_papers=1,
-                    run_id=run_id,
-                )
-            )
+            search("timeout query", run_id)
 
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        evidence = _fixture_trace_reader()(trace_path, run_id, build_id)
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        trace_file = trace_path(cache_root, run_id, run_id)
+        evidence = _trace_evidence(trace_file, run_id, build_id)
+        trace = read_trace(cache_root, run_id, run_id)
         assert evidence["attempts"] == [
             {
                 "rung_index": 1,

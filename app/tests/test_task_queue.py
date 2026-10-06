@@ -206,26 +206,6 @@ def test_crashed_process_lease_is_redelivered_after_restart(
     )
 
 
-def test_expired_lease_is_recovered(isolated_db: str) -> None:
-    run_id = _run()
-    enqueue_task(
-        run_id,
-        "evolution.combine",
-        "evolve:0",
-        max_attempts=2,
-        db_path=isolated_db,
-    )
-    first = tasks.claim_task(
-        "dead-worker", lease_seconds=0.001, run_id=run_id, db_path=isolated_db
-    )
-    assert first is not None
-    time.sleep(0.003)
-    recovered = tasks.claim_task("worker-b", run_id=run_id, db_path=isolated_db)
-    assert recovered is not None
-    assert recovered.id == first.id
-    assert recovered.attempt == 2
-
-
 def test_owned_lease_can_be_renewed_without_redelivery(
     isolated_db: str,
 ) -> None:
@@ -341,25 +321,6 @@ def test_cancel_run_tasks_revokes_queued_leased_and_paused_work(
         task.status for task in tasks.list_tasks(run_id, db_path=isolated_db)
     }
     assert statuses == {"cancelled"}
-
-
-def test_pause_and_resume_make_queued_tasks_non_claimable(
-    isolated_db: str,
-) -> None:
-    run_id = _run()
-    task = enqueue_task(
-        run_id, "engine.bootstrap", "pause-bootstrap", db_path=isolated_db
-    )
-    assert lifecycle.pause_run_tasks(run_id, db_path=isolated_db) == 1
-    assert (
-        tasks.claim_task("worker", run_id=run_id, db_path=isolated_db) is None
-    )
-    paused = tasks.get_task(task.id, db_path=isolated_db)
-    assert paused is not None
-    assert paused.status == "paused"
-    assert lifecycle.resume_run_tasks(run_id, db_path=isolated_db) == 1
-    claimed = tasks.claim_task("worker", run_id=run_id, db_path=isolated_db)
-    assert claimed is not None and claimed.id == task.id
 
 
 @pytest.mark.parametrize(

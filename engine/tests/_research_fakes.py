@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import pytest
 
+import co_scientist.cache as cache_nodes
 from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.agents.generation.literature_review import (
     queries as lr_queries,
@@ -21,6 +22,7 @@ from co_scientist.agents.generation.literature_review import (
 from co_scientist.agents.generation.literature_review.research_phase import (
     ResearchOutcome,
 )
+from co_scientist.cache import NodeCache
 from co_scientist.config import SearchSourceConfig, WorkflowConfig
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.config.schema import ToolConfig
@@ -205,6 +207,60 @@ def _stub_node(
     _stub_llms(monkeypatch, queries, synthesis)
 
     return fake_client
+
+
+def provider_registry(**tool_kwargs: Any) -> ToolRegistry:
+    """One search provider the review reaches through the legacy primary
+    search."""
+    registry = ToolRegistry(skip_user_config=True)
+    workflow = registry.config.workflows["literature_review"]
+    workflow.search_sources = []
+    workflow.primary_search = "provider"
+    registry.config.tools = {
+        "search": {"provider": make_tool_config("provider", **tool_kwargs)}
+    }
+    return registry
+
+
+def install_mcp_client(monkeypatch: pytest.MonkeyPatch, client: Any) -> Any:
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    return client
+
+
+def review_registry(
+    workflow: WorkflowConfig,
+    *tool_names: str,
+    configs: dict[str, ToolConfig] | None = None,
+) -> ToolRegistry:
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {"literature_review": workflow}
+    tools = {name: make_tool_config(name) for name in tool_names}
+    registry.config.tools = {"tools": {**tools, **(configs or {})}}
+    return registry
+
+
+def enable_node_cache(
+    monkeypatch: pytest.MonkeyPatch, directory: Path
+) -> NodeCache:
+    """A real cache, with the campaign and BYOK conditions that disable it
+    switched off."""
+    cache = NodeCache(str(directory), enabled=True, ttl_seconds=None)
+    monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
+    monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
+    monkeypatch.setattr(lr, "get_node_cache", lambda: cache)
+    return cache
+
+
+def keep_lexical_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def keep(
+        ranked: dict[str, dict[str, Any]], _config: Any
+    ) -> dict[str, dict[str, Any]]:
+        return ranked
+
+    monkeypatch.setattr(search, "_apply_semantic_relevance_if_enabled", keep)
 
 
 def _stub_research(

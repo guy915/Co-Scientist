@@ -23,14 +23,6 @@ class HumanHypothesisAdmission:
     author: str
     hypothesis: dict[str, object] | None
 
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "admitted": self.admitted,
-            "author": self.author,
-            "safety": self.safety_review.to_dict(),
-            "hypothesis": self.hypothesis,
-        }
-
 
 def _build_admitted_hypothesis(
     text: str, author: str, title: str, review: HypothesisSafetyReview

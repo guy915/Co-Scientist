@@ -495,9 +495,7 @@ _PLANNING_LISTS: dict[str, PlanningLists] = {
 }
 
 
-def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
-    if scenario is None:
-        return PlanningLists()
+def _scenario_planning_lists(scenario: DemoScenario) -> PlanningLists:
     return _PLANNING_LISTS[scenario_key(scenario)]
 
 

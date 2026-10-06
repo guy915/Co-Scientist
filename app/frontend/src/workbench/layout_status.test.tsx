@@ -1,7 +1,7 @@
 import {render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {SystemStatus} from '@/api/system';
-import {SystemStatusIndicator, buildSystemStatusChip} from './layout_header';
+import {SystemStatusIndicator} from './layout_header';
 
 const apiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 
@@ -30,28 +30,6 @@ function statusFixture(overrides: Partial<SystemStatus> = {}): SystemStatus {
     ...overrides,
   };
 }
-
-describe('buildSystemStatusChip', () => {
-  it('prefers the offline chip over everything else', () => {
-    const chip = buildSystemStatusChip(statusFixture(), true);
-    expect(chip?.label).toBe('API offline');
-    expect(chip?.danger).toBe(true);
-  });
-
-  it('flags offline mode with a neutral chip', () => {
-    const chip = buildSystemStatusChip(statusFixture(), false);
-    expect(chip?.label).toBe('Offline mode');
-    expect(chip?.danger).toBe(false);
-    expect(chip?.detail).toContain('test/model');
-  });
-
-  it('renders nothing while loading or on a live model backend', () => {
-    expect(buildSystemStatusChip(null, false)).toBeNull();
-    expect(
-      buildSystemStatusChip(statusFixture({llm_backend: 'real'}), false),
-    ).toBeNull();
-  });
-});
 
 describe('SystemStatusIndicator', () => {
   beforeEach(() => {

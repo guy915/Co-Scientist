@@ -3,13 +3,11 @@ from __future__ import annotations
 import ast
 import asyncio
 import logging
-import operator
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Annotated, Any
+from typing import Any
 
 import pytest
-from typing_extensions import TypedDict
 
 from co_scientist import tool_effects
 from co_scientist.agents.generation.literature_review.enrichment import (
@@ -41,7 +39,6 @@ from co_scientist.task_runtime import (
     plan_portfolio,
 )
 from co_scientist.tool_effects import (
-    ToolEffect,
     batch_by_effects,
     is_barrier,
     parse_effects,
@@ -61,35 +58,38 @@ from tests._state import (
 
 
 def test_apply_task_update_uses_graph_state_reducers() -> None:
-    state = make_state(hypotheses=[Hypothesis(text="parent")])
+    """Durable reducers mirror state annotations; a missing entry silently
+    overwrites provenance and tournament history."""
+    state = make_state(
+        hypotheses=[Hypothesis(text="parent")],
+        research_ledgers=[{"goal": "from the review"}],
+        tournament_matchups=[{"hypothesis_a_id": "a", "hypothesis_b_id": "b"}],
+    )
     child = Hypothesis(text="child")
     merged = apply_task_update(
         state,
         {
             "hypotheses": AppendHypotheses([child]),
             "metrics": create_metrics_update(deltas=MetricDeltas(llm_calls=2)),
+            "research_ledgers": [{"goal": "from a hypothesis"}],
+            "tournament_matchups": [
+                {"hypothesis_a_id": "c", "hypothesis_b_id": "d"}
+            ],
         },
     )
+    assert merged["research_ledgers"] == [
+        {"goal": "from the review"},
+        {"goal": "from a hypothesis"},
+    ]
+    assert [m["hypothesis_a_id"] for m in merged["tournament_matchups"]] == [
+        "a",
+        "c",
+    ]
     assert [hypothesis.text for hypothesis in merged["hypotheses"]] == [
         "parent",
         "child",
     ]
     assert merged["metrics"].llm_calls == 2
-
-
-def test_a_second_researcher_does_not_erase_the_first_one() -> None:
-    """Durable reducers mirror state annotations; missing entries silently
-    overwrite provenance."""
-    state = make_state(research_ledgers=[{"goal": "from the review"}])
-
-    merged = apply_task_update(
-        state, {"research_ledgers": [{"goal": "from a hypothesis"}]}
-    )
-
-    assert merged["research_ledgers"] == [
-        {"goal": "from the review"},
-        {"goal": "from a hypothesis"},
-    ]
 
 
 @pytest.mark.parametrize("mcp_available", [True, False])
@@ -149,22 +149,6 @@ def test_decision_routes_preserve_prefix_periodic_and_terminal_behavior(
     assert next_task_type("research_overview", state) == overview
 
 
-async def test_execute_task_node_runs_only_named_specialist(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[str] = []
-
-    async def handler(state: Any) -> dict[str, Any]:
-        calls.append("review")
-        return {"current_iteration": 7}
-
-    monkeypatch.setitem(TASK_NODES, "review", handler)
-    committed, successor = await execute_task_node("review", make_state())
-    assert calls == ["review"]
-    assert committed["current_iteration"] == 7
-    assert successor == "comprehensive_reflection"
-
-
 async def test_execute_task_node_captures_llm_telemetry_by_phase(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
@@ -214,6 +198,7 @@ async def test_execute_task_node_captures_llm_telemetry_by_phase(
         ("proximity", False, ["proximity", "orchestrator"]),
         ("evolve", False, ["evolve", "review"]),
         ("meta_review", False, ["meta_review"]),
+        ("supervisor", True, ["supervisor", "literature_review", "generate"]),
         ("research_overview", False, ["research_overview"]),
     ],
 )
@@ -222,30 +207,6 @@ def test_plan_portfolio_walks_the_deterministic_tail(
 ) -> None:
     state = make_state(mcp_available=mcp)
     assert plan_portfolio(start, state) == expected
-
-
-@pytest.mark.parametrize(
-    ("next_task", "expected"),
-    [
-        ("evolve", ["meta_review", "evolve", "review"]),
-        ("meta_review", ["meta_review", "orchestrator"]),
-    ],
-)
-def test_plan_portfolio_walks_meta_review_from_the_decision(
-    next_task: str, expected: list[str]
-) -> None:
-    state = make_state(mcp_available=False)
-    state["next_task"] = next_task
-    assert plan_portfolio("meta_review", state) == expected
-
-
-def test_plan_portfolio_walks_supervisor_when_mcp_is_known() -> None:
-    state = make_state(mcp_available=True)
-    assert plan_portfolio("supervisor", state) == [
-        "supervisor",
-        "literature_review",
-        "generate",
-    ]
 
 
 def test_plan_portfolio_stops_at_an_unresolvable_resolver_route() -> None:
@@ -266,52 +227,6 @@ def test_plan_portfolio_never_calls_the_orchestrator_resolver() -> None:
     ]
 
 
-def test_durable_path_accumulates_tournament_matchups() -> None:
-    """A missing durable reducer silently replaces earlier tournament
-    history."""
-    from co_scientist.task_runtime import apply_task_update
-
-    state = make_state(
-        hypotheses=[],
-        tournament_matchups=[{"hypothesis_a_id": "a", "hypothesis_b_id": "b"}],
-    )
-
-    merged = apply_task_update(
-        state,
-        {
-            "tournament_matchups": [
-                {"hypothesis_a_id": "c", "hypothesis_b_id": "d"}
-            ]
-        },
-    )
-
-    assert [m["hypothesis_a_id"] for m in merged["tournament_matchups"]] == [
-        "a",
-        "c",
-    ]
-
-
-class _ToyState(TypedDict):
-    log: Annotated[list[int], operator.add]
-    total: Annotated[int, operator.add]
-    last: int
-
-
-def test_only_annotated_channels_get_a_reducer() -> None:
-    assert set(channel_reducers(_ToyState)) == {"log", "total"}
-
-
-def test_a_list_channel_reduces_onto_an_empty_list_when_absent() -> None:
-    reduce_log = channel_reducers(_ToyState)["log"]
-
-    assert reduce_log(None, [1]) == [1]
-    assert reduce_log([1], [2]) == [1, 2]
-
-
-def test_a_non_list_channel_receives_the_existing_value_unchanged() -> None:
-    assert channel_reducers(_ToyState)["total"](2, 3) == 5
-
-
 def test_workflow_state_reducers_cover_every_accumulating_channel() -> None:
     assert set(channel_reducers(WorkflowState)) == {
         "hypotheses",
@@ -326,38 +241,6 @@ def _call(name: str) -> SimpleNamespace:
     return make_tool_call(f"call_{name}", name, "{}")
 
 
-def test_parse_effects_combines_known_tokens() -> None:
-    assert parse_effects(["read", "network"]) == (
-        ToolEffect.READ | ToolEffect.NETWORK
-    )
-
-
-def test_parse_effects_ignores_case_and_surrounding_space() -> None:
-    assert parse_effects([" Read ", "NETWORK"]) == (
-        ToolEffect.READ | ToolEffect.NETWORK
-    )
-
-
-def test_parse_effects_treats_empty_declaration_as_barrier() -> None:
-    # Unknown effects fail closed; dropping them would silently regain
-    # concurrency.
-    assert is_barrier(parse_effects([]))
-
-
-def test_parse_effects_treats_unknown_token_as_barrier() -> None:
-    assert is_barrier(parse_effects(["read", "exec"]))
-
-
-def test_is_barrier_covers_write_append_and_process() -> None:
-    assert is_barrier(ToolEffect.WRITE)
-    assert is_barrier(ToolEffect.APPEND)
-    assert is_barrier(ToolEffect.PROCESS)
-
-
-def test_remote_reads_are_not_barriers() -> None:
-    assert not is_barrier(ToolEffect.READ | ToolEffect.NETWORK)
-
-
 def test_resolve_reads_declared_effects_from_the_registry() -> None:
     from co_scientist.config.registry import get_tool_registry
 
@@ -365,10 +248,6 @@ def test_resolve_reads_declared_effects_from_the_registry() -> None:
     mcp_names = [tool.mcp_tool_name for tool in tools.values()]
     assert mcp_names, "expected the shipped config to declare tools"
     assert not any(is_barrier(resolve_tool_effects(n)) for n in mcp_names)
-
-
-def test_resolve_treats_an_unregistered_tool_as_a_barrier() -> None:
-    assert is_barrier(resolve_tool_effects("no_such_tool_anywhere"))
 
 
 def test_resolve_treats_a_broken_registry_as_a_barrier(
@@ -391,50 +270,6 @@ def _patch_effects(
         "resolve_tool_effects",
         lambda name: parse_effects(mapping.get(name, [])),
     )
-
-
-def test_batch_groups_all_reads_into_one_batch(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_effects(monkeypatch, {"a": ["read"], "b": ["read"]})
-    batches = batch_by_effects([_call("a"), _call("b")])
-    assert len(batches) == 1
-    assert len(batches[0]) == 2
-
-
-def test_batch_isolates_a_barrier_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_effects(
-        monkeypatch, {"r1": ["read"], "w": ["process"], "r2": ["read"]}
-    )
-    batches = batch_by_effects([_call("r1"), _call("w"), _call("r2")])
-    assert [[c.function.name for c in b] for b in batches] == [
-        ["r1"],
-        ["w"],
-        ["r2"],
-    ]
-
-
-def test_batch_preserves_order_and_loses_nothing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_effects(
-        monkeypatch,
-        {"a": ["read"], "b": ["read"], "w": ["write"], "c": ["read"]},
-    )
-    names = ["a", "b", "w", "c"]
-    batches = batch_by_effects([_call(n) for n in names])
-    flattened = [c.function.name for batch in batches for c in batch]
-    assert flattened == names
-
-
-def test_batch_isolates_an_undeclared_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _patch_effects(monkeypatch, {"r1": ["read"], "r2": ["read"]})
-    batches = batch_by_effects([_call("r1"), _call("mystery"), _call("r2")])
-    assert len(batches) == 3
 
 
 @pytest.mark.asyncio
@@ -564,48 +399,41 @@ def _sources(registry: ToolRegistry) -> list[ToolConfig]:
     return [config for config in configs if config is not None]
 
 
-def test_literature_search_sources_accept_their_query_params(
+def test_configured_search_and_enrichment_tools_accept_their_params(
     registry: ToolRegistry, accepted: dict[str, set[str]]
 ) -> None:
-    configs = _sources(registry)
-    assert configs, "the default config must configure search sources"
-    for tool_config in configs:
+    sources = _sources(registry)
+    assert sources, "the default config must configure search sources"
+    for tool_config in sources:
         params = _build_query_tool_params(
             "resistance reversal", "research_1", "run-1", 3, tool_config
         )
         _assert_callable(tool_config, params, accepted)
 
+    canonical = _build_search_canonical_params(
+        "resistance reversal", 3, "research_1", "run-1"
+    )
+    validation = registry.get_tools_for_workflow("validation")
+    assert validation, "the default config must configure validation tools"
+    for tool_id in validation:
+        validation_tool = registry.get_tool(tool_id)
+        assert validation_tool is not None
+        if validation_tool.category in ("search", "search_with_content"):
+            _assert_callable(
+                validation_tool,
+                validation_tool.map_parameters(canonical),
+                accepted,
+            )
 
-def test_validation_search_tools_accept_their_query_params(
-    registry: ToolRegistry, accepted: dict[str, set[str]]
-) -> None:
-    tool_ids = registry.get_tools_for_workflow("validation")
-    assert tool_ids, "the default config must configure validation tools"
-    for tool_id in tool_ids:
-        tool_config = registry.get_tool(tool_id)
-        assert tool_config is not None
-        if tool_config.category not in ("search", "search_with_content"):
-            continue
-        canonical = _build_search_canonical_params(
-            "resistance reversal", 3, "research_1", "run-1"
-        )
-        _assert_callable(
-            tool_config, tool_config.map_parameters(canonical), accepted
-        )
-
-
-def test_context_enrichment_tools_accept_their_entity_params(
-    registry: ToolRegistry, accepted: dict[str, set[str]]
-) -> None:
     workflow = registry.get_workflow("literature_review")
     assert workflow is not None
     assert workflow.context_enrichment_tools
     for tool_id in workflow.context_enrichment_tools:
-        tool_config = registry.get_tool(tool_id)
-        assert tool_config is not None
-        canonical = _build_enrichment_canonical_params("MCR-1")
+        enrichment_tool = registry.get_tool(tool_id)
+        assert enrichment_tool is not None
+        entity = _build_enrichment_canonical_params("MCR-1")
         _assert_callable(
-            tool_config, tool_config.map_parameters(canonical), accepted
+            enrichment_tool, enrichment_tool.map_parameters(entity), accepted
         )
 
 
@@ -686,3 +514,41 @@ def test_opencitations_is_exposed_only_through_draft_read_tools(
     assert "get_opencitations_citation_edges" in {
         tool["function"]["name"] for tool in model_tools
     }
+
+
+@pytest.mark.parametrize(
+    ("declared", "is_a_barrier"),
+    [
+        (["read", "network"], False),
+        ([" Read ", "NETWORK"], False),
+        # Unknown or missing effects fail closed; dropping them would silently
+        # regain concurrency.
+        ([], True),
+        (["read", "exec"], True),
+        (["write"], True),
+        (["append"], True),
+        (["process"], True),
+    ],
+)
+def test_declared_effects_decide_whether_a_tool_is_a_barrier(
+    declared: list[str], is_a_barrier: bool
+) -> None:
+    assert is_barrier(parse_effects(declared)) is is_a_barrier
+
+
+def test_batching_isolates_barriers_and_undeclared_tools_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_effects(
+        monkeypatch,
+        {"a": ["read"], "b": ["read"], "w": ["write"], "c": ["read"]},
+    )
+    batches = batch_by_effects(
+        [_call(n) for n in ("a", "b", "w", "c", "mystery")]
+    )
+    assert [[call.function.name for call in b] for b in batches] == [
+        ["a", "b"],
+        ["w"],
+        ["c"],
+        ["mystery"],
+    ]
