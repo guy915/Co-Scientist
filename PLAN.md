@@ -8,7 +8,8 @@ these rules and reports at the end.
 **Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is complete for
 the engine and the MCP server and in progress for the app and the frontend.
 The coverage floor (80% per suite and protected module, or a protected
-module's lower baseline) and shared scaffolding remain the campaign guards.
+module's lower baseline, with each suite aimed at 80–85%) and shared
+scaffolding remain the campaign guards.
 Phase counts and verification are recorded in
 `docs/test-campaign/progress.json`.
 The improvements campaign is preserved in merged history; PR #184 deliberately
@@ -83,11 +84,14 @@ all frontend production modules are protected. The selection is recorded in
 - Record the baseline per suite and per module in the opening PR.
 - Every PR keeps each suite's line coverage at or above 80%, and every
   protected module at or above 80%, or at its fixed baseline when it started
-  below 80%. The owner set this floor on 6 October 2026,
-  replacing the earlier rule (each suite within 0.5 points of its baseline,
-  protected modules at or above baseline), because test lines cannot shrink by
-  half while coverage stays fixed. The behaviors under "What stays tested"
-  still keep their best tests, whatever the coverage number says.
+  below 80%. The owner set this floor on 6 October 2026, replacing the earlier
+  rule (each suite within 0.5 points of its baseline, protected modules at or
+  above baseline), because test lines cannot shrink by half while coverage
+  stays fixed.
+- Aim each suite at 80–85% line coverage; coverage above that costs more to
+  maintain than it protects. Cut tests whose only value is lines past that
+  band, and keep the behaviors under "What stays tested" with their best tests
+  whatever the coverage number says.
 - Put each suite's before and after coverage in the PR body, and name any
   protected module that fell below its fixed baseline.
 
@@ -146,7 +150,8 @@ Finish each phase's exit test before starting the next.
 
 - Organize test files by behavior. Merge files that test one behavior from
   several angles, and split files over 800 lines by behavior.
-- A final sweep over each suite against What goes.
+- A final sweep over each suite against What goes, bringing each suite into
+  the 80–85% coverage band.
 - **Exit:** the last two themed PRs each removed under 1,000 test lines.
 
 ## Rules
