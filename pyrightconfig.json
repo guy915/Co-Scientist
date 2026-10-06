@@ -17,7 +17,7 @@
 //
 // executionEnvironments is first-match-wins, so engine/mcp_server must stay
 // ahead of engine. The evaluations entry carries "." because its modules
-// import themselves by their package path ("from evaluations.metrics import
+// import themselves by their package path ("from evaluations._artifacts import
 // ...") , which needs the repository root on the path, not the package dir.
 //
 // reportUnusedFunction is off because it is structurally wrong for this

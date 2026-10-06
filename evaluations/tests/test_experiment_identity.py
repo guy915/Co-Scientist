@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import shutil
@@ -12,9 +11,8 @@ from typing import Any
 
 import pytest
 
-from evaluations import _artifacts, _run_driver, scaling_eval
+from evaluations import _artifacts, _run_driver
 from evaluations._identity import identity_digest, validate_identity
-from evaluations.citation_usefulness_eval import run_deterministic
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -174,183 +172,6 @@ def test_worker_drift_cannot_produce_an_arm_result(
             {},
             _run_driver.ArmInvocation("comparison-test", "offline", db),
         )
-
-
-def _record(tmp_path: Path, goal: str = "Public goal", **extra: Any) -> Any:
-    tier = extra.pop("tier", "express")
-    overrides = extra.get("overrides", {})
-    run_id, db = _persist(tmp_path, goal, tier, overrides)
-    return {
-        "goal": goal,
-        "goal_id": "public",
-        "tier": tier,
-        "overrides": overrides,
-        "evaluation_identity": _identity(run_id, db),
-        "metrics": {},
-        "hypotheses": [],
-        "diversity": 0.0,
-        "cost_usd": 0.0,
-        "latency_seconds": 0.0,
-        **extra,
-    }
-
-
-def _run_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, key: str, records: Any) -> int:
-    path = tmp_path / "records.json"
-    path.write_text(json.dumps({key: records}))
-    monkeypatch.setattr("sys.argv", ["scaling_eval", str(path)])
-    return scaling_eval.main()
-
-
-@pytest.mark.parametrize("fault", ["none", "missing", "goal", "model"])
-def test_scaling_comparison_requires_matching_identities(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
-) -> None:
-    from app.config import settings
-
-    first = _record(tmp_path)
-    if fault == "model":
-        monkeypatch.setattr(settings, "model_name", "openrouter/other:free")
-    goal = "Other goal" if fault == "goal" else "Public goal"
-    second = _record(tmp_path, goal)
-    if fault == "missing":
-        del second["evaluation_identity"]
-    records = [first, second]
-    if fault == "none":
-        assert _run_cli(tmp_path, monkeypatch, "snapshots", records) == 0
-    else:
-        with pytest.raises(ValueError, match="comparison"):
-            _run_cli(tmp_path, monkeypatch, "snapshots", records)
-
-
-def test_historical_tier_profiles_do_not_use_current_defaults(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from app.run_modes import RUN_TIER_DEFAULTS
-
-    records = [_record(tmp_path, tier=tier) for tier in ("express", "standard")]
-    monkeypatch.setitem(RUN_TIER_DEFAULTS["express"], "max_llm_calls", 999999)
-    assert _run_cli(tmp_path, monkeypatch, "snapshots", records) == 0
-
-
-_GOALS = {"one": "Public goal one", "two": "Public goal two"}
-_NO_WEB = {"enable_web_search": False}
-_NO_META = {"enable_meta_review": False}
-_PAIR = [("public", "baseline", {}), ("public", "no_web", _NO_WEB)]
-_ONE = [("one", "baseline", {}), ("one", "no_feature", _NO_WEB)]
-_ARMS: dict[str, list[tuple[str, str, dict[str, Any]]]] = {
-    "declared": _PAIR,
-    "undeclared": _PAIR,
-    "unapplied": [_PAIR[0], ("public", "no_web", {})],
-    "unbalanced": [*_PAIR, _PAIR[1]],
-    "relabeled_goal": [
-        *_PAIR,
-        ("alias", "baseline", {}),
-        ("alias", "no_web", _NO_WEB),
-    ],
-    "same_intervention": [
-        *_ONE,
-        ("two", "baseline", {}),
-        ("two", "no_feature", _NO_WEB),
-    ],
-    "different_intervention": [
-        *_ONE,
-        ("two", "baseline", {}),
-        ("two", "no_feature", _NO_META),
-    ],
-}
-# Overrides a record claims although its identity was sealed without (or
-# with) them.
-_CLAIMED = {"undeclared": {}, "unapplied": _NO_WEB}
-
-
-@pytest.mark.parametrize(
-    ("scenario", "error"),
-    [
-        ("declared", None),
-        ("same_intervention", None),
-        ("unbalanced", "comparison"),
-        ("relabeled_goal", "different labels"),
-        ("different_intervention", "intervention"),
-        ("undeclared", "undeclared"),
-        ("unapplied", "comparison"),
-    ],
-)
-def test_ablation_comparison_accepts_only_declared_balanced_arms(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    scenario: str,
-    error: str | None,
-) -> None:
-    records = [
-        _record(
-            tmp_path,
-            _GOALS.get(goal_id, "Public goal"),
-            goal_id=goal_id,
-            arm=arm,
-            overrides=overrides,
-        )
-        for goal_id, arm, overrides in _ARMS[scenario]
-    ]
-    if scenario in _CLAIMED:
-        records[1]["overrides"] = _CLAIMED[scenario]
-    if error is None:
-        assert _run_cli(tmp_path, monkeypatch, "ablations", records) == 0
-    else:
-        with pytest.raises(ValueError, match=error):
-            _run_cli(tmp_path, monkeypatch, "ablations", records)
-
-
-def _reseal(artifact: dict[str, Any], **changes: Any) -> None:
-    identity = artifact["evaluation_identity"]
-    identity.pop("digest")
-    for key, value in changes.items():
-        if value is None:
-            identity.pop(key)
-        else:
-            identity[key] = value
-    identity["digest"] = identity_digest(identity)
-
-
-def _changed_panel(report: dict[str, Any], change: str) -> dict[str, Any]:
-    candidate = copy.deepcopy(report)
-    if change == "dataset":
-        return run_deterministic({"name": "different", "items": []})
-    if change == "missing":
-        candidate.pop("evaluation_identity")
-    if change == "mode":
-        candidate["execution_mode"] = "live_requested"
-    if change in ("kind", "incomplete"):
-        changes: dict[str, Any] = {"kind": "arm"} if change == "kind" else {"dataset": None}
-        _reseal(report, **changes)
-        _reseal(candidate, **changes)
-    return candidate
-
-
-@pytest.mark.parametrize("change", ["none", "dataset", "missing", "mode", "kind", "incomplete"])
-def test_panel_comparison_requires_matched_declared_inputs(tmp_path: Path, change: str) -> None:
-    report = run_deterministic({"name": "frozen", "items": []})
-    candidate = _changed_panel(report, change)
-    paths = [tmp_path / "baseline.json", tmp_path / "candidate.json"]
-    for path, artifact in zip(paths, (report, candidate), strict=True):
-        path.write_text(json.dumps(artifact))
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "evaluations.panel_comparison",
-            *map(str, paths),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    if change == "none":
-        assert result.returncode == 0, result.stderr
-        assert json.loads(result.stdout)["status"] == "matched_declared_inputs"
-    else:
-        assert result.returncode != 0
-        assert "ValueError" in result.stderr
 
 
 def test_provenance_records_source_and_prompts_and_passes_inputs_through() -> None:

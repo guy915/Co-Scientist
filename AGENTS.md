@@ -8,7 +8,7 @@ This is a research/reference workspace organized around replicating Google's AI 
 
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — Internal multi-agent hypothesis-generation engine
-- `evaluations/` — offline evaluation harness (`citation_eval.py`, `safety_eval.py`, `metrics.py`, `scaling_eval.py` + `scaling_budget_driver.py`, `ablation_driver.py`, `elo_concordance_eval.py`, `release_gate.py`, `smoke.py`, plus `datasets/`, `results/`, `tests/` and its own `pyproject.toml`; see `evaluations/README.md`)
+- `evaluations/` — offline evaluation harness (`citation_eval.py`, `safety_eval.py`, `claim_support_eval.py`, `citation_usefulness_eval.py`, `smoke.py`, plus `datasets/`, `tests/` and its own `pyproject.toml`; see `evaluations/README.md`)
 - `e2e/` — Playwright browser end-to-end suite (`tests/*.spec.ts`, `support/` fixtures)
 - Historical research dossiers, experiments and the completed external-reference campaign are preserved at [immutable revision `33ec8984`](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688). Historical source material remains available in git.
 - `vendor/` — third-party code shipped as-is, pinned to an upstream revision and never reformatted (a root `.ruff.toml` excludes it, after a repo-root format sweep once silently rewrote 63 vendored files). `science-skills/` is Google DeepMind's Science Skills bundle; the api image copies it and points `COSCIENTIST_SKILLS_DIR` at it. Provenance and revision: the root `NOTICE`.
