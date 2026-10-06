@@ -27,6 +27,7 @@ Sources referenced throughout:
 | Postsubmit (comprehensive) | `ci.yml` on `push` to `main`: every job runs, no path filters, runs never cancelled |
 | Continuous build (scheduled full pass) | `nightly.yml` (cron, 06:17 UTC) calls `ci.yml` via `workflow_call`; also `workflow_dispatch` for on-demand full passes |
 | Not CI | `benchmark.yml`: manual (`workflow_dispatch`) live quality benchmark for `docs/OPTIMIZATION.md`. It calls the free default model with the `OPENROUTER_API_KEY` repository secret, so it never gates a PR or `main` |
+| Not CI | `prune-branches.yml`: manual branch cleanup. It deletes branches with no open PR and no commit in the last `min_age_hours` (default 24); `main` is never touched |
 
 SWE book ch. 23 defines presubmit as "fast and reliable" checks gating merge,
 with "slower or less deterministic" comprehensive testing moved to
