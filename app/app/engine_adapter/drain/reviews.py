@@ -142,9 +142,7 @@ def _persist_engine_citations(
     sink: _CitationSink,
     conn: sqlite3.Connection,
 ) -> None:
-    target = _CitationTarget(
-        run_id, hyp_id, _hypothesis_grounding_text(h), conn
-    )
+    target = _CitationTarget(run_id, hyp_id, _hypothesis_grounding_text(h), conn)
     for cite_key, cite_info in _citation_map(h).items():
         _persist_one_citation(target, cite_key, cite_info, sink)
 
@@ -252,9 +250,7 @@ def _simulation_detail(review: dict[str, Any]) -> dict[str, Any]:
     raw_points = review.get("failure_points")
     points = [
         clipped
-        for point in (raw_points if isinstance(raw_points, list) else [])[
-            :_MAX_DETAIL_ITEMS
-        ]
+        for point in (raw_points if isinstance(raw_points, list) else [])[:_MAX_DETAIL_ITEMS]
         if (clipped := _clip_detail(point, _MAX_DETAIL_CHARS))
     ]
     decisive_step = _clip_detail(review.get("decisive_step"), _MAX_SHORT_CHARS)
@@ -270,12 +266,8 @@ def _verdict_detail(review: dict[str, Any]) -> dict[str, Any]:
     """Go/No-Go display fields are not disposition inputs; gates read the
     engine's verdict and justification.
     """
-    go_no_go = _clip_detail(
-        review.get("go_no_go_recommendation"), _MAX_SHORT_CHARS
-    )
-    time_to_verdict = _clip_detail(
-        review.get("time_to_verdict"), _MAX_SHORT_CHARS
-    )
+    go_no_go = _clip_detail(review.get("go_no_go_recommendation"), _MAX_SHORT_CHARS)
+    time_to_verdict = _clip_detail(review.get("time_to_verdict"), _MAX_SHORT_CHARS)
     detail: dict[str, Any] = {}
     if go_no_go:
         detail["go_no_go"] = go_no_go
@@ -307,11 +299,7 @@ def _reviews_summary_detail(raw: Any) -> dict[str, Any]:
         if (text := _clip_detail(raw.get(name), _MAX_PROSE_CHARS))
     }
     summary.update(
-        {
-            name: items
-            for name in _REVIEWS_SUMMARY_LISTS
-            if (items := _bounded_list(raw.get(name)))
-        }
+        {name: items for name in _REVIEWS_SUMMARY_LISTS if (items := _bounded_list(raw.get(name)))}
     )
     return summary
 
@@ -375,9 +363,7 @@ def _mature_review_detail(review: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
-def _deep_verification_detail(
-    probes: list[dict[str, Any]], verdict: Any
-) -> dict[str, Any]:
+def _deep_verification_detail(probes: list[dict[str, Any]], verdict: Any) -> dict[str, Any]:
     """Structured probes avoid Markdown collapsing indented
     question/answer/reasoning prose into one paragraph.
     """
@@ -392,9 +378,7 @@ def _deep_verification_detail(
             {
                 "question": question,
                 "answer": _clip_detail(probe.get("answer"), _MAX_PROSE_CHARS),
-                "reasoning": _clip_detail(
-                    probe.get("reasoning"), _MAX_PROSE_CHARS
-                ),
+                "reasoning": _clip_detail(probe.get("reasoning"), _MAX_PROSE_CHARS),
                 "fundamental": bool(probe.get("assumption_is_fundamental")),
             }
         )
@@ -432,9 +416,7 @@ def _score_or_none(value: Any) -> float | None:
 _SCIENTIST_REVIEWER = "scientist"
 
 
-def _scientist_review_row_survives(
-    source_id: str, conn: sqlite3.Connection
-) -> bool:
+def _scientist_review_row_survives(source_id: str, conn: sqlite3.Connection) -> bool:
     """When an ID cannot name a surviving row, restoring the review is safer
     than losing scientist input.
     """
@@ -508,9 +490,7 @@ def _persist_engine_review_rows(
                 summary=rv.get("review_summary", ""),
                 critique="\n".join(critique_lines).strip(),
                 novelty=_score_or_none(scores.get("novelty", 0)),
-                plausibility=_score_or_none(
-                    scores.get("scientific_soundness", 0)
-                ),
+                plausibility=_score_or_none(scores.get("scientific_soundness", 0)),
                 testability=_score_or_none(scores.get("testability", 0)),
                 overall=_score_or_none(rv.get("overall_score", 0)),
                 detail_json=_detail_json(_initial_review_detail(rv)),
@@ -539,9 +519,7 @@ def _persist_deep_verification_review(
             summary=summary,
             critique=critique,
             detail_json=_detail_json(
-                _deep_verification_detail(
-                    probes, h.get("deep_verification_verdict")
-                )
+                _deep_verification_detail(probes, h.get("deep_verification_verdict"))
             ),
         ),
         conn=conn,
@@ -617,9 +595,7 @@ def _simulation_step_line(index: int, item: dict[str, Any]) -> str | None:
 def _simulation_step_lines(review: dict[str, Any]) -> list[str]:
     lines = []
     for index, item in enumerate(review.get("steps") or [], start=1):
-        if isinstance(item, dict) and (
-            line := _simulation_step_line(index, item)
-        ):
+        if isinstance(item, dict) and (line := _simulation_step_line(index, item)):
             lines.append(line)
     return lines
 
@@ -633,9 +609,7 @@ def _failure_point_lines(review: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _append_simulation_critique(
-    lines: list[str], review: dict[str, Any]
-) -> None:
+def _append_simulation_critique(lines: list[str], review: dict[str, Any]) -> None:
     model = str(review.get("model") or "").strip()
     if model:
         lines.append(f"Simulated model: {model}")

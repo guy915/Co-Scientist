@@ -155,11 +155,7 @@ _HEADER: Final = (
 
 def build_interim_overview(response: dict[str, Any]) -> str:
     overview = response.get("overview")
-    directions = (
-        overview.get("research_directions")
-        if isinstance(overview, dict)
-        else None
-    )
+    directions = overview.get("research_directions") if isinstance(overview, dict) else None
     lines = _titled_lines(directions, "Directions", _MAX_DIRECTIONS)
     lines += _question_lines(response.get("open_questions"))
     return f"{_HEADER}\n" + "\n".join(lines) + "\n" if lines else ""
@@ -179,11 +175,7 @@ def _titled_lines(raw: Any, header: str, limit: int) -> list[str]:
 def _question_lines(raw: Any) -> list[str]:
     if not isinstance(raw, list):
         return []
-    bullets = [
-        f"- {str(item).strip()}"
-        for item in raw[:_MAX_QUESTIONS]
-        if str(item).strip()
-    ]
+    bullets = [f"- {str(item).strip()}" for item in raw[:_MAX_QUESTIONS] if str(item).strip()]
     return ["**Open questions:**", *bullets, ""] if bullets else []
 
 
@@ -308,9 +300,7 @@ async def _interim_overview_result(
 ) -> dict[str, Any]:
     """The lean periodic call leaves terminal report/UI output untouched and
     buys neither accuracy review nor deep knowledge-base work."""
-    prompt, schema = build_interim_synthesis_prompt(
-        state, summary, evidence_corpus
-    )
+    prompt, schema = build_interim_synthesis_prompt(state, summary, evidence_corpus)
     response = await _call_research_overview_llm(
         state, prompt, schema, max_tokens=RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS
     )
@@ -328,11 +318,7 @@ async def _interim_overview_result(
 def _publishable_hypotheses(
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
-    return [
-        h
-        for h in hypotheses
-        if h.is_rankable() and not is_blocking_status(h.safety_status)
-    ]
+    return [h for h in hypotheses if h.is_rankable() and not is_blocking_status(h.safety_status)]
 
 
 def _summarize_top_hypotheses(
@@ -342,9 +328,7 @@ def _summarize_top_hypotheses(
     high Elo must not put them ahead of sound ideas in synthesis."""
     ranked = rank_for_publication(hypotheses)
     top = ranked[:RESEARCH_OVERVIEW_TOP_K]
-    summary = "\n".join(
-        f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top)
-    )
+    summary = "\n".join(f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top))
     hypothesis_by_index = {i + 1: h.id for i, h in enumerate(top)}
     return summary, hypothesis_by_index
 
@@ -358,9 +342,7 @@ async def _synthesize_research_overview(
 ) -> tuple[dict[str, Any], int]:
     """Accuracy revision replaces the raw draft; validate grounding once,
     last, on the version that will actually publish."""
-    prompt, schema = build_synthesis_prompt(
-        state, summary, contact_candidates, evidence_corpus
-    )
+    prompt, schema = build_synthesis_prompt(state, summary, contact_candidates, evidence_corpus)
     response = await _call_research_overview_llm(state, prompt, schema)
     response, review_meta, review_calls = await _maybe_review_overview(
         state, summary, contact_candidates, evidence_corpus, response
@@ -374,12 +356,8 @@ async def _synthesize_research_overview(
         hypotheses_summary=summary,
         evidence_corpus_text=_format_evidence_corpus(evidence_corpus),
     )
-    direction_calls = await develop_directions_into(
-        wave, formatted, call_llm_json
-    )
-    deep_calls = await _deepen_knowledge_base(
-        state, summary, evidence_corpus, formatted
-    )
+    direction_calls = await develop_directions_into(wave, formatted, call_llm_json)
+    deep_calls = await _deepen_knowledge_base(state, summary, evidence_corpus, formatted)
     return formatted, 1 + review_calls + direction_calls + deep_calls
 
 
@@ -428,8 +406,7 @@ async def _maybe_review_overview(
         raise
     except Exception:
         logger.error(
-            "Research overview review failed; publishing the drafted "
-            "overview unchanged",
+            "Research overview review failed; publishing the drafted overview unchanged",
             exc_info=True,
         )
         return response, dict(_UNREVIEWED_OVERVIEW), 0
@@ -469,15 +446,11 @@ def _format_research_overview_response(
         "research_contact_groups": _validate_research_contact_groups(
             response.get("research_contact_groups"), hypothesis_by_index
         ),
-        "knowledge_base": _validate_knowledge_base(
-            response.get("knowledge_base"), evidence_corpus
-        ),
+        "knowledge_base": _validate_knowledge_base(response.get("knowledge_base"), evidence_corpus),
         "open_questions": response.get("open_questions", []),
         "clear_patterns": response.get("clear_patterns", []),
         "unexpected_patterns": response.get("unexpected_patterns", []),
-        "unexpected_research_directions": response.get(
-            "unexpected_research_directions", []
-        ),
+        "unexpected_research_directions": response.get("unexpected_research_directions", []),
     }
 
 

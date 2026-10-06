@@ -36,9 +36,7 @@ def bind_findings(
     """Missing call provenance leaves an empty call_id; it must not discard
     the claim and quoted span.
     """
-    call_by_locator = {
-        hit.locator: call.id for call in calls for hit in call.hits
-    }
+    call_by_locator = {hit.locator: call.id for call in calls for hit in call.hits}
     return tuple(
         Finding(
             text=item.text,
@@ -106,16 +104,8 @@ def admit_within_budget(
     recorded = [
         replace(
             call,
-            admitted=tuple(
-                hit.locator
-                for hit in call.hits
-                if hit.locator in admitted_locators
-            ),
-            dropped=tuple(
-                hit.locator
-                for hit in call.hits
-                if hit.locator not in admitted_locators
-            ),
+            admitted=tuple(hit.locator for hit in call.hits if hit.locator in admitted_locators),
+            dropped=tuple(hit.locator for hit in call.hits if hit.locator not in admitted_locators),
         )
         for call in calls
     ]
@@ -177,22 +167,14 @@ class _Session:
         perspective cannot consume the first level.
         """
         if seed_questions:
-            return (), [
-                Question(text=text, stance=SEED_STANCE)
-                for text in seed_questions
-            ]
+            return (), [Question(text=text, stance=SEED_STANCE) for text in seed_questions]
 
-        stances = tuple(
-            await self.model.plan_stances(goal=goal, limit=self.budget.breadth)
-        )
+        stances = tuple(await self.model.plan_stances(goal=goal, limit=self.budget.breadth))
         if not stances:
             return (), []
 
         asked = await asyncio.gather(
-            *(
-                self.model.ask_questions(goal=goal, stance=stance, limit=1)
-                for stance in stances
-            )
+            *(self.model.ask_questions(goal=goal, stance=stance, limit=1) for stance in stances)
         )
         questions = [
             Question(text=text, stance=stance)
@@ -201,21 +183,14 @@ class _Session:
         ]
         return stances, questions
 
-    async def descend(
-        self, questions: list[Question]
-    ) -> tuple[StopReason, int]:
+    async def descend(self, questions: list[Question]) -> tuple[StopReason, int]:
         levels_run = 0
         while questions:
             accepted = self._clamp(questions, levels_run + 1)
             if not accepted:
                 return StopReason.NO_FOLLOW_UPS, levels_run
             levels_run += 1
-            await asyncio.gather(
-                *(
-                    self._run_thread(question, levels_run)
-                    for question in accepted
-                )
-            )
+            await asyncio.gather(*(self._run_thread(question, levels_run) for question in accepted))
             outcome = self._continue_from(levels_run)
             if isinstance(outcome, StopReason):
                 return outcome, levels_run
@@ -238,11 +213,7 @@ class _Session:
         return questions, next_budget
 
     def _level_found_anything(self, depth: int) -> bool:
-        return any(
-            thread.finding_ids
-            for thread in self.threads
-            if thread.depth == depth
-        )
+        return any(thread.finding_ids for thread in self.threads if thread.depth == depth)
 
     def _follow_up_questions(self, depth: int) -> list[Question]:
         """Deduplicate across levels as well as siblings to avoid paying
@@ -266,9 +237,7 @@ class _Session:
                 )
         return questions
 
-    def _clamp(
-        self, questions: Sequence[Question], depth: int
-    ) -> list[Question]:
+    def _clamp(self, questions: Sequence[Question], depth: int) -> list[Question]:
         """Preserve declined depth so refusal at different levels remains
         distinguishable.
         """
@@ -279,10 +248,7 @@ class _Session:
                     question=question,
                     depth=depth,
                     status=ThreadStatus.DECLINED,
-                    note=(
-                        "Breadth budget spent: this level funds "
-                        f"{breadth} questions"
-                    ),
+                    note=(f"Breadth budget spent: this level funds {breadth} questions"),
                     retry_breadth=len(questions),
                 )
             )
@@ -293,9 +259,7 @@ class _Session:
             try:
                 record = await self._research_question(question, depth)
             except Exception as exc:
-                logger.warning(
-                    "Research thread failed for %r: %s", question.text, exc
-                )
+                logger.warning("Research thread failed for %r: %s", question.text, exc)
                 record = ThreadRecord(
                     question=question,
                     depth=depth,
@@ -304,9 +268,7 @@ class _Session:
                 )
             self.threads.append(record)
 
-    async def _research_question(
-        self, question: Question, depth: int
-    ) -> ThreadRecord:
+    async def _research_question(self, question: Question, depth: int) -> ThreadRecord:
         query = await self.model.to_query(question=question.text)
         calls = await self._search_sources(question.text, query)
         admitted, calls = admit_within_budget(calls, self.budget)
@@ -332,9 +294,7 @@ class _Session:
     ) -> ThreadRecord:
         call_ids = tuple(call.id for call in calls)
         documents = await self._read_documents(admitted)
-        extraction = await self.model.extract(
-            question=question.text, documents=documents
-        )
+        extraction = await self.model.extract(question=question.text, documents=documents)
         findings = bind_findings(extraction.findings, question.text, calls)
         self.findings.extend(findings)
 
@@ -348,9 +308,7 @@ class _Session:
                 note="Nothing in the admitted documents answered it",
             )
 
-        summary = await self.model.compress(
-            question=question.text, findings=findings
-        )
+        summary = await self.model.compress(question=question.text, findings=findings)
         return ThreadRecord(
             question=question,
             depth=depth,
@@ -361,9 +319,7 @@ class _Session:
             summary=summary,
         )
 
-    async def _search_sources(
-        self, question: str, query: str
-    ) -> list[SearchCall]:
+    async def _search_sources(self, question: str, query: str) -> list[SearchCall]:
         """A failed source must not veto healthy remote siblings or a local
         corpus.
         """
@@ -396,14 +352,10 @@ class _Session:
                 duration_seconds=time.monotonic() - started,
             )
 
-        gathered = await asyncio.gather(
-            *(one(source) for source in self.budget.sources)
-        )
+        gathered = await asyncio.gather(*(one(source) for source in self.budget.sources))
         return list(gathered)
 
-    async def _read_documents(
-        self, hits: Sequence[SourceHit]
-    ) -> list[Document]:
+    async def _read_documents(self, hits: Sequence[SourceHit]) -> list[Document]:
         """Unreadable full text remains snippet-depth evidence rather than
         silently disappearing.
         """

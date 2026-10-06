@@ -101,9 +101,7 @@ def _log_fallback_answer(response: Any, model_name: str) -> None:
         return
     fallbacks = {_base_route(f) for f in model_profile(model_name).fallbacks}
     if _base_route(served) in fallbacks:
-        logger.info(
-            "LLM call to %s was answered by fallback %s", model_name, served
-        )
+        logger.info("LLM call to %s was answered by fallback %s", model_name, served)
 
 
 def _extract_completion_content(response: Any, model_name: str) -> str:
@@ -113,16 +111,12 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
     if content is None or not content.strip():
         # The attempt boundary logs once with retry context; logging extraction
         # failures here duplicates it.
-        raise _empty_content_error(
-            response, model_name, _empty_content_diagnosis(response)
-        )
+        raise _empty_content_error(response, model_name, _empty_content_diagnosis(response))
 
     return cast(str, content)
 
 
-def _empty_content_error(
-    response: Any, model_name: str, diagnosis: str
-) -> ValueError:
+def _empty_content_error(response: Any, model_name: str, diagnosis: str) -> ValueError:
     """
     Provider aborts precede reasoning spend: the model did not choose to stop.
     Only normal thinking-only stops skip the larger-budget rung.
@@ -131,8 +125,7 @@ def _empty_content_error(
     model = _model_label(response, model_name)
     if finish_reason == "length":
         return LLMBudgetExhaustedError(
-            "LLM spent its entire token budget without answering. "
-            f"Model: {model} ({diagnosis})"
+            f"LLM spent its entire token budget without answering. Model: {model} ({diagnosis})"
         )
     if finish_reason == "error":
         return ValueError(
@@ -143,12 +136,10 @@ def _empty_content_error(
     # cannot answer it.
     if finish_reason == "content_filter":
         return LLMContentFilteredError(
-            "LLM provider content filter withheld the answer. "
-            f"Model: {model} ({diagnosis})"
+            f"LLM provider content filter withheld the answer. Model: {model} ({diagnosis})"
         )
     if extract_token_usage(response).reasoning_tokens > 0:
         return LLMThinkingOnlyError(
-            "LLM finished its chain of thought and wrote no answer. "
-            f"Model: {model} ({diagnosis})"
+            f"LLM finished its chain of thought and wrote no answer. Model: {model} ({diagnosis})"
         )
     return ValueError(f"LLM returned None or empty content. Model: {model}")

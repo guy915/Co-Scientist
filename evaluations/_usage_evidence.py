@@ -18,9 +18,7 @@ def summarize_usage(usage: dict[str, dict[str, Any]]) -> dict[str, Any]:
     for row in usage.values():
         requested.update(row.get("requested_models", {}))
         fallbacks.update(row.get("deterministic_fallbacks", {}))
-    partial_estimate = sum(
-        float(row["cost_usd"]) for row in usage.values() if _valid_cost(row)
-    )
+    partial_estimate = sum(float(row["cost_usd"]) for row in usage.values() if _valid_cost(row))
     complete = calls > 0 and not any(missing.values())
     return {
         "model_usage": copy.deepcopy(usage),

@@ -64,8 +64,7 @@ def test_a_revision_re_derives_from_what_survives(
         started = _start(client, "How do bacteria regain susceptibility?")
         _capture_model_input(monkeypatch, seen, _response("Next?"))
         client.put(
-            f"/api/interviews/{started['id']}/turns/"
-            f"{started['turns'][0]['id']}",
+            f"/api/interviews/{started['id']}/turns/{started['turns'][0]['id']}",
             headers=HEADERS,
             json={"content": "How do fungi regain susceptibility?"},
         )
@@ -112,9 +111,7 @@ def test_a_revision_refuses_the_wrong_kind_of_turn_and_other_owners(
             headers=HEADERS,
             json={"content": "Not a scientist turn."},
         )
-        retry_prompt = client.post(
-            f"{turns}/{prompt['id']}/retry", headers=HEADERS
-        )
+        retry_prompt = client.post(f"{turns}/{prompt['id']}/retry", headers=HEADERS)
         missing = client.post(f"{turns}/99999/retry", headers=HEADERS)
         stranger = client.post(
             f"{turns}/{answer['id']}/retry",
@@ -179,9 +176,7 @@ async def test_campaign_interview_stream_selects_campaign_route(
     selected: dict[str, str | None] = {}
 
     async def advance(interview_id: str, *_args: Any) -> dict[str, Any]:
-        selected[interview_id] = effective_execution_model(
-            "configured/chat-role"
-        )
+        selected[interview_id] = effective_execution_model("configured/chat-role")
         return {"id": interview_id}
 
     monkeypatch.setattr(interview_turns, "advance_turn", advance)

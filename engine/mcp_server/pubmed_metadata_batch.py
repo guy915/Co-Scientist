@@ -79,9 +79,7 @@ def _index_link_groups(
     groups_by_id: dict[str, list[dict[str, Any]]] = {}
     group_errors: dict[str, Exception] = {}
     for group in related:
-        if not isinstance(group, dict) or not isinstance(
-            source_ids := group.get("IdList"), list
-        ):
+        if not isinstance(group, dict) or not isinstance(source_ids := group.get("IdList"), list):
             continue
         error = ValueError("ELink group does not identify one PMID")
         for paper_id in requested.intersection(map(str, source_ids)):
@@ -98,17 +96,11 @@ def _parse_pmc_link_group(
     if "LinkSetDb" not in group:
         return None, None
     link_set_db = group["LinkSetDb"]
-    if not isinstance(link_set_db, list) or not all(
-        _valid_link_item(item) for item in link_set_db
-    ):
+    if not isinstance(link_set_db, list) or not all(_valid_link_item(item) for item in link_set_db):
         return None, ValueError("ELink PMID group has malformed link records")
-    pmc_groups = [
-        item for item in link_set_db if item["LinkName"] == "pubmed_pmc"
-    ]
+    pmc_groups = [item for item in link_set_db if item["LinkName"] == "pubmed_pmc"]
     if len(pmc_groups) > 1:
-        return None, ValueError(
-            "ELink PMID group has duplicate pubmed_pmc links"
-        )
+        return None, ValueError("ELink PMID group has duplicate pubmed_pmc links")
     if not pmc_groups or not pmc_groups[0]["Link"]:
         return None, None
     return str(pmc_groups[0]["Link"][0]["Id"]), None
@@ -185,9 +177,7 @@ def _parse_pubmed_record_group(
 ) -> tuple[dict[str, Any] | None, Exception | None]:
     if len(records) != 1:
         reason = "missing" if not records else "duplicate"
-        return None, ValueError(
-            f"PubMed EFetch response has a {reason} PMID record"
-        )
+        return None, ValueError(f"PubMed EFetch response has a {reason} PMID record")
     try:
         return _parse_pubmed_article(records[0], None), None
     except Exception as exc:
@@ -219,9 +209,7 @@ def _parse_pubmed_batch(
     metadata: dict[str, dict[str, Any]] = {}
     errors: dict[str, Exception] = {}
     for paper_id in paper_ids:
-        details, error = _parse_pubmed_record_group(
-            records_by_id.get(paper_id, [])
-        )
+        details, error = _parse_pubmed_record_group(records_by_id.get(paper_id, []))
         if error is not None:
             errors[paper_id] = error
         elif details is not None:
@@ -232,13 +220,9 @@ def _parse_pubmed_batch(
 def _fetch_metadata_batch(
     client: _EntrezClient, fetch_ids: list[str], elink_ids: list[str]
 ) -> _FetchedBatch:
-    metadata, returned_ids, metadata_errors = _fetch_paper_details(
-        client, fetch_ids
-    )
+    metadata, returned_ids, metadata_errors = _fetch_paper_details(client, fetch_ids)
     attempted_elink_ids = [
-        paper_id
-        for paper_id in elink_ids
-        if paper_id not in fetch_ids or paper_id in metadata
+        paper_id for paper_id in elink_ids if paper_id not in fetch_ids or paper_id in metadata
     ]
     links = _fetch_pmc_fulltext_ids(client, attempted_elink_ids)
     return _FetchedBatch(
@@ -250,9 +234,7 @@ def _fetch_metadata_batch(
     )
 
 
-def _read_batch_cache(
-    context: _BatchContext, paper_ids: list[str]
-) -> _BatchCache:
+def _read_batch_cache(context: _BatchContext, paper_ids: list[str]) -> _BatchCache:
     cached: dict[str, dict[str, Any]] = {}
     proven_no_link: set[str] = set()
     cache_hits: list[str] = []
@@ -275,9 +257,7 @@ def _read_batch_cache(
     return _BatchCache(cached, proven_no_link, cache_hits, fetch_ids)
 
 
-def _write_batch_metadata(
-    context: _BatchContext, paper_id: str, metadata: dict[str, Any]
-) -> None:
+def _write_batch_metadata(context: _BatchContext, paper_id: str, metadata: dict[str, Any]) -> None:
     metadata_file = context.shared_dir / f"{paper_id}.metadata.json"
     write_metadata_cache_file(
         metadata_file,
@@ -339,11 +319,7 @@ def _valid_ordered_pmids(paper_ids: list[str]) -> list[str]:
     ordered_ids: list[str] = []
     seen: set[str] = set()
     for paper_id in paper_ids:
-        if (
-            not isinstance(paper_id, str)
-            or not paper_id.isascii()
-            or not paper_id.isdecimal()
-        ):
+        if not isinstance(paper_id, str) or not paper_id.isascii() or not paper_id.isdecimal():
             record_pilot_fetch_error(
                 "metadata_input",
                 ValueError("PubMed ID must contain ASCII digits only"),
@@ -381,9 +357,7 @@ async def gather_metadata(
         for paper_id, metadata in batch_result.items()
     }
     return {
-        paper_id: details_by_id[paper_id]
-        for paper_id in ordered_ids
-        if paper_id in details_by_id
+        paper_id: details_by_id[paper_id] for paper_id in ordered_ids if paper_id in details_by_id
     }
 
 

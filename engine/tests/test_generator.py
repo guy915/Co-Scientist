@@ -57,11 +57,7 @@ async def test_tool_calling_generation_requires_opt_in_and_capability(
     expected: bool,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=available)
-    gen = (
-        HypothesisGenerator(model_name=model)
-        if model
-        else HypothesisGenerator()
-    )
+    gen = HypothesisGenerator(model_name=model) if model else HypothesisGenerator()
     opts = {} if opt is None else {"enable_tool_calling_generation": opt}
     state = await gen.prepare_task_state("goal", opts=opts)
     assert state["enable_tool_calling_generation"] is expected

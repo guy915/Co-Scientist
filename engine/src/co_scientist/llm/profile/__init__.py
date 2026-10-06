@@ -194,17 +194,11 @@ ROUTES: Final[dict[str, Facts]] = {
     "gemini/gemini-3.8-flash": {"price": ModelPrice(0.75, 3.75)},
     # Gateway-host rates differ from first-party rates; prices estimate capped
     # hosts, not a bill.
-    "openrouter/deepseek/deepseek-v4-flash": {
-        "price": ModelPrice(0.083, 0.165, 0.017)
-    },
+    "openrouter/deepseek/deepseek-v4-flash": {"price": ModelPrice(0.083, 0.165, 0.017)},
     # Use full-precision host prices; the cheapest quantized host would exclude
     # full-precision routes.
-    "openrouter/deepseek/deepseek-v4-flash-0731": {
-        "price": ModelPrice(0.13, 0.28, 0.028)
-    },
-    "openrouter/deepseek/deepseek-v4-pro": {
-        "price": ModelPrice(1.60, 3.20, 0.13)
-    },
+    "openrouter/deepseek/deepseek-v4-flash-0731": {"price": ModelPrice(0.13, 0.28, 0.028)},
+    "openrouter/deepseek/deepseek-v4-pro": {"price": ModelPrice(1.60, 3.20, 0.13)},
     "openai/gpt-4o": {"price": ModelPrice(2.50, 10.00)},
     # Azure uses OpenAI list prices; unpriced BYOK models falsely report free
     # usage.
@@ -287,9 +281,7 @@ def gateway_routes() -> tuple[str, ...]:
 
 def priced_routes() -> dict[str, ModelPrice]:
     return {
-        name: price
-        for name, facts in ROUTES.items()
-        if (price := facts.get("price")) is not None
+        name: price for name, facts in ROUTES.items() if (price := facts.get("price")) is not None
     }
 
 

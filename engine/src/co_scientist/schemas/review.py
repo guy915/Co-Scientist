@@ -25,10 +25,7 @@ RANKING_SCHEMA: dict[str, Any] = {
                 "description": "The winning hypothesis (a or b)",
             },
             "judgment_explanation": obj(
-                {
-                    name: {"type": "string"}
-                    for name in RANKING_COMPARISON_CRITERIA
-                }
+                {name: {"type": "string"} for name in RANKING_COMPARISON_CRITERIA}
             ),
             "decision_summary": {"type": "string"},
             "confidence_level": {
@@ -112,8 +109,7 @@ _REVIEWS_SUMMARY_LISTS: dict[str, str] = {
         " but not on its own disqualifying."
     ),
     "supporting_arguments": (
-        "Each entry one argument or piece of evidence that motivates the"
-        " hypothesis."
+        "Each entry one argument or piece of evidence that motivates the hypothesis."
     ),
     "alignment_and_novelty": (
         "Each entry one statement on how the hypothesis aligns with the"
@@ -306,9 +302,7 @@ _SCORES_SCHEMA: dict[str, Any] = obj(
 # Axis output ordering matches the full review while retaining name-based
 # consumers.
 _FEEDBACK_DESCRIPTIONS: dict[str, str] = {
-    "scientific_soundness": (
-        "Specific feedback on theoretical foundation and logical consistency"
-    ),
+    "scientific_soundness": ("Specific feedback on theoretical foundation and logical consistency"),
     "novelty": ("Specific feedback on originality and unique contribution"),
     "testability": "Specific feedback on feasibility of testing",
     "potential_impact": "Specific feedback on potential significance",
@@ -365,9 +359,7 @@ REVIEW_SCHEMA: dict[str, Any] = {
             "detailed_feedback": _DETAILED_FEEDBACK_SCHEMA,
             "constructive_feedback": {
                 "type": "string",
-                "description": (
-                    "Specific, actionable suggestions for improvement"
-                ),
+                "description": ("Specific, actionable suggestions for improvement"),
             },
             "safety_ethical_concerns": {
                 "type": "string",
@@ -408,10 +400,7 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                         "detailed_feedback": _DETAILED_FEEDBACK_SCHEMA,
                         "constructive_feedback": {
                             "type": "string",
-                            "description": (
-                                "Specific, actionable suggestions for"
-                                " improvement"
-                            ),
+                            "description": ("Specific, actionable suggestions for improvement"),
                         },
                         "safety_ethical_concerns": {
                             "type": "string",
@@ -421,8 +410,7 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                         "comparative_notes": {
                             "type": "string",
                             "description": (
-                                "Brief note on how this hypothesis compares"
-                                " to the others"
+                                "Brief note on how this hypothesis compares to the others"
                             ),
                         },
                     },
@@ -457,10 +445,7 @@ REFLECTION_SCHEMA: dict[str, Any] = {
                     "neutral",
                     "disproved",
                 ],
-                "description": (
-                    "Classification of hypothesis based on literature"
-                    " observations"
-                ),
+                "description": ("Classification of hypothesis based on literature observations"),
             },
             "positive_observations": {
                 **str_array(

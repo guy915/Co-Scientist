@@ -76,12 +76,7 @@ from typing import Any
 from evaluations._artifacts import write_dated_artifact
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-_DATASET = (
-    _ROOT
-    / "evaluations"
-    / "datasets"
-    / "hypothesis_correctness_concordance_v1.json"
-)
+_DATASET = _ROOT / "evaluations" / "datasets" / "hypothesis_correctness_concordance_v1.json"
 _INITIAL_ELO = 1200
 
 _EXTERNAL_GAP = (
@@ -111,9 +106,7 @@ class Candidate:
 Comparator = Callable[[Candidate, Candidate, str], str]
 
 
-def correctness_preferring_comparator(
-    a: Candidate, b: Candidate, question: str
-) -> str:
+def correctness_preferring_comparator(a: Candidate, b: Candidate, question: str) -> str:
     """The always-correct comparator pins harness math independently of the
     real judge.
     """
@@ -156,13 +149,10 @@ def kendall_tau_b(x: Sequence[float], y: Sequence[float]) -> float | None:
     if n < 2 or n != len(y):
         return None
     concordant_minus_discordant = sum(
-        _sign(x[i] - x[j]) * _sign(y[i] - y[j])
-        for i, j in itertools.combinations(range(n), 2)
+        _sign(x[i] - x[j]) * _sign(y[i] - y[j]) for i, j in itertools.combinations(range(n), 2)
     )
     pair_count = n * (n - 1) / 2
-    denom = sqrt(
-        (pair_count - _tie_correction(x)) * (pair_count - _tie_correction(y))
-    )
+    denom = sqrt((pair_count - _tie_correction(x)) * (pair_count - _tie_correction(y)))
     return concordant_minus_discordant / denom if denom else None
 
 
@@ -191,9 +181,7 @@ def _run_item_tournament(
     for a, b in itertools.combinations(shuffled, 2):
         verdict = comparator(a, b, question)
         if verdict not in ("a", "b"):
-            raise ValueError(
-                f"comparator returned {verdict!r}, expected 'a' or 'b'"
-            )
+            raise ValueError(f"comparator returned {verdict!r}, expected 'a' or 'b'")
         winner, loser = (a, b) if verdict == "a" else (b, a)
         new_winner, new_loser = calculate_elo_update(
             ratings[winner.id], ratings[loser.id], ELO_K_FACTOR
@@ -202,21 +190,16 @@ def _run_item_tournament(
     return ratings
 
 
-def _item_result(
-    item: dict[str, Any], comparator: Comparator
-) -> dict[str, Any]:
+def _item_result(item: dict[str, Any], comparator: Comparator) -> dict[str, Any]:
     candidates = [Candidate(**c) for c in item["candidates"]]
-    ratings = _run_item_tournament(
-        candidates, item["question"], comparator, _item_seed(item["id"])
-    )
+    ratings = _run_item_tournament(candidates, item["question"], comparator, _item_seed(item["id"]))
     elo_by_id = [ratings[c.id] for c in candidates]
     correctness_by_id = [c.correctness for c in candidates]
     tau = kendall_tau_b(elo_by_id, correctness_by_id)
     best_elo_id = max(ratings, key=lambda cid: ratings[cid])
     best_correctness = max(correctness_by_id)
     top1_correct = any(
-        c.id == best_elo_id and c.correctness == best_correctness
-        for c in candidates
+        c.id == best_elo_id and c.correctness == best_correctness for c in candidates
     )
     return {
         "item_id": item["id"],
@@ -260,9 +243,7 @@ def elo_bucket_accuracy(
             continue
         best = max(correctness.values())
         for candidate_id, elo in item["ratings"].items():
-            buckets[_elo_bucket_floor(elo)].append(
-                correctness[candidate_id] == best
-            )
+            buckets[_elo_bucket_floor(elo)].append(correctness[candidate_id] == best)
     return [
         {
             "bucket": _elo_bucket_label(floor),
@@ -285,9 +266,7 @@ def evaluate_concordance(
         "comparator": comparator_id,
         "n_items": len(per_item),
         "mean_tau_b": _mean(taus),
-        "top1_accuracy": _mean(
-            [1.0 if r["top1_correct"] else 0.0 for r in per_item]
-        ),
+        "top1_accuracy": _mean([1.0 if r["top1_correct"] else 0.0 for r in per_item]),
         "elo_buckets": elo_bucket_accuracy(per_item),
         "per_item": per_item,
     }
@@ -333,14 +312,8 @@ def run(*, use_llm: bool) -> dict[str, Any]:
     items = dataset["items"]
     from evaluations._identity import capture_panel
 
-    model = (
-        live_comparator[1].removeprefix("llm:")
-        if live_comparator
-        else "offline_controls"
-    )
-    with capture_panel(
-        "elo_concordance", dataset, model, live=use_llm
-    ) as evidence:
+    model = live_comparator[1].removeprefix("llm:") if live_comparator else "offline_controls"
+    with capture_panel("elo_concordance", dataset, model, live=use_llm) as evidence:
         results = {
             name: evaluate_concordance(items, comparator, name)
             for name, comparator in (
@@ -355,9 +328,7 @@ def run(*, use_llm: bool) -> dict[str, Any]:
             result["execution_mode"] = "offline"
         if live_comparator is not None:
             comparator, comparator_id = live_comparator
-            results[comparator_id] = evaluate_concordance(
-                items, comparator, comparator_id
-            )
+            results[comparator_id] = evaluate_concordance(items, comparator, comparator_id)
     if live_comparator is not None:
         results[live_comparator[1]].update(evidence)
     return {

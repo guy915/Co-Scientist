@@ -36,21 +36,15 @@ async def finalize_report(
     resumed: bool = False,
     task: ScientificTask | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    logger.info(
-        "Finalizing report for run %s (provider=%s).", run_id, req.provider
-    )
+    logger.info("Finalizing report for run %s (provider=%s).", run_id, req.provider)
     if resumed and _report_already_published(run_id, db_path=req.db_path):
         return
-    built, blocked, gate_events = await _build_and_gate_report(
-        run_id, req, emit, task
-    )
+    built, blocked, gate_events = await _build_and_gate_report(run_id, req, emit, task)
     for event in gate_events:
         yield event
     if blocked:
         return
-    async for event in _gate_readiness_and_publish(
-        run_id, req, emit, built, task
-    ):
+    async for event in _gate_readiness_and_publish(run_id, req, emit, built, task):
         yield event
 
 
@@ -87,16 +81,12 @@ async def _build_and_gate_report(
     task: ScientificTask | None,
 ) -> tuple[_BuiltReport, bool, list[dict[str, Any]]]:
     built = await build_report_content(run_id, req)
-    final = await _screen_final_report(
-        run_id, built.markdown, req.provider, db_path=req.db_path
-    )
+    final = await _screen_final_report(run_id, built.markdown, req.provider, db_path=req.db_path)
     if final.decision == "redact":
         built = _redacted_report(built, final)
     gate_events = [
         event
-        async for event in apply_safety_gate(
-            run_id, final, emit, db_path=req.db_path, task=task
-        )
+        async for event in apply_safety_gate(run_id, final, emit, db_path=req.db_path, task=task)
     ]
     blocked = final.decision in {"block", "hold"}
     if blocked:
@@ -107,16 +97,13 @@ async def _build_and_gate_report(
     return built, blocked, gate_events
 
 
-def _redacted_report(
-    built: _BuiltReport, decision: SafetyDecision
-) -> _BuiltReport:
+def _redacted_report(built: _BuiltReport, decision: SafetyDecision) -> _BuiltReport:
     """Redact both payload and markdown: each is independently readable through
     reports, events and public shares.
     """
     matches = list(decision.matches)
     logger.warning(
-        "Redacting %d matched span(s) from the report under the final "
-        "safety gate.",
+        "Redacting %d matched span(s) from the report under the final safety gate.",
         len(matches),
     )
     return _BuiltReport(
@@ -178,20 +165,12 @@ def _commit_leased_report_publication(
             db_path=db_path,
             conn=conn,
         )
-        store.replace_knowledge_facts(
-            run_id, built.facts, db_path=db_path, conn=conn
-        )
+        store.replace_knowledge_facts(run_id, built.facts, db_path=db_path, conn=conn)
         report_payload = {**built.payload, "report_id": saved["id"]}
-        report_seq = events.append_event(
-            run_id, "report", report_payload, conn=conn
-        )
+        report_seq = events.append_event(run_id, "report", report_payload, conn=conn)
         status_payload = {"status": "completed"}
-        status_seq = events.append_event(
-            run_id, "status", status_payload, conn=conn
-        )
-        runs.update_run_status(
-            run_id, RunStatus.COMPLETED, db_path=db_path, conn=conn
-        )
+        status_seq = events.append_event(run_id, "status", status_payload, conn=conn)
+        runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path, conn=conn)
         _enqueue_completion_notification(
             run_id, research_goal, saved["id"], db_path=db_path, conn=conn
         )
@@ -209,31 +188,23 @@ async def _publish_report(
 ) -> AsyncIterator[dict[str, Any]]:
     payload = built.payload
     if task is None:
-        saved = store.save_report(
-            run_id, payload, built.markdown, db_path=db_path
-        )
+        saved = store.save_report(run_id, payload, built.markdown, db_path=db_path)
         # Write knowledge facts only on publication, never for blocked or held
         # reports.
         store.replace_knowledge_facts(run_id, built.facts, db_path=db_path)
         yield await emit("report", {**payload, "report_id": saved["id"]})
         runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
-        _enqueue_completion_notification(
-            run_id, research_goal, saved["id"], db_path=db_path
-        )
+        _enqueue_completion_notification(run_id, research_goal, saved["id"], db_path=db_path)
         yield await emit("status", {"status": "completed"})
     else:
         saved, report_seq, report_payload, status_seq, status_payload = (
-            _commit_leased_report_publication(
-                run_id, research_goal, built, task, db_path
-            )
+            _commit_leased_report_publication(run_id, research_goal, built, task, db_path)
         )
         # The transaction already persisted events; emit stubs without writing
         # them twice.
         yield {"seq": report_seq, "type": "report", "payload": report_payload}
         yield {"seq": status_seq, "type": "status", "payload": status_payload}
-    logger.info(
-        "Report finalized for run %s (report_id=%s).", run_id, saved["id"]
-    )
+    logger.info("Report finalized for run %s (report_id=%s).", run_id, saved["id"])
 
 
 async def _block_for_empty_leaderboard(
@@ -244,9 +215,7 @@ async def _block_for_empty_leaderboard(
     db_path: str | None,
     task: ScientificTask | None,
 ) -> AsyncIterator[dict[str, Any]]:
-    reason = _empty_leaderboard_reason(
-        built.payload["idea_count"], built.exclusion_tally
-    )
+    reason = _empty_leaderboard_reason(built.payload["idea_count"], built.exclusion_tally)
     decision = NewSafetyDecision(
         run_id=run_id,
         stage="scientific_readiness",
@@ -256,9 +225,7 @@ async def _block_for_empty_leaderboard(
     )
     if task is None:
         records.add_safety_decision(decision, db_path=db_path)
-        runs.update_run_status(
-            run_id, RunStatus.BLOCKED, error=reason, db_path=db_path
-        )
+        runs.update_run_status(run_id, RunStatus.BLOCKED, error=reason, db_path=db_path)
         event = await emit("status", {"status": "blocked", "reason": reason})
     else:
         seq = _commit_empty_leaderboard_block(run_id, decision, task, db_path)
@@ -286,7 +253,5 @@ def _commit_empty_leaderboard_block(
     with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         records.add_safety_decision(decision, conn=conn)
-        runs.update_run_status(
-            run_id, RunStatus.BLOCKED, error=decision.reason, conn=conn
-        )
+        runs.update_run_status(run_id, RunStatus.BLOCKED, error=decision.reason, conn=conn)
         return events.append_event(run_id, "status", payload, conn=conn)

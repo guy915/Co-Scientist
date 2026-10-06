@@ -31,17 +31,14 @@ def _load_base_policy() -> str:
 
 def _writable_root_params(policy: SandboxPolicy) -> dict[str, Path]:
     return {
-        _WRITABLE_ROOT_PARAM.format(index=i): root
-        for i, root in enumerate(policy.writable_roots)
+        _WRITABLE_ROOT_PARAM.format(index=i): root for i, root in enumerate(policy.writable_roots)
     }
 
 
 def _write_section(param_names: list[str]) -> str:
     if not param_names:
         return ""
-    subpaths = "\n  ".join(
-        f'(subpath (param "{name}"))' for name in param_names
-    )
+    subpaths = "\n  ".join(f'(subpath (param "{name}"))' for name in param_names)
     return f"(allow file-write*\n  {subpaths}\n)"
 
 
@@ -69,10 +66,7 @@ def _metadata_denials(param_names: list[str]) -> str:
     for name in param_names:
         for metadata in METADATA_NAMES:
             escaped = _escape_regex(metadata)
-            clauses.append(
-                f'(regex (string-append (param "{name}")'
-                f' #"(/|/.*/){escaped}(/|$)"))'
-            )
+            clauses.append(f'(regex (string-append (param "{name}") #"(/|/.*/){escaped}(/|$)"))')
     joined = "\n  ".join(clauses)
     return f"(deny file-write*\n  {joined}\n)"
 

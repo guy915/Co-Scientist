@@ -20,16 +20,12 @@ def byok_secret(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _headers(**extra: str) -> Headers:
-    return Headers(
-        {"X-LLM-API-Key": _KEY, "X-LLM-Provider": "deepseek", **extra}
-    )
+    return Headers({"X-LLM-API-Key": _KEY, "X-LLM-Provider": "deepseek", **extra})
 
 
 def test_a_model_from_another_provider_is_refused() -> None:
     with pytest.raises(credentials.ByokRequestError):
-        credentials.credential_from_headers(
-            _headers(**{"X-LLM-Model": "openai/gpt-4o"})
-        )
+        credentials.credential_from_headers(_headers(**{"X-LLM-Model": "openai/gpt-4o"}))
 
 
 def test_generator_runs_each_tier_on_its_chosen_model() -> None:

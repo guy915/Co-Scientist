@@ -31,9 +31,7 @@ def _restore_default_logging() -> None:
 def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
     key = "sk-synthetic-json-log-key-12345"
     diagnostic = "provider diagnostic preserved"
-    credential = ByokCredential(
-        provider="deepseek", api_key=key, model="deepseek/test"
-    )
+    credential = ByokCredential(provider="deepseek", api_key=key, model="deepseek/test")
     try:
         handler = configure_logging("json")
         stream = io.StringIO()
@@ -62,9 +60,7 @@ def _logs_endpoint_seed(
     levelno: int = logging.INFO,
     run_id: str | None = None,
 ) -> int:
-    return append_log_row(
-        isolated_db, message, level=level, levelno=levelno, run_id=run_id
-    )
+    return append_log_row(isolated_db, message, level=level, levelno=levelno, run_id=run_id)
 
 
 def test_logs_endpoint_returns_rows_and_last_id(isolated_db: str) -> None:
@@ -83,11 +79,7 @@ def test_logs_endpoint_returns_rows_and_last_id(isolated_db: str) -> None:
     assert row["logger"] == "app.seeded"
 
     _logs_endpoint_seed(isolated_db, "new line")
-    polled = (
-        make_operator_client()
-        .get("/api/logs", params={"after_id": body["last_id"]})
-        .json()
-    )
+    polled = make_operator_client().get("/api/logs", params={"after_id": body["last_id"]}).json()
     assert [row["message"] for row in polled["logs"]] == ["new line"]
 
 
@@ -102,9 +94,7 @@ def _security_seed(
     run_id: str | None = None,
     client_id: str | None = None,
 ) -> int:
-    return append_log_row(
-        isolated_db, message, run_id=run_id, client_id=client_id
-    )
+    return append_log_row(isolated_db, message, run_id=run_id, client_id=client_id)
 
 
 # TestClient reports a non-loopback host, exercising remote policy unless an
@@ -145,18 +135,11 @@ def test_ingested_records_are_stamped_with_the_caller_and_sanitized(
         },
         headers={"X-Client-ID": "alice"},
     )
-    alice = logs.list_logs(
-        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
-    )
+    alice = logs.list_logs(filters=LogFilters(scope_client_id="alice"), db_path=isolated_db)
     assert len(alice) == 1
     assert "\n" not in alice[0]["message"] + alice[0]["logger"]
     assert "\t" not in alice[0]["message"]
-    assert (
-        logs.list_logs(
-            filters=LogFilters(scope_client_id="bob"), db_path=isolated_db
-        )
-        == []
-    )
+    assert logs.list_logs(filters=LogFilters(scope_client_id="bob"), db_path=isolated_db) == []
 
 
 def test_remote_read_without_identity_sees_nothing(isolated_db: str) -> None:
@@ -188,9 +171,7 @@ def test_remote_delete_only_clears_the_callers_records(
     _security_seed(isolated_db, "server internals")
     client = make_client()
 
-    response = client.request(
-        "DELETE", "/api/logs", headers={"X-Client-ID": "alice"}
-    )
+    response = client.request("DELETE", "/api/logs", headers={"X-Client-ID": "alice"})
     assert response.json()["deleted"] == 1
     remaining = [r["message"] for r in logs.list_logs(db_path=isolated_db)]
     assert remaining == ["bob ui record", "server internals"]

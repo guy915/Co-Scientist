@@ -56,13 +56,9 @@ class _CompletionStream:
         self._done = True
         latency = time.monotonic() - self._start
         if error is None:
-            self._context.run(
-                record_completion_response, self._model, self._last, latency
-            )
+            self._context.run(record_completion_response, self._model, self._last, latency)
         else:
-            self._context.run(
-                record_completion_failure, self._model, error, latency
-            )
+            self._context.run(record_completion_failure, self._model, error, latency)
 
     async def aclose(self) -> None:
         self._finish(asyncio.CancelledError())
@@ -78,9 +74,7 @@ async def _await_provider(
     if timeout is None:
         return await backend.complete(**args)
     try:
-        return await asyncio.wait_for(
-            backend.complete(**args), timeout=timeout + grace
-        )
+        return await asyncio.wait_for(backend.complete(**args), timeout=timeout + grace)
     except asyncio.TimeoutError as exc:
         raise LLMTimeoutError(
             f"LLM call to {model} exceeded {timeout}s without a response"

@@ -108,9 +108,7 @@ async def _run_meta_review_phase(
         PROGRESS_META_REVIEW_START,
     )
 
-    all_reviews = _collect_feedback_records(
-        hypotheses, state.get("tournament_matchups", [])
-    )
+    all_reviews = _collect_feedback_records(hypotheses, state.get("tournament_matchups", []))
     if not all_reviews:
         logger.warning("No reviews available for meta-review")
         return _empty_meta_review_result()
@@ -122,8 +120,7 @@ async def _run_meta_review_phase(
         lambda: _synthesize_and_monitor(state, all_reviews),
         schema_name="meta_review",
         fallback=_degraded_meta_review_result,
-        lost="evolution and ranking continue without cross-hypothesis "
-        "guidance for this cycle",
+        lost="evolution and ranking continue without cross-hypothesis guidance for this cycle",
     )
 
 
@@ -218,9 +215,7 @@ def _degraded_meta_review_result() -> dict[str, Any]:
     """Provider failure is not "no reviews"; the report must distinguish
     unavailable synthesis from genuinely absent input."""
     result = _empty_meta_review_result()
-    result["meta_review"]["summary"] = (
-        "Meta-review synthesis was unavailable for this cycle"
-    )
+    result["meta_review"]["summary"] = "Meta-review synthesis was unavailable for this cycle"
     return result
 
 
@@ -228,8 +223,7 @@ def _log_meta_review_summary(meta_review: dict[str, Any]) -> None:
     """One combined log record avoids competing SQLite writes and crowding
     the reader's bounded event window."""
     logger.info(
-        "Meta-review complete: %s common strengths,"
-        " %s strategic recommendations",
+        "Meta-review complete: %s common strengths, %s strategic recommendations",
         len(meta_review["common_strengths"]),
         len(meta_review["strategic_recommendations"]),
     )
@@ -300,9 +294,7 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
     periodic open-direction feedback needs no extra call."""
     # Prompt/safety readers need only top-level area names; repeated nested
     # depth wastes per-cycle context. The report retains the full taxonomy.
-    recurring_themes = normalize_recurring_themes(
-        response.get("recurring_themes", [])
-    )
+    recurring_themes = normalize_recurring_themes(response.get("recurring_themes", []))
     emerging_themes = [theme["theme"] for theme in recurring_themes]
 
     return {
@@ -311,15 +303,9 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
         "common_weaknesses": response.get("weaknesses", []),
         "emerging_themes": emerging_themes,
         "recurring_themes": recurring_themes,
-        "strategic_recommendations": response.get(
-            "strategic_recommendations", []
-        ),
+        "strategic_recommendations": response.get("strategic_recommendations", []),
         "potential_connections": response.get("potential_connections", []),
         "candidate_comparison": response.get("candidate_comparison", {}),
-        "existing_solutions_comparison": response.get(
-            "existing_solutions_comparison", {}
-        ),
-        "main_research_directions": response.get(
-            "main_research_directions", ""
-        ),
+        "existing_solutions_comparison": response.get("existing_solutions_comparison", {}),
+        "main_research_directions": response.get("main_research_directions", ""),
     }

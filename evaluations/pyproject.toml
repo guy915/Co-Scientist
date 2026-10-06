@@ -1,6 +1,6 @@
 # Tooling configuration only — evaluations/ is not an installable package.
 # It runs from the repo root as a plain package. The ruff
-# and mypy settings mirror engine/ and app/ (Google style, 80 columns,
+# and mypy settings mirror engine/ and app/ (Google style, 100 columns,
 # strict typing) so `make lint` / `make typecheck` cover this directory.
 
 [tool.pytest.ini_options]
@@ -8,7 +8,7 @@ testpaths = ["tests"]
 addopts = "-q"
 
 [tool.ruff]
-line-length = 80
+line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
@@ -25,13 +25,12 @@ select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
-    "PLR0913", # too-many-arguments
 ]
 
 [tool.ruff.lint.mccabe]
 # Every function in this package sits at or below this ceiling. Branch-heavy
 # dispatchers belong in a lookup table, not an if/elif chain.
-max-complexity = 5
+max-complexity = 15
 
 [tool.ruff.lint.isort]
 known-first-party = ["evaluations"]

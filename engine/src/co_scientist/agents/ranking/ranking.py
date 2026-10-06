@@ -50,9 +50,7 @@ def _build_tournament_context(
     hypotheses: list[Hypothesis],
     guidance: _TournamentGuidance,
 ) -> _TournamentContext:
-    prompt = prepare_ranking_prompt_context(
-        state, preferences=state.get("preferences")
-    )
+    prompt = prepare_ranking_prompt_context(state, preferences=state.get("preferences"))
     return _TournamentContext(
         hypotheses,
         state["research_goal"],
@@ -107,9 +105,7 @@ async def _run_one_round(
     if pairing is None:
         return None
     hyp_a, hyp_b = pairing
-    detail, depth = await _judge_and_commit_matchup(
-        state, hyp_a, hyp_b, index, ctx
-    )
+    detail, depth = await _judge_and_commit_matchup(state, hyp_a, hyp_b, index, ctx)
     return detail, depth, frozenset({hyp_a.id, hyp_b.id})
 
 
@@ -148,9 +144,7 @@ async def _run_tournament_matchups(
 def _filter_eligible_hypotheses(
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
-    eligible = [
-        hypothesis for hypothesis in hypotheses if hypothesis.is_rankable()
-    ]
+    eligible = [hypothesis for hypothesis in hypotheses if hypothesis.is_rankable()]
     logger.info(
         "Ranking tournament: %s of %s hypotheses are rankable",
         len(eligible),
@@ -162,11 +156,7 @@ def _filter_eligible_hypotheses(
 def _unrankable_reasons(hypotheses: list[Hypothesis]) -> str:
     """Explain review exclusions, not verification demotion: undermined ideas
     still compete and cannot account for a thin rankable pool."""
-    blocked = sum(
-        1
-        for h in hypotheses
-        if h.review_disposition in BLOCKING_REVIEW_DISPOSITIONS
-    )
+    blocked = sum(1 for h in hypotheses if h.review_disposition in BLOCKING_REVIEW_DISPOSITIONS)
     return f"{blocked} rejected in review"
 
 

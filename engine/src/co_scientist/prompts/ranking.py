@@ -40,11 +40,7 @@ def _format_review_scores(review: dict[str, Any] | None) -> list[str]:
 def _format_probe_lines(probe: dict[str, Any]) -> list[str]:
     question = probe.get("question", "")
     answer = probe.get("answer", "")
-    fundamental = (
-        " (fundamental assumption)"
-        if probe.get("assumption_is_fundamental")
-        else ""
-    )
+    fundamental = " (fundamental assumption)" if probe.get("assumption_is_fundamental") else ""
     lines = [f"- Q{fundamental}: {question}\n"]
     if answer:
         lines.append(f"  A: {answer}\n")
@@ -58,9 +54,7 @@ def _format_deep_verification_context(
         return ""
 
     verdict_text = verdict or "unknown"
-    sections = [
-        f"\nHypothesis {label} Deep Verification (verdict: {verdict_text}):\n"
-    ]
+    sections = [f"\nHypothesis {label} Deep Verification (verdict: {verdict_text}):\n"]
     for probe in probes:
         sections.extend(_format_probe_lines(probe))
 
@@ -74,9 +68,7 @@ _MATURE_REVIEW_SECTION_LABELS: dict[str, str] = {
 }
 
 
-def _format_mature_review_lines(
-    section: str, review: dict[str, Any]
-) -> list[str]:
+def _format_mature_review_lines(section: str, review: dict[str, Any]) -> list[str]:
     lines = [f"- {section} verdict: {review.get('verdict', 'unknown')}\n"]
     justification = review.get("justification")
     if justification:
@@ -110,8 +102,7 @@ def format_side_review(side: RankingSide, label: str) -> str:
     deep_verification = side.deep_verification or {}
     parts = _format_review_scores(side.review)
     parts.append(
-        "Reflection Notes (observation analysis):"
-        f" {side.reflection_notes or _NO_REFLECTION}\n"
+        f"Reflection Notes (observation analysis): {side.reflection_notes or _NO_REFLECTION}\n"
     )
     parts.append(
         _format_deep_verification_context(
@@ -145,9 +136,7 @@ _NO_NOTES = "No additional considerations for this comparison.\n"
 def _format_ranking_evaluation_criteria(
     criteria: list[str] | None,
 ) -> str:
-    cleaned = [
-        str(item).strip() for item in criteria or [] if str(item).strip()
-    ]
+    cleaned = [str(item).strip() for item in criteria or [] if str(item).strip()]
     if not cleaned:
         return ""
 
@@ -191,9 +180,7 @@ def _build_ranking_prompt_variables(
         "review_1": format_side_review(side_a, "1"),
         "review_2": format_side_review(side_b, "2"),
         # Always supply these slots, even when empty, to avoid MISSING.
-        "evaluation_criteria": _format_ranking_evaluation_criteria(
-            context.criteria
-        ),
+        "evaluation_criteria": _format_ranking_evaluation_criteria(context.criteria),
         "preferences": _format_ranking_preferences(context.preferences),
         "notes": _format_ranking_notes(context),
     }
@@ -229,9 +216,7 @@ def get_proximity_prompt(
             )
         },
         sections=PromptSections(
-            supervisor_guidance=_format_supervisor_guidance_for_proximity(
-                supervisor_guidance
-            )
+            supervisor_guidance=_format_supervisor_guidance_for_proximity(supervisor_guidance)
         ),
         include_domain=False,
     )
@@ -258,8 +243,7 @@ def _format_supervisor_guidance_for_ranking(
     return _format_key_areas_guidance(
         supervisor_guidance,
         "Key Research Areas to Consider",
-        "When comparing hypotheses, prioritize those that better"
-        " address these key areas.",
+        "When comparing hypotheses, prioritize those that better address these key areas.",
     )
 
 

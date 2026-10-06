@@ -38,18 +38,10 @@ def result_from_dict(data: dict[str, Any]) -> ResearchResult:
     return ResearchResult(
         goal=str(data.get("goal", "")),
         stances=tuple(_strings(data.get("stances"))),
-        threads=tuple(
-            _thread_from_dict(item) for item in _dicts(data.get("threads"))
-        ),
-        calls=tuple(
-            _call_from_dict(item) for item in _dicts(data.get("calls"))
-        ),
-        findings=tuple(
-            _finding_from_dict(item) for item in _dicts(data.get("findings"))
-        ),
-        stop_reason=_enum(
-            StopReason, data.get("stop_reason"), StopReason.DEPTH_EXHAUSTED
-        ),
+        threads=tuple(_thread_from_dict(item) for item in _dicts(data.get("threads"))),
+        calls=tuple(_call_from_dict(item) for item in _dicts(data.get("calls"))),
+        findings=tuple(_finding_from_dict(item) for item in _dicts(data.get("findings"))),
+        stop_reason=_enum(StopReason, data.get("stop_reason"), StopReason.DEPTH_EXHAUSTED),
         levels_run=int(data.get("levels_run") or 0),
     )
 
@@ -141,9 +133,7 @@ def _hit_from_dict(data: dict[str, Any]) -> SourceHit:
         score=_optional_float(data.get("score")),
         metadata={
             str(key): str(value)
-            for key, value in (
-                metadata.items() if isinstance(metadata, dict) else ()
-            )
+            for key, value in (metadata.items() if isinstance(metadata, dict) else ())
         },
     )
 

@@ -99,9 +99,7 @@ def _dedup_by_id(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
     return result
 
 
-def _append_hypotheses(
-    existing: list[Hypothesis], incoming: list[Hypothesis]
-) -> list[Hypothesis]:
+def _append_hypotheses(existing: list[Hypothesis], incoming: list[Hypothesis]) -> list[Hypothesis]:
     """Exact collisions are rejected at content admission; near-duplicate
     judgment belongs to proximity.
     """
@@ -122,9 +120,7 @@ def _append_hypotheses(
     return result
 
 
-def deduplicate_hypotheses(
-    existing: list[Hypothesis], new: HypothesisUpdate
-) -> list[Hypothesis]:
+def deduplicate_hypotheses(existing: list[Hypothesis], new: HypothesisUpdate) -> list[Hypothesis]:
     """Bare empty lists preserve the pool; ReplaceHypotheses can deliberately
     clear it.
     """
@@ -290,9 +286,7 @@ class WorkflowState(TypedDict):
     # Prompt-only cycle material; the research ledger carries its durable
     # provenance.
 
-    research_ledgers: Annotated[
-        list[dict[str, Any]], accumulate_research_ledgers
-    ]
+    research_ledgers: Annotated[list[dict[str, Any]], accumulate_research_ledgers]
     # Cross-checkpoint provenance must remain plain JSON.
 
     interim_overview: str | None

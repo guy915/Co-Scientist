@@ -65,9 +65,7 @@ def _init_entrez_email() -> None:
     else:
         # NCBI asks for a contact email to identify traffic; requests
         # still work without one but may be throttled more readily.
-        logger.warning(
-            "ENTREZ_EMAIL not set - PubMed may have stricter rate limits"
-        )
+        logger.warning("ENTREZ_EMAIL not set - PubMed may have stricter rate limits")
 
 
 def _init_entrez_api_key() -> None:
@@ -131,9 +129,7 @@ def retry_after_trace_value(
         if (
             len(stripped) > 128
             or not stripped.isascii()
-            or any(
-                not (char == "\t" or " " <= char <= "~") for char in stripped
-            )
+            or any(not (char == "\t" or " " <= char <= "~") for char in stripped)
         ):
             canonical = "!invalid"
     return canonical, raw[:128], len(raw) > 128
@@ -151,9 +147,7 @@ def _date_delay(raw: str, wall_clock: Callable[[], float]) -> float:
         return RETRY_AFTER_DEFAULT_SECONDS
 
 
-def retry_after_delay(
-    value: str | None, wall_clock: Callable[[], float]
-) -> float | None:
+def retry_after_delay(value: str | None, wall_clock: Callable[[], float]) -> float | None:
     if value is None:
         delay = RETRY_AFTER_DEFAULT_SECONDS
     else:
@@ -205,17 +199,15 @@ STUDY4_MAX_RETRIES_PER_STUDY = 2
 _study4_budget_lock = threading.Lock()
 _study4_bound_study_id: str | None = None
 _study4_retries_used = 0
-_pilot_trace_context: contextvars.ContextVar[
-    tuple[dict[str, Any], str | None] | None
-] = contextvars.ContextVar("pubmed_pilot_trace", default=None)
+_pilot_trace_context: contextvars.ContextVar[tuple[dict[str, Any], str | None] | None] = (
+    contextvars.ContextVar("pubmed_pilot_trace", default=None)
+)
 _pilot_trace_lock = threading.Lock()
 
 
 def bind_study4_recovery(study_id: str) -> int:
     if study_id != STUDY4_RECOVERY_STUDY_ID:
-        raise ValueError(
-            "Study 4 Entrez recovery requires the protocol study ID"
-        )
+        raise ValueError("Study 4 Entrez recovery requires the protocol study ID")
     global _study4_bound_study_id
     with _study4_budget_lock:
         if _study4_bound_study_id is None:
@@ -244,19 +236,13 @@ def reserve_study4_retry(study_id: str) -> int | None:
 
 
 @contextmanager
-def pilot_trace_context(
-    trace: dict[str, Any] | None, paper_id: str | None = None
-) -> Any:
+def pilot_trace_context(trace: dict[str, Any] | None, paper_id: str | None = None) -> Any:
     """to_thread copies request context so blocking calls retain run/paper
     identity without global state.
     """
     parent = _pilot_trace_context.get()
-    resolved_trace = (
-        trace if trace is not None else parent[0] if parent else None
-    )
-    resolved_paper_id = (
-        paper_id if paper_id is not None else parent[1] if parent else None
-    )
+    resolved_trace = trace if trace is not None else parent[0] if parent else None
+    resolved_paper_id = paper_id if paper_id is not None else parent[1] if parent else None
     if resolved_trace is None:
         yield
         return
@@ -267,18 +253,14 @@ def pilot_trace_context(
         _pilot_trace_context.reset(token)
 
 
-def record_pilot_fetch_error(
-    stage: str, exc: Exception, paper_id: str | None = None
-) -> None:
+def record_pilot_fetch_error(stage: str, exc: Exception, paper_id: str | None = None) -> None:
     context = _pilot_trace_context.get()
     if context is None:
         return
     trace, current_paper_id = context
     resolved_paper_id = paper_id if paper_id is not None else current_paper_id
     with _pilot_trace_lock:
-        trace["incomplete_fetch_count"] = (
-            trace.get("incomplete_fetch_count", 0) + 1
-        )
+        trace["incomplete_fetch_count"] = trace.get("incomplete_fetch_count", 0) + 1
         errors = trace.setdefault("fetch_errors", [])
         if len(errors) < 9:
             errors.append(
@@ -310,20 +292,14 @@ def _record_pilot_entrez_call(
     if context is None:
         return None
     operation = next(
-        (
-            name
-            for name in _PILOT_ENTREZ_CALLS
-            if request is getattr(Entrez, name)
-        ),
+        (name for name in _PILOT_ENTREZ_CALLS if request is getattr(Entrez, name)),
         None,
     )
     if operation is None:
         return None
     trace, _paper_id = context
     with _pilot_trace_lock:
-        counts = trace.setdefault(
-            "entrez_calls", dict.fromkeys(_PILOT_ENTREZ_CALLS, 0)
-        )
+        counts = trace.setdefault("entrez_calls", dict.fromkeys(_PILOT_ENTREZ_CALLS, 0))
         counts[operation] += 1
         return trace, operation, counts[operation]
 
@@ -346,16 +322,12 @@ def _study4_recovery_metadata(
         return None
     study_id = metadata.get("study_id")
     if study_id != STUDY4_RECOVERY_STUDY_ID:
-        raise RuntimeError(
-            "Study 4 Entrez recovery trace has an invalid study ID"
-        )
+        raise RuntimeError("Study 4 Entrez recovery trace has an invalid study ID")
     study4_retries_used(study_id)
     return metadata
 
 
-def _record_recovery_entry_attempt(
-    metadata: dict[str, Any], operation: str
-) -> None:
+def _record_recovery_entry_attempt(metadata: dict[str, Any], operation: str) -> None:
     with _pilot_trace_lock:
         attempts = metadata["client_entry_attempts"]
         attempts[operation] += 1
@@ -376,9 +348,7 @@ def _record_recovery_call_outcome(
     outcome: str,
     events: list[dict[str, Any]],
 ) -> None:
-    operation, logical_request_ordinal, retry_count, client_entry_attempts = (
-        logical_call
-    )
+    operation, logical_request_ordinal, retry_count, client_entry_attempts = logical_call
     with _pilot_trace_lock:
         for event in events:
             event["outcome"] = outcome
@@ -422,8 +392,8 @@ def _handle_study4_http_error(
 ) -> tuple[int, bool, str]:
     trace, metadata, operation, logical_request_ordinal = recovery
     retry_after_fields, delay = retry_after_trace(error, _wall_clock)
-    retry_scheduled, outcome, next_retry_count, reserved_count = (
-        _study4_retry_decision(metadata["study_id"], delay, retry_count)
+    retry_scheduled, outcome, next_retry_count, reserved_count = _study4_retry_decision(
+        metadata["study_id"], delay, retry_count
     )
     if reserved_count is not None:
         with _pilot_trace_lock:
@@ -470,9 +440,7 @@ def _finish_study4_call(
 
 
 class _Study4CallState:
-    def __init__(
-        self, recovery: tuple[dict[str, Any], dict[str, Any], str, int]
-    ) -> None:
+    def __init__(self, recovery: tuple[dict[str, Any], dict[str, Any], str, int]) -> None:
         self.recovery = recovery
         self.retry_count = 0
         self.entry_attempts = 0
@@ -492,14 +460,12 @@ def _run_study4_entrez_attempt(
     except HTTPError as exc:
         if exc.code not in {429, 502}:
             raise
-        state.retry_count, retry_scheduled, _outcome = (
-            _handle_study4_http_error(
-                exc,
-                state.recovery,
-                state.retry_count,
-                state.entry_attempts,
-                state.events,
-            )
+        state.retry_count, retry_scheduled, _outcome = _handle_study4_http_error(
+            exc,
+            state.recovery,
+            state.retry_count,
+            state.entry_attempts,
+            state.events,
         )
         if retry_scheduled:
             return _run_study4_entrez_attempt(request, kwargs, state)
@@ -507,9 +473,7 @@ def _run_study4_entrez_attempt(
     return result
 
 
-def _finish_study4_outcome(
-    state: _Study4CallState, outcome: str | None
-) -> None:
+def _finish_study4_outcome(state: _Study4CallState, outcome: str | None) -> None:
     if not state.events:
         return
     final_outcome = outcome or state.events[-1]["outcome"]
@@ -574,9 +538,7 @@ def _active_study4_metadata() -> dict[str, Any] | None:
         return None
     metadata = _study4_recovery_metadata(context[0])
     if metadata is not None and not campaign_free_mode():
-        raise RuntimeError(
-            "Study 4 Entrez recovery requires keyless campaign mode"
-        )
+        raise RuntimeError("Study 4 Entrez recovery requires keyless campaign mode")
     return metadata
 
 

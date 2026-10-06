@@ -71,12 +71,8 @@ def test_every_reader_agrees_on_what_a_label_and_role_mean(
     supported = report_gates._supported_hypothesis_ids([edge])
     assert supported == ({"h1"} if label in _SUPPORTED else set())
 
-    withheld = report_gates.contradicted_hypothesis_ids(
-        "", None, claim_edges=[edge]
-    )
-    assert withheld == (
-        {"h1"} if label == "contradicts" and not speculative else set()
-    )
+    withheld = report_gates.contradicted_hypothesis_ids("", None, claim_edges=[edge])
+    assert withheld == ({"h1"} if label == "contradicts" and not speculative else set())
 
     panel = report_content._contradicted_claims([edge])
     assert len(panel) == (1 if label == "contradicts" else 0)
@@ -96,17 +92,10 @@ def test_every_reader_agrees_on_what_a_label_and_role_mean(
     line = _render_claim_evidence([edge])[2]
     assert line.startswith(f"- **{expected_status} · {role or 'categorical'}**")
 
-    topics = report_content._knowledge_base_topics(
-        [{"id": "h1", "title": "T"}], [edge]
-    )
-    assert topics[0]["reference_ids"] == (
-        ["e-for"] if label in _SUPPORTED else []
-    )
+    topics = report_content._knowledge_base_topics([{"id": "h1", "title": "T"}], [edge])
+    assert topics[0]["reference_ids"] == (["e-for"] if label in _SUPPORTED else [])
 
-    facts = [
-        (r["kind"], r["state"], r["evidence_id"])
-        for r in derive_knowledge_facts([edge])
-    ]
+    facts = [(r["kind"], r["state"], r["evidence_id"]) for r in derive_knowledge_facts([edge])]
     assert facts == {
         "supports": [("fact", "supports", "e-for")],
         "contradicts": [("contradiction", "contradicts", "e-against")],
@@ -121,9 +110,7 @@ async def test_grounding_retains_method_across_api_reopen(
     claim = "A dietary change improves cardiovascular outcomes in adults."
     _add(run_id, "Diet study", claim, isolated_db)
 
-    def assess(
-        claim: str, passages: Sequence[EvidencePassage]
-    ) -> AssessorDraft:
+    def assess(claim: str, passages: Sequence[EvidencePassage]) -> AssessorDraft:
         return AssessorDraft(
             EntailmentLabel.SUPPORTS,
             supporting=((passages[0].evidence_id, claim),),
@@ -141,26 +128,16 @@ async def test_grounding_retains_method_across_api_reopen(
     reopened = make_client().get(f"/api/runs/{run_id}/claim-evidence")
     assert reopened.status_code == 200
     edges = reopened.json()["claim_evidence"]
-    assert edges and all(
-        e["verification_method"] == "model_primary" for e in edges
-    )
+    assert edges and all(e["verification_method"] == "model_primary" for e in edges)
     assert all(e["assessor"] == "llm:test" for e in edges)
     payload, markdown = await _build_report(runs.get_run(run_id), isolated_db)
-    assert (
-        payload["claim_evidence"][0]["verification_method"] == "model_primary"
-    )
+    assert payload["claim_evidence"][0]["verification_method"] == "model_primary"
     assert "Assessment method: model judgment" in markdown
 
 
 def test_no_candidates_cannot_claim_model_verification() -> None:
-    def assess(
-        _claim: str, _passages: Sequence[EvidencePassage]
-    ) -> AssessorDraft:
-        return AssessorDraft(
-            EntailmentLabel.INSUFFICIENT, verification_method="model_primary"
-        )
+    def assess(_claim: str, _passages: Sequence[EvidencePassage]) -> AssessorDraft:
+        return AssessorDraft(EntailmentLabel.INSUFFICIENT, verification_method="model_primary")
 
-    result = assess_claim(
-        "A hypothesis without retrieved evidence.", [], assessor=assess
-    )
+    result = assess_claim("A hypothesis without retrieved evidence.", [], assessor=assess)
     assert result.verification_method == "no_evidence"

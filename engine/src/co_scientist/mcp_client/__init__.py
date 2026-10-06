@@ -37,9 +37,7 @@ def _resolve_availability_check_tool(
         return None, False
 
     if not workflow.availability_check:
-        logger.debug(
-            "availability check disabled in config (availability_check: null)"
-        )
+        logger.debug("availability check disabled in config (availability_check: null)")
         return None, True
 
     tool_config = tool_registry.get_tool(workflow.availability_check)
@@ -62,18 +60,14 @@ def _short_circuit_availability(
     skip_availability_check: bool,
 ) -> bool | None:
     if not all_tools_dict:
-        logger.warning(
-            "MCP server responded but provided no tools,"
-            " literature source unavailable"
-        )
+        logger.warning("MCP server responded but provided no tools, literature source unavailable")
         return False
 
     if skip_availability_check or check_tool_name is None:
         logger.info(
             "MCP server available, skipping source-specific availability check"
             if skip_availability_check
-            else "no availability check tool configured, assuming source"
-            " available"
+            else "no availability check tool configured, assuming source available"
         )
         return True
 
@@ -105,23 +99,17 @@ async def _probe_literature_source_availability(
 ) -> bool:
     all_tools_dict, _ = mcp_client.get_tools()
 
-    shortcut = _short_circuit_availability(
-        all_tools_dict, check_tool_name, skip_availability_check
-    )
+    shortcut = _short_circuit_availability(all_tools_dict, check_tool_name, skip_availability_check)
     if shortcut is not None:
         return shortcut
 
-    logger.debug(
-        "checking literature source availability (tool: %s)", check_tool_name
-    )
+    logger.debug("checking literature source availability (tool: %s)", check_tool_name)
     logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
 
     return await _call_check_tool(mcp_client, check_tool_name, all_tools_dict)
 
 
-def _log_mcp_test_start(
-    tool_registry: Optional["ToolRegistry"], server_url: str | None
-) -> None:
+def _log_mcp_test_start(tool_registry: Optional["ToolRegistry"], server_url: str | None) -> None:
     if tool_registry:
         logger.debug(
             "testing mcp availability for %s server(s)",
@@ -213,9 +201,7 @@ def _resolve_server_configs(
     if server_url is None:
         server_url = _resolve_server_url()
     logger.debug("using single server: %s", server_url)
-    return _with_shared_secret(
-        {"default": {"transport": "streamable_http", "url": server_url}}
-    )
+    return _with_shared_secret({"default": {"transport": "streamable_http", "url": server_url}})
 
 
 NOT_INITIALIZED_MESSAGE = "mcp client not initialized. call initialize() first."
@@ -250,9 +236,7 @@ def _filter_tools_by_whitelist(
     """Advertise tools in workflow whitelist order, preserving configured
     preference.
     """
-    filtered_tools_dict = {
-        k: v for k, v in tools_dict.items() if k in whitelist
-    }
+    filtered_tools_dict = {k: v for k, v in tools_dict.items() if k in whitelist}
     filtered_openai_tools = [
         convert_to_openai_tool(filtered_tools_dict[k])
         for k in whitelist
@@ -293,9 +277,7 @@ PUBLIC_TOOLS = frozenset(
     }
 )
 _M10_PUBLIC_TOOLS = PUBLIC_TOOLS - {"search_gwas_catalog_associations"}
-_PRE_CITATION_ROLLBACK_TOOLS = _M10_PUBLIC_TOOLS - {
-    "get_opencitations_citation_edges"
-}
+_PRE_CITATION_ROLLBACK_TOOLS = _M10_PUBLIC_TOOLS - {"get_opencitations_citation_edges"}
 
 
 class CampaignToolUnavailableError(RuntimeError):
@@ -311,9 +293,7 @@ def campaign_serves_tool(name: str) -> bool:
 def _qualified_url(configs: dict[str, dict[str, Any]]) -> str:
     expected = os.getenv("COSCIENTIST_CAMPAIGN_MCP_URL", "")
     if not expected or len(configs) != 1:
-        raise RuntimeError(
-            "campaign MCP requires one explicitly qualified endpoint"
-        )
+        raise RuntimeError("campaign MCP requires one explicitly qualified endpoint")
     config = next(iter(configs.values()))
     secret = os.getenv(MCP_SHARED_SECRET_ENV)
     if not secret:
@@ -372,9 +352,7 @@ class CampaignAdmission:
     async def verify(self, configs: dict[str, dict[str, Any]]) -> None:
         """Require the bound route and a current reference-server policy."""
         if configs != self.configs or _qualified_url(configs) != self.url:
-            raise RuntimeError(
-                "campaign MCP binding changed; initialize a new client"
-            )
+            raise RuntimeError("campaign MCP binding changed; initialize a new client")
         url = urlsplit(self.url)
         root = urlunsplit((url.scheme, url.netloc, "/", "", ""))
         headers = next(iter(self.configs.values())).get("headers")
@@ -402,18 +380,12 @@ class CampaignAdmission:
             or data.get("campaign_policy") not in accepted_policies
             or data.get("service") != "coscientist-lit-review"
         ):
-            raise RuntimeError(
-                "campaign MCP server policy is unavailable or unqualified"
-            )
+            raise RuntimeError("campaign MCP server policy is unavailable or unqualified")
 
-    async def require_tool(
-        self, name: str, configs: dict[str, dict[str, Any]]
-    ) -> None:
+    async def require_tool(self, name: str, configs: dict[str, dict[str, Any]]) -> None:
         """Admit only reviewed tools on the qualified serving deployment."""
         if name not in PUBLIC_TOOLS:
-            raise CampaignToolUnavailableError(
-                "tool is unavailable under campaign MCP policy"
-            )
+            raise CampaignToolUnavailableError("tool is unavailable under campaign MCP policy")
         await self.verify(configs)
 
     def transport_configs(self) -> dict[str, dict[str, Any]]:
@@ -427,9 +399,7 @@ class CampaignAdmission:
 def require_bound_mode(admission: CampaignAdmission | None) -> None:
     """Reject clients discovered before campaign qualification."""
     if campaign_free_mode() and admission is None:
-        raise RuntimeError(
-            "campaign MCP client was not qualified at initialization"
-        )
+        raise RuntimeError("campaign MCP client was not qualified at initialization")
 
 
 async def prepare_admission(
@@ -456,14 +426,10 @@ def mcp_tool_timeout_seconds() -> float | None:
     """Read the ceiling per call so operators can change it without
     restarting.
     """
-    return parse_timeout_env(
-        MCP_TOOL_TIMEOUT_ENV, DEFAULT_MCP_TOOL_TIMEOUT_SECONDS
-    )
+    return parse_timeout_env(MCP_TOOL_TIMEOUT_ENV, DEFAULT_MCP_TOOL_TIMEOUT_SECONDS)
 
 
-async def _ainvoke_within_timeout(
-    tool: Any, tool_args: Any, tool_name: str
-) -> Any:
+async def _ainvoke_within_timeout(tool: Any, tool_args: Any, tool_name: str) -> Any:
     timeout = mcp_tool_timeout_seconds()
     if timeout is None:
         return await tool.ainvoke(tool_args)
@@ -491,14 +457,10 @@ class MCPToolClient:
         self._initialize_lock = asyncio.Lock()
         self._tool_to_server: dict[str, str] = {}
 
-        self._server_configs = _resolve_server_configs(
-            tool_registry, server_configs, server_url
-        )
+        self._server_configs = _resolve_server_configs(tool_registry, server_configs, server_url)
 
         self.server_url = (
-            next(iter(self._server_configs.values())).get("url")
-            if self._server_configs
-            else None
+            next(iter(self._server_configs.values())).get("url") if self._server_configs else None
         )
 
     async def initialize(self) -> None:
@@ -528,11 +490,7 @@ class MCPToolClient:
         )
 
         admission = await prepare_admission(self._server_configs)
-        configs = (
-            admission.transport_configs()
-            if admission is not None
-            else self._server_configs
-        )
+        configs = admission.transport_configs() if admission is not None else self._server_configs
         client = MultiServerMCPClient(cast(dict[str, Connection], configs))
         # Publish only after every server has yielded complete tool indexes.
         tools = await client.get_tools()
@@ -558,9 +516,7 @@ class MCPToolClient:
             # Some MultiServerMCPClient versions prefix tool names; use registry
             # ownership when available.
             if self._tool_registry:
-                tool_config = self._tool_registry.get_tool_by_mcp_name(
-                    tool.name
-                )
+                tool_config = self._tool_registry.get_tool_by_mcp_name(tool.name)
                 if tool_config:
                     self._tool_to_server[tool.name] = tool_config.server
 
@@ -569,16 +525,13 @@ class MCPToolClient:
     async def _admit_campaign_tool(self, name: str) -> None:
         require_bound_mode(self._campaign_admission)
         if self._campaign_admission is not None:
-            await self._campaign_admission.require_tool(
-                name, self._server_configs
-            )
+            await self._campaign_admission.require_tool(name, self._server_configs)
 
     @staticmethod
     def _require_tool(tools_dict: dict[str, Any], tool_name: str) -> Any:
         if tool_name not in tools_dict:
             raise ValueError(
-                f"tool '{tool_name}' not found. "
-                f"available tools: {list(tools_dict.keys())}"
+                f"tool '{tool_name}' not found. available tools: {list(tools_dict.keys())}"
             )
         return tools_dict[tool_name]
 
@@ -591,9 +544,7 @@ class MCPToolClient:
 
         # Direct callers degrade per source, so a dead tool raises rather than
         # poisoning the whole run.
-        result = _unwrap_tool_result(
-            await _ainvoke_within_timeout(tool, kwargs, tool_name)
-        )
+        result = _unwrap_tool_result(await _ainvoke_within_timeout(tool, kwargs, tool_name))
 
         logger.debug(
             "mcp tool result for %s: %s",
@@ -613,9 +564,7 @@ class MCPToolClient:
         try:
             return cast(
                 str,
-                _unwrap_tool_result(
-                    await _ainvoke_within_timeout(tool, tool_args, tool_name)
-                ),
+                _unwrap_tool_result(await _ainvoke_within_timeout(tool, tool_args, tool_name)),
             )
         except MCPToolTimeoutError as exc:
             logger.warning("%s; reporting the timeout to the model", exc)
@@ -630,12 +579,8 @@ class MCPToolClient:
         await self._admit_campaign_tool(tool_name)
         tool_args = json.loads(tool_call.function.arguments)
 
-        logger.debug(
-            "executing mcp tool: %s with args: %s", tool_name, tool_args
-        )
-        result = await self._invoke_or_timeout_result(
-            tools_dict[tool_name], tool_args, tool_name
-        )
+        logger.debug("executing mcp tool: %s with args: %s", tool_name, tool_args)
+        result = await self._invoke_or_timeout_result(tools_dict[tool_name], tool_args, tool_name)
         logger.debug(
             "mcp tool result for %s: %s%s",
             tool_name,
@@ -688,9 +633,7 @@ _global_clients_lock = threading.Lock()
 
 def _freeze_config(value: Any) -> Any:
     if isinstance(value, dict):
-        return tuple(
-            sorted((key, _freeze_config(item)) for key, item in value.items())
-        )
+        return tuple(sorted((key, _freeze_config(item)) for key, item in value.items()))
     if isinstance(value, (list, tuple)):
         return tuple(_freeze_config(item) for item in value)
     if isinstance(value, set):
@@ -710,9 +653,7 @@ async def _probe_literature_source(
 ) -> bool:
     try:
         # Use a throwaway client so outages cannot poison the cached client.
-        mcp_client = MCPToolClient(
-            server_url=server_url, tool_registry=tool_registry
-        )
+        mcp_client = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
         await mcp_client.initialize()
         return await _probe_literature_source_availability(
             mcp_client, check_tool_name, skip_availability_check
@@ -733,9 +674,7 @@ async def check_literature_source_available(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
 ) -> bool:
-    check_tool_name, skip_availability_check = _resolve_availability_check_tool(
-        tool_registry
-    )
+    check_tool_name, skip_availability_check = _resolve_availability_check_tool(tool_registry)
 
     if server_url is None and tool_registry is None:
         server_url = _resolve_server_url()
@@ -757,9 +696,7 @@ async def check_tool_available(
         server_url = _resolve_server_url()
 
     try:
-        test_client = MCPToolClient(
-            server_url=server_url, tool_registry=tool_registry
-        )
+        test_client = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
         await test_client.initialize()
         return test_client.has_tool(tool_name)
     except Exception as e:
@@ -786,15 +723,11 @@ async def check_web_search_available(
         server_url = _resolve_server_url()
 
     try:
-        probe_client = MCPToolClient(
-            server_url=server_url, tool_registry=tool_registry
-        )
+        probe_client = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
         await probe_client.initialize()
         tools, _ = probe_client.get_tools()
         if WEB_SEARCH_CHECK_TOOL in tools:
-            return await _call_check_tool(
-                probe_client, WEB_SEARCH_CHECK_TOOL, tools
-            )
+            return await _call_check_tool(probe_client, WEB_SEARCH_CHECK_TOOL, tools)
         return WEB_SEARCH_TOOL in tools
     except Exception as e:
         # Unreachable means unusable now, not a failed scientific run.
@@ -812,9 +745,7 @@ async def check_mcp_available(
     try:
         _log_mcp_test_start(tool_registry, server_url)
 
-        test_client = MCPToolClient(
-            server_url=server_url, tool_registry=tool_registry
-        )
+        test_client = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
         await test_client.initialize()
 
         tools_dict = test_client._tools_dict
@@ -840,9 +771,7 @@ async def get_mcp_client(
                 del _global_clients[cached_loop]
         loop_clients = _global_clients.setdefault(loop, {})
         if force_new or key not in loop_clients:
-            loop_clients[key] = MCPToolClient(
-                server_url=server_url, tool_registry=tool_registry
-            )
+            loop_clients[key] = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
 
     client = loop_clients[key]
     await client.initialize()

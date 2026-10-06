@@ -34,12 +34,8 @@ def test_private_copy_preserves_lineage_reviews_evidence_report_and_no_tasks(
     old_ids = {h["id"] for h in source_hyps}
     new_ids = {h["id"] for h in clone_hyps}
     assert not old_ids & new_ids
-    assert all(
-        not h["parent_id"] or h["parent_id"] in new_ids for h in clone_hyps
-    )
-    assert {h["elo_rating"] for h in source_hyps} == {
-        h["elo_rating"] for h in clone_hyps
-    }
+    assert all(not h["parent_id"] or h["parent_id"] in new_ids for h in clone_hyps)
+    assert {h["elo_rating"] for h in source_hyps} == {h["elo_rating"] for h in clone_hyps}
     for reader in (
         records.list_evidence,
         records.list_reviews,

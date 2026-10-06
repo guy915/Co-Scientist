@@ -18,9 +18,7 @@ class NewMessage:
     meta: dict[str, Any] | None = None
 
 
-def append_message(
-    message: NewMessage, db_path: str | None = None
-) -> MessageRow:
+def append_message(message: NewMessage, db_path: str | None = None) -> MessageRow:
     now = _now()
     with connect(db_path) as conn:
         cursor = conn.execute(
@@ -61,8 +59,7 @@ def list_messages(
 ) -> list[MessageRow]:
     with _use_conn(conn, db_path) as conn:
         rows = conn.execute(
-            f"SELECT {_MESSAGE_COLUMNS} FROM messages "
-            "WHERE run_id=? ORDER BY id ASC",
+            f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE run_id=? ORDER BY id ASC",
             (run_id,),
         ).fetchall()
         return [_row_to_message(r) for r in rows]
@@ -98,8 +95,7 @@ def rewind_qa(
     """Rewind only Q&A; run inputs and scientific state are immutable here."""
     with transaction(db_path) as conn:
         target = conn.execute(
-            "SELECT sender, content, kind FROM messages "
-            "WHERE run_id=? AND id=?",
+            "SELECT sender, content, kind FROM messages WHERE run_id=? AND id=?",
             (run_id, message_id),
         ).fetchone()
         if target is None or target["kind"] != "qa":
@@ -137,9 +133,7 @@ def rewind_qa(
         return _row_to_message(row)
 
 
-def get_pending_steering(
-    run_id: str, db_path: str | None = None
-) -> list[MessageRow]:
+def get_pending_steering(run_id: str, db_path: str | None = None) -> list[MessageRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
             f"SELECT {_MESSAGE_COLUMNS} FROM messages "

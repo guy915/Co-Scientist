@@ -20,12 +20,8 @@ def test_reports_round_trip_full_markdown_through_database(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    run = seed_run(
-        "report rt", profile="default", provider="mock", db_path=isolated_db
-    )
-    saved = reports.save_report(
-        run.id, {"k": "v"}, "# Hello\nbody", db_path=isolated_db
-    )
+    run = seed_run("report rt", profile="default", provider="mock", db_path=isolated_db)
+    saved = reports.save_report(run.id, {"k": "v"}, "# Hello\nbody", db_path=isolated_db)
     md = reports.read_report_markdown(run.id, db_path=isolated_db)
     assert md == "# Hello\nbody"
     rep = reports.get_latest_report(run.id, db_path=isolated_db)
@@ -141,9 +137,7 @@ def _checkpoint_state(
     }
 
 
-def _task(
-    task_type: str, iteration: int = 1, **overrides: Any
-) -> dict[str, Any]:
+def _task(task_type: str, iteration: int = 1, **overrides: Any) -> dict[str, Any]:
     return {
         "task_type": task_type,
         "status": "queued",

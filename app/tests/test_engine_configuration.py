@@ -101,9 +101,7 @@ def _streaming_hypotheses() -> list[dict[str, Any]]:
             "evolution_history": [],
             "reviews": [{"review_summary": "Sound mechanism."}],
             "deep_verification_verdict": "verified",
-            "deep_verification_probes": [
-                {"question": "Does X cause Y?", "answer": "Yes, via Z."}
-            ],
+            "deep_verification_probes": [{"question": "Does X cause Y?", "answer": "Yes, via Z."}],
         },
         {
             "id": "eng-h2",
@@ -207,25 +205,17 @@ def _assert_normalized_payloads(by_type: dict[str, Any]) -> None:
 def _assert_full_fidelity_payloads(by_type: dict[str, Any]) -> None:
     assert by_type["reflection"]["reviewed"] == 1
     assert by_type["proximity"]["clusters"] == {"cluster-0": 2}
-    assert (
-        by_type["meta_review"]["critique"]
-        == "Leading hypotheses converge on one mechanism."
-    )
+    assert by_type["meta_review"]["critique"] == "Leading hypotheses converge on one mechanism."
     assert by_type["meta_review"]["top_k_ids"] == ["eng-h1", "eng-h2"]
     assert by_type["deep_verification"]["verified"] == 1
     assert by_type["deep_verification"]["probes"] == [
         {
             "hypothesis_id": "eng-h1",
             "verdict": "verified",
-            "probes": [
-                {"question": "Does X cause Y?", "answer": "Yes, via Z."}
-            ],
+            "probes": [{"question": "Does X cause Y?", "answer": "Yes, via Z."}],
         }
     ]
-    assert (
-        by_type["research_overview"]["research_overview"]
-        == _streaming_research_overview()
-    )
+    assert by_type["research_overview"]["research_overview"] == _streaming_research_overview()
 
 
 def test_engine_adapter_emits_canonical_event_types(isolated_db: str) -> None:
@@ -350,9 +340,7 @@ def test_offline_generator_does_not_poison_cache_for_a_real_generator(
     assert engine_cache.get_cache().enabled is True
 
 
-_ALL_CREDENTIAL_ENV = tuple(
-    name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names
-)
+_ALL_CREDENTIAL_ENV = tuple(name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names)
 
 
 def _clear_credentials(monkeypatch: pytest.MonkeyPatch) -> None:

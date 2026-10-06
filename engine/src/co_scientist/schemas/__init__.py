@@ -83,9 +83,7 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
     "literature_review_relevance_batch": LITERATURE_RELEVANCE_BATCH_SCHEMA,
     "hypothesis_novelty_analysis": HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
-    "hypothesis_validation_synthesis_with_tools": (
-        HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA
-    ),
+    "hypothesis_validation_synthesis_with_tools": (HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA),
 }
 
 

@@ -58,9 +58,7 @@ def _completion_request(
         "timeout": _QA_TOTAL_SECONDS,
         "stream": True,
         "api_key": api_key,
-        **deepseek_thinking_kwargs(
-            model, effort=CONVERSATIONAL_REASONING_EFFORT
-        ),
+        **deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT),
     }
     if tools:
         request["tools"] = tools
@@ -226,15 +224,12 @@ def _question_relevant_review(
         return None
     q_tokens = _tokenize(question)
     best_overlap, best_index = max(
-        (len(q_tokens & _tokenize(r.get("summary") or "")), i)
-        for i, r in enumerate(reviews)
+        (len(q_tokens & _tokenize(r.get("summary") or "")), i) for i, r in enumerate(reviews)
     )
     return reviews[best_index] if best_overlap > 0 else reviews[-1]
 
 
-def _offline_hypothesis_lines(
-    hypotheses: list[dict[str, Any]], has_sources: bool
-) -> list[str]:
+def _offline_hypothesis_lines(hypotheses: list[dict[str, Any]], has_sources: bool) -> list[str]:
     lines: list[str] = []
     for rank, hyp in enumerate(hypotheses[:5], start=1):
         title = hyp.get("title") or "Untitled hypothesis"
@@ -257,20 +252,15 @@ def build_offline_answer(
     absent from persisted state.
     """
     parts: list[str] = [
-        "Answering from this run's own artifacts (offline mode, no "
-        "language model configured)."
+        "Answering from this run's own artifacts (offline mode, no language model configured)."
     ]
     stripped_question = question.strip()
     if stripped_question:
         parts.append(f'Question asked: "{stripped_question}"')
     parts.append(f"Research goal: {research_goal}")
     ranked = _question_ranked_hypotheses(question, hypotheses)
-    parts.extend(
-        _offline_hypothesis_summary(ranked, manifest, ranked != hypotheses)
-    )
-    parts.extend(
-        _offline_review_note(_question_relevant_review(question, reviews))
-    )
+    parts.extend(_offline_hypothesis_summary(ranked, manifest, ranked != hypotheses))
+    parts.extend(_offline_review_note(_question_relevant_review(question, reviews)))
     parts.extend(_offline_manifest_note(manifest))
     return "\n".join(parts)
 
@@ -282,8 +272,7 @@ def _offline_hypothesis_summary(
 ) -> list[str]:
     if not hypotheses:
         return [
-            "No hypotheses have been generated for this run yet, so there "
-            "is nothing to summarize."
+            "No hypotheses have been generated for this run yet, so there is nothing to summarize."
         ]
     lead = (
         "the following most closely match your question:"
@@ -351,15 +340,11 @@ async def stream_offline_answer(
     answer: str,
     manifest: list[dict[str, Any]],
 ) -> AsyncGenerator[str, None]:
-    async for frame in _framed_answer(
-        run_id, question_id, manifest, _offline_deltas(answer)
-    ):
+    async for frame in _framed_answer(run_id, question_id, manifest, _offline_deltas(answer)):
         yield frame
 
 
-def _citation_meta(
-    manifest: list[dict[str, Any]], reasoning: str
-) -> dict[str, Any] | None:
+def _citation_meta(manifest: list[dict[str, Any]], reasoning: str) -> dict[str, Any] | None:
     """Persist only nonempty sources/reasoning so reloads show exactly what the
     live turn showed.
     """
@@ -391,17 +376,12 @@ def _persist_qa_answer(
     )
 
 
-def _handle_qa_stream_error(
-    run_id: str, exc: Exception, question_id: int
-) -> str:
+def _handle_qa_stream_error(run_id: str, exc: Exception, question_id: int) -> str:
     """Persist the emitted fallback on stream failures so chat history matches
     what the user saw.
     """
     logger.error("Q&A stream error for run %s: %s", run_id, exc)
-    fallback = (
-        "Q&A requires a language model API key "
-        "(set CHAT_MODEL_NAME or MODEL_NAME)."
-    )
+    fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."
     store.append_qa_reply(
         NewMessage(run_id=run_id, sender="system", content=fallback, kind="qa"),
         question_id,
@@ -429,9 +409,7 @@ async def stream_answer(
         execution_policy = run.execution_policy
     try:
         with (
-            scoped_execution_policy(
-                execution_policy, campaign_model_name=campaign_model_name
-            ),
+            scoped_execution_policy(execution_policy, campaign_model_name=campaign_model_name),
             credentials.scoped_byok(byok),
             run_log_context(run_id),
         ):
@@ -442,9 +420,7 @@ async def stream_answer(
                 inputs.ideas,
                 **({"artifacts": inputs.artifacts} if inputs.artifacts else {}),
             )
-            async for frame in _framed_answer(
-                run_id, question.message_id, inputs.manifest, deltas
-            ):
+            async for frame in _framed_answer(run_id, question.message_id, inputs.manifest, deltas):
                 yield frame
     except Exception as exc:
         fallback = _handle_qa_stream_error(run_id, exc, question.message_id)

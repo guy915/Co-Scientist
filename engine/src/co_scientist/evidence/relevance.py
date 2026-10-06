@@ -67,24 +67,18 @@ def _chunked(items: list[str], size: int) -> list[list[str]]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-def _build_candidates_block(
-    pool_ids: list[str], ranked: dict[str, dict[str, Any]]
-) -> str:
+def _build_candidates_block(pool_ids: list[str], ranked: dict[str, dict[str, Any]]) -> str:
     """The prompt's 1-based indices join judgments back to candidates."""
     lines = []
     for number, paper_id in enumerate(pool_ids, start=1):
         metadata = ranked[paper_id]
         title = str(metadata.get("title") or "Unknown")
         abstract = str(metadata.get("abstract") or "")[:_ABSTRACT_CHAR_BUDGET]
-        lines.append(
-            f"**Candidate {number}:**\nTitle: {title}\nAbstract: {abstract}"
-        )
+        lines.append(f"**Candidate {number}:**\nTitle: {title}\nAbstract: {abstract}")
     return "\n\n".join(lines)
 
 
-def _match_batch_judgments(
-    judgments: list[Any], pool_ids: list[str]
-) -> list[Any]:
+def _match_batch_judgments(judgments: list[Any], pool_ids: list[str]) -> list[Any]:
     """Malformed indices fill unclaimed slots in order; short offline responses
     must degrade missing candidates rather than abort the search."""
     count = len(pool_ids)
@@ -163,9 +157,7 @@ async def _judge_batch(
             len(pool_ids),
             exc,
         )
-        return [
-            (paper_id, 0.0, _FAILED_JUDGMENT_RATIONALE) for paper_id in pool_ids
-        ]
+        return [(paper_id, 0.0, _FAILED_JUDGMENT_RATIONALE) for paper_id in pool_ids]
 
     return _score_matched_judgments(pool_ids, result.get("judgments") or [])
 
@@ -189,10 +181,7 @@ def _lexical_raw_scores(
     ranked: dict[str, dict[str, Any]],
 ) -> dict[str, float]:
     """Capture raw scores before any stamping overwrites retrieval_score."""
-    return {
-        pid: float(metadata.get("retrieval_score") or 0.0)
-        for pid, metadata in ranked.items()
-    }
+    return {pid: float(metadata.get("retrieval_score") or 0.0) for pid, metadata in ranked.items()}
 
 
 def _stamp_lexical_baseline(
@@ -247,8 +236,6 @@ async def apply_semantic_relevance(
     )
     for batch in batches:
         for paper_id, relevance, rationale in batch:
-            _stamp_hybrid_score(
-                ranked[paper_id], lexical_raw[paper_id], relevance, rationale
-            )
+            _stamp_hybrid_score(ranked[paper_id], lexical_raw[paper_id], relevance, rationale)
 
     return _resort_by_hybrid_score(ranked, set(pool_ids))

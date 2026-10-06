@@ -65,9 +65,7 @@ async def _run_single_source_queries(
     IDs, so timing cannot change winning metadata."""
     per_query = await asyncio.gather(
         *(
-            _search_source_for_query(
-                query, ctx, tool_config, src_name, papers_per_query
-            )
+            _search_source_for_query(query, ctx, tool_config, src_name, papers_per_query)
             for query in queries
         )
     )
@@ -85,9 +83,7 @@ async def _search_single_source(
 ) -> tuple[str, dict[str, dict[str, Any]]]:
     tool_config = tool_registry.get_tool(source_config.tool)
     if not tool_config:
-        logger.warning(
-            "Tool config not found for source: %s", source_config.tool
-        )
+        logger.warning("Tool config not found for source: %s", source_config.tool)
         return (source_config.tool, {})
 
     src_name = extract_source_name(tool_config)
@@ -114,8 +110,7 @@ async def _search_all_sources(
     tool_registry: "ToolRegistry",
 ) -> list[tuple[str, dict[str, dict[str, Any]]]]:
     tasks = [
-        _search_single_source(source, queries, ctx, tool_registry)
-        for source in enabled_sources
+        _search_single_source(source, queries, ctx, tool_registry) for source in enabled_sources
     ]
     return await asyncio.gather(*tasks)
 
@@ -146,18 +141,14 @@ async def _merge_and_budget_multi_source(
         source_results,
         deduplicate=config.workflow.deduplicate_across_sources,
     )
-    all_paper_metadata = await _apply_semantic_relevance_if_enabled(
-        all_paper_metadata, config
-    )
+    all_paper_metadata = await _apply_semantic_relevance_if_enabled(all_paper_metadata, config)
     selected_ids = select_within_budget(
         all_paper_metadata,
         paper_source_map,
         enabled_sources,
         config.papers_to_read_count,
     )
-    all_paper_metadata = {
-        paper_id: all_paper_metadata[paper_id] for paper_id in selected_ids
-    }
+    all_paper_metadata = {paper_id: all_paper_metadata[paper_id] for paper_id in selected_ids}
     paper_source_map = {
         paper_id: paper_source_map[paper_id]
         for paper_id in selected_ids
@@ -195,13 +186,9 @@ async def _phase2_collect_papers_multi_source(
     enabled_sources = _campaign_admitted_sources(
         config.workflow.get_enabled_search_sources(), config.tool_registry
     )
-    logger.info(
-        "Phase 2: collecting papers from %s sources", len(enabled_sources)
-    )
+    logger.info("Phase 2: collecting papers from %s sources", len(enabled_sources))
 
-    source_results = await _search_all_sources(
-        enabled_sources, queries, ctx, config.tool_registry
-    )
+    source_results = await _search_all_sources(enabled_sources, queries, ctx, config.tool_registry)
 
     all_paper_metadata, paper_source_map = await _merge_and_budget_multi_source(
         source_results, enabled_sources, config
@@ -236,9 +223,7 @@ async def _combine_and_cap_single_source_results(
     combined: dict[str, dict[str, Any]] = {}
     for result_data in search_results:
         combined.update(result_data)
-    ranked, _ = merge_search_results(
-        [(config.search_tool_name, combined)], deduplicate=True
-    )
+    ranked, _ = merge_search_results([(config.search_tool_name, combined)], deduplicate=True)
     ranked = await _apply_semantic_relevance_if_enabled(ranked, config)
     return dict(list(ranked.items())[: config.papers_to_read_count])
 
@@ -258,11 +243,7 @@ async def _phase2_collect_papers_single_source(
 
     # Expanded queries overlap: overfetch each, then count unique sources
     # globally.
-    search_results = await _search_all_queries(
-        queries, config.papers_to_read_count, ctx, config
-    )
+    search_results = await _search_all_queries(queries, config.papers_to_read_count, ctx, config)
 
-    all_paper_metadata = await _combine_and_cap_single_source_results(
-        search_results, config
-    )
+    all_paper_metadata = await _combine_and_cap_single_source_results(search_results, config)
     return all_paper_metadata, {}

@@ -36,9 +36,7 @@ def _make_chat(owner: str = "chat-owner", turns: int = 2) -> str:
     interview = store.create_interview(owner, "Why do biofilms resist drugs?")
     interview_id: str = str(interview["id"])
     for index in range(turns):
-        store.append_interview_turn(
-            interview_id, NewInterviewTurn("user", f"answer {index}")
-        )
+        store.append_interview_turn(interview_id, NewInterviewTurn("user", f"answer {index}"))
     return interview_id
 
 
@@ -54,10 +52,7 @@ def test_deleting_a_chat_removes_it_and_its_transcript() -> None:
     assert body["counts"]["interviews"] == 1
     assert body["counts"]["interview_turns"] >= 2
     assert store.get_interview(removed) is None
-    ids = {
-        chat["id"]
-        for chat in client.get("/api/interviews", headers=_OWNER).json()
-    }
+    ids = {chat["id"] for chat in client.get("/api/interviews", headers=_OWNER).json()}
     assert kept in ids
     assert removed not in ids
 
@@ -74,9 +69,7 @@ def test_only_the_owner_can_delete_a_chat(owner: str, caller: str) -> None:
     client: TestClient = make_client()
     chat_id = _make_chat(owner=owner)
 
-    response = client.delete(
-        f"/api/interviews/{chat_id}", headers={"X-Client-ID": caller}
-    )
+    response = client.delete(f"/api/interviews/{chat_id}", headers={"X-Client-ID": caller})
 
     assert response.status_code == 404
     assert store.get_interview(chat_id) is not None
@@ -166,9 +159,7 @@ def test_a_completed_interview_seeds_its_run_and_links_the_chat_to_it(
     _patch_model_sequence(monkeypatch, _antibiotic_responses())
     headers = {"X-Client-ID": "scientist-a"}
     with TestClient(app) as client:
-        interview_id, created, second, final = _run_antibiotic_interview(
-            client, headers
-        )
+        interview_id, created, second, final = _run_antibiotic_interview(client, headers)
         assert created.status_code == 200
         assert _interview_payload(second)["status"] == "active"
         payload = _interview_payload(final)
@@ -197,18 +188,12 @@ def test_a_completed_interview_seeds_its_run_and_links_the_chat_to_it(
             tier="ultra",
         )
         after = client.get("/api/interviews", headers=headers).json()
-        reopened = client.get(
-            f"/api/interviews/{interview_id}", headers=headers
-        ).json()
-        other = client.get(
-            "/api/interviews", headers={"X-Client-ID": "scientist-b"}
-        ).json()
+        reopened = client.get(f"/api/interviews/{interview_id}", headers=headers).json()
+        other = client.get("/api/interviews", headers={"X-Client-ID": "scientist-b"}).json()
 
     run_payload = run.json()
     assert run.status_code == 200
-    assert (
-        run_payload["research_goal"] == payload["fields"]["research_challenge"]
-    )
+    assert run_payload["research_goal"] == payload["fields"]["research_challenge"]
     assert run_payload["title"] == "Restoring Antibiotic Susceptibility"
     assert run_payload["config"]["interview_id"] == interview_id
     assert [chat["id"] for chat in before] == [interview_id]
@@ -223,13 +208,9 @@ def test_a_completed_interview_seeds_its_run_and_links_the_chat_to_it(
 def test_interview_is_owner_scoped_and_requires_completion(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _patch_model_sequence(
-        monkeypatch, [_response("Which mechanism should be prioritized?")]
-    )
+    _patch_model_sequence(monkeypatch, [_response("Which mechanism should be prioritized?")])
     with TestClient(app) as client:
-        created = _start_interview(
-            client, {"X-Client-ID": "owner"}, "Study resistance"
-        )
+        created = _start_interview(client, {"X-Client-ID": "owner"}, "Study resistance")
         interview_id = _interview_payload(created)["id"]
         denied = client.get(
             f"/api/interviews/{interview_id}",
@@ -246,11 +227,7 @@ def test_interview_is_owner_scoped_and_requires_completion(
 
 
 def _flags(interview: dict[str, Any], role: str) -> list[bool]:
-    return [
-        bool(turn["fallback"])
-        for turn in interview["turns"]
-        if turn["role"] == role
-    ]
+    return [bool(turn["fallback"]) for turn in interview["turns"] if turn["role"] == role]
 
 
 def test_interview_stays_usable_and_marks_fallback_turns_during_model_outage(
@@ -259,9 +236,7 @@ def test_interview_stays_usable_and_marks_fallback_turns_during_model_outage(
     _patch_model_raising(monkeypatch)
     headers = {"X-Client-ID": "offline-scientist"}
     with TestClient(app) as client:
-        created = _start_interview(
-            client, headers, "Test astrocyte lactate transport"
-        )
+        created = _start_interview(client, headers, "Test astrocyte lactate transport")
         interview_id = _interview_payload(created)["id"]
         focused = _send_turn(
             client,
@@ -297,9 +272,7 @@ def test_interview_stays_usable_and_marks_fallback_turns_during_model_outage(
 def _reasoning_only_stream(reasoning: str) -> Any:
     # Thinking-only streams never emit content, unlike an empty content chunk.
     def _chunk(reasoning_content: str) -> SimpleNamespace:
-        delta = SimpleNamespace(
-            reasoning_content=reasoning_content, content=None
-        )
+        delta = SimpleNamespace(reasoning_content=reasoning_content, content=None)
         return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
 
     async def _chunks() -> Any:
@@ -333,9 +306,7 @@ async def test_thinking_only_turn_retries_once_with_thinking_off(
         "turns": [{"role": "user", "content": "restore susceptibility"}],
         "fields": {},
     }
-    result = await interviews_model._call_interview_model(
-        interview, on_reasoning=_on_reasoning
-    )
+    result = await interviews_model._call_interview_model(interview, on_reasoning=_on_reasoning)
 
     assert len(calls) == 2
     assert calls[0]["reasoning_effort"] == CONVERSATIONAL_REASONING_EFFORT

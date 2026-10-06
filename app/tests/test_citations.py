@@ -40,14 +40,8 @@ def test_retraction_dominates_a_reachable_source_and_claim_support() -> None:
 def test_offline_resolver_accepts_a_bare_identifier_without_a_url() -> None:
     # DOI and PMID resolve as identifiers without a URL; requiring URLs would
     # change availability gates.
-    assert (
-        offline_resolver(CitationMetadata(doi="10.1/a"))
-        is Resolvability.RESOLVABLE
-    )
-    assert (
-        offline_resolver(CitationMetadata(pmid="12345678"))
-        is Resolvability.RESOLVABLE
-    )
+    assert offline_resolver(CitationMetadata(doi="10.1/a")) is Resolvability.RESOLVABLE
+    assert offline_resolver(CitationMetadata(pmid="12345678")) is Resolvability.RESOLVABLE
     assert offline_resolver(CitationMetadata()) is Resolvability.UNRESOLVABLE
 
 
@@ -115,13 +109,9 @@ def test_resolution_prefers_doi_then_pmid_then_url_without_needless_calls(
 def test_an_unreachable_well_formed_doi_is_unresolvable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        citation_resolver, "_reachable", lambda client, url: False
-    )
+    monkeypatch.setattr(citation_resolver, "_reachable", lambda client, url: False)
 
-    verdict = citation_resolver.resolve_one(
-        doi="10.1000/dead", pmid="", url="", retracted=False
-    )
+    verdict = citation_resolver.resolve_one(doi="10.1000/dead", pmid="", url="", retracted=False)
 
     assert verdict is Resolvability.UNRESOLVABLE
 
@@ -194,10 +184,8 @@ def test_a_doi_in_the_offline_retraction_set_short_circuits_before_network(
         ("https://example.org", "anything", "anything", False, "unavailable"),
         (
             "https://example.org/1",
-            "mitochondrial biogenesis brown adipose thermogenesis "
-            "cold response",
-            "mitochondrial biogenesis brown adipose thermogenesis "
-            "cold response",
+            "mitochondrial biogenesis brown adipose thermogenesis cold response",
+            "mitochondrial biogenesis brown adipose thermogenesis cold response",
             True,
             "verified",
         ),
@@ -212,8 +200,7 @@ def test_a_doi_in_the_offline_retraction_set_short_circuits_before_network(
             "https://example.org/1",
             "mitochondrial biogenesis rises during brown adipose "
             "thermogenesis in a poorly understood pathway",
-            "mitochondrial biogenesis drives thermogenesis through "
-            "uncoupling protein induction",
+            "mitochondrial biogenesis drives thermogenesis through uncoupling protein induction",
             True,
             "partial",
         ),
@@ -229,9 +216,7 @@ def test_a_doi_in_the_offline_retraction_set_short_circuits_before_network(
 def test_classify_citation(
     url: str, abstract: str, claim: str, available: bool, expected: str
 ) -> None:
-    r = CitationRecord(
-        url=url, abstract=abstract, claim=claim, available=available
-    )
+    r = CitationRecord(url=url, abstract=abstract, claim=claim, available=available)
     assert classify_citation(r) == expected
 
 
@@ -246,12 +231,8 @@ def test_only_dois_in_the_set_are_known_retracted(tmp_path: Path) -> None:
     path = _write_gz(tmp_path, ["10.1000/known-bad"])
 
     assert retraction_set.is_known_retracted("10.1000/known-bad", path=path)
-    assert retraction_set.is_known_retracted(
-        "https://doi.org/10.1000/KNOWN-BAD", path=path
-    )
-    assert not retraction_set.is_known_retracted(
-        "10.1000/perfectly-fine", path=path
-    )
+    assert retraction_set.is_known_retracted("https://doi.org/10.1000/KNOWN-BAD", path=path)
+    assert not retraction_set.is_known_retracted("10.1000/perfectly-fine", path=path)
 
 
 def test_missing_data_file_degrades_to_empty_set(
@@ -267,8 +248,6 @@ def test_missing_data_file_degrades_to_empty_set(
 
 
 def test_the_shipped_data_file_loads_and_is_non_empty() -> None:
-    doi_set = retraction_set._load_doi_set(
-        retraction_set.DEFAULT_RETRACTIONS_PATH
-    )
+    doi_set = retraction_set._load_doi_set(retraction_set.DEFAULT_RETRACTIONS_PATH)
 
     assert len(doi_set) > 0

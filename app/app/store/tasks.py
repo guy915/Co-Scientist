@@ -53,9 +53,7 @@ from app.store.tasks_lifecycle import (
 )
 
 _fail_ambiguous_expired_leases = tasks_recovery._fail_ambiguous_expired_leases
-_stop_run_after_unknown_provider_outcome = (
-    tasks_recovery._stop_run_after_unknown_provider_outcome
-)
+_stop_run_after_unknown_provider_outcome = tasks_recovery._stop_run_after_unknown_provider_outcome
 
 
 def _insert_task_row(conn: sqlite3.Connection, values: tuple[Any, ...]) -> None:
@@ -82,9 +80,7 @@ class NewTask:
     max_attempts: int = 3
 
 
-def _task_row_values(
-    task_id: str, task: NewTask, now: float
-) -> tuple[Any, ...]:
+def _task_row_values(task_id: str, task: NewTask, now: float) -> tuple[Any, ...]:
     return (
         task_id,
         task.run_id,
@@ -116,8 +112,7 @@ def enqueue_task(
     with _use_conn(conn, db_path) as active:
         _insert_task_row(active, values)
         row: sqlite3.Row | None = active.execute(
-            "SELECT * FROM scientific_tasks WHERE run_id=? "
-            "AND idempotency_key=?",
+            "SELECT * FROM scientific_tasks WHERE run_id=? AND idempotency_key=?",
             (task.run_id, task.idempotency_key),
         ).fetchone()
     if row is None:
@@ -133,8 +128,7 @@ def list_tasks(
 ) -> list[ScientificTask]:
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
-            "SELECT * FROM scientific_tasks WHERE run_id=? "
-            "ORDER BY created_at ASC",
+            "SELECT * FROM scientific_tasks WHERE run_id=? ORDER BY created_at ASC",
             (run_id,),
         ).fetchall()
     return [_decode(row) for row in rows]
@@ -203,15 +197,11 @@ def get_task(
     conn: sqlite3.Connection | None = None,
 ) -> ScientificTask | None:
     with _use_conn(conn, db_path) as active:
-        row = active.execute(
-            "SELECT * FROM scientific_tasks WHERE id=?", (task_id,)
-        ).fetchone()
+        row = active.execute("SELECT * FROM scientific_tasks WHERE id=?", (task_id,)).fetchone()
     return _decode(row) if row is not None else None
 
 
-def _dependencies_complete(
-    conn: sqlite3.Connection, task: ScientificTask
-) -> bool:
+def _dependencies_complete(conn: sqlite3.Connection, task: ScientificTask) -> bool:
     if not task.dependencies:
         return True
     placeholders = ",".join("?" for _ in task.dependencies)
@@ -224,9 +214,7 @@ def _dependencies_complete(
         if task.provenance.get("allow_failed_dependencies")
         else {"completed"}
     )
-    return len(rows) == len(task.dependencies) and all(
-        row["status"] in allowed for row in rows
-    )
+    return len(rows) == len(task.dependencies) and all(row["status"] in allowed for row in rows)
 
 
 def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
@@ -243,9 +231,7 @@ def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
     )
 
 
-def _queued_tasks_query(
-    run_id: str | None, now: float
-) -> tuple[str, list[Any]]:
+def _queued_tasks_query(run_id: str | None, now: float) -> tuple[str, list[Any]]:
     """Future-due rows stay queued to represent progress, but must not be
     leased before their not-before instant.
     """
@@ -281,9 +267,7 @@ def _try_lease_task(
     ).rowcount
     if not changed:
         return None
-    leased = conn.execute(
-        "SELECT * FROM scientific_tasks WHERE id=?", (task.id,)
-    ).fetchone()
+    leased = conn.execute("SELECT * FROM scientific_tasks WHERE id=?", (task.id,)).fetchone()
     return _decode(leased)
 
 
@@ -303,9 +287,7 @@ def claim_task(
         _rescue_expired_leases(conn, now)
         query, params = _queued_tasks_query(run_id, now)
         for row in conn.execute(query, params).fetchall():
-            leased = _try_lease_task(
-                conn, _decode(row), worker_id, now, lease_seconds
-            )
+            leased = _try_lease_task(conn, _decode(row), worker_id, now, lease_seconds)
             if leased is not None:
                 return leased
     return None
@@ -330,21 +312,16 @@ def fail_task(
     failure = TaskFailure(redact_byok_text(failure.error), failure.failure_kind)
     with transaction(db_path) as conn:
         row = conn.execute(
-            "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' "
-            "AND lease_owner=?",
+            "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' AND lease_owner=?",
             (task_id, worker_id),
         ).fetchone()
         if row is None:
             return False
         task = _decode(row)
-        status = _persist_failed_attempt(
-            conn, task, worker_id, failure.error, retryable, retry_at
-        )
+        status = _persist_failed_attempt(conn, task, worker_id, failure.error, retryable, retry_at)
         if status == "failed":
             if stop_run:
-                _stop_run_after_unknown_provider_outcome(
-                    conn, task.run_id, task.task_type, failure
-                )
+                _stop_run_after_unknown_provider_outcome(conn, task.run_id, task.task_type, failure)
             else:
                 _settle_run_for_failed_task(
                     conn,

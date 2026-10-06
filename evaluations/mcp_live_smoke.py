@@ -38,9 +38,7 @@ def check_pubmed_contract() -> CheckResult:
     except httpx.HTTPError as exc:
         return CheckResult("pubmed_contract", False, f"request failed: {exc}")
     if resp.status_code != 200:
-        return CheckResult(
-            "pubmed_contract", False, f"status {resp.status_code}"
-        )
+        return CheckResult("pubmed_contract", False, f"status {resp.status_code}")
     id_list = resp.json().get("esearchresult", {}).get("idlist")
     ok = isinstance(id_list, list) and len(id_list) > 0
     return CheckResult(
@@ -65,13 +63,9 @@ def check_pubmed_burst_is_handled() -> CheckResult:
             statuses.append(resp.status_code)
             time.sleep(_PUBMED_BURST_INTERVAL_SECONDS)
     except httpx.HTTPError as exc:
-        return CheckResult(
-            "pubmed_burst_handled", False, f"request failed: {exc}"
-        )
+        return CheckResult("pubmed_burst_handled", False, f"request failed: {exc}")
     ok = all(code in (200, 429, 503) for code in statuses)
-    return CheckResult(
-        "pubmed_burst_handled", ok, f"burst of {len(statuses)}: {statuses}"
-    )
+    return CheckResult("pubmed_burst_handled", ok, f"burst of {len(statuses)}: {statuses}")
 
 
 def check_openalex_contract() -> CheckResult:
@@ -84,16 +78,10 @@ def check_openalex_contract() -> CheckResult:
     except httpx.HTTPError as exc:
         return CheckResult("openalex_contract", False, f"request failed: {exc}")
     if resp.status_code != 200:
-        return CheckResult(
-            "openalex_contract", False, f"status {resp.status_code}"
-        )
+        return CheckResult("openalex_contract", False, f"status {resp.status_code}")
     body = resp.json()
     results = body.get("results")
-    ok = (
-        isinstance(results, list)
-        and len(results) > 0
-        and isinstance(results[0].get("id"), str)
-    )
+    ok = isinstance(results, list) and len(results) > 0 and isinstance(results[0].get("id"), str)
     return CheckResult(
         "openalex_contract",
         ok,
@@ -111,15 +99,9 @@ def check_indra_contract() -> CheckResult:
     except httpx.HTTPError as exc:
         return CheckResult("indra_contract", False, f"request failed: {exc}")
     if resp.status_code != 200:
-        return CheckResult(
-            "indra_contract", False, f"status {resp.status_code}"
-        )
+        return CheckResult("indra_contract", False, f"status {resp.status_code}")
     items = resp.json()
-    ok = (
-        isinstance(items, list)
-        and len(items) > 0
-        and "db_ns" in items[0].get("data", {})
-    )
+    ok = isinstance(items, list) and len(items) > 0 and "db_ns" in items[0].get("data", {})
     return CheckResult("indra_contract", ok, f"{len(items)} gene(s) returned")
 
 

@@ -61,9 +61,7 @@ async def test_a_recovered_call_logs_one_failure_naming_what_was_sent(
     with caplog.at_level(logging.DEBUG, logger="co_scientist"):
         result = await call_llm_json(
             "a prompt",
-            CompletionSpec(
-                model_name=_MODEL, max_tokens=8000, json_schema=_INT_SCHEMA
-            ),
+            CompletionSpec(model_name=_MODEL, max_tokens=8000, json_schema=_INT_SCHEMA),
             max_attempts=5,
         )
 
@@ -77,14 +75,9 @@ async def test_a_recovered_call_logs_one_failure_naming_what_was_sent(
     assert "asked for 8000" in message
     assert "ranking_judgment" in message
     layers = {"co_scientist.llm", "co_scientist.llm.call"}
-    assert not [
-        r
-        for r in caplog.records
-        if r.name in layers and r.levelno >= logging.WARNING
-    ]
+    assert not [r for r in caplog.records if r.name in layers and r.levelno >= logging.WARNING]
     assert any(
-        r.levelno == logging.INFO and "retrying llm call" in r.getMessage()
-        for r in caplog.records
+        r.levelno == logging.INFO and "retrying llm call" in r.getMessage() for r in caplog.records
     )
 
 
@@ -92,9 +85,7 @@ async def test_a_provider_error_is_logged_at_a_bounded_length(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     disable_llm_cache(monkeypatch)
-    scripted_backend(
-        monkeypatch, [RuntimeError(_HUGE_PROVIDER_ERROR)], repeat_last=True
-    )
+    scripted_backend(monkeypatch, [RuntimeError(_HUGE_PROVIDER_ERROR)], repeat_last=True)
 
     with (
         caplog.at_level(logging.DEBUG, logger="co_scientist"),

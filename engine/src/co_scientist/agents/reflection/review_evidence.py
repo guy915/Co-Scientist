@@ -107,9 +107,7 @@ async def _prepare(
     config = _probe_search_config(state)
     if config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = await McpRetrieval.open_for(
-        config, str(state.get("run_id") or "")
-    )
+    retrieval = await McpRetrieval.open_for(config, str(state.get("run_id") or ""))
     budget = review_budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)
 
@@ -133,8 +131,7 @@ def _research_goal(state: WorkflowState, hypothesis: Hypothesis) -> str:
     its target."""
     claim = " ".join((hypothesis.text or "").split())[:_MAX_GOAL_CHARS]
     return (
-        f"{state.get('research_goal') or ''}\n\n"
-        f"Specifically, the claim under review: {claim}"
+        f"{state.get('research_goal') or ''}\n\nSpecifically, the claim under review: {claim}"
     ).strip()
 
 
@@ -179,9 +176,7 @@ def _unsettled_assumptions(review: object) -> list[str]:
 _MAX_HYPOTHESIS_QUERIES = LITERATURE_REVIEW_MAX_QUERIES
 
 
-async def _hypothesis_search_queries(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[str]:
+async def _hypothesis_search_queries(state: WorkflowState, hypothesis: Hypothesis) -> list[str]:
     """Keyword backends AND terms, so whole-goal/claim prose would match
     nothing."""
     # Without MCP, keyword queries still ground against the existing corpus.
@@ -191,9 +186,7 @@ async def _hypothesis_search_queries(
     if result is None:
         return []
     queries = [
-        " ".join(str(query).split())
-        for query in result.get("queries") or []
-        if str(query).strip()
+        " ".join(str(query).split()) for query in result.get("queries") or [] if str(query).strip()
     ]
     return queries[:_MAX_HYPOTHESIS_QUERIES]
 
@@ -251,9 +244,7 @@ def _evidence_key(state: WorkflowState, hypothesis: Hypothesis) -> str:
     return f"{state.get('run_id')}:{hypothesis.id}:{digest}"
 
 
-async def _shared_review_evidence(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> _ReviewEvidence:
+async def _shared_review_evidence(state: WorkflowState, hypothesis: Hypothesis) -> _ReviewEvidence:
     """Concurrent full/simulation reviews share one flight to avoid duplicate
     spend; evict failed flights so retries get a fresh attempt."""
     loop = asyncio.get_running_loop()
@@ -281,11 +272,7 @@ async def _retrieve_review_evidence(
     if research is None:
         return _ReviewEvidence(queries, articles, errors)
     known = {article.source_id for article in articles}
-    found = [
-        article
-        for article in research.articles
-        if article.source_id not in known
-    ]
+    found = [article for article in research.articles if article.source_id not in known]
     return _ReviewEvidence(queries, articles + found, errors, research.ledger)
 
 
@@ -313,18 +300,14 @@ async def _review_evidence_for(
     return await _shared_review_evidence(state, hypothesis)
 
 
-def researched_articles_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[Article]:
+def researched_articles_for(state: WorkflowState, hypothesis: Hypothesis) -> list[Article]:
     """Verification reuses funded research; new retrieval here would multiply
     spend by pool size and iteration."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return []
-    flight = _review_evidence_flights.get(loop, {}).get(
-        _evidence_key(state, hypothesis)
-    )
+    flight = _review_evidence_flights.get(loop, {}).get(_evidence_key(state, hypothesis))
     if flight is None or not flight.done() or flight.cancelled():
         return []
     if flight.exception() is not None:

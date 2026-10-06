@@ -32,9 +32,7 @@ def _wait_owned_status(
 
     def _reached() -> bool:
         response = client.get(f"/api/runs/{run_id}", headers=_DELETION_OWNER)
-        return response.status_code == 200 and bool(
-            response.json().get("status") == status
-        )
+        return response.status_code == 200 and bool(response.json().get("status") == status)
 
     return wait_for(_reached, timeout=timeout)
 
@@ -43,9 +41,7 @@ def _run_to_completion(client: TestClient, goal: str) -> str:
     created = _create_run(client, goal, headers=_DELETION_OWNER, tier="express")
     assert created.status_code == 200, created.text
     run_id: str = created.json()["id"]
-    started = client.post(
-        f"/api/runs/{run_id}/start", headers=_DELETION_OWNER, json={}
-    )
+    started = client.post(f"/api/runs/{run_id}/start", headers=_DELETION_OWNER, json={})
     assert started.status_code == 200, started.text
     assert _wait_owned_status(client, run_id, "completed")
     return run_id
@@ -82,9 +78,7 @@ def test_delete_removes_the_runs_persisted_log_rows(
     # Logs have no run foreign key; explicit deletion must scrub research goals
     # beyond cascading tables.
     client = make_client()
-    created = _create_run(
-        client, "deletion cascade probe", headers=_DELETION_OWNER
-    )
+    created = _create_run(client, "deletion cascade probe", headers=_DELETION_OWNER)
     run_id = created.json()["id"]
 
     append_log_row(
@@ -97,12 +91,10 @@ def test_delete_removes_the_runs_persisted_log_rows(
         "report research_goal=deletion cascade probe run_mode=standard",
         run_id=run_id,
     )
-    other_run = _create_run(
-        client, "a different tenant's goal", headers=_DELETION_OTHER
-    ).json()["id"]
-    other_row_id = append_log_row(
-        isolated_db, "other tenant's line", run_id=other_run
-    )
+    other_run = _create_run(client, "a different tenant's goal", headers=_DELETION_OTHER).json()[
+        "id"
+    ]
+    other_row_id = append_log_row(isolated_db, "other tenant's line", run_id=other_run)
     app_wide_row_id = append_log_row(isolated_db, "app-wide line")
 
     assert logs.count_logs_for_run(run_id, db_path=isolated_db) == 2
@@ -113,9 +105,7 @@ def test_delete_removes_the_runs_persisted_log_rows(
 
     assert logs.count_logs_for_run(run_id, db_path=isolated_db) == 0
     remaining = logs.list_logs(db_path=isolated_db)
-    assert "deletion cascade probe" not in " ".join(
-        row["message"] for row in remaining
-    )
+    assert "deletion cascade probe" not in " ".join(row["message"] for row in remaining)
     remaining_ids = {row["id"] for row in remaining}
     assert other_row_id in remaining_ids
     assert app_wide_row_id in remaining_ids
@@ -134,18 +124,11 @@ def _tier_budget(tier: str) -> Budget:
 
 
 def _steady_state_coverage(cfg: dict[str, int]) -> float:
-    return (
-        2.0
-        * cfg["tournament_pairs"]
-        * cfg["max_iterations"]
-        / (cfg["initial_hypotheses_count"])
-    )
+    return 2.0 * cfg["tournament_pairs"] * cfg["max_iterations"] / (cfg["initial_hypotheses_count"])
 
 
 def _worked_stats(cfg: dict[str, int]) -> SchedulerStats:
-    pool = cfg["initial_hypotheses_count"] + (
-        cfg["evolution_max_count"] * cfg["max_iterations"]
-    )
+    pool = cfg["initial_hypotheses_count"] + (cfg["evolution_max_count"] * cfg["max_iterations"])
     return SchedulerStats(
         pool_size=pool,
         reviewed_count=pool,
@@ -186,9 +169,7 @@ _RENAME_OWNER = {"X-Client-ID": "rename-owner"}
 _TITLE = "Sequential Senolytic Conditioning for Cryogenic Biostasis"
 
 
-def _draft_run(
-    client: TestClient, goal: str = "Extend healthy lifespan"
-) -> str:
+def _draft_run(client: TestClient, goal: str = "Extend healthy lifespan") -> str:
     created = _create_run(client, goal, headers=_RENAME_OWNER, tier="express")
     assert created.status_code == 200, created.text
     return str(created.json()["id"])

@@ -97,9 +97,7 @@ def test_shared_secret_guards_tool_calls_and_campaign_policy(
     statuses: set[int],
     body: str | None,
 ) -> None:
-    response = TestClient(_make_app(secret)).request(
-        method, path, headers=headers
-    )
+    response = TestClient(_make_app(secret)).request(method, path, headers=headers)
 
     assert response.status_code in statuses
     if body is not None:
@@ -214,14 +212,10 @@ async def test_enabled_or_invalid_mode_never_opens_web_transport(
 async def test_openalex_quota_refusal_does_not_retry_with_host_key(
     campaign: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    response = httpx.Response(
-        429, request=httpx.Request("GET", "https://api.openalex.org/works")
-    )
+    response = httpx.Response(429, request=httpx.Request("GET", "https://api.openalex.org/works"))
     client = stub_failure(
         monkeypatch,
-        httpx.HTTPStatusError(
-            "quota", request=response.request, response=response
-        ),
+        httpx.HTTPStatusError("quota", request=response.request, response=response),
     )
     with pytest.raises(OpenAlexUnavailableError):
         await search_openalex("public")

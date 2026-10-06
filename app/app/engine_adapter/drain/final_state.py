@@ -99,9 +99,7 @@ def stratification_attributes(
     disqualifies hypotheses; older checkpoints may omit it.
     """
     guidance = final_state.get("supervisor_guidance")
-    config = (
-        guidance.get("config_synthesis") if isinstance(guidance, dict) else None
-    )
+    config = guidance.get("config_synthesis") if isinstance(guidance, dict) else None
     attributes = config.get("attributes") if isinstance(config, dict) else None
     if not isinstance(attributes, list):
         return []
@@ -115,11 +113,7 @@ def critical_criteria(final_state: dict[str, Any]) -> list[Any]:
     guidance = final_state.get("supervisor_guidance")
     plan = guidance.get("workflow_plan") if isinstance(guidance, dict) else None
     review_phase = plan.get("review_phase") if isinstance(plan, dict) else None
-    criteria = (
-        review_phase.get("critical_criteria")
-        if isinstance(review_phase, dict)
-        else None
-    )
+    criteria = review_phase.get("critical_criteria") if isinstance(review_phase, dict) else None
     if not isinstance(criteria, list):
         return []
     return [item for item in criteria if isinstance(item, (str, dict))]
@@ -136,9 +130,7 @@ def grounding_counts(
         "assessed": assessed,
         "grounded": assessed - grounding_result.blocked_count,
         "blocked": grounding_result.blocked_count,
-        "eligible": (
-            len(grounding_candidates) - grounding_result.blocked_count
-        ),
+        "eligible": (len(grounding_candidates) - grounding_result.blocked_count),
     }
 
 
@@ -146,9 +138,7 @@ def safety_counts(screening_result: Any) -> dict[str, int]:
     return {
         "screened": screening_result.screened_count,
         "blocked": screening_result.blocked_count,
-        "eligible": (
-            screening_result.screened_count - screening_result.blocked_count
-        ),
+        "eligible": (screening_result.screened_count - screening_result.blocked_count),
     }
 
 
@@ -164,9 +154,7 @@ async def _assess_claims(
 
     from app.async_bridge import run_off_loop
 
-    model = effective_execution_model(
-        settings.claim_verifier_model or settings.model_name
-    )
+    model = effective_execution_model(settings.claim_verifier_model or settings.model_name)
     assert model is not None
     assessor, assessor_id = build_assessor(settings.claim_assessor, model)
     batch_assessor = build_batch_assessor(settings.claim_assessor, model)
@@ -205,16 +193,11 @@ def _reusable_by_hypothesis(
 ) -> dict[str, dict[str, Any]]:
     from app.claims.grounding import reusable_assessments
 
-    indexed = {
-        store_id: reusable_assessments(record)
-        for store_id, record in gate_records.items()
-    }
+    indexed = {store_id: reusable_assessments(record) for store_id, record in gate_records.items()}
     return {key: value for key, value in indexed.items() if value}
 
 
-def fold_grounding_telemetry(
-    final_state: dict[str, Any], usage: dict[str, dict[str, Any]]
-) -> None:
+def fold_grounding_telemetry(final_state: dict[str, Any], usage: dict[str, dict[str, Any]]) -> None:
     if not usage:
         return
     from co_scientist.models import MetricDeltas
@@ -226,9 +209,7 @@ def fold_grounding_telemetry(
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
     existing = ExecutionMetrics.from_dict(final_state.get("metrics") or {})
-    delta = create_metrics_update(
-        deltas=MetricDeltas(llm_calls=calls), model_usage=usage
-    )
+    delta = create_metrics_update(deltas=MetricDeltas(llm_calls=calls), model_usage=usage)
     merged = merge_metrics(existing, delta)
     final_state["metrics"] = merged.to_dict()
 
@@ -238,9 +219,7 @@ def fold_grounding_telemetry(
 _HELD_TEXT_PREFIX_CHARS = 120
 
 
-def _final_state_list(
-    final_state: dict[str, Any], key: str
-) -> list[dict[str, Any]]:
+def _final_state_list(final_state: dict[str, Any], key: str) -> list[dict[str, Any]]:
     return final_state.get(key) or []
 
 
@@ -283,9 +262,7 @@ def _held_decision(
     if not hyp_id and not text:
         return None
     audit = audit_by_id.get(hyp_id, {})
-    outcome = str(
-        entry.get("safety_status") or HypothesisSafetyOutcome.UNCERTAIN.value
-    )
+    outcome = str(entry.get("safety_status") or HypothesisSafetyOutcome.UNCERTAIN.value)
     return NewSafetyDecision(
         run_id=run_id,
         stage="hypothesis",
@@ -293,9 +270,7 @@ def _held_decision(
         reason=_held_decision_reason(hyp_id, outcome, text, audit),
         matches=[str(m) for m in (audit.get("matches") or [])],
         category=outcome,
-        policy_version=(
-            str(audit.get("policy_version") or "") or POLICY_VERSION
-        ),
+        policy_version=(str(audit.get("policy_version") or "") or POLICY_VERSION),
         requires_review=True,
         assessor="engine:safety_screen",
     )
@@ -370,9 +345,7 @@ def _build_drain_result(
             "critical_criteria": critical_criteria(final_state),
         },
         safety_counts=safety_counts(screening_result),
-        grounding_counts=grounding_counts(
-            grounding_result, grounding_candidates
-        ),
+        grounding_counts=grounding_counts(grounding_result, grounding_candidates),
     )
 
 
@@ -410,12 +383,8 @@ async def _persist_evidence_hypotheses_and_screen(
     """
     from app.async_bridge import run_off_loop
 
-    resolved = await run_off_loop(
-        functools.partial(resolve_articles, inputs.articles)
-    )
-    evidence = ResolvedEvidenceBatch(
-        articles=inputs.articles, resolved=resolved
-    )
+    resolved = await run_off_loop(functools.partial(resolve_articles, inputs.articles))
+    evidence = ResolvedEvidenceBatch(articles=inputs.articles, resolved=resolved)
     sink = _HypothesisSink(
         citations=_CitationSink(
             ev_id_by_title={},
@@ -452,12 +421,8 @@ def _persist_grounding_matches_proximity_txn(
     assessed, escalated = provider_outputs
     with db.transaction(db_path) as conn:
         grounding_result = persist_grounding(run_id, assessed, conn=conn)
-        _persist_engine_matches(
-            run_id, inputs.matchups, store_id_by_engine_id, conn
-        )
-        _persist_engine_proximity(
-            run_id, inputs.proximity_graph, store_id_by_engine_id, conn
-        )
+        _persist_engine_matches(run_id, inputs.matchups, store_id_by_engine_id, conn)
+        _persist_engine_proximity(run_id, inputs.proximity_graph, store_id_by_engine_id, conn)
         persist_escalated_verdicts(run_id, escalated, conn=conn)
         return grounding_result
 
@@ -519,13 +484,9 @@ def _persist_supervisor_plan(
             run_id=run_id,
             guidance=final_state.get("supervisor_guidance") or {},
             termination_reason=final_state.get("termination_reason"),
-            decision_provenance=final_state.get(
-                "supervisor_decision_provenance"
-            ),
+            decision_provenance=final_state.get("supervisor_decision_provenance"),
             orchestrator_state=final_state.get("orchestrator_state") or {},
         ),
         conn=conn,
     )
-    plans.replace_supervisor_allocations(
-        run_id, final_state.get("task_history") or [], conn=conn
-    )
+    plans.replace_supervisor_allocations(run_id, final_state.get("task_history") or [], conn=conn)

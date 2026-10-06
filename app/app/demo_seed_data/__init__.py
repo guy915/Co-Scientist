@@ -818,16 +818,11 @@ def _second_pass_hypothesis(source: DemoHypothesis) -> DemoHypothesis:
 
 def scenario_hypotheses(scenario: DemoScenario) -> tuple[DemoHypothesis, ...]:
     first_wave = scenario.hypotheses + tuple(
-        _proposal_hypothesis(item)
-        for item in _PROPOSALS[scenario_key(scenario)]
+        _proposal_hypothesis(item) for item in _PROPOSALS[scenario_key(scenario)]
     )
-    evolved = tuple(
-        _evolved_hypothesis(item)
-        for item in first_wave[: scenario.evolution_count]
-    )
+    evolved = tuple(_evolved_hypothesis(item) for item in first_wave[: scenario.evolution_count])
     second_pass = tuple(
-        _second_pass_hypothesis(item)
-        for item in evolved[: scenario.second_pass_count]
+        _second_pass_hypothesis(item) for item in evolved[: scenario.second_pass_count]
     )
     return first_wave + evolved + second_pass
 

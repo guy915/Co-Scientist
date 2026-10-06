@@ -30,14 +30,10 @@ from app.evidence_chunking import chunk_evidence_passage, parent_evidence_id
         ("Locus J/K predicts trait Z.", "J and K cosegregate with Z."),
     ],
 )
-def test_short_identifier_passage_reaches_semantic_assessment(
-    claim: str, passage: str
-) -> None:
+def test_short_identifier_passage_reaches_semantic_assessment(claim: str, passage: str) -> None:
     seen: list[EvidencePassage] = []
 
-    def assess(
-        _claim: str, passages: Sequence[EvidencePassage]
-    ) -> AssessorDraft:
+    def assess(_claim: str, passages: Sequence[EvidencePassage]) -> AssessorDraft:
         seen.extend(passages)
         return AssessorDraft(EntailmentLabel.INSUFFICIENT)
 
@@ -86,9 +82,7 @@ def test_extracts_atomic_claims_and_drops_fragments() -> None:
     ],
     ids=["synthetic-gaps", "production-wordings"],
 )
-def test_extraction_drops_sentences_asserting_an_evidence_gap(
-    gaps: str, kept: str
-) -> None:
+def test_extraction_drops_sentences_asserting_an_evidence_gap(gaps: str, kept: str) -> None:
     # Corpus-absence statements are negative existentials no retrieved passage
     # can confirm.
     assert extract_atomic_claims(f"{kept} {gaps}") == [kept]
@@ -129,11 +123,7 @@ def _passage(text: str) -> EvidencePassage:
     ("passages", "label", "quote"),
     [
         (
-            [
-                _passage(
-                    "This unrelated review discusses cardiac tissue growth."
-                )
-            ],
+            [_passage("This unrelated review discusses cardiac tissue growth.")],
             EntailmentLabel.INSUFFICIENT,
             None,
         ),
@@ -165,8 +155,7 @@ def _passage(text: str) -> EvidencePassage:
                 _passage(_MIDBAND),
                 EvidencePassage(
                     "ev-2",
-                    "Kinase X inhibition reduces tumor growth across "
-                    "several AML cells.",
+                    "Kinase X inhibition reduces tumor growth across several AML cells.",
                 ),
             ],
             EntailmentLabel.SUPPORTS,
@@ -174,13 +163,8 @@ def _passage(text: str) -> EvidencePassage:
         ),
         (
             [
-                _passage(
-                    "Kinase X inhibition reduces tumor growth in AML cells."
-                ),
-                _passage(
-                    "Kinase X inhibition did not reduce tumor growth in AML "
-                    "cells."
-                ),
+                _passage("Kinase X inhibition reduces tumor growth in AML cells."),
+                _passage("Kinase X inhibition did not reduce tumor growth in AML cells."),
             ],
             EntailmentLabel.CONTRADICTS,
             None,
@@ -214,18 +198,12 @@ def test_the_deterministic_assessor_labels_by_overlap_and_locates_support(
         assert quote in span.quote.lower() or span.quote == quote
 
 
-@pytest.mark.parametrize(
-    "label", [EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL]
-)
+@pytest.mark.parametrize("label", [EntailmentLabel.SUPPORTS, EntailmentLabel.PARTIAL])
 def test_a_support_verdict_without_a_locatable_quote_is_downgraded(
     label: EntailmentLabel,
 ) -> None:
-    def fabricating(
-        claim: str, passages: list[EvidencePassage]
-    ) -> AssessorDraft:
-        return AssessorDraft(
-            label=label, supporting=(("ev-1", "a quote that is nowhere"),)
-        )
+    def fabricating(claim: str, passages: list[EvidencePassage]) -> AssessorDraft:
+        return AssessorDraft(label=label, supporting=(("ev-1", "a quote that is nowhere"),))
 
     result = assess_claim(
         "Kinase X inhibition reduces tumor growth.",

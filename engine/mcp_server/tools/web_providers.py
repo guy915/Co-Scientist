@@ -67,14 +67,8 @@ def _clear_credential_error(provider: str | None = None) -> None:
         _credential_errors.pop(provider, None)
 
 
-def _handle_provider_error(
-    provider: str, query: str, exc: Exception
-) -> dict[str, Any]:
-    status = (
-        exc.response.status_code
-        if isinstance(exc, httpx.HTTPStatusError)
-        else None
-    )
+def _handle_provider_error(provider: str, query: str, exc: Exception) -> dict[str, Any]:
+    status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
     if status is not None and status in _KEY_REJECTED_STATUSES:
         _record_credential_error(provider, status, str(exc))
         # Logged at error, not warning: this one does not clear on its own,
@@ -183,9 +177,7 @@ def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
     return _normalize_results(results, max_results, "tavily", fields)
 
 
-async def search_brave(
-    query: str, max_results: int, recency_days: int
-) -> dict[str, Any]:
+async def search_brave(query: str, max_results: int, recency_days: int) -> dict[str, Any]:
     require_metered_search_allowed()
     params: dict[str, str] = {
         "q": query,
@@ -209,9 +201,7 @@ async def search_brave(
     return results
 
 
-async def search_tavily(
-    query: str, max_results: int, recency_days: int
-) -> dict[str, Any]:
+async def search_tavily(query: str, max_results: int, recency_days: int) -> dict[str, Any]:
     require_metered_search_allowed()
     payload: dict[str, Any] = {
         "query": query,
@@ -256,9 +246,7 @@ def _resolve_requested_provider(requested: str) -> tuple[str, SearchFn] | None:
         return None
     if os.environ.get(entry[1]):
         return requested, entry[0]
-    logger.warning(
-        "WEB_SEARCH_PROVIDER=%s but %s is not set", requested, entry[1]
-    )
+    logger.warning("WEB_SEARCH_PROVIDER=%s but %s is not set", requested, entry[1])
     return None
 
 
@@ -285,9 +273,7 @@ def candidate_providers() -> list[tuple[str, SearchFn]]:
     can become observable.
     """
     configured = configured_providers()
-    healthy = [
-        entry for entry in configured if credential_error_for(entry[0]) is None
-    ]
+    healthy = [entry for entry in configured if credential_error_for(entry[0]) is None]
     return healthy or configured[:1]
 
 
@@ -362,6 +348,4 @@ async def check_web_search_available() -> bool:
         True when at least one configured provider has not been refused
         since the last search that worked.
     """
-    return any(
-        credential_error_for(name) is None for name, _ in configured_providers()
-    )
+    return any(credential_error_for(name) is None for name, _ in configured_providers())

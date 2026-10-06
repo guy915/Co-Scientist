@@ -158,12 +158,7 @@ class SafetyDecision(TypedDict):
 
     id: int
     stage: str
-    decision: (
-        Literal["allow"]
-        | Literal["redact"]
-        | Literal["hold"]
-        | Literal["block"]
-    )
+    decision: Literal["allow"] | Literal["redact"] | Literal["hold"] | Literal["block"]
     reason: str
     matches: list[str]
     category: NotRequired[str | None]

@@ -31,9 +31,7 @@ def _is_json_like(text: str) -> bool:
 
 
 def _join_readable(values: list[Any], separator: str) -> str:
-    return separator.join(
-        text for text in (_readable_text(item) for item in values) if text
-    )
+    return separator.join(text for text in (_readable_text(item) for item in values) if text)
 
 
 def _readable_text_list(value: Any) -> list[str]:
@@ -104,11 +102,7 @@ def _direction_key(direction: Any) -> str:
 def _render_group_example_titles(
     example_hypothesis_ids: Any, hypothesis_title_by_id: dict[str, str]
 ) -> list[str]:
-    ids = (
-        example_hypothesis_ids
-        if isinstance(example_hypothesis_ids, list)
-        else []
-    )
+    ids = example_hypothesis_ids if isinstance(example_hypothesis_ids, list) else []
     titles = [
         hypothesis_title_by_id[hid]
         for hid in ids
@@ -116,11 +110,7 @@ def _render_group_example_titles(
     ]
     if not titles:
         return []
-    return (
-        ["**Example Hypothesis Titles:**\n"]
-        + [f"- {title}" for title in titles]
-        + [""]
-    )
+    return ["**Example Hypothesis Titles:**\n"] + [f"- {title}" for title in titles] + [""]
 
 
 def _render_contact_group(
@@ -140,9 +130,7 @@ def _render_contact_group(
         group.get("example_hypothesis_ids"), hypothesis_title_by_id
     )
     for contact in contacts:
-        lines += _render_contact_entry(
-            contact, heading="####", show_direction=False
-        )
+        lines += _render_contact_entry(contact, heading="####", show_direction=False)
     return lines
 
 
@@ -171,17 +159,13 @@ def _render_grouped_contacts(
     reports.
     """
     valid_groups = [g for g in (groups or []) if isinstance(g, dict)]
-    group_keys = {
-        _direction_key(g.get("research_direction")) for g in valid_groups
-    }
+    group_keys = {_direction_key(g.get("research_direction")) for g in valid_groups}
     by_key, ungrouped = _partition_contacts_by_group(contacts, group_keys)
 
     lines: list[str] = []
     for group in valid_groups:
         key = _direction_key(group.get("research_direction"))
-        lines += _render_contact_group(
-            group, by_key.get(key, []), hypothesis_title_by_id
-        )
+        lines += _render_contact_group(group, by_key.get(key, []), hypothesis_title_by_id)
     for contact in ungrouped:
         lines += _render_contact_entry(contact)
     return lines
@@ -195,9 +179,7 @@ def _render_research_contacts_section(
     if not isinstance(contacts, list) or not contacts:
         return []
     lines = ["\n## Research Contacts\n"]
-    lines += _render_grouped_contacts(
-        contacts, groups, hypothesis_title_by_id or {}
-    )
+    lines += _render_grouped_contacts(contacts, groups, hypothesis_title_by_id or {})
     return lines
 
 
@@ -209,22 +191,14 @@ def _render_experiments_list(experiments: list[Any]) -> list[str]:
     items = _readable_text_list(experiments)
     if not items:
         return []
-    return (
-        ["Suggested experiments:\n"]
-        + [f"- {experiment}" for experiment in items]
-        + [""]
-    )
+    return ["Suggested experiments:\n"] + [f"- {experiment}" for experiment in items] + [""]
 
 
 def _render_specific_questions(questions: list[Any]) -> list[str]:
     items = _readable_text_list(questions)
     if not items:
         return []
-    return (
-        ["Specific questions:\n"]
-        + [f"- {question}" for question in items]
-        + [""]
-    )
+    return ["Specific questions:\n"] + [f"- {question}" for question in items] + [""]
 
 
 def _render_sub_topic(sub_topic: dict[str, Any]) -> list[str]:
@@ -241,9 +215,7 @@ def _render_sub_topic(sub_topic: dict[str, Any]) -> list[str]:
     example_idea = _readable_text(sub_topic.get("example_idea", ""))
     if example_idea:
         lines.append(f"**Example idea:** {example_idea}\n")
-    lines += _render_specific_questions(
-        sub_topic.get("specific_questions") or []
-    )
+    lines += _render_specific_questions(sub_topic.get("specific_questions") or [])
     return lines
 
 
@@ -258,15 +230,11 @@ def _render_research_direction(direction: dict[str, Any]) -> list[str]:
     if not isinstance(direction, dict):
         return []
     lines = [f"### {_readable_text(direction.get('title', ''))}\n"]
-    lines += _render_optional_paragraph(
-        _readable_text(direction.get("importance", ""))
-    )
+    lines += _render_optional_paragraph(_readable_text(direction.get("importance", "")))
     recent_findings = _readable_text(direction.get("recent_findings", ""))
     if recent_findings:
         lines.append(f"**Recent findings:** {recent_findings}\n")
-    lines += _render_experiments_list(
-        direction.get("suggested_experiments") or []
-    )
+    lines += _render_experiments_list(direction.get("suggested_experiments") or [])
     lines += _render_sub_topics_list(direction.get("sub_topics") or [])
     return lines
 
@@ -315,26 +283,18 @@ def _render_unexpected_direction(direction: Any) -> str:
 
 
 def _render_unexpected_directions_section(directions: list[Any]) -> list[str]:
-    lines = [
-        line
-        for direction in directions
-        if (line := _render_unexpected_direction(direction))
-    ]
+    lines = [line for direction in directions if (line := _render_unexpected_direction(direction))]
     if not lines:
         return []
     return ["\n### Unexpected research directions\n", *lines]
 
 
-def _render_overview_section(
-    ov: dict[str, Any], unexpected_directions: list[Any]
-) -> list[str]:
+def _render_overview_section(ov: dict[str, Any], unexpected_directions: list[Any]) -> list[str]:
     if not isinstance(ov, dict):
         return []
     summary = _readable_text(ov.get("summary"))
     directions = ov.get("research_directions") or []
-    unexpected_lines = _render_unexpected_directions_section(
-        unexpected_directions
-    )
+    unexpected_lines = _render_unexpected_directions_section(unexpected_directions)
     if not _has_overview_content(summary, directions) and not unexpected_lines:
         return []
     lines = ["\n## Research Overview\n"]
@@ -354,9 +314,7 @@ def _render_pattern_list(heading: str, items: Any) -> list[str]:
 
 def _render_open_questions_section(payload: dict[str, Any]) -> list[str]:
     questions = _readable_text_list(payload.get("open_questions") or [])
-    clear_lines = _render_pattern_list(
-        "### Clear patterns", payload.get("clear_patterns") or []
-    )
+    clear_lines = _render_pattern_list("### Clear patterns", payload.get("clear_patterns") or [])
     unexpected_lines = _render_pattern_list(
         "### Unexpected patterns", payload.get("unexpected_patterns") or []
     )
@@ -407,9 +365,7 @@ def _render_nih_aim(aim: dict[str, Any], number: int) -> list[str]:
     return lines
 
 
-def _has_aims_content(
-    preamble: list[str], aims: list[Any], closing: list[str]
-) -> bool:
+def _has_aims_content(preamble: list[str], aims: list[Any], closing: list[str]) -> bool:
     return bool(preamble or aims or closing)
 
 
@@ -551,9 +507,7 @@ def render_emerging_themes(meta_review: dict[str, Any]) -> list[str]:
 def _render_bare_theme_names(emerging_themes: Any) -> list[str]:
     if not isinstance(emerging_themes, list) or not emerging_themes:
         return []
-    return ["\n### Emerging themes\n"] + [
-        f"- {name}" for name in emerging_themes
-    ]
+    return ["\n### Emerging themes\n"] + [f"- {name}" for name in emerging_themes]
 
 
 class _RecommendationFields(NamedTuple):
@@ -587,9 +541,7 @@ def _normalize_recommendation(
     )
 
 
-def _render_recommendation(
-    rec: dict[str, Any] | str, *, index: int | None = None
-) -> list[str]:
+def _render_recommendation(rec: dict[str, Any] | str, *, index: int | None = None) -> list[str]:
     fields = _normalize_recommendation(rec)
     prefix = f"{fields.phase_label}: " if fields.phase_label else ""
     suffix = f" ({fields.time_estimate})" if fields.time_estimate else ""
@@ -648,9 +600,7 @@ def _render_comparison_row(
     return lines
 
 
-def _render_comparison(
-    comparison: Any, *, existing_solutions: bool = False
-) -> list[str]:
+def _render_comparison(comparison: Any, *, existing_solutions: bool = False) -> list[str]:
     if not isinstance(comparison, dict):
         return []
     summary_key = "summary" if existing_solutions else "thematic_summary"
@@ -744,9 +694,7 @@ def _render_meta_review_overview_markdown(
     for section_key, heading in _META_REVIEW_BULLET_SECTIONS:
         body += _render_bullet_list(heading, meta_review.get(section_key) or [])
     body += render_emerging_themes(meta_review)
-    body += _render_unexpected_connections(
-        meta_review.get("potential_connections") or []
-    )
+    body += _render_unexpected_connections(meta_review.get("potential_connections") or [])
     if not body:
         return []
     return ["\n## Meta-review insights\n", *body]
@@ -766,9 +714,7 @@ def _render_meta_review_ranking_markdown(
         meta_review.get("existing_solutions_comparison"),
         existing_solutions=True,
     )
-    body += _render_strategic_recommendations(
-        meta_review.get("strategic_recommendations") or []
-    )
+    body += _render_strategic_recommendations(meta_review.get("strategic_recommendations") or [])
     if not body:
         return []
     return ["\n## Comparison and Recommendation\n", *body]

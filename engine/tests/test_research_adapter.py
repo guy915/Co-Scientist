@@ -42,9 +42,7 @@ def _result() -> ResearchResult:
                 score=0.9,
                 metadata={"doi": "10.1/a"},
             ),
-            SourceHit(
-                locator="doc-b", title="Second", snippet="about b", rank=1
-            ),
+            SourceHit(locator="doc-b", title="Second", snippet="about b", rank=1),
         ),
         admitted=("doc-a",),
         dropped=("doc-b",),
@@ -62,9 +60,7 @@ def _result() -> ResearchResult:
         stances=("mechanism", "counter-evidence"),
         threads=(
             ThreadRecord(
-                question=Question(
-                    text="What drives fibrosis?", stance="mechanism"
-                ),
+                question=Question(text="What drives fibrosis?", stance="mechanism"),
                 depth=1,
                 status=ThreadStatus.OK,
                 call_ids=(call.id,),

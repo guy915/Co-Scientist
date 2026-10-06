@@ -202,8 +202,7 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
             },
             "clear_patterns": {
                 **str_array(
-                    "Patterns that recur clearly across the synthesized"
-                    " hypotheses and evidence."
+                    "Patterns that recur clearly across the synthesized hypotheses and evidence."
                 ),
                 "maxItems": RESEARCH_OVERVIEW_MAX_PATTERNS,
             },
@@ -233,9 +232,7 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     {
                         "title": {
                             "type": "string",
-                            "description": (
-                                "short name for the novel direction"
-                            ),
+                            "description": ("short name for the novel direction"),
                         },
                         "description": {
                             "type": "string",
@@ -327,8 +324,7 @@ RESEARCH_OVERVIEW_REVIEW_SCHEMA: dict[str, Any] = {
                         "evidence_id": {
                             "type": "string",
                             "description": (
-                                "The evidence_id involved, when the issue "
-                                "concerns a citation."
+                                "The evidence_id involved, when the issue concerns a citation."
                             ),
                         },
                     },
@@ -417,10 +413,7 @@ KNOWLEDGE_BASE_THEME_SCHEMA: dict[str, Any] = {
             "sections": {
                 "type": "array",
                 "maxItems": KNOWLEDGE_BASE_MAX_SECTIONS,
-                "description": (
-                    "This theme's subsections, in the order the outline"
-                    " lists them."
-                ),
+                "description": ("This theme's subsections, in the order the outline lists them."),
                 "items": obj(
                     {
                         "heading": {

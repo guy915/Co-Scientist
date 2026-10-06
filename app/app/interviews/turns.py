@@ -53,9 +53,7 @@ def request_byok(
     if execution_policy == CAMPAIGN and credential is not None:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "campaign interviews cannot use bring-your-own-key credentials"
-            ),
+            detail=("campaign interviews cannot use bring-your-own-key credentials"),
         )
     return credential
 
@@ -63,15 +61,11 @@ def request_byok(
 def _with_documents(interview: dict[str, Any]) -> dict[str, Any]:
     """Responses expose attachment metadata, not full private document text."""
     attached = documents.list_interview_documents(str(interview["id"]))
-    interview["documents"] = [
-        staged_documents.document_summary(d) for d in attached
-    ]
+    interview["documents"] = [staged_documents.document_summary(d) for d in attached]
     return interview
 
 
-def _attach_documents(
-    interview_id: str, document_ids: list[str], request: Request
-) -> None:
+def _attach_documents(interview_id: str, document_ids: list[str], request: Request) -> None:
     if not document_ids:
         return
     owner = client_id(request)
@@ -102,9 +96,7 @@ async def advance_turn(
     assert interview is not None
     started = time.perf_counter()
     sink, fragments = _reasoning_capture(on_reasoning)
-    response, used_fallback = await _run_interview_turn(
-        interview, sink, on_prose
-    )
+    response, used_fallback = await _run_interview_turn(interview, sink, on_prose)
     turn = await _with_repaired_questions(
         _resolved_turn(response, used_fallback, "".join(fragments))
     )
@@ -136,15 +128,11 @@ class _ResolvedTurn:
     questions: list[dict[str, Any]]
 
 
-def _resolved_turn(
-    response: dict[str, Any], used_fallback: bool, reasoning: str
-) -> _ResolvedTurn:
+def _resolved_turn(response: dict[str, Any], used_fallback: bool, reasoning: str) -> _ResolvedTurn:
     fields = _normalized_fields(response)
     message = str(response.get("assistant_message") or "").strip()
     if not message:
-        raise HTTPException(
-            status_code=502, detail="Interview Agent returned no message."
-        )
+        raise HTTPException(status_code=502, detail="Interview Agent returned no message.")
     return _ResolvedTurn(
         message=message,
         fields=fields,
@@ -196,9 +184,7 @@ async def _run_interview_turn(
     provider availability can change.
     """
     try:
-        response = await model._call_interview_model(
-            interview, on_reasoning, on_prose
-        )
+        response = await model._call_interview_model(interview, on_reasoning, on_prose)
         return response, False
     except HTTPException as exc:
         if exc.status_code != 503:

@@ -24,9 +24,7 @@ from evaluations.specific_aims_review import (
 )
 
 
-def _quality_rating(
-    rater_id: str = "expert-1", **scores: int
-) -> dict[str, Any]:
+def _quality_rating(rater_id: str = "expert-1", **scores: int) -> dict[str, Any]:
     return {
         "rater_id": rater_id,
         "item_id": "item-a",
@@ -36,15 +34,11 @@ def _quality_rating(
     }
 
 
-def _quality_payload(
-    *rows: dict[str, Any], version: int = SCHEMA_VERSION
-) -> dict[str, Any]:
+def _quality_payload(*rows: dict[str, Any], version: int = SCHEMA_VERSION) -> dict[str, Any]:
     return {"schema_version": version, "ratings": list(rows)}
 
 
-@pytest.mark.parametrize(
-    "build", [build_blinded_export, build_specific_aims_export]
-)
+@pytest.mark.parametrize("build", [build_blinded_export, build_specific_aims_export])
 def test_exports_are_blinded_with_stable_item_ids(build: Any) -> None:
     pool = [{"id": "h1", "text": "idea", "elo_rating": 1400, "origin": "x"}]
 
@@ -60,18 +54,14 @@ def test_exports_are_blinded_with_stable_item_ids(build: Any) -> None:
     [
         (_quality_payload(_quality_rating(novelty=9)), "novelty"),
         (
-            _quality_payload(
-                {k: v for k, v in _quality_rating().items() if k != "alignment"}
-            ),
+            _quality_payload({k: v for k, v in _quality_rating().items() if k != "alignment"}),
             "alignment",
         ),
         (_quality_payload(version=999), "schema"),
         (_quality_payload(_quality_rating(), _quality_rating()), "duplicate"),
     ],
 )
-def test_invalid_expert_ratings_fail_closed(
-    payload: dict[str, Any], message: str
-) -> None:
+def test_invalid_expert_ratings_fail_closed(payload: dict[str, Any], message: str) -> None:
     with pytest.raises(ExpertReviewValidationError, match=message):
         parse_ratings(payload)
 
@@ -100,9 +90,7 @@ def test_panel_summary_reports_confidence_and_agreement() -> None:
 
 _DATASET = json.loads(
     (
-        pathlib.Path(__file__).resolve().parent.parent
-        / "datasets"
-        / "specific_aims_rubric_v1.json"
+        pathlib.Path(__file__).resolve().parent.parent / "datasets" / "specific_aims_rubric_v1.json"
     ).read_text(encoding="utf-8")
 )
 
@@ -110,24 +98,18 @@ _DATASET = json.loads(
 def _aims_payload(ratings: dict[str, str]) -> dict[str, Any]:
     return {
         "schema_version": SPECIFIC_AIMS_SCHEMA_VERSION,
-        "ratings": [
-            {"rater_id": "rater-1", "item_id": "item-x", "ratings": ratings}
-        ],
+        "ratings": [{"rater_id": "rater-1", "item_id": "item-x", "ratings": ratings}],
     }
 
 
 def test_dataset_axes_match_the_code_exactly() -> None:
     domains = _DATASET["rubric"]["domains"]
-    axes = tuple(
-        entry["axis"] for domain in domains.values() for entry in domain
-    )
+    axes = tuple(entry["axis"] for domain in domains.values() for entry in domain)
     assert axes == SPECIFIC_AIMS_AXES
     assert tuple(_DATASET["rubric"]["scale"]["levels"]) == AGREEMENT_SCALE
 
 
-@pytest.mark.parametrize(
-    "case", ["lapatinib_colon_cancer", "selinexor_colon_cancer"]
-)
+@pytest.mark.parametrize("case", ["lapatinib_colon_cancer", "selinexor_colon_cancer"])
 def test_published_exemplars_round_trip_to_their_own_counts(case: str) -> None:
     exemplar = next(e for e in _DATASET["exemplars"] if e["case"] == case)
 

@@ -77,21 +77,13 @@ def format_supervisor_guidance_for_generation(
     # lookups.
     workflow_plan = supervisor_guidance.get("workflow_plan")
     generation_phase = (
-        workflow_plan.get("generation_phase")
-        if isinstance(workflow_plan, dict)
-        else None
+        workflow_plan.get("generation_phase") if isinstance(workflow_plan, dict) else None
     )
     sections = []
-    if isinstance(generation_phase, dict) and generation_phase.get(
-        "focus_areas"
-    ):
+    if isinstance(generation_phase, dict) and generation_phase.get("focus_areas"):
         focus = _csv_value(generation_phase["focus_areas"])
         sections.append(f"**Focus on:** {focus}\n\n")
-    sections.extend(
-        format_config_generation_guidance(
-            supervisor_guidance, "draft_instructions"
-        )
-    )
+    sections.extend(format_config_generation_guidance(supervisor_guidance, "draft_instructions"))
     if not sections:
         return ""
     return "## Supervisor Guidance for Generation\n\n" + "".join(sections)
@@ -188,9 +180,7 @@ def _resolve_tool_registry(
 
             tool_registry = get_tool_registry()
             if not tool_ids:
-                tool_ids = tool_registry.get_tools_for_workflow(
-                    "draft_generation"
-                )
+                tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
         except Exception:
             pass
 
@@ -211,10 +201,7 @@ def build_tool_instructions(
     tool_registry, tool_ids = _resolve_tool_registry(tool_ids, tool_registry)
 
     if not tool_registry or not tool_ids:
-        return (
-            "No tool configuration available."
-            " Literature tools may not be accessible."
-        )
+        return "No tool configuration available. Literature tools may not be accessible."
 
     sections = []
     for tool_id in tool_ids:
@@ -263,26 +250,18 @@ def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
             req.context.supervisor_guidance
         ),
         "articles_with_reasoning": req.articles_with_reasoning
-        or "no literature review summary available - examine papers"
-        " below directly.",
+        or "no literature review summary available - examine papers below directly.",
         "articles_metadata": format_articles_metadata(req.articles or []),
-        "citation_reference_section": _build_citation_reference_section(
-            req.reference_list or ""
-        ),
+        "citation_reference_section": _build_citation_reference_section(req.reference_list or ""),
         "max_iterations": req.max_iterations,
         "instructions": req.instructions
-        or "Focus on creative ideation - draft diverse hypotheses"
-        " based on literature gaps.",
-        "tool_instructions": _resolve_draft_tool_instructions(
-            req.context.tool_registry
-        )
+        or "Focus on creative ideation - draft diverse hypotheses based on literature gaps.",
+        "tool_instructions": _resolve_draft_tool_instructions(req.context.tool_registry)
         + req.skills_section,
         # Empty outside their conditions, preserving the initial-cycle prompt.
         "research_expansion_section": req.research_expansion_section,
         "falsified_assumptions_section": req.falsified_assumptions_section,
-        "lab_constraints_section": format_lab_constraints_section(
-            req.lab_constraints
-        ),
+        "lab_constraints_section": format_lab_constraints_section(req.lab_constraints),
     }
 
 
@@ -293,9 +272,7 @@ def get_draft_prompt_with_tools(
         "generation_draft_with_tools",
         _build_draft_prompt_variables(req),
         sections=PromptSections(
-            meta_review_context=_format_meta_review_context(
-                req.context.meta_review
-            ),
+            meta_review_context=_format_meta_review_context(req.context.meta_review),
             run_guidance=_run_guidance_section(req.context),
         ),
         tool_registry=req.context.tool_registry,

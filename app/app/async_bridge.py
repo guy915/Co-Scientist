@@ -102,13 +102,9 @@ async def stop_litellm_logging_worker() -> None:
         return
 
     try:
-        await asyncio.wait_for(
-            GLOBAL_LOGGING_WORKER.stop(), timeout=_STOP_TIMEOUT_SECONDS
-        )
+        await asyncio.wait_for(GLOBAL_LOGGING_WORKER.stop(), timeout=_STOP_TIMEOUT_SECONDS)
     except Exception:
-        logger.debug(
-            "Stopping the litellm logging worker failed", exc_info=True
-        )
+        logger.debug("Stopping the litellm logging worker failed", exc_info=True)
 
 
 def run_in_scoped_loop(coro: Coroutine[Any, Any, _T]) -> _T:

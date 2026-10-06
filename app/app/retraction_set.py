@@ -34,9 +34,7 @@ def _load_doi_set(path: Path) -> frozenset[str]:
         return frozenset()
 
 
-def is_known_retracted(
-    doi: str, *, path: Path = DEFAULT_RETRACTIONS_PATH
-) -> bool:
+def is_known_retracted(doi: str, *, path: Path = DEFAULT_RETRACTIONS_PATH) -> bool:
     if not doi:
         return False
     return normalize_doi(doi) in _load_doi_set(path)

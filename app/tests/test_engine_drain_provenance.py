@@ -116,9 +116,7 @@ def test_evidence_resolves_to_the_search_that_found_it(
     # alone loses usable provenance.
     run = seed_run("provenance goal", profile="extended")
 
-    _persist_and_finalize(
-        run, _provenance_final_state(researched=True), isolated_db
-    )
+    _persist_and_finalize(run, _provenance_final_state(researched=True), isolated_db)
 
     evidence = records.list_evidence(run.id, db_path=isolated_db)
     calls = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
@@ -146,9 +144,7 @@ def test_a_run_that_did_no_research_writes_no_searches(
 ) -> None:
     run = seed_run("shallow goal")
 
-    _persist_and_finalize(
-        run, _provenance_final_state(researched=False), isolated_db
-    )
+    _persist_and_finalize(run, _provenance_final_state(researched=False), isolated_db)
 
     assert retrieval.list_retrieval_calls(run.id, db_path=isolated_db) == []
     evidence = records.list_evidence(run.id, db_path=isolated_db)
@@ -179,9 +175,7 @@ def _review_ledger() -> dict[str, Any]:
             stances=(),
             threads=(
                 ThreadRecord(
-                    question=Question(
-                        text=_REVIEW_CALL.question, stance="seed"
-                    ),
+                    question=Question(text=_REVIEW_CALL.question, stance="seed"),
                     depth=1,
                     status=ThreadStatus.OK,
                     call_ids=(_REVIEW_CALL.id,),
@@ -218,17 +212,13 @@ def test_every_researcher_keeps_its_own_searches_and_papers(
     _persist_and_finalize(run, state, isolated_db)
 
     calls = {
-        call["id"]: call
-        for call in retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
+        call["id"]: call for call in retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
     }
     assert {call["query"] for call in calls.values()} == {
         "TGF-beta blockade human fibrosis",
         "TGF-beta receptor human expression",
     }
-    by_title = {
-        row["title"]: row
-        for row in records.list_evidence(run.id, db_path=isolated_db)
-    }
+    by_title = {row["title"]: row for row in records.list_evidence(run.id, db_path=isolated_db)}
     found_by = calls[by_title["Expression atlas"]["retrieval_call_id"]]
     assert found_by["question"] == "Is the receptor expressed in humans?"
 
@@ -296,9 +286,7 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
         )
         for label in ("supports", "contradicts", "insufficient", "partial")
     }
-    ids["none"] = _seed_labelled_hypothesis(
-        run, "none", "Statement about none.", None, isolated_db
-    )
+    ids["none"] = _seed_labelled_hypothesis(run, "none", "Statement about none.", None, isolated_db)
 
     contradicted = report_gates.contradicted_hypothesis_ids(run.id, isolated_db)
     unverified = report_gates.unverified_hypothesis_ids(run.id, isolated_db)
@@ -307,12 +295,7 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
     assert unverified == {ids["none"], ids["contradicts"], ids["insufficient"]}
 
     hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-    kept_ids = {
-        h["id"]
-        for h in report_gates.exclude_unsafe_hypotheses(
-            run.id, hyps, isolated_db
-        )
-    }
+    kept_ids = {h["id"] for h in report_gates.exclude_unsafe_hypotheses(run.id, hyps, isolated_db)}
     assert kept_ids == set(ids.values()) - {ids["contradicts"]}
 
     _assert_demo_run_badges_nothing(isolated_db)
@@ -327,18 +310,14 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
     assert report_gates.unverified_hypothesis_ids(demo.id, db_path) == set()
 
 
-def _drained_status(
-    disposition: str | None, isolated_db: str, goal: str
-) -> str:
+def _drained_status(disposition: str | None, isolated_db: str, goal: str) -> str:
     state = _final_state_with_lineage()
     state["hypotheses"][0]["review_disposition"] = disposition
     run = seed_run(goal)
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in hypotheses.list_hypotheses(
-            run.id, db_path=isolated_db
-        )
+        for hypothesis in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     }
     return str(by_id["parent-1"]["status"])
 
@@ -346,10 +325,7 @@ def _drained_status(
 @pytest.mark.parametrize(
     ("disposition", "status"),
     [
-        *(
-            (d, "rejected")
-            for d in sorted(engine_models.BLOCKING_REVIEW_DISPOSITIONS)
-        ),
+        *((d, "rejected") for d in sorted(engine_models.BLOCKING_REVIEW_DISPOSITIONS)),
         (None, "active"),
         ("needs_revision", "active"),
     ],
@@ -357,10 +333,7 @@ def _drained_status(
 def test_engine_review_dispositions_decide_what_the_drain_publishes(
     isolated_db: str, disposition: str | None, status: str
 ) -> None:
-    assert (
-        _drained_status(disposition, isolated_db, f"{disposition} goal")
-        == status
-    )
+    assert _drained_status(disposition, isolated_db, f"{disposition} goal") == status
 
 
 def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
@@ -402,9 +375,7 @@ def _seed_scientist_hypothesis(run_id: str, db_path: str) -> str:
     )
 
 
-def _seed_scientist_review(
-    run_id: str, hypothesis_id: str, db_path: str
-) -> None:
+def _seed_scientist_review(run_id: str, hypothesis_id: str, db_path: str) -> None:
     records.add_review(
         NewReview(
             run_id=run_id,
@@ -432,9 +403,7 @@ def _merged_final_state(run_id: str, db_path: str) -> dict[str, Any]:
     }
 
 
-def _replay_finalize(
-    run_id: str, final_state: dict[str, Any], db_path: str
-) -> None:
+def _replay_finalize(run_id: str, final_state: dict[str, Any], db_path: str) -> None:
     views.clear_publication_artifacts(run_id, db_path=db_path)
     _persist(run_id=run_id, final_state=final_state, db_path=db_path)
 

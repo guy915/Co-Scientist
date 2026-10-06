@@ -110,14 +110,10 @@ def _assert_bootstrap_intake_lease(
         return
     from app.task_worker.outcomes import _LeaseLostError
 
-    raise _LeaseLostError(
-        f"bootstrap task {task.id} lost its lease before intake commit"
-    )
+    raise _LeaseLostError(f"bootstrap task {task.id} lost its lease before intake commit")
 
 
-def _event_record(
-    seq: int, event_type: str, payload: dict[str, Any]
-) -> dict[str, Any]:
+def _event_record(seq: int, event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {"seq": seq, "type": event_type, "payload": payload}
 
 
@@ -137,9 +133,7 @@ def _commit_task_safety_events(
             _assert_bootstrap_intake_lease(run_id, task, conn)
         _record_safety_decision(run_id, result, db_path=db_path, conn=conn)
         _apply_intake_redaction(run_id, result, db_path=db_path, conn=conn)
-        seq = store_events.append_event(
-            run_id, event_type, decision_payload, conn=conn
-        )
+        seq = store_events.append_event(run_id, event_type, decision_payload, conn=conn)
         events = [_event_record(seq, event_type, decision_payload)]
         if result.decision == "block":
             status = RunStatus.BLOCKED
@@ -153,9 +147,7 @@ def _commit_task_safety_events(
             }
         else:
             return events
-        runs.update_run_status(
-            run_id, status, error=result.reason, db_path=db_path, conn=conn
-        )
+        runs.update_run_status(run_id, status, error=result.reason, db_path=db_path, conn=conn)
         seq = store_events.append_event(run_id, "status", payload, conn=conn)
         events.append(_event_record(seq, "status", payload))
     return events
@@ -185,9 +177,7 @@ def _commit_gate_status_event(
             conn, run_id, *lease_guard
         ):
             return None
-        changed = runs.update_run_status_if_current(
-            conn, run_id, status, active_statuses, error
-        )
+        changed = runs.update_run_status_if_current(conn, run_id, status, active_statuses, error)
         if not changed:
             return None
         seq = store_events.append_event(run_id, "status", payload, conn=conn)
@@ -284,9 +274,7 @@ def _severity(decision: SafetyDecision) -> int:
     return _DECISION_SEVERITY.get(decision.decision, 0)
 
 
-def _more_severe(
-    first: SafetyDecision, second: SafetyDecision
-) -> SafetyDecision:
+def _more_severe(first: SafetyDecision, second: SafetyDecision) -> SafetyDecision:
     return second if _severity(second) > _severity(first) else first
 
 
@@ -355,15 +343,11 @@ async def screen_contextual(
     """Rules are hard floors the model cannot lower; deliberate offline mode
     skips assessment, while a missing configured credential refuses.
     """
-    baseline = deterministic or (
-        screen_intake(text) if stage == "intake" else screen_final(text)
-    )
+    baseline = deterministic or (screen_intake(text) if stage == "intake" else screen_final(text))
     if baseline.decision == "block":
         return baseline
     model = effective_execution_model(
-        settings.semantic_safety_model
-        or settings.supervisor_model_name
-        or settings.model_name
+        settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
     )
     assert model is not None
     if not settings.semantic_safety_enabled or process_mode.offline_mode():
@@ -385,9 +369,7 @@ def _should_escalate_to_semantic(
     """Historical eligibility follows the persisted run backend, not current
     process mode; a deleted row uses the provider fallback.
     """
-    approved = records.safety_stage_is_approved(
-        run_id, stage, POLICY_VERSION, db_path=db_path
-    )
+    approved = records.safety_stage_is_approved(run_id, stage, POLICY_VERSION, db_path=db_path)
     offline = runs.run_offline_backed(
         run_id, missing_run_fallback=provider == "mock", db_path=db_path
     )
@@ -404,14 +386,10 @@ async def assess_hold_contextually(
     """Tier B needs a verdict distinct from absence: disabled, offline,
     missing credentials or provider failure must never become an allow.
     """
-    if not _should_escalate_to_semantic(
-        run_id, stage, "engine", db_path=db_path
-    ):
+    if not _should_escalate_to_semantic(run_id, stage, "engine", db_path=db_path):
         return None
     model = effective_execution_model(
-        settings.semantic_safety_model
-        or settings.supervisor_model_name
-        or settings.model_name
+        settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
     )
     assert model is not None
     if not settings.semantic_safety_enabled or process_mode.offline_mode():
@@ -442,9 +420,7 @@ async def screen_with_escalation(
     """Already human-approved stages and offline runs retain their
     deterministic verdict; historical backend comes from the run row.
     """
-    if _should_escalate_to_semantic(
-        run_id, subject.stage, provider, db_path=db_path
-    ):
+    if _should_escalate_to_semantic(run_id, subject.stage, provider, db_path=db_path):
         return ensure_redactable(
             await screen_contextual(
                 subject.text,

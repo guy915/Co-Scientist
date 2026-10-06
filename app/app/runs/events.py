@@ -24,9 +24,7 @@ def _terminal_frame(status: str, seq: int) -> str:
     """The synthetic terminal frame closes a connection and is never
     persisted.
     """
-    return sse_frame(
-        {"type": "_terminal", "payload": {"status": status}, "seq": seq}
-    )
+    return sse_frame({"type": "_terminal", "payload": {"status": status}, "seq": seq})
 
 
 def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
@@ -46,9 +44,7 @@ def _terminal_status_from_run(run_id: str) -> str | None:
     return None
 
 
-def _resolve_tick_terminal(
-    terminal_status: str | None, run_id: str, tick: int
-) -> str | None:
+def _resolve_tick_terminal(terminal_status: str | None, run_id: str, tick: int) -> str | None:
     """Periodic run-row checks cover terminal writes that append no status
     event without querying on every tick.
     """
@@ -110,9 +106,7 @@ async def _event_stream(
     # Historical replay can be large; offload its blocking read rather than
     # stalling the
     # event loop.
-    history = await asyncio.to_thread(
-        store.list_events, run_id, after_seq=last_seq
-    )
+    history = await asyncio.to_thread(store.list_events, run_id, after_seq=last_seq)
     for ev in history:
         last_seq = ev["seq"]
         yield sse_frame(ev)

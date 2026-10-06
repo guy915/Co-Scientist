@@ -249,9 +249,7 @@ def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:
     return origins, True
 
 
-_allowed_origins, _allow_credentials = _resolve_cors_config(
-    os.getenv("ALLOWED_ORIGINS", "")
-)
+_allowed_origins, _allow_credentials = _resolve_cors_config(os.getenv("ALLOWED_ORIGINS", ""))
 
 
 def _auth_gate_response(
@@ -263,15 +261,11 @@ def _auth_gate_response(
         and not public_api
         and principal is None
     ):
-        return JSONResponse(
-            {"detail": "researcher access required"}, status_code=401
-        )
+        return JSONResponse({"detail": "researcher access required"}, status_code=401)
     return None
 
 
-def _run_ownership_response(
-    request: Request, principal: Principal | None
-) -> Response | None:
+def _run_ownership_response(request: Request, principal: Principal | None) -> Response | None:
     """Empty subjects own nothing, including legacy empty-owner rows; non-
     owned run existence remains hidden.
     """
@@ -288,9 +282,7 @@ def _run_ownership_response(
         if request.method not in {"GET", "HEAD"} and not (
             request.method == "POST" and parts[3:] == ["example-chat"]
         ):
-            return JSONResponse(
-                {"detail": "shared examples are read-only"}, status_code=403
-            )
+            return JSONResponse({"detail": "shared examples are read-only"}, status_code=403)
         return None
     client_id = principal.subject if principal else ""
     if client_id and client_id == run.client_id:
@@ -368,9 +360,7 @@ async def _operator_swagger_ui(request: Request) -> Response:
     gate = _not_found_for_non_operator(request)
     if gate is not None:
         return gate
-    return get_swagger_ui_html(
-        openapi_url="/openapi.json", title=f"{app.title} - Swagger UI"
-    )
+    return get_swagger_ui_html(openapi_url="/openapi.json", title=f"{app.title} - Swagger UI")
 
 
 @app.get("/redoc", include_in_schema=False)
@@ -379,9 +369,7 @@ async def _operator_redoc(request: Request) -> Response:
     gate = _not_found_for_non_operator(request)
     if gate is not None:
         return gate
-    return get_redoc_html(
-        openapi_url="/openapi.json", title=f"{app.title} - ReDoc"
-    )
+    return get_redoc_html(openapi_url="/openapi.json", title=f"{app.title} - ReDoc")
 
 
 @app.get("/openapi.json", include_in_schema=False)

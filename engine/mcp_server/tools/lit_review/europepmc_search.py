@@ -29,15 +29,9 @@ _TRANSPORT_RETRY_DELAYS_SECONDS = (0.5, 1.5)
 
 def _results(payload: Any) -> list[dict[str, Any]]:
     """Require a result list so a broken response cannot imply no matches."""
-    result_list = (
-        payload.get("resultList") if isinstance(payload, dict) else None
-    )
-    results = (
-        result_list.get("result") if isinstance(result_list, dict) else None
-    )
-    if not isinstance(results, list) or any(
-        not isinstance(record, dict) for record in results
-    ):
+    result_list = payload.get("resultList") if isinstance(payload, dict) else None
+    results = result_list.get("result") if isinstance(result_list, dict) else None
+    if not isinstance(results, list) or any(not isinstance(record, dict) for record in results):
         raise ValueError("invalid Europe PMC resultList.result")
     return results
 
@@ -63,9 +57,7 @@ def _record(result: dict[str, Any]) -> dict[str, Any]:
         "title": clean_markup(result.get("title")),
         "abstract": clean_markup(result.get("abstractText")),
         "year": result.get("pubYear"),
-        "journal": (result.get("journalInfo") or {})
-        .get("journal", {})
-        .get("title")
+        "journal": (result.get("journalInfo") or {}).get("journal", {}).get("title")
         or result.get("bookOrReportDetails", {}).get("publisher"),
         "authors": result.get("authorString"),
         "doi": doi,
@@ -75,11 +67,7 @@ def _record(result: dict[str, Any]) -> dict[str, Any]:
         # weaker citation and the model has to be able to say so.
         "is_preprint": result.get("source") == "PPR",
         "cited_by_count": result.get("citedByCount"),
-        "url": (
-            f"https://doi.org/{doi}"
-            if doi
-            else f"https://europepmc.org/article/{record_id}"
-        ),
+        "url": (f"https://doi.org/{doi}" if doi else f"https://europepmc.org/article/{record_id}"),
     }
 
 
@@ -121,14 +109,10 @@ async def _search(
     }
     try:
         response = await _get_with_transport_retry(params)
-        records = [
-            _record(result) for result in _results(response.json())[:limit]
-        ]
+        records = [_record(result) for result in _results(response.json())[:limit]]
     except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
         logger.warning("Europe PMC search failed for %r: %s", query, exc)
-        raise RuntimeError(
-            f"{source_label} search unavailable: {_failure_detail(exc)}"
-        ) from exc
+        raise RuntimeError(f"{source_label} search unavailable: {_failure_detail(exc)}") from exc
     return {
         "source": source_label,
         "query": asked,

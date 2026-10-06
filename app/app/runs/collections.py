@@ -163,11 +163,7 @@ async def get_knowledge_facts(
     ``entity`` query params filter the result.
     """
     _require_run(run_id)
-    return {
-        "knowledge_facts": reports.list_knowledge_facts(
-            run_id, kind=kind, entity=entity
-        )
-    }
+    return {"knowledge_facts": reports.list_knowledge_facts(run_id, kind=kind, entity=entity)}
 
 
 @router.get("/{run_id}/report", response_model=Report)

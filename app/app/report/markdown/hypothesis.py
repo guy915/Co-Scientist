@@ -34,9 +34,7 @@ def _reference_label(evidence: dict[str, Any]) -> str:
     year = evidence.get("year")
     # Strip curated et al. credits before surname parsing, or al. becomes the
     # surname.
-    first_author_text = (
-        _ET_AL_SUFFIX.sub("", str(authors[0]).strip()) if authors else ""
-    )
+    first_author_text = _ET_AL_SUFFIX.sub("", str(authors[0]).strip()) if authors else ""
     first_author = first_author_text.split()[-1] if first_author_text else ""
     if first_author and year:
         prefix = f"{first_author} et al., {year}"
@@ -214,16 +212,12 @@ def _abstract_excerpt(source: dict[str, Any]) -> str:
     return text[:_MAX_ABSTRACT_CHARS].rstrip() + "..."
 
 
-def _related_articles(
-    references: list[Reference], with_abstracts: bool
-) -> list[str]:
+def _related_articles(references: list[Reference], with_abstracts: bool) -> list[str]:
     entries = references[:_MAX_RELATED_ARTICLES]
     if not entries:
         return []
     label = (
-        "**Related Article Abstracts**"
-        if with_abstracts
-        else "**Related Article Abstract Titles**"
+        "**Related Article Abstracts**" if with_abstracts else "**Related Article Abstract Titles**"
     )
     lines = [label, ""]
     for key, source in entries:
@@ -241,9 +235,7 @@ def _prose(label: str, value: Any) -> list[str]:
 
 def _steps(label: str, items: Any) -> list[str]:
     entries = [
-        text
-        for item in (items if isinstance(items, list) else [])
-        if (text := str(item).strip())
+        text for item in (items if isinstance(items, list) else []) if (text := str(item).strip())
     ]
     if not entries:
         return []
@@ -251,21 +243,15 @@ def _steps(label: str, items: Any) -> list[str]:
     return [f"**{label}**", "", *numbered, ""]
 
 
-def _feasibility_extras(
-    initial: dict[str, Any], mature: dict[str, Any]
-) -> list[str]:
+def _feasibility_extras(initial: dict[str, Any], mature: dict[str, Any]) -> list[str]:
     del initial
     return [
         *_steps("Steps to Test the Idea", mature.get("feasibility_steps")),
-        *_prose(
-            "Reasoning about Feasibility", mature.get("feasibility_reasoning")
-        ),
+        *_prose("Reasoning about Feasibility", mature.get("feasibility_reasoning")),
     ]
 
 
-def _impact_extras(
-    initial: dict[str, Any], mature: dict[str, Any]
-) -> list[str]:
+def _impact_extras(initial: dict[str, Any], mature: dict[str, Any]) -> list[str]:
     """Assumptions and improvements already appear under Correctness; repeating
     them adds no evidence.
     """
@@ -309,9 +295,7 @@ _REVIEWS_SUMMARY_SECTIONS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _latest_detail(
-    reviews: list[dict[str, Any]], reviewer_agent: str
-) -> dict[str, Any]:
+def _latest_detail(reviews: list[dict[str, Any]], reviewer_agent: str) -> dict[str, Any]:
     for row in reversed(reviews):
         if row.get("reviewer_agent") != reviewer_agent:
             continue
@@ -327,16 +311,12 @@ def _mature_detail(reviews: list[dict[str, Any]]) -> dict[str, Any]:
     """Recurrent review supersedes full review, matching the displayed Go/No-Go
     assessment.
     """
-    return _latest_detail(reviews, "recurrent_review") or _latest_detail(
-        reviews, "full_review"
-    )
+    return _latest_detail(reviews, "recurrent_review") or _latest_detail(reviews, "full_review")
 
 
 def _bullets(label: str, items: Any) -> list[str]:
     entries = [
-        text
-        for item in (items if isinstance(items, list) else [])
-        if (text := str(item).strip())
+        text for item in (items if isinstance(items, list) else []) if (text := str(item).strip())
     ]
     if not entries:
         return []
@@ -356,9 +336,7 @@ def _assumption_lines(mature: dict[str, Any]) -> list[str]:
     return ["**Detailed Assumptions**", "", *lines, ""] if lines else []
 
 
-def _correctness_extras(
-    initial: dict[str, Any], mature: dict[str, Any]
-) -> list[str]:
+def _correctness_extras(initial: dict[str, Any], mature: dict[str, Any]) -> list[str]:
     return [
         *_assumption_lines(mature),
         *_prose(
@@ -372,15 +350,11 @@ def _correctness_extras(
             "Goal Requirement Assessment",
             mature.get("goal_requirements_assessment"),
         ),
-        *_prose(
-            "Final Reasoning and Recommendation", mature.get("justification")
-        ),
+        *_prose("Final Reasoning and Recommendation", mature.get("justification")),
     ]
 
 
-def _novelty_extras(
-    initial: dict[str, Any], mature: dict[str, Any]
-) -> list[str]:
+def _novelty_extras(initial: dict[str, Any], mature: dict[str, Any]) -> list[str]:
     return [
         *_prose("Reasoning about Novelty", mature.get("quality_and_novelty")),
         *_bullets("Aspects already explored:", initial.get("already_explored")),
@@ -405,9 +379,7 @@ _AXIS_ARTICLES = {
 }
 
 
-def _axis_findings(
-    axis: str, initial: dict[str, Any], mature: dict[str, Any]
-) -> list[str]:
+def _axis_findings(axis: str, initial: dict[str, Any], mature: dict[str, Any]) -> list[str]:
     feedback = initial.get("detailed_feedback") or {}
     extras = _AXIS_EXTRAS.get(axis)
     text = str(feedback.get(axis) or "").strip()
@@ -567,15 +539,9 @@ _ASSESSMENT_METHODS = {
     "deterministic_lexical": "lexical comparison",
     "model_primary": "model judgment",
     "lexical_founded": "model judgment with a lexical contradiction check",
-    "contradiction_guard_rejected": (
-        "contradiction rejected by provenance checks"
-    ),
-    "model_opposition_verified": (
-        "separate model opposition check (not scientific validation)"
-    ),
-    "model_opposition_unconfirmed": (
-        "model opposition check did not confirm contradiction"
-    ),
+    "contradiction_guard_rejected": ("contradiction rejected by provenance checks"),
+    "model_opposition_verified": ("separate model opposition check (not scientific validation)"),
+    "model_opposition_unconfirmed": ("model opposition check did not confirm contradiction"),
 }
 
 
@@ -586,9 +552,7 @@ def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
     for edge in edges:
         claim = str(edge.get("claim") or "")
         lines.append(f"- **{claim_status(edge)} · {role_of(edge)}** — {claim}")
-        method = _ASSESSMENT_METHODS.get(
-            str(edge.get("verification_method")), "not recorded"
-        )
+        method = _ASSESSMENT_METHODS.get(str(edge.get("verification_method")), "not recorded")
         lines.append(f"  Assessment method: {method}.")
         for span in edge.get("supporting") or []:
             lines.append(_render_evidence_span(span, "Supporting"))
@@ -650,18 +614,13 @@ def _reviews_by_hypothesis(
     return grouped
 
 
-def _is_unreviewed_scientist_admission(
-    hyp: dict[str, Any], reviews: list[dict[str, Any]]
-) -> bool:
+def _is_unreviewed_scientist_admission(hyp: dict[str, Any], reviews: list[dict[str, Any]]) -> bool:
     """A scientist idea admitted at the request cap may publish before its owed
     review; label it unreviewed. A scientist's own review is not peer review.
     """
     if hyp.get("created_by_agent") != SCIENTIST_MANUAL_ORIGIN:
         return False
-    return not any(
-        review.get("reviewer_agent") != _SCIENTIST_REVIEWER
-        for review in reviews
-    )
+    return not any(review.get("reviewer_agent") != _SCIENTIST_REVIEWER for review in reviews)
 
 
 def _render_scientist_admission_notice(
@@ -678,9 +637,7 @@ def _render_scientist_admission_notice(
     ]
 
 
-def _review_detail(
-    reviews: list[dict[str, Any]], reviewer_agent: str
-) -> dict[str, Any]:
+def _review_detail(reviews: list[dict[str, Any]], reviewer_agent: str) -> dict[str, Any]:
     """Legacy absent or malformed structured reviews degrade to empty content
     rather than preventing report reads.
     """
@@ -729,9 +686,7 @@ def _render_hypothesis_verdict(reviews: list[dict[str, Any]]) -> list[str]:
     review-disposition gate. A recurrent review supersedes the earlier full
     review.
     """
-    detail = _review_detail(reviews, "recurrent_review") or _review_detail(
-        reviews, "full_review"
-    )
+    detail = _review_detail(reviews, "recurrent_review") or _review_detail(reviews, "full_review")
     go_no_go = str(detail.get("go_no_go") or "").strip()
     time_to_verdict = str(detail.get("time_to_verdict") or "").strip()
     lines: list[str] = []
@@ -768,8 +723,7 @@ def _render_hypothesis_entry(
     """
     title = hypothesis_title(hyp)
     lines = [
-        f"### {i}. **{_SYSTEM_NAME} - {title}**"
-        f"  _Elo: {hyp.get('elo_rating', '')}_",
+        f"### {i}. **{_SYSTEM_NAME} - {title}**  _Elo: {hyp.get('elo_rating', '')}_",
         _HYPOTHESIS_DISCLAIMER,
         "",
     ]

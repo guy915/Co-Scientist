@@ -54,9 +54,7 @@ def _partition_by_similarity_degree(
     cluster_hypotheses: list[Hypothesis],
 ) -> tuple[list[Hypothesis], list[Hypothesis]]:
     """Medium and low similarity are relationships, not permission to delete."""
-    high_similarity = [
-        h for h in cluster_hypotheses if h.similarity_degree == "high"
-    ]
+    high_similarity = [h for h in cluster_hypotheses if h.similarity_degree == "high"]
     others = [h for h in cluster_hypotheses if h.similarity_degree != "high"]
     return high_similarity, others
 
@@ -85,9 +83,7 @@ def _build_removed_duplicates_for_cluster(
     SQLite/log-window row per successful deduplication."""
     removed_duplicates: list[dict[str, Any]] = []
     for duplicate in high_similarity[1:]:
-        removed_duplicates.append(
-            _build_removed_duplicate_record(duplicate, cluster_id, best)
-        )
+        removed_duplicates.append(_build_removed_duplicate_record(duplicate, cluster_id, best))
         logger.debug(
             "removed duplicate from cluster %s: %s... (elo %s)",
             cluster_id,
@@ -102,9 +98,7 @@ def _resolve_cluster_duplicates(
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
     """False high similarity silently deletes distinct ideas. Only high may
     delete; medium and low remain relations."""
-    high_similarity, others = _partition_by_similarity_degree(
-        cluster_hypotheses
-    )
+    high_similarity, others = _partition_by_similarity_degree(cluster_hypotheses)
     hypotheses_to_keep: list[Hypothesis] = list(others)
     if not high_similarity:
         return hypotheses_to_keep, []
@@ -113,9 +107,7 @@ def _resolve_cluster_duplicates(
     best = high_similarity[0]
     hypotheses_to_keep.append(best)
 
-    removed_duplicates = _build_removed_duplicates_for_cluster(
-        high_similarity, cluster_id, best
-    )
+    removed_duplicates = _build_removed_duplicates_for_cluster(high_similarity, cluster_id, best)
 
     return hypotheses_to_keep, removed_duplicates
 
@@ -141,9 +133,7 @@ def _dedupe_by_cluster(
     clusters_dict = _group_by_cluster(hypotheses)
 
     for cluster_id, cluster_hypotheses in clusters_dict.items():
-        kept, removed = _resolve_cluster_duplicates(
-            cluster_id, cluster_hypotheses
-        )
+        kept, removed = _resolve_cluster_duplicates(cluster_id, cluster_hypotheses)
         hypotheses_to_keep.extend(kept)
         removed_duplicates.extend(removed)
 

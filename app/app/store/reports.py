@@ -51,9 +51,7 @@ def list_knowledge_facts(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    rows = _list_by_run(
-        "knowledge_facts", run_id, db_path, conn, json_fields=("entities",)
-    )
+    rows = _list_by_run("knowledge_facts", run_id, db_path, conn, json_fields=("entities",))
     if kind is not None:
         rows = [r for r in rows if r["kind"] == kind]
     if entity is not None:
@@ -93,8 +91,7 @@ def get_latest_report(
 ) -> dict[str, Any] | None:
     with _use_conn(conn, db_path) as conn:
         row = conn.execute(
-            "SELECT * FROM reports WHERE run_id=? "
-            "ORDER BY created_at DESC LIMIT 1",
+            "SELECT * FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1",
             (run_id,),
         ).fetchone()
         if not row:

@@ -32,16 +32,12 @@ def _response_records(payload: Any, field: str) -> list[dict[str, Any]]:
     if field not in payload:
         raise ValueError("response omitted its record list")
     records = payload[field]
-    if not isinstance(records, list) or any(
-        not isinstance(record, dict) for record in records
-    ):
+    if not isinstance(records, list) or any(not isinstance(record, dict) for record in records):
         raise ValueError("expected a list of JSON objects")
     return records
 
 
-def _failure_result(
-    source: str, query: str, exc: Exception, provider_name: str
-) -> dict[str, Any]:
+def _failure_result(source: str, query: str, exc: Exception, provider_name: str) -> dict[str, Any]:
     if isinstance(exc, httpx.TimeoutException):
         error: dict[str, Any] = {"kind": "timeout"}
     elif isinstance(exc, httpx.HTTPStatusError):
@@ -49,16 +45,12 @@ def _failure_result(
             "kind": "http_status",
             "status_code": exc.response.status_code,
         }
-    elif isinstance(
-        exc, (ValueError, TypeError, AttributeError, KeyError, IndexError)
-    ):
+    elif isinstance(exc, (ValueError, TypeError, AttributeError, KeyError, IndexError)):
         error = {"kind": "invalid_response"}
     else:
         error = {"kind": "network_error"}
 
-    logger.warning(
-        "%s search failed for %r (%s)", provider_name, query, error["kind"]
-    )
+    logger.warning("%s search failed for %r (%s)", provider_name, query, error["kind"])
     return {"source": source, "query": query, "records": [], "error": error}
 
 
@@ -92,9 +84,7 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
         "format": "json",
     }
     try:
-        payload = await _get_json(
-            f"{_CHEMBL_URL}/molecule/search.json", params=params
-        )
+        payload = await _get_json(f"{_CHEMBL_URL}/molecule/search.json", params=params)
         molecules = _response_records(payload, "molecules")
         records = [_chembl_record(molecule) for molecule in molecules[:limit]]
     except (
@@ -113,9 +103,7 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
 
 def _uniprot_record(result: dict[str, Any]) -> dict[str, Any]:
     genes = result.get("genes") or []
-    primary_gene = (
-        (genes[0].get("geneName") or {}).get("value") if genes else None
-    )
+    primary_gene = (genes[0].get("geneName") or {}).get("value") if genes else None
     protein = result.get("proteinDescription") or {}
     recommended = protein.get("recommendedName") or {}
     protein_name = (recommended.get("fullName") or {}).get("value")
@@ -129,10 +117,7 @@ def _uniprot_record(result: dict[str, Any]) -> dict[str, Any]:
             for comment in result.get("comments") or []
             if comment.get("commentType") == "FUNCTION" and comment.get("texts")
         ],
-        "url": (
-            "https://www.uniprot.org/uniprotkb/"
-            f"{result.get('primaryAccession')}/entry"
-        ),
+        "url": (f"https://www.uniprot.org/uniprotkb/{result.get('primaryAccession')}/entry"),
     }
 
 
@@ -213,9 +198,7 @@ def _record(study: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def search_clinical_trials(
-    query: str, max_results: int = 10
-) -> dict[str, Any]:
+async def search_clinical_trials(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search registered clinical trials by intervention, condition or term.
 
     Args:
@@ -236,9 +219,7 @@ async def search_clinical_trials(
         payload = await _get_json(_TRIALS_URL, params=params)
         studies = (payload.get("studies") or [])[:limit]
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning(
-            "ClinicalTrials.gov search failed for %r: %s", query, exc
-        )
+        logger.warning("ClinicalTrials.gov search failed for %r: %s", query, exc)
         return _clinical_trials_empty_result(query)
     return {
         "source": "ClinicalTrials.gov",
@@ -255,9 +236,7 @@ def _genomics_databases_empty_result(source: str, query: str) -> dict[str, Any]:
     return {"source": source, "query": query, "records": []}
 
 
-async def search_ensembl_gene(
-    query: str, max_results: int = 1
-) -> dict[str, Any]:
+async def search_ensembl_gene(query: str, max_results: int = 1) -> dict[str, Any]:
     """Resolve a gene symbol to its canonical Ensembl record.
 
     Args:
@@ -283,10 +262,7 @@ async def search_ensembl_gene(
         "symbol": gene.get("display_name"),
         "biotype": gene.get("biotype"),
         "description": gene.get("description"),
-        "locus": (
-            f"{gene.get('seq_region_name')}:"
-            f"{gene.get('start')}-{gene.get('end')}"
-        ),
+        "locus": (f"{gene.get('seq_region_name')}:{gene.get('start')}-{gene.get('end')}"),
         "strand": gene.get("strand"),
         "url": f"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g={gene.get('id')}",
     }
@@ -310,9 +286,7 @@ query($symbol: String!) {
 """
 
 
-async def search_gnomad_constraint(
-    query: str, max_results: int = 1
-) -> dict[str, Any]:
+async def search_gnomad_constraint(query: str, max_results: int = 1) -> dict[str, Any]:
     """Return how strongly a gene is depleted of damaging variation.
 
     Args:
@@ -345,9 +319,7 @@ async def search_gnomad_constraint(
     }
 
 
-def _constraint_record(
-    gene: dict[str, Any], constraint: dict[str, Any]
-) -> dict[str, Any]:
+def _constraint_record(gene: dict[str, Any], constraint: dict[str, Any]) -> dict[str, Any]:
     """pLI near 1 means intolerant; LOEUF below 0.35 means constrained."""
     return {
         "gene_id": gene.get("gene_id"),
@@ -384,9 +356,7 @@ def _capped(max_results: int) -> int:
     return max(1, min(max_results, 25))
 
 
-async def search_string_interactions(
-    query: str, max_results: int = 10
-) -> dict[str, Any]:
+async def search_string_interactions(query: str, max_results: int = 10) -> dict[str, Any]:
     """Return the proteins a gene or protein is linked to.
 
     Args:
@@ -446,9 +416,7 @@ async def _reactome_entity(client: httpx.AsyncClient, query: str) -> str | None:
     return str(entries[0]["stId"]) if entries else None
 
 
-async def search_reactome_pathways(
-    query: str, max_results: int = 10
-) -> dict[str, Any]:
+async def search_reactome_pathways(query: str, max_results: int = 10) -> dict[str, Any]:
     """Return the curated pathways a gene or protein participates in.
 
     Two calls rather than one: Reactome's free-text search returns the
@@ -522,9 +490,7 @@ def _tractable_modalities(tractability: list[dict[str, Any]]) -> list[str]:
     ]
 
 
-async def search_open_targets(
-    query: str, max_results: int = 10
-) -> dict[str, Any]:
+async def search_open_targets(query: str, max_results: int = 10) -> dict[str, Any]:
     """Return a target's disease associations and druggability.
 
     Args:
@@ -547,11 +513,7 @@ async def search_open_targets(
                 },
             )
             response.raise_for_status()
-        hits = (
-            ((response.json().get("data") or {}).get("search") or {}).get(
-                "hits"
-            )
-        ) or []
+        hits = (((response.json().get("data") or {}).get("search") or {}).get("hits")) or []
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Open Targets lookup failed for %r: %s", query, exc)
         return _systems_biology_empty_result("Open Targets", query)
@@ -616,27 +578,15 @@ def _gwas_catalog_empty_result(
 
 
 def _page_number(value: Any, fallback: int) -> int:
-    return (
-        value
-        if isinstance(value, int) and not isinstance(value, bool)
-        else fallback
-    )
+    return value if isinstance(value, int) and not isinstance(value, bool) else fallback
 
 
 def _number(value: Any) -> int | float | None:
-    return (
-        value
-        if isinstance(value, (int, float)) and not isinstance(value, bool)
-        else None
-    )
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _strings(value: Any) -> list[str]:
-    return (
-        [item for item in value if isinstance(item, str)]
-        if isinstance(value, list)
-        else []
-    )
+    return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
 
 def _trait_names(row: dict[str, Any]) -> list[str]:
@@ -649,9 +599,7 @@ def _trait_names(row: dict[str, Any]) -> list[str]:
     return traits or _strings(row.get("reported_trait"))
 
 
-def _record_urls(
-    association_id: int | str, accession: str, pubmed_id: Any
-) -> dict[str, str]:
+def _record_urls(association_id: int | str, accession: str, pubmed_id: Any) -> dict[str, str]:
     urls = {
         "source_url": f"{_API_URL}/{association_id}",
         "study_url": f"https://www.ebi.ac.uk/gwas/studies/{accession}",
@@ -680,17 +628,10 @@ def _association(row: dict[str, Any], rs_id: str) -> dict[str, Any]:
     association_id = row.get("association_id")
     accession = row.get("accession_id")
     pubmed_id = row.get("pubmed_id")
-    if (
-        not isinstance(association_id, (int, str))
-        or not str(association_id).isdigit()
-    ):
+    if not isinstance(association_id, (int, str)) or not str(association_id).isdigit():
         raise ValueError("GWAS Catalog association is missing its source ID")
-    if not isinstance(accession, str) or not re.fullmatch(
-        r"GCST[0-9]+", accession
-    ):
-        raise ValueError(
-            "GWAS Catalog association is missing a valid study accession"
-        )
+    if not isinstance(accession, str) or not re.fullmatch(r"GCST[0-9]+", accession):
+        raise ValueError("GWAS Catalog association is missing a valid study accession")
     traits = _trait_names(row)
 
     result: dict[str, Any] = {
@@ -705,8 +646,7 @@ def _association(row: dict[str, Any], rs_id: str) -> dict[str, Any]:
         "pubmed_id": str(pubmed_id) if pubmed_id is not None else None,
         "effect_alleles": _strings(row.get("snp_effect_allele")),
         "interpretation": (
-            "The association does not establish causality or a mapped-gene "
-            "mechanism."
+            "The association does not establish causality or a mapped-gene mechanism."
         ),
     }
     result.update(_record_urls(association_id, accession, pubmed_id))
@@ -742,9 +682,7 @@ async def _request_page(params: dict[str, str | int]) -> Any:
     return response.json()
 
 
-def _association_rows(
-    payload: dict[str, Any], page_data: dict[str, Any]
-) -> list[Any]:
+def _association_rows(payload: dict[str, Any], page_data: dict[str, Any]) -> list[Any]:
     if "_embedded" not in payload:
         total_elements = page_data.get("totalElements")
         if (
@@ -756,12 +694,8 @@ def _association_rows(
         raise ValueError("invalid GWAS Catalog association list")
 
     embedded = payload.get("_embedded")
-    associations = (
-        embedded.get("associations") if isinstance(embedded, dict) else None
-    )
-    if not isinstance(associations, list) or any(
-        not isinstance(row, dict) for row in associations
-    ):
+    associations = embedded.get("associations") if isinstance(embedded, dict) else None
+    if not isinstance(associations, list) or any(not isinstance(row, dict) for row in associations):
         raise ValueError("invalid GWAS Catalog association list")
     return associations
 
@@ -812,9 +746,7 @@ async def search_gwas_catalog_associations(
         "size": bounded_size,
     }
     request_url = str(httpx.URL(_API_URL).copy_merge_params(params))
-    result = _gwas_catalog_empty_result(
-        normalized, bounded_page, bounded_size, request_url
-    )
+    result = _gwas_catalog_empty_result(normalized, bounded_page, bounded_size, request_url)
 
     try:
         payload = await _request_page(params)
@@ -823,8 +755,6 @@ async def search_gwas_catalog_associations(
         )
     except (httpx.HTTPError, ValueError) as exc:
         detail = f"{type(exc).__name__}: {exc}"
-        logger.warning(
-            "GWAS Catalog lookup failed for %s: %s", normalized, detail
-        )
+        logger.warning("GWAS Catalog lookup failed for %s: %s", normalized, detail)
         result["error"] = detail
     return result

@@ -104,9 +104,7 @@ def _persist_failed_attempt(
     now = _now()
     retry_left = retryable and task.attempt < task.max_attempts
     status = "queued" if retry_left else "failed"
-    attempts_json = _record_failed_attempt(
-        task, worker_id, error, retryable, now
-    )
+    attempts_json = _record_failed_attempt(task, worker_id, error, retryable, now)
     conn.execute(
         "UPDATE scientific_tasks SET status=?, error=?, "
         "attempts_json=?, lease_owner=NULL, lease_expires_at=NULL, "
@@ -126,15 +124,11 @@ def _persist_failed_attempt(
 
 # Share the rescue predicate with advisory probes so liveness checks cannot
 # disagree with what a claim can recover.
-_EXPIRED_LEASE_RESCUABLE = (
-    "status='leased' AND lease_expires_at<=? AND attempt<max_attempts"
-)
+_EXPIRED_LEASE_RESCUABLE = "status='leased' AND lease_expires_at<=? AND attempt<max_attempts"
 
 # Ordinary queued rows have NULL availability and are immediately due; parked
 # rows carry their not-before instant.
-_QUEUED_AND_DUE = (
-    "status='queued' AND (available_at IS NULL OR available_at<=?)"
-)
+_QUEUED_AND_DUE = "status='queued' AND (available_at IS NULL OR available_at<=?)"
 
 # Spent expired leases cannot be reclaimed or acknowledged and must not count as
 # live work; NULL expiry is not proof of abandonment.
@@ -160,9 +154,7 @@ def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
         " LIMIT 1"
     )
     with connect(db_path) as conn:
-        row = conn.execute(
-            query, (now, run_id, run_id, run_id, run_id, now)
-        ).fetchone()
+        row = conn.execute(query, (now, run_id, run_id, run_id, run_id, now)).fetchone()
     return row is not None
 
 
@@ -254,9 +246,7 @@ def queue_health_snapshot(
     return _summarize_queue_rows(rows)
 
 
-def cohort_poll(
-    run_id: str, db_path: str | None = None
-) -> tuple[bool, bool, float | None]:
+def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool, float | None]:
     """One read snapshot avoids repeated idle connections; future-due queued
     work keeps the cohort alive, while spent dead leases cannot.
     """
@@ -282,9 +272,7 @@ def cohort_poll(
     )
     now = _now()
     with connect(db_path) as conn:
-        row = conn.execute(
-            query, (run_id, now, run_id, now, run_id, now, run_id, now)
-        ).fetchone()
+        row = conn.execute(query, (run_id, now, run_id, now, run_id, now, run_id, now)).fetchone()
     parked_until = row["parked_until"]
     return (
         bool(row["claimable"]),
@@ -310,9 +298,7 @@ def _stop_run_after_unknown_provider_outcome(
         cancel_run_tasks(run_id, conn=conn)
     from app.store.runs_views import _settle_run_for_failed_task
 
-    _settle_run_for_failed_task(
-        conn, run_id, task_type, failure, retryable=False
-    )
+    _settle_run_for_failed_task(conn, run_id, task_type, failure, retryable=False)
 
 
 # Persisted campaign policy or zero-cost stamp proves zero-price admission only
@@ -328,9 +314,7 @@ _PROVABLY_FREE_RUN = (
 )
 
 
-def _ambiguous_expired_engine_leases(
-    conn: sqlite3.Connection, now: float
-) -> list[sqlite3.Row]:
+def _ambiguous_expired_engine_leases(conn: sqlite3.Connection, now: float) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT * FROM scientific_tasks WHERE status='leased' "
         "AND lease_expires_at IS NOT NULL AND lease_expires_at<=? "
@@ -364,9 +348,7 @@ def _fail_ambiguous_engine_lease(
     ).rowcount
     if not changed:
         return False
-    _stop_run_after_unknown_provider_outcome(
-        conn, task.run_id, task.task_type, failure
-    )
+    _stop_run_after_unknown_provider_outcome(conn, task.run_id, task.task_type, failure)
     return True
 
 
@@ -379,9 +361,7 @@ def _fail_ambiguous_expired_leases(conn: sqlite3.Connection, now: float) -> int:
         if task.run_id in failed_runs:
             continue
         if _fail_ambiguous_engine_lease(conn, task, failure, now):
-            row = conn.execute(
-                "SELECT status FROM runs WHERE id=?", (task.run_id,)
-            ).fetchone()
+            row = conn.execute("SELECT status FROM runs WHERE id=?", (task.run_id,)).fetchone()
             if row["status"] == "failed":
                 failed_runs.add(task.run_id)
             failed_count += 1
@@ -407,8 +387,7 @@ def reprioritize_task(
     bounded = clamp_task_priority(priority)
     with _use_conn(conn, db_path) as active:
         row = active.execute(
-            "SELECT provenance_json FROM scientific_tasks "
-            "WHERE id=? AND status='queued'",
+            "SELECT provenance_json FROM scientific_tasks WHERE id=? AND status='queued'",
             (task_id,),
         ).fetchone()
         if row is None:
@@ -451,8 +430,7 @@ def retry_task(
     now = _now()
     with _use_conn(conn, db_path) as active:
         row = active.execute(
-            "SELECT provenance_json FROM scientific_tasks "
-            "WHERE id=? AND status='failed'",
+            "SELECT provenance_json FROM scientific_tasks WHERE id=? AND status='failed'",
             (task_id,),
         ).fetchone()
         if row is None:
@@ -538,16 +516,13 @@ def park_task_for_rate_limit(
     now = _now()
     with transaction(db_path) as conn:
         row = conn.execute(
-            "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' "
-            "AND lease_owner=?",
+            "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' AND lease_owner=?",
             (task_id, worker_id),
         ).fetchone()
         if row is None:
             return False
         task = _decode(row)
-        attempts_json = _record_failed_attempt(
-            task, worker_id, reason, True, now
-        )
+        attempts_json = _record_failed_attempt(task, worker_id, reason, True, now)
         changed = conn.execute(
             "UPDATE scientific_tasks SET status='queued', "
             "attempt=MAX(attempt-1, 0), lease_owner=NULL, "
@@ -628,15 +603,12 @@ _DEAD_LEASE_ERROR = (
 )
 
 
-def _fail_dead_lease_rows(
-    conn: sqlite3.Connection, run_id: str, now: float
-) -> list[str]:
+def _fail_dead_lease_rows(conn: sqlite3.Connection, run_id: str, now: float) -> list[str]:
     """An expired owner cannot call fail_task; exhausted abandoned leases
     need an explicit terminal transition.
     """
     rows = conn.execute(
-        f"SELECT id, task_type FROM scientific_tasks WHERE run_id=? "
-        f"AND {_DEAD_LEASE}",
+        f"SELECT id, task_type FROM scientific_tasks WHERE run_id=? AND {_DEAD_LEASE}",
         (run_id, now),
     ).fetchall()
     for row in rows:

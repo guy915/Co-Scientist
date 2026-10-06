@@ -54,9 +54,7 @@ def _hyp(
 
 
 def test_scaling_curve_orders_compute_and_uses_expert_quality() -> None:
-    def snapshot(
-        run_id: str, calls: int, elo: int, score: float, ok: int
-    ) -> Any:
+    def snapshot(run_id: str, calls: int, elo: int, score: float, ok: int) -> Any:
         return {
             "run_id": run_id,
             "goal_id": "g1",
@@ -185,26 +183,20 @@ def test_comparators_recover_or_invert_a_strict_ranking() -> None:
     preferring = evaluate_concordance(
         [_STRICT_ITEM], correctness_preferring_comparator, "preferring"
     )
-    inverting = evaluate_concordance(
-        [_STRICT_ITEM], inverting_comparator, "inverting"
-    )
+    inverting = evaluate_concordance([_STRICT_ITEM], inverting_comparator, "inverting")
     assert (preferring["mean_tau_b"], preferring["top1_accuracy"]) == (1.0, 1.0)
     assert (inverting["mean_tau_b"], inverting["top1_accuracy"]) == (-1.0, 0.0)
 
 
 def test_coin_flip_comparator_is_seeded_deterministically() -> None:
     runs = [
-        evaluate_concordance(
-            [_STRICT_ITEM], make_coin_flip_comparator(7), "coin_flip"
-        )
+        evaluate_concordance([_STRICT_ITEM], make_coin_flip_comparator(7), "coin_flip")
         for _ in range(2)
     ]
     assert runs[0] == runs[1]
 
 
-def test_elo_bucket_accuracy_pools_across_items_in_50_point_increments() -> (
-    None
-):
+def test_elo_bucket_accuracy_pools_across_items_in_50_point_increments() -> None:
     per_item: list[dict[str, Any]] = [
         {"ratings": {"a": 1210, "b": 1190}, "correctness": {"a": 3, "b": 1}},
         {"ratings": {"c": 1150, "d": 1100}, "correctness": {"c": 3, "d": 0}},
@@ -229,9 +221,7 @@ def test_committed_dataset_has_ground_truth_and_scores_comparators() -> None:
         assert 3 in scores and 0 in scores, item["id"]
         assert len({c["id"] for c in item["candidates"]}) == len(scores)
 
-    preferring = evaluate_concordance(
-        items, correctness_preferring_comparator, "preferring"
-    )
+    preferring = evaluate_concordance(items, correctness_preferring_comparator, "preferring")
     inverting = evaluate_concordance(items, inverting_comparator, "inverting")
     assert preferring["mean_tau_b"] > 0.8
     assert preferring["top1_accuracy"] == 1.0

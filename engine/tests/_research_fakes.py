@@ -46,9 +46,7 @@ class FakeRetrieval:
         self.unreadable = unreadable or set()
         self.queries: list[str] = []
 
-    async def search(
-        self, *, query: str, source: str, limit: int
-    ) -> Sequence[SourceHit]:
+    async def search(self, *, query: str, source: str, limit: int) -> Sequence[SourceHit]:
         self.queries.append(query)
         if source in self.failing_sources:
             raise RuntimeError(f"{source} is unreachable")
@@ -78,17 +76,13 @@ class FakeModel:
     async def plan_stances(self, *, goal: str, limit: int) -> Sequence[str]:
         return self.stances[:limit]
 
-    async def ask_questions(
-        self, *, goal: str, stance: str, limit: int
-    ) -> Sequence[str]:
+    async def ask_questions(self, *, goal: str, stance: str, limit: int) -> Sequence[str]:
         return [f"what does {stance} say about {goal}?"][:limit]
 
     async def to_query(self, *, question: str) -> str:
         return f"query::{question}"
 
-    async def extract(
-        self, *, question: str, documents: Sequence[Document]
-    ) -> Extraction:
+    async def extract(self, *, question: str, documents: Sequence[Document]) -> Extraction:
         self.extracted.append(question)
         self.documents_seen.extend(documents)
         if question in self.exploding:
@@ -106,9 +100,7 @@ class FakeModel:
         )
         return Extraction(findings=findings, follow_ups=follow_ups)
 
-    async def compress(
-        self, *, question: str, findings: Sequence[Finding]
-    ) -> str:
+    async def compress(self, *, question: str, findings: Sequence[Finding]) -> str:
         return f"{len(findings)} findings for {question}"
 
 
@@ -333,9 +325,7 @@ def research_workflow(registry: ToolRegistry) -> WorkflowConfig:
     return workflow
 
 
-def make_tool_config(
-    mcp_tool_name: str = "search_x", **overrides: Any
-) -> ToolConfig:
+def make_tool_config(mcp_tool_name: str = "search_x", **overrides: Any) -> ToolConfig:
     return ToolConfig(server="s", mcp_tool_name=mcp_tool_name, **overrides)
 
 

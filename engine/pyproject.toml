@@ -59,7 +59,7 @@ include = ["co_scientist*"]
 co_scientist = ["prompts/templates/*.md", "config/*.yaml", "config/examples/*.yaml", "sandbox/*.sbpl", "py.typed"]
 
 [tool.ruff]
-line-length = 80
+line-length = 100
 target-version = "py310"
 src = ["src"]
 
@@ -77,13 +77,9 @@ select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
-    "PLR0913", # too-many-arguments
 ]
-[tool.ruff.lint.pylint]
-max-args = 8
-
 [tool.ruff.lint.mccabe]
-max-complexity = 10
+max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
 # Load dotenv and configure logging before environment-dependent MCP imports.

@@ -41,21 +41,15 @@ def _write_skill(
     (directory / "scripts").mkdir(parents=True)
     if runnable:
         (directory / "scripts" / "cli.py").write_text("", encoding="utf-8")
-    (directory / "SKILL.md").write_text(
-        f"---\n{front}\n---\n\n{body}\n", encoding="utf-8"
-    )
+    (directory / "SKILL.md").write_text(f"---\n{front}\n---\n\n{body}\n", encoding="utf-8")
     return directory
 
 
-def _install_skill(
-    root: pathlib.Path, name: str, description: str = "Queries things."
-) -> None:
+def _install_skill(root: pathlib.Path, name: str, description: str = "Queries things.") -> None:
     _write_skill(root, name, f"name: {name}\ndescription: {description}")
 
 
-@pytest.mark.usefixtures(
-    "_clear_distribution_cache", "_skills_catalog_clear_cache"
-)
+@pytest.mark.usefixtures("_clear_distribution_cache", "_skills_catalog_clear_cache")
 class TestSkillsCatalog:
     def test_a_reference_file_is_reachable_but_never_outside_the_skill(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
@@ -76,9 +70,7 @@ class TestSkillsCatalog:
         (tmp_path / "secret.txt").write_text("not yours", encoding="utf-8")
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
 
-        text = catalog.read_skill_document(
-            "string", "references/interactions.md"
-        )
+        text = catalog.read_skill_document("string", "references/interactions.md")
 
         assert text is not None
         assert "partners --identifiers" in text
@@ -117,15 +109,9 @@ class TestSkillsDraftPhase:
             lambda: tmp_path / "ws",
         )
 
-        attached = draft_skills.attach_skills(
-            _STATE, _StubProvider(), _MCP_TOOLS
-        )
+        attached = draft_skills.attach_skills(_STATE, _StubProvider(), _MCP_TOOLS)
 
-        names = {
-            schema["function"]["name"]
-            for schema in attached.tools
-            if "function" in schema
-        }
+        names = {schema["function"]["name"] for schema in attached.tools if "function" in schema}
         assert READ_SKILL in names
         assert "search_pubmed" in names
         # The transcript backstop binds before the turn limit; more turns cannot

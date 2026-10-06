@@ -92,9 +92,7 @@ def _configured_resolver() -> Resolver:
     return offline_resolver
 
 
-def _resolved_article(
-    meta: CitationMetadata, verdict: Resolvability
-) -> ResolvedArticle:
+def _resolved_article(meta: CitationMetadata, verdict: Resolvability) -> ResolvedArticle:
     """Both metadata and independent resolver retractions retain their
     explicit provenance rather than becoming plain unavailability.
     """
@@ -114,13 +112,8 @@ def resolve_articles(
     before a write transaction opens.
     """
     metas = [_article_metadata(art) for art in articles]
-    verdicts = citation_resolver.resolve_many(
-        metas, resolver=_configured_resolver()
-    )
-    return [
-        _resolved_article(meta, verdict)
-        for meta, verdict in zip(metas, verdicts, strict=True)
-    ]
+    verdicts = citation_resolver.resolve_many(metas, resolver=_configured_resolver())
+    return [_resolved_article(meta, verdict) for meta, verdict in zip(metas, verdicts, strict=True)]
 
 
 @dataclass(frozen=True)
@@ -202,9 +195,7 @@ def _persist_evidence_and_hypotheses(
     sink: _HypothesisSink,
     conn: sqlite3.Connection,
 ) -> None:
-    _persist_engine_evidence(
-        run_id, evidence.articles, evidence.resolved, sink.citations, conn
-    )
+    _persist_engine_evidence(run_id, evidence.articles, evidence.resolved, sink.citations, conn)
     for h in hyps_parents_first:
         _persist_engine_hypothesis(run_id, h, sink, conn)
 
@@ -301,9 +292,7 @@ def _mean_review_novelty(h: dict[str, Any]) -> float | None:
     return sum(scores) / len(scores) if scores else None
 
 
-def _persist_hypothesis_state(
-    hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
-) -> None:
+def _persist_hypothesis_state(hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection) -> None:
     store.update_hypothesis_state(
         hyp_id,
         HypothesisStateChanges(
@@ -362,9 +351,7 @@ def _persist_engine_hypothesis_row(
     """
     identity = _derive_hypothesis_identity(h)
     parent_id = _resolve_persisted_parent_id(identity, persisted_engine_ids)
-    parent_ids = _resolve_persisted_parent_ids(
-        identity, parent_id, persisted_engine_ids
-    )
+    parent_ids = _resolve_persisted_parent_ids(identity, parent_id, persisted_engine_ids)
     hyp_id = store.add_hypothesis(
         NewHypothesis(
             run_id=run_id,
@@ -398,9 +385,7 @@ def _persist_engine_hypothesis(
     sink: _HypothesisSink,
     conn: sqlite3.Connection,
 ) -> None:
-    hyp_id, engine_id = _persist_engine_hypothesis_row(
-        run_id, h, sink.persisted_engine_ids, conn
-    )
+    hyp_id, engine_id = _persist_engine_hypothesis_row(run_id, h, sink.persisted_engine_ids, conn)
     if engine_id:
         sink.store_id_by_engine_id[engine_id] = hyp_id
     _persist_engine_reviews(run_id, hyp_id, h, conn)
@@ -425,11 +410,7 @@ def _hypotheses_with_proximity_archive(
     # from the active pool.
     by_id = dict(archived)
     by_id.update(
-        {
-            str(hypothesis["id"]): hypothesis
-            for hypothesis in active
-            if hypothesis.get("id")
-        }
+        {str(hypothesis["id"]): hypothesis for hypothesis in active if hypothesis.get("id")}
     )
     return list(by_id.values())
 

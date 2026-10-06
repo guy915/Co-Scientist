@@ -67,7 +67,5 @@ def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         if model.startswith("openrouter/")
     }
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    with free_catalog.using_catalog_reader(
-        free_catalog.CatalogReader(lambda: catalog)
-    ):
+    with free_catalog.using_catalog_reader(free_catalog.CatalogReader(lambda: catalog)):
         yield

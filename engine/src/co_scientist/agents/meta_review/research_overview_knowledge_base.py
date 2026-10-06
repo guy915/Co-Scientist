@@ -71,9 +71,7 @@ def _outline_themes(raw_themes: Any) -> list[dict[str, Any]]:
         sections = [
             section
             for section in (
-                raw_sections[:KNOWLEDGE_BASE_MAX_SECTIONS]
-                if isinstance(raw_sections, list)
-                else []
+                raw_sections[:KNOWLEDGE_BASE_MAX_SECTIONS] if isinstance(raw_sections, list) else []
             )
             if isinstance(section, dict)
         ]
@@ -95,15 +93,12 @@ async def plan_knowledge_base_outline(
         context=prompt_context(state),
     )
     try:
-        response = await _ask(
-            state, prompt, schema, KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS
-        )
+        response = await _ask(state, prompt, schema, KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception:
         logger.error(
-            "Knowledge-base outline failed; publishing the research "
-            "overview's own topics instead",
+            "Knowledge-base outline failed; publishing the research overview's own topics instead",
             exc_info=True,
         )
         return []
@@ -114,10 +109,7 @@ def format_outline(themes: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for theme in themes:
         lines.append(f"## {theme['title']}")
-        lines += [
-            f"- {str(section.get('heading') or '').strip()}"
-            for section in theme["sections"]
-        ]
+        lines += [f"- {str(section.get('heading') or '').strip()}" for section in theme["sections"]]
     return "\n".join(lines)
 
 
@@ -126,9 +118,7 @@ def format_theme_sections(theme: dict[str, Any]) -> str:
     for section in theme["sections"]:
         raw_ids = section.get("evidence_ids")
         ids = [
-            item
-            for item in (raw_ids if isinstance(raw_ids, list) else [])
-            if isinstance(item, str)
+            item for item in (raw_ids if isinstance(raw_ids, list) else []) if isinstance(item, str)
         ]
         heading = str(section.get("heading") or "").strip()
         lines.append(f"- {heading} (evidence: {', '.join(ids) or 'none'})")
@@ -154,15 +144,12 @@ async def write_theme_sections(
         context=prompt_context(state),
     )
     try:
-        response = await _ask(
-            state, prompt, schema, KNOWLEDGE_BASE_THEME_MAX_TOKENS
-        )
+        response = await _ask(state, prompt, schema, KNOWLEDGE_BASE_THEME_MAX_TOKENS)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception:
         logger.error(
-            "Knowledge-base theme %r failed; publishing the rest of the "
-            "section without it",
+            "Knowledge-base theme %r failed; publishing the rest of the section without it",
             theme["title"],
             exc_info=True,
         )
@@ -194,17 +181,13 @@ async def synthesize_knowledge_base(
 ) -> tuple[list[dict[str, Any]], int]:
     if not corpus:
         return [], 0
-    themes = await plan_knowledge_base_outline(
-        state, hypotheses_summary, evidence_corpus_text
-    )
+    themes = await plan_knowledge_base_outline(state, hypotheses_summary, evidence_corpus_text)
     if not themes:
         return [], 1
     outline_text = format_outline(themes)
     written = await asyncio.gather(
         *[
-            write_theme_sections(
-                state, theme, outline_text, evidence_corpus_text
-            )
+            write_theme_sections(state, theme, outline_text, evidence_corpus_text)
             for theme in themes
         ]
     )
@@ -277,9 +260,7 @@ def _theme_topics(
     return topics
 
 
-def validate_themes(
-    raw_themes: Any, corpus: dict[str, dict[str, Any]]
-) -> list[dict[str, Any]]:
+def validate_themes(raw_themes: Any, corpus: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     """json_object does not enforce maxItems; reapply bounds before
     publication."""
     if not isinstance(raw_themes, list):
@@ -290,17 +271,13 @@ def validate_themes(
     return topics
 
 
-def _topic_evidence_ids(
-    raw: Any, corpus: dict[str, dict[str, Any]]
-) -> list[str] | None:
+def _topic_evidence_ids(raw: Any, corpus: dict[str, dict[str, Any]]) -> list[str] | None:
     if not isinstance(raw, dict):
         return None
     raw_ids = raw.get("evidence_ids")
     if not isinstance(raw_ids, list):
         return None
-    evidence_ids = [
-        item for item in raw_ids if isinstance(item, str) and item in corpus
-    ]
+    evidence_ids = [item for item in raw_ids if isinstance(item, str) and item in corpus]
     return evidence_ids or None
 
 

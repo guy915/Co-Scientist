@@ -57,9 +57,7 @@ class _FailedRequest:
         self.exc = exc
 
 
-def _get(
-    client: httpx.Client, path: str, **kwargs: Any
-) -> httpx.Response | _FailedRequest:
+def _get(client: httpx.Client, path: str, **kwargs: Any) -> httpx.Response | _FailedRequest:
     """Connection failures are findings to report, not harness crashes."""
     try:
         return client.get(path, timeout=_TIMEOUT_SECONDS, **kwargs)
@@ -84,9 +82,7 @@ def check_status_probes(client: httpx.Client) -> CheckResult:
     """
     resp = _get(client, "/status")
     if isinstance(resp, _FailedRequest):
-        return CheckResult(
-            "status_probes", False, f"request failed: {resp.exc}"
-        )
+        return CheckResult("status_probes", False, f"request failed: {resp.exc}")
     if resp.status_code != 200:
         return CheckResult("status_probes", False, f"status {resp.status_code}")
     body = resp.json()
@@ -110,13 +106,9 @@ def check_ownership_isolation(client: httpx.Client) -> CheckResult:
         headers={"X-Client-ID": f"prod-smoke-{uuid.uuid4()}"},
     )
     if isinstance(resp, _FailedRequest):
-        return CheckResult(
-            "ownership_isolation", False, f"request failed: {resp.exc}"
-        )
+        return CheckResult("ownership_isolation", False, f"request failed: {resp.exc}")
     ok = resp.status_code == 404
-    return CheckResult(
-        "ownership_isolation", ok, f"status {resp.status_code} (want 404)"
-    )
+    return CheckResult("ownership_isolation", ok, f"status {resp.status_code} (want 404)")
 
 
 def check_cors_untrusted_origin(client: httpx.Client) -> CheckResult:
@@ -129,9 +121,7 @@ def check_cors_untrusted_origin(client: httpx.Client) -> CheckResult:
         headers={"Origin": _UNTRUSTED_ORIGIN},
     )
     if isinstance(resp, _FailedRequest):
-        return CheckResult(
-            "cors_untrusted_origin", False, f"request failed: {resp.exc}"
-        )
+        return CheckResult("cors_untrusted_origin", False, f"request failed: {resp.exc}")
     echoed = resp.headers.get("access-control-allow-origin")
     ok = echoed not in (_UNTRUSTED_ORIGIN, "*")
     return CheckResult(
@@ -148,9 +138,7 @@ def check_sanitized_share_404(client: httpx.Client) -> CheckResult:
     bogus_token = uuid.uuid4().hex + uuid.uuid4().hex
     resp = _get(client, f"/api/shared/{bogus_token}")
     if isinstance(resp, _FailedRequest):
-        return CheckResult(
-            "sanitized_share_404", False, f"request failed: {resp.exc}"
-        )
+        return CheckResult("sanitized_share_404", False, f"request failed: {resp.exc}")
     if resp.status_code != 404:
         return CheckResult(
             "sanitized_share_404",
@@ -174,9 +162,7 @@ _CHECKS = (
 )
 
 
-def run(
-    base_url: str, *, transport: httpx.BaseTransport | None = None
-) -> list[CheckResult]:
+def run(base_url: str, *, transport: httpx.BaseTransport | None = None) -> list[CheckResult]:
     with httpx.Client(base_url=base_url, transport=transport) as client:
         return [check(client) for check in _CHECKS]
 

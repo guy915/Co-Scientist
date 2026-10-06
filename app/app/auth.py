@@ -23,15 +23,11 @@ def check_exchange_rate(request: Request) -> None:
     now = time.monotonic()
     host = request.client.host if request.client else "unknown"
     for stale in [
-        key
-        for key, hits in _exchange_hits.items()
-        if not hits or now - hits[-1] >= _WINDOW_SECONDS
+        key for key, hits in _exchange_hits.items() if not hits or now - hits[-1] >= _WINDOW_SECONDS
     ]:
         del _exchange_hits[stale]
     hits = [
-        timestamp
-        for timestamp in _exchange_hits.get(host, [])
-        if now - timestamp < _WINDOW_SECONDS
+        timestamp for timestamp in _exchange_hits.get(host, []) if now - timestamp < _WINDOW_SECONDS
     ]
     full = host not in _exchange_hits and len(_exchange_hits) >= _MAX_SCOPES
     if full or len(hits) >= settings.auth_exchange_per_minute:
@@ -73,9 +69,7 @@ def _b64decode(value: str) -> bytes:
 
 def _secret() -> bytes:
     if not settings.auth_secret:
-        raise RuntimeError(
-            "AUTH_SECRET is required when authentication is used"
-        )
+        raise RuntimeError("AUTH_SECRET is required when authentication is used")
     return settings.auth_secret.encode()
 
 
@@ -87,21 +81,15 @@ def create_session_token(subject: str, now: int | None = None) -> str:
         "exp": issued_at + settings.auth_session_hours * 3600,
         "v": 1,
     }
-    encoded = _b64encode(
-        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
-    )
-    signature = _b64encode(
-        hmac.new(_secret(), encoded.encode(), hashlib.sha256).digest()
-    )
+    encoded = _b64encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
+    signature = _b64encode(hmac.new(_secret(), encoded.encode(), hashlib.sha256).digest())
     return f"{encoded}.{signature}"
 
 
 def verify_session_token(token: str, now: int | None = None) -> Principal:
     try:
         encoded, signature = token.split(".", 1)
-        expected = _b64encode(
-            hmac.new(_secret(), encoded.encode(), hashlib.sha256).digest()
-        )
+        expected = _b64encode(hmac.new(_secret(), encoded.encode(), hashlib.sha256).digest())
         if not hmac.compare_digest(signature, expected):
             raise ValueError("invalid signature")
         payload = json.loads(_b64decode(encoded))
@@ -135,18 +123,14 @@ def principal_for_request(request: Request) -> Principal | None:
 def require_principal(request: Request) -> Principal:
     principal = principal_for_request(request)
     if principal is None:
-        raise HTTPException(
-            status_code=401, detail="researcher access required"
-        )
+        raise HTTPException(status_code=401, detail="researcher access required")
     return principal
 
 
 def require_bearer_principal(request: Request) -> Principal:
     principal = require_principal(request)
     if principal.method != "bearer":
-        raise HTTPException(
-            status_code=401, detail="verified researcher session required"
-        )
+        raise HTTPException(status_code=401, detail="verified researcher session required")
     return principal
 
 
@@ -163,10 +147,7 @@ def require_client_scope(request: Request) -> str:
     if not subject:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "an X-Client-ID header (or a researcher session) is "
-                "required to create this"
-            ),
+            detail=("an X-Client-ID header (or a researcher session) is required to create this"),
         )
     return subject
 
@@ -181,17 +162,11 @@ def _configured_codes() -> dict[str, str]:
         raise RuntimeError("RESEARCHER_ACCESS_CODES must be JSON") from exc
     if not isinstance(value, dict):
         raise RuntimeError("RESEARCHER_ACCESS_CODES must be an object")
-    return {
-        str(subject): str(code)
-        for subject, code in value.items()
-        if subject and code
-    }
+    return {str(subject): str(code) for subject, code in value.items() if subject and code}
 
 
 @router.post("/exchange")
-async def exchange_access_code(
-    body: AccessCodeRequest, request: Request
-) -> dict[str, object]:
+async def exchange_access_code(body: AccessCodeRequest, request: Request) -> dict[str, object]:
     """Exchange one invite code for a signed researcher session."""
     check_exchange_rate(request)
     match = next(

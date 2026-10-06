@@ -57,9 +57,7 @@ def _check_node_task_checkpoint(
     return None
 
 
-def _check_portfolio_predecessor(
-    task: ScientificTask, checkpoint: dict[str, Any]
-) -> None:
+def _check_portfolio_predecessor(task: ScientificTask, checkpoint: dict[str, Any]) -> None:
     """A portfolio row can execute only when its predecessor committed it as
     the actual successor.
     """
@@ -91,9 +89,7 @@ def _restore_node_task_state(
     state: dict[str, Any] = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
     )
-    at_admission_node = (
-        task.task_type.removeprefix(NODE_TASK_PREFIX) == ADMISSION_NODE
-    )
+    at_admission_node = task.task_type.removeprefix(NODE_TASK_PREFIX) == ADMISSION_NODE
     if opts.get("pending_steering") and at_admission_node:
         state["pending_steering"] = True
     if opts.get("preferences"):
@@ -119,15 +115,11 @@ def _prepare_node_task(
     """Only the orchestrator's own scheduling commit may acknowledge
     steering.
     """
-    generator, opts = engine_tasks_runtime.active().generator_and_opts(
-        task, db_path
-    )
+    generator, opts = engine_tasks_runtime.active().generator_and_opts(task, db_path)
     state = _restore_node_task_state(task, checkpoint, generator, opts, db_path)
     node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
     if node_name == "orchestrator":
-        state["durable_task_queue"] = _durable_queue_snapshot(
-            task.run_id, db_path
-        )
+        state["durable_task_queue"] = _durable_queue_snapshot(task.run_id, db_path)
     commit = _task_commit(
         task,
         current_seq,
@@ -146,14 +138,10 @@ async def _dispatch_node_fanout(
     db_path: str | None,
 ) -> dict[str, Any] | None:
     if node_name == "generate":
-        return await _enqueue_generation_fanout(
-            task, state, current_seq, db_path=db_path
-        )
+        return await _enqueue_generation_fanout(task, state, current_seq, db_path=db_path)
     if node_name == "ranking":
         await _apply_pre_ranking_evidence_gate(state)
-        return await _schedule_ranking_chain(
-            task, state, current_seq, db_path=db_path
-        )
+        return await _schedule_ranking_chain(task, state, current_seq, db_path=db_path)
     handler = _SYNC_FANOUT_HANDLERS.get(node_name)
     if handler is None:
         return None
@@ -198,18 +186,14 @@ async def _commit_node_result(
     }
 
 
-def _require_active_run(
-    task: ScientificTask, db_path: str | None, *, stage: str
-) -> RunRow:
+def _require_active_run(task: ScientificTask, db_path: str | None, *, stage: str) -> RunRow:
     run = runs.get_run(task.run_id, db_path=db_path)
     if run is None or run.status == RunStatus.CANCELLED.value:
         raise RuntimeError(f"run cancelled {stage}")
     return run
 
 
-async def execute_node_task(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
+async def execute_node_task(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
     from co_scientist.task_runtime import execute_task_node
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
@@ -218,20 +202,14 @@ async def execute_node_task(
     if replay is not None:
         return replay
 
-    state, commit, node_name = _prepare_node_task(
-        task, checkpoint, current_seq, db_path
-    )
+    state, commit, node_name = _prepare_node_task(task, checkpoint, current_seq, db_path)
     paused = _pause_node_task_if_requested(commit, run, node_name, state)
     if paused is not None:
         return paused
-    fanout = await _dispatch_node_fanout(
-        task, state, node_name, current_seq, db_path=db_path
-    )
+    fanout = await _dispatch_node_fanout(task, state, node_name, current_seq, db_path=db_path)
     if fanout is not None:
         return fanout
 
     committed, successor = await execute_task_node(node_name, state)
     run = _require_active_run(task, db_path, stage="during specialist run")
-    return await _commit_node_result(
-        commit, run, node_name, committed, successor
-    )
+    return await _commit_node_result(commit, run, node_name, committed, successor)

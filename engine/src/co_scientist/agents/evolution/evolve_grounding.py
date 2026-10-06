@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 _MAX_GROUNDING_QUERIES = LITERATURE_REVIEW_MAX_QUERIES
 _MAX_GROUNDING_ARTICLES = 6
 
-_NO_EVIDENCE_TEXT = (
-    "No retrieved evidence is available to ground this refinement."
-)
+_NO_EVIDENCE_TEXT = "No retrieved evidence is available to ground this refinement."
 
 _NOT_APPLICABLE_TEXT = (
     "Targeted literature retrieval applies to the enhancement operator "
@@ -37,9 +35,7 @@ def not_applicable_block() -> str:
     return _NOT_APPLICABLE_TEXT
 
 
-async def enhancement_grounding_block(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> str:
+async def enhancement_grounding_block(state: WorkflowState, hypothesis: Hypothesis) -> str:
     """Empty or failed live retrieval falls back to the accumulated corpus,
     so optional grounding cannot prevent refinement."""
     articles = await _retrieve_parent_evidence(state, hypothesis)
@@ -63,9 +59,7 @@ async def enhancement_grounding_block(
     return _NO_EVIDENCE_TEXT
 
 
-async def _retrieve_parent_evidence(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[Article]:
+async def _retrieve_parent_evidence(state: WorkflowState, hypothesis: Hypothesis) -> list[Article]:
     if not state.get("mcp_available"):
         return []
     queries = await _parent_search_queries(state, hypothesis)
@@ -81,9 +75,7 @@ async def _retrieve_parent_evidence(
     return articles
 
 
-async def _parent_search_queries(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[str]:
+async def _parent_search_queries(state: WorkflowState, hypothesis: Hypothesis) -> list[str]:
     """Keyword backends AND terms; prose searches would match nothing."""
     try:
         result = await call_llm_json(
@@ -112,9 +104,7 @@ async def _parent_search_queries(
         )
         return []
     queries = [
-        " ".join(str(query).split())
-        for query in result.get("queries") or []
-        if str(query).strip()
+        " ".join(str(query).split()) for query in result.get("queries") or [] if str(query).strip()
     ]
     return queries[:_MAX_GROUNDING_QUERIES]
 
@@ -123,11 +113,7 @@ def counts_query_call(state: WorkflowState, operator_value: str) -> bool:
     return bool(state.get("mcp_available")) and operator_value == "enhancement"
 
 
-def grounding_metrics_extra(
-    state: WorkflowState, operator_values: list[str]
-) -> int:
+def grounding_metrics_extra(state: WorkflowState, operator_values: list[str]) -> int:
     """MCP retrieval is not model spend; count query formulation only when
     the enhancement actually attempts it."""
-    return sum(
-        1 for value in operator_values if counts_query_call(state, value)
-    )
+    return sum(1 for value in operator_values if counts_query_call(state, value))

@@ -78,9 +78,7 @@ async def _terminate(proc: asyncio.subprocess.Process) -> None:
         await asyncio.wait_for(proc.wait(), timeout=_SIGTERM_GRACE_SECONDS)
         return
     except asyncio.TimeoutError:
-        logger.warning(
-            "confined command %s ignored SIGTERM; sending SIGKILL", proc.pid
-        )
+        logger.warning("confined command %s ignored SIGTERM; sending SIGKILL", proc.pid)
 
     try:
         os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
@@ -119,9 +117,7 @@ async def run_sandboxed(request: ExecRequest) -> ExecResult:
     return await _collect(proc, request)
 
 
-async def _collect(
-    proc: asyncio.subprocess.Process, request: ExecRequest
-) -> ExecResult:
+async def _collect(proc: asyncio.subprocess.Process, request: ExecRequest) -> ExecResult:
     timed_out = False
     try:
         raw_out, raw_err = await asyncio.wait_for(

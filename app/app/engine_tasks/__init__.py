@@ -73,9 +73,7 @@ _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
 }
 
 
-async def _dispatch_engine_task(
-    task: ScientificTask, *, db_path: str | None
-) -> dict[str, Any]:
+async def _dispatch_engine_task(task: ScientificTask, *, db_path: str | None) -> dict[str, Any]:
     # Retired queued rows settle without issuing provider calls or losing the
     # checkpoint that ordinary recovery resumes.
     if task.task_type == "engine.outcome.refinement":
@@ -124,9 +122,7 @@ async def execute_engine_task(
             by_model=credential.keys_by_model() if credential else None,
         ),
         scoped_llm_call_budget(task.run_id, ceiling),
-        scoped_execution_policy(
-            run.execution_policy, campaign_model_name=campaign_model
-        ),
+        scoped_execution_policy(run.execution_policy, campaign_model_name=campaign_model),
         scoped_zero_cost_admission(zero_cost_admission_for_config(run.config)),
     ):
         return await _dispatch_engine_task(task, db_path=db_path)

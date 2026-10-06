@@ -63,9 +63,7 @@ def get_interview(
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
     with _use_conn(conn, db_path) as active:
-        row = active.execute(
-            "SELECT * FROM interviews WHERE id=?", (interview_id,)
-        ).fetchone()
+        row = active.execute("SELECT * FROM interviews WHERE id=?", (interview_id,)).fetchone()
         if row is None:
             return None
         turns = active.execute(
@@ -93,15 +91,12 @@ def _decoded_turn(turn: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def _interview_run_ids(
-    conn: sqlite3.Connection, client_id: str
-) -> dict[str, str]:
+def _interview_run_ids(conn: sqlite3.Connection, client_id: str) -> dict[str, str]:
     """Resolve config links in Python to avoid a JSON1 build dependency;
     each client has few runs.
     """
     rows = conn.execute(
-        "SELECT id, config_json FROM runs WHERE client_id=? "
-        "ORDER BY created_at ASC",
+        "SELECT id, config_json FROM runs WHERE client_id=? ORDER BY created_at ASC",
         (client_id,),
     ).fetchall()
     links: dict[str, str] = {}
@@ -197,9 +192,7 @@ def append_interview_turn(
                 now,
             ),
         )
-        active.execute(
-            "UPDATE interviews SET updated_at=? WHERE id=?", (now, interview_id)
-        )
+        active.execute("UPDATE interviews SET updated_at=? WHERE id=?", (now, interview_id))
         if turn.role == "user":
             from app.diagnostic_events import log_chat_turn
 
@@ -261,9 +254,7 @@ def update_interview(
         )
 
 
-def delete_interview(
-    interview_id: str, *, db_path: str | None = None
-) -> dict[str, int]:
+def delete_interview(interview_id: str, *, db_path: str | None = None) -> dict[str, int]:
     """Transcript rows cascade; staged documents lack an interview FK and
     must be detached without deleting the scientist's copy.
     """
@@ -273,13 +264,10 @@ def delete_interview(
             (interview_id,),
         ).fetchone()[0]
         detached = conn.execute(
-            "UPDATE staged_documents SET interview_id=NULL "
-            "WHERE interview_id=?",
+            "UPDATE staged_documents SET interview_id=NULL WHERE interview_id=?",
             (interview_id,),
         ).rowcount
-        removed = conn.execute(
-            "DELETE FROM interviews WHERE id=?", (interview_id,)
-        ).rowcount
+        removed = conn.execute("DELETE FROM interviews WHERE id=?", (interview_id,)).rowcount
     return {
         "interviews": int(removed),
         "interview_turns": int(turns),

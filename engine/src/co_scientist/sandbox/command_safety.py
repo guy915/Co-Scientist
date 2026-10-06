@@ -87,11 +87,7 @@ def _flags_disqualify(name: str, args: list[str]) -> bool:
     if any(arg in unsafe_flags for arg in args):
         return True
     prefixes = _CONDITIONAL_PREFIXES.get(name, ())
-    return any(
-        arg.startswith(prefix) and arg != prefix
-        for arg in args
-        for prefix in prefixes
-    )
+    return any(arg.startswith(prefix) and arg != prefix for arg in args for prefix in prefixes)
 
 
 def _is_safe_simple_command(argv: list[str]) -> bool:
@@ -117,11 +113,7 @@ def _split_on_operators(script: str) -> list[str] | None:
         segments = expanded
 
     stripped = [segment.strip() for segment in segments if segment.strip()]
-    if any(
-        token in segment
-        for segment in stripped
-        for token in _UNPARSED_CONSTRUCTS
-    ):
+    if any(token in segment for segment in stripped for token in _UNPARSED_CONSTRUCTS):
         return None
     return stripped
 

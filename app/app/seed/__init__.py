@@ -69,9 +69,7 @@ def _ensure_demo_run_row(
 def _scenario_report_is_current(run: RunRow, db_path: str | None) -> bool:
     report = store.get_latest_report(run.id, db_path=db_path)
     setup = run.config.get("setup") if isinstance(run.config, dict) else None
-    interview = interviews.get_interview(
-        str(run.config.get("interview_id") or ""), db_path=db_path
-    )
+    interview = interviews.get_interview(str(run.config.get("interview_id") or ""), db_path=db_path)
     return bool(
         interview
         and interview["client_id"] == DEMO_CLIENT_ID
@@ -101,9 +99,7 @@ async def _seed_demo_run(
     runs.set_run_config(run.id, config, db_path=db_path)
     run.profile = str(config["tier"])
     with db.connect(db_path) as conn:
-        conn.execute(
-            "UPDATE runs SET profile=? WHERE id=?", (run.profile, run.id)
-        )
+        conn.execute("UPDATE runs SET profile=? WHERE id=?", (run.profile, run.id))
     await _seed_curated_scenario(run, scenario, db_path)
     logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
 
@@ -118,9 +114,7 @@ async def _seed_or_reseed_demo_run(
     """
     if run is not None:
         if _scenario_report_is_current(run, db_path):
-            logger.info(
-                "demo run %s already has a report, skipping", run.id[:8]
-            )
+            logger.info("demo run %s already has a report, skipping", run.id[:8])
             return
         logger.info(
             "demo run %s exists but has no readable report; re-seeding",
@@ -143,6 +137,4 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     existing_by_goal = {run.research_goal: run for run in existing}
 
     for goal in _DEMO_GOALS:
-        await _seed_or_reseed_demo_run(
-            goal, existing_by_goal.get(goal), db_path
-        )
+        await _seed_or_reseed_demo_run(goal, existing_by_goal.get(goal), db_path)

@@ -144,9 +144,7 @@ def test_resume_reassigns_event_seqs_above_last_checkpoint(
 
     seq = store_events.append_event(run.id, "status", {"status": "resuming"})
     assert seq == high_water + 1
-    assert (
-        store_events.list_events(run.id, after_seq=high_water)[0]["seq"] == seq
-    )
+    assert store_events.list_events(run.id, after_seq=high_water)[0]["seq"] == seq
 
 
 _WORKER = "double-resume-test"
@@ -154,21 +152,15 @@ _WORKER = "double-resume-test"
 
 async def _advance(run_id: str, count: int, db_path: str) -> None:
     for _ in range(count):
-        worked = await task_worker.run_once(
-            _WORKER, run_id=run_id, db_path=db_path
-        )
+        worked = await task_worker.run_once(_WORKER, run_id=run_id, db_path=db_path)
         assert worked, "run finished (or stalled) earlier than the test expects"
 
 
-async def _advance_until_pool_nonempty(
-    run_id: str, db_path: str, *, cap: int = 30
-) -> set[str]:
+async def _advance_until_pool_nonempty(run_id: str, db_path: str, *, cap: int = 30) -> set[str]:
     # Wait for a populated checkpoint rather than a task count tied to
     # generation fan-out topology.
     for _ in range(cap):
-        worked = await task_worker.run_once(
-            _WORKER, run_id=run_id, db_path=db_path
-        )
+        worked = await task_worker.run_once(_WORKER, run_id=run_id, db_path=db_path)
         assert worked, "run finished before its pool ever grew"
         pool = _checkpoint_hypothesis_ids(run_id, db_path)
         if pool:
@@ -219,10 +211,7 @@ async def test_two_resume_cycles_still_complete_with_pool_intact(
     assert final_run.status == "completed", final_run.error
     report = reports.get_latest_report(run_id, db_path=isolated_db)
     assert report is not None
-    final_ids = {
-        str(row["id"])
-        for row in hypotheses.list_hypotheses(run_id, db_path=isolated_db)
-    }
+    final_ids = {str(row["id"]) for row in hypotheses.list_hypotheses(run_id, db_path=isolated_db)}
     assert pool_before <= final_ids
 
 
@@ -237,9 +226,7 @@ def _install_blocking_execute(monkeypatch: pytest.MonkeyPatch) -> None:
 
     from app import engine_tasks
 
-    async def _execute(
-        _task: Any, *, db_path: str | None = None
-    ) -> dict[str, bool]:
+    async def _execute(_task: Any, *, db_path: str | None = None) -> dict[str, bool]:
         _time.sleep(1.0)
         return {"completed": True}
 
@@ -273,9 +260,7 @@ async def test_resume_does_not_execute_run_work_on_the_event_loop(
     stop.set()
     worst_stall = await probe
 
-    assert worst_stall < 0.5, (
-        f"event loop stalled {worst_stall:.2f}s while a resumed run executed"
-    )
+    assert worst_stall < 0.5, f"event loop stalled {worst_stall:.2f}s while a resumed run executed"
 
 
 def test_a_blocked_run_cannot_be_resumed(isolated_db: str) -> None:
@@ -285,9 +270,7 @@ def test_a_blocked_run_cannot_be_resumed(isolated_db: str) -> None:
     seed_checkpoint(run_id, {"provider": "engine"}, stage="engine_task:final")
     runs.update_run_status(run_id, StoreRunStatus.BLOCKED)
 
-    outsider = owner.post(
-        f"/api/runs/{run_id}/resume", headers={"X-Client-ID": "someone-else"}
-    )
+    outsider = owner.post(f"/api/runs/{run_id}/resume", headers={"X-Client-ID": "someone-else"})
     response = owner.post(f"/api/runs/{run_id}/resume", headers=headers)
 
     assert outsider.status_code == 404

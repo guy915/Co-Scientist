@@ -95,9 +95,7 @@ def operator_template(operator: EvolutionOperator) -> str:
     return _TEMPLATES.get(operator, "evolution")
 
 
-def select_operators(
-    count: int, iteration: int, seed_material: str
-) -> list[EvolutionOperator]:
+def select_operators(count: int, iteration: int, seed_material: str) -> list[EvolutionOperator]:
     """Seeded shuffled decks cover all operators across small-parent rounds;
     simple index/iteration cycling can permanently skip some."""
     if count <= 0:
@@ -109,9 +107,7 @@ def select_operators(
     return [deck[(offset + index) % len(deck)] for index in range(count)]
 
 
-def _debates_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[dict[str, Any]]:
+def _debates_for(state: WorkflowState, hypothesis: Hypothesis) -> list[dict[str, Any]]:
     return [
         {
             "debate_id": item.get("debate_id"),
@@ -122,9 +118,7 @@ def _debates_for(
     ][-2:]
 
 
-def _tournament_matches_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[dict[str, Any]]:
+def _tournament_matches_for(state: WorkflowState, hypothesis: Hypothesis) -> list[dict[str, Any]]:
     matches = []
     for item in state.get("tournament_matchups", []):
         side_a = item.get("hypothesis_a_id") == hypothesis.id
@@ -133,9 +127,7 @@ def _tournament_matches_for(
             continue
         matches.append(
             {
-                "outcome": (
-                    "won" if item.get("winner_id") == hypothesis.id else "lost"
-                ),
+                "outcome": ("won" if item.get("winner_id") == hypothesis.id else "lost"),
                 "reasoning": item.get("reasoning") or item.get("reason"),
                 "confidence": item.get("confidence"),
             }
@@ -143,9 +135,7 @@ def _tournament_matches_for(
     return matches
 
 
-def _proximity_neighbors_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> list[dict[str, Any]]:
+def _proximity_neighbors_for(state: WorkflowState, hypothesis: Hypothesis) -> list[dict[str, Any]]:
     """The graph can exceed this ledger cap; sort by similarity so the
     retained context names nearest neighbors, not first-listed pairs."""
     neighbors = []
@@ -167,9 +157,7 @@ def _proximity_neighbors_for(
     return neighbors
 
 
-def _specialist_feedback_for(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> str:
+def _specialist_feedback_for(state: WorkflowState, hypothesis: Hypothesis) -> str:
     ledger: dict[str, Any] = {
         "claim_evidence_gate": hypothesis.enrichments.get("claim_gate") or {},
         "debates": _debates_for(state, hypothesis),
@@ -187,9 +175,7 @@ def _specialist_feedback_for(
     return json.dumps(ledger, indent=2)[:8000]
 
 
-def _sample_up_to(
-    pool: list[Hypothesis], count: int, rng: random.Random
-) -> list[Hypothesis]:
+def _sample_up_to(pool: list[Hypothesis], count: int, rng: random.Random) -> list[Hypothesis]:
     """Use caller RNG so concurrent runs cannot perturb draws; empty pools
     consume no RNG state."""
     if not pool:
@@ -233,9 +219,7 @@ def sample_context_hypotheses(
     if ranked_hypotheses is None:
         others_by_elo = rank_by_elo(others)
     else:
-        others_by_elo = [
-            h for h in ranked_hypotheses if h.text != exclude_hypothesis.text
-        ]
+        others_by_elo = [h for h in ranked_hypotheses if h.text != exclude_hypothesis.text]
 
     draw = rng if rng is not None else random.Random()
     return _sample_top_and_random(others_by_elo, 5, 10, draw)
@@ -282,11 +266,7 @@ def find_nearest_peer(
     nearest: Hypothesis | None = None
     for peer in peers:
         weight = weights.get(peer.id)
-        similarity = (
-            weight
-            if weight is not None
-            else token_coverage(refined_text, peer.text)
-        )
+        similarity = weight if weight is not None else token_coverage(refined_text, peer.text)
         if similarity > max_similarity:
             max_similarity = similarity
             nearest = peer
@@ -310,9 +290,7 @@ _PARTNER_SECTION_HEADERS = {
 }
 
 
-def _format_partner_context(
-    partners: tuple[Hypothesis, ...], operator: EvolutionOperator
-) -> str:
+def _format_partner_context(partners: tuple[Hypothesis, ...], operator: EvolutionOperator) -> str:
     """Combining actual mechanisms needs whole partner fields, not snippets."""
     header = _PARTNER_SECTION_HEADERS.get(operator)
     if header is None:
@@ -387,9 +365,7 @@ def _build_meta_review_insights(meta_review: dict[str, Any]) -> str:
         {
             "common_strengths": meta_review.get("common_strengths", []),
             "common_weaknesses": meta_review.get("common_weaknesses", []),
-            "strategic_recommendations": meta_review.get(
-                "strategic_recommendations", []
-            ),
+            "strategic_recommendations": meta_review.get("strategic_recommendations", []),
             "emerging_themes": meta_review.get("emerging_themes", []),
         },
         indent=2,
@@ -401,24 +377,17 @@ def _build_supervisor_guidance_text(
 ) -> str:
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
-    phase = supervisor_guidance.get("workflow_plan", {}).get(
-        "evolution_phase", {}
-    )
+    phase = supervisor_guidance.get("workflow_plan", {}).get("evolution_phase", {})
     if not phase:
         return ""
     sections = ["## Supervisor Guidance for Evolution\n"]
     if phase.get("refinement_priorities"):
         sections.append(
-            "**Refinement Priorities:** "
-            f"{_csv_value(phase['refinement_priorities'])}\n"
+            f"**Refinement Priorities:** {_csv_value(phase['refinement_priorities'])}\n"
         )
     if phase.get("iteration_strategy"):
-        sections.append(
-            f"**Iteration Strategy:** {phase['iteration_strategy']}\n"
-        )
-    sections.append(
-        "\nUse this guidance to align your refinement with the research plan.\n"
-    )
+        sections.append(f"**Iteration Strategy:** {phase['iteration_strategy']}\n")
+    sections.append("\nUse this guidance to align your refinement with the research plan.\n")
     return "".join(sections)
 
 
@@ -476,12 +445,8 @@ def _format_diversity_instruction(
     removed_duplicates: list[str],
     operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
 ) -> str:
-    other_hyps_formatted = _format_bullet_list(
-        other_hypotheses_texts, truncate_chars=200
-    )
-    removed_dups_formatted = _format_bullet_list(
-        removed_duplicates[-5:], truncate_chars=200
-    )
+    other_hyps_formatted = _format_bullet_list(other_hypotheses_texts, truncate_chars=200)
+    removed_dups_formatted = _format_bullet_list(removed_duplicates[-5:], truncate_chars=200)
 
     template = (
         _COMBINATION_DIVERSITY_TEMPLATE
@@ -513,12 +478,10 @@ def _build_evolution_variables(
         context.reference_index.text if context.reference_index else ""
     )
     variables["enhancement_grounding"] = grounding_evidence
-    variables["partner_context"] = _format_partner_context(
-        operation.partners, operation.operator
-    )
+    variables["partner_context"] = _format_partner_context(operation.partners, operation.operator)
     state: Mapping[str, Any] = context.state or {}
-    variables["falsified_assumptions_section"] = (
-        build_falsified_assumptions_section(state.get("hypotheses"))
+    variables["falsified_assumptions_section"] = build_falsified_assumptions_section(
+        state.get("hypotheses")
     )
     variables["lab_constraints_section"] = format_lab_constraints_section(
         state.get("lab_constraints")
@@ -541,9 +504,7 @@ def _base_evolution_variables(
         "original_hypothesis": hypothesis.text,
         "review_feedback": _build_review_feedback(hypothesis),
         "meta_review_insights": _build_meta_review_insights(meta_review),
-        "supervisor_guidance": _build_supervisor_guidance_text(
-            supervisor_guidance
-        ),
+        "supervisor_guidance": _build_supervisor_guidance_text(supervisor_guidance),
     }
 
 
@@ -565,7 +526,7 @@ def _build_evolution_prompt(
         context.removed_duplicates,
         operation.operator,
     )
-    prompt, schema, operator_section, _has_template_diversity_slot = (
-        render_operator_template(operation.operator, variables, diversity)
+    prompt, schema, operator_section, _has_template_diversity_slot = render_operator_template(
+        operation.operator, variables, diversity
     )
     return prompt + operator_section + diversity, schema

@@ -23,9 +23,7 @@ class NewStagedDocument:
     extraction_tool: str
 
 
-def add_staged_document(
-    document: NewStagedDocument, *, db_path: str | None = None
-) -> str:
+def add_staged_document(document: NewStagedDocument, *, db_path: str | None = None) -> str:
     document_id = str(uuid.uuid4())
     with connect(db_path) as conn:
         conn.execute(
@@ -66,8 +64,7 @@ def get_staged_documents(
     placeholders = ",".join("?" for _ in document_ids)
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
-            f"SELECT * FROM staged_documents WHERE id IN ({placeholders}) "
-            "AND client_id=?",
+            f"SELECT * FROM staged_documents WHERE id IN ({placeholders}) AND client_id=?",
             (*document_ids, client_id),
         ).fetchall()
     by_id = {str(row["id"]): dict(row) for row in rows}
@@ -102,8 +99,7 @@ def list_interview_documents(
 ) -> list[dict[str, Any]]:
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
-            "SELECT * FROM staged_documents WHERE interview_id=? "
-            "ORDER BY created_at ASC",
+            "SELECT * FROM staged_documents WHERE interview_id=? ORDER BY created_at ASC",
             (interview_id,),
         ).fetchall()
     return _rows_to_documents(rows)
@@ -116,9 +112,7 @@ def merge_run_setup_documents(
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
     from_chat = (
-        list_interview_documents(interview_id, conn=conn)
-        if interview_id is not None
-        else []
+        list_interview_documents(interview_id, conn=conn) if interview_id is not None else []
     )
     resolved: dict[str, dict[str, Any]] = {}
     for document in [*named, *from_chat]:
@@ -150,9 +144,7 @@ def index_staged_documents_for_run(
             ),
             conn=conn,
         )
-    mark_documents_used_by_run(
-        run_id, [str(document["id"]) for document in staged], conn=conn
-    )
+    mark_documents_used_by_run(run_id, [str(document["id"]) for document in staged], conn=conn)
 
 
 def interview_document_excerpts(
@@ -180,16 +172,13 @@ def list_staged_documents_for_client(
 ) -> list[dict[str, Any]]:
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
-            "SELECT * FROM staged_documents WHERE client_id=? "
-            "ORDER BY created_at DESC",
+            "SELECT * FROM staged_documents WHERE client_id=? ORDER BY created_at DESC",
             (client_id,),
         ).fetchall()
     return _rows_to_documents(rows)
 
 
-def delete_staged_document(
-    document_id: str, client_id: str, *, db_path: str | None = None
-) -> bool:
+def delete_staged_document(document_id: str, client_id: str, *, db_path: str | None = None) -> bool:
     with connect(db_path) as conn:
         cur = conn.execute(
             "DELETE FROM staged_documents WHERE id=? AND client_id=?",
@@ -198,16 +187,12 @@ def delete_staged_document(
     return cur.rowcount > 0
 
 
-def delete_staged_documents_older_than(
-    cutoff: float, *, db_path: str | None = None
-) -> int:
+def delete_staged_documents_older_than(cutoff: float, *, db_path: str | None = None) -> int:
     """Age is measured from creation; staged rows have no last-use
     timestamp.
     """
     with connect(db_path) as conn:
-        cur = conn.execute(
-            "DELETE FROM staged_documents WHERE created_at < ?", (cutoff,)
-        )
+        cur = conn.execute("DELETE FROM staged_documents WHERE created_at < ?", (cutoff,))
     return cur.rowcount
 
 
@@ -223,7 +208,6 @@ def mark_documents_used_by_run(
     placeholders = ",".join("?" for _ in document_ids)
     with _use_conn(conn, db_path) as active:
         active.execute(
-            "UPDATE staged_documents SET run_id=? "
-            f"WHERE id IN ({placeholders})",
+            f"UPDATE staged_documents SET run_id=? WHERE id IN ({placeholders})",
             (run_id, *document_ids),
         )

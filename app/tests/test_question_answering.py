@@ -37,9 +37,7 @@ def _thinking_litellm(reasoning: str, prose: str) -> SimpleNamespace:
     return SimpleNamespace(acompletion=_acompletion)
 
 
-def _stream_answer(
-    db_path: str, manifest: list[dict[str, Any]]
-) -> tuple[str, Any]:
+def _stream_answer(db_path: str, manifest: list[dict[str, Any]]) -> tuple[str, Any]:
     run = seed_run("goal", profile="default", client_id="c1", db_path=db_path)
     question = store.append_message(NewMessage(run.id, "user", "Q?", "qa"))
     frames = _drain(
@@ -57,12 +55,8 @@ def test_a_streamed_answer_relays_frames_and_persists_sources_or_reasoning(
     monkeypatch: pytest.MonkeyPatch,
     reachable_provider: None,
 ) -> None:
-    manifest = [
-        {"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}
-    ]
-    install_completion_backend(
-        monkeypatch, _fake_litellm(["Ans", "", "wer"]).acompletion
-    )
+    manifest = [{"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}]
+    install_completion_backend(monkeypatch, _fake_litellm(["Ans", "", "wer"]).acompletion)
     body, answer = _stream_answer(isolated_db, manifest)
     assert '"type": "sources"' in body
     assert '"type": "chunk"' in body
@@ -96,9 +90,7 @@ def test_a_failed_model_call_persists_and_emits_the_fallback_answer(
 
 def _completed_run_id() -> str:
     c = _client()
-    rid = _create_run(
-        c, "Investigate ferroptosis in cancer", tier="express"
-    ).json()["id"]
+    rid = _create_run(c, "Investigate ferroptosis in cancer", tier="express").json()["id"]
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "completed", timeout=30.0)
     return str(rid)
@@ -109,9 +101,7 @@ def test_ask_uses_real_llm_when_provider_key_present(
 ) -> None:
     rid = _completed_run_id()
     fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch, (_fake_litellm(["Model ", "text"])).acompletion
-    )
+    install_completion_backend(monkeypatch, (_fake_litellm(["Model ", "text"])).acompletion)
 
     c = _client()
     res = c.post(f"/api/runs/{rid}/messages/ask", json={"question": "Summary?"})
@@ -122,9 +112,7 @@ def test_ask_uses_real_llm_when_provider_key_present(
     assert "offline mode" not in body.lower()
 
     msgs = store.list_messages(rid)
-    answer = next(
-        m for m in reversed(msgs) if m.kind == "qa" and m.sender == "system"
-    )
+    answer = next(m for m in reversed(msgs) if m.kind == "qa" and m.sender == "system")
     assert answer.content == "Model text"
 
 

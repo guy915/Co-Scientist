@@ -142,9 +142,7 @@ async def test_publication_gates_filter_before_synthesis(
     )
     healthy = make_hypothesis(text="healthy idea", elo_rating=1500)
 
-    prompt, _ = await _first_prompt(
-        monkeypatch, [healthy, needs_revision, *blocked]
-    )
+    prompt, _ = await _first_prompt(monkeypatch, [healthy, needs_revision, *blocked])
 
     assert "healthy idea" in prompt
     # needs_revision ranks and publishes; only the not-viable band blocks.
@@ -209,9 +207,7 @@ async def test_a_periodic_firing_writes_only_a_lean_interim_overview(
     fake = AsyncMock(return_value=_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
-    out = await ro.research_overview_node(
-        _state(next_task=TaskType.SYNTHESIZE.value)
-    )
+    out = await ro.research_overview_node(_state(next_task=TaskType.SYNTHESIZE.value))
 
     assert "research_overview" not in out
     assert "Releasing the myeloid brake" in out["interim_overview"]
@@ -222,9 +218,7 @@ async def test_a_periodic_firing_writes_only_a_lean_interim_overview(
     properties = spec.json_schema["schema"]["properties"]
     assert set(properties) == {"overview", "open_questions"}
     assert set(properties["overview"]["properties"]) == {"research_directions"}
-    direction_item = properties["overview"]["properties"][
-        "research_directions"
-    ]["items"]
+    direction_item = properties["overview"]["properties"]["research_directions"]["items"]
     assert set(direction_item["properties"]) == {"title"}
     assert spec.max_tokens == RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS
     assert spec.max_tokens < RESEARCH_OVERVIEW_MAX_TOKENS
@@ -296,9 +290,7 @@ async def test_every_drafted_direction_buys_its_own_bounded_call() -> None:
 async def test_one_failing_call_costs_only_its_own_direction() -> None:
     ask = AsyncMock(side_effect=[RuntimeError("provider exploded"), _body()])
 
-    developed, spent = await calls.develop_research_directions(
-        _context(), _drafted(2), ask
-    )
+    developed, spent = await calls.develop_research_directions(_context(), _drafted(2), ask)
 
     assert spent == 2
     assert developed[0]["title"] == "Direction 0"

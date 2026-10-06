@@ -58,9 +58,7 @@ async def run_research_phase(
     )
     result = await conduct_research(
         goal=config.research_goal,
-        model=LlmResearchModel(
-            config.model_name, run_id=str(state.get("run_id") or "")
-        ),
+        model=LlmResearchModel(config.model_name, run_id=str(state.get("run_id") or "")),
         retrieval=retrieval,
         budget=budget,
         seed_questions=_seed_questions(analyses, budget.breadth),
@@ -118,11 +116,7 @@ def _gaps_in(analysis: object) -> list[str]:
     if not isinstance(analysis, dict):
         return []
     stated = (analysis.get(name) for name in _GAP_FIELDS)
-    return [
-        value.strip()
-        for value in stated
-        if isinstance(value, str) and value.strip()
-    ]
+    return [value.strip() for value in stated if isinstance(value, str) and value.strip()]
 
 
 def _synthesis_section(result: ResearchResult) -> str:

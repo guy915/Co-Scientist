@@ -3,16 +3,12 @@ import os
 from collections.abc import Iterator
 from contextvars import ContextVar
 
-_campaign_request: ContextVar[bool] = ContextVar(
-    "mcp_campaign_request", default=False
-)
+_campaign_request: ContextVar[bool] = ContextVar("mcp_campaign_request", default=False)
 
 
 def campaign_free_mode() -> bool:
     """Read the same strict mode contract as the engine without importing it."""
-    configured = (
-        os.getenv("COSCIENTIST_REQUIRE_FREE_MODELS", "0").strip().lower()
-    )
+    configured = os.getenv("COSCIENTIST_REQUIRE_FREE_MODELS", "0").strip().lower()
     if configured not in {"0", "false", "", "1", "true"}:
         raise RuntimeError("zero-cost campaign mode setting is invalid")
     return _campaign_request.get() or configured in {"1", "true"}

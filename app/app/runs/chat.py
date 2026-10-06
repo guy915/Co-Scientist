@@ -45,9 +45,7 @@ async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     # worker
     # cannot lose the message.
     msg = store.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content=req.content, kind="steering"
-        )
+        NewMessage(run_id=run_id, sender="user", content=req.content, kind="steering")
     )
     continuation = engine_tasks.enqueue_scientist_continuation(run_id, msg.id)
     return {
@@ -72,11 +70,7 @@ def _gather_qa_context(run: RunRow) -> qa.QaRunContext:
         state = snapshot.checkpoint_state(run, conn)
         hypotheses = store_hypotheses.list_hypotheses(run.id, conn=conn)
         if "hypotheses" in state and run.status != RunStatus.COMPLETED:
-            hypotheses = [
-                snapshot.idea_view(h)
-                for h in state["hypotheses"]
-                if isinstance(h, dict)
-            ]
+            hypotheses = [snapshot.idea_view(h) for h in state["hypotheses"] if isinstance(h, dict)]
         reviews = records.list_reviews(run.id, conn=conn)
         if "hypotheses" in state and run.status != RunStatus.COMPLETED:
             reviews = [
@@ -104,9 +98,7 @@ def _gather_qa_context(run: RunRow) -> qa.QaRunContext:
             reviews,
             {
                 "ideas": len(hypotheses),
-                "evidence": max(
-                    len(evidence), len(state.get("articles") or [])
-                ),
+                "evidence": max(len(evidence), len(state.get("articles") or [])),
                 "matches": len(matches),
             },
             conn,
@@ -146,9 +138,7 @@ def _offline_qa_response(
         question_msg.content,
     )
     return StreamingResponse(
-        qa.stream_offline_answer(
-            run_id, question_msg.id, answer, context.manifest
-        ),
+        qa.stream_offline_answer(run_id, question_msg.id, answer, context.manifest),
         media_type="text/event-stream",
     )
 
@@ -162,9 +152,7 @@ def _request_byok(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def _resolve_qa_byok(
-    run: RunRow, request: Request
-) -> credentials.ByokCredential | None:
+def _resolve_qa_byok(run: RunRow, request: Request) -> credentials.ByokCredential | None:
     """Persisted run credentials take precedence so billing remains
     consistent across sessions.
     """
@@ -209,9 +197,7 @@ def _live_qa_response(
             byok=byok,
             execution_policy=run.execution_policy,
             campaign_model_name=(
-                campaign_model_for_config(run.config)
-                if run.execution_policy == CAMPAIGN
-                else None
+                campaign_model_for_config(run.config) if run.execution_policy == CAMPAIGN else None
             ),
         ),
         media_type="text/event-stream",
@@ -219,9 +205,7 @@ def _live_qa_response(
 
 
 @router.post("/{run_id}/messages/ask")
-async def ask_question(
-    run_id: str, req: AskRequest, request: Request
-) -> StreamingResponse:
+async def ask_question(run_id: str, req: AskRequest, request: Request) -> StreamingResponse:
     """Answer a question about the run using a fast LLM.
 
     The response is streamed back to the caller.

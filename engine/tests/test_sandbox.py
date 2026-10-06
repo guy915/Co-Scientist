@@ -38,9 +38,7 @@ from co_scientist.sandbox.runner import (
 _ON_MACOS = sys.platform == "darwin"
 
 # Seatbelt argv contracts are macOS-specific.
-_requires_seatbelt = pytest.mark.skipif(
-    not _ON_MACOS, reason="seatbelt confinement is macOS-only"
-)
+_requires_seatbelt = pytest.mark.skipif(not _ON_MACOS, reason="seatbelt confinement is macOS-only")
 
 # Kernel escape tests must run on every platform claiming a usable backend.
 _requires_sandbox = pytest.mark.skipif(
@@ -97,9 +95,7 @@ def test_empty_command_is_rejected() -> None:
         wrap_argv([], read_only())
 
 
-@pytest.mark.parametrize(
-    "kind", [SandboxKind.DANGER_FULL_ACCESS, SandboxKind.EXTERNAL]
-)
+@pytest.mark.parametrize("kind", [SandboxKind.DANGER_FULL_ACCESS, SandboxKind.EXTERNAL])
 def test_unconfined_or_externally_confined_commands_pass_through(
     kind: SandboxKind,
 ) -> None:
@@ -138,9 +134,7 @@ def test_metadata_denial_is_emitted_after_the_write_allow(
     assert text.index("(allow file-write*") < text.index("(deny file-write*")
 
 
-def _run_confined(
-    argv: list[str], policy: SandboxPolicy
-) -> subprocess.CompletedProcess[str]:
+def _run_confined(argv: list[str], policy: SandboxPolicy) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         wrap_argv(argv, policy),
         capture_output=True,
@@ -157,18 +151,14 @@ class TestRealConfinement:
         assert result.returncode == 0
         assert result.stdout.strip() == "hello"
 
-    def test_write_succeeds_through_a_symlinked_root(
-        self, tmp_path: Path
-    ) -> None:
+    def test_write_succeeds_through_a_symlinked_root(self, tmp_path: Path) -> None:
         real = tmp_path / "real"
         real.mkdir()
         link = tmp_path / "link"
         link.symlink_to(real)
         target = real / "written.txt"
 
-        result = _run_confined(
-            [_bin("touch"), str(target)], workspace_write(link)
-        )
+        result = _run_confined([_bin("touch"), str(target)], workspace_write(link))
 
         assert result.returncode == 0, result.stderr
         assert target.exists()
@@ -186,40 +176,28 @@ class TestRealConfinement:
         assert result.returncode != 0
         assert not target.exists()
 
-    def test_write_inside_a_writable_root_succeeds(
-        self, tmp_path: Path
-    ) -> None:
+    def test_write_inside_a_writable_root_succeeds(self, tmp_path: Path) -> None:
         target = tmp_path / "allowed.txt"
-        result = _run_confined(
-            [_bin("touch"), str(target)], workspace_write(tmp_path)
-        )
+        result = _run_confined([_bin("touch"), str(target)], workspace_write(tmp_path))
         assert result.returncode == 0, result.stderr
         assert target.exists()
 
-    def test_write_outside_the_writable_root_is_denied(
-        self, tmp_path: Path
-    ) -> None:
+    def test_write_outside_the_writable_root_is_denied(self, tmp_path: Path) -> None:
         workspace = tmp_path / "workspace"
         workspace.mkdir()
         outside = tmp_path / "outside.txt"
-        result = _run_confined(
-            [_bin("touch"), str(outside)], workspace_write(workspace)
-        )
+        result = _run_confined([_bin("touch"), str(outside)], workspace_write(workspace))
         assert result.returncode != 0
         assert not outside.exists()
 
     @pytest.mark.parametrize("name", PROTECTED_METADATA_NAMES)
-    def test_metadata_inside_a_writable_root_is_protected(
-        self, tmp_path: Path, name: str
-    ) -> None:
+    def test_metadata_inside_a_writable_root_is_protected(self, tmp_path: Path, name: str) -> None:
         """Exercise every protected name so tuple additions do not remain
         unverified."""
         metadata_dir = tmp_path / name
         metadata_dir.mkdir()
         target = metadata_dir / "record"
-        result = _run_confined(
-            [_bin("touch"), str(target)], workspace_write(tmp_path)
-        )
+        result = _run_confined([_bin("touch"), str(target)], workspace_write(tmp_path))
         assert result.returncode != 0
         assert not target.exists()
 
@@ -294,9 +272,7 @@ def test_a_policy_survives_the_round_trip(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("name", PROTECTED_METADATA_NAMES)
-def test_a_protected_name_makes_a_policy_inexpressible(
-    tmp_path: Path, name: str
-) -> None:
+def test_a_protected_name_makes_a_policy_inexpressible(tmp_path: Path, name: str) -> None:
     """Additive Landlock rules cannot express a writable root with a
     protected carve-out."""
     (tmp_path / name).mkdir()
@@ -322,8 +298,7 @@ _RET_OPCODE = 0x06
 
 def _decode(program: bytes) -> list[tuple[int, int, int, int]]:
     return [
-        struct.unpack("=HBBI", program[offset : offset + 8])
-        for offset in range(0, len(program), 8)
+        struct.unpack("=HBBI", program[offset : offset + 8]) for offset in range(0, len(program), 8)
     ]
 
 
@@ -385,9 +360,7 @@ async def test_the_host_environment_does_not_leak_into_the_process(
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-secret")
 
     result = await run_sandboxed(
-        ExecRequest(
-            argv=["/usr/bin/env"], policy=_UNCONFINED, timeout_seconds=30
-        )
+        ExecRequest(argv=["/usr/bin/env"], policy=_UNCONFINED, timeout_seconds=30)
     )
 
     assert result.ok, result.stderr
@@ -397,9 +370,7 @@ async def test_the_host_environment_does_not_leak_into_the_process(
 @pytest.mark.asyncio
 async def test_a_command_reports_its_exit_and_truncates_output() -> None:
     ok = await run_sandboxed(
-        ExecRequest(
-            argv=["/bin/echo", "hello"], policy=_UNCONFINED, timeout_seconds=30
-        )
+        ExecRequest(argv=["/bin/echo", "hello"], policy=_UNCONFINED, timeout_seconds=30)
     )
     assert ok.ok and ok.stdout.strip() == "hello"
     failed = await run_sandboxed(
@@ -488,9 +459,7 @@ async def test_orphaned_children_die_with_the_group(tmp_path: Path) -> None:
     """PID namespaces make child pids unrelated to host pids; heartbeat files
     prove liveness."""
     beat = tmp_path / "heartbeat"
-    script = (
-        f"sh -c 'while true; do date +%s%N > {beat}; sleep 0.1; done' & wait"
-    )
+    script = f"sh -c 'while true; do date +%s%N > {beat}; sleep 0.1; done' & wait"
 
     result = await run_sandboxed(
         ExecRequest(
@@ -507,8 +476,7 @@ async def test_orphaned_children_die_with_the_group(tmp_path: Path) -> None:
     first = beat.read_text()
     time.sleep(0.5)
     assert beat.read_text() == first, (
-        "the heartbeat advanced after the timeout: a grandchild survived "
-        "the group kill"
+        "the heartbeat advanced after the timeout: a grandchild survived the group kill"
     )
 
 
@@ -541,18 +509,14 @@ async def test_a_command_ignoring_sigterm_is_still_killed(
     assert not _pid_alive(pid), f"process {pid} ignored SIGTERM and survived"
 
 
-@pytest.mark.parametrize(
-    "interpreter", ["python", "python3", "node", "perl", "ruby", "sh"]
-)
+@pytest.mark.parametrize("interpreter", ["python", "python3", "node", "perl", "ruby", "sh"])
 def test_no_interpreter_is_ever_safe(interpreter: str) -> None:
     """An interpreter can execute arbitrary code despite a harmless command
     name."""
     assert not is_known_safe([interpreter, "-c", "print(1)"])
 
 
-@pytest.mark.parametrize(
-    "flag", ["-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint"]
-)
+@pytest.mark.parametrize("flag", ["-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint"])
 def test_find_with_a_side_effecting_flag_is_unsafe(flag: str) -> None:
     assert not is_known_safe(["find", ".", "-name", "*.py", flag, "rm"])
 

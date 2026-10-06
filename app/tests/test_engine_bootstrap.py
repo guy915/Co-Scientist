@@ -55,24 +55,16 @@ def _stub_bootstrap_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     async def no_intake(*_: Any, **__: Any) -> None:
         return None
 
-    monkeypatch.setattr(
-        engine_tasks_inputs, "_screen_bootstrap_intake", no_intake
-    )
-    monkeypatch.setattr(
-        engine_tasks_inputs, "sync_engine_llm_backend", lambda *_: None
-    )
+    monkeypatch.setattr(engine_tasks_inputs, "_screen_bootstrap_intake", no_intake)
+    monkeypatch.setattr(engine_tasks_inputs, "sync_engine_llm_backend", lambda *_: None)
 
 
 def _pause_during_bootstrap_prepare(
     monkeypatch: pytest.MonkeyPatch, db_path: str
 ) -> tuple[Any, str, Any]:
-    client, run_id, task = _start_bootstrap(
-        monkeypatch, db_path, "Pause during bootstrap prepare"
-    )
+    client, run_id, task = _start_bootstrap(monkeypatch, db_path, "Pause during bootstrap prepare")
     _stub_bootstrap_providers(monkeypatch)
-    _patch_generator(
-        monkeypatch, _PauseDuringPrepare(client, run_id, _task_state(run_id))
-    )
+    _patch_generator(monkeypatch, _PauseDuringPrepare(client, run_id, _task_state(run_id)))
     monkeypatch.setattr(
         engine_tasks_support,
         "_enqueue_node_portfolio",
@@ -98,9 +90,7 @@ def _enqueue_bootstrap_successor(
     )
 
 
-def _replace_expired_bootstrap_lease(
-    client: Any, run_id: str, original: Any, db_path: str
-) -> Any:
+def _replace_expired_bootstrap_lease(client: Any, run_id: str, original: Any, db_path: str) -> Any:
     with db.transaction(db_path) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
@@ -124,14 +114,10 @@ def _forbid_contextual_escalation(
     # calls cannot evade the guard.
 
     async def _fail_if_called(*_: Any, **__: Any) -> Any:
-        raise AssertionError(
-            "offline-backed run escalated to the contextual safety model"
-        )
+        raise AssertionError("offline-backed run escalated to the contextual safety model")
 
     monkeypatch.setattr(safety, "screen_contextual", _fail_if_called)
-    monkeypatch.setattr(
-        engine_tasks, "screen_contextual", _fail_if_called, raising=False
-    )
+    monkeypatch.setattr(engine_tasks, "screen_contextual", _fail_if_called, raising=False)
 
 
 @pytest.mark.asyncio
@@ -146,9 +132,7 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
     _patch_generator(monkeypatch, generator, screen=True)
 
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
-    assert lifecycle.complete_task(
-        leased.id, "worker", result, db_path=isolated_db
-    )
+    assert lifecycle.complete_task(leased.id, "worker", result, db_path=isolated_db)
 
     checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["seq"] == 1
@@ -171,9 +155,7 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
 ) -> None:
     # Offline bootstrap must not ask a contextual model whose uncertain verdict
     # could pause deterministic runs.
-    run = seed_run(
-        "Task-level science", llm_backend="offline", db_path=isolated_db
-    )
+    run = seed_run("Task-level science", llm_backend="offline", db_path=isolated_db)
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
@@ -215,9 +197,7 @@ async def test_cancel_after_bootstrap_read_cannot_be_overwritten(
 ) -> None:
     client, run_id, task = _start_bootstrap(monkeypatch, isolated_db)
     real_get_run = runs.get_run
-    monkeypatch.setattr(
-        runs, "get_run", _cancel_after_second_run_read(run_id, client)
-    )
+    monkeypatch.setattr(runs, "get_run", _cancel_after_second_run_read(run_id, client))
     prepared: list[bool] = []
 
     async def prepare_without_providers(*_: Any, **__: Any) -> tuple[Any, ...]:
@@ -274,14 +254,10 @@ async def _hold_intake_screen(
     async def delayed_screen(*_: Any, **__: Any) -> SafetyDecision:
         started.set()
         await release.wait()
-        return SafetyDecision(
-            stage="intake", decision=decision, reason=f"injected {decision}"
-        )
+        return SafetyDecision(stage="intake", decision=decision, reason=f"injected {decision}")
 
     _install_runtime(monkeypatch).screen = delayed_screen
-    bootstrap = asyncio.create_task(
-        engine_tasks.execute_bootstrap(task, db_path=db_path)
-    )
+    bootstrap = asyncio.create_task(engine_tasks.execute_bootstrap(task, db_path=db_path))
     await asyncio.wait_for(started.wait(), timeout=5)
     return bootstrap, release
 
@@ -294,9 +270,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client, run_id, original = _start_bootstrap(monkeypatch, isolated_db)
-    bootstrap, release = await _hold_intake_screen(
-        monkeypatch, original, decision, isolated_db
-    )
+    bootstrap, release = await _hold_intake_screen(monkeypatch, original, decision, isolated_db)
     _replace_expired_bootstrap_lease(client, run_id, original, isolated_db)
     release.set()
 
@@ -307,8 +281,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
     assert run is not None and run.status == "queued"
     events = _assert_no_intake_verdict_applied(run_id, isolated_db)
     assert not any(
-        event["type"] == "status"
-        and event["payload"].get("status") in {"blocked", "paused"}
+        event["type"] == "status" and event["payload"].get("status") in {"blocked", "paused"}
         for event in events
     )
 
@@ -318,9 +291,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, run_id, original = _start_bootstrap(monkeypatch, isolated_db)
-    replacement = _replace_expired_bootstrap_lease(
-        client, run_id, original, isolated_db
-    )
+    replacement = _replace_expired_bootstrap_lease(client, run_id, original, isolated_db)
     runs.update_run_status(run_id, StoreRunStatus.PAUSED, db_path=isolated_db)
     prepared: list[bool] = []
 
@@ -329,9 +300,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
         return {}, object()
 
     _stub_bootstrap_providers(monkeypatch)
-    monkeypatch.setattr(
-        engine_tasks_inputs, "_prepare_bootstrap_state", fake_prepare
-    )
+    monkeypatch.setattr(engine_tasks_inputs, "_prepare_bootstrap_state", fake_prepare)
 
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_bootstrap(original, db_path=isolated_db)

@@ -27,9 +27,7 @@ def _wait_owned_status(
 
     def _reached() -> bool:
         response = client.get(f"/api/runs/{run_id}", headers=_OWNER)
-        return response.status_code == 200 and bool(
-            response.json().get("status") == status
-        )
+        return response.status_code == 200 and bool(response.json().get("status") == status)
 
     return wait_for(_reached, timeout=timeout)
 
@@ -41,9 +39,7 @@ def test_export_includes_a_run_its_report_and_a_document(
     client.post(
         "/api/documents",
         headers=_OWNER,
-        files={
-            "file": ("mine.txt", io.BytesIO(b"my private notes"), "text/plain")
-        },
+        files={"file": ("mine.txt", io.BytesIO(b"my private notes"), "text/plain")},
         data={"consent": "true"},
     )
     created = _create_run(client, "Export goal", headers=_OWNER, tier="express")
@@ -110,12 +106,8 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
     unauthenticated = client.get("/api/runs")
     assert unauthenticated.status_code == 401
 
-    session_a = client.post(
-        "/api/auth/exchange", json={"access_code": "invite-a"}
-    )
-    session_b = client.post(
-        "/api/auth/exchange", json={"access_code": "invite-b"}
-    )
+    session_a = client.post("/api/auth/exchange", json={"access_code": "invite-a"})
+    session_b = client.post("/api/auth/exchange", json={"access_code": "invite-b"})
     assert session_a.status_code == 200
     headers_a = {"Authorization": f"Bearer {session_a.json()['access_token']}"}
     headers_b = {"Authorization": f"Bearer {session_b.json()['access_token']}"}
@@ -128,9 +120,7 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
         headers={**headers_a, "Origin": "https://ai-co-scientist.com"},
     )
     assert owned.status_code == 200
-    assert owned.headers["access-control-allow-origin"] == (
-        "https://ai-co-scientist.com"
-    )
+    assert owned.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
 
     runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
     events = client.get(
@@ -139,19 +129,13 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
     )
     assert events.status_code == 200
     assert events.headers["content-type"].startswith("text/event-stream")
-    assert events.headers["access-control-allow-origin"] == (
-        "https://ai-co-scientist.com"
-    )
+    assert events.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
 
-    assert (
-        client.get(f"/api/runs/{run_id}", headers=headers_b).status_code == 404
-    )
+    assert client.get(f"/api/runs/{run_id}", headers=headers_b).status_code == 404
 
 
 @pytest.mark.parametrize("auth_mode", ["compatibility", "required"])
-def test_invalid_bearer_returns_401_json(
-    monkeypatch: pytest.MonkeyPatch, auth_mode: str
-) -> None:
+def test_invalid_bearer_returns_401_json(monkeypatch: pytest.MonkeyPatch, auth_mode: str) -> None:
     _configure_auth(monkeypatch)
     monkeypatch.setattr(settings, "auth_mode", auth_mode)
     expired = auth.create_session_token("researcher-a", now=100)
@@ -159,9 +143,7 @@ def test_invalid_bearer_returns_401_json(
 
     client = TestClient(app, raise_server_exceptions=False)
     for token in ("invalid", expired):
-        response = client.get(
-            "/api/runs", headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.get("/api/runs", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 401
         assert response.json() == {"detail": "invalid session"}
     client.close()
@@ -179,9 +161,7 @@ def _configure_allowlisted_cors(
         for middleware in app.user_middleware
         if cast(Any, middleware.cls) is CORSMiddleware
     )
-    monkeypatch.setitem(
-        cors.kwargs, "allow_origins", ["https://ai-co-scientist.com"]
-    )
+    monkeypatch.setitem(cors.kwargs, "allow_origins", ["https://ai-co-scientist.com"])
     monkeypatch.setitem(cors.kwargs, "allow_credentials", True)
     monkeypatch.setattr(app, "middleware_stack", None)
     return app
@@ -193,9 +173,7 @@ def test_allowed_origin_can_read_ownership_denial(
     monkeypatch.setattr(settings, "auth_mode", "compatibility")
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, raise_server_exceptions=False)
-    created = _create_run(
-        client, "Private run", headers={"X-Client-ID": "run-owner"}
-    )
+    created = _create_run(client, "Private run", headers={"X-Client-ID": "run-owner"})
 
     run_path = f"/api/runs/{created.json()['id']}"
     response = client.get(
@@ -208,9 +186,7 @@ def test_allowed_origin_can_read_ownership_denial(
 
     assert response.status_code == 404
     assert response.json() == {"detail": "run not found"}
-    assert response.headers["access-control-allow-origin"] == (
-        "https://ai-co-scientist.com"
-    )
+    assert response.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
     assert response.headers["access-control-allow-credentials"] == "true"
     assert "origin" in response.headers["vary"].lower()
 
@@ -242,9 +218,7 @@ def _headerless_client() -> TestClient:
             "post",
             "/api/documents",
             {
-                "files": {
-                    "file": ("notes.txt", b"private notes", "text/plain")
-                },
+                "files": {"file": ("notes.txt", b"private notes", "text/plain")},
                 "data": {"consent": "true"},
             },
         ),
@@ -281,9 +255,7 @@ def test_configuration_failure_does_not_print_access_codes() -> None:
 
 
 @pytest.mark.parametrize("host", ["example.com/#", "example.com/?"])
-def test_host_cannot_bypass_required_auth(
-    host: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_host_cannot_bypass_required_auth(host: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "auth_mode", "required")
     client = make_client()
     response = client.get("/api/runs", headers={"Host": host})
@@ -304,9 +276,7 @@ def test_host_cannot_hide_another_researchers_run(
         "Authorization": f"Bearer {auth.create_session_token('stranger')}",
         "Host": host,
     }
-    created = _create_run(
-        client, "Explore mitochondrial dynamics in neurons", headers=owner
-    )
+    created = _create_run(client, "Explore mitochondrial dynamics in neurons", headers=owner)
     assert created.status_code == 200
     response = client.get(f"/api/runs/{created.json()['id']}", headers=stranger)
     assert response.status_code == 404

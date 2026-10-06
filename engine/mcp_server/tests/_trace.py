@@ -9,19 +9,12 @@ from typing import Any, NoReturn
 MAX_TRACE_IDS = 9
 
 
-def _trace_evidence(
-    path: Path, run_id: str, expected_build: str
-) -> dict[str, Any]:
+def _trace_evidence(path: Path, run_id: str, expected_build: str) -> dict[str, Any]:
     if not path.is_file():
         raise ValueError("Maintained PubMed trace is missing")
     trace = json.loads(path.read_text(encoding="utf-8"))
-    if (
-        trace.get("run_id") != run_id
-        or trace.get("server_build_id") != expected_build
-    ):
-        raise ValueError(
-            "Maintained PubMed trace does not match this request/build"
-        )
+    if trace.get("run_id") != run_id or trace.get("server_build_id") != expected_build:
+        raise ValueError("Maintained PubMed trace does not match this request/build")
     attempts = trace.get("attempts", [])
     fetched = trace.get("fetched", [])
     if len(attempts) > 8 or len(fetched) > MAX_TRACE_IDS:
@@ -47,15 +40,11 @@ def _trace_evidence(
         if isinstance(trace.get("selected"), dict)
         else None,
         "pre_search_shared_pool": {
-            "file_count": trace.get("pre_search_shared_pool", {}).get(
-                "file_count"
-            ),
-            "metadata_count": trace.get("pre_search_shared_pool", {}).get(
-                "metadata_count"
-            ),
-            "first_ids": trace.get("pre_search_shared_pool", {}).get(
-                "first_ids", []
-            )[:MAX_TRACE_IDS],
+            "file_count": trace.get("pre_search_shared_pool", {}).get("file_count"),
+            "metadata_count": trace.get("pre_search_shared_pool", {}).get("metadata_count"),
+            "first_ids": trace.get("pre_search_shared_pool", {}).get("first_ids", [])[
+                :MAX_TRACE_IDS
+            ],
         },
         "fetched": [
             {
@@ -118,9 +107,7 @@ def _validate_study4_recovery_trace(  # noqa: C901
 ) -> dict[str, Any]:
 
     def reject() -> NoReturn:
-        raise ValueError(
-            "Study 4 Entrez recovery trace is incomplete or inconsistent"
-        )
+        raise ValueError("Study 4 Entrez recovery trace is incomplete or inconsistent")
 
     def parse_retry_after(value: str) -> tuple[str, float | None]:
         value = value.strip()
@@ -144,8 +131,7 @@ def _validate_study4_recovery_trace(  # noqa: C901
         or not isinstance(recovery, dict)
         or recovery.get("study_id") != STUDY4_IDENTITY
         or recovery.get("policy") != STUDY4_RECOVERY_POLICY
-        or recovery.get("max_retries_per_logical_request")
-        != STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST
+        or recovery.get("max_retries_per_logical_request") != STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST
         or recovery.get("max_retries_per_study") != STUDY4_MAX_RETRIES_PER_STUDY
     ):
         reject()
@@ -158,16 +144,12 @@ def _validate_study4_recovery_trace(  # noqa: C901
         or any(type(count) is not int or count < 0 for count in calls.values())
         or not isinstance(client_attempts, dict)
         or set(client_attempts) != _STUDY4_OPERATIONS
-        or any(
-            type(count) is not int or count < 0
-            for count in client_attempts.values()
-        )
+        or any(type(count) is not int or count < 0 for count in client_attempts.values())
     ):
         reject()
 
     counters: dict[str, Any] = {
-        name: recovery.get(name)
-        for name in ("retries_used", "recovered_calls", "exhausted_calls")
+        name: recovery.get(name) for name in ("retries_used", "recovered_calls", "exhausted_calls")
     }
     if any(type(value) is not int or value < 0 for value in counters.values()):
         reject()
@@ -181,8 +163,7 @@ def _validate_study4_recovery_trace(  # noqa: C901
         or not 0 <= process_start <= process_end
         or process_end > STUDY4_MAX_RETRIES_PER_STUDY
         or counters["retries_used"] > process_end - process_start
-        or study_retries_used_so_far + counters["retries_used"]
-        > STUDY4_MAX_RETRIES_PER_STUDY
+        or study_retries_used_so_far + counters["retries_used"] > STUDY4_MAX_RETRIES_PER_STUDY
     ):
         reject()
 
@@ -197,8 +178,7 @@ def _validate_study4_recovery_trace(  # noqa: C901
             total_logical_calls * (STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST + 1),
         )
         or not isinstance(outcomes, list)
-        or len(outcomes)
-        > min(STUDY4_MAX_TRACE_RECOVERY_ROWS, total_logical_calls)
+        or len(outcomes) > min(STUDY4_MAX_TRACE_RECOVERY_ROWS, total_logical_calls)
     ):
         reject()
 
@@ -288,18 +268,14 @@ def _validate_study4_recovery_trace(  # noqa: C901
                 and (
                     not isinstance(retry_after, str)
                     or len(retry_after) > 128
-                    or any(
-                        ord(char) != 9 and not 32 <= ord(char) <= 126
-                        for char in retry_after
-                    )
+                    or any(ord(char) != 9 and not 32 <= ord(char) <= 126 for char in retry_after)
                 )
             )
             or type(retry_after_raw_truncated) is not bool
             or (
                 retry_after_raw_prefix is not None
                 and (
-                    not isinstance(retry_after_raw_prefix, str)
-                    or len(retry_after_raw_prefix) > 128
+                    not isinstance(retry_after_raw_prefix, str) or len(retry_after_raw_prefix) > 128
                 )
             )
             or (retry_after is None) != (retry_after_raw_prefix is None)
@@ -318,19 +294,14 @@ def _validate_study4_recovery_trace(  # noqa: C901
 
     for key, row in outcome_by_request.items():
         request_attempts = attempts_by_request.pop(key, [])
-        ordinals = [
-            attempt.get("attempt_ordinal") for attempt in request_attempts
-        ]
+        ordinals = [attempt.get("attempt_ordinal") for attempt in request_attempts]
         final_outcome = row["final_outcome"]
         if (
             not request_attempts
             or ordinals != list(range(1, len(ordinals) + 1))
             or len(ordinals) > row["client_entry_attempts"]
             or row["client_entry_attempts"] != 1 + row["retry_count"]
-            or any(
-                attempt.get("outcome") != final_outcome
-                for attempt in request_attempts
-            )
+            or any(attempt.get("outcome") != final_outcome for attempt in request_attempts)
         ):
             reject()
         if final_outcome == "recovered" and ordinals != [1]:
@@ -350,10 +321,7 @@ def _validate_study4_recovery_trace(  # noqa: C901
                 continue
             retry_after_kind, requested_wait = parse_retry_after(retry_after)
             if retry_after_kind == "seconds":
-                if (
-                    requested_wait is None
-                    or requested_wait > STUDY4_RETRY_AFTER_MAX_SECONDS
-                ):
+                if requested_wait is None or requested_wait > STUDY4_RETRY_AFTER_MAX_SECONDS:
                     reject()
                 if wait_seconds != requested_wait:
                     reject()
@@ -370,10 +338,7 @@ def _validate_study4_recovery_trace(  # noqa: C901
             else ("missing", None)
         )
         if final_kind == "seconds":
-            if (
-                final_delay is not None
-                and final_delay > STUDY4_RETRY_AFTER_MAX_SECONDS
-            ):
+            if final_delay is not None and final_delay > STUDY4_RETRY_AFTER_MAX_SECONDS:
                 if final_outcome != "retry_after_over_cap":
                     reject()
             elif final_outcome == "retry_after_over_cap":

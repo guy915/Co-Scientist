@@ -181,9 +181,7 @@ class RunCreationCallbacks:
     client_id: Callable[[Request], str]
     resolve_execution_policy: Callable[[Request, dict[str, Any] | None], str]
     scoped_execution_policy: Callable[[str], AbstractContextManager[None]]
-    resolve_byok: Callable[
-        [Request, str], Awaitable[credentials.ByokCredential | None]
-    ]
+    resolve_byok: Callable[[Request, str], Awaitable[credentials.ByokCredential | None]]
     resolve_run_interview: Callable[
         [CreateRunRequest, Request],
         tuple[dict[str, Any] | None, CreateRunRequest],
@@ -300,9 +298,7 @@ def _admit_request(
     callbacks.require_client_scope(request)
     owner = callbacks.client_id(request)
     key = request.headers.get("Idempotency-Key")
-    if key is not None and not (
-        run_creation_receipts.valid_run_creation_key(key)
-    ):
+    if key is not None and not (run_creation_receipts.valid_run_creation_key(key)):
         raise HTTPException(
             400,
             "Idempotency-Key must match [A-Za-z0-9._~-] and be 1-128 chars",
@@ -314,12 +310,8 @@ def _admit_request(
                 req.model_dump(mode="json"),
                 api_key=request.headers.get(credentials.API_KEY_HEADER),
                 provider=request.headers.get(credentials.PROVIDER_HEADER),
-                supervisor_api_key=request.headers.get(
-                    credentials.SUPERVISOR_API_KEY_HEADER
-                ),
-                supervisor_provider=request.headers.get(
-                    credentials.SUPERVISOR_PROVIDER_HEADER
-                ),
+                supervisor_api_key=request.headers.get(credentials.SUPERVISOR_API_KEY_HEADER),
+                supervisor_provider=request.headers.get(credentials.SUPERVISOR_PROVIDER_HEADER),
             )
         except credentials.ByokNotConfiguredError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -351,21 +343,13 @@ async def _resolve_setup(
         )
     free = free_usage.applies(byok, policy, settings.llm_backend)
     if free and resolved_request.tier is None:
-        resolved_request = resolved_request.model_copy(
-            update={"tier": free_usage.FREE_TIER}
-        )
-        settings = callbacks.resolve_run_settings(
-            resolved_request, interview, byok
-        )
+        resolved_request = resolved_request.model_copy(update={"tier": free_usage.FREE_TIER})
+        settings = callbacks.resolve_run_settings(resolved_request, interview, byok)
     if free:
         free_usage.check_request(resolved_request, settings.run_mode)
         if deployment_routes_are_free():
-            settings = settings._replace(
-                config={**settings.config, ZERO_COST_CONFIG_KEY: True}
-            )
-    return _ResolvedSetup(
-        resolved_request, interview, policy, byok, staged, settings, free
-    )
+            settings = settings._replace(config={**settings.config, ZERO_COST_CONFIG_KEY: True})
+    return _ResolvedSetup(resolved_request, interview, policy, byok, staged, settings, free)
 
 
 def _persist_setup_transaction(
@@ -402,9 +386,7 @@ def _persist_setup_transaction(
             run_corpus.ATTACHMENT_SOURCE,
         )
     except run_creation_receipts.StagedDocumentsUnavailableError as exc:
-        raise HTTPException(
-            status_code=404, detail="attached document not found"
-        ) from exc
+        raise HTTPException(status_code=404, detail="attached document not found") from exc
     except free_usage.FreeUsageExhaustedError as exc:
         raise free_usage.exhausted_error() from exc
     return run, receipt
@@ -416,9 +398,7 @@ def _commit_setup(
     request: Request,
     callbacks: RunCreationCallbacks,
 ) -> tuple[RunRow, bool]:
-    run, receipt = _persist_setup_transaction(
-        admission, setup, request, callbacks
-    )
+    run, receipt = _persist_setup_transaction(admission, setup, request, callbacks)
     if receipt is not None:
         replay = _receipt_replay(receipt, admission.request_digest or "")
         if replay is not None:
@@ -452,9 +432,7 @@ async def _create_run_with_callbacks(
     setup = await _resolve_setup(req, request, admission.owner, callbacks)
     run, created = _commit_setup(admission, setup, request, callbacks)
     if created:
-        callbacks.post_commit_effects(
-            run, setup.request, setup.byok, background_tasks
-        )
+        callbacks.post_commit_effects(run, setup.request, setup.byok, background_tasks)
     return run.to_dict()
 
 
@@ -471,9 +449,7 @@ def _guard_deletable(run: RunRow) -> None:
     against a removed parent run.
     """
     if run.client_id == DEMO_CLIENT_ID:
-        raise HTTPException(
-            status_code=403, detail="the demo run cannot be deleted"
-        )
+        raise HTTPException(status_code=403, detail="the demo run cannot be deleted")
     if run.status in _ACTIVE_STATUSES:
         raise HTTPException(
             status_code=409,
@@ -551,14 +527,10 @@ async def _generate_run_text(
         else None
     )
     with (
-        scoped_execution_policy(
-            execution_policy, campaign_model_name=campaign_model
-        ),
+        scoped_execution_policy(execution_policy, campaign_model_name=campaign_model),
         credentials.scoped_byok(byok),
     ):
-        generate = (
-            generate_goal_restatement if restatement else generate_run_title
-        )
+        generate = generate_goal_restatement if restatement else generate_run_title
         return await generate(goal)
 
 
@@ -587,9 +559,7 @@ async def _populate_goal_restatement(
     """Goal restatement is a distinct report artifact, independent of
     whether the interview supplied a title.
     """
-    restatement = await _generate_run_text(
-        run_id, goal, byok, execution_policy, restatement=True
-    )
+    restatement = await _generate_run_text(run_id, goal, byok, execution_policy, restatement=True)
     if restatement:
         store.set_run_goal_restatement(run_id, restatement)
 
@@ -706,9 +676,7 @@ async def get_run(run_id: str) -> dict[str, Any]:
             summary["hypotheses"] = max(
                 summary["hypotheses"], len(live_state.get("hypotheses") or [])
             )
-            summary["evidence"] = max(
-                summary["evidence"], len(live_state.get("articles") or [])
-            )
+            summary["evidence"] = max(summary["evidence"], len(live_state.get("articles") or []))
         progress = tasks.task_progress(run_id, conn=conn)
         awaiting = _awaiting_decision_count(run, conn=conn)
         failure_kind = None
@@ -762,9 +730,7 @@ async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
     """
     run = _run_or_404(run_id)
     if run.client_id == DEMO_CLIENT_ID:
-        raise HTTPException(
-            status_code=403, detail="the demo run cannot be renamed"
-        )
+        raise HTTPException(status_code=403, detail="the demo run cannot be renamed")
     title = " ".join(body.title.split())
     if not title:
         raise HTTPException(status_code=422, detail="title cannot be blank")

@@ -144,9 +144,7 @@ class _Responder:
         assert spec.json_schema is not None
         if spec.json_schema["name"] == "knowledge_base_outline":
             return _OUTLINE
-        asked = next(
-            line for line in prompt.splitlines() if line.startswith(_ASKED)
-        )
+        asked = next(line for line in prompt.splitlines() if line.startswith(_ASKED))
         theme = next(title for title in _THEME_SECTIONS if title in asked)
         if theme == self.failing_theme:
             raise RuntimeError("stream dropped")
@@ -176,12 +174,9 @@ async def test_the_synthesis_is_one_bounded_outline_call_plus_one_per_theme(
     assert calls == 1 + len(_OUTLINE["themes"])
     assert len(responder.specs) == calls
     assert KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS < KNOWLEDGE_BASE_THEME_MAX_TOKENS
+    assert all(spec.max_tokens <= THINKING_FLOOR_MAX_TOKENS for spec in responder.specs)
     assert all(
-        spec.max_tokens <= THINKING_FLOOR_MAX_TOKENS for spec in responder.specs
-    )
-    assert all(
-        options is not None and options.enable_thinking is False
-        for options in responder.options
+        options is not None and options.enable_thinking is False for options in responder.options
     )
     for prompt in responder.prompts[1:]:
         assert all(title in prompt for title in _THEME_SECTIONS)
@@ -207,9 +202,7 @@ async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     )
 
     assert calls == 1 + len(_OUTLINE["themes"])
-    assert [topic["theme"] for topic in topics] == [
-        "Extracellular Matrix Architecture"
-    ]
+    assert [topic["theme"] for topic in topics] == ["Extracellular Matrix Architecture"]
 
 
 _DRAFT: dict[str, Any] = {
@@ -276,9 +269,7 @@ async def test_the_cycle_cap_holds_when_the_reviewer_objects_forever(
 
 
 def _base_state(**overrides: Any) -> Any:
-    h = make_hypothesis(
-        text="HDAC inhibition reverses fibrosis", elo_rating=1700
-    )
+    h = make_hypothesis(text="HDAC inhibition reverses fibrosis", elo_rating=1700)
     return make_state(
         hypotheses=[h],
         research_goal="g",
@@ -299,9 +290,7 @@ async def test_an_exception_in_the_review_loop_publishes_the_original_draft(
     loop = AsyncMock(side_effect=RuntimeError("provider exploded"))
     monkeypatch.setattr(ro, "review_research_overview", loop)
 
-    out = await ro.research_overview_node(
-        _base_state(enable_overview_review=True)
-    )
+    out = await ro.research_overview_node(_base_state(enable_overview_review=True))
 
     loop.assert_awaited_once()
     assert out["research_overview"]["overview"]["summary"] == "S"

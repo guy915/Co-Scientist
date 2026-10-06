@@ -52,15 +52,12 @@ def _insert_copy(
         if key != "id" or not isinstance(value, int)
     }
     conn.execute(
-        f"INSERT INTO {table} ({','.join(copied)}) "
-        f"VALUES ({','.join('?' for _ in copied)})",
+        f"INSERT INTO {table} ({','.join(copied)}) VALUES ({','.join('?' for _ in copied)})",
         tuple(copied.values()),
     )
 
 
-def _example_source(
-    conn: sqlite3.Connection, source_id: str
-) -> tuple[sqlite3.Row, dict[str, Any]]:
+def _example_source(conn: sqlite3.Connection, source_id: str) -> tuple[sqlite3.Row, dict[str, Any]]:
     source_row = conn.execute(
         "SELECT * FROM runs WHERE id=? AND client_id=?",
         (source_id, DEMO_CLIENT_ID),
@@ -68,21 +65,15 @@ def _example_source(
     if source_row is None:
         raise ValueError("example not found")
     source_config = json.loads(source_row["config_json"])
-    if source_row["status"] != "completed" or not source_config.get(
-        "example_chat_version"
-    ):
+    if source_row["status"] != "completed" or not source_config.get("example_chat_version"):
         raise ValueError("example chat is not available")
-    interview = interviews.get_interview(
-        str(source_config.get("interview_id") or ""), conn=conn
-    )
+    interview = interviews.get_interview(str(source_config.get("interview_id") or ""), conn=conn)
     if interview is None or interview["client_id"] != DEMO_CLIENT_ID:
         raise ValueError("example chat is not available")
     return source_row, interview
 
 
-def open_example_chat(
-    source_id: str, owner: str, *, db_path: str | None = None
-) -> dict[str, Any]:
+def open_example_chat(source_id: str, owner: str, *, db_path: str | None = None) -> dict[str, Any]:
     if not owner or owner == DEMO_CLIENT_ID:
         raise ValueError("an owned example chat is required")
     # Reuse checks and the entire copy commit together. A double click or two
@@ -97,9 +88,7 @@ def open_example_chat(
         ).fetchone()
         if existing:
             existing_config = json.loads(existing["config_json"])
-            result = interviews.get_interview(
-                existing_config["interview_id"], conn=conn
-            )
+            result = interviews.get_interview(existing_config["interview_id"], conn=conn)
             if result:
                 opened_at = db._now()
                 conn.execute(
@@ -139,17 +128,13 @@ def open_example_chat(
             )
             rows[table] = [
                 dict(row)
-                for row in conn.execute(
-                    f"SELECT * FROM {table} WHERE {predicate}", (source_id,)
-                )
+                for row in conn.execute(f"SELECT * FROM {table} WHERE {predicate}", (source_id,))
             ]
             for row in rows[table]:
                 if isinstance(row.get("id"), str):
                     identities[row["id"]] = str(uuid.uuid4())
         interview_row = dict(
-            conn.execute(
-                "SELECT * FROM interviews WHERE id=?", (interview["id"],)
-            ).fetchone()
+            conn.execute("SELECT * FROM interviews WHERE id=?", (interview["id"],)).fetchone()
         )
         interview_row.update(
             client_id=owner,

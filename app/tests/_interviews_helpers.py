@@ -23,9 +23,7 @@ class InterviewFields:
     completed: bool = False
 
 
-def _response(
-    message: str, fields: InterviewFields | None = None
-) -> dict[str, Any]:
+def _response(message: str, fields: InterviewFields | None = None) -> dict[str, Any]:
     fields = fields or InterviewFields()
     return {
         "assistant_message": message,
@@ -38,15 +36,8 @@ def _response(
 
 
 def _wire_turn(response: dict[str, Any]) -> str:
-    fields = {
-        key: value
-        for key, value in response.items()
-        if key != "assistant_message"
-    }
-    return (
-        f"{response['assistant_message']}\n\n"
-        f"{OPEN_MARKER}\n{json.dumps(fields)}\n{CLOSE_MARKER}"
-    )
+    fields = {key: value for key, value in response.items() if key != "assistant_message"}
+    return f"{response['assistant_message']}\n\n{OPEN_MARKER}\n{json.dumps(fields)}\n{CLOSE_MARKER}"
 
 
 def _interview_payload(response: Any) -> dict[str, Any]:
@@ -71,9 +62,7 @@ def _start_interview(
     )
 
 
-def _send_turn(
-    client: TestClient, headers: dict[str, str], interview_id: str, content: str
-) -> Any:
+def _send_turn(client: TestClient, headers: dict[str, str], interview_id: str, content: str) -> Any:
     return client.post(
         f"/api/interviews/{interview_id}/turns",
         headers=headers,
@@ -81,9 +70,7 @@ def _send_turn(
     )
 
 
-def _patch_model_sequence(
-    monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
-) -> None:
+def _patch_model_sequence(monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]) -> None:
     # The fake accepts the prose-sink argument so it cannot fabricate a provider
     # failure.
     replies = iter(responses)
@@ -148,11 +135,7 @@ def _run_antibiotic_interview(
     created = client.post(
         "/api/interviews",
         headers=headers,
-        json={
-            "research_challenge": (
-                "How can resistant bacteria regain drug susceptibility?"
-            )
-        },
+        json={"research_challenge": ("How can resistant bacteria regain drug susceptibility?")},
     )
     interview_id = _interview_payload(created)["id"]
     second = client.post(
@@ -164,10 +147,7 @@ def _run_antibiotic_interview(
         f"/api/interviews/{interview_id}/turns",
         headers=headers,
         json={
-            "content": (
-                "Use clinical Gram-negative isolates and exclude new "
-                "antibiotic discovery."
-            )
+            "content": ("Use clinical Gram-negative isolates and exclude new antibiotic discovery.")
         },
     )
     return interview_id, created, second, final
@@ -179,9 +159,7 @@ def _fake_stream(content: str, reasoning: str = "") -> Any:
     def _chunk(
         *, reasoning_content: str | None = None, content: str | None = None
     ) -> SimpleNamespace:
-        delta = SimpleNamespace(
-            reasoning_content=reasoning_content, content=content
-        )
+        delta = SimpleNamespace(reasoning_content=reasoning_content, content=content)
         return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
 
     async def _chunks() -> Any:

@@ -70,8 +70,7 @@ _MAX_REVIEW_PRIVATE_SOURCES = 4
 # An empty section implies execution observed nothing; explicitly distinguish
 # never running.
 _NO_EXECUTION_NOTE = (
-    "No simulation was executed for this review. Step through the "
-    "mechanism yourself."
+    "No simulation was executed for this review. Step through the mechanism yourself."
 )
 
 
@@ -99,17 +98,14 @@ def _prompt_variables(
         ),
         "tool_instructions": tool_instructions,
         "execution_observations": (
-            "A simulation of this mechanism was built and run. What it "
-            "reported:\n\n" + observations
+            "A simulation of this mechanism was built and run. What it reported:\n\n" + observations
             if observations
             else _NO_EXECUTION_NOTE
         ),
     }
 
 
-def _recurrent_review_suffix(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> str:
+def _recurrent_review_suffix(state: WorkflowState, hypothesis: Hypothesis) -> str:
     tournament = {
         "elo_rating": hypothesis.elo_rating,
         "match_count": hypothesis.total_matches,
@@ -123,9 +119,7 @@ def _recurrent_review_suffix(
     )
 
 
-def _build_domain_context(
-    state: WorkflowState, targeted_articles: list[Article] | None
-) -> str:
+def _build_domain_context(state: WorkflowState, targeted_articles: list[Article] | None) -> str:
     """Source counts bound distinct voices; reviews weigh a few papers in
     depth."""
     evidence = [
@@ -184,13 +178,9 @@ async def review_hypothesis(
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as exc:
-        logger.error(
-            "%s review failed for %s: %s", review_type.value, hypothesis.id, exc
-        )
+        logger.error("%s review failed for %s: %s", review_type.value, hypothesis.id, exc)
         return ReviewRun(review_type, None, evidence.ledger)
-    _record_review_provenance(
-        result, evidence, targeted_articles, review_type, observations
-    )
+    _record_review_provenance(result, evidence, targeted_articles, review_type, observations)
     return ReviewRun(review_type, result, evidence.ledger)
 
 
@@ -205,9 +195,7 @@ def _record_review_provenance(
     model self-report is unreliable."""
     result["retrieval_queries"] = evidence.queries
     result["retrieval_errors"] = evidence.errors
-    result["retrieved_articles"] = [
-        article.to_dict() for article in targeted_articles
-    ]
+    result["retrieved_articles"] = [article.to_dict() for article in targeted_articles]
     if review_type is not ReviewType.SIMULATION:
         return
     result["executed"] = observations is not None
@@ -234,14 +222,10 @@ def _build_review_prompt(
     targeted_articles: list[Article],
     observations: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    template_type = (
-        ReviewType.FULL if review_type is ReviewType.RECURRENT else review_type
-    )
+    template_type = ReviewType.FULL if review_type is ReviewType.RECURRENT else review_type
     prompt, schema = load_prompt_with_schema(
         prompt_name_for(template_type),
-        _prompt_variables(
-            state, hypothesis, review_type, targeted_articles, observations
-        ),
+        _prompt_variables(state, hypothesis, review_type, targeted_articles, observations),
     )
     if review_type is ReviewType.RECURRENT:
         prompt = (
@@ -263,9 +247,7 @@ def _apply_review_results(
     for run in results:
         if run.result is None:
             continue
-        store_mature_review_result(
-            hypothesis, run.review_type, run.result, iteration
-        )
+        store_mature_review_result(hypothesis, run.review_type, run.result, iteration)
         successful += 1
     return successful
 
@@ -278,10 +260,7 @@ async def _review_hypothesis(
     if not reviews:
         return 0, []
     results = await asyncio.gather(
-        *[
-            review_hypothesis(state, hypothesis, review_type)
-            for review_type in reviews
-        ]
+        *[review_hypothesis(state, hypothesis, review_type) for review_type in reviews]
     )
     successful = _apply_review_results(hypothesis, iteration, results)
     state["articles"] = merge_retrieved_articles(
@@ -305,9 +284,7 @@ _ReviewRun = ReviewRun
 _run_review = review_hypothesis
 
 
-async def _recheck_hypothesis(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> int:
+async def _recheck_hypothesis(state: WorkflowState, hypothesis: Hypothesis) -> int:
     """Issuing spends the one recheck even when the call fails."""
     mark_recheck_issued(hypothesis)
     run = await review_hypothesis(state, hypothesis, RECHECK_REVIEW_TYPE)
@@ -322,9 +299,7 @@ async def _recheck_hypothesis(
     return 1
 
 
-async def _run_blocked_rechecks(
-    state: WorkflowState, hypotheses: list[Hypothesis]
-) -> int:
+async def _run_blocked_rechecks(state: WorkflowState, hypotheses: list[Hypothesis]) -> int:
     targets = recheck_targets(hypotheses)
     if not targets:
         return 0
@@ -368,26 +343,18 @@ async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
     """Blocked ideas need their own recheck arm: the viable-only cascade
     cannot reach them to produce a deeper verdict."""
     hypotheses = state["hypotheses"]
-    viable = [
-        hypothesis
-        for hypothesis in hypotheses
-        if hypothesis.review_disposition == "viable"
-    ]
+    viable = [hypothesis for hypothesis in hypotheses if hypothesis.review_disposition == "viable"]
     # These review arms have no data dependency; overlap their model latency.
     observation_calls, reviewed, recheck_calls = await asyncio.gather(
         _run_missing_observation_reviews(state, viable),
         asyncio.gather(*[_review_hypothesis(state, h) for h in viable]),
         _run_blocked_rechecks(state, hypotheses),
     )
-    calls = (
-        observation_calls + sum(count for count, _ in reviewed) + recheck_calls
-    )
+    calls = observation_calls + sum(count for count, _ in reviewed) + recheck_calls
     return {
         "hypotheses": hypotheses,
         "articles": state.get("articles") or [],
-        "research_ledgers": [
-            ledger for _, ledgers in reviewed for ledger in ledgers
-        ],
+        "research_ledgers": [ledger for _, ledgers in reviewed for ledger in ledgers],
         "metrics": create_metrics_update(deltas=MetricDeltas(llm_calls=calls)),
         "messages": phase_message(
             "reflection",

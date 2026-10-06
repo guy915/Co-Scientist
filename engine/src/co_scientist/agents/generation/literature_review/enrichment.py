@@ -153,9 +153,7 @@ async def _query_enrichment_entity(
     """Citation building needs the originating YAML tool ID, which the
     aggregate stamps after entity-level retrieval."""
     tool_name = tool_config.mcp_tool_name
-    params = tool_config.map_parameters(
-        _build_enrichment_canonical_params(entity)
-    )
+    params = tool_config.map_parameters(_build_enrichment_canonical_params(entity))
     raw = await _call_enrichment_tool_for_entity(tool_name, params, mcp_client)
     if raw is None:
         return "", []
@@ -172,10 +170,7 @@ async def _call_enrichment_tool_for_entities(
 ) -> tuple[str, list[dict[str, Any]]]:
 
     per_entity = await asyncio.gather(
-        *[
-            _query_enrichment_entity(tool_config, entity, mcp_client)
-            for entity in entities
-        ]
+        *[_query_enrichment_entity(tool_config, entity, mcp_client) for entity in entities]
     )
 
     text_lines: list[str] = []
@@ -200,9 +195,7 @@ def _resolve_enrichment_tool_configs(
             tc._yaml_tool_id = tool_id
             tool_configs.append(tc)
         else:
-            logger.debug(
-                "context enrichment: tool '%s' unavailable or disabled", tool_id
-            )
+            logger.debug("context enrichment: tool '%s' unavailable or disabled", tool_id)
     return tool_configs
 
 
@@ -214,9 +207,7 @@ def _aggregate_enrichment_results(
     all_structured: list[dict[str, Any]] = []
     for tc, result in zip(tool_configs, tool_results, strict=True):
         if isinstance(result, BaseException):
-            logger.debug(
-                "context enrichment: %s raised %s", tc.mcp_tool_name, result
-            )
+            logger.debug("context enrichment: %s raised %s", tc.mcp_tool_name, result)
             continue
         text, items = result
         if text:
@@ -245,9 +236,7 @@ def _resolve_enrichment_context(
 
     entities = extract_entity_names(state["research_goal"], max_entities=3)
     if not entities:
-        logger.debug(
-            "context enrichment: no entities extracted from research goal"
-        )
+        logger.debug("context enrichment: no entities extracted from research goal")
         return None
 
     return workflow, tool_registry, entities
@@ -261,8 +250,7 @@ async def _run_enrichment_tools(
     """Optional enrichment failures must not discard successful sibling
     tools."""
     tool_tasks = [
-        _call_enrichment_tool_for_entities(tc, entities, mcp_client)
-        for tc in tool_configs
+        _call_enrichment_tool_for_entities(tc, entities, mcp_client) for tc in tool_configs
     ]
     tool_results = await asyncio.gather(*tool_tasks, return_exceptions=True)
     return _aggregate_enrichment_results(tool_configs, tool_results)
@@ -282,9 +270,7 @@ async def _gather_enrichment_content(
     entities: list[str],
     mcp_client: MCPToolClient,
 ) -> tuple[list[str], list[dict[str, Any]]] | None:
-    tool_configs = _resolve_enrichment_tool_configs(
-        workflow, tool_registry, mcp_client
-    )
+    tool_configs = _resolve_enrichment_tool_configs(workflow, tool_registry, mcp_client)
     if not tool_configs:
         return None
     return await _run_enrichment_tools(entities, tool_configs, mcp_client)
@@ -322,9 +308,7 @@ async def _phase2_6_fetch_context_enrichment(
         len(workflow.context_enrichment_tools),
     )
 
-    gathered = await _gather_enrichment_content(
-        workflow, tool_registry, entities, mcp_client
-    )
+    gathered = await _gather_enrichment_content(workflow, tool_registry, entities, mcp_client)
     if gathered is None:
         return empty
     sections, all_structured = gathered
