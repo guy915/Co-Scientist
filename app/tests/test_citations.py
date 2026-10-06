@@ -156,7 +156,12 @@ def test_resolution_prefers_doi_then_pmid_then_url_without_needless_calls(
 
     monkeypatch.setattr(citation_resolver, "_reachable", reachable)
     monkeypatch.setattr(citation_resolver, "_pmid_found", pmid_found)
-    args = {"doi": "", "pmid": "", "url": "", "retracted": False} | kwargs
+    args: dict[str, Any] = {
+        "doi": "",
+        "pmid": "",
+        "url": "",
+        "retracted": False,
+    } | kwargs
 
     assert citation_resolver.resolve_one(**args) is expected
     assert seen == calls

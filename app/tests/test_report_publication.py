@@ -804,14 +804,20 @@ def _run_with_blocked_and_released_content(
     )
     run_id = run.id
 
-    def add_idea(title: str, statement: str, **state: str) -> str:
+    def add_idea(
+        title: str,
+        statement: str,
+        *,
+        status: str | None = None,
+        safety_status: str = "allow",
+    ) -> str:
         hyp_id = hypotheses.add_hypothesis(
             NewHypothesis(run_id=run_id, title=title, statement=statement),
             db_path=isolated_db,
         )
         hypotheses.update_hypothesis_state(
             hyp_id,
-            HypothesisStateChanges(**{"safety_status": "allow", **state}),
+            HypothesisStateChanges(status=status, safety_status=safety_status),
             db_path=isolated_db,
         )
         return hyp_id
