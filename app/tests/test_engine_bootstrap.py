@@ -23,18 +23,16 @@ from tests._engine_tasks_helpers import (
     _patch_generator,
     _task_state,
 )
-from tests._store_helpers import enqueue_task, seed_run
+from tests._store_helpers import enqueue_task, pause_run, seed_run
 
 
 class _PauseDuringPrepare:
-    def __init__(self, client: Any, run_id: str, state: dict[str, Any]) -> None:
-        self.client = client
+    def __init__(self, run_id: str, state: dict[str, Any]) -> None:
         self.run_id = run_id
         self.state = state
 
     async def prepare_task_state(self, *_: Any, **__: Any) -> dict[str, Any]:
-        response = self.client.post(f"/api/runs/{self.run_id}/pause")
-        assert response.status_code == 200
+        pause_run(self.run_id)
         return self.state
 
 
@@ -64,7 +62,7 @@ def _pause_during_bootstrap_prepare(
 ) -> tuple[Any, str, Any]:
     client, run_id, task = _start_bootstrap(monkeypatch, db_path, "Pause during bootstrap prepare")
     _stub_bootstrap_providers(monkeypatch)
-    _patch_generator(monkeypatch, _PauseDuringPrepare(client, run_id, _task_state(run_id)))
+    _patch_generator(monkeypatch, _PauseDuringPrepare(run_id, _task_state(run_id)))
     monkeypatch.setattr(
         engine_tasks_support,
         "_enqueue_node_portfolio",
