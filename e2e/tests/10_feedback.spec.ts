@@ -110,12 +110,9 @@ for (const theme of ['light', 'dark']) {
         expect(row.diagnostics).toContain(marker);
       expect(row.diagnostics).toContain('modal_open: Feedback');
       await logs.click();
-      await expect(
-        page.getByRole('button', {name: 'Copy', exact: true}),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', {name: 'Clear', exact: true}),
-      ).toBeVisible();
+      await expect(logs.locator('[data-logged]')).toHaveCount(1);
+      await expect(logs).toHaveText(/Copied/);
+      await expect(page.getByRole('group', {name: /logs/i})).toHaveCount(0);
     });
   }
 }

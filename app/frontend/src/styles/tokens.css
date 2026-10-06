@@ -130,16 +130,6 @@ body {
     var(--cosci-accent) 88%,
     var(--cosci-accent-fg)
   );
-  --cosci-logs-count-bg: color-mix(
-    in srgb,
-    var(--cosci-accent-fg) 16%,
-    transparent
-  );
-  --cosci-logs-action-hover: color-mix(
-    in srgb,
-    var(--cosci-accent) 10%,
-    transparent
-  );
 
   --cosci-option-marker: #747775;
 

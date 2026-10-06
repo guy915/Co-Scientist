@@ -84,7 +84,7 @@ def _restore_node_task_state(
     propagate until the final attempt degrades to preserve report
     publication.
     """
-    from app.engine_adapter import restore_workflow_state
+    from co_scientist.checkpoint import restore_workflow_state
 
     state: dict[str, Any] = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry

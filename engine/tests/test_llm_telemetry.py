@@ -106,7 +106,7 @@ async def test_known_zero_estimate_is_distinct_from_missing_cost_evidence(
     with scoped_telemetry("probe") as telemetry:
         await call_llm(
             "probe",
-            CompletionSpec("openrouter/campaign-probe"),
+            CompletionSpec("openrouter/probe"),
         )
     entry = telemetry.snapshot()["probe::openrouter/minimax/minimax-m3:free"]
     assert entry["cost_usd"] == 0

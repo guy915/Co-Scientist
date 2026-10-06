@@ -486,7 +486,7 @@ def test_append_and_list_roundtrip(isolated_db: str) -> None:
     assert row["created_at"] > 0
 
 
-def test_prune_keeps_newest_and_clear_restarts_ids(isolated_db: str) -> None:
+def test_prune_keeps_newest(isolated_db: str) -> None:
     for i in range(10):
         _append(isolated_db, f"m{i}")
 
@@ -494,7 +494,3 @@ def test_prune_keeps_newest_and_clear_restarts_ids(isolated_db: str) -> None:
     rows = logs.list_logs(db_path=isolated_db)
     assert [row["message"] for row in rows] == ["m6", "m7", "m8", "m9"]
     assert logs.prune_logs(max_rows=4, db_path=isolated_db) == 0
-
-    assert logs.clear_logs(db_path=isolated_db) == 4
-    assert logs.list_logs(db_path=isolated_db) == []
-    assert _append(isolated_db, "after clear") == 1

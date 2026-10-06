@@ -7,7 +7,6 @@ import type {
   RunMessage,
   RunWithSummary,
 } from '@/api/runs';
-import type {AppLogRecord} from '@/api/logs';
 import type {InferredRunSpec} from '@/workbench/run_spec';
 import {type ChatEntry} from '@/workbench/pages/chat_timeline_bubble';
 
@@ -128,23 +127,6 @@ export function makeQuestion(
       {label: 'Primary human cells', description: 'Closest to patient biology'},
       {label: 'iPSC-derived line', description: 'Renewable and editable'},
     ],
-    ...over,
-  };
-}
-
-export function makeLogRecord(
-  id: number,
-  over: Partial<AppLogRecord> = {},
-): AppLogRecord {
-  return {
-    id,
-    created_at: 1_700_000_000 + id,
-    level: 'INFO',
-    levelno: 20,
-    logger: 'app.main',
-    message: `record ${id}`,
-    run_id: null,
-    exc_text: null,
     ...over,
   };
 }

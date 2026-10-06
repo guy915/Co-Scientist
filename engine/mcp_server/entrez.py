@@ -7,8 +7,6 @@ from typing import Any
 
 from Bio import Entrez
 
-from mcp_server.campaign import campaign_free_mode
-
 logger = logging.getLogger(__name__)
 
 
@@ -90,11 +88,7 @@ _sleep: Callable[[float], None] = time.sleep
 
 def _request_interval() -> float:
     initialize_entrez()
-    return (
-        _INTERVAL_WITH_API_KEY
-        if Entrez.api_key and not campaign_free_mode()
-        else _INTERVAL_WITHOUT_API_KEY
-    )
+    return _INTERVAL_WITH_API_KEY if Entrez.api_key else _INTERVAL_WITHOUT_API_KEY
 
 
 def _await_slot() -> None:
@@ -118,9 +112,5 @@ def entrez_call(request: Callable[..., Any], /, **kwargs: Any) -> Any:
     """Every Entrez request must use this seam to preserve process-wide NCBI
     pacing.
     """
-    # Biopython's key is process-global. Passing None suppresses it for this
-    # request even when a standard user's key was loaded earlier in the process.
-    if campaign_free_mode():
-        kwargs["api_key"] = None
     _await_slot()
     return request(**kwargs)

@@ -91,23 +91,9 @@ Configure the server URL (defaults to `http://localhost:8888/mcp`):
 export MCP_SERVER_URL=http://localhost:8888/mcp
 ```
 
-### Custom tool configuration
+### Tool configuration
 
-The engine uses a YAML-based tool registry that decouples literature sources from library code. This lets you bring your own MCP servers without modifying the engine.
-
-The default config (`src/co_scientist/config/tools.yaml`) declares the bundled
-academic, biomedical and web tools. The retained examples extend it with INDRA
-CoGex guidance for oncology (`indra_cancer.yaml`) and cardiac remodeling
-(`indra_hfpef.yaml`). Use either as the starting point for a custom YAML overlay.
-
-Set the app's `TOOLS_CONFIG` to the selected YAML file:
-
-```dotenv
-TOOLS_CONFIG=/absolute/path/to/indra_cancer.yaml
-```
-
-See `src/co_scientist/config/schema.py` for the schema and
-`src/co_scientist/config/tools.yaml` for the shipped configuration.
+The tool registry is declared in `src/co_scientist/config/tools.yaml` (bundled academic, biomedical and web tools, with `${VAR:-default}` environment substitution). See `src/co_scientist/config/schema.py` for the schema.
 
 ## LLM providers
 

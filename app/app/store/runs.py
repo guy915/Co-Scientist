@@ -343,7 +343,6 @@ class RunCreateOptions:
     client_id: str = ""
     title: str | None = None
     llm_backend: str | None = None
-    execution_policy: str = "standard"
     db_path: str | None = None
     conn: sqlite3.Connection | None = None
     log_created: bool | None = None
@@ -389,13 +388,12 @@ def create_run(
         completed_at=None,
         error=None,
         llm_backend=backend,
-        execution_policy=opts.execution_policy,
     )
     with _use_conn(opts.conn, opts.db_path) as active:
         active.execute(
             "INSERT INTO runs (id, research_goal, title, profile, status, "
             "provider, config_json, client_id, created_at, updated_at, "
-            "llm_backend, execution_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "llm_backend) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run.id,
                 run.research_goal,
@@ -408,7 +406,6 @@ def create_run(
                 now,
                 now,
                 run.llm_backend,
-                run.execution_policy,
             ),
         )
     should_log = opts.conn is None if opts.log_created is None else opts.log_created

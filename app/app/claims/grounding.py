@@ -327,13 +327,13 @@ def _per_hypothesis_claim_records(
     return [(hyp_id, _claim_records(hyp)) for hyp in hyps if (hyp_id := str(hyp.get("id") or ""))]
 
 
-def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
+def build_assessor(model: str) -> tuple[Assessor, str]:
     # Offline admission precedes provider dispatch even when credentials are
     # available.
 
     from app.engine_adapter import offline_mode
 
-    if mode == "llm" and not offline_mode():
+    if not offline_mode():
         from app.claims.verifier import make_llm_assessor
 
         return make_llm_assessor(model)
@@ -341,14 +341,14 @@ def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
 
 
 def build_batch_assessor(
-    mode: str, model: str, *, call_counter: list[int] | None = None
+    model: str, *, call_counter: list[int] | None = None
 ) -> BatchAssessor | None:
     """Offline guards cover batch and individual paths so batching cannot
     expose goals to a provider.
     """
     from app.engine_adapter import offline_mode
 
-    if mode == "llm" and not offline_mode():
+    if not offline_mode():
         from app.claims.verifier import make_llm_batch_assessor
 
         batch_assessor, _ = make_llm_batch_assessor(model, call_counter=call_counter)

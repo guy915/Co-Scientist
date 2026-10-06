@@ -121,31 +121,18 @@ class SystemStatusResponse(BaseModel):
         None,
         description=("effective supervisor/meta-review model id; operator callers only"),
     )
-    tools_config: str | None = Field(
-        None,
-        description=(
-            "configured tools YAML path/URL, or null for defaults/redacted; operator callers only"
-        ),
-    )
-    tools_config_valid: bool | None = Field(
-        None,
-        description=(
-            "false only when a configured local tools_config path is not "
-            "readable; operator callers only"
-        ),
-    )
     enabled_tools: list[str] | None = Field(
         None,
         description=(
-            "enabled tool ids for a readable local tools_config, else null "
-            "(unset/URL/engine-default/redacted); operator callers only"
+            "enabled tool ids from the default tools config, else null "
+            "(engine unavailable/redacted); operator callers only"
         ),
     )
     connectors: list[Connector] = Field(
         default_factory=list,
         description=(
             "user-facing data-source connectors derived from availability and "
-            "the configured tools YAML, for the composer's connectors menu"
+            "the default tools config, for the composer's connectors menu"
         ),
     )
 

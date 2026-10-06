@@ -26,7 +26,6 @@ from co_scientist.llm import (
     LLMCallOptions,
     ToolLoop,
     call_llm_with_tools,
-    campaign_free_mode,
     parse_tool_loop_json,
 )
 from co_scientist.prompts import (
@@ -266,7 +265,7 @@ class DraftSkills:
 def attach_skills(state: WorkflowState, provider: Any, tools: list[Any]) -> DraftSkills:
     """Workspace/skill setup failure must retain MCP drafting rather than
     lose the cycle's hypotheses."""
-    if campaign_free_mode() or not skills_section():
+    if not skills_section():
         return DraftSkills(provider, tools)
     run_id = state.get("run_id")
     if not run_id:

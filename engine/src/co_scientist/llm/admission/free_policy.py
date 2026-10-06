@@ -70,7 +70,6 @@ _REQUEST_FIELDS = {
     "stream_options",
 }
 _BODY_FIELDS = {"provider", "models", "reasoning"}
-_campaign_mode: ContextVar[bool] = ContextVar("campaign_mode", default=False)
 _zero_cost_only: ContextVar[bool] = ContextVar("zero_cost_only", default=False)
 
 
@@ -213,32 +212,23 @@ def _verify_pricing(model: str, pricing: Any) -> None:
         raise FreeModelEligibilityError("zero-cost route has paid or invalid pricing")
 
 
-def campaign_free_mode() -> bool:
+def free_models_required() -> bool:
     configured = os.getenv(FREE_MODE_ENV, "0").strip().lower()
     if configured not in {"0", "false", "", "1", "true"}:
         raise FreeModelEligibilityError("zero-cost mode setting is invalid")
-    return _campaign_mode.get() or configured in {"1", "true"}
-
-
-@contextlib.contextmanager
-def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
-    """Nested scopes may strengthen campaign admission but never weaken it."""
-    with _bind_contextvar(_campaign_mode, _campaign_mode.get() or enabled):
-        yield
+    return configured in {"1", "true"}
 
 
 @contextlib.contextmanager
 def scoped_zero_cost_admission(enabled: bool) -> Iterator[None]:
-    """Unlike campaign mode, this gates only provider admission, not tools.
-    Nested scopes may strengthen it but never weaken it.
-    """
+    """Nested scopes may strengthen zero-cost admission but never weaken it."""
     with _bind_contextvar(_zero_cost_only, _zero_cost_only.get() or enabled):
         yield
 
 
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
     model = str(args.get("model", ""))
-    return campaign_free_mode() or _zero_cost_only.get() or (not byok and is_free_route(model))
+    return free_models_required() or _zero_cost_only.get() or (not byok and is_free_route(model))
 
 
 def _request_body(args: dict[str, Any]) -> dict[str, Any]:
@@ -297,8 +287,8 @@ def _routes(args: dict[str, Any], body: dict[str, Any]) -> list[str]:
 
 
 async def enforce_free_request(args: dict[str, Any], *, byok: bool = False) -> bool:
-    """Campaign policy overrides BYOK; a deployment key is not evidence of
-    caller-owned credentials.
+    """Process-wide free-only mode overrides BYOK; a deployment key is not
+    evidence of caller-owned credentials.
     """
     if not _requires_free(args, byok):
         return False

@@ -1,10 +1,5 @@
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {
-  APP_LOGS_CHANGED_EVENT,
-  deleteAppLogs,
-  getAppLogs,
-  postAppLogs,
-} from './logs';
+import {APP_LOGS_CHANGED_EVENT, getAppLogs, postAppLogs} from './logs';
 
 const httpMock = vi.hoisted(() => {
   const clientHeaders = vi.fn(() => ({'X-Client-ID': 'client-7'}));
@@ -36,7 +31,7 @@ afterEach(() => {
   window.removeEventListener(APP_LOGS_CHANGED_EVENT, listener);
 });
 
-it('announces a successful post so open panels refresh', async () => {
+it('announces a successful post so the Logs indicator refreshes', async () => {
   httpMock.fetchJson.mockResolvedValue({added: 1, last_id: 5});
 
   await postAppLogs([{message: 'clicked something'}]);
@@ -55,15 +50,22 @@ it('identifies the caller when reading', async () => {
   expect(init.headers).toMatchObject({'X-Client-ID': 'client-7'});
 });
 
-it('identifies the caller when posting and clearing', async () => {
+it('identifies the caller when posting', async () => {
   httpMock.fetchJson.mockResolvedValue({added: 1, last_id: 5});
   await postAppLogs([{message: 'clicked something'}]);
-  httpMock.fetchJson.mockResolvedValue({deleted: 1});
-  await deleteAppLogs();
 
-  for (const [, init] of httpMock.fetchJson.mock.calls) {
-    expect(init.headers).toMatchObject({'X-Client-ID': 'client-7'});
-  }
+  const [, init] = httpMock.fetchJson.mock.calls[0];
+  expect(init.headers).toMatchObject({'X-Client-ID': 'client-7'});
+});
+
+it('asks only for the requested minimum level', async () => {
+  httpMock.fetchJson.mockResolvedValue({logs: [], last_id: 0, total: 0});
+
+  await getAppLogs(7, 1, 'WARNING');
+
+  expect(httpMock.fetchJson.mock.calls[0][0]).toBe(
+    '/api/logs?after_id=7&limit=1&min_level=WARNING',
+  );
 });
 
 it('does not announce failed requests', async () => {

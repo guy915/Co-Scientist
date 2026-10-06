@@ -10,8 +10,6 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from mcp_server.campaign import require_tool_allowed
-
 logger = logging.getLogger(__name__)
 
 # Bound logged query text without dropping the clue explaining empty results.
@@ -72,7 +70,6 @@ def _wrap_async(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
 
     @functools.wraps(fn)
     async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-        require_tool_allowed(name)
         started = time.monotonic()
         described = _describe_args(args, kwargs)
         try:
@@ -92,7 +89,6 @@ def _wrap_sync(fn: Callable[..., Any], name: str) -> Callable[..., Any]:
 
     @functools.wraps(fn)
     def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-        require_tool_allowed(name)
         started = time.monotonic()
         described = _describe_args(args, kwargs)
         try:

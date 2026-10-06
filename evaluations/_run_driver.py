@@ -30,7 +30,6 @@ def configure_environment(db_path: str, *, live: bool) -> None:
         os.environ["FORCE_LITERATURE_REVIEW"] = "0"
         return
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
-    os.environ.pop("COSCIENTIST_FORCE_MOCK", None)
     from evaluations._live_config import configure_live_environment
 
     configure_live_environment()

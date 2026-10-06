@@ -18,7 +18,6 @@ from app.api_contracts import MessagesResponse
 from app.api_contracts.interviews import Interview
 from app.api_contracts.runs import RunMessage
 from app.auth import require_client_scope
-from app.execution_policy import CAMPAIGN, campaign_model_for_config
 from app.qa import snapshot
 from app.runs.models import (
     AskRequest,
@@ -157,13 +156,7 @@ def _resolve_qa_byok(run: RunRow, request: Request) -> credentials.ByokCredentia
     consistent across sessions.
     """
     byok = credentials.get_run_credential(run.id)
-    credential = byok if byok is not None else _request_byok(request)
-    if run.execution_policy == CAMPAIGN and credential is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="campaign runs cannot use bring-your-own-key credentials",
-        )
-    return credential
+    return byok if byok is not None else _request_byok(request)
 
 
 def _persist_question(run_id: str, content: str) -> MessageRow:
@@ -195,10 +188,6 @@ def _live_qa_response(
                 artifacts=context.artifacts,
             ),
             byok=byok,
-            execution_policy=run.execution_policy,
-            campaign_model_name=(
-                campaign_model_for_config(run.config) if run.execution_policy == CAMPAIGN else None
-            ),
         ),
         media_type="text/event-stream",
     )
