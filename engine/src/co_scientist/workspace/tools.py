@@ -9,7 +9,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.llm import campaign_free_mode
 from co_scientist.patch import PatchError
 from co_scientist.sandbox import (
     SandboxKind,
@@ -17,7 +16,6 @@ from co_scientist.sandbox import (
     is_known_safe,
     sandbox_backend,
 )
-from co_scientist.sandbox.policy import campaign_workspace_policy
 from co_scientist.skills import (
     available_skills,
     invoked_skill,
@@ -206,9 +204,7 @@ async def _handle_run_command(context: "_ToolContext", args: dict[str, Any]) -> 
     argv = _require_argv(args)
     # Inject credentials only into recognized skill scripts, never arbitrary
     # network-capable model programs.
-    skill = (
-        invoked_skill(argv) if context.session.skills_enabled and not campaign_free_mode() else None
-    )
+    skill = invoked_skill(argv) if context.session.skills_enabled else None
     if skill is not None:
         # Attribution is per data source; run_command alone cannot identify the
         # notice owed.
@@ -289,7 +285,6 @@ def workspace_tool_schemas(
     """Installing skills must not enable consumers that were measured worse
     with them.
     """
-    policy = campaign_workspace_policy(policy)
     schemas = [
         write_file_schema(),
         apply_patch_schema(),
@@ -298,11 +293,7 @@ def workspace_tool_schemas(
     ]
     # Offer skill instructions only when the consumer asks and commands can
     # actually run.
-    skills = (
-        available_skills()
-        if skills_enabled and not campaign_free_mode() and can_run_commands(policy)
-        else ()
-    )
+    skills = available_skills() if skills_enabled and can_run_commands(policy) else ()
     if skills:
         schemas.append(read_skill_schema(tuple(s.name for s in skills)))
     if can_run_commands(policy):
@@ -420,8 +411,6 @@ class WorkspaceToolProvider:
         call the next turn rejects.
         """
         name = tool_call.function.name
-        if name == READ_SKILL and campaign_free_mode():
-            return tool_error_message(name, tool_call.id, "skills are unavailable in campaign mode")
         handler = _HANDLERS.get(name) if name in self._names else None
         if handler is None:
             return await self._delegate_call(tool_call, name)

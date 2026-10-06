@@ -23,7 +23,7 @@ from co_scientist.evidence.search_support import (
     extract_source_name,
     merge_search_results,
 )
-from co_scientist.mcp_client import MCPToolClient, campaign_serves_tool
+from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState
 
 
@@ -157,24 +157,6 @@ async def _merge_and_budget_multi_source(
     return all_paper_metadata, paper_source_map
 
 
-def _campaign_admitted_sources(
-    sources: list["SearchSourceConfig"], tool_registry: "ToolRegistry"
-) -> list["SearchSourceConfig"]:
-    """Registry setup precedes campaign scope; skip policy-refused sources here
-    because their refusal is permanent and would only pollute diagnostics."""
-    admitted = []
-    for source in sources:
-        tool = tool_registry.get_tool(source.tool)
-        if tool is not None and not campaign_serves_tool(tool.mcp_tool_name):
-            logger.info(
-                "Skipping search source %s: not served under campaign policy",
-                source.tool,
-            )
-            continue
-        admitted.append(source)
-    return admitted
-
-
 async def _phase2_collect_papers_multi_source(
     queries: list[str],
     config: SearchConfig,
@@ -183,9 +165,7 @@ async def _phase2_collect_papers_multi_source(
 
     assert config.workflow is not None and config.tool_registry is not None
     # Registry loading already reconciles source flags with disabled tools.
-    enabled_sources = _campaign_admitted_sources(
-        config.workflow.get_enabled_search_sources(), config.tool_registry
-    )
+    enabled_sources = config.workflow.get_enabled_search_sources()
     logger.info("Phase 2: collecting papers from %s sources", len(enabled_sources))
 
     source_results = await _search_all_sources(enabled_sources, queries, ctx, config.tool_registry)

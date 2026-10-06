@@ -13,7 +13,6 @@ from co_scientist.agents.ranking.ranking_debate import (
     _finalize_debate_response,
     _MatchupPrompt,
 )
-from co_scientist.llm import campaign_free_mode
 
 import app.citations as citation_resolver
 from app import safety
@@ -25,7 +24,6 @@ from app.citations import (
 from app.claims.grounding import evidence_passages
 from app.config import settings
 from app.engine_adapter.drain.matches import _persist_engine_matches
-from app.execution_policy import scoped_execution_policy
 from app.hypothesis import screen_hypotheses
 from app.report import markdown as report_markdown
 from app.store import db, hypotheses, records
@@ -112,30 +110,6 @@ def test_drain_escalates_and_audits_the_resolved_verdict(
     ]
     assert resolved, "the resolution must leave an audit row"
     assert {d["decision"] for d in resolved} == {decision}
-
-
-def test_campaign_scope_reaches_held_hypothesis_executor(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import app.hypothesis.safety as hypothesis_safety_resolve
-
-    seen: list[bool] = []
-
-    async def resolve(review: Any, *_args: Any, **_kwargs: Any) -> Any:
-        seen.append(campaign_free_mode())
-        return review
-
-    monkeypatch.setattr(hypothesis_safety_resolve, "resolve_hold", resolve)
-    run = _real_run("campaign executor propagation")
-
-    with scoped_execution_policy("campaign"):
-        _persist(
-            run_id=run.id,
-            final_state=_escalation_state(),
-            db_path=isolated_db,
-        )
-
-    assert seen and all(seen)
 
 
 def test_rescreen_does_not_downgrade_an_escalation_raised_block(

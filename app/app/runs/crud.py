@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Awaitable, Callable
-from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
 
@@ -16,16 +15,7 @@ import app.staged_documents as staged_documents
 import app.store.receipts as run_creation_receipts
 from app.auth import client_id, require_client_scope
 from app.config import byok_enabled
-from app.execution_policy import (
-    CAMPAIGN,
-    CAMPAIGN_MODEL_CONFIG_KEY,
-    CAMPAIGN_MODEL_NAME,
-    ZERO_COST_CONFIG_KEY,
-    campaign_model_for_config,
-    deployment_routes_are_free,
-    resolve_execution_policy,
-    scoped_execution_policy,
-)
+from app.execution_policy import ZERO_COST_CONFIG_KEY, deployment_routes_are_free
 from app.goal_text import (
     clean_title,
     generate_goal_restatement,
@@ -52,19 +42,7 @@ from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from app.store.runs import RunCreateOptions
 
 
-def _reject_campaign_byok(
-    credential: credentials.ByokCredential | None, execution_policy: str
-) -> None:
-    if credential is not None and execution_policy == CAMPAIGN:
-        raise HTTPException(
-            status_code=400,
-            detail="campaign runs cannot use bring-your-own-key credentials",
-        )
-
-
-async def _resolve_byok(
-    request: Request, execution_policy: str = "standard"
-) -> credentials.ByokCredential | None:
+async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
     """Live credential validation happens before database writes, so
     rejected keys create no run and never hold the writer.
     """
@@ -74,7 +52,6 @@ async def _resolve_byok(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if credential is None:
         return None
-    _reject_campaign_byok(credential, execution_policy)
     if not byok_enabled():
         raise HTTPException(
             status_code=503,
@@ -169,7 +146,6 @@ class _PersistNewRun(Protocol):
         request: Request,
         interview: dict[str, Any] | None,
         resolved: _ResolvedRunSettings,
-        execution_policy: str = "standard",
         *,
         conn: sqlite3.Connection | None = None,
     ) -> RunRow: ...
@@ -179,9 +155,7 @@ class _PersistNewRun(Protocol):
 class RunCreationCallbacks:
     require_client_scope: Callable[[Request], str]
     client_id: Callable[[Request], str]
-    resolve_execution_policy: Callable[[Request, dict[str, Any] | None], str]
-    scoped_execution_policy: Callable[[str], AbstractContextManager[None]]
-    resolve_byok: Callable[[Request, str], Awaitable[credentials.ByokCredential | None]]
+    resolve_byok: Callable[[Request], Awaitable[credentials.ByokCredential | None]]
     resolve_run_interview: Callable[
         [CreateRunRequest, Request],
         tuple[dict[str, Any] | None, CreateRunRequest],
@@ -228,7 +202,6 @@ def _persist_new_run_for_owner(
     request: Request,
     interview: dict[str, Any] | None,
     resolved: _ResolvedRunSettings,
-    execution_policy: str = "standard",
     *,
     owner: str,
     conn: sqlite3.Connection | None = None,
@@ -245,7 +218,6 @@ def _persist_new_run_for_owner(
             client_id=owner,
             title=interview_title,
             llm_backend=resolved.llm_backend,
-            execution_policy=execution_policy,
             conn=conn,
             log_created=conn is None,
         ),
@@ -283,7 +255,6 @@ class _Admission:
 class _ResolvedSetup:
     request: CreateRunRequest
     interview: dict[str, Any] | None
-    execution_policy: str
     byok: credentials.ByokCredential | None
     staged_documents: list[dict[str, Any]]
     settings: _ResolvedRunSettings
@@ -329,19 +300,10 @@ async def _resolve_setup(
     callbacks: RunCreationCallbacks,
 ) -> _ResolvedSetup:
     interview, resolved_request = callbacks.resolve_run_interview(req, request)
-    policy = callbacks.resolve_execution_policy(request, interview)
-    with callbacks.scoped_execution_policy(policy):
-        byok = await callbacks.resolve_byok(request, policy)
+    byok = await callbacks.resolve_byok(request)
     staged = callbacks.run_setup_documents(resolved_request, interview, owner)
     settings = callbacks.resolve_run_settings(resolved_request, interview, byok)
-    if policy == CAMPAIGN:
-        settings = settings._replace(
-            config={
-                **settings.config,
-                CAMPAIGN_MODEL_CONFIG_KEY: CAMPAIGN_MODEL_NAME,
-            }
-        )
-    free = free_usage.applies(byok, policy, settings.llm_backend)
+    free = free_usage.applies(byok, settings.llm_backend)
     if free and resolved_request.tier is None:
         resolved_request = resolved_request.model_copy(update={"tier": free_usage.FREE_TIER})
         settings = callbacks.resolve_run_settings(resolved_request, interview, byok)
@@ -349,7 +311,7 @@ async def _resolve_setup(
         free_usage.check_request(resolved_request, settings.run_mode)
         if deployment_routes_are_free():
             settings = settings._replace(config={**settings.config, ZERO_COST_CONFIG_KEY: True})
-    return _ResolvedSetup(resolved_request, interview, policy, byok, staged, settings, free)
+    return _ResolvedSetup(resolved_request, interview, byok, staged, settings, free)
 
 
 def _persist_setup_transaction(
@@ -368,7 +330,6 @@ def _persist_setup_transaction(
             request,
             setup.interview,
             setup.settings,
-            setup.execution_policy,
             conn=conn,
         )
         if setup.free_usage:
@@ -490,7 +451,6 @@ def _persist_new_run(
     request: Request,
     interview: dict[str, Any] | None,
     resolved: _ResolvedRunSettings,
-    execution_policy: str = "standard",
     *,
     conn: sqlite3.Connection | None = None,
 ) -> RunRow:
@@ -499,37 +459,18 @@ def _persist_new_run(
         request,
         interview,
         resolved,
-        execution_policy,
         owner=client_id(request),
         conn=conn,
     )
 
 
 async def _generate_run_text(
-    run_id: str,
     goal: str,
     byok: credentials.ByokCredential | None,
-    execution_policy: str | None,
     *,
     restatement: bool = False,
 ) -> str | None:
-    run: RunRow | None = None
-    if execution_policy is None:
-        run = store.get_run(run_id)
-        if run is None:
-            return None
-        execution_policy = run.execution_policy
-    elif execution_policy == CAMPAIGN:
-        run = store.get_run(run_id)
-    campaign_model = (
-        campaign_model_for_config(run.config)
-        if run is not None and execution_policy == CAMPAIGN
-        else None
-    )
-    with (
-        scoped_execution_policy(execution_policy, campaign_model_name=campaign_model),
-        credentials.scoped_byok(byok),
-    ):
+    with credentials.scoped_byok(byok):
         generate = generate_goal_restatement if restatement else generate_run_title
         return await generate(goal)
 
@@ -538,13 +479,11 @@ async def _populate_run_title(
     run_id: str,
     goal: str,
     byok: credentials.ByokCredential | None = None,
-    *,
-    execution_policy: str | None = None,
 ) -> None:
     """Background titling preserves interview-chosen titles and leaves goal-
     clause fallback available when generation fails.
     """
-    title = await _generate_run_text(run_id, goal, byok, execution_policy)
+    title = await _generate_run_text(goal, byok)
     if title:
         store.set_run_title(run_id, title)
 
@@ -553,13 +492,11 @@ async def _populate_goal_restatement(
     run_id: str,
     goal: str,
     byok: credentials.ByokCredential | None = None,
-    *,
-    execution_policy: str | None = None,
 ) -> None:
     """Goal restatement is a distinct report artifact, independent of
     whether the interview supplied a title.
     """
-    restatement = await _generate_run_text(run_id, goal, byok, execution_policy, restatement=True)
+    restatement = await _generate_run_text(goal, byok, restatement=True)
     if restatement:
         store.set_run_goal_restatement(run_id, restatement)
 
@@ -580,7 +517,6 @@ def _apply_post_commit_effects(
             run.id,
             req.research_goal,
             byok,
-            execution_policy=run.execution_policy,
         )
     if model_backed:
         background_tasks.add_task(
@@ -588,7 +524,6 @@ def _apply_post_commit_effects(
             run.id,
             req.research_goal,
             byok,
-            execution_policy=run.execution_policy,
         )
 
 
@@ -605,8 +540,6 @@ async def create_run(
         RunCreationCallbacks(
             require_client_scope=require_client_scope,
             client_id=client_id,
-            resolve_execution_policy=resolve_execution_policy,
-            scoped_execution_policy=scoped_execution_policy,
             resolve_byok=_resolve_byok,
             resolve_run_interview=_resolve_run_interview,
             resolve_run_settings=_resolve_run_settings,

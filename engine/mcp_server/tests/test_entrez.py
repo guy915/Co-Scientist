@@ -11,7 +11,6 @@ import mcp_server.entrez as entrez_rate_limit
 import pytest
 from Bio import Entrez
 from mcp_server import entrez
-from mcp_server.campaign import scoped_campaign_request
 
 
 def test_entrez_rejects_insecure_tls_setting(
@@ -51,34 +50,14 @@ def _request_params(request: Request) -> dict[str, list[str]]:
     return parse_qs(encoded)
 
 
-@pytest.mark.parametrize("campaign", [True, False])
-def test_campaign_requests_omit_the_service_key_and_standard_ones_keep_it(
-    monkeypatch: pytest.MonkeyPatch, campaign: bool
-) -> None:
+def test_requests_keep_the_service_key(monkeypatch: pytest.MonkeyPatch) -> None:
     requests = _capture_requests(monkeypatch)
     monkeypatch.setattr(Entrez, "api_key", "service-held-key")
     monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
-    with scoped_campaign_request(campaign):
-        entrez_rate_limit.entrez_call(
-            Entrez.esearch,
-            db="pubmed",
-            term="EGFR resistance",
-            **({"api_key": "caller-override"} if campaign else {}),
-        )
-        assert entrez_rate_limit._request_interval() == (
-            entrez_rate_limit._INTERVAL_WITHOUT_API_KEY
-            if campaign
-            else entrez_rate_limit._INTERVAL_WITH_API_KEY
-        )
-
+    entrez_rate_limit.entrez_call(Entrez.esearch, db="pubmed", term="EGFR resistance")
+    assert entrez_rate_limit._request_interval() == entrez_rate_limit._INTERVAL_WITH_API_KEY
     (request,) = requests
-    wire = request.full_url + str(request.data or "")
-    if campaign:
-        assert "api_key=" not in wire
-        assert "service-held-key" not in wire
-        assert "caller-override" not in wire
-    else:
-        assert "api_key=service-held-key" in wire
+    assert "api_key=service-held-key" in request.full_url + str(request.data or "")
 
 
 _TEST_INTERVAL = 0.05

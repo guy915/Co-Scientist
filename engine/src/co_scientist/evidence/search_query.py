@@ -17,7 +17,7 @@ from co_scientist.evidence.search_support import (
     SearchConfig,
     normalize_search_response,
 )
-from co_scientist.mcp_client import CampaignToolUnavailableError, MCPToolClient
+from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.response_parser import parse_mcp_result
 
 # One-term broadening swamps the evidence budget with unrelated papers.
@@ -86,8 +86,8 @@ async def _call_search_tool(
         try:
             result = await mcp_client.call_tool(tool_name, **tool_params)
             return _decode_search_result(result)
-        # Tool errors and policy refusals repeat identically; do not retry them.
-        except (ToolException, CampaignToolUnavailableError):
+        # Tool errors repeat identically; do not retry them.
+        except ToolException:
             raise
         except Exception as exc:
             if attempt == _SEARCH_ATTEMPTS:

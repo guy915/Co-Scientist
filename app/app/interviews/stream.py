@@ -10,11 +10,6 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from app import credentials
-from app.execution_policy import (
-    CAMPAIGN,
-    CAMPAIGN_MODEL_NAME,
-    scoped_execution_policy,
-)
 from app.interviews import turns
 from app.sse import sse_frame
 from app.store import interviews as store
@@ -23,18 +18,6 @@ logger = logging.getLogger(__name__)
 
 # One queue preserves reasoning and prose order across independent coroutines.
 _Fragment = tuple[str, str]
-
-
-def _resolved_execution_policy(interview_id: str, execution_policy: str | None) -> str | None:
-    """Captured execution policy is trusted; vanished persisted state fails
-    closed.
-    """
-    if execution_policy is not None:
-        return execution_policy
-    interview = store.get_interview(interview_id)
-    if interview is None:
-        return None
-    return str(interview["execution_policy"])
 
 
 async def _start_stream_advance(
@@ -56,23 +39,14 @@ async def _start_stream_advance(
 async def _advance_stream(
     interview_id: str,
     byok: credentials.ByokCredential | None = None,
-    *,
-    execution_policy: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """One ordered queue carries reasoning and prose; disconnect
     cancellation stops unwatched provider work.
     """
-    execution_policy = _resolved_execution_policy(interview_id, execution_policy)
-    if execution_policy is None:
+    if store.get_interview(interview_id) is None:
         yield sse_frame({"type": "error", "detail": "interview not found"})
         return
-    with (
-        scoped_execution_policy(
-            execution_policy,
-            campaign_model_name=(CAMPAIGN_MODEL_NAME if execution_policy == CAMPAIGN else None),
-        ),
-        credentials.scoped_byok(byok),
-    ):
+    with credentials.scoped_byok(byok):
         queue, task = await _start_stream_advance(interview_id)
         try:
             while (fragment := await queue.get()) is not None:
@@ -117,11 +91,9 @@ async def _resolve_advance_task(
 def _interview_stream(
     interview_id: str,
     byok: credentials.ByokCredential | None = None,
-    *,
-    execution_policy: str | None = None,
 ) -> StreamingResponse:
     return StreamingResponse(
-        _advance_stream(interview_id, byok, execution_policy=execution_policy),
+        _advance_stream(interview_id, byok),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

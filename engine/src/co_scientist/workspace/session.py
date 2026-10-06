@@ -18,7 +18,7 @@ from co_scientist.sandbox import (
     workspace_write,
 )
 from co_scientist.sandbox.argv import wrap_argv
-from co_scientist.sandbox.policy import SandboxPolicy, campaign_workspace_policy
+from co_scientist.sandbox.policy import SandboxPolicy
 from co_scientist.sandbox.runner import _terminate, build_env
 from co_scientist.tool_effects import ToolEffect
 from co_scientist.workspace.output import SPILL_DIRECTORY
@@ -91,7 +91,7 @@ class CommandSession:
         env: dict[str, str],
     ) -> None:
         self._proc = await asyncio.create_subprocess_exec(
-            *wrap_argv(self.argv, campaign_workspace_policy(policy)),
+            *wrap_argv(self.argv, policy),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -263,9 +263,7 @@ class WorkspaceSession:
         root.mkdir(parents=True, exist_ok=True)
         self.root = root.resolve()
         _ensure_metadata_directory(self.root)
-        self.policy = campaign_workspace_policy(
-            policy or workspace_write(self.root, network_allowed=network_allowed)
-        )
+        self.policy = policy or workspace_write(self.root, network_allowed=network_allowed)
         self.skills_enabled = skills_enabled
         self.sessions = SessionRegistry()
 
@@ -284,7 +282,7 @@ class WorkspaceSession:
         result = await run_sandboxed(
             ExecRequest(
                 argv=argv,
-                policy=campaign_workspace_policy(self.policy),
+                policy=self.policy,
                 cwd=self.root,
                 timeout_seconds=timeout_seconds,
                 env=build_env(extra=env),

@@ -18,7 +18,6 @@ from dataclasses import dataclass
 import yaml
 
 from co_scientist._context import _bind_contextvar
-from co_scientist.llm import campaign_free_mode
 
 logger = logging.getLogger(__name__)
 
@@ -383,8 +382,6 @@ def skill_environment() -> dict[str, str]:
     """Omit missing credentials: upstream skills distinguish absent variables
     from present empty strings.
     """
-    if campaign_free_mode():
-        return {}
     resolved: dict[str, str] = {}
     for wanted, aliases in _CREDENTIAL_ALIASES.items():
         for alias in aliases:

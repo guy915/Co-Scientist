@@ -9,7 +9,7 @@ from co_scientist.llm import effective_max_tokens as _effective_max_tokens
 from co_scientist.llm import model_profile as _model_profile
 from co_scientist.llm import model_reasons as _model_reasons
 from co_scientist.llm import reasoning_effort_args as _effort_args
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONVERSATIONAL_REASONING_EFFORT = "medium"
@@ -138,9 +138,6 @@ class Settings(BaseSettings):
     auth_mode: Literal["compatibility", "required"] = "compatibility"
     auth_secret: str = ""
     researcher_access_codes: str = "{}"
-    # Only verified bearer subjects qualify for campaign funding, never
-    # compatibility IDs.
-    campaign_researcher_ids: set[str] = Field(default_factory=set)
     auth_session_hours: int = Field(default=12, gt=0)
     auth_exchange_per_minute: int = Field(default=20, gt=0)
 
@@ -165,14 +162,6 @@ class Settings(BaseSettings):
         extra="ignore",
         hide_input_in_errors=True,
     )
-
-    @field_validator("campaign_researcher_ids")
-    @classmethod
-    def _validate_campaign_researcher_ids(cls, value: set[str]) -> set[str]:
-        cleaned = {subject.strip() for subject in value}
-        if "" in cleaned:
-            raise ValueError("campaign researcher ids must be non-empty")
-        return cleaned
 
     @model_validator(mode="after")
     def _validate_auth_configuration(self) -> "Settings":

@@ -317,7 +317,7 @@ Each runner records its own `external_gap` in its result artifact.
 
 ### Live panels
 
-Live citation entailment, citation usefulness and Elo panels use campaign
+Live citation entailment, citation usefulness and Elo panels use free-model
 configuration before importing model code. Set an explicit OpenRouter `MODEL_NAME`
 and `OPENROUTER_API_KEY`; citation usefulness also accepts `--model` explicitly.
 Every model role is pinned and transport admission checks current zero prices.
