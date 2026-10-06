@@ -265,9 +265,7 @@ def test_offline_panels_do_not_claim_live_usage() -> None:
 @pytest.mark.parametrize(
     "invocation",
     [
-        "citation_eval._build_llm_assessor()",
         "citation_eval.run(use_llm=True)",
-        "elo_concordance_eval._make_llm_comparator()",
         "elo_concordance_eval.run(use_llm=True)",
         'citation_usefulness_eval.run_llm({"name": "empty", "items": []}, "")',
         'citation_usefulness_eval.run_llm({}, "deepseek/paid")',

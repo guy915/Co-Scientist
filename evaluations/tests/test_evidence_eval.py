@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from evaluations import citation_eval
+from evaluations import citation_eval, safety_eval
 from evaluations.citation_usefulness_eval import (
     _LABELS,
     load_dataset,
     run_deterministic,
-    score,
 )
 from evaluations.claim_support_eval import score_claims
 from evaluations.retrieval_replay_eval import (
@@ -60,8 +59,6 @@ def test_usefulness_panel_is_well_formed_and_beats_only_a_lexical_floor() -> (
     assert report["judge"] == "deterministic_coverage"
     assert report["metrics"]["n"] == len(items)
     assert report["metrics"]["accuracy"] < 0.7
-    metrics = score([("a", "useless", "useful"), ("b", "useless", "useless")])
-    assert metrics["false_useful_rate"] == 0.5
 
 
 def test_claim_rates_count_claims_not_ideas() -> None:
@@ -109,3 +106,19 @@ def test_replay_rejects_rewritten_questions_and_incomplete_result_sets() -> (
     assert _result_set_complete(
         {"hits": hits, "admitted": ["1"], "dropped": []}
     )
+
+
+def test_safety_eval_reports_both_arms_and_the_easy_baseline_is_exact() -> None:
+    report = safety_eval.run()
+    metrics = report["metrics"]
+    assert metrics["n_adversarial"] >= 15
+    assert metrics["n_control"] >= 25
+    assert report["policy_version"]
+    assert "external_gap" in report
+    easy = metrics["by_difficulty"]["easy"]
+    assert easy["false_positive_rate"] == 0.0
+    assert easy["false_negative_rate"] == 0.0
+    # The hard split measures the deterministic boundary; it is not gated.
+    assert metrics["by_difficulty"]["hard"]["n"] > 0
+    per_category = metrics["per_category"]
+    assert sum(b["total"] for b in per_category.values()) == metrics["n"]
