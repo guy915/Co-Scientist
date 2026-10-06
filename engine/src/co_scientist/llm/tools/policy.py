@@ -1,11 +1,7 @@
 """Each turn rebills the growing transcript; bound tokens as well as turns."""
 
 import logging
-from dataclasses import replace
 from typing import TYPE_CHECKING, Any
-
-from co_scientist.llm.values import LLMCallOptions
-from co_scientist.tool_effects import is_local_tool
 
 if TYPE_CHECKING:
     from co_scientist.llm.tools.loop import ToolLoop
@@ -90,17 +86,3 @@ def closing_message() -> dict[str, Any]:
             " and what is still uncertain because you ran out of room."
         ),
     }
-
-
-def _contains_local_tool(tools: list[dict[str, Any]]) -> bool:
-    return any(is_local_tool(schema.get("function", {}).get("name", "")) for schema in tools)
-
-
-def _guard_cache_for_local_tools(loop: "ToolLoop", options: LLMCallOptions) -> LLMCallOptions:
-    """Replaying local results fabricates evidence from another workspace.
-    Enforce refusal centrally: missed caller guards fail invisibly.
-    """
-    if not options.use_cache or not _contains_local_tool(loop.tools):
-        return options
-    logger.debug("disabling the tool-loop cache: local tools cannot be replayed")
-    return replace(options, use_cache=False)

@@ -278,7 +278,6 @@ async def _call_supervisor_planner(
             json_schema=_DECISION_SCHEMA,
         ),
         options=LLMCallOptions(
-            use_cache=False,
             run_id=state.get("run_id"),
             prompt_name="supervisor_allocation",
         ),

@@ -54,9 +54,6 @@ from tests._llm_fake_backend import (
 from tests._process_mode_helpers import FakeProcessMode
 from tests._store_helpers import enqueue_task, seed_run
 
-# Shared response caches can replay earlier-code results before the offline
-# router.
-
 
 class _Generator:
     last_kwargs: ClassVar[dict[str, Any]] = {}

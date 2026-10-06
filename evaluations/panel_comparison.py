@@ -21,7 +21,6 @@ def _validated_panel(report: dict[str, Any]) -> dict[str, Any]:
         "request_policy_files",
         "routing",
         "execution_mode",
-        "cache_policy",
         "panel",
         "kind",
     }
@@ -29,8 +28,6 @@ def _validated_panel(report: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("comparison panel identity is incomplete")
     if identity.get("kind") != "panel" or identity.get("panel") not in PANEL_FILES:
         raise ValueError("comparison requires a recognized panel identity")
-    if identity.get("cache_policy") != "disabled":
-        raise ValueError("comparison requires disabled panel caches")
     mode = identity.get("execution_mode")
     if mode not in {"offline", "live_requested"} or report.get("execution_mode") != mode:
         raise ValueError("comparison panel execution mode differs")

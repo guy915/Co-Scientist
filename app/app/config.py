@@ -81,9 +81,6 @@ class Settings(BaseSettings):
     # than Settings.
     mcp_server_url: str = "http://localhost:8888/mcp"
 
-    coscientist_cache_enabled: bool = True  # bridged to env for the engine
-    coscientist_cache_dir: str = "./cache"
-
     # K-factor stays deployment-tunable while the engine owns tournament math
     # and initial ratings.
     elo_k_factor: int = 24

@@ -120,8 +120,6 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | `CHAT_MODEL_NAME` | `openrouter/inclusionai/ling-3.1-flash` | Model for chat-workspace Q&A; falls back to `MODEL_NAME` |
 | `SEMANTIC_SAFETY_MODEL` | `openrouter/inclusionai/ling-3.1-flash` | Model for contextual safety screening |
 | `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
-| `COSCIENTIST_CACHE_ENABLED` | `true` | Enable LLM response caching |
-| `COSCIENTIST_CACHE_DIR` | `./cache` | Cache directory path |
 | `TOOLS_CONFIG` | — | Path or URL to a YAML tools config (optional) |
 | `ENTREZ_EMAIL` | — | Email for NCBI Entrez / PubMed access (optional) |
 | `COSCIENTIST_DEBUG` | `false` | Enable debug-level logging |

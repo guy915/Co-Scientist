@@ -24,7 +24,7 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 | `main.py` | App setup, lifespan, ownership middleware; the diagnostics endpoints (`/health`, `/status`) live in `diagnostics_api.py` and are mounted by `app.main` |
 | `feedback_api.py` / `store/feedback.py` | Owner-scoped feedback; durable admission budgets and row/byte/age retention |
 | `diagnostic_events.py` | Chat role/character-count/response-duration metadata; never transcript text |
-| `config.py` | Pydantic settings (model names, API keys, cache dir, Elo tuning, worker/concurrency caps, auth). The DB path is *not* here — `COSCIENTIST_DB_PATH` is read directly in `store/db.py` |
+| `config.py` | Pydantic settings (model names, API keys, Elo tuning, worker/concurrency caps, auth). The DB path is *not* here — `COSCIENTIST_DB_PATH` is read directly in `store/db.py` |
 | `runs/` (`__init__.py`) | Durable run-lifecycle router (`/api/runs` endpoint group); sibling routers `runs/lifecycle.py` (start/cancel; `runs/lifecycle.py` holds the safety-adjudication handler that relaunches or blocks a held run, registered from `runs/collections.py` to keep the served route order), `runs/collections.py` (read-only getters + report), `runs/contrib.py` (scientist input + attachments), and `runs/support.py` (shared guards) are included into `runs.router`, the names callers use are re-exported from `app.runs` |
 | `api_contracts/` | Backend-owned typed JSON responses and the generator for `frontend/src/api/wire_*.ts`; read endpoints validate them, with older optional report sections and extra persisted fields preserved |
 | `runs/models.py` / `runs/events.py` | Create-run request models, SSE replay/tail helpers |

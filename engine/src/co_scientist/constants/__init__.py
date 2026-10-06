@@ -156,13 +156,6 @@ RANKING_WAVE_MIN_SIZE: Final = 3
 # Oversized bursts provoke throttling rather than speeding judgments.
 
 
-# File-mtime expiry ages legacy caches without changing their storage format.
-DEFAULT_CACHE_TTL_SECONDS: Final = 7 * 24 * 60 * 60
-
-# Bump cache schema version when interpretation changes without prompt changes.
-LLM_CACHE_SCHEMA_VERSION: Final = 1
-
-
 # The failure sentinel must never become grounding content in downstream
 # prompts.
 LITERATURE_REVIEW_FAILED: Final = "__LIT_REVIEW_FAILED__"
@@ -231,10 +224,6 @@ PROGRESS_EVOLVE_START: Final = 85
 PROGRESS_EVOLVE_COMPLETE: Final = 87
 PROGRESS_RESEARCH_OVERVIEW_START: Final = 95
 PROGRESS_RESEARCH_OVERVIEW_COMPLETE: Final = 99
-
-DEFAULT_CACHE_DIR: Final = ".coscientist_cache"
-
-DEFAULT_CACHE_ENABLED: Final = True
 
 # Dev mode overrides per-run paper counts with the smaller budget.
 LITERATURE_REVIEW_PAPERS_COUNT: Final = 10

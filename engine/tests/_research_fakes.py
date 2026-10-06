@@ -128,17 +128,6 @@ def _budget(**overrides: object) -> ResearchBudget:
     return ResearchBudget(**defaults)  # type: ignore[arg-type]
 
 
-class _NoOpNodeCache:
-    """Disable the global disk cache so tests neither replay stale nodes nor
-    leave pickles."""
-
-    def get(self, *_: Any, **__: Any) -> None:
-        return None
-
-    def set(self, *_: Any, **__: Any) -> None:
-        return None
-
-
 class _FakeMCPClient:
     def __init__(self, search_payload: dict[str, dict[str, Any]]) -> None:
         self._search_payload = search_payload
@@ -179,8 +168,6 @@ def _stub_node(
     synthesis: str = "SYNTHESIZED REVIEW",
 ) -> _FakeMCPClient:
     fake_client = _FakeMCPClient(search_payload or {})
-
-    monkeypatch.setattr(lr, "get_node_cache", lambda: _NoOpNodeCache())
 
     async def fake_available(**_: Any) -> bool:
         return server_available
