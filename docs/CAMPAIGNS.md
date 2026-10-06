@@ -24,8 +24,18 @@ subagents before the cuts lead does.
 Each lead plans, reviews and merges. Subagents implement, each on its own
 branch (see Sessions and usage). To finish fast, keep three to five
 subagents busy whenever independent work is ready, and keep working
-around the clock. When an account reaches its usage limit, its campaign
-pauses until the reset; its open PRs keep their claims.
+around the clock.
+
+**Pace to the usage limit.** Each account has a rolling 5-hour usage limit,
+and no one watches the sessions overnight, so a session that hits it can sit
+idle for days. Aim to use most of each window without reaching it:
+
+- Run fewer subagents, and prefer the cheaper model for mechanical work, when
+  a window is filling faster than it resets.
+- Keep a recurring check-in in your own session (every two hours) that
+  resumes the campaign from the board and the merged PR history, so a stall
+  ends at the next reset. Remove it when your campaign is done.
+- Open PRs keep their claims while a session waits.
 
 ## Schedule
 
