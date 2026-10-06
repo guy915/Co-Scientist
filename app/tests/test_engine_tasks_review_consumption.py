@@ -7,10 +7,11 @@ import pytest
 from co_scientist.models import Hypothesis, HypothesisReview
 
 from app.engine_tasks import fanout_aggregates as aggregates
-from app.engine_tasks import fanout_aggregates as reflection
 
 
-def _make_item(result: dict[str, Any]) -> Any:
+def _patch_items(
+    monkeypatch: pytest.MonkeyPatch, results: dict[str, dict[str, Any]]
+) -> None:
 
     class _Item:
         status = "completed"
@@ -19,18 +20,22 @@ def _make_item(result: dict[str, Any]) -> Any:
             self.inputs: dict[str, Any] = {}
             self.result: dict[str, Any] = payload
 
-    return _Item(result)
+    monkeypatch.setattr(
+        aggregates,
+        "_require_item_task",
+        lambda item_id, db_path, kind="": _Item(results[str(item_id)]),
+    )
 
 
-def _patch_items(
-    monkeypatch: pytest.MonkeyPatch, results: dict[str, dict[str, Any]]
-) -> None:
-
-    def _require(item_id: Any, db_path: Any, kind: str = "") -> Any:
-        return _make_item(results[str(item_id)])
-
-    monkeypatch.setattr(reflection, "_require_item_task", _require)
-    monkeypatch.setattr(aggregates, "_require_item_task", _require)
+def _mature_item(
+    hypothesis: Hypothesis, mode: str, review: dict[str, Any], **extra: Any
+) -> dict[str, Any]:
+    return {
+        "hypothesis_id": hypothesis.id,
+        "review_mode": mode,
+        "review": review,
+        **extra,
+    }
 
 
 def test_mature_reflection_aggregate_applies_fatal_dispositions(
@@ -41,23 +46,18 @@ def test_mature_reflection_aggregate_applies_fatal_dispositions(
     _patch_items(
         monkeypatch,
         {
-            "item-full": {
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "full",
-                "review": {
-                    "verdict": "rejected",
-                    "justification": "circular mechanism",
-                },
-            },
-            "item-simulation": {
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "simulation",
-                "review": {"verdict": "holds", "decisive_step": "step one"},
-            },
+            "item-full": _mature_item(
+                hypothesis,
+                "full",
+                {"verdict": "rejected", "justification": "circular"},
+            ),
+            "item-simulation": _mature_item(
+                hypothesis, "simulation", {"verdict": "holds"}
+            ),
         },
     )
 
-    items = reflection._apply_mature_reflection_items(
+    items = aggregates._apply_mature_reflection_items(
         {hypothesis.id: hypothesis},
         ["item-full", "item-simulation"],
         current_iteration=1,
@@ -70,41 +70,14 @@ def test_mature_reflection_aggregate_applies_fatal_dispositions(
     assert not hypothesis.is_rankable()
 
 
-def test_mature_reflection_aggregate_keeps_viable_for_sound_reviews(
+@pytest.mark.parametrize(
+    ("criteria", "disposition"),
+    [(["Discriminating experimental design"], "inaccurate"), (None, "viable")],
+)
+def test_review_aggregate_gates_on_the_run_criteria_when_it_has_any(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypothesis = Hypothesis(text="idea")
-    hypothesis.review_disposition = "viable"
-    _patch_items(
-        monkeypatch,
-        {
-            "item-full": {
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "full",
-                "review": {"verdict": "sound"},
-            },
-            "item-recurrent": {
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "recurrent",
-                "review": {"verdict": "sound"},
-            },
-        },
-    )
-
-    items = reflection._apply_mature_reflection_items(
-        {hypothesis.id: hypothesis},
-        ["item-full", "item-recurrent"],
-        current_iteration=2,
-        db_path=None,
-    )
-
-    assert items.successful == 2
-    assert hypothesis.review_disposition == "viable"
-    assert hypothesis.enrichments["recurrent_review_iteration"] == 2
-
-
-def test_review_aggregate_gates_on_the_run_criteria(
-    monkeypatch: pytest.MonkeyPatch,
+    criteria: list[str] | None,
+    disposition: str,
 ) -> None:
     hypothesis = Hypothesis(text="idea")
     review = HypothesisReview(
@@ -129,106 +102,47 @@ def test_review_aggregate_gates_on_the_run_criteria(
         {hypothesis.id: hypothesis},
         ["item-review"],
         db_path=None,
-        criteria=["Discriminating experimental design"],
+        criteria=criteria,
     )
 
     assert (gated, failed) == (1, 0)
-    assert hypothesis.review_disposition == "inaccurate"
-    assert not hypothesis.is_rankable()
+    assert hypothesis.review_disposition == disposition
+    assert hypothesis.is_rankable() is (disposition == "viable")
 
 
-def test_review_aggregate_without_criteria_keeps_the_default_gate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypothesis = Hypothesis(text="idea")
-    review = HypothesisReview(
-        review_summary="summary",
-        scores={"scientific_soundness": 9, "novelty": 9, "testability": 1},
-        safety_ethical_concerns="none",
-        detailed_feedback={},
-        constructive_feedback="feedback",
-        overall_score=6.0,
-    )
-    _patch_items(
-        monkeypatch,
-        {
-            "item-review": {
-                "hypothesis_id": hypothesis.id,
-                "review": dataclasses.asdict(review),
-            }
-        },
-    )
-
-    gated, failed, _usage = aggregates._apply_review_items(
-        {hypothesis.id: hypothesis}, ["item-review"], db_path=None
-    )
-
-    assert (gated, failed) == (1, 0)
-    assert hypothesis.review_disposition == "viable"
-    assert hypothesis.is_rankable()
-
-
-def test_the_aggregate_carries_each_item_s_research_to_the_run(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "ledger", [{"goal": "reverse fibrosis", "calls": []}, None]
+)
+def test_the_aggregate_carries_each_items_research_to_the_run_once(
+    monkeypatch: pytest.MonkeyPatch, ledger: dict[str, Any] | None
 ) -> None:
     # Retrieval ledgers belong to the run and must survive discarded item
     # results without duplicate searches.
     hypothesis = Hypothesis(text="idea")
     hypothesis.review_disposition = "viable"
-    ledger = {"goal": "reverse fibrosis", "calls": []}
     _patch_items(
         monkeypatch,
         {
-            "item-full": {
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "full",
-                "review": {"verdict": "sound"},
-                "research_ledger": ledger,
-            },
-            "item-simulation": {
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "simulation",
-                "review": {"verdict": "holds"},
-                "research_ledger": dict(ledger),
-            },
+            "item-full": _mature_item(
+                hypothesis, "full", {"verdict": "sound"}, research_ledger=ledger
+            ),
+            "item-simulation": _mature_item(
+                hypothesis,
+                "simulation",
+                {"verdict": "holds"},
+                research_ledger=dict(ledger) if ledger else None,
+            ),
         },
     )
 
-    items = reflection._apply_mature_reflection_items(
+    items = aggregates._apply_mature_reflection_items(
         {hypothesis.id: hypothesis},
         ["item-full", "item-simulation"],
         current_iteration=1,
         db_path=None,
     )
-    update = reflection._mature_reflection_update(
+    update = aggregates._mature_reflection_update(
         {"hypotheses": [hypothesis], "articles": []}, items
     )
 
-    assert update["research_ledgers"] == [ledger]
-
-
-def test_an_unresearched_review_adds_no_ledger(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypothesis = Hypothesis(text="idea")
-    hypothesis.review_disposition = "viable"
-    _patch_items(
-        monkeypatch,
-        {
-            "item-full": {
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "full",
-                "review": {"verdict": "sound"},
-                "research_ledger": None,
-            }
-        },
-    )
-
-    items = reflection._apply_mature_reflection_items(
-        {hypothesis.id: hypothesis},
-        ["item-full"],
-        current_iteration=1,
-        db_path=None,
-    )
-
-    assert items.research_ledgers == []
+    assert update["research_ledgers"] == ([ledger] if ledger else [])

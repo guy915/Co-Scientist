@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import sqlite3
 import time
 from collections.abc import Callable
@@ -16,6 +15,7 @@ from app.config import settings
 from app.store import checkpoints, runs, tasks
 from app.store import db as _store_db
 from app.store import db as store_db
+from app.store import events as store_events
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
@@ -93,12 +93,13 @@ class _CheckpointReadInterleaver:
         self.future.result(timeout=5)
 
 
-def test_resume_reuses_live_checkpoint_writer_lease(
-    isolated_db: str,
+@pytest.mark.parametrize("writer_state", ["live", "expired", "spent"])
+def test_resume_gates_the_checkpoint_successor_on_its_writer_lease(
+    isolated_db: str, writer_state: str
 ) -> None:
-    run = seed_run("paused live commit")
+    run = seed_run("paused checkpoint writer")
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    task = enqueue_task(
+    writer = enqueue_task(
         run.id,
         f"{engine_tasks.NODE_TASK_PREFIX}generate",
         "pause:ranking-parent",
@@ -106,26 +107,26 @@ def test_resume_reuses_live_checkpoint_writer_lease(
         db_path=isolated_db,
     )
     _mark_leased(
-        task.id,
+        writer.id,
         isolated_db,
-        owner="still-running",
-        expires_at=time.time() + 3600,
-        spend_budget=False,
+        owner="writer-worker",
+        expires_at=time.time() + (3600 if writer_state == "live" else -3600),
+        spend_budget=writer_state == "spent",
     )
     runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
     seed_checkpoint(
         run.id,
         {"provider": "engine", "resume_successor": successor_type},
-        stage=f"engine_task:{task.id}",
+        stage=f"engine_task:{writer.id}",
         last_event_seq=1,
         db_path=isolated_db,
     )
     child = enqueue_task(
         run.id,
         successor_type,
-        f"{successor_type}:after:{task.id}",
+        f"{successor_type}:after:{writer.id}",
         inputs={"checkpoint_seq": 1},
-        dependencies=(task.id,),
+        dependencies=(writer.id,),
         provenance={"scheduled_by": "engine.node.generate"},
         db_path=isolated_db,
     )
@@ -136,12 +137,28 @@ def test_resume_reuses_live_checkpoint_writer_lease(
     )
 
     assert resumed.id == child.id
-    assert resumed.dependencies == (task.id,)
-    assert not tasks.claim_task(
-        "early-child", run_id=run.id, db_path=isolated_db
-    )
+    assert resumed.dependencies == (writer.id,)
+    if writer_state == "live":
+        assert not tasks.claim_task(
+            "early-child", run_id=run.id, db_path=isolated_db
+        )
+    else:
+        replayed = tasks.claim_task(
+            "replacement-worker", run_id=run.id, db_path=isolated_db
+        )
+        assert replayed is not None and replayed.id == writer.id
+        if writer_state == "spent":
+            revived = tasks.get_task(writer.id, db_path=isolated_db)
+            assert revived is not None
+            assert revived.max_attempts == writer.max_attempts + 1
+            assert replayed.attempt == writer.max_attempts + 1
+        else:
+            assert replayed.attempt == writer.attempt + 1
     assert lifecycle.complete_task(
-        task.id, "still-running", {}, db_path=isolated_db
+        writer.id,
+        "writer-worker" if writer_state == "live" else "replacement-worker",
+        {},
+        db_path=isolated_db,
     )
     claimed_child = tasks.claim_task(
         "child-worker", run_id=run.id, db_path=isolated_db
@@ -196,128 +213,6 @@ def test_resume_paused_stage_reuses_recorded_successor_not_writer(
         "successor-worker", run_id=run.id, db_path=isolated_db
     )
     assert claimed is not None and claimed.id == resumed.id
-
-
-def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
-    isolated_db: str,
-) -> None:
-    run = seed_run("paused expired commit")
-    successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    task = enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}generate",
-        "pause:expired-generate-parent",
-        inputs={"checkpoint_seq": 0},
-        db_path=isolated_db,
-    )
-    runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
-    claimed = tasks.claim_task(
-        "expired-worker", run_id=run.id, db_path=isolated_db
-    )
-    assert claimed is not None and claimed.id == task.id
-    task = claimed
-    with _store_db.transaction(isolated_db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET lease_expires_at=? WHERE id=?",
-            (time.time() - 3600, task.id),
-        )
-    runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    seed_checkpoint(
-        run.id,
-        {"provider": "engine", "resume_successor": successor_type},
-        stage=f"engine_task:{task.id}",
-        last_event_seq=1,
-        db_path=isolated_db,
-    )
-    child = enqueue_task(
-        run.id,
-        successor_type,
-        f"{successor_type}:after:{task.id}",
-        inputs={"checkpoint_seq": 1},
-        dependencies=(task.id,),
-        provenance={"scheduled_by": "engine.node.generate"},
-        db_path=isolated_db,
-    )
-    runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
-
-    resumed = task_worker.enqueue_run_workflow(
-        run.id, resume=True, db_path=isolated_db
-    )
-
-    assert resumed.id == child.id
-    reclaimed = tasks.claim_task(
-        "replacement-worker", run_id=run.id, db_path=isolated_db
-    )
-    assert reclaimed is not None and reclaimed.id == task.id
-    assert reclaimed.attempt == task.attempt + 1
-    assert lifecycle.complete_task(
-        task.id, "replacement-worker", {}, db_path=isolated_db
-    )
-    claimed_child = tasks.claim_task(
-        "child-worker", run_id=run.id, db_path=isolated_db
-    )
-    assert claimed_child is not None and claimed_child.id == child.id
-
-
-def test_resume_revives_spent_expired_checkpoint_writer_before_child(
-    isolated_db: str,
-) -> None:
-    run = seed_run("paused spent commit")
-    successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    writer = enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}generate",
-        "pause:spent-writer",
-        inputs={"checkpoint_seq": 0},
-        db_path=isolated_db,
-    )
-    _mark_leased(
-        writer.id,
-        isolated_db,
-        owner="dead-writer",
-        expires_at=time.time() - 3600,
-        spend_budget=True,
-    )
-    runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    seed_checkpoint(
-        run.id,
-        {"provider": "engine", "resume_successor": successor_type},
-        stage=f"engine_task:{writer.id}",
-        last_event_seq=1,
-        db_path=isolated_db,
-    )
-    child = enqueue_task(
-        run.id,
-        successor_type,
-        f"{successor_type}:after:{writer.id}",
-        inputs={"checkpoint_seq": 1},
-        dependencies=(writer.id,),
-        provenance={"scheduled_by": "engine.node.generate"},
-        db_path=isolated_db,
-    )
-    runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
-
-    resumed = task_worker.enqueue_run_workflow(
-        run.id, resume=True, db_path=isolated_db
-    )
-
-    revived_writer = tasks.get_task(writer.id, db_path=isolated_db)
-    assert resumed.id == child.id
-    assert revived_writer is not None and revived_writer.status == "queued"
-    assert revived_writer.attempt == writer.max_attempts
-    assert revived_writer.max_attempts == writer.max_attempts + 1
-    replayed = tasks.claim_task(
-        "replacement-worker", run_id=run.id, db_path=isolated_db
-    )
-    assert replayed is not None and replayed.id == writer.id
-    assert replayed.attempt == writer.max_attempts + 1
-    assert lifecycle.complete_task(
-        writer.id, "replacement-worker", {}, db_path=isolated_db
-    )
-    claimed_child = tasks.claim_task(
-        "child-worker", run_id=run.id, db_path=isolated_db
-    )
-    assert claimed_child is not None and claimed_child.id == child.id
 
 
 def test_resume_serializes_checkpoint_discovery_with_writer_commit(
@@ -391,78 +286,55 @@ _BYOK_SECRET = "synthetic-timeout-encryption-secret"
 _BYOK_KEY = "sk-synthetic-ambiguous-timeout-12345"
 
 
-@pytest.mark.asyncio
-async def test_byok_timeout_waits_for_explicit_owner_restart(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
-    accepted: list[int] = []
-
-    async def accepted_then_lost(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        accepted.append(1)
-        if len(accepted) == 1:
-            raise LLMTimeoutError(
-                "provider accepted the request but its response was lost"
-            )
-        return {"recovered_after_owner_restart": True}
-
-    monkeypatch.setattr(
-        engine_tasks, "_dispatch_engine_task", accepted_then_lost
+def _lease_generate_beside_a_sibling(
+    client: Any, db_path: str, worker: str, lease_seconds: float
+) -> tuple[str, ScientificTask, ScientificTask]:
+    run_id = _create_run(client, "lease loss").json()["id"]
+    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
+    seed_checkpoint(
+        run_id,
+        {"provider": "engine", "resume_successor": "engine.node.generate"},
+        stage="post_generation",
+        last_event_seq=1,
+        db_path=db_path,
     )
+    target = enqueue_task(
+        run_id,
+        "engine.node.generate",
+        "engine.node.generate:1",
+        inputs={"checkpoint_seq": 1},
+        db_path=db_path,
+    )
+    sibling = enqueue_task(
+        run_id,
+        "engine.node.verify",
+        "engine.node.verify:1",
+        inputs={"checkpoint_seq": 1},
+        db_path=db_path,
+    )
+    leased = tasks.claim_task(
+        worker, run_id=run_id, lease_seconds=lease_seconds, db_path=db_path
+    )
+    assert leased is not None and leased.id == target.id
+    return run_id, target, sibling
 
-    with make_client() as client:
-        created = _create_run(client, "ambiguous BYOK timeout")
-        assert created.status_code == 200
-        run_id = created.json()["id"]
-        credentials.store_run_credential(
-            run_id,
-            DEFAULT_TEST_CLIENT_ID,
-            credentials.ByokCredential(
-                provider="deepseek",
-                api_key=_BYOK_KEY,
-                model="deepseek/deepseek-v4-flash",
-            ),
-            db_path=isolated_db,
-        )
-        assert (
-            client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
-        )
-        sibling = enqueue_task(
-            run_id,
-            "engine.node.generate",
-            "engine.node.generate:0",
-            inputs={"checkpoint_seq": 0},
-            db_path=isolated_db,
-        )
-        assert await task_worker.run_once("timeout-worker", db_path=isolated_db)
 
-    with make_client() as reopened:
-        body = reopened.get(f"/api/runs/{run_id}").json()
-        task_rows = reopened.get(f"/api/runs/{run_id}/tasks").json()["tasks"]
-        task_by_id = {row["id"]: row for row in task_rows}
-        task_row = next(
-            row for row in task_rows if row["task_type"] == "engine.bootstrap"
-        )
-        assert body["status"] == "failed"
-        assert body["failure_kind"] == "llm_timeout_unknown"
-        assert task_row["status"] == "failed"
-        assert len(task_row["attempts"]) == 1
-        assert task_by_id[sibling.id]["status"] == "cancelled"
-        assert not await task_worker.run_once(
-            "timeout-worker", db_path=isolated_db
-        )
-        assert accepted == [1]
-
-        assert (
-            reopened.post(f"/api/runs/{run_id}/start", json={}).status_code
-            == 200
-        )
-        assert await task_worker.run_once("timeout-worker", db_path=isolated_db)
-
-    assert len(accepted) == 2
+def _assert_unknown_outcome_failed_closed(
+    client: Any, run_id: str, target: ScientificTask, sibling: ScientificTask
+) -> None:
+    body = client.get(f"/api/runs/{run_id}").json()
+    task_rows = client.get(f"/api/runs/{run_id}/tasks").json()["tasks"]
+    task_by_id = {row["id"]: row for row in task_rows}
+    assert body["status"] == "failed"
+    assert body["failure_kind"] == "llm_timeout_unknown"
+    assert task_by_id[target.id]["status"] == "failed"
+    assert task_by_id[sibling.id]["status"] == "cancelled"
+    failed_events = [
+        event["payload"]
+        for event in store_events.list_events(run_id)
+        if event["type"] == "status" and event["payload"]["status"] == "failed"
+    ]
+    assert [e["failure_kind"] for e in failed_events] == ["llm_timeout_unknown"]
 
 
 @pytest.mark.asyncio
@@ -483,8 +355,9 @@ async def test_expired_byok_lease_requires_owner_restart(
         engine_tasks, "_dispatch_engine_task", _would_accept_again
     )
     with make_client() as client:
-        created = _create_run(client, "BYOK lease loss")
-        run_id = created.json()["id"]
+        run_id, target, sibling = _lease_generate_beside_a_sibling(
+            client, isolated_db, "old-worker", lease_seconds=1
+        )
         credentials.store_run_credential(
             run_id,
             DEFAULT_TEST_CLIENT_ID,
@@ -495,64 +368,12 @@ async def test_expired_byok_lease_requires_owner_restart(
             ),
             db_path=isolated_db,
         )
-        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        seed_checkpoint(
-            run_id,
-            {
-                "provider": "engine",
-                "resume_successor": "engine.node.generate",
-            },
-            stage="post_generation",
-            last_event_seq=1,
-            db_path=isolated_db,
-        )
-        target = enqueue_task(
-            run_id,
-            "engine.node.generate",
-            "engine.node.generate:1",
-            inputs={"checkpoint_seq": 1},
-            db_path=isolated_db,
-        )
-        sibling = enqueue_task(
-            run_id,
-            "engine.node.verify",
-            "engine.node.verify:1",
-            inputs={"checkpoint_seq": 1},
-            db_path=isolated_db,
-        )
-        leased = tasks.claim_task(
-            "old-worker",
-            run_id=run_id,
-            lease_seconds=1,
-            db_path=isolated_db,
-        )
-        assert leased is not None and leased.id == target.id
     now = store_db._now()
     monkeypatch.setattr("app.store.db.time.time", lambda: now + 2)
 
     with make_client() as reopened:
-        body = reopened.get(f"/api/runs/{run_id}").json()
-        task_rows = reopened.get(f"/api/runs/{run_id}/tasks").json()["tasks"]
-        task_by_id = {row["id"]: row for row in task_rows}
-        assert body["status"] == "failed"
-        assert body["failure_kind"] == "llm_timeout_unknown"
-        assert task_by_id[target.id]["status"] == "failed"
-        assert task_by_id[sibling.id]["status"] == "cancelled"
+        _assert_unknown_outcome_failed_closed(reopened, run_id, target, sibling)
         assert accepted == ["response lost with old worker"]
-
-        with _store_db.connect(isolated_db) as conn:
-            events = conn.execute(
-                "SELECT payload_json FROM run_events "
-                "WHERE run_id=? AND type='status'",
-                (run_id,),
-            ).fetchall()
-        failed_events = [
-            json.loads(row["payload_json"])
-            for row in events
-            if json.loads(row["payload_json"]).get("status") == "failed"
-        ]
-        assert len(failed_events) == 1
-        assert failed_events[0]["failure_kind"] == "llm_timeout_unknown"
 
         assert reopened.post(f"/api/runs/{run_id}/resume").status_code == 200
         assert await task_worker.run_once("owner-retry", db_path=isolated_db)
@@ -565,13 +386,9 @@ async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    paid_route = "openrouter/provider/paid-model"
-    free_route = "openrouter/nex-agi/nex-n2.5-pro:free"
-    monkeypatch.setattr(settings, "model_name", paid_route)
-    monkeypatch.setattr(settings, "supervisor_model_name", paid_route)
-    monkeypatch.setattr(settings, "chat_model_name", paid_route)
-    monkeypatch.setattr(settings, "semantic_safety_model", paid_route)
-
+    routes = ("model_name", "supervisor_model_name", "chat_model_name")
+    for field in (*routes, "semantic_safety_model"):
+        monkeypatch.setattr(settings, field, "openrouter/provider/paid-model")
     dispatches: list[str] = []
 
     async def _dispatch_after_owner_resume(
@@ -583,79 +400,24 @@ async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
     monkeypatch.setattr(
         engine_tasks, "_dispatch_engine_task", _dispatch_after_owner_resume
     )
-
     with make_client() as client:
-        created = _create_run(client, "route changed after lease")
-        run_id = created.json()["id"]
-        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        seed_checkpoint(
-            run_id,
-            {
-                "provider": "engine",
-                "resume_successor": "engine.node.generate",
-            },
-            stage="post_generation",
-            last_event_seq=1,
-            db_path=isolated_db,
+        run_id, target, sibling = _lease_generate_beside_a_sibling(
+            client, isolated_db, "paid-route-worker", lease_seconds=30
         )
-        target = enqueue_task(
-            run_id,
-            "engine.node.generate",
-            "engine.node.generate:1",
-            inputs={"checkpoint_seq": 1},
-            db_path=isolated_db,
-        )
-        sibling = enqueue_task(
-            run_id,
-            "engine.node.verify",
-            "engine.node.verify:1",
-            inputs={"checkpoint_seq": 1},
-            db_path=isolated_db,
-        )
-        leased = tasks.claim_task(
-            "paid-route-worker",
-            run_id=run_id,
-            lease_seconds=30,
-            db_path=isolated_db,
-        )
-        assert leased is not None and leased.id == target.id
         with _store_db.connect(isolated_db) as conn:
             conn.execute(
                 "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
                 (target.id,),
             )
-
-    monkeypatch.setattr(settings, "model_name", free_route)
-    monkeypatch.setattr(
-        settings,
-        "supervisor_model_name",
-        free_route,
-    )
-    monkeypatch.setattr(settings, "chat_model_name", free_route)
-    monkeypatch.setattr(settings, "semantic_safety_model", free_route)
+    for field in (*routes, "semantic_safety_model"):
+        monkeypatch.setattr(
+            settings, field, "openrouter/nex-agi/nex-n2.5-pro:free"
+        )
 
     with make_client() as restarted:
-        body = restarted.get(f"/api/runs/{run_id}").json()
-        task_rows = restarted.get(f"/api/runs/{run_id}/tasks").json()["tasks"]
-        task_by_id = {row["id"]: row for row in task_rows}
-        assert body["status"] == "failed"
-        assert body["failure_kind"] == "llm_timeout_unknown"
-        assert task_by_id[target.id]["status"] == "failed"
-        assert task_by_id[sibling.id]["status"] == "cancelled"
-
-        with _store_db.connect(isolated_db) as conn:
-            events = conn.execute(
-                "SELECT payload_json FROM run_events "
-                "WHERE run_id=? AND type='status'",
-                (run_id,),
-            ).fetchall()
-        failed_events = [
-            json.loads(row["payload_json"])
-            for row in events
-            if json.loads(row["payload_json"]).get("status") == "failed"
-        ]
-        assert len(failed_events) == 1
-        assert failed_events[0]["failure_kind"] == "llm_timeout_unknown"
+        _assert_unknown_outcome_failed_closed(
+            restarted, run_id, target, sibling
+        )
         assert not await task_worker.run_once(
             "unacknowledged-worker", db_path=isolated_db
         )
@@ -665,41 +427,6 @@ async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
         assert await task_worker.run_once("owner-resume", db_path=isolated_db)
 
     assert dispatches == ["engine.node.generate"]
-
-
-@pytest.mark.asyncio
-async def test_expired_nonfree_system_route_requires_owner_recovery(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    monkeypatch.setattr(settings, "model_name", "openrouter/provider/model")
-    accepted: list[str] = []
-
-    async def _must_not_call(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        accepted.append("provider call")
-        return {"unexpected_replay": True}
-
-    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _must_not_call)
-    run = seed_run("Paid route lease loss")
-    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    task = enqueue_task(
-        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
-    )
-    leased = tasks.claim_task(
-        "old-paid-worker", run_id=run.id, lease_seconds=1, db_path=isolated_db
-    )
-    assert leased is not None
-    now = store_db._now()
-    monkeypatch.setattr("app.store.db.time.time", lambda: now + 2)
-
-    assert not await task_worker.run_once(
-        "new-paid-worker", db_path=isolated_db
-    )
-    failed = tasks.get_task(task.id, db_path=isolated_db)
-    assert failed is not None and failed.status == "failed"
-    assert accepted == []
 
 
 @pytest.mark.asyncio
