@@ -44,7 +44,7 @@ from tests._llm_fake import _free_catalog as _isolated_catalog
 
 __all__ = ["_isolated_catalog"]
 
-_MODEL = "openrouter/campaign/zero:free"
+_MODEL = "openrouter/free/zero:free"
 _ZERO_CAP = {"prompt": 0, "completion": 0, "request": 0}
 _ZERO = {"prompt": "0", "completion": "0"}
 
@@ -173,12 +173,12 @@ class TestFreeAdmission:
         assert await call_llm("probe", paid) == "ok"
         assert "max_price" not in str(requests[0].get("extra_body"))
 
-    @pytest.mark.parametrize("campaign", [False, True])
+    @pytest.mark.parametrize("free_only", [False, True])
     @pytest.mark.parametrize("scoped", [False, True])
-    async def test_a_byok_key_skips_the_free_gate_unless_a_campaign_requires_it(
-        self, monkeypatch: pytest.MonkeyPatch, campaign: bool, scoped: bool
+    async def test_a_byok_key_skips_the_free_gate_unless_free_models_are_required(
+        self, monkeypatch: pytest.MonkeyPatch, free_only: bool, scoped: bool
     ) -> None:
-        monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", str(int(campaign)))
+        monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", str(int(free_only)))
         catalog = _catalog({"prompt": "0", "completion": "1"})
         catalog["data"][0]["expiration_date"] = "not-a-date"
         _mock_catalog(monkeypatch, catalog)
@@ -187,13 +187,13 @@ class TestFreeAdmission:
 
         with scoped_api_key("byok-test-key" if scoped else None):
             byok = _probe(api_key=None if scoped else "byok-test-key")
-            if campaign:
+            if free_only:
                 with pytest.raises(RuntimeError, match="zero-cost"):
                     await byok
             else:
                 assert await byok == "ok"
 
-        assert len(requests) == int(not campaign)
+        assert len(requests) == int(not free_only)
         with pytest.raises(RuntimeError, match="zero-cost"):
             await _probe()
 
@@ -238,7 +238,7 @@ class TestFreeAdmission:
             {"model": "openrouter/missing/model"},
         ],
     )
-    async def test_a_campaign_rejects_unverified_request_shapes(
+    async def test_free_only_mode_rejects_unverified_request_shapes(
         self, monkeypatch: pytest.MonkeyPatch, changes: dict[str, Any]
     ) -> None:
         monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
@@ -290,10 +290,10 @@ class TestFreeAdmission:
     ) -> None:
         monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
         data = _catalog(_ZERO)
-        data["data"][0]["id"] = "campaign/promo"
+        data["data"][0]["id"] = "free/promo"
         _mock_catalog(monkeypatch, data)
         args: dict[str, Any] = {
-            "model": "openrouter/campaign/promo",
+            "model": "openrouter/free/promo",
             "messages": [{"role": "user", "content": "probe"}],
         }
         with pytest.raises(RuntimeError, match="zero-cost pricing is incomplete"):

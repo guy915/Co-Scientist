@@ -17,7 +17,6 @@ from co_scientist.generator.initial_state import (
     RunIdentity,
     _build_initial_state,
 )
-from co_scientist.llm import scoped_campaign_mode
 from co_scientist.retrieval_degradation import (
     CAPABILITIES_LOST_WITHOUT_MCP,
     FLOOR_NONE,
@@ -176,31 +175,6 @@ async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> N
     assert len(errors) == 1
     assert "search_europepmc" in errors[0] and "Europe PMC" in errors[0]
     assert "HTTP 503" in errors[0]
-
-
-async def test_campaign_scope_skips_a_source_its_policy_refuses(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The registry predates campaign scope; refused sources must be filtered
-    before spending retries."""
-    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    registry = make_tool_lookup_registry(
-        {
-            "src_a": make_tool_config(mcp_tool_name="search_pubmed"),
-            "src_b": make_tool_config(mcp_tool_name="search_web"),
-        }
-    )
-    client = _SequencedMCPClient([{"P1": {"title": "Only PubMed"}}])
-    errors: list[str] = []
-
-    with scoped_campaign_mode(True):
-        metadata, _ = await _collect_multi_source(
-            registry, client, errors, papers_per_query=2, semantic=False
-        )
-
-    assert [name for name, _ in client.calls] == ["search_pubmed"]
-    assert set(metadata) == {"P1"}
-    assert errors == []
 
 
 def test_shared_evidence_modules_do_not_import_agents() -> None:

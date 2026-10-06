@@ -521,7 +521,7 @@ def _catalog(pricing: Any) -> dict[str, Any]:
     return {
         "data": [
             {
-                "id": "campaign/zero:free",
+                "id": "free/zero:free",
                 "pricing": pricing,
                 "architecture": {
                     "input_modalities": ["text"],

@@ -50,9 +50,8 @@ credentials configured; their values must never enter this document. The **mcp**
 service has `BRAVE_API_KEY`, `TAVILY_API_KEY`, `OPENALEX_API_KEY`,
 `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `WEB_SEARCH_PROVIDER=tavily`, and
 `COSCIENTIST_MCP_PORT=8888`. Pre-release, neither service has
-`COSCIENTIST_MCP_SHARED_SECRET`, and the API has no `CAMPAIGN_RESEARCHER_IDS`.
-The M2 release must set the **same new secret on both services** before enabling
-request-scoped campaign policy, then read back its presence without exposing it.
+`COSCIENTIST_MCP_SHARED_SECRET`. A release that sets it must use the **same
+secret on both services**, then read back its presence without exposing it.
 When set, every MCP call but the plain `/` status route must carry the secret in
 an `X-MCP-Shared-Secret` header or the server returns 401
 (`engine/mcp_server/auth_middleware.py`); the engine client supplies that header
@@ -65,8 +64,7 @@ a checked zero-price ceiling and expiry, with the JSON schema in the prompt. Pro
 reaches production only when those variables change. `CLAIM_VERIFIER_MODEL` should remain unset
 so claim assessment inherits the worker model. Keep the process-global
 `COSCIENTIST_REQUIRE_FREE_MODELS` flag off so ordinary explicit BYOK remains
-available; campaign restrictions stay request-scoped. Record the verified
-post-release values and deployment IDs in the campaign dossier.
+available.
 
 Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set in production environment).
 

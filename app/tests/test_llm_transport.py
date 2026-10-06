@@ -13,12 +13,10 @@ from typing import Any
 import pytest
 from co_scientist.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 from co_scientist.llm import (
-    campaign_free_mode,
     current_api_key,
     current_run_call_count,
     release_run_call_budget,
     scoped_api_key,
-    scoped_campaign_mode,
     scoped_llm_call_budget,
 )
 from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
@@ -63,19 +61,19 @@ def test_run_coroutine_sync_runs_many_calls_concurrently() -> None:
 
 def test_propagate_context_restores_a_reused_worker_thread() -> None:
     with ThreadPoolExecutor(max_workers=1) as pool:
-        with scoped_campaign_mode(True):
-            assert pool.submit(propagate_context(campaign_free_mode)).result() is True
-        assert pool.submit(campaign_free_mode).result() is False
+        with scoped_api_key("scoped-key"):
+            assert pool.submit(propagate_context(current_api_key)).result() == "scoped-key"
+        assert pool.submit(current_api_key).result() is None
 
 
 def test_run_coroutine_sync_restores_the_shared_bridge_loop() -> None:
 
-    async def read_campaign_mode() -> bool:
-        return bool(campaign_free_mode())
+    async def read_api_key() -> Any:
+        return current_api_key()
 
-    with scoped_campaign_mode(True):
-        assert run_coroutine_sync(read_campaign_mode) is True
-    assert run_coroutine_sync(read_campaign_mode) is False
+    with scoped_api_key("scoped-key"):
+        assert run_coroutine_sync(read_api_key) == "scoped-key"
+    assert run_coroutine_sync(read_api_key) is None
 
 
 # Tear down logging workers on their owning event loop.

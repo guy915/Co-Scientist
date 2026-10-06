@@ -48,9 +48,6 @@ from app.engine_tasks.support import NODE_TASK_PREFIX as NODE_TASK_PREFIX
 from app.engine_tasks.support import SafetyHoldError as SafetyHoldError
 from app.engine_tasks.support import SupersededTaskError as SupersededTaskError
 from app.execution_policy import (
-    CAMPAIGN,
-    campaign_model_for_config,
-    scoped_execution_policy,
     zero_cost_admission_for_config,
 )
 from app.run_modes import resolved_run_config
@@ -104,14 +101,6 @@ async def execute_engine_task(
     if run is None:
         raise LookupError(f"run not found for task dispatch: {task.run_id}")
     credential = get_run_credential(task.run_id, db_path=db_path)
-    if run.execution_policy == CAMPAIGN:
-        campaign_model = campaign_model_for_config(run.config)
-        if campaign_model is not None:
-            # Persisted campaign routes win over older attached credential
-            # records.
-            credential = None
-    else:
-        campaign_model = None
     ceiling = resolved_run_config(run.config).get("max_llm_calls")
     ceiling = int(ceiling) if isinstance(ceiling, int) else None
     with (
@@ -122,7 +111,6 @@ async def execute_engine_task(
             by_model=credential.keys_by_model() if credential else None,
         ),
         scoped_llm_call_budget(task.run_id, ceiling),
-        scoped_execution_policy(run.execution_policy, campaign_model_name=campaign_model),
         scoped_zero_cost_admission(zero_cost_admission_for_config(run.config)),
     ):
         return await _dispatch_engine_task(task, db_path=db_path)

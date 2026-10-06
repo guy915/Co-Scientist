@@ -15,11 +15,6 @@ import app.document_ingest as document_ingest
 import app.human_input as human_input
 import app.run_corpus as run_corpus
 from app.auth import client_id
-from app.execution_policy import (
-    CAMPAIGN,
-    campaign_model_for_config,
-    scoped_execution_policy,
-)
 from app.hypothesis import screen_hypotheses
 from app.runs.models import (
     HumanAttachmentRequest,
@@ -208,15 +203,9 @@ async def add_human_hypothesis(
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
     author = client_id(request) or req.author
-    with scoped_execution_policy(
-        run.execution_policy,
-        campaign_model_name=(
-            campaign_model_for_config(run.config) if run.execution_policy == CAMPAIGN else None
-        ),
-    ):
-        admission = await human_input.admit_human_hypothesis_with_escalation(
-            text=req.statement, author=author, run_id=run_id, title=req.title
-        )
+    admission = await human_input.admit_human_hypothesis_with_escalation(
+        text=req.statement, author=author, run_id=run_id, title=req.title
+    )
     if not admission.admitted or admission.hypothesis is None:
         return {"admitted": False, "safety": admission.safety_review.to_dict()}
 

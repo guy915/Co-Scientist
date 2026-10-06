@@ -28,25 +28,18 @@ from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._store_helpers import enqueue_task, seed_run
 
-# Campaign and zero-cost-stamped requests enforce exact zero price; lost leases
-# are retry-safe only without caller credentials.
-_PROVABLY_FREE = {
-    "campaign": ("campaign", {}),
-    "zero-cost-standard": ("standard", {"zero_cost_admission": True}),
-}
 
-
-def _campaign_run_with_expired_lease(
+# The zero-cost stamp enforces exact zero price; lost leases are retry-safe
+# only without caller credentials.
+def _stamped_run_with_expired_lease(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
-    kind: str = "campaign",
 ) -> tuple[str, str]:
-    policy, config = _PROVABLY_FREE[kind]
     run = seed_run(
-        "Campaign lease loss",
+        "Zero-cost lease loss",
         profile="express",
-        config=config,
-        options=RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID, execution_policy=policy),
+        config={"zero_cost_admission": True},
+        options=RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID),
     )
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
     task = enqueue_task(
@@ -65,9 +58,8 @@ def _campaign_run_with_expired_lease(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", _PROVABLY_FREE)
 async def test_expired_provably_free_lease_is_retried(
-    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch, kind: str
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     replayed: list[str] = []
 
@@ -76,7 +68,7 @@ async def test_expired_provably_free_lease_is_retried(
         return {"replayed": True}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _replay)
-    run_id, task_id = _campaign_run_with_expired_lease(isolated_db, monkeypatch, kind)
+    run_id, task_id = _stamped_run_with_expired_lease(isolated_db, monkeypatch)
 
     assert await task_worker.run_once("new-worker", db_path=isolated_db)
 
@@ -88,11 +80,10 @@ async def test_expired_provably_free_lease_is_retried(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", _PROVABLY_FREE)
 async def test_expired_provably_free_lease_with_byok_still_fails_closed(
-    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch, kind: str
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "byok_encryption_key", "synthetic-campaign-lease-secret")
+    monkeypatch.setattr(settings, "byok_encryption_key", "synthetic-zero-cost-lease-secret")
     replayed: list[str] = []
 
     async def _must_not_call(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
@@ -100,13 +91,13 @@ async def test_expired_provably_free_lease_with_byok_still_fails_closed(
         return {}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _must_not_call)
-    run_id, task_id = _campaign_run_with_expired_lease(isolated_db, monkeypatch, kind)
+    run_id, task_id = _stamped_run_with_expired_lease(isolated_db, monkeypatch)
     credentials.store_run_credential(
         run_id,
         DEFAULT_TEST_CLIENT_ID,
         credentials.ByokCredential(
             provider="deepseek",
-            api_key="sk-synthetic-campaign-lease-12345",
+            api_key="sk-synthetic-zero-cost-lease-12345",
             model="deepseek/deepseek-v4-flash",
         ),
         db_path=isolated_db,

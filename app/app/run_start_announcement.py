@@ -15,11 +15,6 @@ from app.config import (
     thinking_safe_max_tokens,
 )
 from app.diagnostic_events import log_chat_turn
-from app.execution_policy import (
-    CAMPAIGN,
-    campaign_model_for_config,
-    scoped_execution_policy,
-)
 from app.llm_scope import budgeted_stream, stream_chunks
 from app.sse import sse_frame
 from app.store import messages as store
@@ -176,15 +171,7 @@ async def _announcement_attempts(
     """A clean stream ending with reasoning alone gets one thinking-off
     retry; that is distinct from provider failure.
     """
-    with (
-        scoped_execution_policy(
-            run.execution_policy,
-            campaign_model_name=(
-                campaign_model_for_config(run.config) if run.execution_policy == CAMPAIGN else None
-            ),
-        ),
-        credentials.scoped_byok(byok),
-    ):
+    with credentials.scoped_byok(byok):
         async for frame in _relay_announcement(run, prose, reasoning):
             yield frame
         if "".join(prose).strip() or not "".join(reasoning).strip():

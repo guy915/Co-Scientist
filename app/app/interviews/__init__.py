@@ -9,7 +9,6 @@ import app.interviews.turns as support
 import app.staged_documents as staged_documents
 from app.api_contracts.interviews import ChatSummary, Interview
 from app.auth import client_id, require_client_scope
-from app.execution_policy import resolve_execution_policy
 from app.interviews.model import (
     CreateInterviewRequest as CreateInterviewRequest,
 )
@@ -101,17 +100,13 @@ def _rewind_and_restream(
     boundaries.
     """
     interview = support.owned_interview(interview_id, request)
-    byok = support.request_byok(request, str(interview["execution_policy"]))
+    byok = support.request_byok(request)
     _require_revisable_turn(interview, turn_id, role)
     store.rewind_interview(interview_id, turn_id)
     if replacement is not None:
         store.append_interview_turn(interview_id, NewInterviewTurn("user", replacement))
     _reset_derivation(interview_id)
-    return _interview_stream(
-        interview_id,
-        byok,
-        execution_policy=str(interview["execution_policy"]),
-    )
+    return _interview_stream(interview_id, byok)
 
 
 @_revision_router.put("/{interview_id}/turns/{turn_id}")
@@ -165,18 +160,13 @@ async def create_interview(body: CreateInterviewRequest, request: Request) -> St
             own creator.
     """
     owner = require_client_scope(request)
-    execution_policy = resolve_execution_policy(request)
-    byok = _request_byok(request, execution_policy)
+    byok = _request_byok(request)
     # Reject invalid attachment IDs before creating a row, avoiding orphan
     # interviews.
     staged_documents.resolve_owned_documents(body.document_ids, owner)
-    interview = store.create_interview(
-        owner,
-        body.research_challenge,
-        execution_policy=execution_policy,
-    )
+    interview = store.create_interview(owner, body.research_challenge)
     _attach_documents(str(interview["id"]), body.document_ids, request)
-    return _interview_stream(str(interview["id"]), byok, execution_policy=execution_policy)
+    return _interview_stream(str(interview["id"]), byok)
 
 
 @router.get("", response_model=list[ChatSummary])
@@ -237,16 +227,12 @@ async def add_interview_turn(
 ) -> StreamingResponse:
     """Append a scientist answer and stream the Agent's next turn."""
     interview = _owned_interview(interview_id, request)
-    byok = _request_byok(request, str(interview["execution_policy"]))
+    byok = _request_byok(request)
     if interview["status"] != "active":
         raise HTTPException(status_code=409, detail="interview is not active")
     _attach_documents(interview_id, body.document_ids, request)
     store.append_interview_turn(interview_id, NewInterviewTurn("user", body.content))
-    return _interview_stream(
-        interview_id,
-        byok,
-        execution_policy=str(interview["execution_policy"]),
-    )
+    return _interview_stream(interview_id, byok)
 
 
 router.include_router(_revision_router)

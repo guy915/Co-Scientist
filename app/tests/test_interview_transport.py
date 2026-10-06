@@ -8,10 +8,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import settings
-from app.execution_policy import CAMPAIGN, CAMPAIGN_MODEL_NAME, STANDARD
 from app.interviews import model as interviews_model
 from app.interviews import stream as interviews_stream
-from app.interviews import turns as interview_turns
 from app.main import app
 from app.store import interviews as store
 from app.store.interviews import NewInterviewTurn
@@ -153,41 +151,6 @@ def _seed_interview(db_path: str) -> str:
         db_path=db_path,
     )
     return str(interview["id"])
-
-
-async def test_campaign_interview_stream_selects_campaign_route(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from app.execution_policy import effective_execution_model
-
-    campaign = store.create_interview(
-        "campaign-owner",
-        "Campaign goal",
-        execution_policy=CAMPAIGN,
-        db_path=isolated_db,
-    )
-    standard = store.create_interview(
-        "standard-owner",
-        "Standard goal",
-        execution_policy=STANDARD,
-        db_path=isolated_db,
-    )
-    selected: dict[str, str | None] = {}
-
-    async def advance(interview_id: str, *_args: Any) -> dict[str, Any]:
-        selected[interview_id] = effective_execution_model("configured/chat-role")
-        return {"id": interview_id}
-
-    monkeypatch.setattr(interview_turns, "advance_turn", advance)
-    for interview_id in (str(campaign["id"]), str(standard["id"])):
-        async for _ in interviews_stream._advance_stream(interview_id):
-            pass
-
-    assert selected == {
-        str(campaign["id"]): CAMPAIGN_MODEL_NAME,
-        str(standard["id"]): "configured/chat-role",
-    }
 
 
 async def test_cancel_mid_model_call_leaves_transcript_unchanged(
