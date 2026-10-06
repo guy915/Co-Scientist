@@ -305,7 +305,7 @@ Maintainers read submissions from the `feedback` table in the SQLite store; ther
 is no HTTP read route and no SMTP delivery.
 
 The SQLite store keeps the newest 200 submissions within a 10 MiB UTF-8 payload
-budget. Reads hide records older than 30 days; submissions prune them physically.
+budget. Submissions prune records older than 30 days.
 Admission limits are 5 per owner, 20 per connecting host and 100 globally per
 rolling minute, retained independently of row eviction and process restarts.
 Excess requests receive HTTP 429 with `Retry-After: 60`. The connecting host is
