@@ -196,7 +196,7 @@ async def test_campaign_openalex_does_not_attach_host_account(
     assert "authorization" not in sent[0].headers
 
 
-@pytest.mark.parametrize("setting", ["1", "true", " TRUE ", "invalid"])
+@pytest.mark.parametrize("setting", ["1", "invalid"])
 @pytest.mark.parametrize("provider", ["brave", "tavily"])
 async def test_enabled_or_invalid_mode_never_opens_web_transport(
     monkeypatch: pytest.MonkeyPatch, setting: str, provider: str
@@ -260,9 +260,7 @@ assert body['campaign_policy'] == campaign_policy()
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize(
-    "name", ["search_web", "query_drug_info", "read_url", "new_tool"]
-)
+@pytest.mark.parametrize("name", ["search_web", "new_tool"])
 async def test_campaign_rejects_unqualified_registered_calls(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:

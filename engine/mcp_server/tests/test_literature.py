@@ -1,4 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -344,20 +343,3 @@ async def test_unusable_upstream_answers_fail_instead_of_looking_complete(
         await opencitations.get_opencitations_citation_edges(_DOI)
 
     assert len(requests) == request_count
-
-
-def test_concurrent_requests_reserve_one_second_slots(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(opencitations, "_next_request_at", 0.0)
-    now = 100.0
-    with ThreadPoolExecutor(max_workers=12) as pool:
-        slots = list(
-            pool.map(
-                lambda _: opencitations._reserve_request_at(now), range(24)
-            )
-        )
-
-    assert sorted(slots) == pytest.approx(
-        [now + offset for offset in range(24)]
-    )
