@@ -340,10 +340,20 @@ jobs:
         run: python -m mypy .
 
   e2e:
-    name: Browser e2e (Playwright)
+    name: Browser e2e (${{ matrix.name }})
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      # Keep every shard's results visible when one fails.
+      fail-fast: false
+      matrix:
+        # Each job launches its own isolated stack, so they share nothing.
+        # Playwright shards whole files; the first shard holds the slowest.
+        include:
+          - {name: shard 1/2, suite: e2e, args: --shard=1/2}
+          - {name: shard 2/2, suite: e2e, args: --shard=2/2}
+          - {name: production, suite: e2e-production, args: ''}
     # Setup and first-run Chromium downloads need a larger timeout than the suite itself.
     timeout-minutes: 25
     steps:
@@ -379,10 +389,8 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bunx playwright install --with-deps chromium
-      - name: Run browser e2e suite
-        run: make e2e
-      - name: Test production assets and anonymous ownership
-        run: make e2e-production
+      - name: Run browser suite
+        run: make ${{ matrix.suite }} E2E_ARGS='${{ matrix.args }}'
 
   docker-build:
     name: Docker builds + Compose config smoke
@@ -399,6 +407,9 @@ jobs:
         run: docker build -f Dockerfile.mcp -t coscientist-mcp-ci .
       - name: Build frontend dev image
         run: docker build -t coscientist-ui-ci app/frontend
+      - name: Report image sizes
+        # Image size is an optimization metric; record it on every build.
+        run: docker image ls --format '{{.Repository}} {{.Size}}' 'coscientist-*-ci'
       - name: Derive app/.env from the committed example
         # Compose env_file must exist; --env-file only supplies interpolation.
         # Use the committed secret-free example in clean checkouts.

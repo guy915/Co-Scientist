@@ -234,7 +234,7 @@ e2e: check-tools
 	else \
 		cd "$(E2E)" && "$(BUN)" x playwright install chromium; \
 	fi
-	@cd "$(E2E)" && "$(BUN)" x playwright test
+	@cd "$(E2E)" && "$(BUN)" x playwright test $(E2E_ARGS)
 
 e2e-production:
 	@COSCI_E2E_PRODUCTION=1 $(MAKE) e2e
