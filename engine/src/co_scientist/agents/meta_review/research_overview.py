@@ -32,10 +32,7 @@ from co_scientist.agents.meta_review.research_overview_review import (
 from co_scientist.agents.meta_review.research_overview_review import (
     review_research_overview as review_research_overview,
 )
-from co_scientist.agents.node_degradation import (
-    durable_retries_remain,
-    run_or_degrade,
-)
+from co_scientist.agents.node_degradation import run_or_degrade
 from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
@@ -118,7 +115,7 @@ async def _interim_or_degrade(
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as exc:
-        if durable_retries_remain(state):
+        if state.get("durable_retries_remain"):
             raise
         logger.error(
             "Interim research overview could not reach the provider (%s); "
