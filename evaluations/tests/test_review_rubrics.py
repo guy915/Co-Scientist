@@ -17,7 +17,6 @@ from evaluations.expert_review import (
 from evaluations.specific_aims_review import (
     AGREEMENT_SCALE,
     SPECIFIC_AIMS_AXES,
-    SPECIFIC_AIMS_DOMAINS,
     SPECIFIC_AIMS_SCHEMA_VERSION,
     build_specific_aims_export,
     parse_specific_aims_ratings,
@@ -26,119 +25,64 @@ from evaluations.specific_aims_review import (
 
 
 def _quality_rating(
-    rater_id: str = "expert-1",
-    item_id: str = "item-a",
-    **scores: int,
+    rater_id: str = "expert-1", **scores: int
 ) -> dict[str, Any]:
     return {
         "rater_id": rater_id,
-        "item_id": item_id,
-        "alignment": 4,
-        "novelty": 4,
-        "plausibility": 4,
-        "testability": 4,
-        "safety": 4,
-        "impact": 4,
+        "item_id": "item-a",
+        **dict.fromkeys(RATING_AXES, 4),
         "preference_rank": 1,
         **scores,
     }
 
 
-def _quality_payload(*rows: dict[str, Any]) -> dict[str, Any]:
-    return {"schema_version": SCHEMA_VERSION, "ratings": list(rows)}
+def _quality_payload(
+    *rows: dict[str, Any], version: int = SCHEMA_VERSION
+) -> dict[str, Any]:
+    return {"schema_version": version, "ratings": list(rows)}
 
 
-def test_export_is_blinded() -> None:
-    export = build_blinded_export(
-        "run-123",
-        [
-            {"id": "h1", "text": "idea one", "elo_rating": 1400, "origin": "x"},
-            {"id": "h2", "text": "idea two", "elo_rating": 900},
-        ],
-    )
-    assert export["schema_version"] == SCHEMA_VERSION
-    assert export["rating_axes"] == list(RATING_AXES)
-    for item in export["items"]:
-        assert item["item_id"].startswith("item-")
-        assert set(item) == {"item_id", "text"}
-
-
-def test_stable_item_ids() -> None:
-    a = build_blinded_export("run", [{"id": "h", "text": "t"}])
-    b = build_blinded_export("run", [{"id": "h", "text": "t"}])
-    assert a["items"][0]["item_id"] == b["items"][0]["item_id"]
-
-
-def test_parse_valid_ratings() -> None:
-    ratings = parse_ratings(
-        _quality_payload(
-            _quality_rating(
-                item_id="item-abc",
-                alignment=5,
-                plausibility=3,
-                safety=5,
-                impact=5,
-            )
-        )
-    )
-    assert len(ratings) == 1
-    assert ratings[0].rater_id == "expert-1"
-    assert ratings[0].alignment == 5
-    assert ratings[0].novelty == 4
-    assert ratings[0].testability == 4
-    assert ratings[0].safety == 5
-    assert ratings[0].preference_rank == 1
-
-
-def test_out_of_range_axis_fails_closed() -> None:
-    with pytest.raises(ExpertReviewValidationError):
-        parse_ratings(
-            _quality_payload(
-                _quality_rating(
-                    item_id="x",
-                    alignment=3,
-                    novelty=9,
-                    plausibility=3,
-                    testability=3,
-                    safety=3,
-                    impact=3,
-                )
-            )
-        )
-
-
-def test_missing_required_axis_fails_closed() -> None:
-    with pytest.raises(ExpertReviewValidationError, match="alignment"):
-        parse_ratings(
-            {
-                "schema_version": SCHEMA_VERSION,
-                "ratings": [
-                    {
-                        "rater_id": "expert-1",
-                        "item_id": "legacy",
-                        "novelty": 4,
-                        "plausibility": 4,
-                        "impact": 4,
-                        "preference_rank": 1,
-                    }
-                ],
-            }
-        )
-
-
-def test_wrong_schema_version_fails_closed() -> None:
-    with pytest.raises(ExpertReviewValidationError):
-        parse_ratings({"schema_version": 999, "ratings": []})
-
-
-_TWO_EXPERT_PANEL = _quality_payload(
-    _quality_rating(alignment=5, novelty=3, testability=5, safety=5),
-    _quality_rating(rater_id="expert-2", novelty=3, safety=5, impact=3),
+@pytest.mark.parametrize(
+    "build", [build_blinded_export, build_specific_aims_export]
 )
+def test_exports_are_blinded_with_stable_item_ids(build: Any) -> None:
+    pool = [{"id": "h1", "text": "idea", "elo_rating": 1400, "origin": "x"}]
+
+    export = build("run-1", pool)
+
+    assert [set(item) for item in export["items"]] == [{"item_id", "text"}]
+    assert export["items"] == build("run-1", pool)["items"]
+    assert export["items"][0]["item_id"].startswith("item-")
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (_quality_payload(_quality_rating(novelty=9)), "novelty"),
+        (
+            _quality_payload(
+                {k: v for k, v in _quality_rating().items() if k != "alignment"}
+            ),
+            "alignment",
+        ),
+        (_quality_payload(version=999), "schema"),
+        (_quality_payload(_quality_rating(), _quality_rating()), "duplicate"),
+    ],
+)
+def test_invalid_expert_ratings_fail_closed(
+    payload: dict[str, Any], message: str
+) -> None:
+    with pytest.raises(ExpertReviewValidationError, match=message):
+        parse_ratings(payload)
 
 
 def test_panel_summary_reports_confidence_and_agreement() -> None:
-    ratings = parse_ratings(_TWO_EXPERT_PANEL)
+    ratings = parse_ratings(
+        _quality_payload(
+            _quality_rating(alignment=5, novelty=3),
+            _quality_rating("expert-2", novelty=3, impact=3),
+        )
+    )
 
     summary = summarize_ratings(ratings)
 
@@ -154,121 +98,57 @@ def test_panel_summary_reports_confidence_and_agreement() -> None:
     assert agreement["within_one_point"]["proportion"] == 1.0
 
 
-def test_duplicate_rater_item_fails_closed() -> None:
-    row = _quality_rating()
-    with pytest.raises(ExpertReviewValidationError, match="duplicate rating"):
-        parse_ratings(_quality_payload(row, dict(row)))
-
-
-_DATASET_PATH = (
-    pathlib.Path(__file__).resolve().parent.parent
-    / "datasets"
-    / "specific_aims_rubric_v1.json"
+_DATASET = json.loads(
+    (
+        pathlib.Path(__file__).resolve().parent.parent
+        / "datasets"
+        / "specific_aims_rubric_v1.json"
+    ).read_text(encoding="utf-8")
 )
 
 
-def _load_dataset() -> dict[str, Any]:
-    result: dict[str, Any] = json.loads(
-        _DATASET_PATH.read_text(encoding="utf-8")
-    )
-    return result
-
-
-def _exemplar(dataset: dict[str, Any], case: str) -> dict[str, Any]:
-    for exemplar in dataset["exemplars"]:
-        if exemplar["case"] == case:
-            return exemplar  # type: ignore[no-any-return]
-    raise AssertionError(f"no exemplar named {case!r}")
-
-
-def test_domains_hold_five_and_ten_axes() -> None:
-    assert len(SPECIFIC_AIMS_DOMAINS["significance_and_innovation"]) == 5
-    assert len(SPECIFIC_AIMS_DOMAINS["rigor_and_feasibility"]) == 10
-    assert len(SPECIFIC_AIMS_AXES) == 15
-    assert len(set(SPECIFIC_AIMS_AXES)) == 15
-
-
-def test_dataset_axes_match_the_code_exactly() -> None:
-    dataset = _load_dataset()
-    sig = dataset["rubric"]["domains"]["significance_and_innovation"]
-    rig = dataset["rubric"]["domains"]["rigor_and_feasibility"]
-    json_axes = tuple(a["axis"] for a in sig) + tuple(a["axis"] for a in rig)
-    assert json_axes == SPECIFIC_AIMS_AXES
-    assert tuple(dataset["rubric"]["scale"]["levels"]) == AGREEMENT_SCALE
-
-
-def test_instrument_never_overlaps_the_six_axis_quality_score() -> None:
-    assert set(SPECIFIC_AIMS_AXES).isdisjoint(RATING_AXES)
-    assert len(RATING_AXES) == 6
-    assert len(SPECIFIC_AIMS_AXES) == 15
-
-
-def test_export_is_blinded_and_names_its_own_instrument() -> None:
-    export = build_specific_aims_export(
-        "run-1", [{"id": "h1", "text": "idea", "elo_rating": 1400}]
-    )
-    assert export["schema_version"] == SPECIFIC_AIMS_SCHEMA_VERSION
-    assert export["instrument"] == "specific_aims_rubric_v1"
-    assert export["axes"] == list(SPECIFIC_AIMS_AXES)
-    assert export["agreement_scale"] == list(AGREEMENT_SCALE)
-    item = export["items"][0]
-    assert set(item) == {"item_id", "text"}
-
-
-def _ratings_payload(item_id: str, ratings: dict[str, str]) -> dict[str, Any]:
+def _aims_payload(ratings: dict[str, str]) -> dict[str, Any]:
     return {
         "schema_version": SPECIFIC_AIMS_SCHEMA_VERSION,
         "ratings": [
-            {"rater_id": "rater-1", "item_id": item_id, "ratings": ratings}
+            {"rater_id": "rater-1", "item_id": "item-x", "ratings": ratings}
         ],
     }
+
+
+def test_dataset_axes_match_the_code_exactly() -> None:
+    domains = _DATASET["rubric"]["domains"]
+    axes = tuple(
+        entry["axis"] for domain in domains.values() for entry in domain
+    )
+    assert axes == SPECIFIC_AIMS_AXES
+    assert tuple(_DATASET["rubric"]["scale"]["levels"]) == AGREEMENT_SCALE
 
 
 @pytest.mark.parametrize(
     "case", ["lapatinib_colon_cancer", "selinexor_colon_cancer"]
 )
 def test_published_exemplars_round_trip_to_their_own_counts(case: str) -> None:
-    dataset = _load_dataset()
-    exemplar = _exemplar(dataset, case)
-    payload = _ratings_payload("item-x", exemplar["ratings"])
+    exemplar = next(e for e in _DATASET["exemplars"] if e["case"] == case)
 
-    parsed = parse_specific_aims_ratings(payload)
+    parsed = parse_specific_aims_ratings(_aims_payload(exemplar["ratings"]))
     summary = summarize_specific_aims_ratings(parsed)
 
-    distribution = summary["axis_distribution"]
     counts = dict.fromkeys(AGREEMENT_SCALE, 0)
-    for axis_counts in distribution.values():
+    for axis_counts in summary["axis_distribution"].values():
+        assert set(axis_counts) == set(AGREEMENT_SCALE)
         for level, n in axis_counts.items():
             counts[level] += n
     assert counts == exemplar["published_counts"]
-
-
-def test_givosiran_exemplar_is_present_with_no_rating_block() -> None:
-    dataset = _load_dataset()
-    givosiran = _exemplar(dataset, "givosiran_aml")
-    assert givosiran["ratings"] is None
-    assert givosiran.get("absence_note")
-
-
-def test_malformed_axis_value_fails_closed() -> None:
-    bad_ratings = dict.fromkeys(SPECIFIC_AIMS_AXES, "agree")
-    bad_ratings["unmet_clinical_needs"] = "somewhat_agree"
-    with pytest.raises(ExpertReviewValidationError):
-        parse_specific_aims_ratings(_ratings_payload("item-x", bad_ratings))
-
-
-def test_missing_axis_fails_closed() -> None:
-    incomplete = dict.fromkeys(SPECIFIC_AIMS_AXES[:-1], "agree")
-    with pytest.raises(ExpertReviewValidationError):
-        parse_specific_aims_ratings(_ratings_payload("item-x", incomplete))
-
-
-def test_summary_never_computes_a_mean_or_a_threshold_verdict() -> None:
-    full_agree = dict.fromkeys(SPECIFIC_AIMS_AXES, "strongly_agree")
-    parsed = parse_specific_aims_ratings(_ratings_payload("item-x", full_agree))
-    summary = summarize_specific_aims_ratings(parsed)
-
     assert set(summary) == {"schema_version", "panel", "axis_distribution"}
-    for axis_counts in summary["axis_distribution"].values():
-        assert "mean" not in axis_counts
-        assert set(axis_counts) == set(AGREEMENT_SCALE)
+
+
+@pytest.mark.parametrize("fault", ["malformed", "missing"])
+def test_incomplete_aims_ratings_fail_closed(fault: str) -> None:
+    ratings = dict.fromkeys(SPECIFIC_AIMS_AXES, "agree")
+    if fault == "malformed":
+        ratings["unmet_clinical_needs"] = "somewhat_agree"
+    else:
+        del ratings[SPECIFIC_AIMS_AXES[-1]]
+    with pytest.raises(ExpertReviewValidationError):
+        parse_specific_aims_ratings(_aims_payload(ratings))

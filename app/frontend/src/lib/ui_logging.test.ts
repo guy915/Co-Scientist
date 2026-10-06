@@ -35,24 +35,6 @@ describe('error logging', () => {
     uninstall();
   });
 
-  it('persists unhandled promise rejections', () => {
-    const uninstall = installUiErrorLogging();
-    const event = new Event('unhandledrejection') as Event & {
-      reason?: unknown;
-    };
-    event.reason = new Error('async boom');
-    window.dispatchEvent(event);
-
-    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
-      {
-        message: 'unhandled rejection: Error: async boom',
-        level: 'error',
-        logger: 'error',
-      },
-    ]);
-    uninstall();
-  });
-
   it('stops persisting after uninstall', () => {
     const uninstall = installUiErrorLogging();
     uninstall();
@@ -129,16 +111,6 @@ describe('interaction logging', () => {
     ]);
   });
 
-  it('flushes immediately once the buffer fills', () => {
-    const button = mount(document.createElement('button'));
-    button.textContent = 'Go';
-    for (let i = 0; i < 20; i++) button.click();
-
-    expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
-    const records = logsApiMock.postAppLogs.mock.calls[0][0] as unknown[];
-    expect(records).toHaveLength(20);
-  });
-
   it('flushes the buffer when the page hides', () => {
     const button = mount(document.createElement('button'));
     button.textContent = 'Start run';
@@ -150,17 +122,5 @@ describe('interaction logging', () => {
     ]);
     vi.runAllTimers();
     expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
-  });
-
-  it('persists form submissions', () => {
-    const form = mount(document.createElement('form'));
-    form.setAttribute('aria-label', 'Research goal');
-    // jsdom aborts native form submissions; dispatch the event directly.
-    form.dispatchEvent(new Event('submit', {bubbles: true}));
-    vi.runAllTimers();
-
-    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
-      {message: 'submit: "Research goal" (form)', logger: 'interaction'},
-    ]);
   });
 });

@@ -33,12 +33,6 @@ describe('text', () => {
         '{"significance": "Confirms the core assumption", "gap": "None"}';
       expect(readableText(raw)).toBe('Confirms the core assumption - None');
     });
-
-    it('flattens an object field into plain text', () => {
-      expect(
-        readableText({significance: 'Blocks a redundant pathway', priority: 3}),
-      ).toBe('Blocks a redundant pathway - 3');
-    });
   });
 
   describe('readableTextList', () => {

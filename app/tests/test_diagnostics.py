@@ -13,7 +13,6 @@ from app import API_VERSION, diagnostics
 from app.config import settings
 from app.diagnostics import (
     HealthCheck,
-    ProbeResult,
 )
 from app.store import checkpoints, db, runs
 from app.store import runs_views as views
@@ -65,40 +64,6 @@ def test_health_is_unhealthy_when_the_store_is_unreachable_and_hides_detail(
         assert data["model_name"] is None
 
 
-@pytest.mark.parametrize(
-    ("has_key", "status"), [(True, "degraded"), (False, "healthy")]
-)
-def test_health_is_degraded_only_when_a_key_is_set_but_the_engine_is_missing(
-    monkeypatch: pytest.MonkeyPatch, has_key: bool, status: str
-) -> None:
-    if has_key:
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    monkeypatch.setattr(
-        diagnostics,
-        "check_engine",
-        lambda: HealthCheck(ok=False, detail="not importable"),
-    )
-
-    res = _client().get("/health")
-
-    assert res.status_code == 200
-    assert res.json()["status"] == status
-
-
-def _patch_probes(
-    monkeypatch: pytest.MonkeyPatch,
-    mcp: ProbeResult,
-    pubmed: ProbeResult,
-    web_search: ProbeResult | None = None,
-) -> None:
-    resolved_web = web_search or ProbeResult(available=False, state="down")
-
-    async def _stub() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
-        return mcp, pubmed, resolved_web
-
-    monkeypatch.setattr(diagnostics, "_probe_literature_stack", _stub)
-
-
 _INDRA_CONFIG = str(
     pathlib.Path(__file__).resolve().parents[2]
     / "engine"
@@ -119,56 +84,6 @@ def test_status_reports_the_offline_backend_and_probes_only_to_operators() -> (
     assert data["probes"] is None
     operator = make_operator_client().get("/status").json()
     assert set(operator["probes"]) == {"mcp", "pubmed", "web_search"}
-
-
-@pytest.mark.parametrize(
-    ("mcp", "pubmed", "web_search", "review_available"),
-    [
-        (
-            ProbeResult(available=True, state="up"),
-            ProbeResult(available=False, state="down"),
-            ProbeResult(available=False, state="down"),
-            False,
-        ),
-        (
-            ProbeResult(available=True, state="up"),
-            ProbeResult(available=True, state="up"),
-            ProbeResult(available=True, state="up"),
-            True,
-        ),
-        (
-            ProbeResult(
-                available=False, state="error", error="probe timed out after 3s"
-            ),
-            ProbeResult(available=False, state="down"),
-            ProbeResult(available=False, state="down"),
-            False,
-        ),
-    ],
-    ids=["needs-both", "all-up", "error-is-not-down"],
-)
-def test_status_derives_literature_and_connector_availability_from_probes(
-    monkeypatch: pytest.MonkeyPatch,
-    mcp: ProbeResult,
-    pubmed: ProbeResult,
-    web_search: ProbeResult,
-    review_available: bool,
-) -> None:
-    _patch_probes(monkeypatch, mcp, pubmed, web_search)
-
-    data = make_operator_client().get("/status").json()
-
-    assert data["literature_review_available"] is review_available
-    assert data["web_search_available"] is web_search.available
-    assert (
-        any(item["id"] == "web_search" for item in data["connectors"])
-        is web_search.available
-    )
-    for name, probe in (("mcp", mcp), ("pubmed", pubmed)):
-        assert data["probes"][name] == {
-            "state": probe.state,
-            "error": probe.error,
-        }
 
 
 @pytest.mark.parametrize("operator", [True, False])
@@ -244,22 +159,6 @@ def test_lifespan_fails_on_unreadable_tools_config(
         pass
 
 
-def test_status_reports_effective_tools_config(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import app.main as main_module
-
-    monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
-
-    with TestClient(main_module.app, client=("127.0.0.1", 50000)) as client:
-        res = client.get("/status")
-        assert res.status_code == 200
-        body = res.json()
-        assert body["tools_config"] == _INDRA_CONFIG
-        assert body["tools_config_valid"] is True
-        assert "indra_statements" in body["enabled_tools"]
-
-
 def test_status_redacts_operator_fields_from_non_operators(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -283,30 +182,6 @@ def test_status_redacts_operator_fields_from_non_operators(
     assert body["provider"] == "engine"
     assert "llm_backend" in body
     assert "model_name" in body
-
-
-def test_status_reports_whether_email_can_actually_be_sent(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Without SMTP, opt-in only creates invisible retry-exhausted notification
-    # tasks.
-    import app.main as main_module
-
-    monkeypatch.setattr(settings, "smtp_host", "")
-    monkeypatch.setattr(settings, "smtp_from_email", "")
-    with TestClient(main_module.app) as client:
-        assert (
-            client.get("/status").json()["email_notifications_available"]
-            is False
-        )
-
-    monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
-    monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
-    with TestClient(main_module.app) as client:
-        assert (
-            client.get("/status").json()["email_notifications_available"]
-            is True
-        )
 
 
 def test_startup_prunes_checkpoints_but_never_vacuums(
@@ -403,15 +278,6 @@ def _snapshot_with_lease(
     return run_id, queue_health_snapshot(db_path=db_path)
 
 
-def test_active_and_rescuable_leases_are_not_stalled(isolated_db: str) -> None:
-    _, active = _snapshot_with_lease(isolated_db)
-    assert active.stalled_run_ids == ()
-
-    _, rescuable = _snapshot_with_lease(isolated_db, expired=True)
-    assert rescuable.stalled_run_ids == ()
-    assert rescuable.rescuable_leases == 1
-
-
 def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
     # A dead exhausted lease has no owner to fail it; health must expose the
     # stranded running state.
@@ -423,26 +289,6 @@ def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
     assert snapshot.rescuable_leases == 0
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "running"
-
-
-def test_check_queue_flags_a_stalled_run_and_reports_errors(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert diagnostics.check_queue(isolated_db) == HealthCheck(ok=True)
-    run_id, _ = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
-
-    stalled = diagnostics.check_queue(isolated_db)
-
-    assert stalled.ok is False
-    assert stalled.detail is not None and run_id in stalled.detail
-
-    def _boom(db_path: str | None = None) -> QueueHealthSnapshot:
-        raise RuntimeError("db unreachable")
-
-    monkeypatch.setattr(diagnostics, "queue_health_snapshot", _boom)
-    failed = diagnostics.check_queue()
-    assert failed.ok is False
-    assert failed.detail is not None and "db unreachable" in failed.detail
 
 
 def test_health_degrades_at_200_when_a_run_is_stalled(

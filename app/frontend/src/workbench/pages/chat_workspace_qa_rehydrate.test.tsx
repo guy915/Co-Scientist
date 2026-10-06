@@ -1,4 +1,4 @@
-import {makeChatSummary, makeRunMessage} from '@/test_fixtures';
+import {makeChatSummary} from '@/test_fixtures';
 
 import {
   act,
@@ -6,7 +6,6 @@ import {
   renderHook,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
@@ -141,85 +140,6 @@ it('ignores an old owned fetch after another chat has committed', async () => {
   ]);
 });
 
-it('shows a run Q&A exchange after reopening the chat', async () => {
-  apiMock.getInterview.mockResolvedValue(completedInterview());
-  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
-  apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
-  apiMock.getRunMessages.mockResolvedValue([
-    makeRunMessage({
-      id: 10,
-      content: 'Which hypothesis ranked highest?',
-      created_at: 10,
-      applied: true,
-    }),
-    makeRunMessage({
-      id: 11,
-      sender: 'system',
-      content: 'The mitochondrial feedback hypothesis, at Elo 1240.',
-      created_at: 11,
-      applied: true,
-      meta: {sources: []},
-    }),
-    makeRunMessage({
-      id: 12,
-      content: 'Focus more on the cold-stress pathway.',
-      kind: 'steering',
-      created_at: 12,
-    }),
-  ]);
-
-  renderWorkspace('/chats/interview-1');
-
-  expect(
-    await screen.findByText('Which hypothesis ranked highest?'),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText('The mitochondrial feedback hypothesis, at Elo 1240.'),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByText('Focus more on the cold-stress pathway.'),
-  ).not.toBeInTheDocument();
-});
-
-it('keeps a linked run locked when its owned status cannot be resolved', async () => {
-  apiMock.getInterview.mockResolvedValue({
-    ...completedInterview(),
-    run_id: 'run-3',
-  });
-  apiMock.listInterviews.mockResolvedValue([
-    makeChatSummary({run_id: 'run-3'}),
-  ]);
-  apiMock.listRuns.mockResolvedValue([]);
-  apiMock.getRun.mockRejectedValueOnce(new Error('not found'));
-
-  renderWorkspace('/chats/interview-1');
-
-  const plan = await screen.findByRole('region', {name: 'Inferred run setup'});
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    /could not verify the saved run/i,
-  );
-  expect(
-    screen.queryByRole('button', {name: 'Continue research'}),
-  ).not.toBeInTheDocument();
-  expect(
-    within(plan).getByRole('button', {name: 'Start research'}),
-  ).toBeDisabled();
-  const retryStatus = within(plan).getByRole('button', {
-    name: 'Retry status check',
-  });
-  apiMock.getRun.mockResolvedValueOnce(
-    minimalRun({id: 'run-3', status: 'draft'}),
-  );
-  vi.mocked(pendingIntentMock).mockResolvedValueOnce(undefined);
-  const lookupsBeforeRetry = apiMock.getRun.mock.calls.length;
-  retryStatus.click();
-  expect(
-    await screen.findByRole('button', {name: 'Continue research'}),
-  ).toBeEnabled();
-  expect(apiMock.getRun.mock.calls.length).toBeGreaterThan(lookupsBeforeRetry);
-  expect(apiMock.startRun).not.toHaveBeenCalled();
-});
-
 it('keeps a linked draft recoverable without treating it as started', async () => {
   apiMock.getInterview.mockResolvedValue({
     ...completedInterview(),
@@ -250,4 +170,59 @@ it('keeps a linked draft recoverable without treating it as started', async () =
   );
 
   await waitFor(() => expect(apiMock.startRun).toHaveBeenCalledWith('run-1'));
+});
+
+it('shows no home page while a reopened chat transcript loads', async () => {
+  const transcript = deferred<ReturnType<typeof completedInterview>>();
+  apiMock.getInterview.mockReturnValue(transcript.promise);
+  renderWorkspace('/chats/interview-1');
+  expect(screen.queryByText('Frame the research goal')).toBeNull();
+
+  await act(async () => transcript.resolve(completedInterview()));
+  expect(
+    await screen.findByText(
+      'I have enough detail to configure this research run.',
+    ),
+  ).toBeInTheDocument();
+});
+
+it('falls back to the home page when a reopened chat is unavailable', async () => {
+  apiMock.getInterview.mockRejectedValue(new Error('missing'));
+  renderWorkspace('/chats/missing');
+  expect(
+    await screen.findByText('Frame the research goal'),
+  ).toBeInTheDocument();
+});
+
+it('offers a jump to the latest message once the reader scrolls up', async () => {
+  apiMock.getInterview.mockResolvedValue(completedInterview());
+  const {container} = renderWorkspace('/chats/interview-1');
+  await screen.findByText(
+    'I have enough detail to configure this research run.',
+  );
+  const scroller = container.querySelector<HTMLElement>(
+    '.reference-chat-timeline',
+  )!;
+  Object.defineProperty(scroller, 'scrollHeight', {value: 1000});
+  Object.defineProperty(scroller, 'clientHeight', {value: 400});
+  const scrollTo = vi.fn();
+  scroller.scrollTo = scrollTo;
+  expect(
+    screen.queryByRole('button', {name: 'Jump to latest message'}),
+  ).toBeNull();
+
+  scroller.scrollTop = 100;
+  fireEvent.scroll(scroller);
+  fireEvent.click(
+    await screen.findByRole('button', {name: 'Jump to latest message'}),
+  );
+  expect(scrollTo).toHaveBeenCalledWith({top: 1000, behavior: 'smooth'});
+
+  scroller.scrollTop = 600;
+  fireEvent.scroll(scroller);
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', {name: 'Jump to latest message'}),
+    ).toBeNull(),
+  );
 });

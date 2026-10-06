@@ -70,6 +70,7 @@ _REQUEST_FIELDS = {
 }
 _BODY_FIELDS = {"provider", "models", "reasoning"}
 _campaign_mode: ContextVar[bool] = ContextVar("campaign_mode", default=False)
+_zero_cost_only: ContextVar[bool] = ContextVar("zero_cost_only", default=False)
 
 
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
@@ -247,9 +248,22 @@ def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
         yield
 
 
+@contextlib.contextmanager
+def scoped_zero_cost_admission(enabled: bool) -> Iterator[None]:
+    """Unlike campaign mode, this gates only provider admission, not tools.
+    Nested scopes may strengthen it but never weaken it.
+    """
+    with _bind_contextvar(_zero_cost_only, _zero_cost_only.get() or enabled):
+        yield
+
+
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
     model = str(args.get("model", ""))
-    return campaign_free_mode() or (not byok and ":free" in model)
+    return (
+        campaign_free_mode()
+        or _zero_cost_only.get()
+        or (not byok and ":free" in model)
+    )
 
 
 def _request_body(args: dict[str, Any]) -> dict[str, Any]:

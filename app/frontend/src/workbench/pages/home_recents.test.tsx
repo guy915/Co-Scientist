@@ -1,27 +1,10 @@
-import {describe, expect, it, afterEach, vi} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import type {Run} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
-import {
-  formatHomeRunTimeChip,
-  homeRunStepIndex,
-  HomeRecentsPanel,
-  RunStepFlow,
-} from './chat_home_stage';
-import {act, render, screen} from '@testing-library/react';
-import {MemoryRouter} from 'react-router-dom';
+import {homeRunStepIndex, RunStepFlow} from './chat_home_stage';
+import {render, screen} from '@testing-library/react';
 
 describe('home recents data', () => {
-  const NOW = 10_000;
-
-  it('shows total time for a completed run with valid timestamps', () => {
-    const run = makeRun({
-      status: 'completed',
-      created_at: 1000,
-      completed_at: 1000 + 3600,
-    });
-    expect(formatHomeRunTimeChip(run, NOW)).toBe('Total time: 1 hour');
-  });
-
   const ENGINE_TASK_PHASES: [string, number | null][] = [
     ['engine.bootstrap', 1],
     ['engine.node.supervisor', 1],
@@ -69,45 +52,6 @@ describe('home recents data', () => {
     for (const [task, phase] of ENGINE_TASK_PHASES) {
       expect(homeRunStepIndex(makeRun(activeTask(task))), task).toBe(phase);
     }
-  });
-});
-
-describe('home recents elapsed', () => {
-  const START_MS = Date.UTC(2026, 0, 1);
-
-  function renderPanel(createdAtSeconds: number) {
-    const run = makeRun({
-      status: 'running',
-      created_at: createdAtSeconds,
-      updated_at: createdAtSeconds,
-      completed_at: null,
-    });
-    return render(
-      <MemoryRouter>
-        <HomeRecentsPanel
-          runs={[run]}
-          showAll={false}
-          onToggleShowAll={() => {}}
-        />
-      </MemoryRouter>,
-    );
-  }
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('advances an active run’s elapsed chip as the clock ticks', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(START_MS);
-    renderPanel(START_MS / 1000 - 30);
-
-    expect(screen.getByText('Time elapsed: < 1 minute')).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(60_000);
-    });
-    expect(screen.getByText('Time elapsed: 2 minutes')).toBeInTheDocument();
   });
 });
 

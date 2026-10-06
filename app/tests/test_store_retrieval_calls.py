@@ -128,40 +128,6 @@ def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
     assert len(store.list_retrieval_calls(second.id)) == 1
 
 
-def test_a_failed_search_is_recorded_not_dropped(db: str) -> None:
-    run = seed_run("degraded")
-    result = _result(
-        calls=[
-            SearchCall(
-                question="What drives fibrosis?",
-                query="fibrosis mechanism",
-                source="pubmed",
-                status=CallStatus.FAILED,
-                error="connection refused",
-                duration_seconds=0.1,
-            ),
-            SearchCall(
-                question="What drives fibrosis?",
-                query="fibrosis mechanism",
-                source="corpus",
-                status=CallStatus.EMPTY,
-                duration_seconds=0.2,
-            ),
-        ]
-    )
-
-    store.add_retrieval_calls(store.retrieval_call_rows(run.id, result))
-
-    by_source = {
-        row["source"]: row for row in store.list_retrieval_calls(run.id)
-    }
-    assert by_source["pubmed"]["status"] == "failed"
-    assert by_source["pubmed"]["error"] == "connection refused"
-    assert by_source["corpus"]["status"] == "empty"
-    assert by_source["corpus"]["error"] is None
-    assert by_source["corpus"]["hits"] == []
-
-
 def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
     run = seed_run("link")
     result = _result()

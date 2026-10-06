@@ -60,6 +60,43 @@ describe('chat workspace timeline', () => {
     }
   });
 
+  it('places the started card right after the start request despite clock skew', () => {
+    const items = buildTimelineItems(
+      baseArgs({
+        // The client clock runs 30 s behind the server rows.
+        startedSession: {id: 'run-1', title: 'Research', at: 70},
+        messages: [
+          makeMessage({id: 'setup', turnId: 1, created_at: 50}),
+          makeMessage({id: 'start', startRequest: true, created_at: 100}),
+          makeMessage({id: 'qa', messageId: 4, created_at: 101}),
+        ],
+      }),
+    );
+    expect(items.map(item => item.id)).toEqual([
+      'local-message-setup',
+      'local-message-start',
+      'started-session-run-1',
+      'local-message-qa',
+    ]);
+  });
+
+  it('keeps bubbles in transcript order when clocks disagree', () => {
+    const items = buildTimelineItems(
+      baseArgs({
+        isAwaitingAgent: true,
+        messages: [
+          makeMessage({id: 'server', created_at: 200}),
+          makeMessage({id: 'client', created_at: 150}),
+        ],
+      }),
+    );
+    expect(items.map(item => item.id)).toEqual([
+      'local-message-server',
+      'local-message-client',
+      'agent-turn-in-flight',
+    ]);
+  });
+
   // jsdom cannot measure spacing; matching the ordinary assistant wrapper
   // guards its structure.
 });

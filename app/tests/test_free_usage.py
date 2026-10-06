@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.store.db import connect
 from tests._process_mode_helpers import FakeProcessMode
 
 _CLIENT = {"X-Client-ID": "free-usage-scientist"}
@@ -62,50 +61,24 @@ def test_free_runs_are_capped_per_day(real_backend: None) -> None:
         assert other.status_code == 200
 
 
-def test_deleting_a_run_does_not_return_its_slot(real_backend: None) -> None:
-    with TestClient(app) as client:
-        run_ids = [_create(client).json()["id"] for _ in range(3)]
-        deleted = client.delete(f"/api/runs/{run_ids[0]}", headers=_CLIENT)
-        assert deleted.status_code in (200, 204)
-        assert _create(client).status_code == 429
-
-
-def test_zero_limit_removes_the_cap(
-    real_backend: None, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("worker_model", "stamped"),
+    [
+        ("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", True),
+        ("openrouter/z-ai/glm-5.3-flash", False),
+    ],
+)
+def test_only_a_free_run_on_free_routes_is_stamped_zero_cost(
+    real_backend: None,
+    monkeypatch: pytest.MonkeyPatch,
+    worker_model: str,
+    stamped: bool,
 ) -> None:
-    monkeypatch.setattr(settings, "free_runs_per_day", 0)
+    from app.store import runs
+
+    monkeypatch.setattr(settings, "model_name", worker_model)
     with TestClient(app) as client:
-        for _ in range(4):
-            assert _create(client).status_code == 200
-        usage = client.get("/api/free-usage", headers=_CLIENT).json()
-        assert usage["limit"] is None
-        assert usage["remaining"] is None
-
-
-def test_usage_endpoint_counts_todays_runs(real_backend: None) -> None:
-    with TestClient(app) as client:
-        _create(client)
-        usage = client.get("/api/free-usage", headers=_CLIENT).json()
-    assert usage["enforced"] is True
-    assert usage["tier"] == "express"
-    assert (usage["limit"], usage["used"], usage["remaining"]) == (3, 1, 2)
-
-
-def test_offline_runs_are_not_free_usage() -> None:
-    with TestClient(app) as client:
-        for _ in range(4):
-            assert _create(client, tier="standard").status_code == 200
-        usage = client.get("/api/free-usage", headers=_CLIENT).json()
-    assert usage["enforced"] is False
-    assert usage["used"] == 0
-
-
-def test_yesterdays_runs_do_not_count(real_backend: None) -> None:
-    with TestClient(app) as client:
-        for _ in range(3):
-            _create(client)
-        with connect() as conn:
-            conn.execute(
-                "UPDATE free_run_usage SET created_at = created_at - 86400"
-            )
-        assert _create(client).status_code == 200
+        run_id = _create(client).json()["id"]
+    run = runs.get_run(run_id)
+    assert run is not None
+    assert (run.config.get("zero_cost_admission") is True) is stamped

@@ -29,6 +29,25 @@ def campaign_model_for_config(config: Any = None) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
+# Engine tasks of a run stamped with this key admit only zero-price requests,
+# so a lost lease can replay without an unknown spend.
+ZERO_COST_CONFIG_KEY = "zero_cost_admission"
+
+
+def zero_cost_admission_for_config(config: Any = None) -> bool:
+    return isinstance(config, dict) and config.get(ZERO_COST_CONFIG_KEY) is True
+
+
+def deployment_routes_are_free() -> bool:
+    models = (
+        settings.model_name,
+        settings.effective_supervisor_model,
+        settings.claim_verifier_model,
+        settings.semantic_safety_model,
+    )
+    return all(":free" in model for model in models if model)
+
+
 def effective_execution_model(configured_model: str | None) -> str | None:
     return _campaign_model.get() or configured_model
 

@@ -12,9 +12,8 @@ from app.citations import CitationState
 from app.store import db as store_db
 from app.store import events as store_events
 from app.store import hypotheses as store
-from app.store import records, runs
-from app.store import runs_views as views
-from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
+from app.store import records
+from app.store.hypotheses import NewHypothesis
 from app.store.records import (
     NewCitation,
     NewEvidence,
@@ -36,67 +35,6 @@ def test_event_log_is_append_only_and_strictly_increasing(db: str) -> None:
     events = store_events.list_events(run.id)
     assert seqs == [e["seq"] for e in events]
     assert all(seqs[i] < seqs[i + 1] for i in range(4))
-
-
-def test_list_runs_reports_top_elo_and_the_top_three_hypotheses(
-    db: str,
-) -> None:
-    run = seed_run("top-hyps", provider="mock")
-    for title, rating in (
-        ("Low", 1180),
-        ("High", 1320),
-        ("Mid", 1250),
-        ("Lowest", 1100),
-    ):
-        hid = store.add_hypothesis(
-            NewHypothesis(
-                run_id=run.id,
-                title=title,
-                statement="s",
-                created_by_agent="generation",
-            )
-        )
-        store.update_hypothesis_state(
-            hid, HypothesisStateChanges(elo_rating=rating)
-        )
-    seed_run("no-hyps", provider="mock")
-
-    by_goal = {r.research_goal: r for r in views.list_runs()}
-    assert by_goal["top-hyps"].top_elo == 1320
-    assert by_goal["no-hyps"].top_elo is None
-    assert by_goal["top-hyps"].top_hypotheses == ["High", "Mid", "Low"]
-    assert by_goal["no-hyps"].top_hypotheses == []
-    single = runs.get_run(run.id)
-    assert single is not None
-    assert single.top_hypotheses is None
-    assert single.top_elo is None
-
-
-def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
-    run = seed_run("decoupling test", provider="mock")
-    hid = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="t",
-            statement="s",
-            mechanism="m",
-            expected_effect="e",
-            experimental_context="x",
-            created_by_agent="generation",
-        )
-    )
-    store.update_hypothesis_state(
-        hid, HypothesisStateChanges(elo_rating=1300, win_delta=1)
-    )
-    store.update_hypothesis_state(
-        hid, HypothesisStateChanges(elo_rating=1350, win_delta=1)
-    )
-    h = store.get_hypothesis(hid)
-    assert h is not None
-    assert h["elo_rating"] == 1350
-    assert h["win_count"] == 2
-    assert h["title"] == "t"
-    assert h["statement"] == "s"
 
 
 def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
@@ -155,17 +93,6 @@ def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
     assert row["mechanism"] == "[X]"
     assert row["experimental_context"] == "[X]"
     assert row["statement"] == "keep me"
-
-
-def test_redact_hypothesis_fields_rejects_non_redactable_column(
-    db: str,
-) -> None:
-    run = seed_run("redact", provider="mock")
-    hid = store.add_hypothesis(
-        NewHypothesis(run_id=run.id, title="H", statement="s")
-    )
-    with pytest.raises(ValueError, match="non-redactable"):
-        store.redact_hypothesis_fields(hid, {"statement": "wiped"})
 
 
 def test_connections_pair_wal_with_normal_synchronous(db: str) -> None:

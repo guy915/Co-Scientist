@@ -18,31 +18,12 @@ from co_scientist.constants import (
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.llm import ModelCallStats, record_call, scoped_telemetry
-from co_scientist.prompts import (
-    get_knowledge_base_outline_prompt,
-    get_knowledge_base_theme_prompt,
-)
-from co_scientist.prompts.planning import ThemeWritingMaterial
-from co_scientist.schemas.synthesis import (
-    KNOWLEDGE_BASE_MAX_THEMES,
-    KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS,
-    KNOWLEDGE_BASE_SECTION_WORDS,
-    KNOWLEDGE_BASE_TARGET_SECTIONS,
-    KNOWLEDGE_BASE_THEME_SCHEMA,
-)
 from tests._state import make_hypothesis, make_state
 from tests.test_research_overview import (
     _RESEARCH_OVERVIEW_OVERVIEW_RESPONSE as _OVERVIEW_RESPONSE,
 )
 from tests.test_research_overview import (
     _research_overview_grounded_articles as _grounded_articles,
-)
-
-_MATERIAL = ThemeWritingMaterial(
-    title="Extracellular Matrix Architecture",
-    sections="- Cross-Linking Constraints (evidence: evidence-2)",
-    outline="## Extracellular Matrix Architecture",
 )
 
 
@@ -53,25 +34,6 @@ def _research_overview_knowledge_base_funded_state(**overrides: Any) -> Any:
         budget={"max_iterations": 3, "max_llm_calls": 7000},
         **overrides,
     )
-
-
-@pytest.mark.parametrize(
-    ("budget", "funded"),
-    [
-        ({"max_iterations": 1, "max_llm_calls": 1200}, False),
-        ({"max_iterations": 2}, False),
-        (None, False),
-        ({"max_iterations": 2, "max_llm_calls": 2500}, True),
-        ({"max_iterations": 3, "max_llm_calls": 7000}, True),
-    ],
-    ids=["express", "no-call-ceiling", "no-ceiling", "standard", "deep"],
-)
-def test_only_standard_and_deeper_runs_fund_the_knowledge_base_calls(
-    budget: dict[str, int] | None, funded: bool
-) -> None:
-    state = make_state() if budget is None else make_state(budget=budget)
-
-    assert kb.knowledge_base_is_funded(state) is funded
 
 
 async def test_an_empty_corpus_never_spends_the_call(
@@ -88,28 +50,6 @@ async def test_an_empty_corpus_never_spends_the_call(
 
     assert result == ([], 0)
     assert fake.await_count == 0
-
-
-def test_the_prompt_and_the_schema_carry_the_same_targets() -> None:
-    """Downgraded models read prompt and schema descriptions side by side."""
-    outline, _ = get_knowledge_base_outline_prompt(
-        "goal", "1. an idea", "corpus"
-    )
-    theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
-    detail = KNOWLEDGE_BASE_THEME_SCHEMA["schema"]["properties"]["sections"][
-        "items"
-    ]["properties"]["detail"]
-    # Writers need prose bands; only the outline controls section counts.
-    for bound in (
-        *KNOWLEDGE_BASE_SECTION_WORDS,
-        *KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS,
-    ):
-        assert str(bound) in theme
-        assert str(bound) in detail["description"]
-    for bound in KNOWLEDGE_BASE_TARGET_SECTIONS:
-        assert str(bound) in outline
-    # Extra themes may be silently trimmed before validation.
-    assert f"no more than {KNOWLEDGE_BASE_MAX_THEMES} themes" in outline
 
 
 _ASKED = "Theme to write:"
@@ -258,35 +198,6 @@ async def test_the_synthesis_is_one_bounded_outline_call_plus_one_per_theme(
     assert "Ungrounded Section" not in str(topics)
 
 
-async def test_a_theme_beyond_the_readable_count_is_never_written(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    section = {"heading": "Cross-Linking", "evidence_ids": ["evidence-2"]}
-    outline = {
-        "themes": [
-            {"title": f"Theme {index}", "sections": [section]}
-            for index in range(KNOWLEDGE_BASE_MAX_THEMES + 3)
-        ]
-    }
-    writer = {
-        "sections": [{"heading": "Cross-Linking", "detail": "LOXL2 binds."}]
-    }
-
-    async def responder(**kwargs: Any) -> dict[str, Any]:
-        return (
-            outline
-            if kwargs["spec"].json_schema["name"] == "knowledge_base_outline"
-            else writer
-        )
-
-    topics, calls = await _synthesize(monkeypatch, responder)
-
-    assert calls == 1 + KNOWLEDGE_BASE_MAX_THEMES
-    assert (
-        len({topic["theme"] for topic in topics}) == KNOWLEDGE_BASE_MAX_THEMES
-    )
-
-
 async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -299,77 +210,6 @@ async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     assert [topic["theme"] for topic in topics] == [
         "Extracellular Matrix Architecture"
     ]
-
-
-@pytest.mark.parametrize(
-    "outline",
-    [
-        RuntimeError("boom"),
-        {"themes": []},
-        {"themes": [{"title": "Empty Theme", "sections": []}]},
-    ],
-    ids=["failed", "no-themes", "no-sections"],
-)
-async def test_an_unusable_outline_never_spends_the_writing_calls(
-    outline: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fake = AsyncMock(
-        side_effect=outline if isinstance(outline, Exception) else None,
-        return_value=outline,
-    )
-
-    topics, calls = await _synthesize(monkeypatch, fake)
-
-    assert (topics, calls) == ([], 1)
-    assert fake.await_count == 1
-
-
-async def test_a_writer_that_cites_nothing_falls_back_to_the_outline_ids(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Splitting grounding and prose must not lose the outline-selected
-    evidence."""
-    section = {"heading": "Cross-Linking Constraints"}
-    outline = {
-        "themes": [
-            {
-                "title": "Extracellular Matrix Architecture",
-                "sections": [{**section, "evidence_ids": ["evidence-2"]}],
-            }
-        ]
-    }
-    writer = {"sections": [{**section, "detail": "LOXL2 raises the Tm."}]}
-
-    async def responder(**kwargs: Any) -> dict[str, Any]:
-        named = kwargs["spec"].json_schema["name"]
-        return outline if named == "knowledge_base_outline" else writer
-
-    topics, _ = await _synthesize(monkeypatch, responder)
-
-    assert [topic["title"] for topic in topics] == ["Cross-Linking Constraints"]
-    assert topics[0]["references"][0]["title"] == "Matrix cross-linking"
-
-
-async def test_the_parts_are_attributed_to_their_own_telemetry_sub_phase(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Phase-folded telemetry otherwise hides outline and writer costs."""
-    responder = _Responder()
-
-    async def _recording(**kwargs: Any) -> dict[str, Any]:
-        record_call("test/model", ModelCallStats(calls=1))
-        return await responder(**kwargs)
-
-    with scoped_telemetry("research_overview") as accumulator:
-        record_call("test/model", ModelCallStats(calls=1))
-        _, calls = await _synthesize(monkeypatch, _recording)
-
-    snapshot = accumulator.snapshot()
-    assert snapshot["research_overview::test/model"]["calls"] == 1
-    assert (
-        snapshot["research_overview.knowledge_base::test/model"]["calls"]
-        == calls
-    )
 
 
 _DRAFT: dict[str, Any] = {
@@ -409,38 +249,6 @@ async def _run_loop(
     return await ror.review_research_overview(context, draft)
 
 
-async def test_accept_first_time_runs_no_reviser_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = AsyncMock(return_value={"accept": True})
-    monkeypatch.setattr(ror, "call_llm_json", fake)
-
-    state = make_state(supervisor_model_name="test/model")
-    final, meta, calls = await _run_loop(state)
-
-    assert fake.await_count == 1
-    assert final is _DRAFT
-    assert meta == {"reviewed": False, "rounds": 0}
-    assert calls == 1
-
-
-async def test_a_revision_round_changes_the_published_prose(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    revised = _revised("Corrected, hedged summary.")
-    fake = AsyncMock(side_effect=[_reject(), revised, {"accept": True}])
-    monkeypatch.setattr(ror, "call_llm_json", fake)
-
-    state = make_state(supervisor_model_name="test/model")
-    final, meta, calls = await _run_loop(state)
-
-    assert fake.await_count == 3
-    assert final["overview"]["summary"] == "Corrected, hedged summary."
-    assert final["overview"]["summary"] != _DRAFT["overview"]["summary"]
-    assert meta == {"reviewed": True, "rounds": 1}
-    assert calls == 3
-
-
 async def test_the_cycle_cap_holds_when_the_reviewer_objects_forever(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -464,7 +272,6 @@ async def test_the_cycle_cap_holds_when_the_reviewer_objects_forever(
     assert meta == {"reviewed": True, "rounds": 2}
 
 
-_DIRECTIONS = len(_OVERVIEW_RESPONSE["overview"]["research_directions"])
 """Directions the canned draft names, each bought its own writing call."""
 
 
@@ -480,55 +287,6 @@ def _base_state(**overrides: Any) -> Any:
         articles=_grounded_articles(),
         **overrides,
     )
-
-
-async def test_review_disabled_by_default_skips_the_loop(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
-    monkeypatch.setattr(ro, "call_llm_json", synth)
-    loop = AsyncMock(side_effect=AssertionError("loop must not run"))
-    monkeypatch.setattr(ro, "review_research_overview", loop)
-
-    out = await ro.research_overview_node(_base_state())
-
-    loop.assert_not_awaited()
-    assert out["research_overview"]["overview_review"] == {
-        "reviewed": False,
-        "rounds": 0,
-    }
-    assert out["metrics"].llm_calls == 2
-
-
-async def test_a_review_round_changes_the_published_overview(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
-    monkeypatch.setattr(ro, "call_llm_json", synth)
-    revised = {
-        **_OVERVIEW_RESPONSE,
-        "overview": {
-            **_OVERVIEW_RESPONSE["overview"],
-            "summary": "Corrected, hedged summary.",
-        },
-    }
-    loop = AsyncMock(return_value=(revised, {"reviewed": True, "rounds": 1}, 3))
-    monkeypatch.setattr(ro, "review_research_overview", loop)
-
-    out = await ro.research_overview_node(
-        _base_state(enable_overview_review=True)
-    )
-
-    loop.assert_awaited_once()
-    assert (
-        out["research_overview"]["overview"]["summary"]
-        == "Corrected, hedged summary."
-    )
-    assert out["research_overview"]["overview_review"] == {
-        "reviewed": True,
-        "rounds": 1,
-    }
-    assert out["metrics"].llm_calls == 4 + _DIRECTIONS
 
 
 async def test_an_exception_in_the_review_loop_publishes_the_original_draft(

@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import itertools
 from collections.abc import Sequence
-from typing import Any
 
 
 def _tokens(text: str) -> frozenset[str]:
@@ -27,24 +26,3 @@ def hypothesis_diversity(texts: Sequence[str]) -> float:
         1.0 - _jaccard(a, b) for a, b in itertools.combinations(texts, 2)
     ]
     return round(sum(distances) / len(distances), 4)
-
-
-def generation_vs_evolution_yield(
-    hypotheses: Sequence[dict[str, Any]],
-) -> dict[str, Any]:
-    by_origin: dict[str, list[str]] = {}
-    for hyp in hypotheses:
-        origin = str(hyp.get("origin", "generation"))
-        by_origin.setdefault(origin, []).append(str(hyp.get("text", "")))
-
-    return {
-        "counts": {origin: len(texts) for origin, texts in by_origin.items()},
-        "diversity_by_origin": {
-            origin: hypothesis_diversity(texts)
-            for origin, texts in by_origin.items()
-        },
-        "overall_diversity": hypothesis_diversity(
-            [str(h.get("text", "")) for h in hypotheses]
-        ),
-        "n": len(hypotheses),
-    }

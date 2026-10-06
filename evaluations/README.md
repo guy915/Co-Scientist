@@ -72,9 +72,8 @@ the offline baseline remains local.
   panel, by construction), `--llm` scores a real model. Note there is no
   production assessor to score here -- the system does not yet judge its
   own retrievals this way, so this eval's judge is its own.
-- `metrics.py` — pure hypothesis-quality metrics (diversity;
-  generation-vs-evolution yield/diversity). Does **not** use the engine's own
-  Elo as ground truth.
+- `metrics.py` — pure hypothesis-quality metrics (textual diversity). Does
+  **not** use the engine's own Elo as ground truth.
 - `_run_driver.py` — shared plumbing the two controlled-experiment drivers
   below use to persist a research goal through the real durable path
   (`store.create_run` -> `task_worker` -> `engine_tasks` -> engine -> drain

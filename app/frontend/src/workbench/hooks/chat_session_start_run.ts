@@ -66,9 +66,13 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
   let shouldAnnounce = isDraftStatus(target.status);
 
   if (shouldAnnounce) {
+    // The plan card carries a server time; a lagging client clock must not
+    // lift this bubble above it.
     appendChatMessage(deps.update, {
       role: 'user',
       content: START_RESEARCH_PROMPT,
+      createdAt: Math.max(Date.now() / 1000, stage.createdAt),
+      startRequest: true,
     });
   }
   deps.update({confirmed: stage, draft: null});

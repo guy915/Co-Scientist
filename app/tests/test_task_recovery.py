@@ -27,18 +27,26 @@ from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._store_helpers import enqueue_task, seed_run
 
-# Campaign requests enforce exact zero price; lost leases are retry-safe only
-# without caller credentials.
+# Campaign and zero-cost-stamped requests enforce exact zero price; lost leases
+# are retry-safe only without caller credentials.
+_PROVABLY_FREE = {
+    "campaign": ("campaign", {}),
+    "zero-cost-standard": ("standard", {"zero_cost_admission": True}),
+}
 
 
 def _campaign_run_with_expired_lease(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str = "campaign",
 ) -> tuple[str, str]:
+    policy, config = _PROVABLY_FREE[kind]
     run = seed_run(
         "Campaign lease loss",
         profile="express",
+        config=config,
         options=RunCreateOptions(
-            client_id=DEFAULT_TEST_CLIENT_ID, execution_policy="campaign"
+            client_id=DEFAULT_TEST_CLIENT_ID, execution_policy=policy
         ),
     )
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
@@ -58,8 +66,9 @@ def _campaign_run_with_expired_lease(
 
 
 @pytest.mark.asyncio
-async def test_expired_campaign_lease_is_retried(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("kind", _PROVABLY_FREE)
+async def test_expired_provably_free_lease_is_retried(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, kind: str
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     replayed: list[str] = []
@@ -71,7 +80,9 @@ async def test_expired_campaign_lease_is_retried(
         return {"replayed": True}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _replay)
-    run_id, task_id = _campaign_run_with_expired_lease(isolated_db, monkeypatch)
+    run_id, task_id = _campaign_run_with_expired_lease(
+        isolated_db, monkeypatch, kind
+    )
 
     assert await task_worker.run_once("new-worker", db_path=isolated_db)
 
@@ -80,6 +91,104 @@ async def test_expired_campaign_lease_is_retried(
     assert task is not None and task.status == "completed"
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status != RunStatus.FAILED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", _PROVABLY_FREE)
+async def test_expired_provably_free_lease_with_byok_still_fails_closed(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    monkeypatch.setattr(
+        settings, "byok_encryption_key", "synthetic-campaign-lease-secret"
+    )
+    replayed: list[str] = []
+
+    async def _must_not_call(
+        task: ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, Any]:
+        replayed.append(task.task_type)
+        return {}
+
+    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _must_not_call)
+    run_id, task_id = _campaign_run_with_expired_lease(
+        isolated_db, monkeypatch, kind
+    )
+    credentials.store_run_credential(
+        run_id,
+        DEFAULT_TEST_CLIENT_ID,
+        credentials.ByokCredential(
+            provider="deepseek",
+            api_key="sk-synthetic-campaign-lease-12345",
+            model="deepseek/deepseek-v4-flash",
+        ),
+        db_path=isolated_db,
+    )
+
+    assert not await task_worker.run_once("new-worker", db_path=isolated_db)
+
+    assert replayed == []
+    task = store.get_task(task_id, db_path=isolated_db)
+    assert task is not None and task.status == "failed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("config", [{}, {"zero_cost_admission": "yes"}])
+async def test_expired_standard_lease_without_the_stamp_fails_closed(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]
+) -> None:
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    run = seed_run(
+        "Unproven lease loss",
+        config=config,
+        options=RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID),
+    )
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
+    task = enqueue_task(
+        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
+    )
+    assert store.claim_task(
+        "restarted-worker", run_id=run.id, lease_seconds=1, db_path=isolated_db
+    )
+    now = store_db._now()
+    monkeypatch.setattr("app.store.db.time.time", lambda: now + 2)
+
+    assert not await task_worker.run_once("new-worker", db_path=isolated_db)
+
+    failed = store.get_task(task.id, db_path=isolated_db)
+    assert failed is not None and failed.status == "failed"
+    assert failed.error == UNKNOWN_PROVIDER_OUTCOME_ERROR
+
+
+@pytest.mark.asyncio
+async def test_a_zero_cost_stamped_task_admits_only_zero_price_requests(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from co_scientist.llm.admission import free_policy
+
+    run = seed_run(
+        "Stamped run",
+        config={"zero_cost_admission": True},
+        options=RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID),
+    )
+    task = enqueue_task(
+        run.id, "engine.node.generate", "generate:scope", db_path=isolated_db
+    )
+    paid = {"model": "openrouter/provider/paid-model"}
+    observed: list[bool] = []
+
+    async def _probe(
+        task: ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, Any]:
+        observed.append(free_policy._requires_free(paid, False))
+        return {}
+
+    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _probe)
+
+    await engine_tasks.execute_engine_task(task, db_path=isolated_db)
+
+    assert observed == [True]
+    assert free_policy._requires_free(paid, False) is False
 
 
 # Each failed attempt needs bounded history; overwriting one error loses
