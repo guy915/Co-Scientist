@@ -55,10 +55,10 @@ that is what makes them deterministic and trustworthy as merge gates.
 - MCP server tests: fake `httpx` clients, no network (see
   `engine/mcp_server/tests/test_literature.py` docstring).
 - Browser tests: the existing development flows plus a built-asset launch
-  check with `AUTH_MODE=required`. Each invocation gets a fresh temporary
-  store, fixed test-only invite codes, disabled local dotenv loading, offline
-  models and offline evidence/claim checks. The launch check exercises login,
-  authenticated report reloads and cross-researcher access isolation. Both
+  check. Each invocation gets a fresh temporary store, disabled local dotenv
+  loading, offline models and offline evidence/claim checks. The launch check
+  exercises built-asset deep links, report reloads and anonymous ownership
+  isolation. Both
   targets typecheck the TypeScript harness before running Chromium.
 - Frontend, browser and root-tooling jobs explicitly install Node 24.19.0 and
   Bun 1.3.14; frontend scripts do not inherit the runner image's Node version.
