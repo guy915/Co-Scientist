@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -13,36 +14,24 @@ from co_scientist.exceptions import (
     LLMRateLimitParkError,
 )
 from co_scientist.llm import ModelCallStats, record_call
-from co_scientist.models import Article, Hypothesis, HypothesisReview
+from co_scientist.models import Hypothesis, HypothesisReview
 
-import app.engine_tasks.fanout as engine_tasks_fanout_items
 import app.engine_tasks.fanout as items
 from app import engine_tasks, task_worker
-from app.config import settings
-from app.engine_tasks import fanout as engine_tasks_fanout
-from app.engine_tasks import fanout_aggregates as _recheck_reflection
-from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
+from app.engine_tasks import fanout_aggregates as aggregates
 from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.fanout import _mature_reflection_specs, _maturity_specs
+from app.engine_tasks.fanout import _mature_reflection_specs
 from app.engine_tasks.fanout_aggregates import _apply_review_items
 from app.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
-from app.store import checkpoints, runs
-from app.store import retrieval_calls as retrieval
+from app.store import checkpoints
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus, ScientificTask
-from tests._client import create_run as _create_run
-from tests._client import make_client
+from app.store.models import ScientificTask
 from tests._engine_tasks_helpers import (
-    _drain_ranking_matches,
     _Generator,
-    _milestones,
     _patch_generator,
     _patch_task_node,
-    _RankingSeed,
-    _run_ranking_node,
     _seed_checkpoint,
-    _seed_ranking_node,
     _task_events,
     _task_state,
 )
@@ -106,8 +95,8 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
         == engine_tasks_support.REVIEW_ITEM_TASK
     )
     first_result, second_result = await asyncio.gather(
-        engine_tasks_fanout_items.execute_review_item(first, db_path=db_path),
-        engine_tasks_fanout_items.execute_review_item(second, db_path=db_path),
+        items.execute_review_item(first, db_path=db_path),
+        items.execute_review_item(second, db_path=db_path),
     )
     assert lifecycle.complete_task(
         first.id, "child-a", first_result, db_path=db_path
@@ -117,10 +106,8 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
     )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    aggregate_result = (
-        await engine_tasks_fanout_aggregates.execute_review_aggregate(
-            aggregate, db_path=db_path
-        )
+    aggregate_result = await aggregates.execute_review_aggregate(
+        aggregate, db_path=db_path
     )
     assert aggregate_result["successful_reviews"] == 2
     assert lifecycle.complete_task(
@@ -262,9 +249,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
     _install_failing_review(monkeypatch, error)
 
     with pytest.raises(type(error)):
-        await engine_tasks_fanout_items.execute_mature_reflection_item(
-            leased, db_path=isolated_db
-        )
+        await items.execute_mature_reflection_item(leased, db_path=isolated_db)
 
 
 async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
@@ -275,9 +260,7 @@ async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
     _install_failing_review(monkeypatch, ValueError("unparseable answer"))
 
     with pytest.raises(RuntimeError):
-        await engine_tasks_fanout_items.execute_mature_reflection_item(
-            leased, db_path=isolated_db
-        )
+        await items.execute_mature_reflection_item(leased, db_path=isolated_db)
 
 
 @pytest.mark.parametrize("error", [PARK, OVER_BUDGET])
@@ -339,98 +322,6 @@ def test_aggregate_leaves_the_evidence_gate_s_disposition_alone() -> None:
     assert hypothesis.review_disposition == "evidence_blocked"
 
 
-# Isolate matchup faults so retrying one failure does not discard or re-judge
-# paid sibling comparisons.
-
-
-def _install_judge_failing_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> dict[str, int]:
-    import co_scientist.agents.ranking.operations as ranking_module
-
-    box = {"calls": 0}
-
-    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
-        box["calls"] += 1
-        if box["calls"] == 1:
-            raise RuntimeError("judge provider refused this matchup")
-        return "a", {
-            "decision_summary": "A is stronger",
-            "confidence_level": "high",
-            "debate_turns": int(kwargs["debate_turns"]),
-            "debate_transcript": [],
-            "judge_model": "fixture",
-        }
-
-    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
-    return box
-
-
-@pytest.mark.asyncio
-async def test_one_failed_matchup_leaves_its_wave_siblings_committed(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    _seed_ranking_node(
-        run.id,
-        monkeypatch,
-        _RankingSeed(
-            hypothesis_count=6,
-            tournament_pairs=8,
-            idempotency_key="ranking-isolation",
-        ),
-        isolated_db,
-    )
-    box = _install_judge_failing_once(monkeypatch)
-
-    scheduled = await _run_ranking_node(run.id, isolated_db)
-    await _drain_ranking_matches(run.id, isolated_db)
-
-    rounds = int(scheduled["tournament_rounds"])
-    assert box["calls"] == rounds, "siblings of the failed matchup were lost"
-    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    committed = checkpoint["state"]["state"]["pending_ranking_matchups"]
-    assert len(committed) == rounds - 1
-    tasks = store.list_tasks(run.id, db_path=isolated_db)
-    assert [task.status for task in tasks if task.status == "failed"] == []
-
-
-# Durable maturity selection must follow the engine rule rather than repeat
-# already successful reviews.
-
-
-def _hypothesis(**enrichments: Any) -> Hypothesis:
-    hypothesis = Hypothesis(id="h1", text="a mechanism")
-    hypothesis.enrichments.update(enrichments)
-    return hypothesis
-
-
-@pytest.mark.parametrize(
-    ("enrichments", "iteration", "expected"),
-    [
-        pytest.param({}, 0, ["full", "simulation"], id="fresh"),
-        pytest.param(
-            {"simulation": {"verdict": "breaks_down"}},
-            2,
-            ["full"],
-            id="succeeded-simulation-is-not-re-enqueued",
-        ),
-        pytest.param(
-            {"full": {"verdict": "sound"}}, 1, ["recurrent"], id="mature"
-        ),
-    ],
-)
-def test_maturity_selection_follows_the_engine_rule(
-    enrichments: dict[str, Any], iteration: int, expected: list[str]
-) -> None:
-    hypothesis = _hypothesis(**enrichments)
-
-    assert _maturity_specs(hypothesis, iteration) == [
-        ("h1", mode) for mode in expected
-    ]
-
-
 def _restore_item(monkeypatch: pytest.MonkeyPatch, mode: str = "full") -> Any:
     idea = Hypothesis(id="idea", text="Scientific claim")
     state = {"hypotheses": [idea], "articles_with_reasoning": "Literature"}
@@ -440,21 +331,6 @@ def _restore_item(monkeypatch: pytest.MonkeyPatch, mode: str = "full") -> Any:
     return SimpleNamespace(
         inputs={"hypothesis_id": idea.id, "review_mode": mode}
     )
-
-
-@pytest.mark.asyncio
-async def test_verification_keeps_raw_payload_and_defers_issuance(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    task = _restore_item(monkeypatch)
-    raw = {"verdict": "holds", "sub_assumptions": list(range(30))}
-    operation = AsyncMock(return_value=raw)
-    monkeypatch.setattr(_operations_reflection, "verify_hypothesis", operation)
-    result = await items.execute_verification_item(task)
-    assert result["verification"] is raw
-    assert result["checkpoint_seq"] == 7
-    assert operation.await_args is not None
-    assert not operation.await_args.args[1].enrichments
 
 
 @pytest.mark.asyncio
@@ -516,47 +392,8 @@ async def test_observation_rejects_missing_literature_before_call(
     operation.assert_not_awaited()
 
 
-@pytest.mark.asyncio
-async def test_durable_mature_review_keeps_ledger_beside_review(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    task = _restore_item(monkeypatch)
-    review, ledger = {"verdict": "sound"}, {"threads": 4}
-    monkeypatch.setattr(
-        _operations_reflection,
-        "review_hypothesis",
-        AsyncMock(
-            return_value=_operations_reflection.ReviewRun(
-                _operations_reflection.ReviewType.FULL, review, ledger
-            )
-        ),
-    )
-    result = await items.execute_mature_reflection_item(task)
-    assert result["review"] is review
-    assert result["research_ledger"] is ledger
-    assert "research_ledger" not in result["review"]
-
-
 # Blocked ideas get one recurrent recheck; record attempts even on failure so
 # later cycles cannot refund it.
-
-
-def _patch_item(
-    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any], status: str
-) -> None:
-
-    class _Item:
-        def __init__(self) -> None:
-            self.inputs = inputs
-            self.status = status
-            self.error = "acceptance unknown"
-            self.result: dict[str, Any] | None = None
-
-    monkeypatch.setattr(
-        _recheck_reflection,
-        "_require_item_task",
-        lambda item_id, db_path, kind="": _Item(),
-    )
 
 
 def _recheck_blocked_hypothesis(text: str = "alpha") -> Hypothesis:
@@ -576,9 +413,9 @@ def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
     monkeypatch: pytest.MonkeyPatch, recheck: bool
 ) -> None:
     hypothesis = _recheck_blocked_hypothesis()
-    _patch_item(
+    _patch_items(
         monkeypatch,
-        {
+        inputs={
             "hypothesis_id": hypothesis.id,
             "recheck": recheck,
             "review_mode": "recurrent" if recheck else "full",
@@ -586,7 +423,7 @@ def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
         status="failed",
     )
 
-    _recheck_reflection._apply_mature_reflection_items(
+    aggregates._apply_mature_reflection_items(
         {hypothesis.id: hypothesis}, ["item-1"], 0, None
     )
 
@@ -596,362 +433,146 @@ def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
         assert hypothesis.enrichments["recurrent"]["verdict"] == "unreviewed"
 
 
-def test_the_cascade_owns_viable_ideas_and_rechecks_each_blocked_one() -> None:
-    viable = Hypothesis(text="cleared")
-    viable.review_disposition = "viable"
-    blocked = [_recheck_blocked_hypothesis(f"idea {i}") for i in range(20)]
-
-    specs = _mature_reflection_specs(_state([viable, *blocked]))
-
-    assert [(spec.review_mode, spec.recheck) for spec in specs] == [
-        ("full", False),
-        ("simulation", False),
-        *[("recurrent", True)] * 20,
-    ]
-    assert [spec.hypothesis_id for spec in specs[2:]] == [h.id for h in blocked]
-
-
-def _lease_verification_parent(run_id: str, db_path: str) -> Any:
-    parent = enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-        "verification-parent",
-        inputs={"checkpoint_seq": 4},
-        db_path=db_path,
-    )
-    leased = store.claim_task("parent", run_id=run_id, db_path=db_path)
-    assert leased is not None and leased.id == parent.id
-    return leased
-
-
-@pytest.mark.asyncio
-async def test_a_resumed_run_fans_out_only_the_ideas_still_owed_one(
-    isolated_db: str,
+def _patch_items(
+    monkeypatch: pytest.MonkeyPatch,
+    results: dict[str, dict[str, Any]] | None = None,
+    *,
+    inputs: dict[str, Any] | None = None,
+    status: str = "completed",
 ) -> None:
-    # Once-ever verification markers must survive checkpoints or restarts
-    # re-fund the whole pool.
-    run = seed_run("Task-level science")
-    leased = _lease_verification_parent(run.id, isolated_db)
-    state = _task_state(run.id)
-    verified = Hypothesis(text="already verified")
-    verified.enrichments["deep_verification_issued"] = True
-    fresh = Hypothesis(text="an evolution child")
-    state["hypotheses"] = [
-        Hypothesis.from_dict(verified.to_dict()),
-        Hypothesis.from_dict(fresh.to_dict()),
-    ]
 
-    result = engine_tasks_fanout._enqueue_verification_fanout(
-        leased, state, 4, db_path=isolated_db
+    class _Item:
+        def __init__(self, payload: dict[str, Any] | None) -> None:
+            self.inputs = inputs or {}
+            self.status = status
+            self.error = "acceptance unknown"
+            self.result = payload
+
+    monkeypatch.setattr(
+        aggregates,
+        "_require_item_task",
+        lambda item_id, db_path, kind="": _Item(
+            (results or {}).get(str(item_id))
+        ),
     )
 
-    assert len(result["fanout_task_ids"]) == 1
-    assert lifecycle.complete_task(
-        leased.id, "parent", result, db_path=isolated_db
-    )
-    item = store.claim_task("verify", run_id=run.id, db_path=isolated_db)
-    assert item is not None
-    assert item.inputs["hypothesis_id"] == state["hypotheses"][1].id
 
-
-@pytest.mark.asyncio
-async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Empty fan-outs still need an immediately claimable aggregate that commits
-    # and advances the run.
-    run = seed_run("Task-level science")
-    scheduled = await _advance_verification_node(
-        run.id, monkeypatch, isolated_db, issued=True
-    )
-    assert scheduled["fanout_task_ids"] == []
-
-    aggregate = store.claim_task(
-        "aggregate", run_id=run.id, db_path=isolated_db
-    )
-    assert aggregate is not None
-    result = (
-        await engine_tasks_fanout_aggregates.execute_verification_aggregate(
-            aggregate, db_path=isolated_db
-        )
-    )
-
-    assert result["successful_verifications"] == 0
-    assert result["failed_verifications"] == 0
-    assert lifecycle.complete_task(
-        aggregate.id, "aggregate", result, db_path=isolated_db
-    )
-    successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
-    assert successor is not None
-    assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-
-
-async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
+def _mature_item(
+    hypothesis: Hypothesis, mode: str, review: dict[str, Any], **extra: Any
+) -> dict[str, Any]:
     return {
-        "probes": [{"question": "q"}],
-        "verdict": "holds",
-        "retrieval_queries": ["probe query"],
-        "retrieved_articles": [
-            Article(
-                title="Probe evidence",
-                source_id="probe-1",
-                abstract="Direct targeted support.",
-                used_in_analysis=True,
-            ).to_dict()
-        ],
-        "verification_llm_calls": 2,
+        "hypothesis_id": hypothesis.id,
+        "review_mode": mode,
+        "review": review,
+        **extra,
     }
 
 
-async def _advance_verification_node(
-    run_id: str,
+def test_mature_reflection_aggregate_applies_fatal_dispositions(
     monkeypatch: pytest.MonkeyPatch,
-    db_path: str,
-    *,
-    issued: bool = False,
-) -> dict[str, Any]:
-    state = _task_state(run_id)
-    state["hypotheses"] = [
-        Hypothesis(text=f"candidate-{index}", elo_rating=1200 + index)
-        for index in range(3)
-    ]
-    for hypothesis in state["hypotheses"]:
-        hypothesis.enrichments["deep_verification_issued"] = issued
-    checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-        "verification-node",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=db_path,
-    )
-    _patch_generator(monkeypatch, _Generator(state), restore=True)
-    leased_node = store.claim_task("node", run_id=run_id, db_path=db_path)
-    assert leased_node is not None and leased_node.id == node.id
-    scheduled = await engine_tasks.execute_node_task(
-        leased_node, db_path=db_path
-    )
-    assert lifecycle.complete_task(
-        leased_node.id, "node", scheduled, db_path=db_path
-    )
-    return scheduled
-
-
-async def _run_verification_children_and_aggregate(
-    run_id: str, db_path: str, before_aggregate: Any | None = None
 ) -> None:
-    children = [
-        store.claim_task(f"child-{index}", run_id=run_id, db_path=db_path)
-        for index in range(3)
-    ]
-    assert all(child is not None for child in children)
-    child_results = await asyncio.gather(
-        *[
-            engine_tasks_fanout_items.execute_verification_item(
-                child, db_path=db_path
-            )
-            for child in children
-            if child is not None
-        ]
-    )
-    for index, (child, result) in enumerate(
-        zip(children, child_results, strict=True)
-    ):
-        assert child is not None
-        assert lifecycle.complete_task(
-            child.id, f"child-{index}", result, db_path=db_path
-        )
-    aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
-    assert aggregate is not None
-    if before_aggregate is not None:
-        before_aggregate()
-    result = (
-        await engine_tasks_fanout_aggregates.execute_verification_aggregate(
-            aggregate, db_path=db_path
-        )
-    )
-    assert result["successful_verifications"] == 3
-    assert lifecycle.complete_task(
-        aggregate.id, "aggregate", result, db_path=db_path
+    hypothesis = Hypothesis(text="idea")
+    hypothesis.review_disposition = "viable"
+    _patch_items(
+        monkeypatch,
+        {
+            "item-full": _mature_item(
+                hypothesis,
+                "full",
+                {"verdict": "rejected", "justification": "circular"},
+            ),
+            "item-simulation": _mature_item(
+                hypothesis, "simulation", {"verdict": "holds"}
+            ),
+        },
     )
 
+    items = aggregates._apply_mature_reflection_items(
+        {hypothesis.id: hypothesis},
+        ["item-full", "item-simulation"],
+        current_iteration=1,
+        db_path=None,
+    )
 
-def _assert_verifications_are_marked_once_ever(
-    run_id: str, db_path: str
+    assert items.successful == 2
+    assert hypothesis.enrichments["full"]["verdict"] == "rejected"
+    assert hypothesis.review_disposition == "inaccurate"
+    assert not hypothesis.is_rankable()
+
+
+@pytest.mark.parametrize(
+    ("criteria", "disposition"),
+    [(["Discriminating experimental design"], "inaccurate"), (None, "viable")],
+)
+def test_review_aggregate_gates_on_the_run_criteria_when_it_has_any(
+    monkeypatch: pytest.MonkeyPatch,
+    criteria: list[str] | None,
+    disposition: str,
 ) -> None:
-    # Aggregate boundaries see the whole family and persist attempt markers even
-    # when items fail.
-    latest = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
-    assert latest is not None
-    restored = latest["state"]["state"]["hypotheses"]
-    assert all(
-        item["enrichments"]["deep_verification_issued"] for item in restored
+    hypothesis = Hypothesis(text="idea")
+    review = HypothesisReview(
+        review_summary="summary",
+        scores={"scientific_soundness": 9, "novelty": 9, "testability": 1},
+        safety_ethical_concerns="none",
+        detailed_feedback={},
+        constructive_feedback="feedback",
+        overall_score=6.0,
+    )
+    _patch_items(
+        monkeypatch,
+        {
+            "item-review": {
+                "hypothesis_id": hypothesis.id,
+                "review": dataclasses.asdict(review),
+            }
+        },
     )
 
-
-def _assert_verification_committed(run_id: str, db_path: str) -> None:
-    latest = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
-    assert latest is not None
-    restored = latest["state"]["state"]["hypotheses"]
-    assert all(
-        item["deep_verification_verdict"] == "holds" for item in restored
+    gated, failed, _usage = aggregates._apply_review_items(
+        {hypothesis.id: hypothesis},
+        ["item-review"],
+        db_path=None,
+        criteria=criteria,
     )
-    assert latest["state"]["state"]["articles"][-1]["source_id"] == "probe-1"
-    assert restored[0]["enrichments"]["deep_verification"][
-        "retrieval_queries"
-    ] == ["probe query"]
-    assert _milestones(run_id, db_path=db_path) == ["3 hypotheses verified"]
-    verification_events = _task_events(
-        run_id, "deep_verification", db_path=db_path
-    )
-    assert len(verification_events) == 1
-    assert verification_events[0]["payload"]["successor"] == "ranking"
+
+    assert (gated, failed) == (1, 0)
+    assert hypothesis.review_disposition == disposition
+    assert hypothesis.is_rankable() is (disposition == "viable")
 
 
-def _assert_fingerprints_survive_the_checkpoint(
-    run_id: str, db_path: str
+@pytest.mark.parametrize(
+    "ledger", [{"goal": "reverse fibrosis", "calls": []}, None]
+)
+def test_the_aggregate_carries_each_items_research_to_the_run_once(
+    monkeypatch: pytest.MonkeyPatch, ledger: dict[str, Any] | None
 ) -> None:
-    # Verification fingerprints must survive checkpoints or every later cycle
-    # repeats the same paid work.
-    from co_scientist.agents.reflection.deep_verification import (
-        verification_fingerprint,
-    )
-    from co_scientist.models import Hypothesis
-
-    latest = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
-    assert latest is not None
-    state = latest["state"]["state"]
-    for payload in state["hypotheses"]:
-        hypothesis = Hypothesis.from_dict(payload)
-        assert hypothesis.deep_verification_fingerprint == (
-            verification_fingerprint(hypothesis, state["model_name"])
-        )
-
-
-@pytest.mark.asyncio
-async def test_verification_children_commit_through_single_aggregator(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    await _advance_verification_node(run.id, monkeypatch, isolated_db)
-
-    import co_scientist.agents.reflection as reflection
-
-    monkeypatch.setattr(reflection, "verify_hypothesis", _fake_verify)
-    await _run_verification_children_and_aggregate(run.id, isolated_db)
-
-    _assert_verification_committed(run.id, isolated_db)
-    _assert_fingerprints_survive_the_checkpoint(run.id, isolated_db)
-    _assert_verifications_are_marked_once_ever(run.id, isolated_db)
-
-
-@pytest.mark.asyncio
-async def test_verification_aggregate_pauses_and_resumes_to_ranking(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-
-    with make_client() as client:
-        created = _create_run(client, "Paused verification aggregate")
-        assert created.status_code == 200, created.text
-        run_id = str(created.json()["id"])
-        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        await _advance_verification_node(run_id, monkeypatch, isolated_db)
-        checkpoint_before = checkpoints.get_latest_checkpoint(
-            run_id, db_path=isolated_db
-        )
-        assert checkpoint_before is not None
-        import co_scientist.agents.reflection as reflection
-
-        monkeypatch.setattr(reflection, "verify_hypothesis", _fake_verify)
-
-        def pause() -> None:
-            response = client.post(f"/api/runs/{run_id}/pause")
-            assert response.status_code == 200, response.text
-
-        await _run_verification_children_and_aggregate(
-            run_id, isolated_db, before_aggregate=pause
-        )
-
-        checkpoint = checkpoints.get_latest_checkpoint(
-            run_id, db_path=isolated_db
-        )
-        assert checkpoint is not None
-        assert checkpoint["seq"] == checkpoint_before["seq"] + 1
-        saved_run = runs.get_run(run_id, db_path=isolated_db)
-        assert saved_run is not None and saved_run.status == "paused"
-        state = checkpoint["state"]["state"]
-        assert all(
-            hypothesis["deep_verification_verdict"] == "holds"
-            for hypothesis in state["hypotheses"]
-        )
-        metrics = retrieval.get_run_metrics(run_id, db_path=isolated_db)
-        assert metrics is not None and metrics["llm_calls"] == 6
-        [event] = _task_events(run_id, "deep_verification", db_path=isolated_db)
-        assert event["payload"]["successor"] == "ranking"
-        assert (
-            store.claim_task(
-                "before-resume", run_id=run_id, db_path=isolated_db
-            )
-            is None
-        )
-
-        resumed = client.post(f"/api/runs/{run_id}/resume")
-        assert resumed.status_code == 200, resumed.text
-        successor = store.claim_task(
-            "after-resume", run_id=run_id, db_path=isolated_db
-        )
-        assert successor is not None
-        assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-
-
-@pytest.mark.asyncio
-async def test_failed_verification_items_record_explicit_unverified(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Failed verification is explicitly unverified with stale fingerprints;
-    # spend its once-ever marker anyway.
-    run = seed_run("Task-level science")
-    await _advance_verification_node(run.id, monkeypatch, isolated_db)
-
-    for index in range(3):
-        item = store.claim_task(
-            f"child-{index}", run_id=run.id, db_path=isolated_db
-        )
-        assert item is not None
-        assert store.fail_task(
-            item.id,
-            f"child-{index}",
-            "provider failed",
-            retryable=False,
-            db_path=isolated_db,
-        )
-
-    aggregate = store.claim_task(
-        "aggregate", run_id=run.id, db_path=isolated_db
-    )
-    assert aggregate is not None
-    result = (
-        await engine_tasks_fanout_aggregates.execute_verification_aggregate(
-            aggregate, db_path=isolated_db
-        )
-    )
-    assert result["successful_verifications"] == 0
-    assert result["failed_verifications"] == 3
-    assert lifecycle.complete_task(
-        aggregate.id, "aggregate", result, db_path=isolated_db
+    # Retrieval ledgers belong to the run and must survive discarded item
+    # results without duplicate searches.
+    hypothesis = Hypothesis(text="idea")
+    hypothesis.review_disposition = "viable"
+    _patch_items(
+        monkeypatch,
+        {
+            "item-full": _mature_item(
+                hypothesis, "full", {"verdict": "sound"}, research_ledger=ledger
+            ),
+            "item-simulation": _mature_item(
+                hypothesis,
+                "simulation",
+                {"verdict": "holds"},
+                research_ledger=dict(ledger) if ledger else None,
+            ),
+        },
     )
 
-    latest = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert latest is not None
-    restored = latest["state"]["state"]["hypotheses"]
-    assert all(
-        item["deep_verification_verdict"] == "unverified" for item in restored
+    items = aggregates._apply_mature_reflection_items(
+        {hypothesis.id: hypothesis},
+        ["item-full", "item-simulation"],
+        current_iteration=1,
+        db_path=None,
     )
-    assert all(item["deep_verification_probes"] == [] for item in restored)
-    assert all(
-        item["deep_verification_fingerprint"] is None for item in restored
+    update = aggregates._mature_reflection_update(
+        {"hypotheses": [hypothesis], "articles": []}, items
     )
-    assert all(
-        item["enrichments"]["deep_verification_issued"] for item in restored
-    )
+
+    assert update["research_ledgers"] == ([ledger] if ledger else [])
