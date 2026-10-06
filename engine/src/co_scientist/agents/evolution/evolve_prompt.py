@@ -360,18 +360,6 @@ def _build_review_feedback(hypothesis: Hypothesis) -> str:
     return json.dumps(summary, indent=2)
 
 
-def _build_meta_review_insights(meta_review: dict[str, Any]) -> str:
-    return json.dumps(
-        {
-            "common_strengths": meta_review.get("common_strengths", []),
-            "common_weaknesses": meta_review.get("common_weaknesses", []),
-            "strategic_recommendations": meta_review.get("strategic_recommendations", []),
-            "emerging_themes": meta_review.get("emerging_themes", []),
-        },
-        indent=2,
-    )
-
-
 def _build_supervisor_guidance_text(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
@@ -503,7 +491,15 @@ def _base_evolution_variables(
     return {
         "original_hypothesis": hypothesis.text,
         "review_feedback": _build_review_feedback(hypothesis),
-        "meta_review_insights": _build_meta_review_insights(meta_review),
+        "meta_review_insights": json.dumps(
+            {
+                "common_strengths": meta_review.get("common_strengths", []),
+                "common_weaknesses": meta_review.get("common_weaknesses", []),
+                "strategic_recommendations": meta_review.get("strategic_recommendations", []),
+                "emerging_themes": meta_review.get("emerging_themes", []),
+            },
+            indent=2,
+        ),
         "supervisor_guidance": _build_supervisor_guidance_text(supervisor_guidance),
     }
 
