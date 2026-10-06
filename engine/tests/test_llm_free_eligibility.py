@@ -11,7 +11,6 @@ import httpx
 import pytest
 import tiktoken
 
-from co_scientist.cache import LLMCache
 from co_scientist.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
@@ -26,7 +25,6 @@ from co_scientist.llm import (
     call_llm_with_tools,
     current_run_call_count,
     enforce_free_request,
-    precall,
     scoped_api_key,
     scoped_llm_call_budget,
     scoped_zero_cost_admission,
@@ -47,7 +45,6 @@ from tests._llm_fake import _free_catalog as _isolated_catalog
 __all__ = ["_isolated_catalog"]
 
 _MODEL = "openrouter/campaign/zero:free"
-_NO_CACHE = LLMCallOptions(use_cache=False)
 _ZERO_CAP = {"prompt": 0, "completion": 0, "request": 0}
 _ZERO = {"prompt": "0", "completion": "0"}
 
@@ -57,7 +54,7 @@ def _spec(**overrides: Any) -> CompletionSpec:
 
 
 async def _probe(**overrides: Any) -> str:
-    return await call_llm("probe", _spec(**overrides), options=_NO_CACHE)
+    return await call_llm("probe", _spec(**overrides))
 
 
 @pytest.mark.usefixtures("_isolated_catalog")
@@ -136,7 +133,7 @@ class TestFreeAdmission:
             scoped_llm_call_budget(run_id, 10),
             pytest.raises(RuntimeError, match="zero-cost"),
         ):
-            await call_llm_json("probe", _spec(), options=_NO_CACHE)
+            await call_llm_json("probe", _spec())
         assert len(requests) == 1
         assert len(catalog_reads) == 2
         assert current_run_call_count(run_id) == 1
@@ -170,10 +167,10 @@ class TestFreeAdmission:
             scoped_zero_cost_admission(True),
             pytest.raises(RuntimeError, match="zero-cost"),
         ):
-            await call_llm("probe", paid, options=_NO_CACHE)
+            await call_llm("probe", paid)
         assert requests == []
 
-        assert await call_llm("probe", paid, options=_NO_CACHE) == "ok"
+        assert await call_llm("probe", paid) == "ok"
         assert "max_price" not in str(requests[0].get("extra_body"))
 
     @pytest.mark.parametrize("campaign", [False, True])
@@ -348,38 +345,6 @@ class TestFreeAdmission:
             await _probe()
         assert requests == []
 
-    @pytest.mark.parametrize("kind", ["text", "tools"])
-    async def test_a_campaign_does_not_reuse_a_paid_byok_cache_entry(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any, kind: str
-    ) -> None:
-        cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
-        monkeypatch.setattr(precall, "get_cache", lambda: cache)
-        requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch,
-            [make_completion(make_message('{"answer": "cached"}'))],
-            requests,
-        )
-        spec = CompletionSpec("openai/paid", api_key="byok-test-key")
-
-        async def unused_tool(call: Any) -> dict[str, Any]:
-            pytest.fail("fixture does not call a tool")
-
-        async def invoke() -> Any:
-            if kind == "tools":
-                return await call_llm_with_tools(
-                    "probe", spec, ToolLoop(tools=[], executor=unused_tool)
-                )
-            return await call_llm("probe", spec)
-
-        await invoke()
-        await invoke()
-        assert len(requests) == 1
-        monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-        with pytest.raises(RuntimeError, match="zero-cost"):
-            await invoke()
-        assert len(requests) == 1
-
     @pytest.mark.parametrize(
         "changes",
         [
@@ -434,7 +399,7 @@ class TestFreeAdmission:
                     "required": ["answer"],
                 },
             ),
-            options=LLMCallOptions(use_cache=False, enable_thinking=thinking),
+            options=LLMCallOptions(enable_thinking=thinking),
             max_attempts=1,
         )
         assert requests[0]["response_format"] == {"type": "json_object"}
@@ -458,15 +423,14 @@ async def _tool_executor(call: Any) -> dict[str, str]:
 
 async def _invoke(entry_point: str, spec: CompletionSpec) -> None:
     if entry_point == "text":
-        await call_llm("Price ceiling probe", spec, options=_NO_CACHE)
+        await call_llm("Price ceiling probe", spec)
     elif entry_point == "json_retry":
-        await call_llm_json("Price ceiling probe", spec, options=_NO_CACHE, max_attempts=2)
+        await call_llm_json("Price ceiling probe", spec, max_attempts=2)
     else:
         await call_llm_with_tools(
             "Price ceiling probe",
             spec,
             ToolLoop(tools=SEARCH_TOOL, executor=_tool_executor, max_iterations=2),
-            options=_NO_CACHE,
         )
 
 
@@ -533,7 +497,6 @@ async def test_explicit_paid_byok_keeps_its_priced_route(
     await call_llm(
         "BYOK probe",
         CompletionSpec(model_name="openrouter/z-ai/glm-5.3-flash", api_key="test-byok-key"),
-        options=_NO_CACHE,
     )
 
     assert requests[0]["api_key"] == "test-byok-key"
@@ -582,7 +545,7 @@ async def test_litellm_serializes_zero_ceiling_into_openrouter_request(
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-house-key")
     monkeypatch.setenv("OPENROUTER_API_BASE", "https://unverified.example/v1")
     monkeypatch.setattr(httpx.AsyncClient, "send", send)
-    answer = await call_llm("Price ceiling probe", CompletionSpec(_FREE_MODEL), options=_NO_CACHE)
+    answer = await call_llm("Price ceiling probe", CompletionSpec(_FREE_MODEL))
 
     assert answer == "ok"
     assert len(requests) == 1
@@ -608,7 +571,7 @@ async def test_each_model_is_billed_to_the_key_scoped_for_it(
             CompletionSpec("gemini/pro"),
             CompletionSpec("gemini/pro", api_key="explicit-key"),
         ):
-            await call_llm("probe", spec, options=_NO_CACHE)
+            await call_llm("probe", spec)
 
     assert [r["api_key"] for r in requests] == [
         "worker-key",

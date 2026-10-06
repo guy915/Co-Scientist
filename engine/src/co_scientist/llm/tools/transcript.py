@@ -48,7 +48,7 @@ def object_arguments(raw: Any) -> str | None:
 
 
 def _message_to_history_dict(message: Any) -> dict[str, Any]:
-    """LiteLLM messages are Pydantic models; history/cache entries need plain
+    """LiteLLM messages are Pydantic models; history entries need plain
     dictionaries.
     """
     message_dict: dict[str, Any] = {

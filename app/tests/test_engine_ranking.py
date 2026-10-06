@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import threading
-import time
 import types
 from typing import Any
 
@@ -12,14 +10,12 @@ from co_scientist.models import (
 )
 
 from app.claims import (
-    AssessorDraft,
     ClaimAssessment,
     EntailmentLabel,
     deterministic_assessor,
 )
 from app.claims import grounding as claim_grounding
 from app.claims.gate import SupportSpan
-from app.config import settings
 from app.engine_tasks import gate as engine_tasks_gate
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
@@ -74,33 +70,6 @@ def _tasks_gate_install_counting_assessor(
         lambda *_: (counting, "counting-v1"),
     )
     return calls
-
-
-def _install_overlap_assessor(
-    monkeypatch: pytest.MonkeyPatch,
-) -> dict[str, bool]:
-    in_flight: set[str] = set()
-    flags = {"overlapped": False}
-    lock = threading.Lock()
-
-    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
-        owner = "alpha" if "alpha" in claim else "beta"
-        with lock:
-            in_flight.add(owner)
-            if len(in_flight) > 1:
-                flags["overlapped"] = True
-        time.sleep(0.05)
-        with lock:
-            in_flight.discard(owner)
-        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
-
-    monkeypatch.setattr(
-        claim_grounding,
-        "build_assessor",
-        lambda *_: (_slow_assessor, "slow-v1"),
-    )
-    monkeypatch.setattr(settings, "claim_assessor", "llm")
-    return flags
 
 
 def _tasks_gate_multi_claim_state() -> dict[str, Any]:
@@ -306,9 +275,7 @@ def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
         return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
 
     install_completion_backend(monkeypatch, _fake_acompletion)
-    monkeypatch.setattr(settings, "claim_assessor", "llm")
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
 
 
@@ -318,7 +285,6 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
 ) -> None:
     # Entailment must use the engine admission seam so its provider calls
     # consume the run ceiling.
-    from co_scientist.cache import scoped_cache_override
     from co_scientist.exceptions import LLMCallBudgetExceededError
     from co_scientist.llm import scoped_llm_call_budget
 
@@ -327,7 +293,6 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
 
     with (
         pytest.raises(LLMCallBudgetExceededError),
-        scoped_cache_override(False),
         scoped_llm_call_budget("gate-budget-test-run", 0),
     ):
         await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
@@ -339,13 +304,11 @@ async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
 ) -> None:
     # Engine telemetry is the only call-count source; manual additions
     # double-charge spend.
-    from co_scientist.cache import scoped_cache_override
 
     _install_fake_acompletion(monkeypatch)
     state = _tasks_gate_multi_claim_state()
 
-    with scoped_cache_override(False):
-        await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     metrics = state["metrics"]
     gate_usage = {

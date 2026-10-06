@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -21,7 +20,7 @@ def test_an_offline_invocation_leaves_no_credential_to_spend(
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-would-be-billed")
     monkeypatch.delenv("FORCE_LITERATURE_REVIEW", raising=False)
 
-    configure_environment("/tmp/db.sqlite", "/tmp/cache", live=False)
+    configure_environment("/tmp/db.sqlite", live=False)
 
     assert [name for name in os.environ if name.endswith("_API_KEY")] == []
     assert os.environ["COSCIENTIST_FORCE_OFFLINE"] == "1"
@@ -50,7 +49,7 @@ def test_live_runner_isolates_credentials_and_all_model_roles(
     script = """
 import os
 from evaluations._run_driver import configure_environment
-configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
+configure_environment("/tmp/eval.db", live=True)
 from dotenv import load_dotenv
 load_dotenv(".env")
 from app.config import settings
@@ -59,7 +58,6 @@ assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
 assert os.environ["PYTHON_DOTENV_DISABLED"] == "1"
 assert "DEEPSEEK_API_KEY" not in os.environ
 assert os.environ["OPENROUTER_API_KEY"] == "synthetic-router"
-assert settings.gemini_api_key == ""
 for model in (settings.model_name, settings.supervisor_model_name,
               settings.chat_model_name, settings.semantic_safety_model,
               settings.claim_verifier_model):
@@ -71,7 +69,6 @@ for model in (settings.model_name, settings.supervisor_model_name,
         MODEL_NAME="openrouter/campaign/zero:free",
         SUPERVISOR_MODEL_NAME="deepseek/paid",
         DEEPSEEK_API_KEY="synthetic-paid",
-        gemini_api_key="synthetic-lowercase-paid",
         OPENROUTER_API_KEY="synthetic-router",
     )
 
@@ -85,7 +82,7 @@ from evaluations._run_driver import configure_environment
 for model in ("", "deepseek/deepseek-chat"):
     os.environ["MODEL_NAME"] = model
     try:
-        configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
+        configure_environment("/tmp/eval.db", live=True)
     except ValueError:
         pass
     else:
@@ -108,7 +105,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import litellm
 from evaluations._run_driver import configure_environment
-configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
+configure_environment("/tmp/eval.db", live=True)
 from app.config import settings
 from co_scientist.llm.admission import free_policy as free_catalog
 from co_scientist.llm import call_llm, CompletionSpec
@@ -159,57 +156,4 @@ asyncio.run(check())
         tmp_path,
         MODEL_NAME="openrouter/campaign/zero:free",
         OPENROUTER_API_KEY="synthetic-router",
-    )
-
-
-@pytest.mark.parametrize(
-    ("status", "backend", "accepted"),
-    [
-        ("completed", "real", True),
-        ("completed", "offline", False),
-        ("failed", "real", False),
-        (None, "real", False),
-    ],
-)
-def test_golden_acceptance_requires_persisted_real_completion(
-    status: str | None, backend: str, accepted: bool
-) -> None:
-    from evaluations.golden_run import _assess
-
-    artifact: dict[str, object] = {
-        "run": SimpleNamespace(status=status, llm_backend=backend) if status else None,
-        "evidence": [{"source": "pubmed"}],
-        "claim_edges": [{"supporting": [{"quote": "Located passage"}]}],
-        "matches": [],
-        "hypotheses": [],
-        "report": {},
-    }
-    assessment = _assess(artifact, {"query_gene_disease_network": 1})
-    assert assessment["passed"] is accepted
-
-
-def test_golden_run_rejects_unqualified_indra_before_execution(
-    tmp_path: Path,
-) -> None:
-    script = """
-import os
-from unittest.mock import patch
-from evaluations.golden_run import run
-with patch("evaluations.golden_run._install_tool_call_counter",
-           side_effect=AssertionError("execution started before admission")):
-    try:
-        run()
-    except RuntimeError as error:
-        assert "INDRA" in str(error), str(error)
-    else:
-        raise AssertionError("unqualified INDRA accepted")
-assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
-"""
-    _probe(
-        script,
-        tmp_path,
-        COSCIENTIST_REQUIRE_FREE_MODELS="1",
-        MODEL_NAME="openrouter/campaign/zero:free",
-        OPENROUTER_API_KEY="synthetic-router",
-        DEEPSEEK_API_KEY="synthetic-paid",
     )

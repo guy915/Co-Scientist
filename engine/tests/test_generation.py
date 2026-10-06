@@ -86,7 +86,6 @@ async def test_tree_makes_three_bounded_calls(
     assert len(result) == 1
     assert result[0].generation_method is GenerationMethod.ASSUMPTIONS
     assert llm_calls == 3
-    assert all(call["options"].use_cache is False for call in calls)
     final = calls[-1]["prompt"]
     assert "assumption 0" in final and "assumption 1" in final
     assert "(load-bearing)" in final and "sub A" in final

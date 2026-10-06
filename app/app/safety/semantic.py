@@ -163,7 +163,7 @@ async def _call_semantic_safety_model(text: str, stage: str, model: str) -> dict
         _semantic_prompt(text, stage),
         spec,
         max_attempts=2,
-        options=LLMCallOptions(use_cache=False, prompt_name="safety_screen"),
+        options=LLMCallOptions(prompt_name="safety_screen"),
     )
     return result
 

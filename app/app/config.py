@@ -69,20 +69,15 @@ class Settings(BaseSettings):
     chat_model_name: str | None = DEFAULT_MODEL
     # LiteLLM and the engine consume provider environment variables, not this
     # Settings object.
-    gemini_api_key: str = ""
 
     # The module entrypoint uses this port; Makefile, Docker and browser
     # harnesses pass their own explicit ports.
     host: str = "0.0.0.0"  # bind address; 0.0.0.0 for container/dev use
     port: int = 8008
-    coscientist_debug: bool = False
 
     # The engine MCP client reads MCP_SERVER_URL from the environment rather
     # than Settings.
     mcp_server_url: str = "http://localhost:8888/mcp"
-
-    coscientist_cache_enabled: bool = True  # bridged to env for the engine
-    coscientist_cache_dir: str = "./cache"
 
     # K-factor stays deployment-tunable while the engine owns tournament math
     # and initial ratings.
@@ -94,8 +89,6 @@ class Settings(BaseSettings):
     semantic_safety_enabled: bool = True
     # Safety stays on the worker tier rather than the strategic supervisor tier.
     semantic_safety_model: str | None = DEFAULT_MODEL
-
-    log_format: str = "text"
 
     log_capture_enabled: bool = True
     log_capture_level: str = "INFO"
@@ -157,11 +150,8 @@ class Settings(BaseSettings):
     # Removing the daily cap does not remove the free express-only envelope.
     free_runs_per_day: int = 3
 
-    tools_config: str | None = None
-
     # Hermetic tests select deterministic entailment; production defaults to
     # semantic assessment.
-    claim_assessor: str = "llm"
     claim_verifier_model: str | None = None
 
     # Hermetic tests select metadata resolution; production defaults to live

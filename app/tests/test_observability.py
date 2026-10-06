@@ -23,9 +23,7 @@ from tests._client import wait_for_status as _wait_status
 
 
 def _restore_default_logging() -> None:
-    from app.config import settings
-
-    configure_logging(settings.log_format)
+    configure_logging()
 
 
 def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
@@ -33,7 +31,7 @@ def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
     diagnostic = "provider diagnostic preserved"
     credential = ByokCredential(provider="deepseek", api_key=key, model="deepseek/test")
     try:
-        handler = configure_logging("json")
+        handler = configure_logging()
         stream = io.StringIO()
         handler.stream = stream  # type: ignore[attr-defined]
 

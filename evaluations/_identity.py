@@ -63,17 +63,7 @@ def _configured_models() -> dict[str, str | None]:
 
 
 def _tools_identity() -> dict[str, str | None]:
-    from app.config import settings
-
-    config = settings.tools_config
-    local = Path(config) if config and "://" not in config else None
-    return {
-        "configuration_sha256": identity_digest(config),
-        "local_contents_sha256": (
-            hashlib.sha256(local.read_bytes()).hexdigest() if local else None
-        ),
-        "mcp_endpoint_sha256": identity_digest(os.getenv("MCP_SERVER_URL")),
-    }
+    return {"mcp_endpoint_sha256": identity_digest(os.getenv("MCP_SERVER_URL"))}
 
 
 def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
@@ -86,7 +76,6 @@ def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
 
 
 def _model_policy() -> dict[str, Any]:
-    from app.config import settings
     from co_scientist.llm import deepseek_thinking_extra_body
 
     models = _configured_models()
@@ -100,7 +89,6 @@ def _model_policy() -> dict[str, Any]:
             }
             for model in sorted({m for m in models.values() if m})
         },
-        "claim_assessor": settings.claim_assessor,
         "request_policy_files": policy,
         "request_policy_sha256": identity_digest(policy),
     }
@@ -114,8 +102,6 @@ def arm_identity(
     """Hash paths/endpoints because they may contain credentials; declared
     controls do not prove served evidence.
     """
-    if os.getenv("COSCIENTIST_CACHE_ENABLED") != "0":
-        raise ValueError("comparison identity requires disabled response caches")
     from app.run_modes import RUN_TIER_DEFAULTS
 
     tier = config["tier"]
@@ -128,7 +114,6 @@ def arm_identity(
         "tier_fields": sorted(RUN_TIER_DEFAULTS[tier]),
         **_model_policy(),
         "tools": _tools_identity(),
-        "cache_policy": "disabled",
         "execution_environment": {
             name: os.getenv(name)
             for name in (
@@ -187,7 +172,6 @@ def _identity(
         "dataset": dataset,
         "model": model,
         "execution_mode": "live_requested" if live else "offline",
-        "cache_policy": "disabled",
         "evaluator_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "request_policy_files": request_policy(),
         "routing": {
@@ -209,15 +193,10 @@ def capture_panel(
     *,
     live: bool,
 ) -> Iterator[dict[str, Any]]:
-    from co_scientist.cache import scoped_cache_override
-
     from evaluations._usage_evidence import capture_usage
 
     identity = _identity(panel, dataset, model, live)
-    with (
-        scoped_cache_override(False),
-        capture_usage(panel, live=live) as evidence,
-    ):
+    with capture_usage(panel, live=live) as evidence:
         evidence["evaluation_identity"] = identity
         yield evidence
         if _identity(panel, dataset, model, live) != identity:
@@ -226,8 +205,6 @@ def capture_panel(
 
 def _arm_controls(record: dict[str, Any], kind: str) -> dict[str, Any]:
     identity = validate_identity(record.get("evaluation_identity"))
-    if identity.get("cache_policy") != "disabled":
-        raise ValueError("comparison requires disabled response caching")
     goal = record.get("goal")
     if (
         not isinstance(goal, str)

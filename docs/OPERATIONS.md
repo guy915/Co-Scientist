@@ -136,12 +136,9 @@ answer. A configured but unreachable safety assessor refuses; offline mode must
 be deliberate. Safety holds park claimable tasks without spending retry attempts,
 and re-enqueuing an already-succeeded idempotency key cannot revive the task.
 
-## Per-run cache isolation
+## Cost accounting
 
-Per-run cache enablement must not mutate process environment or singleton defaults:
-an offline demo once disabled caching for later real runs. Cost accounting uses
-measured cache-read rates, and alternative offline-generator comparisons need
-cold caches rather than responses cached by the first generator.
+Cost accounting uses measured provider cache-read rates.
 
 ## Queued work and log cursors
 

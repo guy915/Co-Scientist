@@ -12,7 +12,6 @@ def configure_live_environment(model: str | None = None) -> str:
             del os.environ[name]
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
     os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] = "1"
-    os.environ["CLAIM_ASSESSOR"] = "llm"
     for name in (
         "MODEL_NAME",
         "SUPERVISOR_MODEL_NAME",

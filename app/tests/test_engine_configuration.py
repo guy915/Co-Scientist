@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import pathlib
 from typing import Any, ClassVar
 
 import pytest
@@ -24,7 +22,6 @@ from app.run_modes import (
     resolved_run_config,
 )
 from app.store import messages as store
-from tests._engine_tasks_helpers import small_run_config as _cfg
 from tests._store_helpers import seed_run
 
 
@@ -303,41 +300,11 @@ def test_each_run_gets_its_own_connector_topology() -> None:
     assert len(registries) == len(seen)
 
 
-_INDRA_CONFIG = str(
-    pathlib.Path(__file__).resolve().parents[2]
-    / "engine"
-    / "src"
-    / "co_scientist"
-    / "config"
-    / "examples"
-    / "indra_cancer.yaml"
-)
-
-
 class _FakeGenerator:
     last_kwargs: ClassVar[dict[str, Any]] = {}
 
     def __init__(self, **kwargs: Any) -> None:
         _FakeGenerator.last_kwargs = kwargs
-
-
-def test_offline_generator_does_not_poison_cache_for_a_real_generator(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # The first startup generator may be offline; later real generators must
-    # retain process cache defaults.
-    from co_scientist import cache as engine_cache
-    from co_scientist.generator.core import HypothesisGenerator
-
-    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
-    monkeypatch.setattr(engine_cache, "_global_cache", None)
-
-    build_generator(_FakeGenerator, _cfg(), offline=True)
-    assert _FakeGenerator.last_kwargs["options"].enable_cache is False
-    build_generator(HypothesisGenerator, _cfg(), offline=True)
-
-    assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
-    assert engine_cache.get_cache().enabled is True
 
 
 _ALL_CREDENTIAL_ENV = tuple(name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names)
@@ -349,33 +316,27 @@ def _clear_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.parametrize(
-    ("force_offline", "force_mock", "has_key", "expected"),
+    ("force_offline", "has_key", "expected"),
     [
-        (None, None, True, False),
-        (None, None, False, True),
-        ("1", None, True, True),
-        (None, "1", True, True),
+        (None, True, False),
+        (None, False, True),
+        ("1", True, True),
     ],
     ids=[
         "real_when_key_present",
         "offline_when_no_provider_key",
         "offline_when_force_offline",
-        "offline_when_force_mock_deprecated_alias",
     ],
 )
 def test_offline_mode(
     monkeypatch: pytest.MonkeyPatch,
     force_offline: str | None,
-    force_mock: str | None,
     has_key: bool,
     expected: bool,
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     if force_offline is not None:
         monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", force_offline)
-    if force_mock is not None:
-        monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", force_mock)
     _clear_credentials(monkeypatch)
     if has_key:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")

@@ -63,20 +63,13 @@ def _reclaim_disk_space() -> None:
 
 
 def _startup_engine_setup() -> None:
-    """The offline router is a harmless passthrough for real models;
-    configured unreadable tools fail loudly at startup.
-    """
+    """The offline router is a harmless passthrough for real models."""
     from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
     logger.info("Model: %s", settings.model_name)
-    if settings.tools_config:
-        logger.info("Tools config: %s", settings.tools_config)
-    else:
-        logger.info("Tools config: not set (generator defaults)")
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
-    engine_adapter.validate_tools_config(settings.tools_config)
 
 
 def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
@@ -161,7 +154,7 @@ def _start_recovery_task(
 load_dotenv()
 
 
-configure_logging(settings.log_format, level=logging.INFO)
+configure_logging(level=logging.INFO)
 
 
 def _install_log_capture() -> None:
@@ -176,18 +169,8 @@ def _install_log_capture() -> None:
 _install_log_capture()
 
 coscientist_logger = logging.getLogger("co_scientist")
-_app_log_level = logging.DEBUG if settings.coscientist_debug else logging.INFO
-logger.setLevel(_app_log_level)
-coscientist_logger.setLevel(_app_log_level)
-
-# Bridge Settings back to environment because LiteLLM and the engine read
-# provider variables directly.
-if settings.gemini_api_key:
-    os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
-if settings.coscientist_cache_enabled:
-    os.environ["COSCIENTIST_CACHE_ENABLED"] = "true"
-if settings.coscientist_cache_dir:
-    os.environ["COSCIENTIST_CACHE_DIR"] = settings.coscientist_cache_dir
+logger.setLevel(logging.INFO)
+coscientist_logger.setLevel(logging.INFO)
 
 # The engine MCP client reads its URL from environment rather than a Settings
 # parameter.
@@ -386,7 +369,7 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.coscientist_debug,
+        reload=False,
     )
 
 __all__ = [

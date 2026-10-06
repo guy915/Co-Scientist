@@ -32,7 +32,7 @@ def _drive_one_arm(
     # only run configuration.
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="ablation-arm-"))
     db_path = str(tmp / "arm.db")
-    _run_driver.configure_environment(db_path, str(tmp / "cache"), live=False)
+    _run_driver.configure_environment(db_path, live=False)
     arm = _run_driver.run_arm(
         _GOALS[0][1],
         "express",
@@ -119,7 +119,6 @@ def test_offline_budget_curve_orders_tiers_by_compute() -> None:
     assert snapshot["goal_id"] == report["goal_id"]
     identity = snapshot["evaluation_identity"]
     assert identity == report["arms"][0]["evaluation_identity"]
-    assert identity["cache_policy"] == "disabled"
     for hypothesis in snapshot["hypotheses"]:
         assert isinstance(hypothesis["assessed_claims"], int)
         assert isinstance(hypothesis["verified_claims"], int)

@@ -656,6 +656,3 @@ workflows:
       - "ensembl_gene"
       - "gnomad_constraint"
       - "clinical_trials"
-
-settings:
-  merge_strategy: "override"
