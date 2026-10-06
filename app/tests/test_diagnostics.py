@@ -85,14 +85,12 @@ def test_status_reports_the_offline_backend_and_probes_only_to_operators() -> No
 
 
 @pytest.mark.parametrize("operator", [True, False])
-def test_docs_and_the_docs_pointer_are_operator_only(operator: bool) -> None:
-    # Private API docs 404 so anonymous probes cannot distinguish hidden routes
-    # from absent ones.
+def test_api_docs_are_not_served(operator: bool) -> None:
     client = make_operator_client() if operator else _client()
 
-    assert client.get("/").json()["docs"] == ("/docs" if operator else None)
-    for path in ("/docs", "/redoc", "/openapi.json"):
-        assert client.get(path).status_code == (200 if operator else 404), path
+    assert "docs" not in client.get("/").json()
+    for path in ("/docs", "/redoc", "/openapi.json", "/metrics", "/config"):
+        assert client.get(path).status_code == 404, path
 
 
 def _seed_interrupted_engine_run(isolated_db: str) -> str:
