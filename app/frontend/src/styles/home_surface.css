@@ -584,13 +584,6 @@
   min-width: 0;
 }
 
-.reference-run-step-done {
-  width: 1.05rem;
-  height: 1.05rem;
-  flex-shrink: 0;
-  color: var(--cosci-run-step-done);
-}
-
 .reference-run-step-spinner {
   width: 1.05rem;
   height: 1.05rem;
