@@ -3,8 +3,6 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
-
 from app.elo import INITIAL_ELO
 from app.engine_adapter import sync_engine_llm_backend
 from app.engine_tasks import runtime as engine_tasks_runtime
@@ -17,6 +15,7 @@ from app.engine_tasks.support import (
     _save_state_and_enqueue,
     _task_commit,
 )
+from app.human_input import VERDICT_REVIEW_SCORES
 from app.run_events import make_emitter
 from app.run_modes import resolved_run_config
 from app.safety import ScreenSubject, apply_safety_gate, screen_intake
@@ -29,14 +28,6 @@ from app.store.models import (
     ScientificTask,
 )
 from app.store.tasks import NewTask
-
-# Human categorical verdicts share agents' 1-10 rubric because the latest review
-# score enters ranking/evolution prompts.
-VERDICT_REVIEW_SCORES: dict[str, int] = {
-    "support": 8,
-    "revise": NEEDS_REVISION_SCORE,
-    "oppose": NOT_VIABLE_SCORE,
-}
 
 
 def enqueue_bootstrap(

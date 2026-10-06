@@ -518,7 +518,7 @@ def test_run_provenance_and_passages_read_the_same_after_migration(
     assert evidence_passages(old_id, db_path=db) == before_passages
 
 
-@pytest.mark.parametrize("value", [*mig.TIER_ALIASES, *mig.TIERS, "weird", "", None])
+@pytest.mark.parametrize("value", [*mig.TIER_ALIASES, *sorted(mig.TIERS), "weird", "", None])
 def test_tier_converter_matches_the_live_normalizer(value: str | None) -> None:
     from app.run_modes import normalize_run_tier
 
@@ -530,7 +530,7 @@ def test_tier_converter_matches_the_live_normalizer(value: str | None) -> None:
 
 
 def test_frozen_vocabularies_match_the_live_ones() -> None:
-    from app.engine_tasks.inputs import VERDICT_REVIEW_SCORES
+    from app.human_input import VERDICT_REVIEW_SCORES
     from app.run_modes import RUN_TIER_DEFAULTS
 
     assert set(RUN_TIER_DEFAULTS) | {"standard"} == mig.TIERS

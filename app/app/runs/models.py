@@ -93,6 +93,23 @@ class StartAnnouncementRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
 
 
+class HumanHypothesisRequest(BaseModel):
+    """Body for POST /api/runs/{id}/hypotheses (scientist-contributed)."""
+
+    statement: str = Field(..., min_length=1)
+    author: str = Field(..., min_length=1)
+    title: str = ""
+
+
+class HumanReviewRequest(BaseModel):
+    """Body for POST /api/runs/{id}/reviews (scientist-contributed)."""
+
+    hypothesis_id: str = Field(..., min_length=1)
+    author: str = Field(..., min_length=1)
+    verdict: str = Field(..., min_length=1)  # support | oppose | revise
+    critique: str = ""
+
+
 # Attachments are inert text, not executable or extracted archives; the cap
 # bounds
 # storage and prompt growth.
