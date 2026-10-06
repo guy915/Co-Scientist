@@ -99,9 +99,11 @@ or park the ones they have open.
   on its first day and keeps its body current: open PRs, claims outside the
   ownership above, next PRs, windows and blockers. The owner follows progress
   there.
-- **Before each new PR,** read every board and the open PRs with their files
-  (`gh pr list`, `gh pr diff --name-only`). Do not edit a file that another
-  campaign's open PR changes.
+- **Before each new PR,** read every board and the open PRs with their
+  changed files. Do not edit a file that another campaign's open PR changes.
+- **Tools.** Sessions reach GitHub through the built-in GitHub tools (pull
+  requests, merges, issues, workflow runs), not the `gh` CLI, which has no
+  token in the cloud environment.
 - **Claims.** An open PR claims its files. Open the PR as soon as the branch
   has its first commit; a draft is fine.
 - Never edit another campaign's PR, branch or board.
@@ -110,18 +112,18 @@ or park the ones they have open.
 
 - **Merging.** The owner authorized bypassing `main`'s review requirement for
   these campaigns on 6 October 2026, which overrides the branch-protection
-  rule in AGENTS.md: squash-merge with
-  `gh pr merge --squash --delete-branch --admin` once CI is green on the
-  latest commit.
+  rule in AGENTS.md: squash-merge with the GitHub merge tool once CI is green
+  on the latest commit. Merged branches are cleaned up by the manual
+  `Prune branches` workflow.
 - **Fresh base.** Before merging, if `main` changed files in the same folders
   since the PR's last CI run, merge `main` and wait for CI again.
 - **Red `main`.** The campaign whose merge broke it fixes or reverts within
   30 minutes. Nobody merges into that folder until `main` is green again.
 - **Deploys.** Every merge to `main` that touches deployed code deploys
-  production. After it, confirm the GitHub deployment statuses for the merge
-  commit (`gh api`), `https://api.ai-co-scientist.com/health` and
-  `https://ai-co-scientist.com/`. If one is unhealthy, ship a revert PR first
-  and resume once production is healthy.
+  production. After it, confirm the GitHub deployment statuses and check runs
+  for the merge commit; the cloud environment cannot reach the production
+  domains. If a deployment failed, ship a revert PR first and resume once
+  production is healthy.
 - **Git.** Follow AGENTS.md. Keep every commit additive: make follow-up fixes
   in new commits. Run the app and engine pytest suites one after the other,
   and record each gate's exit status on its own line.
@@ -149,12 +151,10 @@ or park the ones they have open.
 - **Now:** add the `OPENROUTER_API_KEY` repository secret for the `Benchmark`
   workflow. While benchmark runs are queued, avoid large runs in the app: they
   share the free daily allowance.
-- **Before day 1:** set up the second account with the same cloud
-  environment: internet access to GitHub, the production domains and the
-  package registries; Python 3.12, Node.js 22.13+ and Bun 1.3.14 with
-  `make setup`; and a GitHub token with admin rights on the repository and the
-  `repo` and `workflow` scopes, so `gh` can push, open PRs and merge with
-  `--admin`.
+- **Before day 1:** connect the second account to GitHub with access to the
+  repository, and give it a cloud environment with the default network access
+  (GitHub and the package registries). Each session runs `make setup` itself.
+  No skills, connectors or plugins are needed.
 - **During the campaigns:** run the legacy-data migration on production when
   the cuts ask for it. Confirm Railway watch-path changes for the engine move,
   and delete retired variables. Create the monitoring accounts the
