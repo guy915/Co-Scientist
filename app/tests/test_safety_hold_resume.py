@@ -10,13 +10,27 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import task_worker
+from app.config import settings
 from app.safety import POLICY_VERSION, SafetyDecision, ScreenSubject
-from app.store import records, reports, runs, tasks
+from app.store import (
+    records,
+    reports,
+    runs,
+    tasks,
+)
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus
+from app.store.records import NewSafetyDecision
+from tests._client import create_run as _create_run
 from tests._client import make_client
-from tests._engine_tasks_helpers import _install_runtime
-from tests._store_helpers import enqueue_task, seed_run
+from tests._client import make_client as _client
+from tests._engine_tasks_helpers import (
+    _install_runtime,
+)
+from tests._store_helpers import (
+    enqueue_task,
+    seed_run,
+)
 
 CLIENT_ID = "hold-e2e"
 HEADERS = {"X-Client-ID": CLIENT_ID}
@@ -112,7 +126,6 @@ def approve(client: TestClient, run_id: str, decision_id: int) -> None:
 def held_run(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     # Disable detached workers to avoid racing the cohort this test drains
     # directly.
-    from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
@@ -192,3 +205,116 @@ def test_rejected_final_hold_blocks_the_run(
     assert blocked is not None
     assert blocked.status == RunStatus.BLOCKED.value
     assert reports.get_latest_report(run.id, db_path=isolated_db) is None
+
+
+@pytest.mark.parametrize(
+    ("paused", "held", "resolved", "awaiting"),
+    [
+        (True, True, False, 1),
+        (True, False, False, 0),
+        (False, True, False, 0),
+        (True, True, True, 0),
+    ],
+)
+def test_only_a_paused_run_with_an_unresolved_review_awaits_a_decision(
+    isolated_db: str, paused: bool, held: bool, resolved: bool, awaiting: int
+) -> None:
+    client = _client()
+    headers = {"X-Client-ID": "awaiting"}
+    if held:
+        run_id, decision_id = _run_with_held_decision(client, headers)
+    else:
+        run_id = _create_run(
+            client, "A mundane pathway", headers=headers
+        ).json()["id"]
+    if resolved:
+        client.post(
+            f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
+            headers=headers,
+            json={"resolution": "approved"},
+        )
+    if paused:
+        runs.update_run_status(run_id, RunStatus.PAUSED)
+
+    detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
+
+    assert detail["awaiting_decision_count"] == awaiting
+
+
+def _run_with_held_decision(
+    client: TestClient, headers: dict[str, str]
+) -> tuple[str, str]:
+
+    created = _create_run(
+        client, "Review a sensitive research protocol", headers=headers
+    ).json()
+    records.add_safety_decision(
+        NewSafetyDecision(
+            run_id=created["id"],
+            stage="intake",
+            decision="hold",
+            reason="Context requires review.",
+            matches=[],
+            category="uncertain",
+            policy_version="coscientist-safety-v2",
+            requires_review=True,
+        )
+    )
+    decision_id = records.list_safety_decisions(created["id"])[0]["id"]
+    return created["id"], decision_id
+
+
+def test_held_hypothesis_adjudication_records_without_blocking(
+    isolated_db: str,
+) -> None:
+    # Hypothesis-stage holds resolve one excluded idea without restarting or
+    # stopping the whole run.
+    from tests._drain_helpers import _held_final_state, _persist
+
+    client = _client()
+    headers = {"X-Client-ID": "held-reviewer"}
+    created = _create_run(
+        client, "Adjudicate hypotheses held for review", headers=headers
+    ).json()
+    run_id = created["id"]
+    _persist(
+        run_id=run_id, final_state=_held_final_state(), db_path=isolated_db
+    )
+
+    listed = client.get(f"/api/runs/{run_id}/safety", headers=headers)
+    assert listed.status_code == 200
+    holds = [d for d in listed.json()["safety"] if d["decision"] == "hold"]
+    assert len(holds) == 2
+
+    approved = client.post(
+        f"/api/runs/{run_id}/safety/{holds[0]['id']}/adjudicate",
+        headers=headers,
+        json={"resolution": "approved"},
+    )
+    assert approved.status_code == 200
+
+    rejected = client.post(
+        f"/api/runs/{run_id}/safety/{holds[1]['id']}/adjudicate",
+        headers=headers,
+        json={"resolution": "rejected"},
+    )
+    assert rejected.status_code == 200
+
+    by_id = {
+        d["id"]: d
+        for d in client.get(
+            f"/api/runs/{run_id}/safety", headers=headers
+        ).json()["safety"]
+    }
+    assert by_id[holds[0]["id"]]["resolution"] == "approved"
+    assert by_id[holds[1]["id"]]["resolution"] == "rejected"
+    repeated = client.post(
+        f"/api/runs/{run_id}/safety/{holds[0]['id']}/adjudicate",
+        headers=headers,
+        json={"resolution": "rejected"},
+    )
+    assert repeated.status_code == 409
+    assert (
+        client.get(f"/api/runs/{run_id}", headers=headers).json()["status"]
+        == "draft"
+    )

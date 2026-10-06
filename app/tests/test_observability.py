@@ -3,9 +3,11 @@ from __future__ import annotations
 import io
 import json
 import logging
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist import models
 from fastapi.testclient import TestClient
 
 from app.credentials import ByokCredential, scoped_byok
@@ -416,10 +418,6 @@ _METRIC_FIELDS = (
     "phase_times",
 )
 
-# Random hypothesis ids shape prompts; offline duplicate rejection can
-# legitimately produce no evolved child.
-_MAX_RUN_ATTEMPTS = 5
-
 
 def _run_to_completion(client: TestClient, goal: str) -> dict[str, Any]:
     created = _create_run(client, goal, tier="express")
@@ -434,18 +432,18 @@ def _run_to_completion(client: TestClient, goal: str) -> dict[str, Any]:
 
 
 def test_completed_run_serves_engine_metrics(
-    isolated_db: str,
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client = _client()
-    metrics: dict[str, Any] | None = None
-    for attempt in range(_MAX_RUN_ATTEMPTS):
-        metrics = _run_to_completion(
-            client, f"Metrics for a full run {attempt}"
-        )
-        if metrics["evolutions_count"] > 0:
-            break
+    # Random hypothesis ids shape the offline prompts, so some runs drew no
+    # evolved child; a pinned id sequence makes the run reproducible.
+    pinned = models._make_id_factory("metrics-run")
+    monkeypatch.setattr(
+        models,
+        "_ID_FACTORY",
+        SimpleNamespace(get=lambda: pinned),
+    )
+    metrics = _run_to_completion(_client(), "Metrics for a full run")
 
-    assert metrics is not None
     for field in _METRIC_FIELDS:
         assert field in metrics
     assert metrics["hypothesis_count"] >= 1

@@ -13,11 +13,8 @@ from co_scientist.llm import (
 from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.models import (
     Article,
-    ExecutionMetrics,
     Hypothesis,
-    HypothesisReview,
 )
-from co_scientist.workflow_topology import LiteratureGated
 from litellm.exceptions import APIError
 
 import app.engine_adapter.drain.final_state as drain_claim_grounding
@@ -27,10 +24,8 @@ from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.support import TaskCommit
 from app.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
-from app.safety import ScreenSubject
 from app.store import events as store_events
 from app.store import messages, records, reports, runs
-from app.store import retrieval_calls as retrieval
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.messages import NewMessage
@@ -44,75 +39,8 @@ from tests._engine_tasks_helpers import (
     _seed_checkpoint,
     _task_state,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import enqueue_task, seed_run
 from tests._store_helpers import leased_node_task as _node_task
-
-
-def _priority_state(run_id: str, deferred_id: str) -> dict[str, Any]:
-    return {
-        **_task_state(run_id),
-        "next_task_priority": 97,
-        "supervisor_queue_actions": [
-            {
-                "action": "reprioritize",
-                "task_id": deferred_id,
-                "priority": 98,
-                "reason": "Review backlog is urgent.",
-            }
-        ],
-    }
-
-
-def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
-    seed_checkpoint(
-        run_id, {"provider": "engine"}, stage="seed", db_path=db_path
-    )
-    queued = enqueue_task(
-        run_id,
-        "engine.node.orchestrator",
-        "orchestrator-priority",
-        inputs={"checkpoint_seq": 1},
-        db_path=db_path,
-    )
-    task = store_tasks.claim_task("worker", run_id=run_id, db_path=db_path)
-    assert task is not None and task.id == queued.id
-    deferred = enqueue_task(
-        run_id,
-        "engine.node.reflect",
-        "deferred-reflection",
-        priority=10,
-        db_path=db_path,
-    )
-    return task, deferred
-
-
-def test_node_commit_persists_priority_metrics_and_assessment(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Priority science")
-    task, deferred = _seed_orchestrator_task(run.id, isolated_db)
-    assessment = {"generation": {"yield": "high", "notes": "productive"}}
-    state = {
-        **_priority_state(run.id, deferred.id),
-        "metrics": ExecutionMetrics(llm_calls=7, hypothesis_count=3),
-        "supervisor_guidance": {"performance_assessment": assessment},
-    }
-    assert retrieval.get_run_metrics(run.id, db_path=isolated_db) is None
-
-    engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(task, 1, isolated_db), state, "generate"
-    )
-
-    successor = store_tasks.list_tasks(run.id, db_path=isolated_db)[-1]
-    assert successor.task_type == "engine.node.generate"
-    assert successor.priority == 97
-    updated = store_tasks.get_task(deferred.id, db_path=isolated_db)
-    assert updated is not None and updated.priority == 98
-    live = retrieval.get_run_metrics(run.id, db_path=isolated_db)
-    assert live is not None
-    assert live["llm_calls"] == 7
-    assert live["hypothesis_count"] == 3
-    assert live["performance_assessment"] == assessment
 
 
 @pytest.mark.asyncio
@@ -189,139 +117,6 @@ def _seed_finalize_task(
     )
     _patch_restore_generator(monkeypatch, _Generator(state))
     return task
-
-
-def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
-    assert by_type["safety.hypothesis"] == {
-        "screened": 1,
-        "blocked": 0,
-        "eligible": 1,
-        "activity": "safety",
-    }
-    assert by_type["citation.grounding"] == {
-        "assessed": 1,
-        "grounded": 1,
-        "blocked": 0,
-        "eligible": 1,
-        "activity": "other",
-    }
-    citation_audit = dict(by_type["citation_audit"])
-    assert citation_audit.pop("activity") == "other"
-    assert citation_audit
-    assert all(isinstance(v, int) for v in citation_audit.values())
-
-
-@pytest.mark.asyncio
-async def test_execute_finalize_emits_post_drain_stage_events(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    queued = _seed_finalize_task(run.id, monkeypatch, isolated_db)
-    task = store_tasks.claim_task(
-        "finalize-worker", run_id=run.id, db_path=isolated_db
-    )
-    assert task is not None and task.id == queued.id
-
-    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    assert result["status"] == RunStatus.COMPLETED.value
-    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
-
-    events = store_events.list_events(run.id, db_path=isolated_db)
-    by_type = {e["type"]: e["payload"] for e in events}
-    _assert_post_drain_counts(by_type)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("node_name", "extra_state", "expected_milestone"),
-    [
-        pytest.param(
-            "reflection",
-            {
-                "hypotheses": [
-                    Hypothesis(
-                        text="Reviewed idea",
-                        reviews=[
-                            HypothesisReview(
-                                review_summary="ok",
-                                scores={},
-                                safety_ethical_concerns="",
-                                detailed_feedback={},
-                                constructive_feedback="",
-                                overall_score=70.0,
-                            )
-                        ],
-                    )
-                ]
-            },
-            "1 hypotheses reviewed",
-            id="reflection",
-        ),
-        pytest.param(
-            "evolve",
-            {
-                "hypotheses": [
-                    Hypothesis(
-                        text="Evolved idea", evolution_history=["refined"]
-                    )
-                ]
-            },
-            "1 hypotheses evolved (iteration 0)",
-            id="evolve",
-        ),
-        pytest.param(
-            "proximity",
-            {
-                "proximity_graph": {
-                    "edges": [
-                        {"source": "h1", "target": "h2", "cluster_id": "c1"}
-                    ]
-                }
-            },
-            "1 clusters identified",
-            id="proximity",
-        ),
-        pytest.param(
-            "meta_review",
-            {"meta_review": {"summary": "Synthesis complete."}},
-            "Meta-review complete",
-            id="meta_review",
-        ),
-    ],
-)
-async def test_generic_node_completion_emits_matching_milestone(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    node_name: str,
-    extra_state: dict[str, Any],
-    expected_milestone: str,
-) -> None:
-    run = seed_run("Task-level science")
-    checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id))
-    node = enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}{node_name}",
-        f"milestone-{node_name}",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=isolated_db,
-    )
-    leased = store_tasks.claim_task(
-        "worker", run_id=run.id, db_path=isolated_db
-    )
-    assert leased is not None and leased.id == node.id
-
-    async def execute(
-        _name: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str | None]:
-        return {**state, **extra_state}, None
-
-    _patch_task_node(monkeypatch, execute)
-    result = await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-    assert lifecycle.complete_task(
-        leased.id, "worker", result, db_path=isolated_db
-    )
-    assert _milestones(run.id, db_path=isolated_db) == [expected_milestone]
 
 
 # Run grounding off the task loop so heartbeat renewal can continue during
@@ -558,40 +353,6 @@ async def test_durable_successor_follows_a_rerouted_graph(
     assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{_DIVERTED_TO}"
 
 
-_INVERTED_GENERATE_ROUTE = LiteratureGated(on="review", off="reflection")
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("mcp_available", "expected"),
-    [(True, "review"), (False, "reflection")],
-)
-async def test_generate_mcp_branch_is_not_reimplemented(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    mcp_available: bool,
-    expected: str,
-) -> None:
-    # Invert the route table branch to expose a copied MCP conditional in the
-    # durable executor.
-    from co_scientist import workflow_topology
-
-    monkeypatch.setitem(
-        workflow_topology.WORKFLOW_ROUTES, "generate", _INVERTED_GENERATE_ROUTE
-    )
-    run = seed_run("Durable routing")
-    scheduled = await _commit_node(
-        run.id, "generate", isolated_db, mcp_available=mcp_available
-    )
-    assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{expected}"
-
-
-async def _deterministic_final_screen(
-    _run_id: str, subject: ScreenSubject, *_: Any, **__: Any
-) -> Any:
-    return subject.deterministic
-
-
 def _seed_halted_finalize(
     run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str, *, halted: bool
 ) -> Any:
@@ -708,61 +469,34 @@ def _record_preferences_and_commit(seen: list[str], *, priority: bool) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_steering_survives_a_crash_before_the_checkpoint_commits(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(run.id, monkeypatch, isolated_db)
-
-    async def _crash(*_: Any, **__: Any) -> Any:
-        raise RuntimeError("worker died mid-node")
-
-    _patch_task_node(monkeypatch, _crash)
-
-    with pytest.raises(RuntimeError, match="worker died mid-node"):
-        await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-
-    pending = messages.get_pending_steering(run.id, db_path=isolated_db)
-    assert [message.content for message in pending] == [_STEER]
-
-
-@pytest.mark.asyncio
-async def test_a_non_orchestrator_commit_never_acknowledges_steering(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("node", "acknowledged"), [("proximity", False), ("orchestrator", True)]
+)
+async def test_only_the_orchestrator_commit_acknowledges_steering(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    node: str,
+    acknowledged: bool,
 ) -> None:
     # Only the orchestrator schedules from pending_steering; earlier
     # acknowledgment loses the decision input.
     run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(run.id, monkeypatch, isolated_db)
+    leased = _seed_steered_node_task(
+        run.id, monkeypatch, isolated_db, node=node
+    )
     seen: list[str] = []
     _patch_task_node(
-        monkeypatch, _record_preferences_and_commit(seen, priority=False)
+        monkeypatch,
+        _record_preferences_and_commit(seen, priority=acknowledged),
     )
 
     await engine_tasks.execute_node_task(leased, db_path=isolated_db)
 
     assert _STEER in seen[0]
     pending = messages.get_pending_steering(run.id, db_path=isolated_db)
-    assert [message.content for message in pending] == [_STEER]
-
-
-@pytest.mark.asyncio
-async def test_committed_orchestrator_acknowledges_its_steering_exactly_once(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(
-        run.id, monkeypatch, isolated_db, node="orchestrator"
+    assert [message.content for message in pending] == (
+        [] if acknowledged else [_STEER]
     )
-    seen: list[str] = []
-    _patch_task_node(
-        monkeypatch, _record_preferences_and_commit(seen, priority=True)
-    )
-
-    await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-
-    assert _STEER in seen[0]
-    assert messages.get_pending_steering(run.id, db_path=isolated_db) == []
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import json
@@ -378,8 +379,6 @@ def test_attached_document_reaches_the_interview_prompt(
     interview = store.get_interview(str(interview_id))
     assert interview is not None
 
-    import asyncio
-
     asyncio.run(interviews_model._call_interview_model(interview))
 
     prompt = " ".join(m["content"] for m in captured["messages"])
@@ -451,3 +450,79 @@ def test_run_created_from_a_chat_inherits_the_chat_documents() -> None:
         f"/api/runs/{created.json()['id']}/evidence", headers=_HEADERS
     ).json()
     assert "lab-notes.txt" in [row["title"] for row in evidence["evidence"]]
+
+
+@pytest.mark.parametrize(
+    ("body", "status"),
+    [
+        ({"title": "Doc", "text": "Some text.", "consent": False}, 422),
+        ({"title": "Big", "text": "x" * 200_001, "consent": True}, 422),
+    ],
+)
+def test_attachment_needs_consent_and_a_bounded_size(
+    isolated_db: str, body: dict[str, Any], status: int
+) -> None:
+    client, run_id = _client_with_run("Scientist-in-the-loop goal")
+
+    res = client.post(f"/api/runs/{run_id}/attachments", json=body)
+
+    assert res.status_code == status
+
+
+def test_attachment_indexed_and_searchable(isolated_db: str) -> None:
+    client, run_id = _client_with_run("Scientist-in-the-loop goal")
+
+    res = client.post(
+        f"/api/runs/{run_id}/attachments",
+        json={
+            "title": "Persister cell review",
+            "text": (
+                "Drug-tolerant persister cells survive EGFR inhibition via "
+                "a reversible transcriptional program and mitochondrial "
+                "priming."
+            ),
+            "consent": True,
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["indexed"] is True
+
+    hits = client.get(
+        f"/api/runs/{run_id}/attachments/search",
+        params={"q": "persister mitochondrial priming"},
+    ).json()["results"]
+    assert hits
+    assert hits[0]["title"] == "Persister cell review"
+
+
+def test_pasted_and_uploaded_attachments_emit_same_audit_event(
+    isolated_db: str,
+) -> None:
+    client, run_id = _client_with_run("Scientist-in-the-loop goal")
+
+    pasted = client.post(
+        f"/api/runs/{run_id}/attachments",
+        json={
+            "title": "Pasted note",
+            "text": "Persister cells tolerate EGFR inhibition reversibly.",
+            "consent": True,
+        },
+    ).json()
+    uploaded = client.post(
+        f"/api/runs/{run_id}/attachments/upload",
+        files={
+            "file": ("assay.md", b"Kinase X reduced growth.", "text/markdown")
+        },
+        data={"consent": "true"},
+    ).json()
+
+    events = client.get(f"/api/runs/{run_id}/events?stream=false").json()
+    attachment_events = [
+        e for e in events["events"] if e["type"] == "scientist.attachment"
+    ]
+    assert [e["payload"]["evidence_id"] for e in attachment_events] == [
+        pasted["id"],
+        uploaded["id"],
+    ]
+    assert attachment_events[0]["payload"]["title"] == "Pasted note"
+    assert attachment_events[1]["payload"]["title"] == "assay.md"
