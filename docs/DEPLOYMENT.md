@@ -61,10 +61,9 @@ an `X-MCP-Shared-Secret` header or the server returns 401
 (`mcp_client/__init__.py::_resolve_server_configs`). Left unset, the check is a
 no-op. The CORS wildcard is gone regardless; MCP is server-to-server only.
 
-The code default is `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` on all four
-system roles: a free route with free-only fallbacks and a checked zero-price
-ceiling, with the JSON schema in the prompt because its only host accepts no
-response format. Production sets the four role variables explicitly, so a default change
+The code default is `openrouter/inclusionai/ling-3.1-flash` on all four
+system roles: a zero-priced trial route with free-only Nemotron fallbacks and
+a checked zero-price ceiling and expiry, with the JSON schema in the prompt. Production sets the four role variables explicitly, so a default change
 reaches production only when those variables change. `CLAIM_VERIFIER_MODEL` should remain unset
 so claim assessment inherits the worker model. Keep the process-global
 `COSCIENTIST_REQUIRE_FREE_MODELS` flag off so ordinary explicit BYOK remains

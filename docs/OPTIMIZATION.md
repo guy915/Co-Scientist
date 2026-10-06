@@ -44,8 +44,11 @@ Everything that affects speed, cost, reliability or quality of experience:
 - **Priorities:** run speed, quality per token, app feel and development
   speed matter equally.
 - **Models:** tune reasoning effort, token budgets, prompts, caching and
-  retries per call type. Free routes stay the only defaults; do not switch to
-  other models.
+  retries per call type. Free routes stay the only defaults. On 6 October 2026
+  the owner chose Ling 3.1 Flash (`openrouter/inclusionai/ling-3.1-flash`) as
+  the default, with the Nemotron free routes as fallbacks; do not switch to
+  other models. Its zero price is a trial: if it ends, report it to the owner
+  rather than picking a replacement.
 - **Run time:** no fixed target. A standard run takes over three hours; any
   improvement without quality loss is wanted, and a minimal quality loss is
   acceptable for a non-trivial speed gain, stated in the PR with the
