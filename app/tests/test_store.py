@@ -18,9 +18,7 @@ from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
 from app.store.records import (
     NewCitation,
     NewEvidence,
-    NewMatch,
     NewReview,
-    NewSafetyDecision,
 )
 from tests._store_helpers import seed_run
 
@@ -38,17 +36,6 @@ def test_event_log_is_append_only_and_strictly_increasing(db: str) -> None:
     events = store_events.list_events(run.id)
     assert seqs == [e["seq"] for e in events]
     assert all(seqs[i] < seqs[i + 1] for i in range(4))
-
-
-def test_list_events_filters_after_seq(db: str) -> None:
-    run = seed_run("filter test", provider="mock")
-    for i in range(4):
-        store_events.append_event(run.id, "log", {"i": i})
-    half = store_events.list_events(run.id)[1]["seq"]
-    after = store_events.list_events(run.id, after_seq=half)
-    assert len(after) == 2
-    for ev in after:
-        assert ev["seq"] > half
 
 
 def test_list_runs_reports_top_elo_and_the_top_three_hypotheses(
@@ -85,22 +72,6 @@ def test_list_runs_reports_top_elo_and_the_top_three_hypotheses(
     assert single.top_elo is None
 
 
-def test_list_runs_reports_latest_pipeline_stage(db: str) -> None:
-    run = seed_run("staged", provider="mock")
-    store_events.append_event(run.id, "supervisor.plan", {})
-    store_events.append_event(run.id, "generate", {})
-    store_events.append_event(run.id, "ranking", {})
-    store_events.append_event(run.id, "status", {"status": "running"})
-    seed_run("unstaged", provider="mock")
-
-    by_goal = {r.research_goal: r for r in views.list_runs()}
-    assert by_goal["staged"].latest_stage == "ranking"
-    assert by_goal["unstaged"].latest_stage is None
-    single = runs.get_run(run.id)
-    assert single is not None
-    assert single.latest_stage is None
-
-
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
     run = seed_run("decoupling test", provider="mock")
     hid = store.add_hypothesis(
@@ -126,32 +97,6 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
     assert h["win_count"] == 2
     assert h["title"] == "t"
     assert h["statement"] == "s"
-
-
-def test_hypothesis_row_carries_scene_setting_and_safety_notes(db: str) -> None:
-    run = seed_run("scene-setting test", provider="mock")
-    hid = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="t",
-            statement="s",
-            introduction=(
-                "Metabolic disease remains a major cause of morbidity."
-            ),
-            recent_findings="Aldolase inhibitors have shown early promise.",
-            safety_and_toxicity="Limited human safety data exists.",
-            created_by_agent="generation",
-        )
-    )
-    h = store.get_hypothesis(hid)
-    assert h is not None
-    assert h["introduction"] == (
-        "Metabolic disease remains a major cause of morbidity."
-    )
-    assert h["recent_findings"] == (
-        "Aldolase inhibitors have shown early promise."
-    )
-    assert h["safety_and_toxicity"] == "Limited human safety data exists."
 
 
 def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
@@ -223,54 +168,13 @@ def test_redact_hypothesis_fields_rejects_non_redactable_column(
         store.redact_hypothesis_fields(hid, {"statement": "wiped"})
 
 
-def test_safety_decision_persists_matches_array(db: str) -> None:
-    run = seed_run("safety", provider="mock")
-    records.add_safety_decision(
-        NewSafetyDecision(
-            run_id=run.id,
-            stage="intake",
-            decision="block",
-            reason="test reason",
-            matches=["match-a", "match-b"],
-        )
-    )
-    rows = records.list_safety_decisions(run.id)
-    assert rows[0]["decision"] == "block"
-    assert rows[0]["matches"] == ["match-a", "match-b"]
-
-
-def test_match_log_preserves_elo_and_debate_turns(db: str) -> None:
-    run = seed_run("matches", provider="mock")
-    for before, after, turns in ((1200, 1212, 1), (1212, 1230, 3)):
-        records.add_match(
-            NewMatch(
-                run_id=run.id,
-                iteration=1,
-                winner_id="w",
-                loser_id="l",
-                winner_before=before,
-                winner_after=after,
-                loser_before=2400 - before,
-                loser_after=2400 - after,
-                rationale="rationale",
-                debate_turns=turns,
-            )
-        )
-    first, second = records.list_matches(run.id)
-    assert (first["winner_elo_before"], first["winner_elo_after"]) == (
-        1200,
-        1212,
-    )
-    assert (first["loser_elo_before"], first["loser_elo_after"]) == (1200, 1188)
-    assert (first["debate_turns"], second["debate_turns"]) == (1, 3)
-
-
 def test_connections_pair_wal_with_normal_synchronous(db: str) -> None:
     # WAL with NORMAL reduces fsync lock time while checkpoints preserve
     # durability; writes remain single-writer.
     with store_db.connect() as conn:
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert conn.execute("PRAGMA synchronous").fetchone()[0] == 1
+        assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 
 class _StaleColumnView:

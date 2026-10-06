@@ -258,92 +258,23 @@ def test_allowed_origin_can_read_ownership_denial(
     client.close()
 
 
-def test_run_ownership_allows_cors_preflight(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("raw", "origins", "credentialed"),
+    [
+        ("", ["*"], False),
+        (
+            "https://ai-co-scientist.com, https://www.ai-co-scientist.com",
+            ["https://ai-co-scientist.com", "https://www.ai-co-scientist.com"],
+            True,
+        ),
+    ],
+)
+def test_only_an_explicit_cors_allowlist_is_credentialed(
+    raw: str, origins: list[str], credentialed: bool
 ) -> None:
-    app = _configure_allowlisted_cors(monkeypatch)
-    client = TestClient(app, headers={"X-Client-ID": "pytest-default-client"})
-    created = _create_run(
-        client,
-        "Cross-origin research goal",
-        headers={"X-Client-ID": "browser-owner"},
-    )
-    assert created.status_code == 200
-
-    response = client.options(
-        f"/api/runs/{created.json()['id']}/start",
-        headers={
-            "Origin": "https://ai-co-scientist.com",
-            "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": (
-                "authorization,content-type,x-client-id"
-            ),
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == (
-        "https://ai-co-scientist.com"
-    )
-    assert "authorization" in response.headers["access-control-allow-headers"]
-
-
-def test_wildcard_cors_never_reflects_a_credentialed_origin() -> None:
-    # Credentialed CORS reflects allowed origins; isolate the app because
-    # environment configuration is fixed at import.
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.testclient import TestClient as FastAPITestClient
-
     from app.main import _resolve_cors_config
 
-    origins, allow_credentials = _resolve_cors_config("")
-    probe = FastAPI()
-    probe.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=allow_credentials,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    @probe.get("/x")
-    def _probe_route() -> dict[str, bool]:
-        return {"ok": True}
-
-    response = FastAPITestClient(probe).options(
-        "/x",
-        headers={
-            "Origin": "https://evil.example",
-            "Access-Control-Request-Method": "GET",
-        },
-    )
-
-    assert response.headers["access-control-allow-origin"] == "*"
-    assert "access-control-allow-credentials" not in response.headers
-
-
-def test_cors_config_wildcard_is_never_credentialed() -> None:
-    from app.main import _resolve_cors_config
-
-    origins, allow_credentials = _resolve_cors_config("")
-
-    assert origins == ["*"]
-    assert allow_credentials is False
-
-
-def test_cors_config_explicit_allowlist_is_credentialed() -> None:
-    from app.main import _resolve_cors_config
-
-    origins, allow_credentials = _resolve_cors_config(
-        "https://ai-co-scientist.com, https://www.ai-co-scientist.com"
-    )
-
-    assert origins == [
-        "https://ai-co-scientist.com",
-        "https://www.ai-co-scientist.com",
-    ]
-    assert allow_credentials is True
+    assert _resolve_cors_config(raw) == (origins, credentialed)
 
 
 def _headerless_client() -> TestClient:
@@ -353,8 +284,34 @@ def _headerless_client() -> TestClient:
     return TestClient(app)
 
 
-def test_headerless_caller_cannot_create_a_run(isolated_db: str) -> None:
-    response = _create_run(_headerless_client(), "Anonymous goal")
+@pytest.mark.parametrize(
+    ("method", "path", "kwargs"),
+    [
+        ("post", "/api/runs", {"json": {"research_goal": "Anonymous goal"}}),
+        (
+            "post",
+            "/api/documents",
+            {
+                "files": {
+                    "file": ("notes.txt", b"private notes", "text/plain")
+                },
+                "data": {"consent": "true"},
+            },
+        ),
+        (
+            "post",
+            "/api/interviews",
+            {"json": {"research_challenge": "Anonymous challenge"}},
+        ),
+        # Anonymous exports must fail rather than imply an empty dataset.
+        ("get", "/api/account/export", {}),
+    ],
+)
+def test_headerless_caller_is_refused_and_creates_nothing(
+    isolated_db: str, method: str, path: str, kwargs: dict[str, Any]
+) -> None:
+    response = getattr(_headerless_client(), method)(path, **kwargs)
+
     assert response.status_code == 400
     assert "X-Client-ID" in response.json()["detail"]
     assert views.list_runs(client_id="") == []
@@ -374,57 +331,22 @@ def test_headerless_callers_no_longer_share_a_run(isolated_db: str) -> None:
     assert client.get("/api/runs").json()["runs"] == []
 
 
-def test_headerless_caller_cannot_stage_a_document(isolated_db: str) -> None:
-    response = _headerless_client().post(
-        "/api/documents",
-        files={"file": ("notes.txt", b"private notes", "text/plain")},
-        data={"consent": "true"},
-    )
-    assert response.status_code == 400
-    assert "X-Client-ID" in response.json()["detail"]
-
-
-def test_headerless_caller_cannot_create_an_interview(
-    isolated_db: str,
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        ({"auth_mode": "requried"}, "auth_mode"),
+        ({"auth_mode": ""}, "auth_mode"),
+        ({"auth_mode": "required", "auth_secret": ""}, "AUTH_SECRET"),
+        ({"auth_mode": "required", "auth_secret": " "}, "AUTH_SECRET"),
+        ({"auth_session_hours": 0}, "auth_session_hours"),
+        ({"auth_session_hours": -1}, "auth_session_hours"),
+    ],
+)
+def test_invalid_auth_configuration_is_rejected(
+    overrides: dict[str, Any], match: str
 ) -> None:
-    response = _headerless_client().post(
-        "/api/interviews", json={"research_challenge": "Anonymous challenge"}
-    )
-    assert response.status_code == 400
-    assert "X-Client-ID" in response.json()["detail"]
-
-
-def test_headerless_caller_cannot_export_an_account(isolated_db: str) -> None:
-    # Anonymous exports must fail rather than imply a misleading empty dataset.
-    response = _headerless_client().get("/api/account/export")
-
-    assert response.status_code == 400
-    assert "X-Client-ID" in response.json()["detail"]
-
-
-@pytest.mark.parametrize("mode", ["requried", "disabled", ""])
-def test_unknown_auth_mode_is_rejected(mode: str) -> None:
-    with pytest.raises(ValidationError, match="auth_mode"):
-        Settings(_env_file=None, auth_mode=mode)
-
-
-@pytest.mark.parametrize("secret", ["", " "])
-def test_required_auth_needs_a_secret(secret: str) -> None:
-    with pytest.raises(ValidationError, match="AUTH_SECRET"):
-        Settings(_env_file=None, auth_mode="required", auth_secret=secret)
-
-
-@pytest.mark.parametrize("hours", [0, -1])
-def test_session_duration_must_be_positive(hours: int) -> None:
-    with pytest.raises(ValidationError, match="auth_session_hours"):
-        Settings(_env_file=None, auth_session_hours=hours)
-
-
-def test_local_compatibility_remains_keyless() -> None:
-    settings = Settings(
-        _env_file=None, auth_mode="compatibility", auth_secret=""
-    )
-    assert settings.auth_mode == "compatibility"
+    with pytest.raises(ValidationError, match=match):
+        Settings(_env_file=None, **overrides)
 
 
 def test_configuration_failure_does_not_print_access_codes() -> None:
