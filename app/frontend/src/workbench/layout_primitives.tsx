@@ -4,18 +4,6 @@ import {tooltipClassNames} from './classes';
 
 const SHELL_POPOVER_CLASSES = 'ucs-popover';
 
-export type RenderPopover = (
-  children: ReactNode,
-  className: string,
-  ariaLabel: string,
-) => ReactNode;
-
-export interface HeaderControlProps {
-  open: boolean;
-  onToggle: () => void;
-  renderPopover: RenderPopover;
-}
-
 export const NAV_ICON_CLASSES = 'ucs-nav-icon';
 
 // Exclude shared display/color/padding states: Tailwind stylesheet order
@@ -83,11 +71,6 @@ export function HeaderControlTrigger({
       {children}
     </button>
   );
-}
-
-// Pass complete width utilities so Tailwind discovers them at the call site.
-export function headerControlPopoverClasses(width: string): string {
-  return `ucs-popover--logs top-[calc(100%+0.45rem)] right-0 ${width} !p-0`;
 }
 
 // Interactive popovers are not status live regions; provide accessible

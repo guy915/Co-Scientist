@@ -1,118 +1,131 @@
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   installLayoutMocks,
   logsApiMock,
   renderLayout,
 } from './layout_test_support';
 import {DIAGNOSTIC_EVENT} from './dom_events';
-import {
-  logRecord,
-  settleMountTimeLoads,
-} from './layout_diagnostics_test_support';
 
-describe('layout diagnostics panel', () => {
-  beforeEach(() => installLayoutMocks());
+const copyMock = vi.hoisted(() => ({copyText: vi.fn()}));
+vi.mock('@/lib/clipboard', () => copyMock);
 
-  it('renders the message as plain text with a level meta row', async () => {
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [
-        logRecord(1, {message: 'a long message that must wrap freely'}),
-        logRecord(2, {
-          level: 'ERROR',
-          levelno: 40,
-          logger: 'app.engine_adapter',
-          message: 'workflow exploded',
-          exc_text: 'Traceback: boom',
-        }),
-      ],
-      last_id: 2,
-      total: 2,
-      session_total: 2,
-    });
-    const {container} = renderLayout();
-
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
-    await screen.findByText(/wrap freely/);
-
-    const blocks = container.querySelectorAll('.ucs-diagnostic-entry pre');
-    expect(blocks).toHaveLength(2);
-    expect(blocks[0].textContent).toBe('a long message that must wrap freely');
-    expect(blocks[1].textContent).toBe('workflow exploded\n\nTraceback: boom');
-    expect(screen.getByText('INFO')).toBeInTheDocument();
-    expect(screen.getByText('ERROR')).toBeInTheDocument();
-  });
+const warningPayload = (lastId: number, sessionTotal: number) => ({
+  logs: [],
+  last_id: lastId,
+  total: sessionTotal,
+  session_total: sessionTotal,
 });
 
-describe('layout diagnostics session', () => {
-  beforeEach(() => installLayoutMocks());
+const logsButton = () => screen.findByRole('button', {name: /^Logs/});
+const dotOf = (button: HTMLElement) =>
+  button.querySelector('[data-logged]')?.getAttribute('data-logged');
 
-  it('hides pre-session history and shows only records added this session', async () => {
-    logsApiMock.getAppLogs.mockReset();
-    logsApiMock.getAppLogs.mockResolvedValueOnce({
-      logs: [
-        logRecord(98, {message: 'stale line from before'}),
-        logRecord(99, {message: 'another old line'}),
-        logRecord(100, {message: 'newest pre-session line'}),
-      ],
-      last_id: 100,
-      total: 5,
-      session_total: 5,
-    });
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [logRecord(101, {message: 'fresh session line'})],
-      last_id: 101,
-      total: 6,
-      session_total: 1,
-    });
-
-    renderLayout('/');
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
-
-    expect(await screen.findByText(/fresh session line/)).toBeInTheDocument();
-    expect(screen.queryByText(/stale line from before/)).toBeNull();
-    expect(screen.queryByText(/newest pre-session line/)).toBeNull();
-    const meta = document.querySelector('.ucs-diagnostic-entry-meta span');
-    expect(meta?.textContent).toBe('#1');
-    expect(screen.getByText('Total 1')).toBeInTheDocument();
-    expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(100, 100);
+describe('logs button indicator', () => {
+  beforeEach(() => {
+    installLayoutMocks();
+    copyMock.copyText.mockReset();
   });
-});
 
-describe('layout diagnostics live', () => {
-  beforeEach(() => installLayoutMocks());
-
-  it('ignores stale out-of-order log responses', async () => {
-    const payload = (id: number) => ({
-      logs: [logRecord(id)],
-      last_id: id,
-      total: id,
-      session_total: id,
-    });
-    // Settle mount loads so racing requests share an effect generation rather
-    // than disposal guards.
+  it('stays neutral when nothing was logged this session', async () => {
     renderLayout();
-    await settleMountTimeLoads();
+    const button = await logsButton();
+    await waitFor(() => expect(logsApiMock.getAppLogs).toHaveBeenCalled());
+    expect(dotOf(button)).toBe('false');
+    expect(button).toHaveAccessibleDescription(
+      'No warnings or errors logged this session',
+    );
+  });
+
+  it('asks only for warnings after the session baseline', async () => {
+    logsApiMock.getAppLogs.mockReset();
+    logsApiMock.getAppLogs
+      .mockResolvedValueOnce(warningPayload(100, 4))
+      .mockResolvedValue(warningPayload(101, 1));
+    renderLayout();
+    await logsButton();
+    await waitFor(() =>
+      expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(0, 1, 'WARNING'),
+    );
+
+    fireEvent(window, new Event('cosci-app-logs-changed'));
+
+    await waitFor(() =>
+      expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(100, 1, 'WARNING'),
+    );
+    await waitFor(async () => expect(dotOf(await logsButton())).toBe('true'));
+    expect(await logsButton()).toHaveAccessibleDescription(
+      'A warning or error was logged this session',
+    );
+  });
+
+  it('refreshes on visibility change but never on a timer', async () => {
+    vi.useFakeTimers();
+    try {
+      renderLayout();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const initialCalls = logsApiMock.getAppLogs.mock.calls.length;
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(logsApiMock.getAppLogs).toHaveBeenCalledTimes(initialCalls);
+
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThan(
+        initialCalls,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ignores stale out-of-order responses', async () => {
+    logsApiMock.getAppLogs.mockReset();
+    logsApiMock.getAppLogs.mockResolvedValue(warningPayload(0, 0));
+    renderLayout();
+    const button = await logsButton();
+    await waitFor(() => expect(logsApiMock.getAppLogs).toHaveBeenCalled());
 
     let resolveStale: (value: unknown) => void = () => {};
-    const hanging = new Promise(resolve => {
-      resolveStale = resolve;
-    });
     logsApiMock.getAppLogs
-      .mockReturnValueOnce(hanging)
-      .mockResolvedValue(payload(2));
-
-    const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
-    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
-    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
-    await screen.findByRole('button', {name: /Logs 2/i});
-
-    resolveStale(payload(1));
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          resolveStale = resolve;
+        }),
+      )
+      .mockResolvedValue(warningPayload(0, 0));
+    fireEvent(window, new Event('cosci-app-logs-changed'));
+    fireEvent(window, new Event('cosci-app-logs-changed'));
     await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 20));
+      resolveStale(warningPayload(5, 3));
     });
-    expect(screen.queryByRole('button', {name: /Logs 1$/})).toBeNull();
-    expect(screen.getByRole('button', {name: /Logs 2/i})).toBeInTheDocument();
+
+    expect(dotOf(button)).toBe('false');
+  });
+});
+
+describe('logs button copy', () => {
+  beforeEach(() => {
+    installLayoutMocks();
+    copyMock.copyText.mockReset();
+  });
+
+  it('copies the session export and confirms briefly', async () => {
+    renderLayout();
+    const button = await logsButton();
+
+    fireEvent.click(button);
+
+    await waitFor(() => expect(copyMock.copyText).toHaveBeenCalledTimes(1));
+    expect(copyMock.copyText.mock.calls[0][0]).toContain('## Logs (JSON)');
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
+    expect(button).toHaveAccessibleName('Logs — copy session logs');
+    expect(screen.queryByRole('group', {name: /diagnostic logs/i})).toBeNull();
   });
 });
 

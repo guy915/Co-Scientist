@@ -182,8 +182,6 @@ function ShellWorkspace({
         headerTitle={headerTitle}
         session={session}
         runStatus={runStatus}
-        activePanel={chrome.activePanel}
-        onTogglePanel={chrome.togglePanel}
         logsControlRef={chrome.logsControlRef}
       />
       <main className={pageClasses}>{children}</main>
@@ -257,7 +255,7 @@ export function Layout({children}: {children: ReactNode}) {
   );
 }
 
-export type ShellPanel = 'settings' | 'logs';
+export type ShellPanel = 'settings';
 
 // Chats enter history from their first turn, whether or not they become runs.
 export function useChatHistory() {

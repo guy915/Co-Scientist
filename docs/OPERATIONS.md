@@ -310,10 +310,10 @@ hashed for admission checks and is not returned with submissions.
 
 Feedback silently uses the existing tab-session anchor and diagnostic exporter
 (preamble, session details, statistics and records), including operational INFO
-records hidden by the Logs panel's default noise filter. It keeps the newest
+records. It keeps the newest
 loaded records within the attachment limit; a failed log fetch produces an
 explicit diagnostic-unavailable record so the message can still be submitted.
-The Logs pill, panel and default filtering stay unchanged.
+The header Logs button copies the same export; there is no log panel.
 
 New metadata captures chat roles, character counts and response durations, tool
 names and execution durations/outcomes, failed-fetch method/path/status (without

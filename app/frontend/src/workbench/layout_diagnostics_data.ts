@@ -1,17 +1,10 @@
-import {
-  type AppLogRecord,
-  type ClientLogRecord,
-  reportAppLogs,
-} from '@/api/logs';
-import {useState} from 'react';
-import {useResetTimer} from './hooks/timers';
+import {type AppLogRecord, type ClientLogRecord} from '@/api/logs';
 
 export type DiagnosticLogLevel = 'info' | 'warning' | 'error';
 
 export interface DiagnosticLogEntry {
   id: number;
-  // Filtered display positions differ from global store IDs, whose hidden/noise
-  // records leave gaps.
+  // Session-relative position; store IDs have gaps.
   number: number;
   time: string;
   run: string;
@@ -26,15 +19,7 @@ export interface DiagnosticLogEntry {
 // Server-owned records must not inflate the distinct research-run count.
 export const SERVER_LOG_SOURCE = 'Server';
 
-// Copy the whole loaded panel window so diagnostic export cannot cut its
-// narrative short.
-export const COPY_LIMIT = 100;
-
-export const PANEL_LIMIT = 100;
-
-// Closed badges poll more slowly to reduce steady-state database work; open
-// panels remain live.
-export const APP_LOGS_POLL_MS = {open: 2_000, closed: 5_000};
+export const EXPORT_LIMIT = 100;
 
 export interface DiagnosticLogEventDetail {
   // Use the actual run ID, never a goal-derived title: this field is persisted
@@ -154,7 +139,7 @@ function aboutSection(): string[] {
     '',
     '## About these logs',
     '',
-    'Co-Scientist workbench diagnostic export. The Logs panel renders one durable, app-wide log: backend records from the API, the durable task workers and the `co_scientist` engine, one compact stage record per run event, and frontend records this browser posted. It is scoped to this browsing session (records that predate it are excluded; a tab reload keeps the session, closing the tab ends it) and to what this caller may see. Share the whole export when reporting a problem — the preamble is the context a reader would otherwise have to guess at.',
+    'Co-Scientist workbench diagnostic export, copied from the header Logs button. It is built from one durable, app-wide log: backend records from the API, the durable task workers and the `co_scientist` engine, one compact stage record per run event, and frontend records this browser posted. It is scoped to this browsing session (records that predate it are excluded; a tab reload keeps the session, closing the tab ends it) and to what this caller may see. Share the whole export when reporting a problem — the preamble is the context a reader would otherwise have to guess at.',
     '',
   ];
 }
@@ -168,7 +153,6 @@ function tracksSection(): string[] {
     '- **Frontend (`ui.*`):** page loads and route changes, uncaught errors, unhandled rejections, React render errors, and control interactions',
     '- **Deliberately absent:**',
     '  - per-call HTTP/LLM chatter below WARNING, which is never persisted',
-    '  - access, interaction and navigation noise, hidden from the default view but available from `GET /api/logs?verbose=1`',
     '  - verbatim repeats of a record within a 10-minute window',
     '',
   ];
@@ -183,7 +167,7 @@ function resolveContext(context: DiagnosticExportContext) {
 }
 
 function sessionSection(
-  {entries, total}: DiagnosticExport,
+  {total}: DiagnosticExport,
   exported: DiagnosticLogEntry[],
   context: DiagnosticExportContext,
 ): string[] {
@@ -197,8 +181,7 @@ function sessionSection(
     `- **Current URL:** ${currentUrl}`,
     `- **Browser:** ${userAgent}`,
     `- **Records this session:** ${total}`,
-    `- **Panel window:** newest ${entries.length} of ${PANEL_LIMIT} fetched`,
-    `- **In this export:** ${exported.length} (newest ${COPY_LIMIT})`,
+    `- **In this export:** ${exported.length} (newest ${EXPORT_LIMIT})`,
     `- **Oldest exported record:** ${first}`,
     '',
   ];
@@ -221,8 +204,8 @@ function legendSection(): string[] {
     '',
     '| Field | Meaning |',
     '| --- | --- |',
-    '| `id` | Persisted store row id used by API `after_id` cursors; gapped wherever hidden noise consumed ids. |',
-    '| `number` | Position in the filtered stream, shown as "#N" in the panel. |',
+    '| `id` | Persisted store row id used by API `after_id` cursors; gapped wherever ids were pruned or never persisted. |',
+    '| `number` | Position in the filtered stream, numbered within this session. |',
     '| `level` | `error` is ERROR/CRITICAL (40+), `warning` is WARNING (30), `info` is everything below; `levelName` carries the exact name. |',
     '| `run` | "Run <first 8 chars>", or "Server" when no run owns it; Distinct runs counts only run-owned records. |',
     '| `stage` | The emitting logger (`app.run_stage`, `ui.error`, `uvicorn`, ...). |',
@@ -233,7 +216,7 @@ function legendSection(): string[] {
 
 export function formatDiagnosticExport(input: DiagnosticExport): string {
   const context = input.context ?? {};
-  const exported = input.entries.slice(-COPY_LIMIT);
+  const exported = input.entries.slice(-EXPORT_LIMIT);
   return [
     ...aboutSection(),
     ...tracksSection(),
@@ -254,57 +237,4 @@ export function browserExportContext(): DiagnosticExportContext {
     currentUrl: window.location.href,
     userAgent: window.navigator.userAgent,
   };
-}
-
-export type ReportStatus = 'idle' | 'sending' | 'sent' | 'failed';
-
-// Failures need a longer readable outcome window than copy confirmation.
-const OUTCOME_RESET_MS = 4_000;
-
-const REPORT_LABELS: Record<ReportStatus, string> = {
-  idle: 'Report',
-  sending: 'Sending…',
-  sent: 'Sent',
-  failed: "Couldn't send",
-};
-
-export function reportLabel(status: ReportStatus): string {
-  return REPORT_LABELS[status];
-}
-
-export interface ReportSubject {
-  entries: DiagnosticLogEntry[];
-  total: number;
-  counts: DiagnosticCounts;
-}
-
-// Report failures must remain visible beside their action; silent failure would
-// falsely assure the scientist it arrived.
-export function useLogReport() {
-  const [status, setStatus] = useState<ReportStatus>('idle');
-  const timer = useResetTimer();
-
-  function settle(outcome: ReportStatus) {
-    setStatus(outcome);
-    timer.schedule(() => setStatus('idle'), OUTCOME_RESET_MS);
-  }
-
-  async function send(subject: ReportSubject) {
-    // Duplicate clicks would mail the same window and waste its reporting-rate
-    // allowance.
-    if (status === 'sending') return;
-    // An earlier outcome expiry must not clear the non-transient sending state.
-    timer.cancel();
-    setStatus('sending');
-    try {
-      await reportAppLogs(
-        formatDiagnosticExport({...subject, context: browserExportContext()}),
-      );
-      settle('sent');
-    } catch {
-      settle('failed');
-    }
-  }
-
-  return {status, send};
 }

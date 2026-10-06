@@ -1,19 +1,11 @@
 from __future__ import annotations
 
-import logging
 import sqlite3
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _use_conn
-
-NOISE_VISIBLE_LEVELNO = logging.WARNING
-
-
-def _escape_like(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 @dataclass(frozen=True)
@@ -57,27 +49,12 @@ def append_log(
 class LogFilters:
     after_id: int = 0
     min_levelno: int = 0
-    run_id: str | None = None
-    contains: str | None = None
-    noise_loggers: Sequence[str] | None = None
     scope_client_id: str | None = None
 
 
 def _log_filters(filters: LogFilters) -> tuple[str, list[Any]]:
     where = ["id > ?", "levelno >= ?"]
     params: list[Any] = [filters.after_id, filters.min_levelno]
-    if filters.run_id is not None:
-        where.append("run_id = ?")
-        params.append(filters.run_id)
-    if filters.contains:
-        where.append("message LIKE ? ESCAPE '\\'")
-        params.append(f"%{_escape_like(filters.contains)}%")
-    noise_loggers = filters.noise_loggers
-    if noise_loggers:
-        likes = " OR ".join(["logger LIKE ? ESCAPE '\\'"] * len(noise_loggers))
-        where.append(f"NOT (levelno < ? AND ({likes}))")
-        params.append(NOISE_VISIBLE_LEVELNO)
-        params.extend(f"{_escape_like(name)}%" for name in noise_loggers)
     if filters.scope_client_id is not None:
         # Clients see their submitted logs and owned-run logs; ownerless server
         # records remain operator-only.
@@ -146,28 +123,6 @@ def prune_logs(
         if row is None:
             return 0
         cur = c.execute("DELETE FROM app_logs WHERE id <= ?", (row["id"],))
-        return int(cur.rowcount or 0)
-
-
-def clear_logs(
-    *,
-    scope_client_id: str | None = None,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
-    """Only app-wide clears reset IDs; followers detect the reset when the
-    latest ID drops below their cursor.
-    """
-    if scope_client_id is not None:
-        # Scoped clears must not reset the shared ID sequence used by other
-        # clients' cursors.
-        where, params = _log_filters(LogFilters(scope_client_id=scope_client_id))
-        with _use_conn(conn, db_path) as c:
-            cur = c.execute(f"DELETE FROM app_logs WHERE {where}", params)
-            return int(cur.rowcount or 0)
-    with _use_conn(conn, db_path) as c:
-        cur = c.execute("DELETE FROM app_logs")
-        c.execute("DELETE FROM sqlite_sequence WHERE name = 'app_logs'")
         return int(cur.rowcount or 0)
 
 
