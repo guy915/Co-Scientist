@@ -6,7 +6,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # Lower the production ceiling after reductions; never raise it.
 CODE_SIZE_CEILING = 114_905
-TEST_SIZE_CEILING = 82_808
+TEST_SIZE_CEILING = 81_104
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".css"}
 EXCLUDED_DIRECTORIES = {
     "vendor",
