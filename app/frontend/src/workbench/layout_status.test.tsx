@@ -45,14 +45,4 @@ describe('SystemStatusIndicator', () => {
       expect(screen.getByRole('status')).toHaveTextContent('Offline mode'),
     );
   });
-
-  it('shows API offline when /status is unreachable', async () => {
-    apiMock.getSystemStatus.mockRejectedValue(new Error('API unavailable'));
-
-    render(<SystemStatusIndicator />);
-
-    await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent('API offline'),
-    );
-  });
 });

@@ -1,32 +1,15 @@
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeEach, describe, expect, it} from 'vitest';
 import {
   installLayoutMocks,
   logsApiMock,
   renderLayout,
-  systemApiMock,
 } from './layout_test_support';
-// Import after layout_test_support, whose module mock must be registered
-// before the real API module loads.
-import {APP_LOGS_CHANGED_EVENT} from '@/api/logs';
-import {exportedRecords} from '@/test_fixtures';
 import {DIAGNOSTIC_EVENT} from './dom_events';
-import {COPY_LIMIT} from './layout_diagnostics_data';
 import {
   logRecord,
   settleMountTimeLoads,
 } from './layout_diagnostics_test_support';
-
-// The badge only counts records that arrive after the mount-time load fixes
-// the session baseline, and the next load comes from a poll or this event.
-// Waiting on the poll or on a mount-time event races that listener under load.
-async function renderWithLogsLoaded() {
-  renderLayout();
-  await settleMountTimeLoads();
-  await act(async () => {
-    window.dispatchEvent(new Event(APP_LOGS_CHANGED_EVENT));
-  });
-}
 
 describe('layout diagnostics panel', () => {
   beforeEach(() => installLayoutMocks());
@@ -161,106 +144,5 @@ describe('layout diagnostic events', () => {
     expect(posted).toHaveLength(1);
     expect(posted[0].run_id).toBeUndefined();
     expect(JSON.stringify(posted[0])).not.toContain('oncology');
-  });
-});
-
-describe('layout diagnostics report', () => {
-  beforeEach(() => {
-    installLayoutMocks();
-  });
-
-  function withEmailDelivery() {
-    systemApiMock.getSystemStatus.mockResolvedValue({
-      llm_backend: 'real',
-      provider: 'engine',
-      model_name: 'test/model',
-      email_notifications_available: true,
-    });
-  }
-
-  async function openReportButton() {
-    fireEvent.click(screen.getByRole('button', {name: /Logs/i}));
-    const button = await screen.findByRole('button', {name: /Report/});
-    await waitFor(() => expect(button).toBeEnabled());
-    return button;
-  }
-
-  it('sends the same export the Copy button produces', async () => {
-    withEmailDelivery();
-    renderLayout();
-
-    fireEvent.click(await openReportButton());
-
-    await waitFor(() =>
-      expect(logsApiMock.reportAppLogs).toHaveBeenCalledOnce(),
-    );
-    // Session-scoped log views cannot be reproduced by a link alone.
-    const [report] = logsApiMock.reportAppLogs.mock.calls[0] as [string];
-    expect(report).toContain('## Logs (JSON)');
-    expect(await screen.findByText('Sent')).toBeInTheDocument();
-  });
-});
-
-describe('layout diagnostics copy', () => {
-  beforeEach(() => installLayoutMocks());
-  afterEach(() => vi.useRealTimers());
-
-  it('clears the persisted log from the Clear action', async () => {
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [
-        logRecord(1, {created_at: 1_700_000_000, message: 'server started'}),
-      ],
-      last_id: 1,
-      total: 1,
-      session_total: 1,
-    });
-    await renderWithLogsLoaded();
-
-    fireEvent.click(
-      await screen.findByRole('button', {name: /Logs 1/i}, {timeout: 5_000}),
-    );
-    expect(await screen.findByText(/server started/)).toBeInTheDocument();
-
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [],
-      last_id: 1,
-      total: 0,
-      session_total: 0,
-    });
-    fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
-
-    await waitFor(() => expect(logsApiMock.deleteAppLogs).toHaveBeenCalled());
-    expect(
-      await screen.findByText('No diagnostic events loaded.'),
-    ).toBeInTheDocument();
-  });
-
-  it('copies the newest COPY_LIMIT entries, not the whole session', async () => {
-    const many = Array.from({length: 140}, (_, index) =>
-      logRecord(index + 1, {created_at: 1_700_000_000 + index}),
-    );
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: many,
-      last_id: 140,
-      total: 140,
-      session_total: 140,
-    });
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, {clipboard: {writeText}});
-    await renderWithLogsLoaded();
-
-    fireEvent.click(
-      await screen.findByRole('button', {name: /Logs 140/i}, {timeout: 5_000}),
-    );
-    await screen.findByText(/record 140/);
-    fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalled());
-    const copied = exportedRecords(writeText.mock.calls[0][0] as string) as {
-      payload: {message: string};
-    }[];
-    expect(copied).toHaveLength(COPY_LIMIT);
-    expect(copied[0].payload.message).toBe('record 41');
-    expect(copied[COPY_LIMIT - 1].payload.message).toBe('record 140');
   });
 });

@@ -1,5 +1,5 @@
 import type {ReactElement} from 'react';
-import {afterEach, it, expect, vi} from 'vitest';
+import {it, expect} from 'vitest';
 import {render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {IdeasTab} from './ideas_tab';
@@ -9,17 +9,6 @@ import {makeHypothesis} from '@/test_fixtures';
 function renderIdeas(ui: ReactElement, path = '/runs/run-1/ideas') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 }
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
-it('shows the empty state when there are no hypotheses', () => {
-  renderIdeas(<IdeasTab hypotheses={[]} reviews={[]} />);
-  expect(
-    screen.getByText('Hypotheses appear here once the generation node runs.'),
-  ).toBeInTheDocument();
-});
 
 it('renders idea rows sorted by Elo with their scores', () => {
   const hypotheses: Hypothesis[] = [

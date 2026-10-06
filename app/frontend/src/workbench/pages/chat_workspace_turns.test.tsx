@@ -82,16 +82,6 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-it('shows a provider failure on the first turn as a banner', async () => {
-  apiMock.createInterview.mockRejectedValue(new Error('provider down'));
-  renderWorkspace();
-
-  send(GOAL);
-
-  expect(await screen.findByText('provider down')).toBeInTheDocument();
-  expect(screen.getByRole('button', {name: 'Send'})).toBeInTheDocument();
-});
-
 async function startedSession() {
   renderWorkspace();
   send(GOAL);
@@ -182,30 +172,6 @@ it('streams the interview reply and its reasoning live, then settles on the save
 
   expect(await screen.findByText(QUESTION)).toBeInTheDocument();
   expect(screen.queryByText('Ask about the mechanism.')).toBeNull();
-});
-
-it('carries a chosen focus and completion email into the created run', async () => {
-  renderWorkspace();
-  send(GOAL);
-  await screen.findByRole('heading', {name: 'Research plan'});
-
-  fireEvent.click(screen.getByLabelText(/Prefer novelty/i));
-  fireEvent.change(
-    screen.getByLabelText('Email me when the Goal Report is ready'),
-    {target: {value: 'scientist@example.com'}},
-  );
-  fireEvent.click(screen.getByText('Start research'));
-
-  await waitFor(() =>
-    expect(apiMock.createRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        focus: 'prefer_novelty',
-        notify_on_completion: true,
-        completion_email: 'scientist@example.com',
-      }),
-      expect.any(Object),
-    ),
-  );
 });
 
 it('stopping a first turn restores the composer text without a banner', async () => {

@@ -1,7 +1,9 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import type {ChatSummary} from '@/api/runs';
 import {makeRun} from '../test_fixtures';
+import {installLayoutMocks} from './layout_test_support';
 import {withExamples} from './layout_nav_rail';
+import {preferredSessionSide, writeSessionSide} from './layout_session_switch';
 
 const ownChat: ChatSummary = {
   id: 'chat-1',
@@ -28,5 +30,21 @@ describe('sidebar example entries', () => {
       config: {...demo.config, example_source_id: 'demo-1'},
     });
     expect(withExamples([ownChat], [demo, copy])).toEqual([ownChat]);
+  });
+});
+
+describe('layout session memory', () => {
+  beforeEach(() => {
+    installLayoutMocks();
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('remembers the side per session', () => {
+    writeSessionSide('run-1', 'chat');
+    expect(preferredSessionSide('run-1')).toBe('chat');
   });
 });
