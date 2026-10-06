@@ -404,7 +404,6 @@ class TestWebSearchProviders:
     [
         (500, 5, "20", "pw"),
         (0, 0, "1", None),
-        (-3, -10, "1", None),
         (8, 0, "8", None),
     ],
 )

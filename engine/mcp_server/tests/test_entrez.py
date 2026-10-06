@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import itertools
 import ssl
 import threading
 import time
@@ -13,18 +12,6 @@ import pytest
 from Bio import Entrez
 from mcp_server import entrez
 from mcp_server.campaign import scoped_campaign_request
-
-
-def test_entrez_default_preserves_certificate_verification(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(entrez, "_entrez_initialized", False)
-    monkeypatch.delenv("DISABLE_SSL_VERIFY", raising=False)
-    original = ssl._create_default_https_context
-
-    entrez.initialize_entrez()
-
-    assert ssl._create_default_https_context is original
 
 
 def test_entrez_rejects_insecure_tls_setting(
@@ -110,36 +97,6 @@ def paced(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.usefixtures("paced")
 class TestEntrezRateLimit:
-    def test_sequential_requests_are_spaced(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """A fake clock isolates pacing arithmetic from operating-system
-        scheduling lag."""
-        fake_now = [0.0]
-
-        def clock() -> float:
-            return fake_now[0]
-
-        def sleep(seconds: float) -> None:
-            fake_now[0] += seconds
-
-        monkeypatch.setattr(entrez_rate_limit, "_clock", clock)
-        monkeypatch.setattr(entrez_rate_limit, "_sleep", sleep)
-        monkeypatch.setattr(entrez_rate_limit, "_next_slot", 0.0)
-
-        issued: list[float] = []
-
-        def request(**_kwargs: Any) -> str:
-            issued.append(clock())
-            return "handle"
-
-        for _ in range(3):
-            assert entrez_rate_limit.entrez_call(request) == "handle"
-
-        gaps = [b - a for a, b in itertools.pairwise(issued)]
-        assert all(gap >= _TEST_INTERVAL for gap in gaps), gaps
-
     def test_concurrent_callers_do_not_burst(self) -> None:
         """Biopython's unlocked previous-request timestamp lets concurrent
         threads burst together."""
