@@ -65,8 +65,13 @@ jobs:
               - '.github/actions/**'
               - '.github/ci_shard.py'
               - '.ruff.toml'
-              - 'app/**'
-              - '!app/frontend/**'
+              # Patterns are OR'd, so a lone negation would match every path
+              # outside the frontend; list the backend paths instead.
+              - 'app/*'
+              - 'app/app/**'
+              - 'app/tests/**'
+              - 'app/dev/**'
+              - 'app/docker/**'
               - 'engine/**'
               - '.github/workflows/ci.yml'
             frontend:
