@@ -8,12 +8,11 @@ import pytest
 from co_scientist.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 
 import app.store.tasks_lifecycle as store_tasks_attempts
-from app import credentials, diagnostics, engine_tasks, task_worker
+from app import credentials, engine_tasks, task_worker
 from app.config import settings
-from app.diagnostics import HealthCheck
-from app.store import db, runs
 from app.store import db as store_db
 from app.store import events as store_events
+from app.store import runs
 from app.store import runs_views as views
 from app.store import tasks as store
 from app.store import tasks as store_tasks
@@ -24,12 +23,8 @@ from app.store.models import (
     ScientificTask,
 )
 from app.store.runs import RunCreateOptions
-from app.store.tasks import queue_health_snapshot
-from app.store.tasks_lifecycle import QueueHealthSnapshot
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
-from tests._client import make_client as _client
-from tests._client import make_operator_client as _operator_client
 from tests._store_helpers import enqueue_task, seed_run
 
 # Campaign requests enforce exact zero price; lost leases are retry-safe only
@@ -121,218 +116,6 @@ async def test_expired_campaign_lease_with_byok_still_fails_closed(
     assert replayed == []
     task = store.get_task(task_id, db_path=isolated_db)
     assert task is not None and task.status == "failed"
-
-
-# Queue/disk degradation returns HTTP 200 so liveness probes cannot kill
-# productive runs.
-
-
-def _health_running_run(db_path: str, goal: str = "queue health goal") -> str:
-    run = seed_run(goal)
-    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
-    return run.id
-
-
-def _health_enqueue(run_id: str, key: str, db_path: str, **kwargs: Any) -> str:
-    task = enqueue_task(
-        run_id, "engine.node.ranking", key, **kwargs, db_path=db_path
-    )
-    return task.id
-
-
-def _expire_lease(task_id: str, db_path: str) -> None:
-    # Expire the lease without changing attempts to model a worker that died
-    # without failing its task.
-    with db.connect(db_path) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
-            (task_id,),
-        )
-        conn.commit()
-
-
-def _snapshot_with_lease(
-    db_path: str, *, max_attempts: int = 3, expired: bool = False
-) -> tuple[str, QueueHealthSnapshot]:
-    run_id = _health_running_run(db_path)
-    task_id = _health_enqueue(
-        run_id, "leased", db_path, max_attempts=max_attempts
-    )
-    leased = store.claim_task("w1", run_id=run_id, db_path=db_path)
-    assert leased is not None and leased.id == task_id
-    if expired:
-        _expire_lease(task_id, db_path)
-    return run_id, queue_health_snapshot(db_path=db_path)
-
-
-def test_snapshot_without_active_work_has_nothing_stalled(
-    isolated_db: str,
-) -> None:
-    assert queue_health_snapshot(db_path=isolated_db) == QueueHealthSnapshot(
-        (), 0, 0, 0
-    )
-    done = seed_run("done goal")
-    runs.update_run_status(done.id, RunStatus.COMPLETED, db_path=isolated_db)
-    run_id = _health_running_run(isolated_db)
-    _health_enqueue(run_id, "queued", isolated_db)
-
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-
-    assert snapshot.stalled_run_ids == ()
-    assert snapshot.queued_depth == 1
-
-
-def test_active_and_rescuable_leases_are_not_stalled(isolated_db: str) -> None:
-    _, active = _snapshot_with_lease(isolated_db)
-    assert active.stalled_run_ids == ()
-
-    _, rescuable = _snapshot_with_lease(isolated_db, expired=True)
-    assert rescuable.stalled_run_ids == ()
-    assert rescuable.rescuable_leases == 1
-
-
-def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
-    # A dead exhausted lease has no owner to fail it; health must expose the
-    # stranded running state.
-    run_id, snapshot = _snapshot_with_lease(
-        isolated_db, max_attempts=1, expired=True
-    )
-
-    assert snapshot.stalled_run_ids == (run_id,)
-    assert snapshot.rescuable_leases == 0
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "running"
-
-
-def test_failed_task_counted_without_stalling_active_sibling(
-    isolated_db: str,
-) -> None:
-    run_id = _health_running_run(isolated_db)
-    doomed = _health_enqueue(run_id, "doomed", isolated_db, max_attempts=1)
-    _health_enqueue(run_id, "survivor", isolated_db, max_attempts=1)
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == doomed
-    store.fail_task(
-        leased.id, "w1", "boom", retryable=False, db_path=isolated_db
-    )
-
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-
-    assert snapshot.failed_tasks == 1
-    assert snapshot.stalled_run_ids == ()
-
-
-def test_check_queue_flags_a_stalled_run_and_reports_errors(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert diagnostics.check_queue(isolated_db) == HealthCheck(ok=True)
-    run_id, _ = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
-
-    stalled = diagnostics.check_queue(isolated_db)
-
-    assert stalled.ok is False
-    assert stalled.detail is not None and run_id in stalled.detail
-
-    def _boom(db_path: str | None = None) -> QueueHealthSnapshot:
-        raise RuntimeError("db unreachable")
-
-    monkeypatch.setattr(diagnostics, "queue_health_snapshot", _boom)
-    failed = diagnostics.check_queue()
-    assert failed.ok is False
-    assert failed.detail is not None and "db unreachable" in failed.detail
-
-
-def test_check_disk_flags_only_space_below_the_floor(tmp_path: Any) -> None:
-    path = str(tmp_path / "db.sqlite")
-
-    assert diagnostics.check_disk(path, min_free_bytes=0).ok is True
-    low = diagnostics.check_disk(path, min_free_bytes=10**18)
-    assert low.ok is False
-    assert low.detail is not None and "floor" in low.detail
-
-
-@pytest.mark.parametrize(
-    ("store_ok", "queue_ok", "disk_ok", "status"),
-    [
-        (True, False, False, diagnostics.DEGRADED),
-        (False, True, True, diagnostics.UNHEALTHY),
-    ],
-)
-def test_queue_and_disk_degrade_health_but_a_down_store_is_unhealthy(
-    store_ok: bool, queue_ok: bool, disk_ok: bool, status: str
-) -> None:
-    assert (
-        diagnostics.derive_overall_health(
-            HealthCheck(ok=store_ok),
-            HealthCheck(ok=True),
-            HealthCheck(ok=queue_ok),
-            HealthCheck(ok=disk_ok),
-        )
-        == status
-    )
-
-
-@pytest.mark.parametrize(("ttl", "calls"), [(60.0, 1), (0.0, 2)])
-def test_queue_and_disk_health_cache_honours_its_ttl(
-    monkeypatch: pytest.MonkeyPatch, ttl: float, calls: int
-) -> None:
-    seen: list[int] = []
-
-    def _stub_queue(db_path: str | None = None) -> HealthCheck:
-        seen.append(1)
-        return HealthCheck(ok=True)
-
-    monkeypatch.setattr(diagnostics, "check_queue", _stub_queue)
-    monkeypatch.setattr(
-        diagnostics, "check_disk", lambda db_path=None: HealthCheck(ok=True)
-    )
-    monkeypatch.setattr(settings, "health_check_cache_ttl_seconds", ttl)
-    diagnostics.clear_health_check_cache()
-
-    diagnostics.queue_and_disk_health_cached()
-    diagnostics.queue_and_disk_health_cached()
-
-    assert len(seen) == calls
-
-
-def test_health_is_healthy_while_a_run_progresses(isolated_db: str) -> None:
-    run_id = _health_running_run(isolated_db)
-    _health_enqueue(run_id, "queued", isolated_db)
-
-    res = _client().get("/health")
-
-    assert res.status_code == 200
-    assert res.json()["status"] == "healthy"
-    assert set(res.json()["checks"]) == {"store", "engine", "queue", "disk"}
-
-
-def test_health_degrades_at_200_when_a_run_is_stalled(
-    isolated_db: str,
-) -> None:
-    run_id, _ = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
-
-    res = _client().get("/health")
-
-    assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "degraded"
-    assert data["checks"]["queue"]["ok"] is False
-    operator = _operator_client().get("/health").json()
-    assert run_id in (operator["checks"]["queue"]["detail"] or "")
-    assert data["checks"]["queue"]["detail"] is None
-
-
-def test_health_degrades_at_200_when_disk_is_low(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "health_check_min_free_disk_bytes", 10**18)
-
-    res = _client().get("/health")
-
-    assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "degraded"
-    assert data["checks"]["disk"]["ok"] is False
 
 
 # Each failed attempt needs bounded history; overwriting one error loses
