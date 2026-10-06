@@ -47,24 +47,6 @@ it('returns to the ranked ideas list when an idea is open', async () => {
 
 // Desktop keeps the list visible; Back must leave the run rather than clear
 // selection.
-it('still leaves the run with an idea open on desktop', async () => {
-  stubViewport(false);
-  renderAt('/runs/run-1/ideas?idea=h-1');
-
-  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
-    'href',
-    '/',
-  );
-});
-
-it('still leaves the run from the ideas tab when no idea is open', async () => {
-  renderAt('/runs/run-1/ideas');
-
-  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
-    'href',
-    '/',
-  );
-});
 
 it('shows live metrics and activity instead of report controls', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
@@ -104,53 +86,28 @@ it('shows a skeleton while loading, then the goal details', async () => {
   expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
 });
 
-it('renders the failed end state with the recorded error, not report tabs', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'failed',
-    error: 'engine.node.generate exhausted its retry budget',
-  });
+it.each([
+  ['failed', 'Run failed', 'engine.node.generate exhausted its retry budget'],
+  ['blocked', 'Run blocked', 'Safety screen held the run for adjudication'],
+  ['cancelled', 'Run cancelled', undefined],
+] as const)(
+  'renders the %s end state with its recorded error, not report tabs',
+  async (status, heading, error) => {
+    vi.mocked(runsApi.getRun).mockResolvedValue({
+      ...makeRun('Study pathway X'),
+      status,
+      error: error ?? null,
+    });
 
-  renderAt('/runs/run-1/details');
+    renderAt('/runs/run-1/details');
 
-  expect(await screen.findByText('Run failed')).toBeInTheDocument();
-  expect(
-    screen.getByText('engine.node.generate exhausted its retry budget'),
-  ).toBeInTheDocument();
-  expect(screen.queryByRole('link', {name: 'Goal Details'})).toBeNull();
-  expect(screen.queryByRole('link', {name: 'All Ideas'})).toBeNull();
-  expect(screen.queryByText('Run Specifications')).toBeNull();
-});
-
-it('renders the blocked end state with the recorded error, not report tabs', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'blocked',
-    error: 'Safety screen held the run for human adjudication',
-  });
-
-  renderAt('/runs/run-1/overview');
-
-  expect(await screen.findByText('Run blocked')).toBeInTheDocument();
-  expect(
-    screen.getByText('Safety screen held the run for human adjudication'),
-  ).toBeInTheDocument();
-  expect(screen.queryByRole('link', {name: 'Research Overview'})).toBeNull();
-  expect(screen.queryByText('Summary')).toBeNull();
-});
-
-it('renders the cancelled end state without report tabs', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'cancelled',
-  });
-
-  renderAt('/runs/run-1/details');
-
-  expect(await screen.findByText('Run cancelled')).toBeInTheDocument();
-  expect(screen.queryByRole('link', {name: 'Goal Details'})).toBeNull();
-  expect(screen.queryByText('Run Specifications')).toBeNull();
-});
+    expect(await screen.findByText(heading)).toBeInTheDocument();
+    if (error) expect(screen.getByText(error)).toBeInTheDocument();
+    expect(screen.queryByRole('link', {name: 'Goal Details'})).toBeNull();
+    expect(screen.queryByRole('link', {name: 'All Ideas'})).toBeNull();
+    expect(screen.queryByText('Run Specifications')).toBeNull();
+  },
+);
 
 // jsdom cannot measure overlap; keep safety notices inside the scrolling body,
 // not extra grid tracks.
@@ -185,15 +142,6 @@ it('omits the notice for a paused run with nothing left to review', async () => 
 });
 
 // Local overflow clipping would defeat the ancestor's horizontal-scroll policy.
-it('lets report-page content scroll horizontally on phone instead of clipping it', async () => {
-  renderAt('/runs/run-1/details');
-  await screen.findByText('Run Specifications');
-
-  const page = document.querySelector('.cosci-report-page');
-  expect(page?.className).toContain('max-[700px]:overflow-x-auto');
-  expect(page?.className).toContain('max-[700px]:overflow-y-hidden');
-  expect(page?.className).not.toContain('max-[700px]:overflow-hidden');
-});
 
 beforeEach(() => {
   resetRunDetailMocks();

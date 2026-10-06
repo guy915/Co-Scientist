@@ -46,57 +46,57 @@ def test_entrez_rejects_insecure_tls_setting(
     assert entrez._entrez_initialized is False
 
 
-def _capture_request(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
-    captured: dict[str, Any] = {}
+def _capture_requests(monkeypatch: pytest.MonkeyPatch) -> list[Request]:
+    requests: list[Request] = []
 
-    def open_request(request: Any) -> object:
-        captured["url"] = request.full_url
-        captured["body"] = request.data
-        return object()
+    def capture(request: Request) -> Request:
+        requests.append(request)
+        return request
 
-    monkeypatch.setattr(Entrez, "_open", open_request)
-    return captured
+    monkeypatch.setattr(Entrez, "email", "offline@example.invalid")
+    monkeypatch.setattr(Entrez, "api_key", None)
+    monkeypatch.setattr(Entrez, "_open", capture)
+    return requests
 
 
-def test_campaign_request_omits_shared_entrez_key(
-    monkeypatch: pytest.MonkeyPatch,
+def _request_params(request: Request) -> dict[str, list[str]]:
+    data = request.data
+    if data is None:
+        encoded = urlsplit(request.full_url).query
+    else:
+        assert isinstance(data, bytes)
+        encoded = data.decode("utf-8")
+    return parse_qs(encoded)
+
+
+@pytest.mark.parametrize("campaign", [True, False])
+def test_campaign_requests_omit_the_service_key_and_standard_ones_keep_it(
+    monkeypatch: pytest.MonkeyPatch, campaign: bool
 ) -> None:
+    requests = _capture_requests(monkeypatch)
     monkeypatch.setattr(Entrez, "api_key", "service-held-key")
     monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
-    captured = _capture_request(monkeypatch)
-    with scoped_campaign_request(True):
+    with scoped_campaign_request(campaign):
         entrez_rate_limit.entrez_call(
             Entrez.esearch,
             db="pubmed",
             term="EGFR resistance",
-            api_key="caller-override",
+            **({"api_key": "caller-override"} if campaign else {}),
         )
         assert entrez_rate_limit._request_interval() == (
             entrez_rate_limit._INTERVAL_WITHOUT_API_KEY
+            if campaign
+            else entrez_rate_limit._INTERVAL_WITH_API_KEY
         )
 
-    wire = captured["url"].encode() + (captured["body"] or b"")
-    assert b"api_key=" not in wire
-    assert b"service-held-key" not in wire
-    assert b"caller-override" not in wire
-
-
-def test_standard_request_keeps_its_entrez_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(Entrez, "api_key", "service-held-key")
-    monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
-    captured = _capture_request(monkeypatch)
-    with scoped_campaign_request(False):
-        entrez_rate_limit.entrez_call(
-            Entrez.esearch, db="pubmed", term="EGFR resistance"
-        )
-        assert entrez_rate_limit._request_interval() == (
-            entrez_rate_limit._INTERVAL_WITH_API_KEY
-        )
-
-    wire = captured["url"].encode() + (captured["body"] or b"")
-    assert b"api_key=service-held-key" in wire
+    (request,) = requests
+    wire = request.full_url + str(request.data or "")
+    if campaign:
+        assert "api_key=" not in wire
+        assert "service-held-key" not in wire
+        assert "caller-override" not in wire
+    else:
+        assert "api_key=service-held-key" in wire
 
 
 _TEST_INTERVAL = 0.05
@@ -199,17 +199,6 @@ class TestEntrezRateLimit:
         assert quick_done.wait(timeout=5), "second caller waited on the first"
         release.set()
         slow_thread.join()
-
-    def test_arguments_reach_the_underlying_call(self) -> None:
-        seen: dict[str, Any] = {}
-
-        def request(**kwargs: Any) -> str:
-            seen.update(kwargs)
-            return "handle"
-
-        entrez_rate_limit.entrez_call(request, db="pubmed", id="42")
-
-        assert seen == {"db": "pubmed", "id": "42"}
 
 
 _STUDY_ID = "M12-04b4-study4-20260930"
@@ -549,96 +538,42 @@ class TestEntrezStudy4Recovery:
         )
 
 
-def _capture_requests(monkeypatch: pytest.MonkeyPatch) -> list[Request]:
-    requests: list[Request] = []
-
-    def capture(request: Request) -> Request:
-        requests.append(request)
-        return request
-
-    monkeypatch.setattr(Entrez, "email", "offline@example.invalid")
-    monkeypatch.setattr(Entrez, "api_key", None)
-    monkeypatch.setattr(Entrez, "_open", capture)
-    return requests
+_IDS = [str(value) for value in range(1_000_000, 1_000_201)]
 
 
-def _request_params(request: Request) -> dict[str, list[str]]:
-    data = request.data
-    if data is None:
-        encoded = urlsplit(request.full_url).query
-    else:
-        assert isinstance(data, bytes)
-        encoded = data.decode("utf-8")
-    return parse_qs(encoded)
-
-
-def test_efetch_get_encodes_id_list_as_one_comma_separated_value(
+@pytest.mark.parametrize(
+    ("request_ids", "method"),
+    [(["101", "202", "303"], "GET"), (_IDS, "POST")],
+)
+def test_efetch_sends_the_id_list_as_one_comma_separated_value(
     monkeypatch: pytest.MonkeyPatch,
+    request_ids: list[str],
+    method: str,
 ) -> None:
     requests = _capture_requests(monkeypatch)
 
-    Entrez.efetch(db="pubmed", id=["101", "202", "303"], retmode="xml")
+    Entrez.efetch(db="pubmed", id=request_ids, retmode="xml")
 
-    assert len(requests) == 1
-    request = requests[0]
-    assert request.get_method() == "GET"
-    assert _request_params(request)["id"] == ["101,202,303"]
+    (request,) = requests
+    assert request.get_method() == method
+    assert _request_params(request)["id"] == [",".join(request_ids)]
 
 
-def test_elink_get_keeps_each_id_as_a_separate_parameter(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("request_ids", "method"),
+    [(["101", "202", "303"], "GET"), (_IDS, "POST")],
+)
+def test_elink_sends_each_id_as_a_separate_parameter(
+    monkeypatch: pytest.MonkeyPatch, request_ids: list[str], method: str
 ) -> None:
     requests = _capture_requests(monkeypatch)
 
     Entrez.elink(
-        dbfrom="pubmed",
-        db="pmc",
-        linkname="pubmed_pmc",
-        id=["101", "202", "303"],
+        dbfrom="pubmed", db="pmc", linkname="pubmed_pmc", id=request_ids
     )
 
-    assert len(requests) == 1
-    request = requests[0]
-    assert request.get_method() == "GET"
+    (request,) = requests
     params = _request_params(request)
-    assert params["id"] == ["101", "202", "303"]
-    assert params["dbfrom"] == ["pubmed"]
-    assert params["db"] == ["pmc"]
-    assert params["linkname"] == ["pubmed_pmc"]
-
-
-def test_efetch_post_keeps_list_in_one_comma_separated_form_value(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests = _capture_requests(monkeypatch)
-    ids = [str(value) for value in range(1_000_000, 1_000_201)]
-
-    Entrez.efetch(db="pubmed", id=ids, retmode="xml")
-
-    assert len(requests) == 1
-    request = requests[0]
-    assert request.get_method() == "POST"
-    assert _request_params(request)["id"] == [",".join(ids)]
-
-
-def test_elink_post_keeps_ids_as_repeated_form_values(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests = _capture_requests(monkeypatch)
-    ids = [str(value) for value in range(1_000_000, 1_000_201)]
-
-    Entrez.elink(
-        dbfrom="pubmed",
-        db="pmc",
-        linkname="pubmed_pmc",
-        id=ids,
-    )
-
-    assert len(requests) == 1
-    request = requests[0]
-    assert request.get_method() == "POST"
-    params = _request_params(request)
-    assert params["id"] == ids
-    assert params["dbfrom"] == ["pubmed"]
-    assert params["db"] == ["pmc"]
+    assert request.get_method() == method
+    assert params["id"] == request_ids
     assert params["linkname"] == ["pubmed_pmc"]

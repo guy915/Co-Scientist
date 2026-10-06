@@ -43,15 +43,10 @@ def _field_tagged_term(term: str) -> str:
 
 
 def field_tag_terms(query: str, joiner: str) -> str:
-    """Retagging explicit Boolean structure would override the caller's query
-    intent.
+    """Callers screen out explicit Boolean queries first; retagging them would
+    override the caller's query intent.
     """
-    if _has_boolean_structure(query):
-        return query
-    terms = query.split()
-    if not terms:
-        return query
-    return joiner.join(_field_tagged_term(term) for term in terms)
+    return joiner.join(_field_tagged_term(term) for term in query.split())
 
 
 # Two leading terms anchor the topic; one is broad, while three can reproduce

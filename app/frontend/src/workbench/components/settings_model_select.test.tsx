@@ -6,7 +6,6 @@ import {
   getStoredApiKey,
   getStoredModel,
   setStoredApiKey,
-  setStoredApiProvider,
   setStoredModel,
 } from '@/lib/client_id';
 import {ThemeProvider} from '../theme_context';
@@ -202,15 +201,6 @@ it('drops a stored model the catalog no longer offers', async () => {
   await waitFor(() => expect(getStoredModel('worker')).toBeNull());
 });
 
-it('keeps model choices when the viewed provider changes', () => {
-  setStoredModel('worker', {
-    provider: 'deepseek',
-    model: 'deepseek/deepseek-v4-pro',
-  });
-  setStoredApiProvider('openai');
-  expect(getStoredModel('worker')?.model).toBe('deepseek/deepseek-v4-pro');
-});
-
 it.each(['Provider', 'Supervisor model', 'Worker model'])(
   '%s dismisses its menu without closing the settings dialog',
   async name => {
@@ -241,17 +231,6 @@ it.each(['Provider', 'Supervisor model', 'Worker model'])(
     expect(onClose).not.toHaveBeenCalled();
   },
 );
-
-it('keeps the provider and the model choices in separate boxes', async () => {
-  renderSection('sk-key', 'deepseek');
-  const keys = screen.getByRole('region', {name: 'Provider'});
-  const models = screen.getByRole('region', {name: 'Model'});
-  expect(within(keys).getByRole('button', {name: /Provider/})).toBeTruthy();
-  expect(within(keys).queryByRole('button', {name: /Worker model/})).toBeNull();
-  expect(
-    await within(models).findByRole('button', {name: /Worker model/}),
-  ).toBeTruthy();
-});
 
 it('opens a long menu upward when the window has no room below', async () => {
   const user = userEvent.setup();

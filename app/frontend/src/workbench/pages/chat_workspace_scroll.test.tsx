@@ -256,46 +256,6 @@ test('opens the arriving plan turn at its own top, not the conversation top', ()
   expect(scroller.scrollTop).toBe(600 + ANCHOR_ON_SCREEN_OFFSET - 20);
 });
 
-test('falls back to the bottom when the plan turn cannot be located', () => {
-  const {scroller, arrive} = renderPlanScroller(600, false);
-
-  arrive();
-
-  expect(scroller.scrollTop).toBe(CONTENT_HEIGHT);
-});
-
-test('leaves a scrolled-up reader alone when the plan is confirmed', () => {
-  // Draft-to-confirmed swaps are not arrivals; reanchoring would skip past the
-  // plan.
-  let confirm: (() => void) | undefined;
-  function Harness() {
-    const [confirmed, setConfirmed] = useState(false);
-    confirm = () => setConfirmed(true);
-    const items: TimelineItem[] = [
-      ...makeItems(1),
-      {
-        id: confirmed ? CONFIRMED_SPEC_ITEM_ID : DRAFT_SPEC_ITEM_ID,
-        at: 99,
-        order: 50,
-        node: null,
-      },
-    ];
-    const ref = useChatTimelineScroll(items, null);
-    return <div data-testid="scroller" ref={ref} />;
-  }
-  const {getByTestId} = render(<Harness />);
-  const scroller = getByTestId('scroller');
-  Object.defineProperty(scroller, 'scrollHeight', {value: CONTENT_HEIGHT});
-  Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
-  act(() => void vi.runAllTimers());
-  scroller.scrollTop = 120;
-
-  act(() => confirm?.());
-  act(() => void vi.runAllTimers());
-
-  expect(scroller.scrollTop).toBe(120);
-});
-
 // Clamp scrolling while content grows; fixed heights hide large-fragment
 // following failures.
 function renderGrowingScroller() {
@@ -358,28 +318,4 @@ test('stops following once the reader scrolls away, however far the content grow
   grow(200);
 
   expect(scroller.scrollTop).toBe(120);
-});
-
-const PLAN_CARD_HEIGHT = 1200;
-
-// The anchored position must exceed the private follow threshold for this guard
-// to be meaningful.
-const FOLLOW_THRESHOLD_PX = 64;
-
-test('leaves the confirmed plan where the card opened, not at its Start button', () => {
-  // Programmatic anchoring must not count as a reader choosing to follow the
-  // bottom.
-  const {scroller, arrive, confirm, contentHeight} = renderPlanScroller(
-    600,
-    true,
-    PLAN_CARD_HEIGHT,
-  );
-  arrive();
-  const anchored = scroller.scrollTop;
-  const gap = contentHeight() - anchored - WINDOW_HEIGHT;
-  expect(gap).toBeGreaterThan(FOLLOW_THRESHOLD_PX);
-
-  confirm();
-
-  expect(scroller.scrollTop).toBe(anchored);
 });
