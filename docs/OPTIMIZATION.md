@@ -31,6 +31,28 @@ Everything that affects speed, cost, reliability or quality of experience:
   posture, error messages, observability, licensing and anything else a
   public, professional repository is expected to have.
 
+## Owner decisions (6 October 2026)
+
+- **Public scope:** the GitHub repository and the product both go public.
+  Prepare the repository for open source: license and notice check,
+  `SECURITY.md`, a contributing guide, issue and PR templates, a README a
+  newcomer can follow, and a secret scan of the current tree. Git history
+  will be reset before publication, so do not scan or rewrite it.
+- **Internal files stay:** `AGENTS.md` guides, `.remember/`, `PLAN.md`, the
+  campaign plans and `docs/test-campaign/` remain in the public repository.
+- **Priorities:** run speed, quality per token, app feel and development
+  speed matter equally.
+- **Models:** tune reasoning effort, token budgets, prompts, caching and
+  retries per call type. Free routes stay the only defaults; do not switch to
+  other models.
+- **Run time:** no fixed target. A standard run takes over three hours; any
+  improvement without quality loss is wanted, and a minimal quality loss is
+  acceptable for a non-trivial speed gain, stated in the PR with the
+  benchmark scores.
+- **Monitoring:** add free-tier error tracking for the backend and frontend
+  and an external uptime check for the site and API. New accounts, keys and
+  env vars are set up by the owner.
+
 ## Starting evidence (6 October 2026)
 
 Measured in production and CI. Each number is a starting point to confirm and
@@ -57,11 +79,15 @@ measure again, not a finished diagnosis.
 
 ## Guardrails
 
-- **Quality does not drop.** Before and after every change that affects model
-  output, run the quality benchmark: `evaluations/golden_run.py` on a fixed
-  set of research goals, plus `claim_support_eval.py` and
-  `citation_usefulness_eval.py`. A token saving that lowers a benchmark score
-  beyond its run-to-run noise is reverted. Record the scores in the PR.
+- **Quality holds.** At the start, record a baseline with the quality
+  benchmark: `evaluations/golden_run.py` on eight runs, two at each run size
+  (Express, Standard, Extended, Ultra), scored with `claim_support_eval.py`
+  and `citation_usefulness_eval.py`; the spread between paired runs is the
+  noise floor. After that, check model-affecting changes with a lighter run
+  (one Express run, or more when the change is risky) and re-run the full
+  baseline at milestones. Revert a change whose scores fall beyond the noise
+  floor unless it is a non-trivial speed gain with a minimal, stated loss.
+  Record the scores in the PR.
 - **Behavior stays identical** unless a change is the point of the PR and says
   so. Every invariant in `docs/OPERATIONS.md` holds: durable task idempotency,
   leases, retry budgets, bounded calls, spend caps, evidence gates,
