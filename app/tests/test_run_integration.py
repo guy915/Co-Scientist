@@ -13,19 +13,14 @@ from httpx import ASGITransport
 
 from app import seed
 from app.config import settings
-from app.demo_seed_data import (
-    DEMO_SCENARIOS,
-    DEMO_SEED_VERSION,
-    scenario_hypotheses,
-)
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
+from app.store import db, messages, records, reports
 from app.store import events as store_events
 from app.store import hypotheses as store_hypotheses
-from app.store import messages, records, reports
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
@@ -517,77 +512,100 @@ def _seed(db_path: str) -> None:
     asyncio.run(seed.seed_demo_runs(db_path=db_path))
 
 
-def test_seed_demo_runs_creates_three_runs_with_reports(
+def _demo_runs(db_path: str) -> list[RunRow]:
+    return views.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
+
+
+def test_seed_demo_runs_loads_three_marked_runs_with_their_rows(
     isolated_db: str,
 ) -> None:
     _seed(isolated_db)
 
-    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    runs = _demo_runs(isolated_db)
     assert len(runs) == 3
-    goals = {r.research_goal for r in runs}
-    assert goals == set(seed._DEMO_GOALS)
     for run in runs:
         assert run.status == "completed"
         assert run.llm_backend == "offline"
-        assert store.run_used_offline(run)
-        md = reports.read_report_markdown(run.id, db_path=isolated_db)
-        assert md is not None and "Research Report" in md
-        scenario = DEMO_SCENARIOS[run.research_goal]
-        expected_ideas = len(scenario_hypotheses(scenario))
-        hypotheses = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-        assert len(hypotheses) == expected_ideas
-        evidence = records.list_evidence(run.id, db_path=isolated_db)
-        assert len(evidence) == 6
-        assert all(item["pmid"] for item in evidence)
-        assert "\n## References\n" in md
-        assert md.count("\n- [") == 6
-        assert len(records.list_matches(run.id, db_path=isolated_db)) == (
-            expected_ideas - 1 + expected_ideas // 2
-        )
-        assert all(hypothesis["win_count"] + hypothesis["loss_count"] for hypothesis in hypotheses)
-        assert "Curated demonstration only" in md
-        assert "\n## Evaluation Criteria\n" in md
-        assert "\n### Unexpected research directions\n" in md
-        assert md.index("## Main Research Directions") < md.index("## Top hypotheses")
+        assert run.config["demo_seed_version"] == run.config["example_chat_version"]
+        assert run.config["interview_id"]
         report = reports.get_latest_report(run.id, db_path=isolated_db)
-        assert report is not None
-        assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
-        assert len(report["payload"]["knowledge_base"]) == 6
+        assert report is not None and "Research Report" in (report["markdown_text"] or "")
+        hypotheses = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
+        assert hypotheses
+        assert len(records.list_evidence(run.id, db_path=isolated_db)) == 6
+        assert records.list_matches(run.id, db_path=isolated_db)
+        assert records.list_reviews(run.id, db_path=isolated_db)
+        assert messages.list_messages(run.id, db_path=isolated_db)
 
 
-def test_seed_demo_runs_is_idempotent_when_reports_exist(
-    isolated_db: str,
-) -> None:
+def test_seed_demo_runs_is_idempotent_when_runs_are_current(isolated_db: str) -> None:
     _seed(isolated_db)
     before = {
-        r.id: reports.get_latest_report(r.id, db_path=isolated_db)
-        for r in views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+        r.id: reports.get_latest_report(r.id, db_path=isolated_db) for r in _demo_runs(isolated_db)
     }
 
     _seed(isolated_db)
 
-    after_runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
-    assert len(after_runs) == 3
-    assert {r.id for r in after_runs} == set(before)
-    for run in after_runs:
+    after = _demo_runs(isolated_db)
+    assert {r.id for r in after} == set(before)
+    for run in after:
         report = reports.get_latest_report(run.id, db_path=isolated_db)
-        assert report is not None
-        seeded_at = before[run.id]["created_at"]  # type: ignore[index]
-        assert report["created_at"] == seeded_at
+        assert report == before[run.id]
 
 
-def test_failed_demo_seed_is_logged_and_never_aborts_startup(
+def test_seed_demo_runs_replaces_a_stale_run_keeping_its_id(isolated_db: str) -> None:
+    _seed(isolated_db)
+    stale = _demo_runs(isolated_db)[0]
+    store.set_run_config(stale.id, {**stale.config, "example_chat_version": 1}, db_path=isolated_db)
+    with db.connect(isolated_db) as conn:
+        conn.execute("DELETE FROM hypotheses WHERE run_id=?", (stale.id,))
+
+    _seed(isolated_db)
+
+    runs = _demo_runs(isolated_db)
+    assert len(runs) == 3
+    fresh = next(r for r in runs if r.id == stale.id)
+    assert fresh.config["example_chat_version"] == fresh.config["demo_seed_version"]
+    assert store_hypotheses.list_hypotheses(stale.id, db_path=isolated_db)
+    with db.connect(isolated_db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM interviews").fetchone()[0] == 3
+
+
+def test_unreadable_demo_snapshot_is_logged_and_never_aborts_startup(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    async def _boom(goal: str, run: RunRow | None, db_path: str | None) -> None:
-        raise RuntimeError("seed failure")
+    def _boom() -> dict[str, Any]:
+        raise RuntimeError("bad snapshot")
 
-    monkeypatch.setattr(seed, "_seed_demo_run", _boom)
+    monkeypatch.setattr(seed, "_read_snapshot", _boom)
 
     with caplog.at_level(logging.ERROR, logger="app.seed"):
         _seed(isolated_db)
 
-    assert "Failed to seed demo run" in caplog.text
-    assert views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db) == []
+    assert "Failed to read the demo run snapshot" in caplog.text
+    assert _demo_runs(isolated_db) == []
+
+
+def test_failed_demo_run_load_does_not_stop_the_other_examples(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    real = seed._load_run
+    calls: list[str] = []
+
+    def _flaky(snapshot: dict[str, Any], run_row: dict[str, Any], *rest: Any) -> None:
+        calls.append(run_row["id"])
+        if len(calls) == 1:
+            raise RuntimeError("load failure")
+        real(snapshot, run_row, *rest)
+
+    monkeypatch.setattr(seed, "_load_run", _flaky)
+
+    with caplog.at_level(logging.ERROR, logger="app.seed"):
+        _seed(isolated_db)
+
+    assert "Failed to load demo run" in caplog.text
+    assert len(_demo_runs(isolated_db)) == 2
