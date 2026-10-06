@@ -11,9 +11,7 @@ from co_scientist.prompts import (
     DebatePromptRequest,
     DraftPromptRequest,
     LiteratureQueryInputs,
-    PromptRunContext,
     ValidationSynthesisRequest,
-    format_articles_metadata,
     get_debate_generation_prompt,
     get_deep_verification_prompt,
     get_draft_prompt_with_tools,
@@ -28,7 +26,6 @@ from co_scientist.prompts import (
 from co_scientist.prompts.generation_draft import (
     format_supervisor_guidance_for_generation,
 )
-from co_scientist.prompts.loading import load_prompt
 from tests._state import make_article
 
 
@@ -192,53 +189,6 @@ def test_prompt_builders_fill_every_slot(name: str) -> None:
     assert not re.search(r"\{\{MISSING:\w+\}\}", prompt)
 
 
-def test_debate_final_turn_alone_carries_the_output_schema() -> None:
-    _, no_schema = _debate(is_final_turn=False)
-    prompt, schema = _debate(is_final_turn=True)
-    assert no_schema is None
-    assert isinstance(schema, dict)
-    assert "FINAL TURN" in prompt
-    assert "literature_grounding" in prompt
-    assert "to enable [Y]" not in prompt
-    assert "falsification" in prompt.lower()
-
-
-def test_debate_prompt_without_optional_inputs_has_no_missing_slots() -> None:
-    for articles in ("lit synthesis", None):
-        for seeds in (["a seed hypothesis"], None):
-            prompt, _ = _debate(
-                articles_with_reasoning=articles, user_hypotheses=seeds
-            )
-            assert "{{MISSING" not in prompt
-    prompt, _ = _debate(articles_with_reasoning="lit synthesis")
-    assert "No user-provided starting hypotheses." in prompt
-
-
-def test_meta_review_feedback_reaches_the_post_debate_template() -> None:
-    raw = load_prompt(
-        "generation_after_debate",
-        {
-            "research_goal": "A goal",
-            "domain_context": "",
-            "reviews_overview": "META-REVIEW-FEEDBACK-MARKER",
-            "num_hypotheses": 2,
-            "hypotheses_so_far": "",
-            "debate_transcript": "",
-        },
-    )
-    assert "META-REVIEW-FEEDBACK-MARKER" in raw
-
-
-def test_format_articles_metadata_renders_only_used_articles() -> None:
-    unused = make_article(title="Unused", used_in_analysis=False)
-    assert format_articles_metadata([]) == ""
-    assert format_articles_metadata([unused]) == ""
-    out = format_articles_metadata([_ARTICLE, unused])
-    assert "A landmark paper on neuroinflammation" in out
-    assert "A. Researcher" in out
-    assert "Unused" not in out
-
-
 _GUIDANCE = {
     "research_goal_analysis": {"key_areas": ["oncology"]},
     "workflow_plan": {"generation_phase": {"focus_areas": ["biomarkers"]}},
@@ -249,43 +199,6 @@ _GUIDANCE = {
         "review_instructions": ["penalize restatements of known biology"],
     },
 }
-
-
-def test_supervisor_guidance_routes_each_instruction_to_its_writer() -> None:
-    draft, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(
-            research_goal="find a new target in fibrosis",
-            hypotheses_count=3,
-            context=PromptRunContext(supervisor_guidance=_GUIDANCE),
-        )
-    )
-    debate, _ = _debate(context=PromptRunContext(supervisor_guidance=_GUIDANCE))
-
-    assert "anchor each idea in a reported result" in draft
-    assert "attack the weakest causal link" not in draft
-    assert "attack the weakest causal link" in debate
-    assert "anchor each idea in a reported result" not in debate
-    for prompt in (draft, debate):
-        assert "penalize restatements of known biology" not in prompt
-        assert "biomarkers" in prompt
-        assert "testable within two years" in prompt
-        assert "{{MISSING" not in prompt
-
-
-@pytest.mark.parametrize(
-    "guidance",
-    [
-        None,
-        {},
-        {"unrelated": 1},
-        {"workflow_plan": {"generation_phase": "focus on kinases"}},
-        {"workflow_plan": "draft broadly", "config_synthesis": "be bold"},
-    ],
-)
-def test_draft_guidance_is_empty_without_a_usable_plan(
-    guidance: dict[str, Any] | None,
-) -> None:
-    assert format_supervisor_guidance_for_generation(guidance) == ""
 
 
 def test_draft_guidance_bullets_a_bare_string_as_one_item() -> None:

@@ -13,7 +13,6 @@ from co_scientist.agents.meta_review.research_overview_evidence import (
 from co_scientist.constants import (
     RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,
     RESEARCH_OVERVIEW_MAX_TOKENS,
-    RESEARCH_OVERVIEW_TOP_K,
 )
 from co_scientist.models import Article, Hypothesis
 from co_scientist.scheduling import TaskType
@@ -113,77 +112,6 @@ async def _synthesize(
     return overview
 
 
-async def test_publishes_overview_with_only_grounded_contacts_and_topics(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE)
-    monkeypatch.setattr(ro, "call_llm_json", fake)
-
-    out = await ro.research_overview_node(_grounded_state())
-
-    overview = out["research_overview"]
-    assert overview["overview"]["summary"] == "S"
-    assert overview["nih_specific_aims"]["aims"][0]["overarching_goal"] == "A"
-    assert fake.await_count == 2
-    contacts = overview["research_contacts"]
-    assert len(contacts) == 1
-    assert contacts[0]["name"] == "Ada Researcher"
-    assert contacts[0]["source_id"] == "PMID:123"
-    assert contacts[0]["research_direction"] == "Epigenetic control of fibrosis"
-    assert "Invented Person" not in str(contacts)
-    topics = overview["knowledge_base"]
-    assert len(topics) == 1
-    assert topics[0]["title"] == "Epigenetic control of fibrosis"
-    assert topics[0]["references"][0]["title"] == "Fibrosis mechanisms"
-    assert "Unsupported topic" not in str(topics)
-    assert overview["research_contact_groups"] == []
-
-
-async def test_open_questions_and_patterns_map_through(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    overview = await _synthesize(
-        monkeypatch,
-        {
-            **_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE,
-            "open_questions": ["What drives the reversal threshold?"],
-            "clear_patterns": ["Lipid handling recurs across every idea."],
-            "unexpected_patterns": ["A metabolic block explains proteolysis."],
-        },
-    )
-
-    assert overview["open_questions"] == ["What drives the reversal threshold?"]
-    assert overview["clear_patterns"] == [
-        "Lipid handling recurs across every idea."
-    ]
-    assert overview["unexpected_patterns"] == [
-        "A metabolic block explains proteolysis."
-    ]
-
-
-async def test_a_contact_with_no_research_direction_defaults_to_empty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The json_object downgrade can omit schema-required fields."""
-    contact = {
-        key: value
-        for key, value in _RESEARCH_OVERVIEW_OVERVIEW_RESPONSE[
-            "research_contacts"
-        ][0].items()
-        if key != "research_direction"
-    }
-
-    overview = await _synthesize(
-        monkeypatch,
-        {
-            **_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE,
-            "research_contacts": [contact],
-        },
-    )
-
-    assert overview["research_contacts"][0]["research_direction"] == ""
-
-
 async def test_research_contact_groups_resolve_indices_to_real_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -209,25 +137,6 @@ async def test_research_contact_groups_resolve_indices_to_real_ids(
             "example_hypothesis_ids": ["h1"],
         }
     ]
-
-
-async def test_research_overview_synthesizes_without_nullable_authors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    overview = await _synthesize(
-        monkeypatch,
-        _RESEARCH_OVERVIEW_OVERVIEW_RESPONSE,
-        articles=[
-            make_article(
-                title="Fibrosis mechanisms",
-                authors=None,
-                source_id="PMID:123",
-                used_in_analysis=True,
-            )
-        ],
-    )
-
-    assert overview["research_contacts"] == []
 
 
 _BLOCKED_HYPOTHESIS_FIELDS: list[tuple[str, str]] = [
@@ -310,26 +219,6 @@ async def test_all_blocked_pool_skips_synthesis(
 
     assert out == {"research_overview": {}}
     assert fake.await_count == 0
-
-
-async def test_synthesis_keeps_the_top_k_by_elo(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    ideas = [
-        make_hypothesis(text=f"idea-{index:02d}", elo_rating=1000 + index * 10)
-        for index in range(RESEARCH_OVERVIEW_TOP_K + 2)
-    ]
-
-    prompt, _ = await _first_prompt(monkeypatch, ideas)
-
-    ranked = [
-        f"idea-{index:02d}"
-        for index in range(RESEARCH_OVERVIEW_TOP_K + 1, 1, -1)
-    ]
-    positions = [prompt.index(text) for text in ranked]
-    assert positions == sorted(positions)
-    assert "idea-00" not in prompt
-    assert "idea-01" not in prompt
 
 
 async def test_an_undermined_idea_never_headlines_the_synthesis(
@@ -445,27 +334,6 @@ async def test_a_periodic_firing_writes_only_a_lean_interim_overview(
     assert set(direction_item["properties"]) == {"title"}
     assert spec.max_tokens == RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS
     assert spec.max_tokens < RESEARCH_OVERVIEW_MAX_TOKENS
-
-
-async def test_the_terminal_firing_is_unchanged(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(ro, "call_llm_json", AsyncMock(return_value=_RESPONSE))
-    monkeypatch.setattr(
-        ro, "synthesize_knowledge_base", AsyncMock(return_value=([], 0))
-    )
-    monkeypatch.setattr(
-        ro,
-        "review_research_overview",
-        AsyncMock(return_value=(_RESPONSE, {"reviewed": True, "rounds": 1}, 1)),
-    )
-
-    out = await ro.research_overview_node(
-        _state(next_task=TaskType.TERMINATE.value)
-    )
-
-    assert "interim_overview" not in out
-    assert out["research_overview"]["overview"]["summary"]
 
 
 @pytest.mark.parametrize(

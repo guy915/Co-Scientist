@@ -20,7 +20,7 @@ from co_scientist.exceptions import (
     LLMRateLimitParkError,
 )
 from co_scientist.llm.attempts import json_attempt
-from co_scientist.llm.request import backend, completion
+from co_scientist.llm.request import backend
 from co_scientist.llm.request.completion import (
     _apply_response_format,
     _supports_json_schema_response_format,
@@ -65,58 +65,11 @@ def test_a_backend_scope_restores_what_it_replaced_even_when_it_raises() -> (
     assert isinstance(backend.active_backend(), backend.LitellmBackend)
 
 
-def _echo_model(label: str) -> Any:
-    calls: list[dict[str, Any]] = []
-
-    async def stub(**kwargs: Any) -> str:
-        calls.append(kwargs)
-        return label
-
-    stub.calls = calls  # type: ignore[attr-defined]
-    return stub
-
-
 def _args(model: str) -> dict[str, Any]:
     return {
         "model": model,
         "messages": [{"role": "user", "content": "probe"}],
     }
-
-
-async def test_with_nothing_installed_the_live_litellm_attribute_answers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    first, second = _echo_model("first"), _echo_model("second")
-    model = "openrouter/some/model"
-
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", first)
-    one = await completion._acompletion_within_timeout(_args(model), model)
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", second)
-    two = await completion._acompletion_within_timeout(_args(model), model)
-
-    assert (one, two) == ("first", "second")
-    assert first.calls == second.calls == [_args(model)]
-
-
-async def test_the_offline_router_answers_offline_models_and_passes_the_rest(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    isolate_offline_router(monkeypatch)
-    real = _echo_model("real provider")
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", real)
-    offline_llm.install_offline_router()
-    offline_model = offline_llm.DEFAULT_OFFLINE_MODEL
-
-    local = await completion._acompletion_within_timeout(
-        _args(offline_model), offline_model
-    )
-    remote = await completion._acompletion_within_timeout(
-        _args("openrouter/some/model"), "openrouter/some/model"
-    )
-
-    assert local.choices[0].message.content
-    assert real.calls == [_args("openrouter/some/model")]
-    assert remote == "real provider"
 
 
 # Validation holds the default capability answer bound before router

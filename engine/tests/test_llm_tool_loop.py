@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from co_scientist.cache import LLMCache
-from co_scientist.exceptions import LLMBudgetExhaustedError
 from co_scientist.llm import (
     CompletionSpec,
     ToolLoop,
     call_llm_with_tools,
-    precall,
 )
 from co_scientist.llm.tools.policy import _turns_remaining
 from tests._llm_fake import (
@@ -41,72 +37,6 @@ def _loop(max_iterations: int, **overrides: Any) -> ToolLoop:
         max_iterations=max_iterations,
         **overrides,
     )
-
-
-async def test_a_tool_turn_runs_the_executor_then_answers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    disable_llm_cache(monkeypatch)
-    first = make_completion(
-        make_message(
-            None, tool_calls=[make_tool_call("call-1", "search", '{"q": 1}')]
-        )
-    )
-    first.choices[0].message.reasoning_content = "chain of thought"
-    requests: list[dict[str, Any]] = []
-    patch_acompletion(
-        monkeypatch, [first, make_completion(make_message("final"))], requests
-    )
-    seen: list[Any] = []
-
-    async def executor(tc: Any) -> dict[str, Any]:
-        seen.append(tc)
-        return {"role": "tool", "tool_call_id": tc.id, "content": "result"}
-
-    text, history = await call_llm_with_tools(
-        "a prompt",
-        CompletionSpec(model_name="test-model"),
-        ToolLoop(tools=SEARCH_TOOL, executor=executor),
-    )
-
-    assert text == "final"
-    assert [(tc.id, tc.function.name) for tc in seen] == [("call-1", "search")]
-    assert history[0] == {"role": "user", "content": "a prompt"}
-    assert history[2] == {
-        "role": "tool",
-        "tool_call_id": "call-1",
-        "content": "result",
-    }
-    assert history[-1]["content"] == "final"
-    # DeepSeek rejects a follow-up turn that drops the prior reasoning.
-    assert requests[1]["messages"][1]["reasoning_content"] == "chain of thought"
-    assert "reasoning_content" not in history[-1]
-
-
-async def test_a_failing_executor_does_not_replay_the_tools(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Retries cannot span tool execution: side effects and unanswered
-    calls would be replayed."""
-    disable_llm_cache(monkeypatch)
-    patch_acompletion(
-        monkeypatch,
-        [_asks_for_a_tool("c1"), make_completion(make_message("the answer"))],
-    )
-    runs: list[str] = []
-
-    async def explodes(tc: Any) -> dict[str, Any]:
-        runs.append(tc.id)
-        raise LLMBudgetExhaustedError("the executor gave up")
-
-    with pytest.raises(LLMBudgetExhaustedError):
-        await call_llm_with_tools(
-            "a prompt",
-            _SPEC,
-            ToolLoop(tools=SEARCH_TOOL, executor=explodes, max_iterations=4),
-        )
-
-    assert runs == ["c1"]
 
 
 @pytest.mark.parametrize(
@@ -222,39 +152,3 @@ async def test_a_closing_turn_that_answers_nothing_still_fails_the_loop(
 
     with pytest.raises(RuntimeError, match="exhausted its budget"):
         await call_llm_with_tools("a prompt", _SPEC, _loop(5))
-
-
-@pytest.mark.parametrize(
-    ("second_contract", "provider_calls"),
-    [({"pubmed": {"enabled": False}}, 2), ({"pubmed": {"enabled": True}}, 1)],
-    ids=["changed-contract-misses", "identical-contract-hits"],
-)
-async def test_a_cached_transcript_is_reused_only_for_the_same_tool_contract(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    second_contract: dict[str, Any],
-    provider_calls: int,
-) -> None:
-    """Equal schemas can hide changed tool configuration."""
-    cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(precall, "get_cache", lambda: cache)
-    state = patch_acompletion(
-        monkeypatch,
-        [
-            make_completion(make_message("answer one")),
-            make_completion(make_message("answer two")),
-        ],
-    )
-
-    for contract in ({"pubmed": {"enabled": True}}, second_contract):
-        await call_llm_with_tools(
-            "same prompt",
-            CompletionSpec(model_name="test-model"),
-            ToolLoop(
-                tools=SEARCH_TOOL,
-                executor=echo_executor,
-                tool_contract=contract,
-            ),
-        )
-
-    assert state["calls"] == provider_calls

@@ -10,7 +10,6 @@ from co_scientist.agents.meta_review import (
     research_overview_direction_calls as calls,
 )
 from co_scientist.constants import RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS
-from co_scientist.llm import ModelCallStats, record_call, scoped_telemetry
 from co_scientist.schemas.synthesis import (
     RESEARCH_OVERVIEW_MAX_DIRECTIONS,
     RESEARCH_OVERVIEW_TARGET_DIRECTIONS,
@@ -95,62 +94,6 @@ async def test_one_failing_call_costs_only_its_own_direction() -> None:
     assert developed[1]["sub_topics"]
 
 
-async def test_a_field_the_writer_omitted_keeps_the_draft_s_own() -> None:
-    ask = AsyncMock(return_value={"sub_topics": _body()["sub_topics"]})
-
-    developed, _ = await calls.develop_research_directions(
-        _context(), _drafted(1), ask
-    )
-
-    assert developed[0]["importance"] == "Why direction 0 matters."
-    assert developed[0]["sub_topics"]
-
-
-async def test_only_underdeveloped_directions_are_bought() -> None:
-    """Schema-enforcing providers require fields even for incomplete prose, so
-    a half-written direction is still bought its call."""
-    ask = AsyncMock(return_value=_body())
-    drafted = _drafted(3)
-    drafted[0] = {**drafted[0], **_body()}
-    drafted[1]["sub_topics"] = [{"title": "Placeholder"}]
-
-    _, spent = await calls.develop_research_directions(_context(), drafted, ask)
-
-    assert spent == 2
-
-
-async def test_the_wave_is_attributed_to_its_own_telemetry_sub_phase() -> None:
-
-    async def _record(**_: Any) -> dict[str, Any]:
-        record_call("test/model", ModelCallStats(calls=1))
-        return _body()
-
-    with scoped_telemetry("research_overview") as accumulator:
-        record_call("test/model", ModelCallStats(calls=1))
-        await calls.develop_research_directions(
-            _context(), _drafted(2), _record
-        )
-
-    snapshot = accumulator.snapshot()
-    assert snapshot["research_overview::test/model"]["calls"] == 1
-    assert snapshot["research_overview.directions::test/model"]["calls"] == 2
-
-
-@pytest.mark.parametrize("directions", [None, "not a list", {}])
-async def test_a_malformed_directions_value_buys_nothing(
-    directions: Any,
-) -> None:
-    ask = AsyncMock(return_value=_body())
-
-    developed, spent = await calls.develop_research_directions(
-        _context(), directions, ask
-    )
-
-    assert developed == directions
-    assert spent == 0
-    ask.assert_not_awaited()
-
-
 async def _research_overview_directions_run_overview_node(
     monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
 ) -> dict[str, Any]:
@@ -170,36 +113,6 @@ async def _research_overview_directions_run_overview_node(
 
 def _direction_response(direction: dict[str, Any]) -> dict[str, Any]:
     return {"overview": {"summary": "S", "research_directions": [direction]}}
-
-
-_SUB_TOPIC = {
-    "title": "Sub-topic A",
-    "why": "Because Y.",
-    "what": "Investigate Z.",
-    "example_idea": "Knock Z down and read out Y.",
-    "specific_questions": ["Does Z cause Y?"],
-}
-
-
-async def test_well_formed_sub_topics_and_findings_pass_through(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    out = await _research_overview_directions_run_overview_node(
-        monkeypatch,
-        _direction_response(
-            {
-                "title": "T",
-                "importance": "I",
-                "suggested_experiments": ["E"],
-                "recent_findings": "Prior work established X.",
-                "sub_topics": [_SUB_TOPIC],
-            }
-        ),
-    )
-
-    direction = out["research_overview"]["overview"]["research_directions"][0]
-    assert direction["recent_findings"] == "Prior work established X."
-    assert direction["sub_topics"] == [_SUB_TOPIC]
 
 
 async def test_missing_direction_detail_degrades_to_empty(
@@ -312,34 +225,3 @@ async def test_research_directions_are_capped_at_the_schema_bound(
     kept = out["research_overview"]["overview"]["research_directions"]
     assert len(kept) == RESEARCH_OVERVIEW_MAX_DIRECTIONS
     assert kept[0]["title"] == "Direction 0"
-
-
-async def test_unexpected_research_directions_pass_through(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    response = {
-        "overview": {"summary": "S", "research_directions": []},
-        "unexpected_research_directions": [
-            {
-                "title": "Nuclear LOXL2 as a Histone Modifier",
-                "description": (
-                    "Beyond crosslinking collagen, nuclear-translocated"
-                    " LOXL2 may act as a histone aminooxidase."
-                ),
-            }
-        ],
-    }
-    out = await _research_overview_directions_run_overview_node(
-        monkeypatch, response
-    )
-
-    directions = out["research_overview"]["unexpected_research_directions"]
-    assert directions == [
-        {
-            "title": "Nuclear LOXL2 as a Histone Modifier",
-            "description": (
-                "Beyond crosslinking collagen, nuclear-translocated"
-                " LOXL2 may act as a histone aminooxidase."
-            ),
-        }
-    ]

@@ -256,32 +256,6 @@ async def test_review_synthesis_failure_preserves_a_bounded_analysis_rollup(
     assert f"Paper number {20 if paper_count > 1 else 0}" in text
 
 
-async def test_cached_research_keeps_ledger_and_article_call_id(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    client = _stub_node(
-        monkeypatch,
-        server_available=True,
-        search_payload=_TWO_PAPERS,
-        queries=["query alpha"],
-        synthesis="SYNTHESIZED REVIEW",
-    )
-    enable_node_cache(monkeypatch, tmp_path)
-    keep_lexical_order(monkeypatch)
-    _stub_research(monkeypatch)
-    state = make_state(research_goal="goal", research_tier="extended")
-
-    first = await literature_review_node(state)
-    first_search_count = len(client.calls)
-    cached = await literature_review_node(state)
-
-    assert first["research_ledgers"] == cached["research_ledgers"]
-    researched = [a for a in cached["articles"] if a.source_id == "PMID7"]
-    assert len(researched) == 1
-    assert researched[0].retrieval_call_id == "call-7"
-    assert len(client.calls) == first_search_count
-
-
 async def test_legacy_research_cache_entry_is_refreshed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

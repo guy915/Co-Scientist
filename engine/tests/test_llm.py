@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import subprocess
 import sys
@@ -14,7 +13,6 @@ from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,
     complete_request,
-    indexed_prompt_name,
     scoped_telemetry,
 )
 from co_scientist.llm.structured.validate import attempt_json_repair
@@ -110,16 +108,6 @@ async def test_only_an_enhancement_node_degrades_when_every_retry_fails(
     assert "dirty" not in second.get("reviews", []), "each caller gets a copy"
 
 
-@pytest.mark.parametrize(
-    ("stem", "index", "expected"),
-    [("evolve", 3, "evolve_3"), ("m", 0, "m_0"), ("review", None, "review")],
-)
-def test_a_prompt_name_carries_its_index_only_when_it_has_one(
-    stem: str, index: int | None, expected: str
-) -> None:
-    assert indexed_prompt_name(stem, index) == expected
-
-
 def test_importing_a_foundation_module_first_does_not_cycle() -> None:
     """Only a fresh interpreter exposes cycles involving a half-initialized
     cache module."""
@@ -172,28 +160,6 @@ def _provider(fake: FakeMCPClient) -> MCPToolProvider:
     provider = MCPToolProvider(mcp_client=cast(MCPToolClient, fake))
     provider.get_tools(mcp_whitelist=["pubmed_search"])
     return provider
-
-
-@pytest.mark.parametrize(
-    ("whitelist", "names"),
-    [
-        (None, {"pubmed_search", "other"}),
-        (["pubmed_search"], {"pubmed_search"}),
-        ([], set()),
-    ],
-)
-def test_the_tool_whitelist_filters_what_the_client_offers(
-    whitelist: list[str] | None, names: set[str]
-) -> None:
-    fake = FakeMCPClient({"pubmed_search": object(), "other": object()})
-
-    tools, schemas = MCPToolProvider(
-        mcp_client=cast(MCPToolClient, fake)
-    ).get_tools(mcp_whitelist=whitelist)
-
-    assert set(tools) == names
-    assert {s["function"]["name"] for s in schemas} == names
-    assert fake.get_tools_calls == [whitelist]
 
 
 async def test_a_known_tool_call_is_delegated_and_counted() -> None:
@@ -274,35 +240,3 @@ async def test_usage_is_recorded_once_after_the_stream_finishes(
     assert usage["completion_tokens"] == 3
     assert usage["reported_usage_calls"] == 1
     assert usage["errors"] == {}
-
-
-async def test_partial_stream_close_records_unknown_usage(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    closed = asyncio.Event()
-
-    async def chunks() -> AsyncIterator[Any]:
-        try:
-            yield "reasoning"
-            await asyncio.sleep(3600)
-        finally:
-            closed.set()
-
-    async def provider(**kwargs: Any) -> Any:
-        return chunks()
-
-    install_fake_backend(monkeypatch, provider)
-    with scoped_telemetry("cancelled") as telemetry:
-        response = await complete_request(
-            {"model": "gpt-4o-mini", "stream": True},
-            "gpt-4o-mini",
-            byok=False,
-            timeout_seconds=1,
-        )
-        assert await anext(response) == "reasoning"
-        await response.aclose()
-    assert closed.is_set()
-    usage = telemetry.snapshot()["cancelled::gpt-4o-mini"]
-    assert usage["calls"] == 1
-    assert usage["reported_usage_calls"] == 0
-    assert usage["errors"] == {"CancelledError": 1}

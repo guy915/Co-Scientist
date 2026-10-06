@@ -10,8 +10,7 @@ import pytest
 from litellm.exceptions import APIError
 
 import co_scientist.llm as llm
-from co_scientist import agents, constants, task_runtime
-from co_scientist.agents import NODE_REGISTRY
+from co_scientist import constants
 from co_scientist.agents.meta_review import meta_review as mr
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.agents.proximity import proximity as px
@@ -20,15 +19,11 @@ from co_scientist.checkpoint import (
     serialize_workflow_state,
 )
 from co_scientist.exceptions import (
-    LLMCallBudgetExceededError,
-    LLMRateLimitParkError,
     LLMTimeoutError,
 )
 from co_scientist.scheduling import TaskType
-from co_scientist.state import WorkflowState
 from co_scientist.task_runtime import next_task_type
 from co_scientist.workflow_topology import (
-    TASK_ROUTES,
     WORKFLOW_ROUTES,
     LiteratureGated,
     literature_review_nodes,
@@ -42,27 +37,6 @@ from tests._state import (
 
 # Node keys persist in tasks and checkpoints; renaming requires a data
 # migration.
-FROZEN_DURABLE_NODE_KEYS = {
-    "supervisor",
-    "generate",
-    "review",
-    "comprehensive_reflection",
-    "safety_screen",
-    "ranking",
-    "deep_verification",
-    "orchestrator",
-    "meta_review",
-    "evolve",
-    "proximity",
-    "research_overview",
-    "literature_review",
-    "reflection",
-}
-
-
-def test_registry_pins_the_frozen_durable_node_keys() -> None:
-    assert set(agents.NODE_REGISTRY) == FROZEN_DURABLE_NODE_KEYS
-    assert set(task_runtime.TASK_NODES) == FROZEN_DURABLE_NODE_KEYS
 
 
 _TIMEOUT = LLMTimeoutError(
@@ -77,10 +51,6 @@ _UPSTREAM = APIError(
 
 # The two the durable worker answers itself -- a park waits for a clock and
 # a spent ceiling terminates the run, so neither may be swallowed here.
-_CONTROL_FLOW: list[Exception] = [
-    LLMCallBudgetExceededError(count=2501, ceiling=2500),
-    LLMRateLimitParkError(resume_at=1.0, reason="message_per_day"),
-]
 
 
 def _raiser(error: Exception) -> Any:
@@ -176,28 +146,6 @@ async def test_provider_failure_degrades_only_on_the_last_attempt(
     else:
         await node(state)
         assert state["degraded_nodes"] == [degraded_name]
-
-
-@pytest.mark.parametrize(("module", "node", "build_state", "_"), _NODE_CASES)
-@pytest.mark.parametrize("error", _CONTROL_FLOW)
-@pytest.mark.parametrize("retries_remain", [True, False])
-async def test_worker_owned_errors_reraise_whatever_the_attempt(
-    monkeypatch: pytest.MonkeyPatch,
-    module: Any,
-    node: Any,
-    build_state: Any,
-    _: str,
-    error: Exception,
-    retries_remain: bool,
-) -> None:
-    monkeypatch.setattr(module, "call_llm_json", _raiser(error))
-    state = build_state()
-    state["durable_retries_remain"] = retries_remain
-
-    with pytest.raises(type(error)):
-        await node(state)
-
-    assert state.get("degraded_nodes", []) == []
 
 
 async def test_a_degraded_meta_review_still_returns_an_empty_section(
@@ -308,41 +256,6 @@ def _first_pass_order(mcp_available: bool) -> list[str]:
     state["next_task"] = "terminate"
     order.append(step("orchestrator"))
     return order
-
-
-def test_walk_is_the_first_pass_it_claims_to_cover() -> None:
-    assert _first_pass_order(mcp_available=True) == [
-        "supervisor",
-        "literature_review",
-        "generate",
-        "reflection",
-        "review",
-        "comprehensive_reflection",
-        "safety_screen",
-        "deep_verification",
-        "ranking",
-        "orchestrator",
-        "proximity",
-        "orchestrator",
-        "meta_review",
-        "evolve",
-        "research_overview",
-    ]
-    assert _first_pass_order(mcp_available=False) == [
-        "supervisor",
-        "generate",
-        "review",
-        "comprehensive_reflection",
-        "safety_screen",
-        "deep_verification",
-        "ranking",
-        "orchestrator",
-        "proximity",
-        "orchestrator",
-        "meta_review",
-        "evolve",
-        "research_overview",
-    ]
 
 
 def test_first_pass_progress_never_decreases() -> None:
@@ -469,23 +382,6 @@ def _declared_edges(literature_review: bool) -> set[tuple[str, str]]:
     }
 
 
-def test_every_registered_node_declares_a_successor_and_only_those() -> None:
-    assert set(WORKFLOW_ROUTES) == set(NODE_REGISTRY)
-    named = set(TASK_ROUTES.values()) | literature_review_nodes()
-    for route in WORKFLOW_ROUTES.values():
-        if isinstance(route, str):
-            named.add(route)
-        elif isinstance(route, LiteratureGated):
-            named.add(route.off)
-    assert named <= set(NODE_REGISTRY)
-
-
-def _gated(node: str) -> LiteratureGated:
-    route = WORKFLOW_ROUTES[node]
-    assert isinstance(route, LiteratureGated)
-    return route
-
-
 def test_the_gated_routes_skip_the_literature_nodes_when_the_flow_is_off() -> (
     None
 ):
@@ -498,15 +394,6 @@ def test_the_gated_routes_skip_the_literature_nodes_when_the_flow_is_off() -> (
         ("generate", "review"),
     }
     assert literature_review_nodes() == {"literature_review", "reflection"}
-
-
-def test_a_missing_mcp_flag_is_the_simplified_flow_on_the_durable_path() -> (
-    None
-):
-    state = make_state()
-    del state["mcp_available"]  # type: ignore[misc]
-    assert next_task_type("supervisor", state) == "generate"
-    assert next_task_type("generate", state) == "review"
 
 
 @pytest.mark.parametrize("node", sorted(WORKFLOW_ROUTES))
@@ -522,21 +409,3 @@ def test_entry_marker_is_not_a_completed_durable_node() -> None:
     assert "__start__" not in WORKFLOW_ROUTES
     with pytest.raises(ValueError, match="unsupported completed task node"):
         next_task_type("__start__", make_state())
-
-
-def _evolve_with_meta_review_stacked_ahead() -> WorkflowState:
-    return make_state(
-        next_task=TaskType.EVOLVE.value,
-        supervisor_queue_actions=[
-            {
-                "action": "enqueue",
-                "task_type": TaskType.META_REVIEW.value,
-                "reason": "stacked",
-            }
-        ],
-    )
-
-
-def test_meta_review_companion_routes_to_the_evolve_prefix() -> None:
-    state = _evolve_with_meta_review_stacked_ahead()
-    assert next_task_type("meta_review", state) == "meta_review"

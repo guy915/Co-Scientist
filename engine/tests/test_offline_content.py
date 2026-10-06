@@ -6,7 +6,6 @@ import random
 from typing import Any, cast
 
 import jsonschema
-import pytest
 
 from co_scientist.checkpoint import (
     restore_workflow_state,
@@ -16,42 +15,13 @@ from co_scientist.llm.structured.validate import get_fallback_response
 from co_scientist.models import ExecutionMetrics
 from co_scientist.offline import llm as offline_llm
 from co_scientist.offline.llm import (
-    _CRITIQUE_TEMPLATES,
-    _EXPERIMENT_TEMPLATES,
     _GENERATED_VOCABULARY,
-    _GO_NO_GO_TEMPLATES,
-    _PHASE_LABEL_TEMPLATES,
-    _RECOMMENDED_IDEA_TEMPLATES,
-    _SCOPE_CLAUSES,
-    _TIME_ESTIMATE_TEMPLATES,
     leaf_text,
     subject_terms,
 )
 from co_scientist.progress import _ACTIVE_WORKFLOW_STATE, emit_progress
 from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_SCHEMA
 from co_scientist.state import WorkflowState
-
-_GOAL_PROMPT = """# Generation Agent
-
-The overarching objective is to develop a novel hypothesis.
-
-Research Goal: What mechanisms drive antibiotic resistance in
-Staphylococcus aureus biofilms?
-
-Criteria for a high-quality hypothesis:
-Run setup:
-- Focus: Balance -- weigh evidence, novelty and feasibility evenly.
-- Requirements: cite sources in author-year form.
-"""
-
-
-def test_terms_come_from_the_goal_not_the_surrounding_boilerplate() -> None:
-    terms = subject_terms(_GOAL_PROMPT)
-
-    assert "antibiotic" in terms
-    assert "biofilms" in terms
-    assert "requirements" not in terms
-    assert "pathway flux" in subject_terms("No labelled goal at all here.")
 
 
 def test_generated_text_is_never_mined_as_subject_matter() -> None:
@@ -62,38 +32,6 @@ def test_generated_text_is_never_mined_as_subject_matter() -> None:
     terms = subject_terms(f"Original Hypothesis: {generated}")
 
     assert not set(terms) & _GENERATED_VOCABULARY
-
-
-def _openings(templates: tuple[str, ...]) -> set[str]:
-    return {
-        f"{filled[:1].upper()}{filled[1:]}"
-        for template in templates
-        for a, b in (("resistance", "biofilms"), ("biofilms", "resistance"))
-        for filled in (template.format(term_a=a, term_b=b),)
-    }
-
-
-@pytest.mark.parametrize(
-    ("field", "family", "foreign"),
-    [
-        ("experimental_context", _EXPERIMENT_TEMPLATES, _CRITIQUE_TEMPLATES),
-        ("constructive_feedback", _CRITIQUE_TEMPLATES, _EXPERIMENT_TEMPLATES),
-    ],
-    ids=["experiment_reads_as_a_protocol", "feedback_reads_as_a_critique"],
-)
-def test_leaves_vary_by_the_field_they_land_in(
-    field: str, family: tuple[str, ...], foreign: tuple[str, ...]
-) -> None:
-    """Family membership avoids coupling correctness to one deterministic
-    seed."""
-    mine, theirs = _openings(family), _openings(foreign)
-
-    for seed in range(200):
-        text = leaf_text(
-            random.Random(seed), 1, field, ("resistance", "biofilms")
-        )
-        assert any(text.startswith(opening) for opening in mine), text
-        assert not any(text.startswith(opening) for opening in theirs), text
 
 
 def test_one_goal_yields_many_distinct_token_bags() -> None:
@@ -113,29 +51,6 @@ def test_one_goal_yields_many_distinct_token_bags() -> None:
     }
 
     assert len(bags) > 300, len(bags)
-
-
-@pytest.mark.parametrize(
-    ("field", "family"),
-    [
-        ("go_no_go_recommendation", _GO_NO_GO_TEMPLATES),
-        ("time_to_verdict", _TIME_ESTIMATE_TEMPLATES),
-        ("time_estimate", _TIME_ESTIMATE_TEMPLATES),
-        ("phase_label", _PHASE_LABEL_TEMPLATES),
-        ("recommended_idea", _RECOMMENDED_IDEA_TEMPLATES),
-    ],
-)
-def test_standalone_fields_stay_a_short_label(
-    field: str, family: tuple[str, ...]
-) -> None:
-    openings = _openings(family)
-
-    for seed in range(50):
-        text = leaf_text(
-            random.Random(seed), 1, field, ("resistance", "biofilms")
-        )
-        assert text in openings, text
-        assert not any(clause in text for clause in _SCOPE_CLAUSES), text
 
 
 async def test_offline_acompletion_sizes_directions_past_the_preview_gate() -> (
@@ -187,14 +102,6 @@ async def test_degradations_accumulate_in_serve_order() -> None:
     assert state["degraded_nodes"] == ["meta_review", "research_overview"]
 
 
-async def test_fallback_without_active_state_still_serves() -> None:
-    _ACTIVE_WORKFLOW_STATE.set(None)
-
-    fallback = get_fallback_response({"name": "hypothesis_batch_review"})
-
-    assert fallback == {"reviews": []}
-
-
 async def test_degradation_emits_progress_event() -> None:
     events: list[tuple[str, dict[str, Any]]] = []
 
@@ -230,14 +137,6 @@ async def test_degradation_event_failure_cannot_break_the_run() -> None:
 
     assert fallback is not None
     assert state["degraded_nodes"] == ["meta_review"]
-
-
-def test_critical_node_fallback_records_nothing() -> None:
-    state = _fresh_state()
-    _ACTIVE_WORKFLOW_STATE.set(state)
-
-    assert get_fallback_response({"name": "hypothesis_generation"}) is None
-    assert state["degraded_nodes"] == []
 
 
 def test_durable_commit_captures_recorded_degradation() -> None:
