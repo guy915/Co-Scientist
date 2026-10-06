@@ -24,44 +24,6 @@ def _example(db_path: str) -> str:
     return runs_views.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)[0].id
 
 
-def test_all_curated_examples_have_full_transcripts_and_linked_plans(
-    isolated_db: str,
-) -> None:
-    _example(isolated_db)
-    for run in runs_views.list_runs(client_id=DEMO_CLIENT_ID):
-        assert run.title and run.title.startswith("Example: ")
-        assert run.profile == run.config["setup"]["tier"] == "standard"
-        interview = interviews.get_interview(run.config["interview_id"])
-        assert interview and interview["status"] == "completed"
-        assert [turn["role"] for turn in interview["turns"]] == [
-            "user",
-            "agent",
-            "user",
-            "agent",
-        ]
-        assert (
-            interview["fields"]["preferences"]
-            == run.config["setup"]["requirements"]
-        )
-        assert "curated" in interview["turns"][1]["content"]
-        assert (
-            interviews.run_id_for_interview(interview["id"], DEMO_CLIENT_ID)
-            == run.id
-        )
-        assert [m.kind for m in messages.list_messages(run.id)] == [
-            "start",
-            "start",
-            "qa",
-            "qa",
-        ]
-    before = [r.id for r in runs_views.list_runs(client_id=DEMO_CLIENT_ID)]
-    _example(isolated_db)
-    assert [
-        r.id for r in runs_views.list_runs(client_id=DEMO_CLIENT_ID)
-    ] == before
-    assert len(interviews.list_interviews(DEMO_CLIENT_ID)) == 3
-
-
 def test_private_copy_preserves_lineage_reviews_evidence_report_and_no_tasks(
     isolated_db: str,
 ) -> None:

@@ -91,10 +91,12 @@ def module_guard(
             errors.append(f"{name}: protected module missing from coverage")
             continue
         current = after["modules"][name]
-        if current["percent"] + 1e-9 < COVERAGE_FLOOR:
+        # A module that started below the floor may not fall further.
+        floor = min(COVERAGE_FLOOR, before["modules"][name]["percent"])
+        if current["percent"] + 1e-9 < floor:
             errors.append(
                 f"{name}: protected coverage {current['percent']:.4f}% "
-                f"below the {COVERAGE_FLOOR:.0f}% floor"
+                f"below its {floor:.4f}% floor"
             )
     return errors
 

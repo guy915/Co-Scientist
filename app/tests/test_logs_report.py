@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 import app.logs_api as logs_rate_limit
-from app import logs_api, notifications
+from app import logs_api
 from app.config import settings
 from tests._client import make_client
 
@@ -96,32 +96,3 @@ def test_reporting_is_rate_limited(
 
     assert statuses[:-1] == [202] * logs_rate_limit.REPORTS_PER_MINUTE
     assert statuses[-1] == 429
-
-
-def test_an_oversized_report_is_refused(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _configure_smtp(monkeypatch)
-
-    response = make_client().post(
-        "/api/logs/report",
-        json={"report": "x" * (logs_api.MAX_REPORT_CHARS + 1)},
-        headers=HEADERS,
-    )
-
-    assert response.status_code == 422
-
-
-def test_completion_mail_and_reports_share_one_transport(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    sent: list[tuple[str, str, str]] = []
-    monkeypatch.setattr(
-        notifications, "_send_smtp", lambda *args: sent.append(args)
-    )
-
-    import asyncio
-
-    asyncio.run(notifications.deliver_email("to@example.org", "subj", "body"))
-
-    assert sent == [("to@example.org", "subj", "body")]

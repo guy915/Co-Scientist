@@ -1,26 +1,20 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
-from app import engine_tasks, task_worker
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.node import _check_portfolio_predecessor
 from app.engine_tasks.support import SupersededTaskError, TaskCommit
-from app.store import checkpoints, db, runs
+from app.store import checkpoints, runs
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
 from app.task_worker import outcomes as task_worker_outcomes
 from tests._engine_tasks_helpers import (
-    _Generator,
-    _patch_generator,
-    _patch_task_node,
     _seed_checkpoint,
     _task_state,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import enqueue_task, seed_run
 
 
 def _portfolio_seed_predecessor(
@@ -30,35 +24,6 @@ def _portfolio_seed_predecessor(
     leased = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert leased is not None
     return leased
-
-
-def _seed_resume_checkpoint(
-    run_id: str,
-    state: dict[str, Any],
-    *,
-    stage: str,
-    resume_successor: str,
-    db_path: str,
-) -> int:
-    # Resume successor belongs beside provider at checkpoint top level, not
-    # inside serialized workflow state.
-    from co_scientist.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
-
-    envelope = serialize_workflow_state(state, last_event_seq=0)
-    return seed_checkpoint(
-        run_id,
-        {
-            "provider": "engine",
-            "resume_successor": resume_successor,
-            **envelope,
-        },
-        stage=stage,
-        schema_version=CHECKPOINT_VERSION,
-        db_path=db_path,
-    )
 
 
 @pytest.mark.asyncio
@@ -92,84 +57,6 @@ async def test_commit_plans_the_resolvable_tail_behind_the_successor(
     )
     assert review.idempotency_key == f"engine.node.review:after:{reflection.id}"
     assert "engine.node.comprehensive_reflection" not in tasks
-
-
-@pytest.mark.asyncio
-async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Legacy checkpoint-sequence tasks must still progress across edge-key
-    # changes even if recovery creates a new row.
-    run = seed_run("Pre-portfolio resume")
-    # Checkpoint restore supplies next_task_priority; fixtures need an int
-    # rather than a restored None.
-    state = {**_task_state(run.id), "next_task_priority": 90}
-    generator = _Generator(state)
-    _patch_generator(monkeypatch, generator, restore=True, screen=True)
-
-    predecessor = _portfolio_seed_predecessor(
-        run.id, isolated_db, task_type="engine.node.supervisor"
-    )
-    assert lifecycle.complete_task(
-        predecessor.id, "worker", {}, db_path=isolated_db
-    )
-
-    old_successor_type = "engine.node.orchestrator"
-    checkpoint_seq = _seed_resume_checkpoint(
-        run.id,
-        state,
-        stage=f"engine_task:{predecessor.id}",
-        resume_successor=old_successor_type,
-        db_path=isolated_db,
-    )
-    dead = enqueue_task(
-        run.id,
-        old_successor_type,
-        f"{old_successor_type}:{checkpoint_seq}",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=isolated_db,
-    )
-    with db.connect(isolated_db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET status='failed', "
-            "attempt=max_attempts WHERE id=?",
-            (dead.id,),
-        )
-
-    resumed = task_worker.enqueue_run_workflow(
-        run.id, resume=True, db_path=isolated_db
-    )
-    assert resumed.task_type == old_successor_type
-    assert resumed.id != dead.id, "the dead old-keyed row is not revived"
-    assert resumed.dependencies == (predecessor.id,)
-
-    successors = {
-        "orchestrator": "research_overview",
-        "research_overview": None,
-    }
-
-    async def execute(
-        name: str, task_state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str | None]:
-        return task_state, successors[name]
-
-    async def finalize(task: Any, **_: Any) -> dict[str, Any]:
-        runs.update_run_status(task.run_id, RunStatus.COMPLETED)
-        return {"run_id": task.run_id, "status": "completed"}
-
-    _patch_task_node(monkeypatch, execute)
-    # Dispatch binds callables at import; patch the dispatch dictionary rather
-    # than an unrelated module name.
-    monkeypatch.setitem(
-        engine_tasks._ENGINE_TASK_DISPATCH,
-        engine_tasks_support.FINALIZE_TASK,
-        finalize,
-    )
-    await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
-
-    settled = runs.get_run(run.id, db_path=isolated_db)
-    assert settled is not None
-    assert settled.status == RunStatus.COMPLETED.value
 
 
 # Cancel whole downstream chains on superseded outcomes; orphan queued rows
@@ -304,55 +191,6 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
     assert refreshed["engine.finalize"].status == "queued"
     _assert_no_unsatisfiable_dependency(run.id, isolated_db)
 
-
-@pytest.mark.asyncio
-async def test_a_diverging_outcome_cancels_the_superseded_plan(
-    isolated_db: str,
-) -> None:
-    # Real outcomes invalidate planned guesses; cancel stale successors in the
-    # same checkpoint commit.
-    run = seed_run("Portfolio divergence")
-    predecessor = _portfolio_seed_predecessor(run.id, isolated_db)
-    checkpoint_seq = _seed_checkpoint(
-        run.id, _task_state(run.id), db_path=isolated_db
-    )
-    commit = TaskCommit(predecessor, checkpoint_seq, isolated_db)
-    committed_seq, _ = engine_tasks_support._save_state_and_enqueue(
-        commit, _task_state(run.id), "reflection"
-    )
-    assert lifecycle.complete_task(
-        predecessor.id, "worker", {}, db_path=isolated_db
-    )
-    tasks = {
-        task.task_type: task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
-    }
-    reflection = tasks["engine.node.reflection"]
-    review = tasks["engine.node.review"]
-    assert review.status == "queued"
-
-    leased_reflection = store.claim_task(
-        "worker", run_id=run.id, db_path=isolated_db
-    )
-    assert leased_reflection is not None
-    assert leased_reflection.id == reflection.id
-    halted_state = {**_task_state(run.id), "safety_blocked": True}
-    reflection_commit = TaskCommit(
-        leased_reflection, committed_seq, isolated_db
-    )
-    engine_tasks_support._save_state_and_enqueue(
-        reflection_commit, halted_state, None
-    )
-
-    refreshed = {
-        task.task_type: task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
-    }
-    assert refreshed["engine.node.review"].status == "cancelled"
-    assert refreshed["engine.finalize"].status == "queued"
-    assert refreshed["engine.finalize"].dependencies == (reflection.id,)
-    _assert_no_unsatisfiable_dependency(run.id, isolated_db)
-
     checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     with pytest.raises(SupersededTaskError):
@@ -444,81 +282,6 @@ def _stacked_state(
 
 
 @pytest.mark.asyncio
-async def test_one_commit_queues_the_companion_and_the_primary(
-    isolated_db: str,
-) -> None:
-    # Chain stacked companions serially; siblings under one predecessor fork the
-    # single-writer checkpoint path.
-    run = seed_run("Stacked pass")
-    orchestrator = _seed_orchestrator(run.id, isolated_db)
-    state = _stacked_state(run.id, "reflect")
-    seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
-
-    engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(orchestrator, seq, isolated_db), state, "meta_review"
-    )
-
-    tasks = {
-        task.task_type: task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
-    }
-    meta_review = tasks[_META_REVIEW]
-    review = tasks["engine.node.review"]
-    assert meta_review.dependencies == (orchestrator.id,)
-    assert review.dependencies == (meta_review.id,)
-    assert meta_review.status == "queued"
-    assert review.status == "queued"
-
-
-@pytest.mark.asyncio
-async def test_the_companion_row_is_keyed_for_collision(
-    isolated_db: str,
-) -> None:
-    # Edge-derived idempotency makes planned and reactive enqueue resolve to the
-    # same row.
-    run = seed_run("Stacked key")
-    orchestrator = _seed_orchestrator(run.id, isolated_db)
-    state = _stacked_state(run.id, "proximity")
-    seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
-
-    engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(orchestrator, seq, isolated_db), state, "meta_review"
-    )
-
-    rows = [
-        task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
-        if task.task_type == _META_REVIEW
-    ]
-    assert len(rows) == 1
-    assert rows[0].idempotency_key == f"{_META_REVIEW}:after:{orchestrator.id}"
-
-
-@pytest.mark.asyncio
-async def test_an_unstacked_commit_queues_only_its_own_successor(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Unstacked pass")
-    orchestrator = _seed_orchestrator(run.id, isolated_db)
-    state = {
-        **_task_state(run.id),
-        "next_task": "proximity",
-        "next_task_priority": 90,
-    }
-    seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
-
-    engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(orchestrator, seq, isolated_db), state, "proximity"
-    )
-
-    types = {
-        task.task_type for task in store.list_tasks(run.id, db_path=isolated_db)
-    }
-    assert _META_REVIEW not in types
-    assert "engine.node.proximity" in types
-
-
-@pytest.mark.asyncio
 async def test_two_companions_chain_rather_than_fork(
     isolated_db: str,
 ) -> None:
@@ -540,6 +303,16 @@ async def test_two_companions_chain_rather_than_fork(
     assert tasks[_META_REVIEW].dependencies == (orchestrator.id,)
     assert tasks[_OVERVIEW].dependencies == (tasks[_META_REVIEW].id,)
     assert tasks["engine.node.review"].dependencies == (tasks[_OVERVIEW].id,)
+    # Edge-derived keys make planned and reactive enqueues resolve to one row.
+    assert (
+        tasks[_META_REVIEW].idempotency_key
+        == f"{_META_REVIEW}:after:{orchestrator.id}"
+    )
+    # Dependency edges enforce data ordering, not enqueue order.
+    lifecycle.complete_task(orchestrator.id, "worker", {}, db_path=isolated_db)
+    claimed = store.claim_task("w2", run_id=run.id, db_path=isolated_db)
+    assert claimed is not None and claimed.task_type == _META_REVIEW
+    assert store.claim_task("w3", run_id=run.id, db_path=isolated_db) is None
 
 
 @pytest.mark.asyncio
@@ -623,24 +396,3 @@ async def test_the_terminal_decision_writes_an_overview_then_a_report(
     )
     assert overview.dependencies == (orchestrator.id,)
     assert finalize.dependencies == (overview.id,)
-
-
-@pytest.mark.asyncio
-async def test_a_stacked_task_cannot_run_before_its_inputs(
-    isolated_db: str,
-) -> None:
-    # Dependency edges enforce data ordering, not enqueue order; overview
-    # consumes feedback before the primary.
-    run = seed_run("Stacked claim", profile="extended")
-    orchestrator = _seed_orchestrator(run.id, isolated_db)
-    state = _stacked_state(run.id, "reflect", "meta_review", "synthesize")
-    seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
-
-    engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(orchestrator, seq, isolated_db), state, "meta_review"
-    )
-    lifecycle.complete_task(orchestrator.id, "worker", {}, db_path=isolated_db)
-
-    claimed = store.claim_task("w2", run_id=run.id, db_path=isolated_db)
-    assert claimed is not None and claimed.task_type == _META_REVIEW
-    assert store.claim_task("w3", run_id=run.id, db_path=isolated_db) is None

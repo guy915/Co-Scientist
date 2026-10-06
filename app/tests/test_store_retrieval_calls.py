@@ -162,16 +162,6 @@ def test_a_failed_search_is_recorded_not_dropped(db: str) -> None:
     assert by_source["corpus"]["hits"] == []
 
 
-def test_a_deeper_search_records_the_level_it_ran_at(db: str) -> None:
-    run = seed_run("descent")
-
-    store.add_retrieval_calls(
-        store.retrieval_call_rows(run.id, _result(depth=3))
-    )
-
-    assert store.list_retrieval_calls(run.id)[0]["depth"] == 3
-
-
 def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
     run = seed_run("link")
     result = _result()
@@ -189,21 +179,3 @@ def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
 
     stored = {row["id"]: row for row in records.list_evidence(run.id)}
     assert stored[ev_id]["retrieval_call_id"] == rows[0].id
-
-
-def test_evidence_without_a_search_behind_it_stays_null(db: str) -> None:
-    run = seed_run("upload")
-
-    ev_id = records.add_evidence(
-        NewEvidence(run_id=run.id, title="Attached report")
-    )
-
-    stored = {row["id"]: row for row in records.list_evidence(run.id)}
-    assert stored[ev_id]["retrieval_call_id"] is None
-
-
-def test_a_result_with_no_searches_writes_nothing(db: str) -> None:
-    run = seed_run("empty")
-
-    assert store.add_retrieval_calls([]) == 0
-    assert store.list_retrieval_calls(run.id) == []

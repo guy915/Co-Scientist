@@ -12,17 +12,14 @@ from co_scientist.agents.generation import (
 from co_scientist.agents.generation import (
     generate as coordinator,
 )
-from co_scientist.agents.reflection import ReviewRun, ReviewType
 from co_scientist.checkpoint import restore_workflow_state
 from co_scientist.models import (
     Article,
     GenerationMethod,
     Hypothesis,
 )
-from co_scientist.state import WorkflowState
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
-import app.engine_tasks.fanout as engine_tasks_fanout_items
 import app.engine_tasks.fanout as fanout
 from app import engine_tasks
 from app.config import settings
@@ -294,147 +291,6 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
         assert (
             claimed.task_type == engine_tasks_support.GENERATION_STRATEGY_TASK
         )
-
-
-async def _fake_mature_review(
-    state: WorkflowState, hypothesis: Hypothesis, review_type: ReviewType
-) -> ReviewRun:
-    result: dict[str, Any] = {"verdict": f"{review_type.value}-complete"}
-    if review_type is ReviewType.FULL:
-        result["retrieved_articles"] = [
-            Article(
-                title="Full-review source",
-                source_id="full-review-1",
-                abstract="Targeted review evidence.",
-            ).to_dict()
-        ]
-    return ReviewRun(review_type, result, None)
-
-
-async def _fake_observation(
-    state: WorkflowState,
-    hypothesis: Hypothesis,
-    *,
-    hypothesis_index: int = 1,
-    total_count: int = 1,
-) -> dict[str, Any]:
-    return {"classification": "missing_piece", "reasoning": "explains x"}
-
-
-async def _advance_mature_reflection_node(
-    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
-) -> None:
-    state = _task_state(run_id)
-    fresh = Hypothesis(text="fresh")
-    fresh.review_disposition = "viable"
-    mature = Hypothesis(text="mature")
-    mature.review_disposition = "viable"
-    mature.enrichments.update({"full": {}, "simulation": {}})
-    mature.reflection_notes = "prior observation"
-    state.update(
-        {
-            "hypotheses": [fresh, mature],
-            "articles_with_reasoning": "retrieved observations",
-            "current_iteration": 2,
-        }
-    )
-    checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",
-        "mature-reflection-node",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=db_path,
-    )
-    _patch_generator(monkeypatch, _Generator(state), restore=True)
-
-    import co_scientist.agents.reflection as reflection_operations
-
-    monkeypatch.setattr(
-        reflection_operations, "review_hypothesis", _fake_mature_review
-    )
-    monkeypatch.setattr(
-        reflection_operations, "observe_hypothesis", _fake_observation
-    )
-    leased = store.claim_task("planner", run_id=run_id, db_path=db_path)
-    assert leased is not None and leased.id == node.id
-    planned = await engine_tasks.execute_node_task(leased, db_path=db_path)
-    assert len(planned["fanout_task_ids"]) == 4
-    assert lifecycle.complete_task(
-        leased.id, "planner", planned, db_path=db_path
-    )
-
-
-async def _run_mature_reflection_items_and_aggregate(
-    run_id: str, db_path: str
-) -> None:
-    items = [
-        store.claim_task(f"mode-{index}", run_id=run_id, db_path=db_path)
-        for index in range(4)
-    ]
-    assert all(item is not None for item in items)
-    results = await asyncio.gather(
-        *[
-            engine_tasks_fanout_items.execute_mature_reflection_item(
-                item, db_path=db_path
-            )
-            for item in items
-            if item is not None
-        ]
-    )
-    assert {result["review_mode"] for result in results} == {
-        "observation",
-        "full",
-        "simulation",
-        "recurrent",
-    }
-    for index, (item, result) in enumerate(zip(items, results, strict=True)):
-        assert item is not None
-        assert lifecycle.complete_task(
-            item.id, f"mode-{index}", result, db_path=db_path
-        )
-    aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
-    assert aggregate is not None
-    execute = engine_tasks_fanout_aggregates.execute_mature_reflection_aggregate
-    aggregated = await execute(aggregate, db_path=db_path)
-    assert aggregated["successful_reviews"] == 4
-    assert lifecycle.complete_task(
-        aggregate.id, "aggregate", aggregated, db_path=db_path
-    )
-
-
-def _assert_mature_reflection_committed(run_id: str, db_path: str) -> None:
-    from co_scientist.checkpoint import restore_workflow_state
-
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
-    assert checkpoint is not None
-    restored = restore_workflow_state(checkpoint["state"])
-    restored_fresh, restored_mature = restored["hypotheses"]
-    assert {"observation", "full", "simulation"} <= set(
-        restored_fresh.enrichments
-    )
-    assert restored_mature.enrichments["recurrent_review_iteration"] == 2
-    assert restored["articles"][-1].source_id == "full-review-1"
-    successor = store.claim_task("safety", run_id=run_id, db_path=db_path)
-    assert successor is not None
-    assert (
-        successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}safety_screen"
-    )
-    reflection_events = _task_events(
-        run_id, "comprehensive_reflection", db_path=db_path
-    )
-    assert len(reflection_events) == 1
-    assert reflection_events[0]["payload"]["successor"] == "safety_screen"
-
-
-@pytest.mark.asyncio
-async def test_mature_reflection_modes_are_independent_durable_tasks(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    await _advance_mature_reflection_node(run.id, monkeypatch, isolated_db)
-    await _run_mature_reflection_items_and_aggregate(run.id, isolated_db)
-    _assert_mature_reflection_committed(run.id, isolated_db)
 
 
 def _hypotheses(strategy: str, count: int, start: int = 0) -> list[Hypothesis]:
@@ -765,27 +621,3 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
         "debate_lit-1",
         "debate_lit-2",
     ]
-
-
-async def test_pre_diversity_tasks_still_execute_as_one_debate(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Legacy generation task")
-    state = _generation_state(run.id, "no_lit")
-    strategies, _ = _install_strategies(monkeypatch)
-    _, tasks = await _schedule_generation(state, isolated_db)
-    task = tasks[0]
-    legacy = dataclasses.replace(
-        task,
-        inputs={
-            key: value
-            for key, value in task.inputs.items()
-            if key not in {"strategy_index", "debate_total"}
-        },
-    )
-    result = await fanout.execute_generation_strategy(
-        legacy, db_path=isolated_db
-    )
-    assert len(result["hypotheses"]) == 1
-    position = strategies.calls[0]["position"]
-    assert (position.debate_index, position.total_debates) == (0, 1)

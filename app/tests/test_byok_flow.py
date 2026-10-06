@@ -86,13 +86,40 @@ def test_rejected_key_fails_creation_before_any_run(
         assert client.get("/api/runs").json()["runs"] == []
 
 
-def test_key_without_provider_is_a_400(
-    byok_deployment: None, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("headers", "detail"),
+    [
+        ({"X-LLM-API-Key": _KEY}, "provider"),
+        ({"X-LLM-API-Key": _KEY, "X-LLM-Provider": "skynet"}, "skynet"),
+        (
+            {
+                **_HEADERS,
+                "X-LLM-Supervisor-Provider": "skynet",
+                "X-LLM-Supervisor-API-Key": "sk-supervisor",
+            },
+            "skynet",
+        ),
+    ],
+)
+def test_malformed_key_headers_are_a_400_before_any_run(
+    byok_deployment: None,
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str],
+    detail: str,
 ) -> None:
     _fake_validation(monkeypatch)
     with TestClient(app) as client:
-        response = _create_run(client, "goal", headers={"X-LLM-API-Key": _KEY})
+        response = _create_run(
+            client, "goal", headers={"X-Client-ID": "scientist", **headers}
+        )
         assert response.status_code == 400
+        assert detail in response.json()["detail"].lower()
+        assert (
+            client.get(
+                "/api/runs", headers={"X-Client-ID": "scientist"}
+            ).json()["runs"]
+            == []
+        )
 
 
 def test_byok_disabled_deployment_refuses_keys(
