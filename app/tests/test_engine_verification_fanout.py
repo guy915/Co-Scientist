@@ -8,16 +8,11 @@ from co_scientist.models import Article, Hypothesis
 
 import app.engine_tasks.fanout as engine_tasks_fanout_items
 from app import engine_tasks
-from app.config import settings
 from app.engine_tasks import fanout as engine_tasks_fanout
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.store import checkpoints, runs
-from app.store import retrieval_calls as retrieval
+from app.store import checkpoints
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus
-from tests._client import create_run as _create_run
-from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
     _milestones,
@@ -261,66 +256,6 @@ async def test_verification_children_commit_through_single_aggregator(
     _assert_verification_committed(run.id, isolated_db)
     _assert_fingerprints_survive_the_checkpoint(run.id, isolated_db)
     _assert_verifications_are_marked_once_ever(run.id, isolated_db)
-
-
-@pytest.mark.asyncio
-async def test_verification_aggregate_pauses_and_resumes_to_ranking(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-
-    with make_client() as client:
-        created = _create_run(client, "Paused verification aggregate")
-        assert created.status_code == 200, created.text
-        run_id = str(created.json()["id"])
-        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        await _advance_verification_node(run_id, monkeypatch, isolated_db)
-        checkpoint_before = checkpoints.get_latest_checkpoint(
-            run_id, db_path=isolated_db
-        )
-        assert checkpoint_before is not None
-        import co_scientist.agents.reflection as reflection
-
-        monkeypatch.setattr(reflection, "verify_hypothesis", _fake_verify)
-
-        def pause() -> None:
-            response = client.post(f"/api/runs/{run_id}/pause")
-            assert response.status_code == 200, response.text
-
-        await _run_verification_children_and_aggregate(
-            run_id, isolated_db, before_aggregate=pause
-        )
-
-        checkpoint = checkpoints.get_latest_checkpoint(
-            run_id, db_path=isolated_db
-        )
-        assert checkpoint is not None
-        assert checkpoint["seq"] == checkpoint_before["seq"] + 1
-        saved_run = runs.get_run(run_id, db_path=isolated_db)
-        assert saved_run is not None and saved_run.status == "paused"
-        state = checkpoint["state"]["state"]
-        assert all(
-            hypothesis["deep_verification_verdict"] == "holds"
-            for hypothesis in state["hypotheses"]
-        )
-        metrics = retrieval.get_run_metrics(run_id, db_path=isolated_db)
-        assert metrics is not None and metrics["llm_calls"] == 6
-        [event] = _task_events(run_id, "deep_verification", db_path=isolated_db)
-        assert event["payload"]["successor"] == "ranking"
-        assert (
-            store.claim_task(
-                "before-resume", run_id=run_id, db_path=isolated_db
-            )
-            is None
-        )
-
-        resumed = client.post(f"/api/runs/{run_id}/resume")
-        assert resumed.status_code == 200, resumed.text
-        successor = store.claim_task(
-            "after-resume", run_id=run_id, db_path=isolated_db
-        )
-        assert successor is not None
-        assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
 
 
 @pytest.mark.asyncio

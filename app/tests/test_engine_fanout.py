@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
@@ -15,11 +16,9 @@ from co_scientist.exceptions import (
 from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Hypothesis, HypothesisReview
 
-import app.engine_tasks.fanout as engine_tasks_fanout_items
 import app.engine_tasks.fanout as items
 from app import engine_tasks, task_worker
-from app.engine_tasks import fanout_aggregates as _recheck_reflection
-from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
+from app.engine_tasks import fanout_aggregates as aggregates
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.fanout import _mature_reflection_specs, _maturity_specs
 from app.engine_tasks.fanout_aggregates import _apply_review_items
@@ -96,8 +95,8 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
         == engine_tasks_support.REVIEW_ITEM_TASK
     )
     first_result, second_result = await asyncio.gather(
-        engine_tasks_fanout_items.execute_review_item(first, db_path=db_path),
-        engine_tasks_fanout_items.execute_review_item(second, db_path=db_path),
+        items.execute_review_item(first, db_path=db_path),
+        items.execute_review_item(second, db_path=db_path),
     )
     assert lifecycle.complete_task(
         first.id, "child-a", first_result, db_path=db_path
@@ -107,10 +106,8 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
     )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    aggregate_result = (
-        await engine_tasks_fanout_aggregates.execute_review_aggregate(
-            aggregate, db_path=db_path
-        )
+    aggregate_result = await aggregates.execute_review_aggregate(
+        aggregate, db_path=db_path
     )
     assert aggregate_result["successful_reviews"] == 2
     assert lifecycle.complete_task(
@@ -252,9 +249,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
     _install_failing_review(monkeypatch, error)
 
     with pytest.raises(type(error)):
-        await engine_tasks_fanout_items.execute_mature_reflection_item(
-            leased, db_path=isolated_db
-        )
+        await items.execute_mature_reflection_item(leased, db_path=isolated_db)
 
 
 async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
@@ -265,9 +260,7 @@ async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
     _install_failing_review(monkeypatch, ValueError("unparseable answer"))
 
     with pytest.raises(RuntimeError):
-        await engine_tasks_fanout_items.execute_mature_reflection_item(
-            leased, db_path=isolated_db
-        )
+        await items.execute_mature_reflection_item(leased, db_path=isolated_db)
 
 
 @pytest.mark.parametrize("error", [PARK, OVER_BUDGET])
@@ -478,24 +471,6 @@ async def test_durable_mature_review_keeps_ledger_beside_review(
 # later cycles cannot refund it.
 
 
-def _patch_item(
-    monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any], status: str
-) -> None:
-
-    class _Item:
-        def __init__(self) -> None:
-            self.inputs = inputs
-            self.status = status
-            self.error = "acceptance unknown"
-            self.result: dict[str, Any] | None = None
-
-    monkeypatch.setattr(
-        _recheck_reflection,
-        "_require_item_task",
-        lambda item_id, db_path, kind="": _Item(),
-    )
-
-
 def _recheck_blocked_hypothesis(text: str = "alpha") -> Hypothesis:
     hypothesis = Hypothesis(
         text=text, reviews=[_dispositions_blocking_review()]
@@ -513,9 +488,9 @@ def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
     monkeypatch: pytest.MonkeyPatch, recheck: bool
 ) -> None:
     hypothesis = _recheck_blocked_hypothesis()
-    _patch_item(
+    _patch_items(
         monkeypatch,
-        {
+        inputs={
             "hypothesis_id": hypothesis.id,
             "recheck": recheck,
             "review_mode": "recurrent" if recheck else "full",
@@ -523,7 +498,7 @@ def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
         status="failed",
     )
 
-    _recheck_reflection._apply_mature_reflection_items(
+    aggregates._apply_mature_reflection_items(
         {hypothesis.id: hypothesis}, ["item-1"], 0, None
     )
 
@@ -546,3 +521,148 @@ def test_the_cascade_owns_viable_ideas_and_rechecks_each_blocked_one() -> None:
         *[("recurrent", True)] * 20,
     ]
     assert [spec.hypothesis_id for spec in specs[2:]] == [h.id for h in blocked]
+
+
+def _patch_items(
+    monkeypatch: pytest.MonkeyPatch,
+    results: dict[str, dict[str, Any]] | None = None,
+    *,
+    inputs: dict[str, Any] | None = None,
+    status: str = "completed",
+) -> None:
+
+    class _Item:
+        def __init__(self, payload: dict[str, Any] | None) -> None:
+            self.inputs = inputs or {}
+            self.status = status
+            self.error = "acceptance unknown"
+            self.result = payload
+
+    monkeypatch.setattr(
+        aggregates,
+        "_require_item_task",
+        lambda item_id, db_path, kind="": _Item(
+            (results or {}).get(str(item_id))
+        ),
+    )
+
+
+def _mature_item(
+    hypothesis: Hypothesis, mode: str, review: dict[str, Any], **extra: Any
+) -> dict[str, Any]:
+    return {
+        "hypothesis_id": hypothesis.id,
+        "review_mode": mode,
+        "review": review,
+        **extra,
+    }
+
+
+def test_mature_reflection_aggregate_applies_fatal_dispositions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hypothesis = Hypothesis(text="idea")
+    hypothesis.review_disposition = "viable"
+    _patch_items(
+        monkeypatch,
+        {
+            "item-full": _mature_item(
+                hypothesis,
+                "full",
+                {"verdict": "rejected", "justification": "circular"},
+            ),
+            "item-simulation": _mature_item(
+                hypothesis, "simulation", {"verdict": "holds"}
+            ),
+        },
+    )
+
+    items = aggregates._apply_mature_reflection_items(
+        {hypothesis.id: hypothesis},
+        ["item-full", "item-simulation"],
+        current_iteration=1,
+        db_path=None,
+    )
+
+    assert items.successful == 2
+    assert hypothesis.enrichments["full"]["verdict"] == "rejected"
+    assert hypothesis.review_disposition == "inaccurate"
+    assert not hypothesis.is_rankable()
+
+
+@pytest.mark.parametrize(
+    ("criteria", "disposition"),
+    [(["Discriminating experimental design"], "inaccurate"), (None, "viable")],
+)
+def test_review_aggregate_gates_on_the_run_criteria_when_it_has_any(
+    monkeypatch: pytest.MonkeyPatch,
+    criteria: list[str] | None,
+    disposition: str,
+) -> None:
+    hypothesis = Hypothesis(text="idea")
+    review = HypothesisReview(
+        review_summary="summary",
+        scores={"scientific_soundness": 9, "novelty": 9, "testability": 1},
+        safety_ethical_concerns="none",
+        detailed_feedback={},
+        constructive_feedback="feedback",
+        overall_score=6.0,
+    )
+    _patch_items(
+        monkeypatch,
+        {
+            "item-review": {
+                "hypothesis_id": hypothesis.id,
+                "review": dataclasses.asdict(review),
+            }
+        },
+    )
+
+    gated, failed, _usage = aggregates._apply_review_items(
+        {hypothesis.id: hypothesis},
+        ["item-review"],
+        db_path=None,
+        criteria=criteria,
+    )
+
+    assert (gated, failed) == (1, 0)
+    assert hypothesis.review_disposition == disposition
+    assert hypothesis.is_rankable() is (disposition == "viable")
+
+
+@pytest.mark.parametrize(
+    "ledger", [{"goal": "reverse fibrosis", "calls": []}, None]
+)
+def test_the_aggregate_carries_each_items_research_to_the_run_once(
+    monkeypatch: pytest.MonkeyPatch, ledger: dict[str, Any] | None
+) -> None:
+    # Retrieval ledgers belong to the run and must survive discarded item
+    # results without duplicate searches.
+    hypothesis = Hypothesis(text="idea")
+    hypothesis.review_disposition = "viable"
+    _patch_items(
+        monkeypatch,
+        {
+            "item-full": _mature_item(
+                hypothesis, "full", {"verdict": "sound"}, research_ledger=ledger
+            ),
+            "item-simulation": _mature_item(
+                hypothesis,
+                "simulation",
+                {"verdict": "holds"},
+                research_ledger=dict(ledger) if ledger else None,
+            ),
+        },
+    )
+
+    items = aggregates._apply_mature_reflection_items(
+        {hypothesis.id: hypothesis},
+        ["item-full", "item-simulation"],
+        current_iteration=1,
+        db_path=None,
+    )
+    update = aggregates._mature_reflection_update(
+        {"hypotheses": [hypothesis], "articles": []}, items
+    )
+
+    assert update["research_ledgers"] == ([ledger] if ledger else [])

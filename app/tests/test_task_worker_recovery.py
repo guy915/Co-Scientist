@@ -340,81 +340,52 @@ def _assert_unknown_outcome_failed_closed(
 
 
 @pytest.mark.asyncio
-async def test_expired_byok_lease_requires_owner_restart(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
-    accepted = ["response lost with old worker"]
-
-    async def _would_accept_again(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        accepted.append("replayed")
-        return {"unexpected_replay": True}
-
-    monkeypatch.setattr(
-        engine_tasks, "_dispatch_engine_task", _would_accept_again
-    )
-    with make_client() as client:
-        run_id, target, sibling = _lease_generate_beside_a_sibling(
-            client, isolated_db, "old-worker", lease_seconds=1
-        )
-        credentials.store_run_credential(
-            run_id,
-            DEFAULT_TEST_CLIENT_ID,
-            credentials.ByokCredential(
-                provider="deepseek",
-                api_key=_BYOK_KEY,
-                model="deepseek/deepseek-v4-flash",
-            ),
-            db_path=isolated_db,
-        )
-    now = store_db._now()
-    monkeypatch.setattr("app.store.db.time.time", lambda: now + 2)
-
-    with make_client() as reopened:
-        _assert_unknown_outcome_failed_closed(reopened, run_id, target, sibling)
-        assert accepted == ["response lost with old worker"]
-
-        assert reopened.post(f"/api/runs/{run_id}/resume").status_code == 200
-        assert await task_worker.run_once("owner-retry", db_path=isolated_db)
-
-    assert accepted == ["response lost with old worker", "replayed"]
-
-
-@pytest.mark.asyncio
-async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("cause", ["stored-credential", "paid-to-free-route"])
+async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, cause: str
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     routes = ("model_name", "supervisor_model_name", "chat_model_name")
-    for field in (*routes, "semantic_safety_model"):
-        monkeypatch.setattr(settings, field, "openrouter/provider/paid-model")
+    credentialed = cause == "stored-credential"
+    if credentialed:
+        monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
+    else:
+        for field in (*routes, "semantic_safety_model"):
+            monkeypatch.setattr(settings, field, "openrouter/provider/paid")
     dispatches: list[str] = []
 
-    async def _dispatch_after_owner_resume(
+    async def _dispatch(
         task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         dispatches.append(task.task_type)
         return {"owner_replay": True}
 
-    monkeypatch.setattr(
-        engine_tasks, "_dispatch_engine_task", _dispatch_after_owner_resume
-    )
+    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _dispatch)
     with make_client() as client:
         run_id, target, sibling = _lease_generate_beside_a_sibling(
-            client, isolated_db, "paid-route-worker", lease_seconds=30
+            client, isolated_db, "old-worker", lease_seconds=30
         )
+        if credentialed:
+            credentials.store_run_credential(
+                run_id,
+                DEFAULT_TEST_CLIENT_ID,
+                credentials.ByokCredential(
+                    provider="deepseek",
+                    api_key=_BYOK_KEY,
+                    model="deepseek/deepseek-v4-flash",
+                ),
+                db_path=isolated_db,
+            )
         with _store_db.connect(isolated_db) as conn:
             conn.execute(
                 "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
                 (target.id,),
             )
-    for field in (*routes, "semantic_safety_model"):
-        monkeypatch.setattr(
-            settings, field, "openrouter/nex-agi/nex-n2.5-pro:free"
-        )
+    if not credentialed:
+        for field in (*routes, "semantic_safety_model"):
+            monkeypatch.setattr(
+                settings, field, "openrouter/nex-agi/nex-n2.5-pro:free"
+            )
 
     with make_client() as restarted:
         _assert_unknown_outcome_failed_closed(
