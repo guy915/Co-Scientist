@@ -1,6 +1,5 @@
 // Generated from app.api_contracts; edit the backend models.
-import type {SharedRun} from './wire_runs';
-import type {ClaimEvidenceRow, Evidence, Hypothesis} from './wire_science';
+import type {ClaimEvidenceRow} from './wire_science';
 
 export interface AgentInsights {
   key_findings?: string[];
@@ -116,14 +115,6 @@ export interface RetrievalDegradation {
   reason: string;
   lost: string[];
   floor: string;
-}
-
-export interface SharedGoalReport {
-  share_id: string;
-  run: SharedRun;
-  report: Report;
-  hypotheses: Hypothesis[];
-  evidence: Evidence[];
 }
 
 export interface SpecificAim {

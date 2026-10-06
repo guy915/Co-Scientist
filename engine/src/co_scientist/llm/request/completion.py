@@ -76,8 +76,6 @@ def _apply_schema_response_format(
         }
         return
 
-    # Keep cache keys on the original prompt while the downgrade restates the
-    # schema.
     logger.debug(
         "model %s does not support json_schema response format;"
         " downgrading to json_object with schema in prompt",
@@ -122,9 +120,7 @@ _TIMEOUT_GRACE_SECONDS = 30.0
 
 
 async def _acompletion_within_timeout(completion_args: dict[str, Any], model_name: str) -> Any:
-    """Cache hits bypass this seam, so telemetry here counts physical
-    attempts only.
-    """
+    """Telemetry here counts physical attempts only."""
     return await complete_request(
         completion_args,
         model_name,
@@ -201,7 +197,7 @@ def _build_completion_args(
     temperature: float,
     shape: CompletionShape,
 ) -> dict[str, Any]:
-    """BYOK travels in task context, keeping request/cache arguments
+    """BYOK travels in task context, keeping request arguments
     credential-free.
     """
     completion_args = _base_completion_args(prompt, model_name, max_tokens, temperature)

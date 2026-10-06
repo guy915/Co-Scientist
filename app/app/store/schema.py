@@ -2,6 +2,7 @@ SCHEMA = """
 -- Explicitly retired empirical-outcomes data; no runtime consumer remains.
 DROP TABLE IF EXISTS outcome_refinement_actions;
 DROP TABLE IF EXISTS hypothesis_outcomes;
+DROP TABLE IF EXISTS report_shares;
 -- Primary lifecycle record for a single hypothesis-generation run.
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
@@ -139,20 +140,6 @@ CREATE INDEX IF NOT EXISTS idx_staged_documents_client
     ON staged_documents(client_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_staged_documents_interview
     ON staged_documents(interview_id, created_at ASC);
-
--- Revocable capability links for read-only public Goal Reports. Tokens are
--- random and stored only as hashes so a database read cannot disclose links.
-CREATE TABLE IF NOT EXISTS report_shares (
-    id TEXT PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    token_hash TEXT NOT NULL UNIQUE,
-    created_by_client TEXT NOT NULL,
-    created_at REAL NOT NULL,
-    revoked_at REAL,
-    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_report_shares_run
-    ON report_shares(run_id, created_at DESC);
 
 -- Append-only timeline of everything that happened during a run. This is the
 -- canonical source the SSE endpoint replays on client reconnect or restart.

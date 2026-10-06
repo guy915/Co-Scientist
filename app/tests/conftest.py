@@ -1,29 +1,14 @@
 from __future__ import annotations
 
-import os
 import pathlib
-import shutil
-import tempfile
 from collections.abc import Iterator
 
 import pytest
 
-# Set an isolated cache before importing Settings; stale responses are consulted
-# before the offline router.
-_CACHE_DIR = tempfile.mkdtemp(prefix="coscientist-test-cache-")
-os.environ.setdefault("COSCIENTIST_CACHE_DIR", _CACHE_DIR)
+from app import process_mode
+from app.config import PROVIDER_CREDENTIAL_ENV
 
-from app import process_mode  # noqa: E402
-from app.config import PROVIDER_CREDENTIAL_ENV  # noqa: E402
-
-from ._process_mode_helpers import FakeProcessMode  # noqa: E402
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _discard_the_session_cache() -> Iterator[None]:
-    yield
-    shutil.rmtree(_CACHE_DIR, ignore_errors=True)
-
+from ._process_mode_helpers import FakeProcessMode
 
 # Scrub credentials from the shared provider map so newly supported keys cannot
 # leak into paid calls.
@@ -123,16 +108,6 @@ def _fresh_health_check_cache() -> None:
     from app.diagnostics import clear_health_check_cache
 
     clear_health_check_cache()
-
-
-@pytest.fixture
-def claim_llm_cache_disabled() -> Iterator[None]:
-    # Repeated prompts use distinct fake verdicts; cached replies would cross
-    # test boundaries and bypass the model behavior each case exercises.
-    from co_scientist.cache import scoped_cache_override
-
-    with scoped_cache_override(False):
-        yield
 
 
 @pytest.fixture

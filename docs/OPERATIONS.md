@@ -92,7 +92,7 @@ matches cannot clear themselves: only a contextual assessor can clear a held
 verdict or strengthen it to a block. Operational hard blocks bypass that assessor;
 unavailable or ambiguous review remains held.
 
-Redact both report payload and Markdown: reports, events and public shares
+Redact both report payload and Markdown: reports and events
 expose them independently. Final-report redaction leaves the separately served
 claim-evidence facts unchanged.
 
@@ -136,12 +136,9 @@ answer. A configured but unreachable safety assessor refuses; offline mode must
 be deliberate. Safety holds park claimable tasks without spending retry attempts,
 and re-enqueuing an already-succeeded idempotency key cannot revive the task.
 
-## Per-run cache isolation
+## Cost accounting
 
-Per-run cache enablement must not mutate process environment or singleton defaults:
-an offline demo once disabled caching for later real runs. Cost accounting uses
-measured cache-read rates, and alternative offline-generator comparisons need
-cold caches rather than responses cached by the first generator.
+Cost accounting uses measured provider cache-read rates.
 
 ## Queued work and log cursors
 
@@ -325,3 +322,16 @@ query strings or payloads), modal opens, and engine-stage execution spans
 retain their existing WARNING level. Chat text and tool arguments/results are
 not added to these metadata records. Existing ten-minute duplicate suppression
 and the WARNING floor for per-call HTTP dependency chatter still apply.
+
+## Legacy data migration
+
+`app/dev/migrate_legacy_data.py` upgrades old persisted formats (M01-M08: retired tier
+names, NULL backend/retraction/passage/verdict, bare-string spans and recommendations,
+interviews without `lab_constraints`) and deletes non-engine checkpoints of finished runs.
+It is idempotent, runs in one transaction, never creates a database and never touches
+`runs.updated_at`, stored report markdown or `__demo__` runs. Owner steps, with the API
+stopped for the prod run: `python app/dev/backup_db.py PROD.db backup.db`; copy the backup;
+`--db copy.db --census`, then `--apply`, then `--census` on the copy and open the old runs;
+repeat census, apply, census on prod after a fresh backup; paste the final `deletable:` and
+`must_stay:` lines into the deletion PR. `--apply` refuses queued, running, paused or
+failed-with-checkpoint runs and open tasks unless `--allow-in-flight`; schema drift exits 2.

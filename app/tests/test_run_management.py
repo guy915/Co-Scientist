@@ -116,7 +116,7 @@ _TIERS = ("express", "standard", "extended", "ultra")
 
 def _tier_budget(tier: str) -> Budget:
     cfg = run_modes.resolved_run_config({"tier": tier})
-    kwargs = _generator_kwargs(cfg, "offline/test", None, None)
+    kwargs = _generator_kwargs(cfg, "offline/test", None)
     return Budget(
         max_iterations=int(kwargs["max_iterations"]),
         **kwargs["options"].budget,

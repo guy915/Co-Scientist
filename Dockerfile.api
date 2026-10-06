@@ -44,10 +44,9 @@ RUN python -m venv /app/skills-venv \
         -r /tmp/requirements-skills.txt
 ENV COSCIENTIST_SKILLS_PYTHON=/app/skills-venv/bin/python
 
-# Only the SQLite store belongs on the persistent volume; the LLM cache stays container-local.
+# Only the SQLite store belongs on the persistent volume.
 ENV COSCIENTIST_DB_PATH=/app/data/coscientist.db
-ENV COSCIENTIST_CACHE_DIR=/app/cache
-RUN mkdir -p /app/data /app/cache
+RUN mkdir -p /app/data
 
 # Railway overlays /app/data with a root-owned volume at runtime; image chown cannot reach it.
 # RAILWAY_RUN_UID=0 is required for SQLite writes on that mount.

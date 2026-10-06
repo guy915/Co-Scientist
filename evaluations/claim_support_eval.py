@@ -110,8 +110,7 @@ def drive_and_score(
 
     with tempfile.TemporaryDirectory() as tmp:
         db_path = str(pathlib.Path(tmp) / "claims.db")
-        cache_dir = str(pathlib.Path(tmp) / "cache")
-        configure_environment(db_path, cache_dir, live=live)
+        configure_environment(db_path, live=live)
         arm = run_arm(
             goal,
             tier,

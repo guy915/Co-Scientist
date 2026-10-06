@@ -161,8 +161,6 @@ def _publication_snapshot(
     cancel_responses: list[dict[str, Any]],
     isolated_db: str,
 ) -> dict[str, Any]:
-    share = owner.post(f"/api/runs/{run_id}/shares", headers=_OWNER)
-    public = owner.get(f"/api/shared/{share.json().get('token', 'no-issued-share-token')}")
     reconciliation = views.reconcile_interrupted_runs(db_path=isolated_db)
     persisted_run = runs.get_run(run_id, db_path=isolated_db)
     task_after = store.get_task(task_id, db_path=isolated_db)
@@ -189,8 +187,6 @@ def _publication_snapshot(
         "completed_event_count": event_counts["completed"],
         "cancelled_event_count": event_counts["cancelled"],
         "email_task_count": task_types.count("notification.email"),
-        "owner_share_status": share.status_code,
-        "public_report_status": public.status_code,
         "restart_run_status": final_run.status,
         "restart_reconciles_as_active": run_id in reconciliation["failed"]
         or run_id in reconciliation["resumable"],
@@ -221,8 +217,6 @@ async def test_cancel_after_final_safety_withholds_report_publication(
         "completed_event_count": 0,
         "cancelled_event_count": 1,
         "email_task_count": 0,
-        "owner_share_status": 409,
-        "public_report_status": 404,
         "restart_run_status": RunStatus.CANCELLED.value,
         "restart_reconciles_as_active": False,
     }

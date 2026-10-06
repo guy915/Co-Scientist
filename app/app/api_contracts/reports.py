@@ -6,19 +6,7 @@ from pydantic import ConfigDict, with_config
 from typing_extensions import NotRequired, TypedDict
 
 from app.api_contracts.common import RunMode
-from app.api_contracts.runs import SharedRun
-from app.api_contracts.science import ClaimEvidenceRow, Evidence, Hypothesis
-
-
-@with_config(ConfigDict(extra="allow"))
-class SharedGoalReport(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    share_id: str
-    run: SharedRun
-    report: Report
-    hypotheses: list[Hypothesis]
-    evidence: list[Evidence]
+from app.api_contracts.science import ClaimEvidenceRow
 
 
 @with_config(ConfigDict(extra="allow"))

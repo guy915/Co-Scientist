@@ -18,13 +18,6 @@ export interface QaSource {
   passage?: string | null;
 }
 
-export interface ReportShare {
-  id: string;
-  run_id: string;
-  token?: string;
-  created_at: number;
-}
-
 export interface Run {
   id: string;
   research_goal: string;
@@ -103,10 +96,4 @@ export interface RunWithSummary {
   execution_progress?: RunExecutionProgress;
   summary: RunSummary;
   failure_kind?: string | null;
-}
-
-export interface SharedRun {
-  research_goal: string;
-  title?: string | null;
-  run_mode?: 'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
 }

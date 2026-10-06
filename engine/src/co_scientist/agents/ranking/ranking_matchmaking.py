@@ -29,7 +29,7 @@ def build_tournament_pairings(
     current_iteration: int,
     judged: set[frozenset[str]] | None = None,
 ) -> list[tuple[Hypothesis, Hypothesis]]:
-    """Use a process-stable hash seed so repeated inputs retain pairing/cache
+    """Use a process-stable hash seed so repeated inputs retain pairing
     identity."""
     seed_string = f"{research_goal}_{current_iteration}"
     seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)

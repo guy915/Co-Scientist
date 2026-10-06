@@ -26,7 +26,7 @@ def _persist(
     overrides: dict[str, Any] | None = None,
 ) -> tuple[str, str]:
     db = str(tmp_path / "arms.db")
-    _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
+    _run_driver.configure_environment(db, live=False)
     invocation = _run_driver.ArmInvocation("comparison-test", "offline", db)
     run_id = _run_driver.persist_arm_run(goal, tier, overrides or {}, invocation)
     return run_id, db
@@ -83,7 +83,6 @@ def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
     assert _identity(*_persist(tmp_path)) == identity
     other = _identity(*_persist(tmp_path, "Other goal"))
     assert other["digest"] != identity["digest"]
-    assert identity["cache_policy"] == "disabled"
     assert identity["backend"] == "offline"
     assert identity["configured_models"]["worker"]
     engine = _ROOT / "engine" / "src" / "co_scientist"
@@ -112,19 +111,6 @@ def test_model_and_fallback_changes_change_persisted_identity(
     changed_model = _identity(*_persist(tmp_path))
     assert changed_model["digest"] != rerouted["digest"]
     assert changed_model["goal_sha256"] == original["goal_sha256"]
-
-
-def test_identity_refuses_an_enabled_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    db = str(tmp_path / "arms.db")
-    _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
-    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "1")
-    with pytest.raises(ValueError, match="disabled response caches"):
-        _run_driver.persist_arm_run(
-            "Public goal",
-            "express",
-            {},
-            _run_driver.ArmInvocation("comparison-test", "offline", db),
-        )
 
 
 @pytest.mark.parametrize("fault", ["missing", "corrupt", "model", "config"])
@@ -164,7 +150,7 @@ def test_worker_drift_cannot_produce_an_arm_result(
     from app.store import runs
 
     db = str(tmp_path / "arms.db")
-    _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
+    _run_driver.configure_environment(db, live=False)
 
     async def changed_worker(run_id: str, *args: Any, **kwargs: Any) -> None:
         if fault == "model":

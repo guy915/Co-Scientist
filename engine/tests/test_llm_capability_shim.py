@@ -12,7 +12,7 @@ from co_scientist.llm.request.completion import (
 )
 from co_scientist.llm.structured.validate import reshape_json_output
 from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
-from tests._llm_fake import NESTED_SCHEMA, disable_llm_cache, scripted_backend
+from tests._llm_fake import NESTED_SCHEMA, scripted_backend
 from tests._llm_fake import make_completion as _completion
 from tests._llm_fake import make_message as _message
 
@@ -56,7 +56,6 @@ def _registry(monkeypatch: pytest.MonkeyPatch, supported: bool) -> None:
 def _serve(
     monkeypatch: pytest.MonkeyPatch, supported: bool, *contents: str
 ) -> list[dict[str, Any]]:
-    disable_llm_cache(monkeypatch)
     _registry(monkeypatch, supported)
     return scripted_backend(monkeypatch, [_completion(_message(c)) for c in contents]).requests
 

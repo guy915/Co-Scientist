@@ -1,7 +1,6 @@
 import asyncio
 import dataclasses
 import logging
-from dataclasses import dataclass
 from typing import Any, NamedTuple, cast
 
 from co_scientist.agents.generation.literature_review.enrichment import (
@@ -12,7 +11,6 @@ from co_scientist.agents.generation.literature_review.synthesis import (
     _phase3_analyze_papers,
     _phase4_synthesize,
 )
-from co_scientist.cache import NodeCache
 from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
 )
@@ -511,25 +509,6 @@ async def _fetch_content_and_enrichment(
         logger.error("Context enrichment failed: %s", enrichment_result)
         return "", []
     return cast(tuple[str, list[dict[str, Any]]], enrichment_result)
-
-
-@dataclass(frozen=True)
-class _ReviewCachePlan:
-    node_cache: NodeCache
-    cache_params: dict[str, Any]
-    force_cache: bool
-
-
-def _cache_result(result: dict[str, Any], cache_plan: _ReviewCachePlan) -> dict[str, Any]:
-    """Dev-isolation cache misses must populate the same forced cache used
-    for lookup."""
-    cache_plan.node_cache.set(
-        "literature_review",
-        result,
-        force=cache_plan.force_cache,
-        **cache_plan.cache_params,
-    )
-    return result
 
 
 async def _collect_and_enrich_papers(

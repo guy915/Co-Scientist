@@ -32,7 +32,6 @@ from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.provider import MCPToolProvider
 from tests._llm_fake import (
     FakeBackend,
-    disable_llm_cache,
     install_fake_backend,
     make_completion,
     make_message,
@@ -215,7 +214,6 @@ async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Unsupported bounds degrade to a reasoning tier instead of failing."""
-    disable_llm_cache(monkeypatch)
     model = "openrouter/minimax/minimax-m3:free"
     backend = scripted_backend(
         monkeypatch,
@@ -375,9 +373,9 @@ def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
 
 def test_importing_a_foundation_module_first_does_not_cycle() -> None:
     """Only a fresh interpreter exposes cycles involving a half-initialized
-    cache module."""
+    module."""
     result = subprocess.run(
-        [sys.executable, "-c", "import co_scientist.cache"],
+        [sys.executable, "-c", "import co_scientist.llm.precall"],
         capture_output=True,
         text=True,
         check=False,

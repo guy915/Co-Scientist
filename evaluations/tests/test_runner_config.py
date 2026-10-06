@@ -21,7 +21,7 @@ def test_an_offline_invocation_leaves_no_credential_to_spend(
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-would-be-billed")
     monkeypatch.delenv("FORCE_LITERATURE_REVIEW", raising=False)
 
-    configure_environment("/tmp/db.sqlite", "/tmp/cache", live=False)
+    configure_environment("/tmp/db.sqlite", live=False)
 
     assert [name for name in os.environ if name.endswith("_API_KEY")] == []
     assert os.environ["COSCIENTIST_FORCE_OFFLINE"] == "1"
@@ -50,7 +50,7 @@ def test_live_runner_isolates_credentials_and_all_model_roles(
     script = """
 import os
 from evaluations._run_driver import configure_environment
-configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
+configure_environment("/tmp/eval.db", live=True)
 from dotenv import load_dotenv
 load_dotenv(".env")
 from app.config import settings
@@ -85,7 +85,7 @@ from evaluations._run_driver import configure_environment
 for model in ("", "deepseek/deepseek-chat"):
     os.environ["MODEL_NAME"] = model
     try:
-        configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
+        configure_environment("/tmp/eval.db", live=True)
     except ValueError:
         pass
     else:
@@ -108,7 +108,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import litellm
 from evaluations._run_driver import configure_environment
-configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
+configure_environment("/tmp/eval.db", live=True)
 from app.config import settings
 from co_scientist.llm.admission import free_policy as free_catalog
 from co_scientist.llm import call_llm, CompletionSpec
