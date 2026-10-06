@@ -183,7 +183,7 @@ def _stub_node(
     return fake_client
 
 
-# Replace the full registry and use literal values so ambient environment cannot
+# Literal values so ambient environment cannot
 # alter fixtures.
 REPLACE_CONFIG = textwrap.dedent("""
     version: "2.0"
@@ -237,8 +237,6 @@ REPLACE_CONFIG = textwrap.dedent("""
     prompts:
       domain_context: "test domain context"
       generation_guidance: "test generation guidance"
-    settings:
-      merge_strategy: "replace"
     """)
 
 
@@ -250,8 +248,6 @@ def write_config(tmp_path: Path, body: str) -> str:
 
 RESEARCH_TOOLS_CONFIG = """
 version: "2.0"
-settings:
-  merge_strategy: replace
 servers:
   s:
     url: "http://example.test/mcp"
@@ -303,7 +299,7 @@ class FakeResearchClient:
 def research_registry(tmp_path: Path) -> ToolRegistry:
     path = tmp_path / "tools.yaml"
     path.write_text(RESEARCH_TOOLS_CONFIG)
-    return ToolRegistry(config_path=str(path), skip_user_config=True)
+    return ToolRegistry(config_path=str(path))
 
 
 def research_workflow(registry: ToolRegistry) -> WorkflowConfig:

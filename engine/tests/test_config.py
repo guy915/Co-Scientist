@@ -13,7 +13,7 @@ from tests._research_fakes import write_config as _write_config
 @pytest.fixture()
 def _config_registry_registry(tmp_path: Path) -> ToolRegistry:
     path = _write_config(tmp_path, _REPLACE_CONFIG)
-    return ToolRegistry(config_path=path, skip_user_config=True)
+    return ToolRegistry(config_path=path)
 
 
 def test_registry_lookups_over_a_loaded_config(
@@ -41,10 +41,8 @@ def test_registry_lookups_over_a_loaded_config(
         _ = registry.config
 
 
-def test_malformed_config_falls_back_to_default(tmp_path: Path) -> None:
-    path = _write_config(tmp_path, "this: is: : not valid: yaml: :\n  - x")
-    _config_registry_registry = ToolRegistry(config_path=path, skip_user_config=True)
-    assert _config_registry_registry.get_tool("pubmed_search") is not None
+def test_default_registry_loads_bundled_tools() -> None:
+    assert ToolRegistry().get_tool("pubmed_search") is not None
 
 
 def test_disabled_tools_argument_removes_tool_from_workflows(
@@ -52,7 +50,6 @@ def test_disabled_tools_argument_removes_tool_from_workflows(
 ) -> None:
     registry = ToolRegistry(
         config_path=_write_config(tmp_path, _REPLACE_CONFIG),
-        skip_user_config=True,
         disabled_tools=["alpha_search"],
     )
     assert registry.get_tools_for_workflow("literature_review") == [

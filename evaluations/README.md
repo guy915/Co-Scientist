@@ -150,14 +150,6 @@ the offline baseline remains local.
   inference or audit writes and cannot attest an export's authenticity;
   provenance completeness and supported-claim ratio remain observations.
 - `smoke.py` — the offline smoke suite with documented regression tolerances.
-- `golden_run.py` — a deliberate exception to "runs offline": drives one small
-  biomedical run through the real durable path (`store.create_run` ->
-  `task_worker` -> `engine_tasks` -> engine -> MCP -> drain -> report) against
-  a **local** MCP server with `indra_cancer.yaml` and the semantic claim
-  assessor, then asserts real (non-offline) evidence, nonempty support
-  passages, and at least one authorized INDRA invocation. Needs a provider key
-  and a running local MCP server; never in CI, never against production, fresh
-  temp DB each time.
 - `prod_smoke.py` — another deliberate exception to "runs offline": a
   **non-mutating** live smoke against a deployed Co-Scientist API (auth,
   CORS, ownership isolation, MCP/SMTP status disclosure, sanitized share
@@ -194,7 +186,6 @@ python -m evaluations.ablation_driver                     # offline; writes resu
 python -m evaluations.ablation_driver --live               # explicit MODEL_NAME + OPENROUTER_API_KEY + qualified MCP
 python -m evaluations.elo_concordance_eval                 # offline stub; writes results/elo-concordance-<date>.json
 python -m evaluations.elo_concordance_eval --llm            # explicit MODEL_NAME + OPENROUTER_API_KEY
-python -m evaluations.golden_run            # INDRA acceptance
 python -m evaluations.prod_smoke            # LIVE, non-mutating; not in CI
 python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com
 python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
@@ -324,11 +315,7 @@ labs and are recorded honestly rather than fabricated:
 
 Each runner records its own `external_gap` in its result artifact.
 
-### Golden run
-
-The INDRA golden runner requires explicit `MODEL_NAME` and its matching provider
-credential in the environment; it does not read `.env` or choose a model default.
-It is a separate acceptance check and may incur charges.
+### Live panels
 
 Live citation entailment, citation usefulness and Elo panels use free-model
 configuration before importing model code. Set an explicit OpenRouter `MODEL_NAME`

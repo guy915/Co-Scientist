@@ -8,12 +8,7 @@ from app.config import any_provider_credential, byok_enabled, settings
 from app.engine_adapter.tools import (
     connectors_report as connectors_report,
 )
-from app.engine_adapter.tools import (
-    tools_config_report,
-)
-from app.engine_adapter.tools import (
-    validate_tools_config as validate_tools_config,
-)
+from app.engine_adapter.tools import enabled_tools
 from app.process_mode import offline_mode as offline_mode
 from app.store import runs
 
@@ -86,7 +81,7 @@ def system_status() -> dict[str, Any]:
         # Diagnostics mirror the generator's actual supervisor-model fallback.
         "supervisor_model_name": settings.effective_supervisor_model,
         "mcp_server_url": settings.mcp_server_url,
-        **tools_config_report(settings.tools_config),
+        "enabled_tools": enabled_tools(),
     }
 
 

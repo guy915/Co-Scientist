@@ -27,7 +27,6 @@ class GeneratorOptions:
     tournament_pairs: int = 12
     elo_k_factor: int = ELO_K_FACTOR
     literature_review_papers_count: int = 8
-    tools_config: str | None = None
     disable_tools: list[str] | None = None
     budget: dict[str, Any] | None = field(default=None)
     api_key: str | None = None
@@ -207,21 +206,11 @@ def _resolve_dev_mode_flag(opts: dict[str, Any]) -> bool:
     return enabled
 
 
-def _build_tool_registry(
-    tools_config: str | None,
-    disable_tools: list[str] | None,
-) -> Any:
+def _build_tool_registry(disable_tools: list[str] | None) -> Any:
     from co_scientist.config import (
         ToolRegistry,
     )
 
-    registry = ToolRegistry(
-        config_path=tools_config,
-        disabled_tools=disable_tools,
-    )
-    logger.info(
-        "Initialized %s tool registry: %s enabled tools",
-        "custom" if tools_config else "bundled-default",
-        len(registry.get_enabled_tools()),
-    )
+    registry = ToolRegistry(disabled_tools=disable_tools)
+    logger.info("Initialized tool registry: %s enabled tools", len(registry.get_enabled_tools()))
     return registry

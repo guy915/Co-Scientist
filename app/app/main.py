@@ -59,20 +59,13 @@ def _reclaim_disk_space() -> None:
 
 
 def _startup_engine_setup() -> None:
-    """The offline router is a harmless passthrough for real models;
-    configured unreadable tools fail loudly at startup.
-    """
+    """The offline router is a harmless passthrough for real models."""
     from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
     logger.info("Model: %s", settings.model_name)
-    if settings.tools_config:
-        logger.info("Tools config: %s", settings.tools_config)
-    else:
-        logger.info("Tools config: not set (generator defaults)")
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
-    engine_adapter.validate_tools_config(settings.tools_config)
 
 
 def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
