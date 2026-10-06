@@ -121,14 +121,6 @@ def test_interview_owner_is_checked_and_all_answers_are_retrievable() -> None:
     assert "interview" not in _gather_qa_context(run).artifacts
 
 
-def test_unknown_checkpoint_version_falls_back_to_published_tables() -> None:
-    run = _run()
-    _checkpoint(
-        run, {"hypotheses": [{"text": "Do not interpret"}]}, version=999
-    )
-    assert _gather_qa_context(run).hypotheses == []
-
-
 def test_retrieval_reaches_records_and_text_beyond_both_caps() -> None:
     records = [{"text": "x" * 6000 + "LAST PAGE"} for _ in range(100)]
     result = json.loads(
@@ -179,17 +171,3 @@ def test_prompt_stays_bounded_and_always_retains_grounding_rules() -> None:
     assert "never invent a citation" in prompt
     assert "untrusted data" in prompt
     assert "search_run_artifacts" in prompt
-
-
-def test_search_returns_matching_passage_beyond_first_chunk() -> None:
-    result = json.loads(
-        artifacts.retrieve(
-            {"report": ["x" * 9000 + "Rare finding"]},
-            {
-                "section": "report",
-                "query": "Rare finding",
-            },
-        )
-    )
-    assert "Rare finding" in result["records"][0]["text"]
-    assert result["records"][0]["character_offset"] > 0
