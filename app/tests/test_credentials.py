@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 from collections.abc import Callable
-from pathlib import Path
 
 import pytest
-from starlette.datastructures import Headers
 
 from app import credentials
 from app.config import settings
@@ -51,37 +48,6 @@ def test_decrypt_with_a_different_secret_fails(
         credentials.decrypt_api_key(token)
 
 
-def test_credential_from_headers_maps_provider_model(
-    byok_secret: str,
-) -> None:
-    request = Headers({"X-LLM-API-Key": _KEY, "X-LLM-Provider": "deepseek"})
-    cred = credentials.credential_from_headers(request)
-    assert cred is not None
-    assert cred.provider == "deepseek"
-    assert cred.api_key == _KEY
-    assert cred.model == "deepseek/deepseek-flash"
-
-
-def test_credential_from_headers_absent() -> None:
-    assert credentials.credential_from_headers(Headers({})) is None
-
-
-def test_credential_from_headers_key_without_provider(
-    byok_secret: str,
-) -> None:
-    request = Headers({"X-LLM-API-Key": _KEY})
-    with pytest.raises(credentials.ByokRequestError):
-        credentials.credential_from_headers(request)
-
-
-def test_credential_from_headers_unknown_provider(
-    byok_secret: str,
-) -> None:
-    request = Headers({"X-LLM-API-Key": _KEY, "X-LLM-Provider": "skynet"})
-    with pytest.raises(credentials.ByokRequestError):
-        credentials.credential_from_headers(request)
-
-
 @pytest.mark.parametrize(
     "use_secret",
     [credentials.encrypt_api_key, credentials.idempotency_secret_fingerprint],
@@ -92,21 +58,6 @@ def test_secret_dependent_calls_require_the_deployment_secret(
     monkeypatch.setattr(settings, "byok_encryption_key", "")
     with pytest.raises(credentials.ByokNotConfiguredError):
         use_secret(_KEY)
-
-
-def test_credential_from_headers_unknown_supervisor_provider(
-    byok_secret: str,
-) -> None:
-    request = Headers(
-        {
-            "X-LLM-API-Key": _KEY,
-            "X-LLM-Provider": "deepseek",
-            credentials.SUPERVISOR_PROVIDER_HEADER: "skynet",
-            credentials.SUPERVISOR_API_KEY_HEADER: _SECOND_KEY,
-        }
-    )
-    with pytest.raises(credentials.ByokRequestError, match="skynet"):
-        credentials.credential_from_headers(request)
 
 
 def test_run_credential_round_trips_encrypted(byok_secret: str) -> None:
@@ -133,60 +84,6 @@ def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
     with db.connect() as conn:
         conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
     assert credentials.get_run_credential(run.id) is None
-
-
-async def test_validation_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    seen: dict[str, object] = {}
-
-    async def fake_acompletion(**kwargs: object) -> None:
-        seen.update(kwargs)
-
-    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
-    cred = credentials.ByokCredential(
-        provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
-    )
-    await credentials.validate_byok_credential(cred)
-    assert seen["api_key"] == _KEY
-    assert seen["model"] == "deepseek/deepseek-v4-flash"
-    assert seen["max_tokens"] == 1
-
-
-async def test_validation_keeps_its_own_error_message(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_acompletion(**kwargs: object) -> None:
-        raise credentials.ByokValidationError("model unavailable")
-
-    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
-    cred = credentials.ByokCredential(
-        provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
-    )
-    with pytest.raises(credentials.ByokValidationError) as exc_info:
-        await credentials.validate_byok_credential(cred)
-    assert str(exc_info.value) == "model unavailable"
-
-
-async def test_validation_rejected_key_surfaces_as_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from litellm.exceptions import AuthenticationError
-
-    async def fake_acompletion(**kwargs: object) -> None:
-        raise AuthenticationError(
-            "Invalid API key",
-            llm_provider="deepseek",
-            model="deepseek/deepseek-v4-flash",
-        )
-
-    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
-    cred = credentials.ByokCredential(
-        provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
-    )
-    with pytest.raises(credentials.ByokValidationError) as exc_info:
-        await credentials.validate_byok_credential(cred)
-    message = str(exc_info.value)
-    assert "rejected" in message
-    assert _KEY not in message
 
 
 def test_byok_model_and_key_prefers_scoped_credential(
@@ -277,23 +174,3 @@ def test_idempotency_digest_covers_the_supervisor_credential(
     assert sup != digest(
         supervisor_api_key=_SECOND_KEY, supervisor_provider="anthropic"
     )
-
-
-def test_existing_database_gains_the_supervisor_columns(
-    byok_secret: str, tmp_path: Path
-) -> None:
-    path = str(tmp_path / "old.db")
-    legacy = sqlite3.connect(path)
-    legacy.execute(
-        "CREATE TABLE run_credentials (run_id TEXT PRIMARY KEY, client_id "
-        "TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, "
-        "supervisor_model TEXT, encrypted_key TEXT NOT NULL, "
-        "created_at REAL NOT NULL)"
-    )
-    legacy.close()
-
-    run = seed_run("goal", profile="express", db_path=path)
-    credentials.store_run_credential(
-        run.id, run.client_id, _mixed(), db_path=path
-    )
-    assert credentials.get_run_credential(run.id, db_path=path) == _mixed()

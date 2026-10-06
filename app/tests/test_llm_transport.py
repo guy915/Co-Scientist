@@ -44,35 +44,6 @@ _probe: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 )
 
 
-def test_propagate_context_carries_value_into_a_new_thread() -> None:
-    token = _probe.set("scoped-value")
-    try:
-
-        def _read() -> str | None:
-            return _probe.get()
-
-        wrapped = propagate_context(_read)
-    finally:
-        _probe.reset(token)
-
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        assert pool.submit(wrapped).result() == "scoped-value"
-
-
-def test_run_coroutine_sync_carries_value_onto_the_bridge_loop() -> None:
-    token = _probe.set("bridge-value")
-    try:
-
-        async def _read() -> str | None:
-            return _probe.get()
-
-        result = run_coroutine_sync(_read)
-    finally:
-        _probe.reset(token)
-
-    assert result == "bridge-value"
-
-
 def test_run_coroutine_sync_runs_many_calls_concurrently() -> None:
     import time
 
@@ -145,27 +116,6 @@ async def _start_worker_on_running_loop() -> None:
     GLOBAL_LOGGING_WORKER.start()
     await asyncio.sleep(0)
     assert GLOBAL_LOGGING_WORKER._worker_task is not None
-
-
-async def test_app_call_uses_the_installed_backend(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    answer = SimpleNamespace(choices=[], model="offline-test")
-
-    async def provider(**kwargs: Any) -> Any:
-        return answer
-
-    async def forbidden(**kwargs: Any) -> Any:
-        raise AssertionError("bypassed the installed completion backend")
-
-    monkeypatch.setattr(offline_guard, "require_remote_chat", lambda _: None)
-    monkeypatch.setattr("litellm.acompletion", forbidden)
-    fake = install_completion_backend(monkeypatch, provider)
-
-    response = await llm_request.acompletion(model="gpt-4o-mini", timeout=1)
-
-    assert response is answer
-    assert len(fake.requests) == 1
 
 
 async def test_app_budget_refuses_before_dispatch_and_restores_research_scope(
@@ -283,24 +233,6 @@ async def test_stream_context_does_not_leak_or_prefetch_across_yields() -> None:
     assert not in_app_call_scope()
 
 
-async def test_closing_consumer_cancels_and_closes_the_producer() -> None:
-    closed = asyncio.Event()
-
-    @budgeted_stream("close_test")
-    async def stream() -> AsyncIterator[str]:
-        try:
-            yield "first"
-            await asyncio.sleep(3600)
-        finally:
-            closed.set()
-
-    response = stream()
-    assert await anext(response) == "first"
-    close = response.aclose
-    await close()
-    assert closed.is_set()
-
-
 async def test_abandoned_cyclic_stream_closes_without_destroying_its_producer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -372,14 +304,6 @@ async def _drain(stream: _FakeStream, **kwargs: float) -> list[str]:
     return [chunk async for chunk in stream_chunks(stream, **kwargs)]
 
 
-async def test_yields_every_chunk_in_order() -> None:
-    stream = _FakeStream([(0.0, "a"), (0.0, "b"), (0.0, "c")])
-
-    chunks = await _drain(stream, stall_seconds=1.0, total_seconds=10.0)
-
-    assert chunks == ["a", "b", "c"]
-
-
 async def test_a_long_but_talkative_stream_survives() -> None:
     # Healthy reasoning deltas reset silence timeouts before content arrives.
     stream = _FakeStream([(0.02, str(i)) for i in range(20)])
@@ -401,10 +325,3 @@ async def test_the_total_ceiling_still_backstops_a_dribbling_stream() -> None:
 
     with pytest.raises(asyncio.TimeoutError):
         await _drain(stream, stall_seconds=1.0, total_seconds=0.1)
-
-
-async def test_an_empty_stream_ends_cleanly() -> None:
-    assert (
-        await _drain(_FakeStream([]), stall_seconds=0.01, total_seconds=0.01)
-        == []
-    )

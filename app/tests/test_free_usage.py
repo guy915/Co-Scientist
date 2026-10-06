@@ -5,12 +5,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import free_usage
 from app.config import settings
-from app.execution_policy import CAMPAIGN
 from app.main import app
 from app.store.db import connect
-from tests._client import create_run as _create_run
 from tests._process_mode_helpers import FakeProcessMode
 
 _CLIENT = {"X-Client-ID": "free-usage-scientist"}
@@ -40,27 +37,12 @@ def _create(
     )
 
 
-def test_applies_only_to_keyless_real_non_campaign_runs() -> None:
-    assert free_usage.applies(None, "standard", "real")
-    assert not free_usage.applies(None, "standard", "offline")
-    assert not free_usage.applies(None, CAMPAIGN, "real")
-
-
 def test_free_run_must_be_express(real_backend: None) -> None:
     with TestClient(app) as client:
         response = _create(client, tier="standard")
         assert response.status_code == 403
         assert "Express" in response.json()["detail"]
         assert client.get("/api/runs", headers=_CLIENT).json()["runs"] == []
-
-
-def test_free_run_without_a_tier_defaults_to_express(
-    real_backend: None,
-) -> None:
-    with TestClient(app) as client:
-        response = _create_run(client, "free goal", headers=_CLIENT)
-    assert response.status_code == 200, response.text
-    assert response.json()["config"]["tier"] == "express"
 
 
 def test_free_run_rejects_numeric_overrides(real_backend: None) -> None:

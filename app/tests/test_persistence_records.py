@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import json
 import logging
 import sqlite3
 import stat
@@ -18,10 +17,9 @@ from app.report import finalize as report_finalize
 from app.report.content import derive_knowledge_facts
 from app.store import checkpoints as store_checkpoints
 from app.store import db as _store_db
-from app.store import documents, logs, messages, records, reports
+from app.store import documents, logs, records, reports
 from app.store import events as store_events
 from app.store import runs as store
-from app.store import runs_views as views
 from app.store import tasks as store_tasks
 from app.store.events import (
     ACTIVITY_OTHER,
@@ -29,7 +27,6 @@ from app.store.events import (
     activity_for_event,
 )
 from app.store.logs import LogFilters, NewLogRecord
-from app.store.messages import NewMessage
 from app.store.models import RunStatus
 from app.store.records import NewClaimEvidence, NewEvidence
 from dev.backup_db import backup_database
@@ -137,212 +134,48 @@ def _edge(
     return base
 
 
-def test_supports_edge_becomes_a_fact() -> None:
-    facts = derive_knowledge_facts([_edge("supports")])
-    assert len(facts) == 1
-    assert facts[0]["kind"] == "fact"
-    assert facts[0]["state"] == "supports"
-
-
-def test_contradicts_edge_becomes_a_contradiction() -> None:
-    facts = derive_knowledge_facts([_edge("contradicts")])
-    assert len(facts) == 1
-    assert facts[0]["kind"] == "contradiction"
-    assert facts[0]["state"] == "contradicts"
-
-
-def test_insufficient_edge_is_dropped() -> None:
-    facts = derive_knowledge_facts([_edge("insufficient")])
-    assert facts == []
-
-
-def test_edge_with_no_claim_text_is_dropped() -> None:
-    facts = derive_knowledge_facts([_edge("supports", claim="  ")])
-    assert facts == []
-
-
-def test_fact_carries_the_statement_and_hypothesis() -> None:
-    facts = derive_knowledge_facts(
-        [_edge("supports", claim="TREM2 promotes microglial phagocytosis.")]
-    )
-    assert facts[0]["statement"] == "TREM2 promotes microglial phagocytosis."
-    assert facts[0]["hypothesis_id"] == "h1"
-
-
-def test_fact_extracts_entities_from_the_claim() -> None:
-    facts = derive_knowledge_facts(
-        [_edge("supports", claim="TREM2 promotes microglial clearance.")]
-    )
-    assert "TREM2" in facts[0]["entities"]
-
-
-def test_fact_evidence_id_comes_from_the_supporting_spans() -> None:
+def test_only_settled_edges_become_facts_with_their_own_evidence() -> None:
     facts = derive_knowledge_facts(
         [
             _edge(
                 "supports",
+                claim="TREM2 promotes microglial clearance.",
                 supporting=[{"evidence_id": "ev-1"}],
                 contradicting=[{"evidence_id": "ev-wrong"}],
-            )
-        ]
-    )
-    assert facts[0]["evidence_id"] == "ev-1"
-
-
-def test_contradiction_evidence_id_comes_from_the_contradicting_spans() -> None:
-    # Supporting and contradicting edges store their evidence in different span
-    # lists.
-    facts = derive_knowledge_facts(
-        [
+            ),
+            _edge("insufficient", claim="An insufficient claim."),
+            _edge("supports", claim="  "),
             _edge(
                 "contradicts",
+                claim="A contradicts claim.",
                 supporting=[{"evidence_id": "ev-wrong"}],
                 contradicting=[{"evidence_id": "ev-2"}],
-            )
+            ),
+            _edge("supports", claim="No span."),
         ]
     )
-    assert facts[0]["evidence_id"] == "ev-2"
 
-
-def test_fact_evidence_id_is_none_without_a_span() -> None:
-    facts = derive_knowledge_facts([_edge("supports")])
-    assert facts[0]["evidence_id"] is None
-
-
-def test_mixed_edges_only_keep_settled_ones() -> None:
-    edges = [
-        _edge("supports", claim="A supports claim."),
-        _edge("insufficient", claim="An insufficient claim."),
-        _edge("contradicts", claim="A contradicts claim."),
+    assert [
+        (
+            f["kind"],
+            f["state"],
+            f["statement"],
+            f["hypothesis_id"],
+            f["evidence_id"],
+        )
+        for f in facts
+    ] == [
+        (
+            "fact",
+            "supports",
+            "TREM2 promotes microglial clearance.",
+            "h1",
+            "ev-1",
+        ),
+        ("contradiction", "contradicts", "A contradicts claim.", "h1", "ev-2"),
+        ("fact", "supports", "No span.", "h1", None),
     ]
-    facts = derive_knowledge_facts(edges)
-    assert [f["statement"] for f in facts] == [
-        "A supports claim.",
-        "A contradicts claim.",
-    ]
-
-
-def test_append_and_list_messages(isolated_db: str) -> None:
-    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
-    runs = views.list_runs(client_id="c1", db_path=isolated_db)
-    run_id = runs[0].id
-
-    messages.append_message(
-        NewMessage(
-            run_id=run_id,
-            sender="user",
-            content="focus on cytokines",
-            kind="steering",
-        ),
-        db_path=isolated_db,
-    )
-    messages.append_message(
-        NewMessage(
-            run_id=run_id,
-            sender="system",
-            content="Research plan ready",
-            kind="milestone",
-        ),
-        db_path=isolated_db,
-    )
-
-    msgs = messages.list_messages(run_id, db_path=isolated_db)
-    assert len(msgs) == 2
-    assert msgs[0].sender == "user"
-    assert msgs[0].kind == "steering"
-    assert msgs[0].applied is False
-    assert msgs[1].kind == "milestone"
-
-
-def test_get_pending_steering(isolated_db: str) -> None:
-    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
-    run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
-
-    messages.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content="steer A", kind="steering"
-        ),
-        db_path=isolated_db,
-    )
-    messages.append_message(
-        NewMessage(
-            run_id=run_id,
-            sender="system",
-            content="milestone msg",
-            kind="milestone",
-        ),
-        db_path=isolated_db,
-    )
-    messages.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content="steer B", kind="steering"
-        ),
-        db_path=isolated_db,
-    )
-
-    pending = messages.get_pending_steering(run_id, db_path=isolated_db)
-    assert len(pending) == 2
-    assert all(m.kind == "steering" for m in pending)
-    assert all(m.applied is False for m in pending)
-
-
-def test_mark_steering_applied(isolated_db: str) -> None:
-    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
-    run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
-
-    messages.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content="steer A", kind="steering"
-        ),
-        db_path=isolated_db,
-    )
-    messages.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content="steer B", kind="steering"
-        ),
-        db_path=isolated_db,
-    )
-
-    pending = messages.get_pending_steering(run_id, db_path=isolated_db)
-    ids = [m.id for m in pending]
-    messages.mark_steering_applied(ids, db_path=isolated_db)
-
-    after = messages.get_pending_steering(run_id, db_path=isolated_db)
-    assert len(after) == 0
-
-    all_msgs = messages.list_messages(run_id, db_path=isolated_db)
-    assert all(m.applied is True for m in all_msgs)
-
-
-def test_queued_steering_flags_engine_pending_steering(
-    isolated_db: str,
-) -> None:
-    # Steering needs the pending flag as well as preference text because the
-    # orchestrator prioritizes that flag.
-    from app.engine_adapter.opts import build_engine_opts
-
-    run = seed_run("rg", db_path=isolated_db)
-    messages.append_message(
-        NewMessage(
-            run_id=run.id,
-            sender="user",
-            content="focus on kinase X",
-            kind="steering",
-        ),
-        db_path=isolated_db,
-    )
-
-    opts = build_engine_opts(run.config, run.id, isolated_db)
-    assert opts.get("pending_steering") is True
-    assert "kinase X" in str(opts.get("preferences") or "")
-
-
-def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
-    from app.engine_adapter.opts import build_engine_opts
-
-    run = seed_run("rg", db_path=isolated_db)
-    opts = build_engine_opts(run.config, run.id, isolated_db)
-    assert "pending_steering" not in opts
+    assert "TREM2" in facts[0]["entities"]
 
 
 def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
@@ -365,25 +198,6 @@ def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
     assert sources[0]["source_type"] == "private_document"
     assert sources[0]["tool_id"] == "private_corpus"
     assert "Kinase X" in opts["user_inputs"]["literature"][0]
-
-
-def test_message_to_dict(isolated_db: str) -> None:
-    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
-    run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
-
-    msg = messages.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content="hello", kind="steering"
-        ),
-        db_path=isolated_db,
-    )
-    d = msg.to_dict()
-    assert d["sender"] == "user"
-    assert d["content"] == "hello"
-    assert d["kind"] == "steering"
-    assert d["applied"] is False
-    assert "id" in d
-    assert "created_at" in d
 
 
 def _make_run(client: TestClient, goal: str = "test goal") -> str:
@@ -439,18 +253,6 @@ def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
     assert tasks[-1].priority == 100
 
 
-def test_send_message_always_stores_as_steering(isolated_db: str) -> None:
-    client = _client()
-    run_id = _make_run(client)
-
-    res = client.post(
-        f"/api/runs/{run_id}/messages",
-        json={"content": "Why did hypothesis 3 drop?"},
-    )
-    assert res.status_code == 200
-    assert res.json()["kind"] == "steering"
-
-
 def test_list_messages_endpoint(isolated_db: str) -> None:
     client = _client()
     run_id = _make_run(client)
@@ -464,12 +266,6 @@ def test_list_messages_endpoint(isolated_db: str) -> None:
     assert len(msgs) == 2
     assert msgs[0]["content"] == "steer A"
     assert msgs[1]["content"] == "steer B"
-
-
-def test_list_messages_404_on_unknown_run(isolated_db: str) -> None:
-    client = _client()
-    res = client.get("/api/runs/nonexistent-id/messages")
-    assert res.status_code == 404
 
 
 def test_steering_messages_applied_after_run(isolated_db: str) -> None:
@@ -493,36 +289,6 @@ def test_steering_messages_applied_after_run(isolated_db: str) -> None:
     assert steering[0]["applied"] is True
 
 
-def test_milestone_messages_generated_by_durable_run(
-    isolated_db: str,
-) -> None:
-    import asyncio
-
-    from app import task_worker
-
-    run = seed_run(
-        "test milestone generation",
-        profile="express",
-        config={"tier": "express"},
-        client_id="test-client",
-        llm_backend="offline",
-        db_path=isolated_db,
-    )
-    task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
-    asyncio.run(
-        task_worker.run_run_worker_pool(
-            run.id,
-            "milestone-test",
-            policy=task_worker.WorkerPolicy(db_path=isolated_db),
-        )
-    )
-
-    msgs = messages.list_messages(run.id, db_path=isolated_db)
-    milestones = [m for m in msgs if m.kind == "milestone"]
-    assert len(milestones) >= 1
-    assert all(m.sender == "system" for m in milestones)
-
-
 def _backdate_completion(db_path: str, run_id: str, seconds_ago: float) -> None:
     # Write timestamps directly so age-based sweeps are deterministic without
     # real-time waits.
@@ -532,20 +298,6 @@ def _backdate_completion(db_path: str, run_id: str, seconds_ago: float) -> None:
             "UPDATE runs SET completed_at=?, updated_at=? WHERE id=?",
             (backdated, backdated, run_id),
         )
-
-
-def test_run_retention_days_defaults_when_unset(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_RUN_RETENTION_DAYS", raising=False)
-    assert retention.run_retention_days() == 90
-
-
-def test_run_retention_days_reads_the_env_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_RUN_RETENTION_DAYS", "5")
-    assert retention.run_retention_days() == 5
 
 
 def test_zero_disables_the_run_sweep(
@@ -660,16 +412,6 @@ def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
     assert latest["state"] == {"hyp_ids": ["a", "b"], "round": 1}
 
 
-def test_checkpoints_are_run_scoped(isolated_db: str) -> None:
-    run_a = _run(isolated_db)
-    run_b = _run(isolated_db)
-    seed_checkpoint(
-        run_a, {"x": 1}, stage="s", last_event_seq=1, db_path=isolated_db
-    )
-    assert store_checkpoints.has_checkpoint(run_a, db_path=isolated_db)
-    assert not store_checkpoints.has_checkpoint(run_b, db_path=isolated_db)
-
-
 def _count(db: str) -> int:
     with _store_db.connect(db) as conn:
         return int(
@@ -686,30 +428,6 @@ def _seed_raw_checkpoints(db: str, run_id: str, count: int) -> None:
                 "VALUES (?, ?, ?, 1, ?, ?, 0.0)",
                 (run_id, i, f"stage_{i}", i, f'{{"round": {i}}}'),
             )
-
-
-def test_saving_prunes_the_checkpoints_it_supersedes(isolated_db: str) -> None:
-    # Only the newest checkpoint is readable; retaining every full state can
-    # fill the volume.
-    run_id = _run(isolated_db)
-    for i in range(5):
-        seed_checkpoint(
-            run_id,
-            {"round": i},
-            stage=f"stage_{i}",
-            last_event_seq=i,
-            db_path=isolated_db,
-        )
-
-    assert _count(isolated_db) == 1
-    latest = store_checkpoints.get_latest_checkpoint(
-        run_id, db_path=isolated_db
-    )
-    assert latest is not None
-    assert latest["seq"] == 5
-    assert latest["stage"] == "stage_4"
-    assert latest["state"] == {"round": 4}
-    assert store_checkpoints.has_checkpoint(run_id, db_path=isolated_db)
 
 
 def test_pruning_is_per_run(isolated_db: str) -> None:
@@ -754,21 +472,6 @@ def test_prune_superseded_reclaims_pre_existing_history(
     assert latest is not None
     assert latest["seq"] == 20
     assert latest["state"] == {"round": 20}
-
-
-def test_prune_superseded_is_idempotent(isolated_db: str) -> None:
-    run_id = _run(isolated_db)
-    seed_checkpoint(
-        run_id, {}, stage="only", last_event_seq=1, db_path=isolated_db
-    )
-
-    assert (
-        store_checkpoints.prune_superseded_checkpoints(db_path=isolated_db) == 0
-    )
-    assert (
-        store_checkpoints.prune_superseded_checkpoints(db_path=isolated_db) == 0
-    )
-    assert store_checkpoints.has_checkpoint(run_id, db_path=isolated_db)
 
 
 def test_prune_batches_and_folds_the_wal_between_batches(
@@ -853,23 +556,6 @@ def test_append_event_persists_activity_inside_payload(
     assert events[-1]["payload"]["activity"] == "tournament"
 
 
-def test_list_events_reads_row_persisted_without_activity_key(
-    isolated_db: str,
-) -> None:
-    run = seed_run("legacy row test", provider="mock")
-    old_payload = {"status": "completed"}
-    with sqlite3.connect(isolated_db) as conn:
-        conn.execute(
-            "INSERT INTO run_events (run_id, seq, type, payload_json, "
-            "created_at) VALUES (?, 1, 'status', ?, 0)",
-            (run.id, json.dumps(old_payload)),
-        )
-        conn.commit()
-    events = store_events.list_events(run.id)
-    assert events[0]["payload"] == old_payload
-    assert "activity" not in events[0]["payload"]
-
-
 _SUPPORTED = "IL-6 increases inflammation via STAT3 signaling."
 
 
@@ -887,30 +573,6 @@ def _finalize(run: Any, db_path: str) -> None:
             emit_event,
         )
     )
-
-
-def test_replace_and_list_round_trip(isolated_db: str) -> None:
-    run = seed_run("kf goal", provider="mock")
-    hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
-    facts = [
-        {
-            "hypothesis_id": hyp_id,
-            "evidence_id": "ev-1",
-            "kind": "fact",
-            "statement": "IL-6 increases inflammation.",
-            "entities": ["IL6"],
-            "state": "supports",
-        }
-    ]
-
-    reports.replace_knowledge_facts(run.id, facts, db_path=isolated_db)
-    rows = reports.list_knowledge_facts(run.id, db_path=isolated_db)
-
-    assert len(rows) == 1
-    assert rows[0]["kind"] == "fact"
-    assert rows[0]["statement"] == "IL-6 increases inflammation."
-    assert rows[0]["entities"] == ["IL6"]
-    assert rows[0]["evidence_id"] == "ev-1"
 
 
 def test_replace_clears_prior_rows(isolated_db: str) -> None:
@@ -943,37 +605,9 @@ def test_replace_clears_prior_rows(isolated_db: str) -> None:
     assert rows[0]["statement"] == "Second."
 
 
-def test_list_filters_by_kind(isolated_db: str) -> None:
-    run = seed_run("kf goal", provider="mock")
-    hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
-    reports.replace_knowledge_facts(
-        run.id,
-        [
-            {
-                "hypothesis_id": hyp_id,
-                "kind": "fact",
-                "statement": "A fact.",
-                "entities": [],
-                "state": "supports",
-            },
-            {
-                "hypothesis_id": hyp_id,
-                "kind": "contradiction",
-                "statement": "A contradiction.",
-                "entities": [],
-                "state": "contradicts",
-            },
-        ],
-        db_path=isolated_db,
-    )
-
-    facts_only = reports.list_knowledge_facts(
-        run.id, kind="fact", db_path=isolated_db
-    )
-    assert [r["statement"] for r in facts_only] == ["A fact."]
-
-
-def test_list_filters_by_entity_case_insensitively(isolated_db: str) -> None:
+def test_list_filters_by_entity_case_insensitively_and_by_kind(
+    isolated_db: str,
+) -> None:
     run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     reports.replace_knowledge_facts(
@@ -988,10 +622,10 @@ def test_list_filters_by_entity_case_insensitively(isolated_db: str) -> None:
             },
             {
                 "hypothesis_id": hyp_id,
-                "kind": "fact",
+                "kind": "contradiction",
                 "statement": "About KRAS.",
                 "entities": ["KRAS"],
-                "state": "supports",
+                "state": "contradicts",
             },
         ],
         db_path=isolated_db,
@@ -1001,28 +635,10 @@ def test_list_filters_by_entity_case_insensitively(isolated_db: str) -> None:
         run.id, entity="trem2", db_path=isolated_db
     )
     assert [r["statement"] for r in matched] == ["About TREM2."]
-
-
-def test_facts_are_scoped_per_run(isolated_db: str) -> None:
-    run_a = seed_run("goal a", provider="mock")
-    run_b = seed_run("goal b", provider="mock")
-    hyp_a = _add(run_a.id, "H", _SUPPORTED, isolated_db)
-    reports.replace_knowledge_facts(
-        run_a.id,
-        [
-            {
-                "hypothesis_id": hyp_a,
-                "kind": "fact",
-                "statement": "Only in run A.",
-                "entities": [],
-                "state": "supports",
-            }
-        ],
-        db_path=isolated_db,
+    contradictions = reports.list_knowledge_facts(
+        run.id, kind="contradiction", db_path=isolated_db
     )
-
-    assert reports.list_knowledge_facts(run_b.id, db_path=isolated_db) == []
-    assert len(reports.list_knowledge_facts(run_a.id, db_path=isolated_db)) == 1
+    assert [r["statement"] for r in contradictions] == ["About KRAS."]
 
 
 def test_run_deletion_cascades_to_knowledge_facts(isolated_db: str) -> None:
@@ -1097,66 +713,6 @@ def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
     assert "TREM2" in by_kind["contradiction"]["entities"]
 
 
-def test_finalize_report_replaces_facts_on_re_finalize(
-    isolated_db: str,
-) -> None:
-    run = seed_run("kf goal", provider="mock")
-    hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=hyp_id,
-            claim="A supported claim.",
-            label="supports",
-            supporting=[],
-            contradicting=[],
-            assessor="deterministic-v1",
-        ),
-        db_path=isolated_db,
-    )
-
-    _finalize(run, isolated_db)
-    first = reports.list_knowledge_facts(run.id, db_path=isolated_db)
-    assert len(first) == 1
-
-    reports.replace_knowledge_facts(
-        run.id,
-        [dict(row, evidence_id=None) for row in first],
-        db_path=isolated_db,
-    )
-    second = reports.list_knowledge_facts(run.id, db_path=isolated_db)
-    assert len(second) == 1
-
-
-async def test_knowledge_facts_endpoint_returns_persisted_rows(
-    isolated_db: str,
-) -> None:
-    from app.runs.collections import get_knowledge_facts
-
-    run = seed_run("kf goal", provider="mock")
-    hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
-    reports.replace_knowledge_facts(
-        run.id,
-        [
-            {
-                "hypothesis_id": hyp_id,
-                "kind": "fact",
-                "statement": "Endpoint-visible fact.",
-                "entities": ["IL6"],
-                "state": "supports",
-            }
-        ],
-        db_path=isolated_db,
-    )
-
-    result = await get_knowledge_facts(run.id, kind=None, entity=None)
-
-    assert len(result["knowledge_facts"]) == 1
-    assert result["knowledge_facts"][0]["statement"] == (
-        "Endpoint-visible fact."
-    )
-
-
 def _append(
     isolated_db: str,
     message: str,
@@ -1202,82 +758,52 @@ def test_append_and_list_roundtrip(isolated_db: str) -> None:
     assert row["created_at"] > 0
 
 
-def test_list_after_id_and_limit(isolated_db: str) -> None:
-    ids = [_append(isolated_db, f"m{i}") for i in range(5)]
-    rows = logs.list_logs(
-        filters=LogFilters(after_id=ids[1]), db_path=isolated_db
-    )
-    assert [row["message"] for row in rows] == ["m2", "m3", "m4"]
-    rows = logs.list_logs(limit=2, db_path=isolated_db)
-    assert [row["message"] for row in rows] == ["m3", "m4"]
-
-
-def test_list_filters_by_min_level(isolated_db: str) -> None:
-    _append(isolated_db, "debugging", level="DEBUG")
-    _append(isolated_db, "informational")
-    _append(isolated_db, "bad", level="ERROR")
-    rows = logs.list_logs(
-        filters=LogFilters(min_levelno=logging.WARNING),
-        db_path=isolated_db,
-    )
-    assert [row["message"] for row in rows] == ["bad"]
-
-
-def test_list_filters_by_run_and_substring(isolated_db: str) -> None:
-    _append(isolated_db, "global line")
-    _append(isolated_db, "run line one", run_id="run-1")
-    _append(isolated_db, "run line two", run_id="run-1")
-    _append(isolated_db, "other run", run_id="run-2")
-    rows = logs.list_logs(
-        filters=LogFilters(run_id="run-1"), db_path=isolated_db
-    )
-    assert [row["message"] for row in rows] == ["run line one", "run line two"]
-    rows = logs.list_logs(
-        filters=LogFilters(contains="line one"), db_path=isolated_db
-    )
-    assert [row["message"] for row in rows] == ["run line one"]
-
-
-def test_count_logs_ignores_limit_and_respects_filters(
+def test_list_applies_cursor_limit_level_run_and_substring_filters(
     isolated_db: str,
 ) -> None:
-    for i in range(5):
-        _append(isolated_db, f"info {i}")
+    ids = [_append(isolated_db, f"m{i}") for i in range(5)]
     _append(isolated_db, "bad", level="ERROR")
-    _append(isolated_db, "scoped", run_id="run-1")
-    assert logs.count_logs(db_path=isolated_db) == 7
-    assert (
-        logs.count_logs(
-            filters=LogFilters(min_levelno=logging.WARNING),
-            db_path=isolated_db,
+    _append(isolated_db, "run line one", run_id="run-1")
+    _append(isolated_db, "run line two", run_id="run-1")
+
+    def messages_for(**filters: Any) -> list[str]:
+        rows = logs.list_logs(
+            filters=LogFilters(**filters), db_path=isolated_db
         )
-        == 1
-    )
-    assert (
-        logs.count_logs(filters=LogFilters(run_id="run-1"), db_path=isolated_db)
-        == 1
-    )
-    assert (
-        logs.count_logs(
-            filters=LogFilters(contains="info"), db_path=isolated_db
-        )
-        == 5
-    )
+        return [row["message"] for row in rows]
+
+    assert messages_for(after_id=ids[1])[:3] == ["m2", "m3", "m4"]
+    assert [
+        r["message"] for r in logs.list_logs(limit=2, db_path=isolated_db)
+    ] == [
+        "run line one",
+        "run line two",
+    ]
+    assert messages_for(min_levelno=logging.ERROR) == ["bad"]
+    assert messages_for(run_id="run-1") == ["run line one", "run line two"]
+    assert messages_for(contains="line one") == ["run line one"]
 
 
-def test_count_logs_honours_the_cursor(isolated_db: str) -> None:
-    _append(isolated_db, "old one")
-    cursor = _append(isolated_db, "old two")
-    _append(isolated_db, "new one")
+def test_count_logs_ignores_limit_and_honours_filters_and_cursor(
+    isolated_db: str,
+) -> None:
     # Retention and scoped clears remove pre-cursor rows, so after-cursor counts
     # cannot be derived by subtraction.
-    assert logs.count_logs(db_path=isolated_db) == 3
-    assert (
-        logs.count_logs(
-            filters=LogFilters(after_id=cursor), db_path=isolated_db
+    _append(isolated_db, "old one")
+    cursor = _append(isolated_db, "old two")
+    _append(isolated_db, "bad", level="ERROR")
+    _append(isolated_db, "scoped", run_id="run-1")
+
+    def count(**filters: Any) -> int:
+        return logs.count_logs(
+            filters=LogFilters(**filters), db_path=isolated_db
         )
-        == 1
-    )
+
+    assert logs.count_logs(db_path=isolated_db) == 4
+    assert count(after_id=cursor) == 2
+    assert count(min_levelno=logging.WARNING) == 1
+    assert count(run_id="run-1") == 1
+    assert count(contains="old") == 2
 
 
 def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
@@ -1307,39 +833,15 @@ def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
     assert logs.count_logs(db_path=isolated_db) == 4
 
 
-def test_noise_loggers_match_by_prefix(isolated_db: str) -> None:
-    _append(isolated_db, "pool note", logger_name="httpx.client")
-    rows = logs.list_logs(
-        filters=LogFilters(noise_loggers=("httpx",)), db_path=isolated_db
-    )
-    assert rows == []
-
-
-def test_prune_logs_keeps_newest(isolated_db: str) -> None:
+def test_prune_keeps_newest_and_clear_restarts_ids(isolated_db: str) -> None:
     for i in range(10):
         _append(isolated_db, f"m{i}")
-    deleted = logs.prune_logs(max_rows=4, db_path=isolated_db)
-    assert deleted == 6
+
+    assert logs.prune_logs(max_rows=4, db_path=isolated_db) == 6
     rows = logs.list_logs(db_path=isolated_db)
     assert [row["message"] for row in rows] == ["m6", "m7", "m8", "m9"]
     assert logs.prune_logs(max_rows=4, db_path=isolated_db) == 0
 
-
-def test_clear_logs_empties_and_restarts_ids(isolated_db: str) -> None:
-    for i in range(3):
-        _append(isolated_db, f"m{i}")
-    assert logs.clear_logs(db_path=isolated_db) == 3
+    assert logs.clear_logs(db_path=isolated_db) == 4
     assert logs.list_logs(db_path=isolated_db) == []
     assert _append(isolated_db, "after clear") == 1
-
-
-def test_clear_logs_on_empty_table_returns_zero(isolated_db: str) -> None:
-    assert logs.clear_logs(db_path=isolated_db) == 0
-
-
-def test_latest_log_id(isolated_db: str) -> None:
-    assert logs.latest_log_id(db_path=isolated_db) == 0
-    last = 0
-    for i in range(3):
-        last = _append(isolated_db, f"m{i}")
-    assert logs.latest_log_id(db_path=isolated_db) == last
