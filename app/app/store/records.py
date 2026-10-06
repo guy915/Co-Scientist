@@ -77,9 +77,7 @@ def list_evidence(
     """Legacy NULL retraction markers read as false, preserving what older
     runs could know.
     """
-    rows = _list_by_run(
-        "evidence", run_id, db_path, conn, json_fields=("authors",)
-    )
+    rows = _list_by_run("evidence", run_id, db_path, conn, json_fields=("authors",))
     for row in rows:
         row["available"] = bool(row["available"])
         row["retracted"] = bool(row.get("retracted"))
@@ -211,9 +209,7 @@ def review_exists(
     reviews can safely test whether their own row survived reset.
     """
     with _use_conn(conn, db_path) as conn:
-        row = conn.execute(
-            "SELECT 1 FROM reviews WHERE id=?", (review_id,)
-        ).fetchone()
+        row = conn.execute("SELECT 1 FROM reviews WHERE id=?", (review_id,)).fetchone()
         return row is not None
 
 
@@ -336,13 +332,10 @@ _NewRecord = (
 )
 
 
-def _record_columns(
-    record: _NewRecord, aliases: dict[str, str] | None = None
-) -> dict[str, Any]:
+def _record_columns(record: _NewRecord, aliases: dict[str, str] | None = None) -> dict[str, Any]:
     aliases = aliases or {}
     return {
-        aliases.get(field.name, field.name): getattr(record, field.name)
-        for field in fields(record)
+        aliases.get(field.name, field.name): getattr(record, field.name) for field in fields(record)
     }
 
 

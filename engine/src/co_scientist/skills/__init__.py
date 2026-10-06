@@ -64,9 +64,7 @@ def skills_directory() -> pathlib.Path | None:
 
 
 def skills_python() -> str:
-    return os.environ.get(SKILLS_PYTHON_ENV, "").strip() or (
-        _FALLBACK_SKILLS_PYTHON
-    )
+    return os.environ.get(SKILLS_PYTHON_ENV, "").strip() or (_FALLBACK_SKILLS_PYTHON)
 
 
 def _parse_frontmatter(text: str) -> dict[str, object] | None:
@@ -122,9 +120,7 @@ def _unmet_dependencies(directory: pathlib.Path) -> set[str]:
         return set()
     scripts = directory / "scripts"
     sources = sorted(scripts.glob("*.py")) if scripts.is_dir() else []
-    declared = (
-        set().union(*(_declared_in(s) for s in sources)) if sources else set()
-    )
+    declared = set().union(*(_declared_in(s) for s in sources)) if sources else set()
     return declared - installed
 
 
@@ -136,9 +132,7 @@ def _declared_in(script: pathlib.Path) -> set[str]:
     block = _METADATA_BLOCK.search(text)
     if block is None:
         return set()
-    found = (
-        _DEPENDENCY.match(line.strip()) for line in block.group(1).splitlines()
-    )
+    found = (_DEPENDENCY.match(line.strip()) for line in block.group(1).splitlines())
     return {_normalised(m.group(1)) for m in found if m is not None}
 
 
@@ -208,9 +202,7 @@ def _routing_summary(description: str) -> str:
     """
     head = description.split(". ", 1)[0].rstrip(".")
     return (
-        f"{head[: MAX_SUMMARY_CHARS - 1]}\u2026"
-        if (len(head) > MAX_SUMMARY_CHARS)
-        else f"{head}."
+        f"{head[: MAX_SUMMARY_CHARS - 1]}\u2026" if (len(head) > MAX_SUMMARY_CHARS) else f"{head}."
     )
 
 
@@ -221,10 +213,7 @@ def catalogue_section() -> str:
     skills = available_skills()
     if not skills:
         return ""
-    lines = [
-        f"- {skill.name}: {_routing_summary(skill.description)}"
-        for skill in skills
-    ]
+    lines = [f"- {skill.name}: {_routing_summary(skill.description)}" for skill in skills]
     return "\n".join(lines)
 
 
@@ -256,11 +245,7 @@ def read_skill_document(name: str, path: str | None = None) -> str | None:
     skill = find_skill(name)
     if skill is None:
         return None
-    target = (
-        skill.directory / _DOCUMENT_NAME
-        if path is None
-        else _skill_file(skill, path)
-    )
+    target = skill.directory / _DOCUMENT_NAME if path is None else _skill_file(skill, path)
     text = _read_text(target)
     if text is None:
         return None
@@ -313,9 +298,7 @@ def _skill_notice(name: str, document: str) -> tuple[str, str] | None:
         return None
     prerequisite = document[: match.end() + 600]
     urls = sorted(set(_URL.findall(prerequisite)))
-    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat(
-        timespec="seconds"
-    )
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
     return match.group(1), _NOTICE.format(
         stamp=stamp,
         name=name,
@@ -369,9 +352,7 @@ class SkillUsage:
         return dict(self._counts)
 
 
-_current_usage: ContextVar[SkillUsage | None] = ContextVar(
-    "current_skill_usage", default=None
-)
+_current_usage: ContextVar[SkillUsage | None] = ContextVar("current_skill_usage", default=None)
 
 
 @contextlib.contextmanager

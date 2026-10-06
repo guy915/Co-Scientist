@@ -37,13 +37,9 @@ async def test_worker_executes_and_commits_once(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = seed_run("worker goal")
-    task = enqueue_task(
-        run.id, "engine.test.commit", "commit-once", db_path=isolated_db
-    )
+    task = enqueue_task(run.id, "engine.test.commit", "commit-once", db_path=isolated_db)
 
-    async def _execute(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, str]:
+    async def _execute(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, str]:
         runs.update_run_status(run.id, RunStatus.COMPLETED)
         return {"run_id": run.id, "status": "completed"}
 
@@ -69,9 +65,7 @@ async def test_worker_completes_superseded_engine_task(
         db_path=isolated_db,
     )
 
-    async def _execute(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
+    async def _execute(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
         raise engine_tasks.SupersededTaskError("checkpoint advanced")
 
     monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
@@ -92,9 +86,7 @@ async def test_worker_shutdown_cancels_task_payload(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = seed_run("worker shutdown")
-    enqueue_task(
-        run.id, "engine.test.shutdown", "shutdown", db_path=isolated_db
-    )
+    enqueue_task(run.id, "engine.test.shutdown", "shutdown", db_path=isolated_db)
     started = asyncio.Event()
     interrupted = asyncio.Event()
     monkeypatch.setattr(
@@ -102,9 +94,7 @@ async def test_worker_shutdown_cancels_task_payload(
         "execute_engine_task",
         make_cancellable_executor(started, interrupted),
     )
-    running = asyncio.create_task(
-        task_worker.run_once("worker-a", db_path=isolated_db)
-    )
+    running = asyncio.create_task(task_worker.run_once("worker-a", db_path=isolated_db))
     await asyncio.wait_for(started.wait(), timeout=1)
 
     running.cancel()
@@ -148,9 +138,7 @@ def _run_with_lease(
 
 def _task_status(task_id: str, db: str) -> str:
     with _store_db.connect(db) as conn:
-        row = conn.execute(
-            "SELECT status FROM scientific_tasks WHERE id=?", (task_id,)
-        ).fetchone()
+        row = conn.execute("SELECT status FROM scientific_tasks WHERE id=?", (task_id,)).fetchone()
     return str(row["status"])
 
 
@@ -185,21 +173,16 @@ def test_only_a_dead_spent_lease_is_abandoned_and_settles_its_run(
     announced = [
         event
         for event in store_events.list_events(run_id, db_path=isolated_db)
-        if event["type"] == "status"
-        and event["payload"].get("status") == "failed"
+        if event["type"] == "status" and event["payload"].get("status") == "failed"
     ]
     assert bool(announced) is bool(abandoned), "a settled run must announce it"
 
 
-@pytest.mark.parametrize(
-    ("expires_in", "active"), [(-3600, False), (3600, True)]
-)
+@pytest.mark.parametrize(("expires_in", "active"), [(-3600, False), (3600, True)])
 def test_cohort_poll_reports_a_dead_spent_lease_as_inactive(
     isolated_db: str, expires_in: float, active: bool
 ) -> None:
-    run_id, _ = _run_with_lease(
-        isolated_db, expires_at=time.time() + expires_in, spend_budget=True
-    )
+    run_id, _ = _run_with_lease(isolated_db, expires_at=time.time() + expires_in, spend_budget=True)
 
     claimable, working, _ = lifecycle.cohort_poll(run_id, db_path=isolated_db)
 
@@ -211,9 +194,7 @@ def test_cohort_poll_reports_a_dead_spent_lease_as_inactive(
 async def test_cohort_idle_exit_settles_a_run_left_with_a_dead_lease(
     isolated_db: str,
 ) -> None:
-    run_id, task_id = _run_with_lease(
-        isolated_db, expires_at=time.time() - 3600, spend_budget=True
-    )
+    run_id, task_id = _run_with_lease(isolated_db, expires_at=time.time() - 3600, spend_budget=True)
 
     await task_worker.run_run_worker_pool(
         run_id,
@@ -228,19 +209,13 @@ async def test_cohort_idle_exit_settles_a_run_left_with_a_dead_lease(
     assert run.status == "failed"
 
 
-def _enqueue_test_tasks(
-    run_id: str, count: int, prefix: str, db_path: str
-) -> None:
+def _enqueue_test_tasks(run_id: str, count: int, prefix: str, db_path: str) -> None:
     for index in range(count):
-        enqueue_task(
-            run_id, f"engine.test.{index}", f"{prefix}:{index}", db_path=db_path
-        )
+        enqueue_task(run_id, f"engine.test.{index}", f"{prefix}:{index}", db_path=db_path)
 
 
 def _assert_all_completed(run_id: str, db_path: str) -> None:
-    assert {
-        task.status for task in tasks.list_tasks(run_id, db_path=db_path)
-    } == {"completed"}
+    assert {task.status for task in tasks.list_tasks(run_id, db_path=db_path)} == {"completed"}
 
 
 def _count_lease_renewals(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
@@ -278,23 +253,17 @@ async def test_worker_heartbeats_long_workflow_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = seed_run("long worker goal")
-    enqueue_task(
-        run.id, "engine.test.long", "long-engine-task", db_path=isolated_db
-    )
+    enqueue_task(run.id, "engine.test.long", "long-engine-task", db_path=isolated_db)
     release = asyncio.Event()
 
-    async def _execute(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, bool]:
+    async def _execute(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, bool]:
         await release.wait()
         runs.update_run_status(run.id, RunStatus.COMPLETED)
         return {"completed": True}
 
     monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
     running = asyncio.create_task(
-        task_worker.run_once(
-            "worker-a", db_path=isolated_db, lease_seconds=0.06
-        )
+        task_worker.run_once("worker-a", db_path=isolated_db, lease_seconds=0.06)
     )
     await asyncio.sleep(0.1)
     assert tasks.claim_task("worker-b", db_path=isolated_db) is None
@@ -307,9 +276,7 @@ async def test_worker_cancels_execution_after_lease_revocation(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = seed_run("cancel active work")
-    task = enqueue_task(
-        run.id, "engine.test.cancellable", "cancellable", db_path=isolated_db
-    )
+    task = enqueue_task(run.id, "engine.test.cancellable", "cancellable", db_path=isolated_db)
     started = asyncio.Event()
     interrupted = asyncio.Event()
     monkeypatch.setattr(
@@ -318,9 +285,7 @@ async def test_worker_cancels_execution_after_lease_revocation(
         make_cancellable_executor(started, interrupted),
     )
     running = asyncio.create_task(
-        task_worker.run_once(
-            "worker-a", db_path=isolated_db, lease_seconds=0.15
-        )
+        task_worker.run_once("worker-a", db_path=isolated_db, lease_seconds=0.15)
     )
     await asyncio.wait_for(started.wait(), timeout=1)
 
@@ -354,14 +319,10 @@ async def test_worker_cohort_executes_fanout_concurrently(
     _enqueue_test_tasks(run.id, task_count, "parallel", isolated_db)
     probe = _ConcurrencyProbe(sleep)
     monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
-    policy = task_worker.WorkerPolicy(
-        db_path=isolated_db, lease_seconds=lease_seconds
-    )
+    policy = task_worker.WorkerPolicy(db_path=isolated_db, lease_seconds=lease_seconds)
     kwargs = {} if worker_count is None else {"worker_count": worker_count}
 
-    await task_worker.run_run_worker_pool(
-        run.id, "embedded-test", policy=policy, **kwargs
-    )
+    await task_worker.run_run_worker_pool(run.id, "embedded-test", policy=policy, **kwargs)
 
     assert probe.max_active >= min_overlap
     _assert_all_completed(run.id, isolated_db)
@@ -374,9 +335,7 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
     # Empty provider responses are transient; classifying every ValueError as
     # permanent strands runs.
     run = seed_run("Transient failure")
-    task = enqueue_task(
-        run.id, "engine.node.ranking", "transient-1", db_path=isolated_db
-    )
+    task = enqueue_task(run.id, "engine.node.ranking", "transient-1", db_path=isolated_db)
 
     async def empty_response(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
         raise ValueError("LLM returned None or empty content. Model: x")
@@ -512,9 +471,7 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
     resume_at = store_db._now() + 3600
     error = LLMRateLimitParkError(resume_at=resume_at, reason="message_per_day")
 
-    task_worker_outcomes._handle_task_failure(
-        leased, "worker", error, isolated_db
-    )
+    task_worker_outcomes._handle_task_failure(leased, "worker", error, isolated_db)
 
     parked = tasks.get_task(task.id, db_path=isolated_db)
     assert parked is not None
@@ -544,9 +501,7 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
     # Future-due parked rows keep the cohort alive even though they are neither
     # claimable nor leased.
     run = seed_run("Rate limit park cohort")
-    task = enqueue_task(
-        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
-    )
+    task = enqueue_task(run.id, "engine.node.generate", "generate:seed", db_path=isolated_db)
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
     resume_at = store_db._now() + 3600
@@ -563,9 +518,7 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
     monkeypatch.setattr("app.task_worker.asyncio.sleep", _fake_sleep)
 
     policy = task_worker.WorkerPolicy(db_path=isolated_db)
-    keep_going = await task_worker._cohort_worker_step(
-        run.id, "worker2", policy
-    )
+    keep_going = await task_worker._cohort_worker_step(run.id, "worker2", policy)
 
     assert keep_going, "a pending park must keep the cohort alive"
     assert slept, "the idle loop must wait rather than busy-poll"

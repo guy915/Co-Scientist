@@ -45,12 +45,8 @@ def test_llm_entries_expire_by_ttl_and_are_evicted(
     assert entry.exists() is hit
 
 
-@pytest.mark.parametrize(
-    "content", ["not valid json{{{", '{"unexpected": "shape"}']
-)
-def test_a_corrupt_llm_entry_is_a_miss_and_is_removed(
-    tmp_path: Path, content: str
-) -> None:
+@pytest.mark.parametrize("content", ["not valid json{{{", '{"unexpected": "shape"}'])
+def test_a_corrupt_llm_entry_is_a_miss_and_is_removed(tmp_path: Path, content: str) -> None:
     llm_cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
     llm_cache.set(_REQUEST, _RESPONSE)
     (entry,) = tmp_path.glob("*.json")
@@ -96,9 +92,7 @@ def test_isolated_execution_cannot_read_or_replace_shared_node_result(
 ) -> None:
     cache = NodeCache(cache_dir=str(tmp_path))
     params = {"research_goal": "public goal", "model_name": "same-model"}
-    cache.set(
-        "literature_review", {"text": "previous run"}, force=False, **params
-    )
+    cache.set("literature_review", {"text": "previous run"}, force=False, **params)
     with monkeypatch.context() as patch:
         if scope == "campaign":
             patch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
@@ -110,9 +104,7 @@ def test_isolated_execution_cannot_read_or_replace_shared_node_result(
                 force=force,
                 **params,
             )
-    assert cache.get("literature_review", force=False, **params) == {
-        "text": "previous run"
-    }
+    assert cache.get("literature_review", force=False, **params) == {"text": "previous run"}
 
 
 async def test_campaign_literature_node_does_not_replay_previous_review(

@@ -25,9 +25,7 @@ DEFAULT_PREVIEW_CHARS = 16_000
 
 # Match credential-shaped environment names to catch variables not explicitly
 # listed.
-_SECRET_NAME_PATTERN = re.compile(
-    r"KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL", re.IGNORECASE
-)
+_SECRET_NAME_PATTERN = re.compile(r"KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL", re.IGNORECASE)
 
 
 class SecretRegistrationError(ValueError):
@@ -51,9 +49,7 @@ class SecretRegistry:
             )
         self._names_by_value.setdefault(value, name)
 
-    def register_environment(
-        self, environ: dict[str, str] | None = None
-    ) -> tuple[str, ...]:
+    def register_environment(self, environ: dict[str, str] | None = None) -> tuple[str, ...]:
         source = os.environ if environ is None else environ
         registered = []
         for name, value in source.items():
@@ -73,19 +69,11 @@ class SecretRegistry:
         """
         for value in sorted(self._names_by_value, key=len, reverse=True):
             if value in text:
-                text = text.replace(
-                    value, f"[redacted:{self._names_by_value[value]}]"
-                )
+                text = text.replace(value, f"[redacted:{self._names_by_value[value]}]")
         return text
 
     def survivors(self, text: str) -> tuple[str, ...]:
-        return tuple(
-            sorted(
-                name
-                for value, name in self._names_by_value.items()
-                if value in text
-            )
-        )
+        return tuple(sorted(name for value, name in self._names_by_value.items() if value in text))
 
 
 @dataclass(frozen=True)
@@ -135,14 +123,9 @@ class OutputRecorder:
         redacted = self.secrets.redact(text)
         leaked = self.secrets.survivors(redacted)
         if leaked:
-            logger.error(
-                "dropping %s: redaction did not remove %s", label, leaked
-            )
+            logger.error("dropping %s: redaction did not remove %s", label, leaked)
             return BoundedOutput(
-                text=(
-                    f"[output withheld: it still contained {', '.join(leaked)}"
-                    " after redaction]"
-                ),
+                text=(f"[output withheld: it still contained {', '.join(leaked)} after redaction]"),
                 truncated=True,
                 pointer=None,
             )
@@ -180,6 +163,4 @@ class OutputRecorder:
         except OSError as exc:
             logger.warning("could not spill %s output: %s", label, exc)
             return None
-        return OutputPointer(
-            path=relative, digest=digest, total_chars=len(redacted)
-        )
+        return OutputPointer(path=relative, digest=digest, total_chars=len(redacted))

@@ -58,9 +58,7 @@ def app_call_scope(surface: str) -> Iterator[None]:
 
 def budgeted(
     surface: str,
-) -> Callable[
-    [Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]
-]:
+) -> Callable[[Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]]:
 
     def decorate(
         function: Callable[P, Coroutine[Any, Any, T]],
@@ -107,9 +105,7 @@ async def _close_iterator(iterator: AsyncIterator[Any]) -> None:
         await close()
 
 
-async def _scoped_stream(
-    iterator: AsyncIterator[T], surface: str
-) -> AsyncGenerator[T, None]:
+async def _scoped_stream(iterator: AsyncIterator[T], surface: str) -> AsyncGenerator[T, None]:
     queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue(maxsize=1)
     producer = asyncio.create_task(_produce(iterator, queue, surface))
     _stream_producers.add(producer)
@@ -132,18 +128,14 @@ async def _scoped_stream(
 
 def budgeted_stream(
     surface: str,
-) -> Callable[
-    [Callable[P, AsyncIterator[T]]], Callable[P, AsyncGenerator[T, None]]
-]:
+) -> Callable[[Callable[P, AsyncIterator[T]]], Callable[P, AsyncGenerator[T, None]]]:
     """Stream context belongs to its producer rather than its consumer."""
 
     def decorate(
         function: Callable[P, AsyncIterator[T]],
     ) -> Callable[P, AsyncGenerator[T, None]]:
         @wraps(function)
-        def invoke(
-            *args: P.args, **kwargs: P.kwargs
-        ) -> AsyncGenerator[T, None]:
+        def invoke(*args: P.args, **kwargs: P.kwargs) -> AsyncGenerator[T, None]:
             return _scoped_stream(function(*args, **kwargs), surface)
 
         return invoke
@@ -161,9 +153,7 @@ async def stream_chunks(
     progress continuously without finishing the answer.
     """
     try:
-        async for chunk in _timed_chunks(
-            response, stall_seconds, total_seconds
-        ):
+        async for chunk in _timed_chunks(response, stall_seconds, total_seconds):
             yield chunk
     finally:
         close = getattr(response, "aclose", None)
@@ -179,9 +169,7 @@ async def _timed_chunks(
     while True:
         remaining = deadline - asyncio.get_running_loop().time()
         if remaining <= 0:
-            raise asyncio.TimeoutError(
-                f"stream exceeded {total_seconds}s in total"
-            )
+            raise asyncio.TimeoutError(f"stream exceeded {total_seconds}s in total")
         try:
             chunk = await asyncio.wait_for(
                 iterator.__anext__(), timeout=min(stall_seconds, remaining)

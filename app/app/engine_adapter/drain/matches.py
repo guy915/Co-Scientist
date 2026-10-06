@@ -33,9 +33,7 @@ def _persist_retrieval_calls(
         row
         for ledger in ledgers
         if isinstance(ledger, dict) and ledger
-        for row in retrieval.retrieval_call_rows(
-            run_id, result_from_dict(ledger)
-        )
+        for row in retrieval.retrieval_call_rows(run_id, result_from_dict(ledger))
     ]
     if not rows:
         return 0
@@ -58,9 +56,7 @@ def _debate_transcript_json(m: dict[str, Any]) -> str | None:
         return None
     # Historical matchups may lack verdict numbers; canonical side a still
     # identifies idea 1.
-    verdict = str(
-        m.get("debate_verdict") or ("2" if m.get("winner") == "b" else "1")
-    )
+    verdict = str(m.get("debate_verdict") or ("2" if m.get("winner") == "b" else "1"))
     document = debate_transcript_document(list(turns), verdict)
     return json.dumps(document, ensure_ascii=False)
 

@@ -22,9 +22,7 @@ from tests._state import (
 )
 
 
-def _tree_response(
-    count: int = 2, load_bearing_from: int = 0
-) -> dict[str, Any]:
+def _tree_response(count: int = 2, load_bearing_from: int = 0) -> dict[str, Any]:
     return {
         "assumptions": [
             {
@@ -38,10 +36,7 @@ def _tree_response(
 
 def _sub_response(*entries: tuple[int, list[str]]) -> dict[str, Any]:
     return {
-        "parents": [
-            {"parent_index": index, "sub_assumptions": subs}
-            for index, subs in entries
-        ]
+        "parents": [{"parent_index": index, "sub_assumptions": subs} for index, subs in entries]
     }
 
 
@@ -124,8 +119,6 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
     assert debate.articles_with_reasoning is None
     for hyp in result["hypotheses"].items:
         assert hyp.literature_grounding is not None
-        assert hyp.literature_grounding.startswith(
-            "No literature review available."
-        )
+        assert hyp.literature_grounding.startswith("No literature review available.")
     assert "debate-only" in result["message"]
     assert result["hypothesis_count"] == 2

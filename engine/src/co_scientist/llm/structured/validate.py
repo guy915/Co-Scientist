@@ -25,9 +25,7 @@ def _element_ok(item: Any, element: ElementKind) -> bool:
     return True
 
 
-def _filter_elements(
-    items: list[Any], element: ElementKind
-) -> tuple[list[Any], bool]:
+def _filter_elements(items: list[Any], element: ElementKind) -> tuple[list[Any], bool]:
     kept: list[Any] = []
     dropped = False
     for item in items:
@@ -57,9 +55,7 @@ def _list_from_dict(
     return None
 
 
-def _coerce_from_list(
-    value: list[Any], element: ElementKind, site: str
-) -> list[Any]:
+def _coerce_from_list(value: list[Any], element: ElementKind, site: str) -> list[Any]:
     items, dropped = _filter_elements(value, element)
     if dropped:
         logger.warning("%s: dropped list element(s) of the wrong type", site)
@@ -74,22 +70,16 @@ def _coerce_from_dict(
 ) -> list[Any]:
     found = _list_from_dict(value, keys, element)
     if found is None:
-        logger.warning(
-            "%s: expected a list, got a dict with no usable list", site
-        )
+        logger.warning("%s: expected a list, got a dict with no usable list", site)
         return []
     items, _dropped = _filter_elements(found, element)
     logger.warning("%s: coerced a dict into a list", site)
     return items
 
 
-def _coerce_from_scalar(
-    value: Any, element: ElementKind, site: str
-) -> list[Any]:
+def _coerce_from_scalar(value: Any, element: ElementKind, site: str) -> list[Any]:
     if element != "str" or not isinstance(value, str) or not value.strip():
-        logger.warning(
-            "%s: expected a list, got %s", site, type(value).__name__
-        )
+        logger.warning("%s: expected a list, got %s", site, type(value).__name__)
         return []
     logger.warning("%s: coerced a bare value into a one-item list", site)
     return [value.strip()]
@@ -176,9 +166,7 @@ def _repair_unterminated_field_name(s: str, stripped: str) -> str | None:
 
 
 def _looks_like_truncated_array_entry(stripped: str) -> bool:
-    return stripped.endswith(",") or (
-        stripped[-1].isalnum() and "[" in stripped
-    )
+    return stripped.endswith(",") or (stripped[-1].isalnum() and "[" in stripped)
 
 
 def _repair_unterminated_array_string(s: str, stripped: str) -> str | None:
@@ -226,9 +214,7 @@ def _close_truncated_json(s: str) -> str:
     result = s + ("]" * open_brackets) + ("}" * open_braces)
 
     if open_braces > 0 or open_brackets > 0:
-        logger.debug(
-            "repaired: added %s ']' and %s '}'", open_brackets, open_braces
-        )
+        logger.debug("repaired: added %s ']' and %s '}'", open_brackets, open_braces)
 
     return result
 
@@ -243,35 +229,21 @@ def _fix_invalid_escapes(s: str) -> str:
 _MINOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], dict[str, Any] | None]] = [
     lambda s: json.loads(re.sub(r",(\s*[}\]])", r"\1", s)),
     lambda s: json.loads(_fix_invalid_escapes(s)),
-    lambda s: json.loads(
-        _fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s))
-    ),
+    lambda s: json.loads(_fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s))),
     # strict=False admits literal control characters only, preserving complete
     # prose-valued JSON.
     lambda s: json.loads(s, strict=False),
-    lambda s: json.loads(
-        _fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s)), strict=False
-    ),
+    lambda s: json.loads(_fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s)), strict=False),
 ]
 
 # Truncation-oriented repairs belong only on the final attempt.
 _MAJOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], dict[str, Any] | None]] = [
     lambda s: json.loads(_close_truncated_json(s)),
-    lambda s: json.loads(
-        _close_truncated_json(re.sub(r",(\s*[}\]])", r"\1", s))
-    ),
+    lambda s: json.loads(_close_truncated_json(re.sub(r",(\s*[}\]])", r"\1", s))),
     lambda s: json.loads(_close_truncated_json(re.sub(r',?\s*"[^"]*$', "", s))),
-    lambda s: json.loads(
-        _close_truncated_json(re.sub(r'[:,]\s*"[^"]*$', "", s))
-    ),
-    lambda s: json.loads(
-        _close_truncated_json(s[: s.rfind(",") + 1] if "," in s else s)
-    ),
-    lambda s: (
-        json.loads(m.group(0))
-        if (m := re.search(r"\{.*\}", s, re.DOTALL))
-        else None
-    ),
+    lambda s: json.loads(_close_truncated_json(re.sub(r'[:,]\s*"[^"]*$', "", s))),
+    lambda s: json.loads(_close_truncated_json(s[: s.rfind(",") + 1] if "," in s else s)),
+    lambda s: json.loads(m.group(0)) if (m := re.search(r"\{.*\}", s, re.DOTALL)) else None,
 ]
 
 
@@ -333,30 +305,23 @@ def attempt_json_repair(
     return None, False
 
 
-def parse_tool_loop_json(
-    final_response: str, list_key: str, phase_label: str
-) -> list[Any]:
+def parse_tool_loop_json(final_response: str, list_key: str, phase_label: str) -> list[Any]:
     """Tool-loop final answers lack schema enforcement and may be truncated.
     Unparseable output must fail rather than silently erase the generation
     phase.
     """
     response_text = extract_response_json(final_response)
-    response_data, was_repaired = attempt_json_repair(
-        response_text, allow_major_repairs=True
-    )
+    response_data, was_repaired = attempt_json_repair(response_text, allow_major_repairs=True)
 
     if response_data is None:
         # Keep the excerpt with its error so level-filtered readers see the
         # associated evidence.
         logger.error(
-            "Failed to parse %s JSON response after all repair attempts. "
-            "Response: %s...",
+            "Failed to parse %s JSON response after all repair attempts. Response: %s...",
             phase_label,
             final_response[:500],
         )
-        raise ResponseParseError(
-            f"{phase_label} returned invalid JSON that could not be repaired"
-        )
+        raise ResponseParseError(f"{phase_label} returned invalid JSON that could not be repaired")
 
     if was_repaired:
         logger.warning(
@@ -372,9 +337,7 @@ def parse_tool_loop_json(
     )
 
 
-def validate_json_schema(
-    result: dict[str, Any], json_schema: dict[str, Any] | None
-) -> None:
+def validate_json_schema(result: dict[str, Any], json_schema: dict[str, Any] | None) -> None:
     if json_schema is None:
         return
 
@@ -388,9 +351,7 @@ def validate_json_schema(
         # The retry boundary warns with the attempt number; warning here would
         # duplicate it.
         logger.debug("JSON schema validation failed: %s", e.message)
-        logger.debug(
-            "validation error path: %s", ".".join(str(p) for p in e.path)
-        )
+        logger.debug("validation error path: %s", ".".join(str(p) for p in e.path))
         logger.debug("first 500 chars of result: %s", str(result)[:500])
         raise
 
@@ -475,18 +436,12 @@ def _reshape_object_fields(
 def _reshape_value(value: Any, schema: Any, field_path: str) -> Any:
     if not isinstance(schema, dict):
         return value
-    if (
-        schema.get("type") == "array"
-        and isinstance(value, dict)
-        and len(value) == 1
-    ):
+    if schema.get("type") == "array" and isinstance(value, dict) and len(value) == 1:
         enclosed = next(iter(value.values()))
         if isinstance(enclosed, list):
             value = enclosed
     if isinstance(value, str):
-        return _truncate_string_value(
-            value, schema.get("maxLength"), field_path
-        )
+        return _truncate_string_value(value, schema.get("maxLength"), field_path)
     if isinstance(value, list):
         _reshape_array(value, schema, field_path)
         return value
@@ -494,17 +449,13 @@ def _reshape_value(value: Any, schema: Any, field_path: str) -> Any:
     return value
 
 
-def _reshape_array(
-    value: list[Any], schema: dict[str, Any], field_path: str
-) -> None:
+def _reshape_array(value: list[Any], schema: dict[str, Any], field_path: str) -> None:
     limit = schema.get("maxItems")
     if isinstance(limit, int) and len(value) > limit:
         del value[limit:]
     item_schema = schema.get("items")
     for index, item in enumerate(value):
-        value[index] = _reshape_value(
-            item, item_schema, f"{field_path}[{index}]"
-        )
+        value[index] = _reshape_value(item, item_schema, f"{field_path}[{index}]")
 
 
 def _truncate_string_value(value: str, max_length: Any, field_path: str) -> str:
@@ -515,8 +466,7 @@ def _truncate_string_value(value: str, max_length: Any, field_path: str) -> str:
     boundary = candidate.rfind(" ", max(0, boundary_window))
     truncated = candidate[:boundary].rstrip() if boundary != -1 else candidate
     logger.warning(
-        "Truncated over-long string at '%s': %d chars -> %d chars"
-        " (schema maxLength=%d)",
+        "Truncated over-long string at '%s': %d chars -> %d chars (schema maxLength=%d)",
         field_path,
         len(value),
         len(truncated),
@@ -549,12 +499,9 @@ def _log_json_parse_failure_diagnostics(last_response_text: str) -> None:
         logger.error("JSON error at position %s: %s", error.pos, error.msg)
 
 
-def _raise_validation_error(
-    last_error: ValidationError, max_attempts: int
-) -> NoReturn:
+def _raise_validation_error(last_error: ValidationError, max_attempts: int) -> NoReturn:
     raise ValidationError(
-        f"Schema validation failed after {max_attempts} attempts: "
-        f"{last_error.message}",
+        f"Schema validation failed after {max_attempts} attempts: {last_error.message}",
         instance=last_error.instance,
         schema=last_error.schema,
         schema_path=last_error.schema_path,
@@ -598,10 +545,7 @@ def _handle_json_retries_exhausted(
 ) -> dict[str, Any]:
     fallback = get_fallback_response(json_schema)
     if fallback is not None:
-        logger.warning(
-            "Returning fallback data for non-critical node "
-            "after all retries exhausted"
-        )
+        logger.warning("Returning fallback data for non-critical node after all retries exhausted")
         return fallback
 
     if last_response_text:

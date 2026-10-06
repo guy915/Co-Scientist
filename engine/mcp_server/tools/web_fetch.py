@@ -33,9 +33,7 @@ def _resolved_addresses(
     try:
         infos = socket.getaddrinfo(hostname, None)
     except socket.gaierror as exc:
-        raise UrlNotFetchableError(
-            f"hostname does not resolve: {hostname}"
-        ) from exc
+        raise UrlNotFetchableError(f"hostname does not resolve: {hostname}") from exc
     addresses = []
     for info in infos:
         raw = info[4][0]
@@ -63,9 +61,7 @@ def _is_blocked_address(
 
 def _check_scheme(parsed: ParseResult) -> None:
     if parsed.scheme not in _ALLOWED_SCHEMES:
-        raise UrlNotFetchableError(
-            f"scheme not allowed: {parsed.scheme or 'none'}"
-        )
+        raise UrlNotFetchableError(f"scheme not allowed: {parsed.scheme or 'none'}")
 
 
 def _check_host_present(parsed: ParseResult) -> str:
@@ -83,9 +79,7 @@ def _check_not_metadata_host(hostname: str) -> None:
 def _check_resolved_addresses(hostname: str) -> None:
     for address in _resolved_addresses(hostname):
         if _is_blocked_address(address):
-            raise UrlNotFetchableError(
-                f"host resolves to a non-public address: {hostname}"
-            )
+            raise UrlNotFetchableError(f"host resolves to a non-public address: {hostname}")
 
 
 def check_fetchable(url: str) -> None:
@@ -102,9 +96,7 @@ _MAX_REDIRECTS = 5
 # body transfer.
 _MAX_BYTES = 10 * 1024 * 1024
 
-_USER_AGENT = (
-    "co-scientist-mcp/0.1 (research agent; +https://ai-co-scientist.com)"
-)
+_USER_AGENT = "co-scientist-mcp/0.1 (research agent; +https://ai-co-scientist.com)"
 
 
 _CHROME_TAGS = (
@@ -149,9 +141,7 @@ def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
         tag.decompose()
     root = soup.find("article") or soup.find("main") or soup.body or soup
     text = "\n\n".join(
-        line
-        for element in root.find_all(_BLOCK_TAGS)
-        if (line := _block_to_markdown(element))
+        line for element in root.find_all(_BLOCK_TAGS) if (line := _block_to_markdown(element))
     )
     if not text.strip():
         # Div-only pages need a flat-text fallback instead of empty content.
@@ -186,9 +176,7 @@ def extract_text_from_pdf(data: bytes, max_chars: int = 50_000) -> str:
     return truncate_markdown(text, max_chars)
 
 
-async def _get_with_screened_redirects(
-    client: httpx.AsyncClient, url: str
-) -> httpx.Response:
+async def _get_with_screened_redirects(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """Automatic redirects would bypass target screening; recheck each hop
     manually.
     """
@@ -222,9 +210,7 @@ def _render_response(response: httpx.Response) -> str:
 async def _fetch_and_render(url: str) -> str:
     """The caller screens the initial URL; this path screens redirects."""
     headers: dict[str, Any] = {"User-Agent": _USER_AGENT}
-    async with httpx.AsyncClient(
-        timeout=_REQUEST_TIMEOUT, headers=headers
-    ) as client:
+    async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, headers=headers) as client:
         response = await _get_with_screened_redirects(client, url)
         response.raise_for_status()
         # In a worker thread: BeautifulSoup/pypdf parsing is CPU-bound

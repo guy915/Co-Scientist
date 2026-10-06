@@ -81,11 +81,7 @@ class TestFreeAdmission:
                     {"input_cache_read": "0.01"},
                     {"internal_reasoning": "0.1"},
                     {"web_search": "0.01"},
-                    {
-                        "overrides": [
-                            {"min_prompt_tokens": 100, "completion": "1"}
-                        ]
-                    },
+                    {"overrides": [{"min_prompt_tokens": 100, "completion": "1"}]},
                 )
             ],
         ],
@@ -152,9 +148,7 @@ class TestFreeAdmission:
         catalog["data"][0]["expiration_date"] = "9999-12-31"
         reads = _mock_catalog(monkeypatch, catalog)
         requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch, [make_completion(make_message("ok"))] * 2, requests
-        )
+        patch_acompletion(monkeypatch, [make_completion(make_message("ok"))] * 2, requests)
 
         await _probe()
         await _probe()
@@ -169,9 +163,7 @@ class TestFreeAdmission:
     ) -> None:
         _mock_catalog(monkeypatch, _catalog(_ZERO))
         requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch, [make_completion(make_message("ok"))], requests
-        )
+        patch_acompletion(monkeypatch, [make_completion(make_message("ok"))], requests)
         paid = CompletionSpec("openrouter/paid/model")
 
         with (
@@ -189,16 +181,12 @@ class TestFreeAdmission:
     async def test_a_byok_key_skips_the_free_gate_unless_a_campaign_requires_it(
         self, monkeypatch: pytest.MonkeyPatch, campaign: bool, scoped: bool
     ) -> None:
-        monkeypatch.setenv(
-            "COSCIENTIST_REQUIRE_FREE_MODELS", str(int(campaign))
-        )
+        monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", str(int(campaign)))
         catalog = _catalog({"prompt": "0", "completion": "1"})
         catalog["data"][0]["expiration_date"] = "not-a-date"
         _mock_catalog(monkeypatch, catalog)
         requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch, [make_completion(make_message("ok"))], requests
-        )
+        patch_acompletion(monkeypatch, [make_completion(make_message("ok"))], requests)
 
         with scoped_api_key("byok-test-key" if scoped else None):
             byok = _probe(api_key=None if scoped else "byok-test-key")
@@ -272,9 +260,7 @@ class TestFreeAdmission:
         monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
         _mock_catalog(monkeypatch, _catalog(_ZERO))
         requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch, [make_completion(make_message("ok"))], requests
-        )
+        patch_acompletion(monkeypatch, [make_completion(make_message("ok"))], requests)
         await _probe()
 
         def unavailable(*args: Any, **kwargs: Any) -> None:
@@ -313,9 +299,7 @@ class TestFreeAdmission:
             "model": "openrouter/campaign/promo",
             "messages": [{"role": "user", "content": "probe"}],
         }
-        with pytest.raises(
-            RuntimeError, match="zero-cost pricing is incomplete"
-        ):
+        with pytest.raises(RuntimeError, match="zero-cost pricing is incomplete"):
             await enforce_free_request(args)
         data["data"][0]["pricing"].update(
             dict.fromkeys(
@@ -359,9 +343,7 @@ class TestFreeAdmission:
         _mock_catalog(monkeypatch, _catalog(_ZERO))
         monkeypatch.setattr(f"litellm.{setting}", value)
         requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch, [make_completion(make_message("ok"))], requests
-        )
+        patch_acompletion(monkeypatch, [make_completion(make_message("ok"))], requests)
         with pytest.raises(RuntimeError, match="zero-cost"):
             await _probe()
         assert requests == []
@@ -478,16 +460,12 @@ async def _invoke(entry_point: str, spec: CompletionSpec) -> None:
     if entry_point == "text":
         await call_llm("Price ceiling probe", spec, options=_NO_CACHE)
     elif entry_point == "json_retry":
-        await call_llm_json(
-            "Price ceiling probe", spec, options=_NO_CACHE, max_attempts=2
-        )
+        await call_llm_json("Price ceiling probe", spec, options=_NO_CACHE, max_attempts=2)
     else:
         await call_llm_with_tools(
             "Price ceiling probe",
             spec,
-            ToolLoop(
-                tools=SEARCH_TOOL, executor=_tool_executor, max_iterations=2
-            ),
+            ToolLoop(tools=SEARCH_TOOL, executor=_tool_executor, max_iterations=2),
             options=_NO_CACHE,
         )
 
@@ -554,9 +532,7 @@ async def test_explicit_paid_byok_keeps_its_priced_route(
     install_fake_backend(monkeypatch, completion)
     await call_llm(
         "BYOK probe",
-        CompletionSpec(
-            model_name="openrouter/z-ai/glm-5.3-flash", api_key="test-byok-key"
-        ),
+        CompletionSpec(model_name="openrouter/z-ai/glm-5.3-flash", api_key="test-byok-key"),
         options=_NO_CACHE,
     )
 
@@ -606,15 +582,11 @@ async def test_litellm_serializes_zero_ceiling_into_openrouter_request(
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-house-key")
     monkeypatch.setenv("OPENROUTER_API_BASE", "https://unverified.example/v1")
     monkeypatch.setattr(httpx.AsyncClient, "send", send)
-    answer = await call_llm(
-        "Price ceiling probe", CompletionSpec(_FREE_MODEL), options=_NO_CACHE
-    )
+    answer = await call_llm("Price ceiling probe", CompletionSpec(_FREE_MODEL), options=_NO_CACHE)
 
     assert answer == "ok"
     assert len(requests) == 1
-    assert str(requests[0].url) == (
-        "https://openrouter.ai/api/v1/chat/completions"
-    )
+    assert str(requests[0].url) == ("https://openrouter.ai/api/v1/chat/completions")
     body = json.loads(requests[0].content)
     assert body["provider"]["max_price"] == _ZERO_CAP
 

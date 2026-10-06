@@ -63,9 +63,7 @@ def resolve_offline_backend(cfg: dict[str, Any]) -> bool:
     return offline_mode()
 
 
-def sync_engine_llm_backend(
-    run_id: str, cfg: dict[str, Any], db_path: str | None
-) -> None:
+def sync_engine_llm_backend(run_id: str, cfg: dict[str, Any], db_path: str | None) -> None:
     """Persist backend provenance before dispatch so later readers agree
     with the actual execution route.
     """
@@ -99,10 +97,7 @@ def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
     if not checkpoint:
         return False
     state = checkpoint.get("state")
-    return (
-        isinstance(state, dict)
-        and state.get("provider") == ENGINE_CHECKPOINT_PROVIDER
-    )
+    return isinstance(state, dict) and state.get("provider") == ENGINE_CHECKPOINT_PROVIDER
 
 
 def restore_workflow_state(

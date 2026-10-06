@@ -26,9 +26,7 @@ _SPEC = CompletionSpec(model_name="test/model", max_tokens=100)
 
 
 def _asks_for_a_tool(call_id: str = "call-0") -> SimpleNamespace:
-    return make_completion(
-        make_message(None, tool_calls=[make_tool_call(call_id, "search", "{}")])
-    )
+    return make_completion(make_message(None, tool_calls=[make_tool_call(call_id, "search", "{}")]))
 
 
 def _loop(max_iterations: int, **overrides: Any) -> ToolLoop:

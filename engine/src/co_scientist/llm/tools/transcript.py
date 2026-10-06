@@ -71,8 +71,7 @@ def _message_to_history_dict(message: Any) -> dict[str, Any]:
                 # arguments.
                 "function": {
                     "name": tc.function.name,
-                    "arguments": object_arguments(tc.function.arguments)
-                    or "{}",
+                    "arguments": object_arguments(tc.function.arguments) or "{}",
                 },
             }
             for tc in message.tool_calls
@@ -108,9 +107,7 @@ def _aborted_for(call: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _with_results(
-    message: dict[str, Any], answered: set[str]
-) -> list[dict[str, Any]]:
+def _with_results(message: dict[str, Any], answered: set[str]) -> list[dict[str, Any]]:
     missing = [
         call
         for call in message.get("tool_calls") or ()
@@ -179,9 +176,7 @@ def elide_superseded_writes(messages: list[dict[str, Any]]) -> int:
                 continue
             previous = latest.get(path)
             if previous is not None:
-                previous["arguments"] = json.dumps(
-                    {"path": path, "note": _SUPERSEDED_NOTE}
-                )
+                previous["arguments"] = json.dumps({"path": path, "note": _SUPERSEDED_NOTE})
                 elided += 1
             latest[path] = call["function"]
     return elided
@@ -259,9 +254,7 @@ def _walk_papers(node: Any, visit: Callable[[dict[str, Any]], int]) -> int:
     return sum(_walk_papers(value, visit) for value in node.values())
 
 
-def _rewrite_tool_result(
-    message: dict[str, Any], transform: Callable[[Any], int]
-) -> int:
+def _rewrite_tool_result(message: dict[str, Any], transform: Callable[[Any], int]) -> int:
     if message.get("role") != "tool":
         return 0
     content = message.get("content")
@@ -291,18 +284,14 @@ def elide_repeated_papers(messages: list[dict[str, Any]]) -> int:
         return 0
 
     return sum(
-        _rewrite_tool_result(
-            message, lambda payload: _walk_papers(payload, visit)
-        )
+        _rewrite_tool_result(message, lambda payload: _walk_papers(payload, visit))
         for message in messages
     )
 
 
 def _aged_before(messages: list[dict[str, Any]], turns: int) -> int:
     assistants = [
-        index
-        for index, message in enumerate(messages)
-        if message.get("role") == "assistant"
+        index for index, message in enumerate(messages) if message.get("role") == "assistant"
     ]
     if len(assistants) < turns:
         return 0
@@ -330,9 +319,7 @@ def _elide_aged_message(message: dict[str, Any]) -> int:
     ) + _elide_text_result(message)
 
 
-def elide_aged_evidence(
-    messages: list[dict[str, Any]], turns: int = RECENT_SEARCH_TURNS
-) -> int:
+def elide_aged_evidence(messages: list[dict[str, Any]], turns: int = RECENT_SEARCH_TURNS) -> int:
     """Deduplication cannot bound distinct papers; age only after the model
     had whole evidence to use.
     """

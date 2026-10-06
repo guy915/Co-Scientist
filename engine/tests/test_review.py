@@ -70,14 +70,10 @@ def test_only_the_non_viable_band_blocks_the_tournament(
     defects."""
     hypothesis = make_hypothesis(text="idea")
 
-    review._apply_initial_review_gate(
-        [hypothesis], [_review(soundness, novelty)]
-    )
+    review._apply_initial_review_gate([hypothesis], [_review(soundness, novelty)])
 
     assert hypothesis.review_disposition == expected
-    assert hypothesis.is_rankable() == (
-        expected in {"viable", "needs_revision"}
-    )
+    assert hypothesis.is_rankable() == (expected in {"viable", "needs_revision"})
 
 
 def _batch_entry(scores: dict[str, int]) -> dict[str, Any]:
@@ -147,10 +143,7 @@ async def test_parallel_individual_isolates_a_failed_call(
 
     monkeypatch.setattr(review, "call_llm_json", flaky)
     count = COMPARATIVE_BATCH_THRESHOLD + 1
-    hyps = [
-        make_hypothesis(text="poisoned idea" if i == 2 else f"idea {i}")
-        for i in range(count)
-    ]
+    hyps = [make_hypothesis(text="poisoned idea" if i == 2 else f"idea {i}") for i in range(count)]
 
     result = await review_node(state=make_state(hypotheses=hyps))
 
@@ -170,9 +163,7 @@ def _blocked(index: int) -> Hypothesis:
 
 
 def _viable(index: int) -> Hypothesis:
-    return make_hypothesis(
-        text=f"viable idea {index}", review_disposition="viable"
-    )
+    return make_hypothesis(text=f"viable idea {index}", review_disposition="viable")
 
 
 def _incident_pool() -> list[Hypothesis]:
@@ -184,23 +175,18 @@ class _ReviewStub:
         self.verdict = verdict
         self.calls: Counter[tuple[str, str]] = Counter()
 
-    async def __call__(
-        self, state: Any, hypothesis: Hypothesis, review_type: ReviewType
-    ) -> Any:
+    async def __call__(self, state: Any, hypothesis: Hypothesis, review_type: ReviewType) -> Any:
         self.calls[(review_type.value, hypothesis.id)] += 1
         result = None if self.verdict is None else {"verdict": self.verdict}
         return comprehensive_reflection._ReviewRun(review_type, result, None)
 
     def rechecks(self, hypotheses: list[Hypothesis]) -> int:
         return sum(
-            self.calls[(RECHECK_REVIEW_TYPE.value, hypothesis.id)]
-            for hypothesis in hypotheses
+            self.calls[(RECHECK_REVIEW_TYPE.value, hypothesis.id)] for hypothesis in hypotheses
         )
 
 
-def _stub_reviews(
-    monkeypatch: pytest.MonkeyPatch, verdict: str | None
-) -> _ReviewStub:
+def _stub_reviews(monkeypatch: pytest.MonkeyPatch, verdict: str | None) -> _ReviewStub:
     stub = _ReviewStub(verdict)
     monkeypatch.setattr(comprehensive_reflection, "review_hypothesis", stub)
     return stub
@@ -211,9 +197,7 @@ def _state(hypotheses: list[Hypothesis]) -> Any:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("verdict", "cleared"), [("sound", True), ("rejected", False)]
-)
+@pytest.mark.parametrize(("verdict", "cleared"), [("sound", True), ("rejected", False)])
 async def test_a_recheck_is_issued_once_whatever_it_finds(
     monkeypatch: pytest.MonkeyPatch, verdict: str, cleared: bool
 ) -> None:

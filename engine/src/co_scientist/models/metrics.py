@@ -42,33 +42,25 @@ def _merge_phase_times(
     merged_phase_times = dict(existing_phase_times)
 
     for phase, time_val in new_phase_times.items():
-        merged_phase_times[phase] = (
-            merged_phase_times.get(phase, 0.0) + time_val
-        )
+        merged_phase_times[phase] = merged_phase_times.get(phase, 0.0) + time_val
 
     return merged_phase_times
 
 
-def _merge_usage_entry(
-    existing_entry: dict[str, Any], new_entry: dict[str, Any]
-) -> dict[str, Any]:
+def _merge_usage_entry(existing_entry: dict[str, Any], new_entry: dict[str, Any]) -> dict[str, Any]:
     """Every usage field is additive; derive fields so fan-out cannot
     silently zero new counters.
     """
     numeric_fields = tuple(
         f.name
         for f in dataclasses.fields(ModelCallStats)
-        if f.name
-        not in {"errors", "requested_models", "deterministic_fallbacks"}
+        if f.name not in {"errors", "requested_models", "deterministic_fallbacks"}
     )
     merged = {
-        field_name: existing_entry.get(field_name, 0)
-        + new_entry.get(field_name, 0)
+        field_name: existing_entry.get(field_name, 0) + new_entry.get(field_name, 0)
         for field_name in numeric_fields
     }
-    merged["errors"] = _merge_counts(
-        existing_entry.get("errors", {}), new_entry.get("errors", {})
-    )
+    merged["errors"] = _merge_counts(existing_entry.get("errors", {}), new_entry.get("errors", {}))
     merged["requested_models"] = _merge_counts(
         existing_entry.get("requested_models", {}),
         new_entry.get("requested_models", {}),
@@ -90,21 +82,15 @@ def _merge_model_usage(
     return merged
 
 
-def _merge_counts(
-    existing: dict[str, int], new: dict[str, int]
-) -> dict[str, int]:
+def _merge_counts(existing: dict[str, int], new: dict[str, int]) -> dict[str, int]:
     merged = dict(existing)
     for name, count in new.items():
         merged[name] = merged.get(name, 0) + count
     return merged
 
 
-def merge_metrics(
-    existing: ExecutionMetrics, new: ExecutionMetrics
-) -> ExecutionMetrics:
-    merged_phase_times = _merge_phase_times(
-        existing.phase_times, new.phase_times
-    )
+def merge_metrics(existing: ExecutionMetrics, new: ExecutionMetrics) -> ExecutionMetrics:
+    merged_phase_times = _merge_phase_times(existing.phase_times, new.phase_times)
 
     # Hypothesis counts are running totals, unlike additive usage deltas.
     merged = ExecutionMetrics(
@@ -113,9 +99,7 @@ def merge_metrics(
         tournaments_count=existing.tournaments_count + new.tournaments_count,
         evolutions_count=existing.evolutions_count + new.evolutions_count,
         llm_calls=existing.llm_calls + new.llm_calls,
-        total_time=new.total_time
-        if new.total_time > 0
-        else existing.total_time,
+        total_time=new.total_time if new.total_time > 0 else existing.total_time,
         phase_times=merged_phase_times,
         model_usage=_merge_model_usage(existing.model_usage, new.model_usage),
         skills_used=_merge_counts(existing.skills_used, new.skills_used),
@@ -147,9 +131,7 @@ def create_metrics_update(
     """
     d = deltas if deltas is not None else MetricDeltas()
     return ExecutionMetrics(
-        hypothesis_count=hypothesis_count
-        if hypothesis_count is not None
-        else 0,
+        hypothesis_count=hypothesis_count if hypothesis_count is not None else 0,
         reviews_count=d.reviews,
         tournaments_count=d.tournaments,
         evolutions_count=d.evolutions,
@@ -161,9 +143,7 @@ def create_metrics_update(
     )
 
 
-def phase_message(
-    phase: str, content: str, **metadata: Any
-) -> list[dict[str, Any]]:
+def phase_message(phase: str, content: str, **metadata: Any) -> list[dict[str, Any]]:
     return [
         {
             "role": "assistant",

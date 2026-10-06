@@ -80,9 +80,7 @@ async def _analyze_single_paper(
     model_name: str,
 ) -> dict[str, Any] | None:
     try:
-        return await _run_paper_analysis_llm(
-            paper_id, metadata, research_goal, model_name
-        )
+        return await _run_paper_analysis_llm(paper_id, metadata, research_goal, model_name)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
@@ -114,9 +112,7 @@ async def _phase3_analyze_papers(
         logger.error("No papers have content for analysis")
         return []
 
-    logger.info(
-        "Phase 3: analyzing %s papers (parallel)", len(papers_with_content)
-    )
+    logger.info("Phase 3: analyzing %s papers (parallel)", len(papers_with_content))
 
     tasks = [
         _analyze_single_paper(
@@ -201,9 +197,7 @@ def _fallback_field_budget(paper_count: int, header_len: int) -> int:
     return max(per_paper // 4, _FALLBACK_MIN_FIELD_CHARS)
 
 
-def _format_fallback_entry(
-    index: int, entry: dict[str, Any], field_chars: int
-) -> str:
+def _format_fallback_entry(index: int, entry: dict[str, Any], field_chars: int) -> str:
     """Keep findings, gaps and unexplored areas: these feed generation,
     unlike reader-only analysis fields."""
     metadata = entry.get("metadata") or {}
@@ -254,9 +248,7 @@ async def _phase4_synthesize(
     logger.info("Phase 4: synthesizing across papers")
 
     try:
-        return await _run_synthesis_llm(
-            paper_analyses, state, background_context
-        )
+        return await _run_synthesis_llm(paper_analyses, state, background_context)
 
     except TASK_CONTROL_FLOW_ERRORS:
         raise
@@ -265,8 +257,7 @@ async def _phase4_synthesize(
         # a bounded roll-up.
 
         logger.error(
-            "Synthesis failed: %s -- degrading to a deterministic roll-up"
-            " of %s paper analyses",
+            "Synthesis failed: %s -- degrading to a deterministic roll-up of %s paper analyses",
             e,
             len(paper_analyses),
         )

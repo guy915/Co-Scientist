@@ -61,17 +61,11 @@ def _primary_search_tool(
 
 def search_config_for(state: WorkflowState) -> SearchConfig:
     tool_registry = state.get("tool_registry")
-    workflow = (
-        tool_registry.get_workflow("literature_review")
-        if tool_registry
-        else None
-    )
+    workflow = tool_registry.get_workflow("literature_review") if tool_registry else None
     is_multi_source = bool(workflow and workflow.is_multi_source())
     tool = _primary_search_tool(tool_registry, workflow, is_multi_source)
     source_name = extract_source_name(tool) if tool else "pubmed"
-    search_tool_name = (
-        tool.mcp_tool_name if tool else "pubmed_search_with_fulltext"
-    )
+    search_tool_name = tool.mcp_tool_name if tool else "pubmed_search_with_fulltext"
     if tool:
         logger.info(
             "Single-source mode: %s (source: %s)",
@@ -89,10 +83,7 @@ def search_config_for(state: WorkflowState) -> SearchConfig:
         papers_to_read_count=(
             LITERATURE_REVIEW_PAPERS_COUNT_DEV
             if is_dev_mode
-            else int(
-                state.get("literature_review_papers_count")
-                or LITERATURE_REVIEW_PAPERS_COUNT
-            )
+            else int(state.get("literature_review_papers_count") or LITERATURE_REVIEW_PAPERS_COUNT)
         ),
         is_dev_mode=is_dev_mode,
         research_goal=str(state.get("research_goal") or ""),
@@ -103,10 +94,7 @@ def search_config_for(state: WorkflowState) -> SearchConfig:
 def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:
     """YAML field_mapping encodes static source labels as quoted literals,
     not field names."""
-    if not (
-        tool_config.response_format
-        and tool_config.response_format.field_mapping
-    ):
+    if not (tool_config.response_format and tool_config.response_format.field_mapping):
         return None
     source_val = tool_config.response_format.field_mapping.get("source", "")
     if not (source_val.startswith("'") and source_val.endswith("'")):
@@ -127,17 +115,13 @@ def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
 def _resolve_source_id_field(tool_config: "ToolConfig") -> str:
     """The @ prefix is field-mapping transform syntax, not a native response
     key."""
-    source_id_field = tool_config.response_format.field_mapping.get(
-        "source_id", "source_id"
-    )
+    source_id_field = tool_config.response_format.field_mapping.get("source_id", "source_id")
     if source_id_field.startswith("@"):
         return "arxiv_id"
     return source_id_field
 
 
-def _paper_id_for_rekey(
-    paper: Any, source_id_field: str, fallback_index: int
-) -> str:
+def _paper_id_for_rekey(paper: Any, source_id_field: str, fallback_index: int) -> str:
     return cast(
         str,
         paper.get(source_id_field)
@@ -170,9 +154,7 @@ def _normalize_with_response_format(
     tool_config: "ToolConfig",
 ) -> dict[str, dict[str, Any]]:
     response_format = tool_config.response_format
-    result_data = _extract_results_path(
-        result_data, response_format.results_path
-    )
+    result_data = _extract_results_path(result_data, response_format.results_path)
 
     if response_format.is_dict and isinstance(result_data, dict):
         return result_data
@@ -260,9 +242,7 @@ def determine_query_source_type(
     search_tool_config: Optional["ToolConfig"],
     is_multi_source: bool,
 ) -> str:
-    multi_source_type = _multi_source_type_if_applicable(
-        is_multi_source, workflow, tool_registry
-    )
+    multi_source_type = _multi_source_type_if_applicable(is_multi_source, workflow, tool_registry)
     if multi_source_type is not None:
         return multi_source_type
 

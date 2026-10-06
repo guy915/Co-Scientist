@@ -147,9 +147,7 @@ def _hypothesis_state_updates(
             c.verification_verdict,
         ),
     )
-    return [
-        (fragment, value) for active, fragment, value in candidates if active
-    ]
+    return [(fragment, value) for active, fragment, value in candidates if active]
 
 
 def update_hypothesis_state(
@@ -186,9 +184,7 @@ def redact_hypothesis_fields(
 ) -> None:
     unknown = set(fields) - _REDACTABLE_COLUMNS
     if unknown:
-        raise ValueError(
-            f"non-redactable hypothesis columns: {sorted(unknown)}"
-        )
+        raise ValueError(f"non-redactable hypothesis columns: {sorted(unknown)}")
     if not fields:
         return
     # SQL identifiers come only from the literal allowlist; user text stays in
@@ -238,8 +234,7 @@ def list_hypotheses(
         # API and Q&A consumers rely on descending Elo with deterministic
         # creation-time ties.
         rows = conn.execute(
-            _HYP_SELECT
-            + "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
+            _HYP_SELECT + "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
             (run_id,),
         ).fetchall()
         return [_decode_parent_ids(dict(r)) for r in rows]

@@ -22,21 +22,13 @@ def _both_dicts(existing: Any, value: Any) -> bool:
 
 
 def _both_lists_to_extend(existing: Any, value: Any, strategy: str) -> bool:
-    return (
-        strategy == "extend"
-        and isinstance(value, list)
-        and isinstance(existing, list)
-    )
+    return strategy == "extend" and isinstance(value, list) and isinstance(existing, list)
 
 
-def _determine_merge_strategy(
-    user: dict[str, Any] | None, custom: dict[str, Any] | None
-) -> str:
+def _determine_merge_strategy(user: dict[str, Any] | None, custom: dict[str, Any] | None) -> str:
     for overlay in (custom, user):
         if overlay and "settings" in overlay:
-            strategy: str = overlay["settings"].get(
-                "merge_strategy", "override"
-            )
+            strategy: str = overlay["settings"].get("merge_strategy", "override")
             return strategy
     return "override"
 
@@ -137,13 +129,9 @@ class ToolRegistry:
 
         custom_data = self._load_yaml_file(Path(self._custom_config_path))
         if custom_data is not None:
-            logger.info(
-                "loaded custom config from %s", self._custom_config_path
-            )
+            logger.info("loaded custom config from %s", self._custom_config_path)
         else:
-            logger.warning(
-                "custom config not found at %s", self._custom_config_path
-            )
+            logger.warning("custom config not found at %s", self._custom_config_path)
         return custom_data
 
     def _load_yaml_file(self, path: Path) -> dict[str, Any] | None:
@@ -237,9 +225,7 @@ class ToolRegistry:
 
     def get_enabled_servers(self) -> dict[str, ServerConfig]:
         return {
-            server_id: server
-            for server_id, server in self.config.servers.items()
-            if server.enabled
+            server_id: server for server_id, server in self.config.servers.items() if server.enabled
         }
 
     def get_tool(self, tool_id: str) -> ToolConfig | None:
@@ -256,9 +242,7 @@ class ToolRegistry:
 
         return self._enabled_tool_ids(workflow.get_all_tools(), workflow_name)
 
-    def _enabled_tool_ids(
-        self, tool_ids: list[str], workflow_name: str
-    ) -> list[str]:
+    def _enabled_tool_ids(self, tool_ids: list[str], workflow_name: str) -> list[str]:
         enabled_ids = []
         for tool_id in tool_ids:
             tool = self.get_tool(tool_id)
@@ -293,9 +277,7 @@ class ToolRegistry:
     def get_prompts_config(self) -> PromptsConfig:
         return self.config.prompts
 
-    def get_enrichment_configs(
-        self, workflow: str = "generation"
-    ) -> list[EnrichmentConfig]:
+    def get_enrichment_configs(self, workflow: str = "generation") -> list[EnrichmentConfig]:
         return [
             e
             for e in self.config.enrichments

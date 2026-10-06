@@ -40,9 +40,7 @@ class SandboxPolicy:
         """
         relative = [str(p) for p in self.writable_roots if not p.is_absolute()]
         if relative:
-            raise ValueError(
-                f"writable_roots must be absolute paths; got {relative}"
-            )
+            raise ValueError(f"writable_roots must be absolute paths; got {relative}")
         object.__setattr__(
             self,
             "writable_roots",
@@ -79,9 +77,7 @@ def campaign_workspace_policy(policy: SandboxPolicy) -> SandboxPolicy:
     return replace(policy, network_allowed=False)
 
 
-def workspace_write(
-    *roots: Path, network_allowed: bool = False
-) -> SandboxPolicy:
+def workspace_write(*roots: Path, network_allowed: bool = False) -> SandboxPolicy:
     return SandboxPolicy(
         kind=SandboxKind.WORKSPACE_WRITE,
         writable_roots=tuple(roots),

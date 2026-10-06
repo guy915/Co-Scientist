@@ -37,9 +37,7 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
             presented.encode(), (self._secret or "").encode()
         )
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         campaign_value = request.headers.get(MCP_CAMPAIGN_HEADER)
         campaign = campaign_value == "1"
         if campaign_value is not None and not campaign:
@@ -50,9 +48,7 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         # Authorize the ASGI path the router receives. URL reconstruction
         # includes the caller's Host header and is not an auth boundary.
-        requires_check = (
-            self._secret and request.scope["path"] not in _EXEMPT_PATHS
-        )
+        requires_check = self._secret and request.scope["path"] not in _EXEMPT_PATHS
         if requires_check and not self._secret_matches(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         with scoped_campaign_request(campaign):

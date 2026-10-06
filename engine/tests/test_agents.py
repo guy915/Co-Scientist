@@ -30,9 +30,7 @@ from tests._state import (
 # migration.
 
 
-_TIMEOUT = LLMTimeoutError(
-    "LLM call to openrouter/minimax/minimax-m3:free exceeded 600.0s"
-)
+_TIMEOUT = LLMTimeoutError("LLM call to openrouter/minimax/minimax-m3:free exceeded 600.0s")
 _UPSTREAM = APIError(
     status_code=500,
     message="OpenrouterException - Upstream error from Nvidia: overloaded",
@@ -107,13 +105,9 @@ _NODE_CASES = [
 ]
 
 
-@pytest.mark.parametrize(
-    ("module", "node", "build_state", "degraded_name"), _NODE_CASES
-)
+@pytest.mark.parametrize(("module", "node", "build_state", "degraded_name"), _NODE_CASES)
 @pytest.mark.parametrize("error", [_TIMEOUT, _UPSTREAM])
-@pytest.mark.parametrize(
-    "retries_remain", [None, False, True], ids=["graph", "last", "remain"]
-)
+@pytest.mark.parametrize("retries_remain", [None, False, True], ids=["graph", "last", "remain"])
 async def test_provider_failure_degrades_only_on_the_last_attempt(
     monkeypatch: pytest.MonkeyPatch,
     module: Any,
@@ -165,10 +159,7 @@ def test_imports_only_point_downward() -> None:
 
 def test_module_level_imports_form_no_cycle() -> None:
     modules = _modules()
-    graph = {
-        name: _runtime_imports(path, set(modules)) - {""}
-        for name, path in modules.items()
-    }
+    graph = {name: _runtime_imports(path, set(modules)) - {""} for name, path in modules.items()}
     for name in graph:
         assert name not in _reachable(graph, name), name
 
@@ -224,9 +215,7 @@ _LAYERS = (
 
 def _runtime_nodes(body: list[ast.stmt]) -> Iterator[ast.ImportFrom]:
     for node in body:
-        if isinstance(node, ast.If) and "TYPE_CHECKING" not in ast.dump(
-            node.test
-        ):
+        if isinstance(node, ast.If) and "TYPE_CHECKING" not in ast.dump(node.test):
             yield from _runtime_nodes(node.body + node.orelse)
         elif isinstance(node, ast.ImportFrom):
             yield node

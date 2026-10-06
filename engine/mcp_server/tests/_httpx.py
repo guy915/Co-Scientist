@@ -50,21 +50,15 @@ class StubClient:
     async def __aexit__(self, *_: Any) -> bool:
         return False
 
-    async def get(
-        self, url: str, **kwargs: Any
-    ) -> StubResponse | httpx.Response:
+    async def get(self, url: str, **kwargs: Any) -> StubResponse | httpx.Response:
         return self._serve(url, kwargs.get("params"))
 
-    async def post(
-        self, url: str, json: Any = None, **_: Any
-    ) -> StubResponse | httpx.Response:
+    async def post(self, url: str, json: Any = None, **_: Any) -> StubResponse | httpx.Response:
         return self._serve(url, json)
 
     def _serve(self, url: str, payload: Any) -> StubResponse | httpx.Response:
         # Pagination mutates its parameter dict between calls.
-        self.calls.append(
-            (url, dict(payload) if isinstance(payload, dict) else payload)
-        )
+        self.calls.append((url, dict(payload) if isinstance(payload, dict) else payload))
         if self._error is not None:
             raise self._error
         if not self._responses:
@@ -82,15 +76,11 @@ def _install(monkeypatch: pytest.MonkeyPatch, client: StubClient) -> StubClient:
     return client
 
 
-def stub_responses(
-    monkeypatch: pytest.MonkeyPatch, *payloads: Any
-) -> StubClient:
+def stub_responses(monkeypatch: pytest.MonkeyPatch, *payloads: Any) -> StubClient:
     return _install(monkeypatch, StubClient(responses=list(payloads)))
 
 
-def stub_failure(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> StubClient:
+def stub_failure(monkeypatch: pytest.MonkeyPatch, error: Exception) -> StubClient:
     return _install(monkeypatch, StubClient(error=error))
 
 
@@ -119,9 +109,7 @@ async def registered_tools() -> AsyncIterator[Any]:
         yield client
 
 
-def transport_responses(
-    monkeypatch: pytest.MonkeyPatch, *responses: Any
-) -> list[httpx.Request]:
+def transport_responses(monkeypatch: pytest.MonkeyPatch, *responses: Any) -> list[httpx.Request]:
     queued = list(responses)
     requests: list[httpx.Request] = []
 
@@ -137,8 +125,6 @@ def transport_responses(
     monkeypatch.setattr(
         httpx,
         "AsyncClient",
-        lambda **kwargs: _REAL_ASYNC_CLIENT(
-            transport=httpx.MockTransport(handler), **kwargs
-        ),
+        lambda **kwargs: _REAL_ASYNC_CLIENT(transport=httpx.MockTransport(handler), **kwargs),
     )
     return requests

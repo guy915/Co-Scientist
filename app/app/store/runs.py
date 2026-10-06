@@ -15,9 +15,7 @@ from app.store.runs_views import _ACTIVE_RUN_STATUSES
 logger = logging.getLogger(__name__)
 
 
-def _bootstrap_lease_matches(
-    row: sqlite3.Row, worker_id: str | None, attempt: int
-) -> bool:
+def _bootstrap_lease_matches(row: sqlite3.Row, worker_id: str | None, attempt: int) -> bool:
     return all(
         (
             row["task_status"] == "leased",
@@ -51,9 +49,7 @@ def _allowed_terminal_bootstrap_status(
     worker_id: str | None,
     attempt: int,
 ) -> str | None:
-    if status == RunStatus.PAUSED.value and not _bootstrap_lease_matches(
-        row, worker_id, attempt
-    ):
+    if status == RunStatus.PAUSED.value and not _bootstrap_lease_matches(row, worker_id, attempt):
         return None
     terminal_or_paused = {
         RunStatus.COMPLETED.value,
@@ -65,9 +61,7 @@ def _allowed_terminal_bootstrap_status(
     return status if status in terminal_or_paused else None
 
 
-def _advance_bootstrap_status(
-    conn: sqlite3.Connection, run_id: str, status: str
-) -> bool:
+def _advance_bootstrap_status(conn: sqlite3.Connection, run_id: str, status: str) -> bool:
     if status not in {
         RunStatus.RUNNING.value,
         RunStatus.DRAFT.value,
@@ -103,9 +97,7 @@ def mark_bootstrap_running(
         if row is None:
             return None
         status = str(row["run_status"])
-        terminal_status = _allowed_terminal_bootstrap_status(
-            status, row, worker_id, attempt
-        )
+        terminal_status = _allowed_terminal_bootstrap_status(status, row, worker_id, attempt)
         if terminal_status is not None:
             return terminal_status
         if not _bootstrap_lease_matches(row, worker_id, attempt):
@@ -142,14 +134,10 @@ _RUN_ID_TABLES: tuple[str, ...] = (
 _HYPOTHESIS_SCOPED_TABLES: tuple[str, ...] = ("hypothesis_state",)
 
 
-def count_run_rows(
-    run_id: str, *, db_path: str | None = None
-) -> dict[str, int]:
+def count_run_rows(run_id: str, *, db_path: str | None = None) -> dict[str, int]:
     with connect(db_path) as conn:
         counts = {
-            "runs": conn.execute(
-                "SELECT COUNT(*) FROM runs WHERE id=?", (run_id,)
-            ).fetchone()[0]
+            "runs": conn.execute("SELECT COUNT(*) FROM runs WHERE id=?", (run_id,)).fetchone()[0]
         }
         for table in _RUN_ID_TABLES:
             counts[table] = conn.execute(
@@ -201,9 +189,7 @@ def run_offline_backed(
     return run_used_offline(run)
 
 
-def set_run_llm_backend(
-    run_id: str, llm_backend: str, db_path: str | None = None
-) -> None:
+def set_run_llm_backend(run_id: str, llm_backend: str, db_path: str | None = None) -> None:
     """Persist resolved overrides before execution because later publication
     and badging readers reload the run row.
     """
@@ -226,15 +212,12 @@ def redact_run_goal(
     """
     with _use_conn(conn, db_path) as active:
         active.execute(
-            "UPDATE runs SET research_goal = ?, title = ?, "
-            "goal_restatement = NULL WHERE id = ?",
+            "UPDATE runs SET research_goal = ?, title = ?, goal_restatement = NULL WHERE id = ?",
             (goal, title, run_id),
         )
 
 
-def set_run_config(
-    run_id: str, config: dict[str, Any], db_path: str | None = None
-) -> None:
+def set_run_config(run_id: str, config: dict[str, Any], db_path: str | None = None) -> None:
     """Older demo rows need revised setup fields too; startup reconstruction
     must match newly created fixtures.
     """
@@ -251,17 +234,13 @@ def get_run(
     conn: sqlite3.Connection | None = None,
 ) -> RunRow | None:
     with _use_conn(conn, db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM runs WHERE id = ?", (run_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
         return _row_to_run(row) if row else None
 
 
 def run_exists(run_id: str, db_path: str | None = None) -> bool:
     with connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT 1 FROM runs WHERE id = ?", (run_id,)
-        ).fetchone()
+        row = conn.execute("SELECT 1 FROM runs WHERE id = ?", (run_id,)).fetchone()
         return row is not None
 
 
@@ -276,8 +255,7 @@ def update_run_status(
     completed_at = now if status in TERMINAL_STATUSES else None
     with _use_conn(conn, db_path) as active:
         active.execute(
-            "UPDATE runs SET status=?, error=?, updated_at=?, "
-            "completed_at=? WHERE id=?",
+            "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",
             (status.value, error, now, completed_at, run_id),
         )
 
@@ -321,8 +299,7 @@ def set_run_timing(
     created_at = completed_at - max(duration_seconds, 1.0)
     with connect(db_path) as conn:
         conn.execute(
-            "UPDATE runs SET created_at=?, updated_at=?, completed_at=? "
-            "WHERE id=?",
+            "UPDATE runs SET created_at=?, updated_at=?, completed_at=? WHERE id=?",
             (created_at, completed_at, completed_at, run_id),
         )
 
@@ -354,9 +331,7 @@ def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
         conn.execute("UPDATE runs SET title = ? WHERE id = ?", (title, run_id))
 
 
-def set_run_goal_restatement(
-    run_id: str, restatement: str, db_path: str | None = None
-) -> None:
+def set_run_goal_restatement(run_id: str, restatement: str, db_path: str | None = None) -> None:
     with connect(db_path) as conn:
         conn.execute(
             "UPDATE runs SET goal_restatement = ? WHERE id = ?",
@@ -437,24 +412,19 @@ def create_run(
                 run.execution_policy,
             ),
         )
-    should_log = (
-        opts.conn is None if opts.log_created is None else opts.log_created
-    )
+    should_log = opts.conn is None if opts.log_created is None else opts.log_created
     if should_log:
         log_run_created(run)
     return run
 
 
-def _count_other_active_runs(
-    conn: sqlite3.Connection, run_id: str, client_id: str
-) -> int:
+def _count_other_active_runs(conn: sqlite3.Connection, run_id: str, client_id: str) -> int:
     """The concurrency allowance spans every tier for one identity; counting
     per tier would multiply the advertised limit.
     """
     return int(
         conn.execute(
-            "SELECT COUNT(*) FROM runs WHERE client_id=? "
-            "AND status IN (?,?,?) AND id!=?",
+            "SELECT COUNT(*) FROM runs WHERE client_id=? AND status IN (?,?,?) AND id!=?",
             (client_id, *_ACTIVE_RUN_STATUSES, run_id),
         ).fetchone()[0]
     )

@@ -49,8 +49,7 @@ async def _emit_search_errors_diagnostic(
     search_errors: list[str],
 ) -> None:
     logger.error(
-        "Literature review found no papers: %s of %s search call(s) "
-        "errored: %s",
+        "Literature review found no papers: %s of %s search call(s) errored: %s",
         len(search_errors),
         len(queries),
         "; ".join(search_errors[:5]),
@@ -71,8 +70,7 @@ async def _emit_empty_results_diagnostic(
     queries: list[str],
 ) -> None:
     logger.warning(
-        "Literature review found no papers: all %s query/queries "
-        "returned zero results (no errors)",
+        "Literature review found no papers: all %s query/queries returned zero results (no errors)",
         len(queries),
     )
     await emit_progress(
@@ -120,9 +118,7 @@ async def _handle_no_fulltext_available(
 ) -> dict[str, Any]:
     """Metadata-only papers remain visible but unused; they cannot count as
     analyzed evidence."""
-    logger.error(
-        "No papers have fulltext or abstracts available - cannot analyze"
-    )
+    logger.error("No papers have fulltext or abstracts available - cannot analyze")
     n = len(all_paper_metadata)
     await emit_progress(
         state,
@@ -171,21 +167,15 @@ def _merge_private_sources(
         *private_sources,
         *context_enrichment_sources,
     ]
-    private_context = "\n\n".join(
-        str(item.get("display") or "") for item in private_sources
-    )
-    background_context = "\n\n".join(
-        part for part in (private_context, background_context) if part
-    )
+    private_context = "\n\n".join(str(item.get("display") or "") for item in private_sources)
+    background_context = "\n\n".join(part for part in (private_context, background_context) if part)
     return background_context, context_enrichment_sources
 
 
 def _log_collection_summary(
     all_paper_metadata: dict[str, dict[str, Any]],
 ) -> None:
-    with_fulltext, without_fulltext = count_papers_with_fulltext(
-        all_paper_metadata
-    )
+    with_fulltext, without_fulltext = count_papers_with_fulltext(all_paper_metadata)
     # Abstract-only retrieval is routine for paywalled literature, not an
     # exceptional warning.
 
@@ -230,9 +220,7 @@ async def _enrich_collected_papers(
     ) = await _fetch_content_and_enrichment(
         all_paper_metadata, paper_source_map, config, mcp_client, state
     )
-    return _merge_private_sources(
-        state, background_context, context_enrichment_sources
-    )
+    return _merge_private_sources(state, background_context, context_enrichment_sources)
 
 
 async def _discover_pdf_link(
@@ -332,9 +320,7 @@ async def _phase2_4_discover_pdf_links(
     if not papers_needing_discovery:
         return
 
-    await _run_and_log_pdf_discovery(
-        papers_needing_discovery, mcp_client, all_paper_metadata
-    )
+    await _run_and_log_pdf_discovery(papers_needing_discovery, mcp_client, all_paper_metadata)
 
 
 def _prepare_content_call_args(
@@ -349,9 +335,7 @@ def _prepare_content_call_args(
         resolve_content_params,
     )
 
-    resolved_params = resolve_content_params(
-        content_cfg.content_params, runtime_context
-    )
+    resolved_params = resolve_content_params(content_cfg.content_params, runtime_context)
     tool_args = {"url": content_url, **resolved_params}
 
     logger.debug(
@@ -378,17 +362,11 @@ async def _fetch_paper_content(
         return (paper_id, None)
 
     try:
-        tool_args = _prepare_content_call_args(
-            paper_id, content_url, content_cfg, runtime_context
-        )
-        result = await mcp_client.call_tool(
-            content_cfg.mcp_tool_name, **tool_args
-        )
+        tool_args = _prepare_content_call_args(paper_id, content_url, content_cfg, runtime_context)
+        result = await mcp_client.call_tool(content_cfg.mcp_tool_name, **tool_args)
         content = parse_content_result(result)
         if content:
-            logger.debug(
-                "Retrieved %s chars for paper %s", len(content), paper_id
-            )
+            logger.debug("Retrieved %s chars for paper %s", len(content), paper_id)
         return (paper_id, content)
     except Exception as e:
         # Missing fulltext still permits abstract-only analysis.
@@ -405,17 +383,13 @@ def _build_content_runtime_context(state: "WorkflowState") -> dict[str, Any]:
 
 
 async def _run_content_fetch(
-    papers_needing_content: list[
-        tuple[str, dict[str, Any], "ContentToolConfig"]
-    ],
+    papers_needing_content: list[tuple[str, dict[str, Any], "ContentToolConfig"]],
     mcp_client: MCPToolClient,
     runtime_context: dict[str, Any],
     all_paper_metadata: dict[str, dict[str, Any]],
 ) -> int:
     tasks = [
-        _fetch_paper_content(
-            pid, meta, content_cfg, mcp_client, runtime_context
-        )
+        _fetch_paper_content(pid, meta, content_cfg, mcp_client, runtime_context)
         for pid, meta, content_cfg in papers_needing_content
     ]
     results = await asyncio.gather(*tasks)
@@ -423,16 +397,12 @@ async def _run_content_fetch(
 
 
 async def _run_and_log_content_fetch(
-    papers_needing_content: list[
-        tuple[str, dict[str, Any], "ContentToolConfig"]
-    ],
+    papers_needing_content: list[tuple[str, dict[str, Any], "ContentToolConfig"]],
     mcp_client: MCPToolClient,
     runtime_context: dict[str, Any],
     all_paper_metadata: dict[str, dict[str, Any]],
 ) -> None:
-    logger.info(
-        "Phase 2.5: fetching content for %s papers", len(papers_needing_content)
-    )
+    logger.info("Phase 2.5: fetching content for %s papers", len(papers_needing_content))
 
     fetched_count = await _run_content_fetch(
         papers_needing_content, mcp_client, runtime_context, all_paper_metadata
@@ -462,9 +432,7 @@ async def _phase2_5_fetch_content(
     if not content_config:
         return
 
-    logger.info(
-        "Content retrieval configured for %s source(s)", len(content_config)
-    )
+    logger.info("Content retrieval configured for %s source(s)", len(content_config))
 
     papers_needing_content = get_papers_needing_content(
         all_paper_metadata,
@@ -496,9 +464,7 @@ def _append_kg_evidence_section(
         return synthesis
 
     used_paper_count = _count_used_papers(articles)
-    kg_section = _format_kg_section_with_keys(
-        context_enrichment_sources, used_paper_count
-    )
+    kg_section = _format_kg_section_with_keys(context_enrichment_sources, used_paper_count)
     if not kg_section:
         return synthesis
 
@@ -519,12 +485,8 @@ async def _discover_then_fetch_content(
 ) -> None:
     """Content fetching depends on PDF URLs produced by discovery, so these
     steps must remain sequential."""
-    await _phase2_4_discover_pdf_links(
-        all_paper_metadata, paper_source_map, config, mcp_client
-    )
-    await _phase2_5_fetch_content(
-        all_paper_metadata, paper_source_map, config, mcp_client, state
-    )
+    await _phase2_4_discover_pdf_links(all_paper_metadata, paper_source_map, config, mcp_client)
+    await _phase2_5_fetch_content(all_paper_metadata, paper_source_map, config, mcp_client, state)
 
 
 async def _fetch_content_and_enrichment(
@@ -539,9 +501,7 @@ async def _fetch_content_and_enrichment(
     retrieval_task = _discover_then_fetch_content(
         all_paper_metadata, paper_source_map, config, mcp_client, state
     )
-    enrichment_task = _phase2_6_fetch_context_enrichment(
-        state, config, mcp_client
-    )
+    enrichment_task = _phase2_6_fetch_context_enrichment(state, config, mcp_client)
     retrieval_result, enrichment_result = await asyncio.gather(
         retrieval_task, enrichment_task, return_exceptions=True
     )
@@ -560,9 +520,7 @@ class _ReviewCachePlan:
     force_cache: bool
 
 
-def _cache_result(
-    result: dict[str, Any], cache_plan: _ReviewCachePlan
-) -> dict[str, Any]:
+def _cache_result(result: dict[str, Any], cache_plan: _ReviewCachePlan) -> dict[str, Any]:
     """Dev-isolation cache misses must populate the same forced cache used
     for lookup."""
     cache_plan.node_cache.set(
@@ -584,9 +542,7 @@ async def _collect_and_enrich_papers(
         all_paper_metadata,
         paper_source_map,
         search_errors,
-    ) = await _collect_papers_with_diagnostics(
-        queries, state, config, mcp_client
-    )
+    ) = await _collect_papers_with_diagnostics(queries, state, config, mcp_client)
 
     (
         background_context,
@@ -642,9 +598,7 @@ async def _analyze_and_synthesize(
     paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
     if not paper_analyses:
         return _ReviewSynthesis(LITERATURE_REVIEW_FAILED, 0, [])
-    synthesis = await _phase4_synthesize(
-        paper_analyses, state, background_context
-    )
+    synthesis = await _phase4_synthesize(paper_analyses, state, background_context)
     return _ReviewSynthesis(synthesis, len(paper_analyses) + 1, paper_analyses)
 
 
@@ -658,9 +612,7 @@ def _finalize_synthesis_and_articles(
     articles = build_articles_from_metadata(all_paper_metadata, source_name)
     logger.info("Created %s article objects", len(articles))
 
-    synthesis = _append_kg_evidence_section(
-        synthesis, articles, context_enrichment_sources
-    )
+    synthesis = _append_kg_evidence_section(synthesis, articles, context_enrichment_sources)
     return synthesis, articles
 
 
@@ -680,23 +632,17 @@ async def _emit_and_log_completion(
         articles_count=len(articles),
         articles_analyzed=_count_used_papers(articles),
         fulltext_analyzed=sum(
-            bool(article.used_in_analysis and article.content)
-            for article in articles
+            bool(article.used_in_analysis and article.content) for article in articles
         ),
         abstract_only_analyzed=sum(
-            bool(
-                article.used_in_analysis
-                and not article.content
-                and article.abstract
-            )
+            bool(article.used_in_analysis and not article.content and article.abstract)
             for article in articles
         ),
         search_errors_count=len(search_errors),
     )
 
     logger.info(
-        "Literature review complete: %s articles from %s queries,"
-        " %s char synthesis",
+        "Literature review complete: %s articles from %s queries, %s char synthesis",
         len(articles),
         len(queries),
         len(synthesis),

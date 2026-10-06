@@ -96,13 +96,9 @@ async def _stream_model_fragments(
     # Admit before shaping requests because the scientist's goal is sent
     # verbatim.
     offline_guard.require_remote_chat("the session announcement")
-    model, api_key = credentials.byok_model_and_key(
-        settings.effective_chat_model
-    )
+    model, api_key = credentials.byok_model_and_key(settings.effective_chat_model)
     thinking_kwargs = (
-        deepseek_thinking_kwargs(model)
-        if thinking_enabled
-        else thinking_off_kwargs(model)
+        deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
     )
     response = await llm_request.acompletion(
         model=model,
@@ -132,18 +128,14 @@ def persist_prompt(run_id: str, prompt: str) -> MessageRow:
     that never lands.
     """
     message = store.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content=prompt, kind=START_KIND
-        )
+        NewMessage(run_id=run_id, sender="user", content=prompt, kind=START_KIND)
     )
 
     log_chat_turn("user", prompt, run_id=run_id)
     return message
 
 
-def _persist_announcement(
-    run_id: str, text: str, reasoning: str, fallback: bool
-) -> None:
+def _persist_announcement(run_id: str, text: str, reasoning: str, fallback: bool) -> None:
     """Keep reasoning with the durable reply so reopened chats reproduce the
     disclosure shown live.
     """
@@ -170,9 +162,7 @@ async def _relay_announcement(
     *,
     thinking_enabled: bool = True,
 ) -> AsyncGenerator[str, None]:
-    async for kind, fragment in _stream_model_fragments(
-        run, thinking_enabled=thinking_enabled
-    ):
+    async for kind, fragment in _stream_model_fragments(run, thinking_enabled=thinking_enabled):
         (reasoning if kind == "reasoning" else prose).append(fragment)
         yield sse_frame({"type": kind, "content": fragment})
 
@@ -190,9 +180,7 @@ async def _announcement_attempts(
         scoped_execution_policy(
             run.execution_policy,
             campaign_model_name=(
-                campaign_model_for_config(run.config)
-                if run.execution_policy == CAMPAIGN
-                else None
+                campaign_model_for_config(run.config) if run.execution_policy == CAMPAIGN else None
             ),
         ),
         credentials.scoped_byok(byok),
@@ -202,13 +190,10 @@ async def _announcement_attempts(
         if "".join(prose).strip() or not "".join(reasoning).strip():
             return
         logger.info(
-            "session announcement for run %s reasoned and wrote nothing; "
-            "retrying without thinking",
+            "session announcement for run %s reasoned and wrote nothing; retrying without thinking",
             run.id,
         )
-        async for frame in _relay_announcement(
-            run, prose, reasoning, thinking_enabled=False
-        ):
+        async for frame in _relay_announcement(run, prose, reasoning, thinking_enabled=False):
             yield frame
 
 
@@ -228,18 +213,12 @@ async def stream_announcement(
         async for frame in _announcement_attempts(run, byok, prose, reasoning):
             yield frame
     except Exception as exc:
-        logger.info(
-            "session announcement for run %s falls back: %s", run.id, exc
-        )
+        logger.info("session announcement for run %s falls back: %s", run.id, exc)
     text = "".join(prose).strip()
     fallback = not text
     if fallback:
         text = FALLBACK_ANNOUNCEMENT
         yield sse_frame({"type": "chunk", "content": text})
     _persist_announcement(run.id, text, "".join(reasoning).strip(), fallback)
-    log_chat_turn(
-        "agent", text, run_id=run.id, duration_seconds=perf_counter() - started
-    )
-    yield sse_frame(
-        {"type": "done", "prompt_id": prompt_message_id, "fallback": fallback}
-    )
+    log_chat_turn("agent", text, run_id=run.id, duration_seconds=perf_counter() - started)
+    yield sse_frame({"type": "done", "prompt_id": prompt_message_id, "fallback": fallback})

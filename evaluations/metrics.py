@@ -22,7 +22,5 @@ def _jaccard(a: str, b: str) -> float:
 def hypothesis_diversity(texts: Sequence[str]) -> float:
     if len(texts) < 2:
         return 0.0
-    distances = [
-        1.0 - _jaccard(a, b) for a, b in itertools.combinations(texts, 2)
-    ]
+    distances = [1.0 - _jaccard(a, b) for a, b in itertools.combinations(texts, 2)]
     return round(sum(distances) / len(distances), 4)

@@ -105,18 +105,14 @@ def _make_run(client: TestClient, goal: str = "test goal") -> str:
 def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
     client = _client()
     client.headers.update({"X-Client-ID": "test-client"})
-    run = seed_run(
-        "Completed research", client_id="test-client", db_path=isolated_db
-    )
+    run = seed_run("Completed research", client_id="test-client", db_path=isolated_db)
     state = {
         **_task_state(run.id),
         "research_goal": run.research_goal,
         "current_iteration": 1,
         "start_time": 1.0,
     }
-    _seed_checkpoint(
-        run.id, state, stage="engine_task:final", db_path=isolated_db
-    )
+    _seed_checkpoint(run.id, state, stage="engine_task:final", db_path=isolated_db)
     store.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
 
     response = client.post(
@@ -139,9 +135,7 @@ def test_messages_are_queued_as_steering_and_listed_in_order(
     client = _client()
     run_id = _make_run(client)
 
-    first = client.post(
-        f"/api/runs/{run_id}/messages", json={"content": "steer A"}
-    )
+    first = client.post(f"/api/runs/{run_id}/messages", json={"content": "steer A"})
     client.post(f"/api/runs/{run_id}/messages", json={"content": "steer B"})
 
     assert first.status_code == 200
@@ -187,9 +181,7 @@ def _backdate_completion(db_path: str, run_id: str, seconds_ago: float) -> None:
         )
 
 
-def test_zero_disables_the_run_sweep(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_zero_disables_the_run_sweep(isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("COSCIENTIST_RUN_RETENTION_DAYS", "0")
     client = make_client()
     created = _create_run(
@@ -255,9 +247,7 @@ def test_sweep_expired_documents_deletes_only_past_the_window(
     deleted = retention.sweep_expired_documents(now=far_future)
 
     assert deleted == 1
-    assert (
-        documents.get_staged_documents([document_id], "retention-tester") == []
-    )
+    assert documents.get_staged_documents([document_id], "retention-tester") == []
 
 
 def _run(db: str) -> str:
@@ -266,10 +256,7 @@ def _run(db: str) -> str:
 
 def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
     run_id = _run(isolated_db)
-    assert (
-        store_checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-        is None
-    )
+    assert store_checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db) is None
     assert not store_checkpoints.has_checkpoint(run_id, db_path=isolated_db)
 
     seq1 = seed_checkpoint(
@@ -289,9 +276,7 @@ def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
     assert (seq1, seq2) == (1, 2)
     assert store_checkpoints.has_checkpoint(run_id, db_path=isolated_db)
 
-    latest = store_checkpoints.get_latest_checkpoint(
-        run_id, db_path=isolated_db
-    )
+    latest = store_checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None
     assert latest["seq"] == 2
     assert latest["stage"] == "post_ranking"
@@ -301,9 +286,7 @@ def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
 
 def _count(db: str) -> int:
     with _store_db.connect(db) as conn:
-        return int(
-            conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()[0]
-        )
+        return int(conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()[0])
 
 
 def _seed_raw_checkpoints(db: str, run_id: str, count: int) -> None:
@@ -331,9 +314,7 @@ def test_pruning_is_per_run(isolated_db: str) -> None:
 
     assert _count(isolated_db) == 2
     for run_id in (first, second):
-        latest = store_checkpoints.get_latest_checkpoint(
-            run_id, db_path=isolated_db
-        )
+        latest = store_checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
         assert latest is not None
         assert latest["state"]["run"] == run_id
         assert latest["seq"] == 3
@@ -347,15 +328,11 @@ def test_prune_superseded_reclaims_pre_existing_history(
     _seed_raw_checkpoints(isolated_db, run_id, 20)
     assert _count(isolated_db) == 20
 
-    deleted = store_checkpoints.prune_superseded_checkpoints(
-        db_path=isolated_db
-    )
+    deleted = store_checkpoints.prune_superseded_checkpoints(db_path=isolated_db)
 
     assert deleted == 19
     assert _count(isolated_db) == 1
-    latest = store_checkpoints.get_latest_checkpoint(
-        run_id, db_path=isolated_db
-    )
+    latest = store_checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None
     assert latest["seq"] == 20
     assert latest["state"] == {"round": 20}
@@ -380,17 +357,13 @@ def test_prune_batches_and_folds_the_wal_between_batches(
 
     monkeypatch.setattr(checkpoints_module, "checkpoint_wal", _record)
 
-    deleted = store_checkpoints.prune_superseded_checkpoints(
-        db_path=isolated_db
-    )
+    deleted = store_checkpoints.prune_superseded_checkpoints(db_path=isolated_db)
 
     assert deleted == 10
     assert _count(isolated_db) == 1
     assert len(checkpoints) >= 2
     assert checkpoints == sorted(checkpoints, reverse=True)
-    latest = store_checkpoints.get_latest_checkpoint(
-        run_id, db_path=isolated_db
-    )
+    latest = store_checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None
     assert latest["seq"] == 11
 
@@ -401,9 +374,7 @@ def test_every_node_in_node_to_agent_has_an_activity() -> None:
     for node_name in NODE_TO_AGENT:
         activity = activity_for_event(node_name, {})
         assert activity in ACTIVITY_VALUES
-        assert activity != ACTIVITY_OTHER, (
-            f"node {node_name!r} has no activity mapping"
-        )
+        assert activity != ACTIVITY_OTHER, f"node {node_name!r} has no activity mapping"
 
 
 _SUPPORTED = "IL-6 increases inflammation via STAT3 signaling."
@@ -450,9 +421,7 @@ def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
             claim="TREM2 has no role in this pathway.",
             label="contradicts",
             supporting=[],
-            contradicting=[
-                {"evidence_id": "ev-2", "quote": "TREM2 is central."}
-            ],
+            contradicting=[{"evidence_id": "ev-2", "quote": "TREM2 is central."}],
             assessor="deterministic-v1",
         ),
         db_path=isolated_db,

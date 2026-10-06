@@ -83,8 +83,7 @@ def _screen_one_hypothesis(
 
     if review.outcome == SafetyOutcome.UNCERTAIN:
         logger.warning(
-            "Safety screen: UNCERTAIN hypothesis held for review: "
-            "%s... (id=%s)",
+            "Safety screen: UNCERTAIN hypothesis held for review: %s... (id=%s)",
             h.text[:80],
             h.id,
         )
@@ -160,9 +159,7 @@ def _build_screen_result(
     held_count = len(outcome.held)
     # Checkpoint restore may carry explicit None; a get default alone does not
     # cover it.
-    existing_decisions: list[dict[str, Any]] = (
-        state.get("safety_decisions") or []
-    )
+    existing_decisions: list[dict[str, Any]] = state.get("safety_decisions") or []
     existing_held: list[dict[str, Any]] = state.get("held_for_review") or []
     return {
         "hypotheses": ReplaceHypotheses(safe),
@@ -174,9 +171,7 @@ def _build_screen_result(
             f"{len(safe)} safe, {blocked_count} blocked"
             f" ({held_count} held for review)",
         ),
-        "metrics": create_metrics_update(
-            phase_times={"safety_screen": elapsed}
-        ),
+        "metrics": create_metrics_update(phase_times={"safety_screen": elapsed}),
     }
 
 
@@ -237,9 +232,7 @@ def _field_text(value: Any) -> str:
 
 def _direction_text(meta_review: Mapping[str, Any] | None) -> str:
     overview = meta_review or {}
-    return " ".join(
-        _field_text(overview.get(field)) for field in _MONITORED_FIELDS
-    ).strip()
+    return " ".join(_field_text(overview.get(field)) for field in _MONITORED_FIELDS).strip()
 
 
 def review_direction_safety(
@@ -258,9 +251,7 @@ def _halt_record(review: ContentSafetyReview) -> dict[str, Any]:
     }
 
 
-def _halt_update(
-    state: WorkflowState, review: ContentSafetyReview
-) -> dict[str, Any]:
+def _halt_update(state: WorkflowState, review: ContentSafetyReview) -> dict[str, Any]:
     """Safety decisions lack a reducer; explicitly carry the full audit trail
     and tolerate checkpoint-restored None."""
     existing: list[dict[str, Any]] = state.get("safety_decisions") or []

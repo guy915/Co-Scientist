@@ -63,9 +63,7 @@ def persist_arm_run(
     )
     from evaluations._identity import arm_identity
 
-    config["evaluation_identity"] = arm_identity(
-        goal, config, invocation.backend
-    )
+    config["evaluation_identity"] = arm_identity(goal, config, invocation.backend)
     run = runs.create_run(
         goal,
         tier,
@@ -98,9 +96,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     return result
 
 
-def drain_run(
-    run_id: str, db_path: str, *, worker_prefix: str
-) -> tuple[int, float]:
+def drain_run(run_id: str, db_path: str, *, worker_prefix: str) -> tuple[int, float]:
     """A failed run also drains its queue; verify persisted terminal status."""
     from app import task_worker
     from app.store import events as store

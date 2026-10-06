@@ -40,14 +40,10 @@ def test_event_log_is_append_only_and_strictly_increasing(db: str) -> None:
 def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
     run = seed_run("multi-parent", provider="mock")
     primary = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id, title="P1", statement="p1", hypothesis_id="p1"
-        )
+        NewHypothesis(run_id=run.id, title="P1", statement="p1", hypothesis_id="p1")
     )
     partner = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id, title="P2", statement="p2", hypothesis_id="p2"
-        )
+        NewHypothesis(run_id=run.id, title="P2", statement="p2", hypothesis_id="p2")
     )
     child = store.add_hypothesis(
         NewHypothesis(
@@ -85,9 +81,7 @@ def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
             experimental_context="secret protocol",
         )
     )
-    store.redact_hypothesis_fields(
-        hid, {"mechanism": "[X]", "experimental_context": "[X]"}
-    )
+    store.redact_hypothesis_fields(hid, {"mechanism": "[X]", "experimental_context": "[X]"})
     row = store.get_hypothesis(hid)
     assert row is not None
     assert row["mechanism"] == "[X]"
@@ -122,9 +116,7 @@ class _StaleColumnView:
         return getattr(self._conn, name)
 
 
-def _reopen_with_stale_columns(
-    monkeypatch: pytest.MonkeyPatch, db: str, alter_error: str
-) -> None:
+def _reopen_with_stale_columns(monkeypatch: pytest.MonkeyPatch, db: str, alter_error: str) -> None:
     with store_db.connect():
         pass
     store_db._initialized.discard(db)
@@ -132,9 +124,7 @@ def _reopen_with_stale_columns(
     monkeypatch.setattr(
         store_db,
         "_open_raw_connection",
-        lambda path: cast(
-            sqlite3.Connection, _StaleColumnView(real_open(path), alter_error)
-        ),
+        lambda path: cast(sqlite3.Connection, _StaleColumnView(real_open(path), alter_error)),
     )
 
 
@@ -176,9 +166,7 @@ def _seed_cascade_children(run_id: str) -> None:
             created_by_agent="generation",
         )
     )
-    eid = records.add_evidence(
-        NewEvidence(run_id=run_id, title="paper", source="pubmed")
-    )
+    eid = records.add_evidence(NewEvidence(run_id=run_id, title="paper", source="pubmed"))
     records.add_review(
         NewReview(
             run_id=run_id,
@@ -226,14 +214,11 @@ _PER_RUN_LISTED_TABLES = (
 
 
 @pytest.mark.parametrize("table", _PER_RUN_LISTED_TABLES)
-def test_per_run_listing_never_scans_the_whole_table(
-    db: str, table: str
-) -> None:
+def test_per_run_listing_never_scans_the_whole_table(db: str, table: str) -> None:
     # Run-scoped indexes avoid scanning other runs.
     with store_db.connect() as conn:
         plan = conn.execute(
-            f"EXPLAIN QUERY PLAN SELECT * FROM {table} WHERE run_id=? "
-            "ORDER BY created_at ASC",
+            f"EXPLAIN QUERY PLAN SELECT * FROM {table} WHERE run_id=? ORDER BY created_at ASC",
             ("any-run",),
         ).fetchall()
     detail = " ".join(row["detail"] for row in plan)

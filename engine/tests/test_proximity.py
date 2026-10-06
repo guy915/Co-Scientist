@@ -51,18 +51,12 @@ _HIGH_HIGH_BY_INDEX: dict[str, Any] = {
 
 
 def _alpha_beta_pair() -> tuple[Hypothesis, Hypothesis]:
-    low = make_hypothesis(
-        text="alpha pathway drives tumor growth", elo_rating=1200
-    )
-    high = make_hypothesis(
-        text="beta pathway drives tumor growth", elo_rating=1400
-    )
+    low = make_hypothesis(text="alpha pathway drives tumor growth", elo_rating=1200)
+    high = make_hypothesis(text="beta pathway drives tumor growth", elo_rating=1400)
     return low, high
 
 
-def _stub_clusters(
-    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
-) -> None:
+def _stub_clusters(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> None:
 
     async def fake(**_: Any) -> dict[str, Any]:
         return response
@@ -91,9 +85,7 @@ async def test_high_similarity_duplicate_removed_keeping_best_elo(
 def _disjoint_texts(*ids: str) -> dict[str, str]:
     """Disjoint vocabulary suppresses computed edges, isolating judged
     clusters."""
-    return {
-        hyp_id: " ".join(f"{hyp_id}word{n}" for n in range(6)) for hyp_id in ids
-    }
+    return {hyp_id: " ".join(f"{hyp_id}word{n}" for n in range(6)) for hyp_id in ids}
 
 
 def _survivors(*ids: str, texts: dict[str, str] | None = None) -> SurvivorIndex:

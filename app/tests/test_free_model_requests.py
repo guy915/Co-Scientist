@@ -30,28 +30,16 @@ async def _stream_call(kind: str, model: str) -> Any:
             interviews_model.TurnSinks(),
         )
     if kind == "qa":
-        return [
-            item
-            async for item in qa_stream.stream_llm_deltas(
-                model, "system", "question", []
-            )
-        ]
+        return [item async for item in qa_stream.stream_llm_deltas(model, "system", "question", [])]
     run = seed_run("Public research", profile="express")
-    return [
-        item
-        async for item in run_start_announcement._stream_model_fragments(run)
-    ]
+    return [item async for item in run_start_announcement._stream_model_fragments(run)]
 
 
 async def _invoke(kind: str, model: str) -> Any:
     if kind == "title":
-        return await goal_text._request_completion(
-            "Public research", goal_text._TITLE
-        )
+        return await goal_text._request_completion("Public research", goal_text._TITLE)
     if kind == "restatement":
-        return await goal_text._request_completion(
-            "Public research", goal_text._RESTATEMENT
-        )
+        return await goal_text._request_completion("Public research", goal_text._RESTATEMENT)
     if kind == "probe":
         return await credentials.validate_byok_credential(
             credentials.ByokCredential("openrouter", "test-user-key", model)
@@ -60,9 +48,7 @@ async def _invoke(kind: str, model: str) -> Any:
 
 
 @pytest.fixture
-def captured(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> list[dict[str, Any]]:
+def captured(monkeypatch: pytest.MonkeyPatch, reachable_provider: None) -> list[dict[str, Any]]:
     from co_scientist.llm.admission import free_policy as free_catalog
 
     free_catalog.install_catalog_reader(
@@ -85,9 +71,7 @@ def captured(
         yield SimpleNamespace(
             choices=[
                 SimpleNamespace(
-                    delta=SimpleNamespace(
-                        content="answer", reasoning_content="reasoning"
-                    )
+                    delta=SimpleNamespace(content="answer", reasoning_content="reasoning")
                 )
             ]
         )
@@ -136,9 +120,7 @@ async def test_campaign_free_requests_keep_streams_and_zero_caps(
         assert ("chunk", "answer") in result
     if kind == "interview":
         assert result[0] == "answer"
-    assert request.get("stream", False) == (
-        kind in {"interview", "qa", "announcement"}
-    )
+    assert request.get("stream", False) == (kind in {"interview", "qa", "announcement"})
 
 
 async def test_concurrent_campaign_and_standard_byok_stay_isolated(
@@ -220,15 +202,11 @@ async def test_interview_reasoning_retry_rechecks_admission(
             yield SimpleNamespace(
                 choices=[
                     SimpleNamespace(
-                        delta=SimpleNamespace(
-                            content=None, reasoning_content="thinking only"
-                        )
+                        delta=SimpleNamespace(content=None, reasoning_content="thinking only")
                     )
                 ]
             )
-            free_catalog.install_catalog_reader(
-                free_catalog.CatalogReader(lambda: {})
-            )
+            free_catalog.install_catalog_reader(free_catalog.CatalogReader(lambda: {}))
 
         return chunks()
 

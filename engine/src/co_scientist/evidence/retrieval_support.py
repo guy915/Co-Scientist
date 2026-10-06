@@ -13,11 +13,7 @@ def describe_exception(exc: BaseException) -> str:
     while getattr(current, "exceptions", None):
         current = current.exceptions[0]  # type: ignore[attr-defined]
     message = str(current).strip()
-    return (
-        f"{type(current).__name__}: {message}"
-        if message
-        else type(current).__name__
-    )
+    return f"{type(current).__name__}: {message}" if message else type(current).__name__
 
 
 if TYPE_CHECKING:
@@ -60,8 +56,7 @@ def _select_eligible_papers(
     ],
 ) -> list[_EntryT]:
     entries = (
-        resolve(pid, meta, paper_source_map, config)
-        for pid, meta in all_paper_metadata.items()
+        resolve(pid, meta, paper_source_map, config) for pid, meta in all_paper_metadata.items()
     )
     return [entry for entry in entries if entry is not None]
 
@@ -238,9 +233,7 @@ def _resolve_content_tool(
     workflow: "WorkflowConfig",
     tool_registry: "ToolRegistry",
 ) -> ContentToolConfig | None:
-    resolved = _resolve_source_tool(
-        source, workflow, tool_registry, _CONTENT_FIELDS
-    )
+    resolved = _resolve_source_tool(source, workflow, tool_registry, _CONTENT_FIELDS)
     if not resolved:
         return None
     mcp_tool_name, url_field = resolved
@@ -257,9 +250,7 @@ def build_content_config(
     tool_registry: Optional["ToolRegistry"],
     is_multi_source: bool,
 ) -> dict[str, ContentToolConfig]:
-    return _build_source_config(
-        workflow, tool_registry, is_multi_source, _resolve_content_tool
-    )
+    return _build_source_config(workflow, tool_registry, is_multi_source, _resolve_content_tool)
 
 
 def _resolve_content_entry(

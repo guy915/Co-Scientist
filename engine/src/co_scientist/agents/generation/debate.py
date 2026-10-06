@@ -53,9 +53,7 @@ _DEBATE_DIVERSITY_ANGLES = [
 ]
 
 
-def _debate_diversity_instruction(
-    debate_id: int | None, total_debates: int
-) -> str | None:
+def _debate_diversity_instruction(debate_id: int | None, total_debates: int) -> str | None:
 
     if debate_id is None or total_debates <= 1:
         return None
@@ -69,9 +67,7 @@ def _debate_diversity_instruction(
     )
 
 
-def _append_diversity_instruction(
-    preferences: str | None, instruction: str | None
-) -> str | None:
+def _append_diversity_instruction(preferences: str | None, instruction: str | None) -> str | None:
 
     if not instruction:
         return preferences
@@ -96,9 +92,7 @@ def _debate_final_turn_max_tokens(count: int) -> int:
 
 
 _DEBATE_TERMINATOR = re.compile(r"\bHYPOTHESIS\b\s*[:.;\u2013\u2014-]")
-_DEBATE_TERMINATOR_VARIANT = re.compile(
-    r"(?im)^[ \t>*#\-]*HYPOTHESIS[ \t*]*(?::.*)?$"
-)
+_DEBATE_TERMINATOR_VARIANT = re.compile(r"(?im)^[ \t>*#\-]*HYPOTHESIS[ \t*]*(?::.*)?$")
 
 
 def _debate_converged(response_text: str) -> bool:
@@ -142,9 +136,7 @@ async def _call_final_debate_turn(
     )
 
 
-def _first_debate_hypothesis_data(
-    response: dict[str, Any], debate_label: str
-) -> dict[str, Any]:
+def _first_debate_hypothesis_data(response: dict[str, Any], debate_label: str) -> dict[str, Any]:
     """A single debate still uses the list-wrapped schema shared by batch
     generation paths."""
     hypotheses_data: list[dict[str, Any]] = response.get("hypotheses", [])
@@ -200,9 +192,7 @@ def _build_debate_turn_prompt(
     )
 
 
-async def _run_intermediate_debate_turn(
-    state: WorkflowState, prompt: str
-) -> str:
+async def _run_intermediate_debate_turn(state: WorkflowState, prompt: str) -> str:
 
     return await call_llm(
         prompt=prompt,
@@ -238,20 +228,14 @@ def _build_debate_context(
     articles_with_reasoning: str | None,
     reference_index: ReferenceIndex | None,
 ) -> _DebateContext:
-    diversity_instruction = _debate_diversity_instruction(
-        debate_id, total_debates
-    )
+    diversity_instruction = _debate_diversity_instruction(debate_id, total_debates)
     return _DebateContext(
         ref_idx=reference_index or ReferenceIndex(text="", sources={}),
         debate_id=debate_id,
-        debate_label=(
-            f"debate {debate_id}" if debate_id is not None else "debate"
-        ),
+        debate_label=(f"debate {debate_id}" if debate_id is not None else "debate"),
         supervisor_guidance=state.get("supervisor_guidance"),
         meta_review=state.get("meta_review"),
-        preferences=_append_diversity_instruction(
-            state.get("preferences"), diversity_instruction
-        ),
+        preferences=_append_diversity_instruction(state.get("preferences"), diversity_instruction),
         attributes=state.get("attributes"),
         articles_with_reasoning=articles_with_reasoning,
         criteria=state.get("criteria"),
@@ -267,24 +251,16 @@ async def _run_debate_turns(
     transcript = ""
     turns_run = 0
     for turn in range(1, _DEBATE_MAX_DISCUSSION_TURNS + 1):
-        prompt, _ = _build_debate_turn_prompt(
-            state, ctx, transcript, is_final=False
-        )
+        prompt, _ = _build_debate_turn_prompt(state, ctx, transcript, is_final=False)
         response_text = await _run_intermediate_debate_turn(state, prompt)
         transcript += f"\n\nTurn {turn}:\n{response_text}"
         turns_run = turn
         if _debate_converged(response_text):
-            logger.info(
-                "%s declared consensus after turn %s", ctx.debate_label, turn
-            )
+            logger.info("%s declared consensus after turn %s", ctx.debate_label, turn)
             break
 
-    prompt, schema = _build_debate_turn_prompt(
-        state, ctx, transcript, is_final=True
-    )
-    hypothesis = await _run_final_debate_turn(
-        state, ctx, turns_run + 1, prompt, schema
-    )
+    prompt, schema = _build_debate_turn_prompt(state, ctx, transcript, is_final=True)
+    hypothesis = await _run_final_debate_turn(state, ctx, turns_run + 1, prompt, schema)
 
     return hypothesis, transcript, turns_run + 1
 
@@ -298,9 +274,7 @@ def _unpack_debate_results(
     debate_transcripts = [
         {
             "debate_id": (
-                debate_hypotheses[i].debate_id
-                if debate_hypotheses[i].debate_id is not None
-                else i
+                debate_hypotheses[i].debate_id if debate_hypotheses[i].debate_id is not None else i
             ),
             "transcript": transcript,
             "hypothesis_text": debate_hypotheses[i].text,
@@ -364,9 +338,7 @@ async def generate_with_debate(
         position,
     )
     debate_results = await asyncio.gather(*debate_tasks)
-    debate_hypotheses, debate_transcripts, llm_call_count = (
-        _unpack_debate_results(debate_results)
-    )
+    debate_hypotheses, debate_transcripts, llm_call_count = _unpack_debate_results(debate_results)
 
     logger.info("Generated %s hypotheses from debates", len(debate_hypotheses))
     return debate_hypotheses, debate_transcripts, llm_call_count

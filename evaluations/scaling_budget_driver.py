@@ -96,13 +96,9 @@ def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run_budget_curve(
-    goal: str, tiers: Sequence[str], *, live: bool
-) -> dict[str, Any]:
+def run_budget_curve(goal: str, tiers: Sequence[str], *, live: bool) -> dict[str, Any]:
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="scaling-curve-"))
-    _run_driver.configure_environment(
-        str(tmp / "scaling.db"), str(tmp / "cache"), live=live
-    )
+    _run_driver.configure_environment(str(tmp / "scaling.db"), str(tmp / "cache"), live=live)
     backend = "real" if live else "offline"
     arms = [
         _run_driver.run_arm(

@@ -104,14 +104,9 @@ class FakeMCPClient:
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         self.get_tools_calls.append(whitelist)
         selected = {
-            name: obj
-            for name, obj in self._tools.items()
-            if whitelist is None or name in whitelist
+            name: obj for name, obj in self._tools.items() if whitelist is None or name in whitelist
         }
-        schemas = [
-            {"type": "function", "function": {"name": name}}
-            for name in selected
-        ]
+        schemas = [{"type": "function", "function": {"name": name}} for name in selected]
         return selected, schemas
 
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
@@ -139,9 +134,7 @@ async def test_a_known_tool_call_is_delegated_and_counted() -> None:
     fake = FakeMCPClient({"pubmed_search": object()})
     provider = _provider(fake)
     executor, counts = provider.tracked_executor("Draft")
-    call = make_tool_call(
-        "pubmed_search", json.dumps({"query": "cancer"}), call_id="call-mcp"
-    )
+    call = make_tool_call("pubmed_search", json.dumps({"query": "cancer"}), call_id="call-mcp")
 
     result = await executor(call)
     await executor(make_tool_call("pubmed_search", "{}"))
@@ -155,9 +148,7 @@ async def test_a_known_tool_call_is_delegated_and_counted() -> None:
     assert fake.executed[0] is call
 
 
-async def test_an_unknown_tool_or_failing_client_becomes_an_error_result() -> (
-    None
-):
+async def test_an_unknown_tool_or_failing_client_becomes_an_error_result() -> None:
     unknown = await _provider(FakeMCPClient()).execute_tool_call(
         make_tool_call("nope_tool", "{}", call_id="call-x")
     )
@@ -165,18 +156,16 @@ async def test_an_unknown_tool_or_failing_client_becomes_an_error_result() -> (
     assert unknown["tool_call_id"] == "call-x"
     assert json.loads(unknown["content"])["error"] == "unknown tool: nope_tool"
 
-    failing = await _provider(
-        FailingMCPClient({"pubmed_search": object()})
-    ).execute_tool_call(make_tool_call("pubmed_search", "{}"))
+    failing = await _provider(FailingMCPClient({"pubmed_search": object()})).execute_tool_call(
+        make_tool_call("pubmed_search", "{}")
+    )
     error = json.loads(failing["content"])["error"]
     assert "tool execution failed" in error
     assert "server unavailable" in error
 
     provider = _provider(FakeMCPClient({"pubmed_search": object()}))
     provider.mcp_client = None
-    unconfigured = await provider.execute_tool_call(
-        make_tool_call("pubmed_search", "{}")
-    )
+    unconfigured = await provider.execute_tool_call(make_tool_call("pubmed_search", "{}"))
     assert "MCP client not configured" in unconfigured["content"]
 
 
@@ -232,9 +221,7 @@ async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
         monkeypatch,
         [
             BadRequestError(
-                message=(
-                    "reasoning.max_tokens is not supported for this model."
-                ),
+                message=("reasoning.max_tokens is not supported for this model."),
                 model=model,
                 llm_provider="openrouter",
             ),
@@ -244,9 +231,7 @@ async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
 
     result = await call_llm_json(
         "a prompt",
-        CompletionSpec(
-            model_name=model, max_tokens=12000, json_schema=_INT_SCHEMA
-        ),
+        CompletionSpec(model_name=model, max_tokens=12000, json_schema=_INT_SCHEMA),
         max_attempts=3,
         options=LLMCallOptions(enable_thinking=False),
     )
@@ -261,9 +246,7 @@ async def _answers_ok(**_kwargs: Any) -> str:
     return "ok"
 
 
-def test_a_backend_scope_restores_what_it_replaced_even_when_it_raises() -> (
-    None
-):
+def test_a_backend_scope_restores_what_it_replaced_even_when_it_raises() -> None:
     assert isinstance(backend.active_backend(), backend.LitellmBackend)
     first, second = FakeBackend(_answers_ok), FakeBackend(_answers_ok)
 
@@ -290,12 +273,8 @@ OVER_BUDGET = LLMCallBudgetExceededError(2501, 2500)
 ORDINARY = ValueError("provider returned unparseable JSON")
 
 
-async def _initial_reviews(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> Any:
-    monkeypatch.setattr(
-        rv, "review_single_hypothesis", AsyncMock(side_effect=error)
-    )
+async def _initial_reviews(monkeypatch: pytest.MonkeyPatch, error: Exception) -> Any:
+    monkeypatch.setattr(rv, "review_single_hypothesis", AsyncMock(side_effect=error))
     return await rv.review_parallel_individual(
         [make_hypothesis(text="a"), make_hypothesis(text="b")],
         rv.ReviewContext.from_state(make_state()),
@@ -318,9 +297,7 @@ async def test_initial_reviews_degrade_ordinary_failures_but_not_spent_caps(
             await _initial_reviews(monkeypatch, error)
 
 
-def test_a_synthesis_batch_is_retried_individually_unless_a_cap_is_spent() -> (
-    None
-):
+def test_a_synthesis_batch_is_retried_individually_unless_a_cap_is_spent() -> None:
     batches = [[{"a": 1}], [{"b": 2}]]
     validated, failed = vs._partition_synthesis_results(
         batches, [[{"ok": True}], RuntimeError("batch refused")]
@@ -332,9 +309,7 @@ def test_a_synthesis_batch_is_retried_individually_unless_a_cap_is_spent() -> (
             vs._partition_synthesis_results(batches, [[], error])
 
 
-_AGENTS_DIR = (
-    pathlib.Path(__file__).resolve().parents[1] / "src/co_scientist/agents"
-)
+_AGENTS_DIR = pathlib.Path(__file__).resolve().parents[1] / "src/co_scientist/agents"
 
 
 _LLM_CALLS = {"call_llm", "call_llm_json", "call_llm_with_tools"}
@@ -380,15 +355,12 @@ def _unguarded_llm_fallbacks(tree: ast.AST) -> list[int]:
 def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
     unguarded: dict[str, list[int]] = {}
     for path in sorted(_AGENTS_DIR.rglob("*.py")):
-        offenders = _unguarded_llm_fallbacks(
-            ast.parse(path.read_text(encoding="utf-8"))
-        )
+        offenders = _unguarded_llm_fallbacks(ast.parse(path.read_text(encoding="utf-8")))
         if offenders:
             unguarded[str(path.relative_to(_AGENTS_DIR))] = offenders
 
     assert not unguarded, (
-        "these handlers swallow a rate-limit park or the run's call-budget "
-        f"ceiling: {unguarded}"
+        f"these handlers swallow a rate-limit park or the run's call-budget ceiling: {unguarded}"
     )
 
     bare = "try:\n    await call_llm_json(p)\nexcept Exception:\n    pass\n"

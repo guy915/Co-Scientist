@@ -22,15 +22,10 @@ def contracts() -> dict[str, dict[str, Any]]:
             name: value
             for name, value in vars(module).items()
             if not name.startswith("_")
-            and (
-                name in aliases
-                or (is_typeddict(value) and value.__module__ == module.__name__)
-            )
+            and (name in aliases or (is_typeddict(value) and value.__module__ == module.__name__))
         }
         result[module.__name__.rsplit(".", 1)[-1]] = owned
-    result["common"].update(
-        RunStatus=common.RunStatus, JsonValue=common.JsonValue
-    )
+    result["common"].update(RunStatus=common.RunStatus, JsonValue=common.JsonValue)
     return result
 
 
@@ -55,19 +50,13 @@ def properties(schema: dict[str, Any]) -> list[str]:
     required = schema.get("required", [])
     fields = []
     for name, value in schema.get("properties", {}).items():
-        key = (
-            name
-            if re.fullmatch(r"[A-Za-z_$][\w$]*", name)
-            else json.dumps(name)
-        )
+        key = name if re.fullmatch(r"[A-Za-z_$][\w$]*", name) else json.dumps(name)
         optional = "" if name in required else "?"
         fields.append(f"  {key}{optional}: {type_expression(value)};")
     if schema.get("x-open-config"):
         # Persisted config permits arbitrary extra keys alongside typed setup
         # fields; preserve that openness in the generated contract.
-        fields.append(
-            "  [key: string]: JsonValue | RunSetupConfig | undefined;"
-        )
+        fields.append("  [key: string]: JsonValue | RunSetupConfig | undefined;")
     return fields
 
 
@@ -150,15 +139,9 @@ def generated_files() -> dict[str, str]:
         for owner in sorted(set(owners.values()) - {group}):
             refs = sorted(name for name in needed if owners[name] == owner)
             if refs:
-                imports.append(
-                    f"import type {{{', '.join(refs)}}} from './wire_{owner}';"
-                )
-        body = "\n\n".join(
-            declaration(name, definitions[name]) for name in names
-        )
-        result[f"wire_{group}.ts"] = (
-            HEADER + "\n".join(imports) + "\n\n" + body + "\n"
-        )
+                imports.append(f"import type {{{', '.join(refs)}}} from './wire_{owner}';")
+        body = "\n\n".join(declaration(name, definitions[name]) for name in names)
+        result[f"wire_{group}.ts"] = HEADER + "\n".join(imports) + "\n\n" + body + "\n"
     return result
 
 

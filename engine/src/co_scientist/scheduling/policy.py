@@ -27,9 +27,7 @@ def _terminate(reason: TerminationReason, message: str) -> SupervisorDecision:
     )
 
 
-def _llm_call_budget_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _llm_call_budget_check(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     max_calls = budget.max_llm_calls
     if max_calls is None or stats.llm_calls < max_calls:
         return None
@@ -39,9 +37,7 @@ def _llm_call_budget_check(
     )
 
 
-def _task_budget_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _task_budget_check(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     max_tasks = budget.max_tasks
     if max_tasks is None or stats.tasks_run < max_tasks:
         return None
@@ -51,9 +47,7 @@ def _task_budget_check(
     )
 
 
-def _wall_clock_budget_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _wall_clock_budget_check(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     limit = budget.max_wall_clock_s
     if limit is None or stats.elapsed_s < limit:
         return None
@@ -63,9 +57,7 @@ def _wall_clock_budget_check(
     )
 
 
-def _max_ideas_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _max_ideas_check(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     """Budget checks precede review backlog; do not strand freshly admitted
     ideas unreviewed."""
     limit = budget.max_ideas
@@ -77,28 +69,19 @@ def _max_ideas_check(
     )
 
 
-def _max_matches_per_idea_check(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _max_matches_per_idea_check(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     """The match ceiling shares average rankable coverage semantics with the
     tournament floor."""
     limit = budget.max_matches_per_idea
-    if (
-        limit is None
-        or stats.rankable_count < 2
-        or stats.match_coverage < limit
-    ):
+    if limit is None or stats.rankable_count < 2 or stats.match_coverage < limit:
         return None
     return _terminate(
         TerminationReason.MAX_MATCHES_PER_IDEA,
-        f"match budget exhausted (avg {stats.match_coverage:.2f}/"
-        f"{limit:.2f} matches per idea)",
+        f"match budget exhausted (avg {stats.match_coverage:.2f}/{limit:.2f} matches per idea)",
     )
 
 
-def _budget_termination(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _budget_termination(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     for check in (
         _llm_call_budget_check,
         _task_budget_check,
@@ -112,9 +95,7 @@ def _budget_termination(
     return None
 
 
-def _check_owed_review(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _check_owed_review(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     """Spend each idea's bounded review override only at exhaustion; crossing
     the in-task LLM ceiling causes permanent failure."""
     termination = _budget_termination(stats, budget)
@@ -172,9 +153,7 @@ def _check_research_overview_cadence(
     ceiling = budget.max_llm_calls
     if ceiling is None or ceiling < RESEARCH_OVERVIEW_MIN_LLM_CALLS:
         return None
-    if stats.iterations_since_research_overview < (
-        RESEARCH_OVERVIEW_CADENCE_CYCLES
-    ):
+    if stats.iterations_since_research_overview < (RESEARCH_OVERVIEW_CADENCE_CYCLES):
         return None
     return SupervisorDecision(
         next_task=TaskType.SYNTHESIZE,
@@ -199,8 +178,7 @@ def _generation_vs_evolution(stats: SchedulerStats) -> SupervisorDecision:
     can_evolve = stats.reviewed_count >= 2
     if evo_y > gen_y and can_evolve:
         return _evolve(
-            f"evolution out-yields generation (evo={evo_y:.2f} > "
-            f"gen={gen_y:.2f}); evolve leaders"
+            f"evolution out-yields generation (evo={evo_y:.2f} > gen={gen_y:.2f}); evolve leaders"
         )
     if gen_y > evo_y:
         return _generate(
@@ -236,9 +214,7 @@ def _check_stop_signals(stats: SchedulerStats) -> SupervisorDecision | None:
     """Cancellation is enforced by durable dispatch, not a second scheduler
     signal."""
     if stats.safety_blocked:
-        return _terminate(
-            TerminationReason.SAFETY, "safety block halted the run"
-        )
+        return _terminate(TerminationReason.SAFETY, "safety block halted the run")
     return None
 
 
@@ -299,17 +275,12 @@ def _check_review_backlog(
     if stats.unreviewed_count > 0:
         return SupervisorDecision(
             next_task=TaskType.REFLECT,
-            reason=(
-                f"{stats.unreviewed_count} unreviewed hypotheses; review "
-                "before ranking"
-            ),
+            reason=(f"{stats.unreviewed_count} unreviewed hypotheses; review before ranking"),
         )
     return None
 
 
-def _check_pool_size(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _check_pool_size(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     """The iteration ceiling must still stop generation when a pool never
     grows enough to rank."""
     if stats.pool_size >= 2:
@@ -323,10 +294,7 @@ def _check_pool_size(
         )
     return SupervisorDecision(
         next_task=TaskType.GENERATE,
-        reason=(
-            f"pool too small for a tournament ({stats.pool_size}); "
-            "generate more"
-        ),
+        reason=(f"pool too small for a tournament ({stats.pool_size}); generate more"),
     )
 
 
@@ -380,14 +348,11 @@ def _check_convergence(
     return None
 
 
-def _check_iteration_budget(
-    stats: SchedulerStats, budget: Budget
-) -> SupervisorDecision | None:
+def _check_iteration_budget(stats: SchedulerStats, budget: Budget) -> SupervisorDecision | None:
     if stats.iteration >= budget.max_iterations:
         return _terminate(
             TerminationReason.COMPLETED,
-            f"reached iteration budget ({stats.iteration}/"
-            f"{budget.max_iterations})",
+            f"reached iteration budget ({stats.iteration}/{budget.max_iterations})",
         )
     return None
 
@@ -408,23 +373,17 @@ ALLOWED_LOOP_TASKS: frozenset[TaskType] = frozenset(
 )
 
 
-def _correct_for_steering(
-    task: TaskType, stats: SchedulerStats
-) -> SupervisorDecision | None:
+def _correct_for_steering(task: TaskType, stats: SchedulerStats) -> SupervisorDecision | None:
     if stats.pending_steering and task is not TaskType.GENERATE:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,
-            reason=(
-                "corrected: scientist steering reprioritized fresh generation"
-            ),
+            reason=("corrected: scientist steering reprioritized fresh generation"),
             priority=100,
         )
     return None
 
 
-def _correct_disallowed_task(
-    task: TaskType, stats: SchedulerStats
-) -> SupervisorDecision | None:
+def _correct_disallowed_task(task: TaskType, stats: SchedulerStats) -> SupervisorDecision | None:
     if task not in ALLOWED_LOOP_TASKS:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,
@@ -433,9 +392,7 @@ def _correct_disallowed_task(
     return None
 
 
-def _correct_rank_precondition(
-    task: TaskType, stats: SchedulerStats
-) -> SupervisorDecision | None:
+def _correct_rank_precondition(task: TaskType, stats: SchedulerStats) -> SupervisorDecision | None:
     if task == TaskType.RANK and stats.rankable_count < 2:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,
@@ -451,24 +408,15 @@ def _correct_evolve_precondition(
     task: TaskType, stats: SchedulerStats
 ) -> SupervisorDecision | None:
     if task == TaskType.EVOLVE and stats.reviewed_count < 1:
-        fallback = (
-            TaskType.REFLECT
-            if stats.unreviewed_count > 0
-            else TaskType.GENERATE
-        )
+        fallback = TaskType.REFLECT if stats.unreviewed_count > 0 else TaskType.GENERATE
         return SupervisorDecision(
             next_task=fallback,
-            reason=(
-                "corrected: cannot evolve with no reviewed hypotheses; "
-                f"{fallback.value}"
-            ),
+            reason=(f"corrected: cannot evolve with no reviewed hypotheses; {fallback.value}"),
         )
     return None
 
 
-def validate_decision(
-    decision: SupervisorDecision, stats: SchedulerStats
-) -> SupervisorDecision:
+def validate_decision(decision: SupervisorDecision, stats: SchedulerStats) -> SupervisorDecision:
     """Corrections must retain queue actions: failed durable rows are not
     automatically revived, so discarding revival can loop."""
     if decision.terminate:
@@ -483,9 +431,7 @@ def validate_decision(
     ):
         corrected = correct(task, stats)
         if corrected is not None:
-            return dataclasses.replace(
-                corrected, queue_actions=decision.queue_actions
-            )
+            return dataclasses.replace(corrected, queue_actions=decision.queue_actions)
     return decision
 
 
@@ -559,9 +505,7 @@ def _ordered_checks(
         lambda: _check_tournament_coverage(stats, min_match_coverage),
         lambda: _check_proximity_refresh(stats),
         lambda: _check_meta_review_cadence(stats),
-        lambda: _check_convergence(
-            stats, convergence_cycles, min_cycles_before_convergence
-        ),
+        lambda: _check_convergence(stats, convergence_cycles, min_cycles_before_convergence),
         lambda: _check_iteration_budget(stats, budget),
         # Terminal report consumes critique; interim overview needs a future
         # generation reader, so schedule it only below termination checks.
@@ -619,15 +563,11 @@ _UNSTACKABLE_TASKS = frozenset({TaskType.TERMINATE})
 # Avoid duplicate shared-node execution and overview-before-critique inversion.
 _COMPANION_CONFLICTS: dict[TaskType, frozenset[TaskType]] = {
     TaskType.META_REVIEW: frozenset({TaskType.META_REVIEW, TaskType.EVOLVE}),
-    TaskType.SYNTHESIZE: frozenset(
-        {TaskType.SYNTHESIZE, TaskType.META_REVIEW, TaskType.EVOLVE}
-    ),
+    TaskType.SYNTHESIZE: frozenset({TaskType.SYNTHESIZE, TaskType.META_REVIEW, TaskType.EVOLVE}),
 }
 
 
-def _due_companions(
-    stats: SchedulerStats, budget: Budget
-) -> tuple[SupervisorDecision, ...]:
+def _due_companions(stats: SchedulerStats, budget: Budget) -> tuple[SupervisorDecision, ...]:
     """Feedback must precede its overview; ranking/evolution chains return to
     the loop point and cannot hand control back to a companion primary."""
     checks = (
@@ -655,6 +595,4 @@ def stack_companions(
     )
     if not actions:
         return decision
-    return dataclasses.replace(
-        decision, queue_actions=(*decision.queue_actions, *actions)
-    )
+    return dataclasses.replace(decision, queue_actions=(*decision.queue_actions, *actions))

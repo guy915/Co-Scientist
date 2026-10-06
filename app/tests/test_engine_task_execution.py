@@ -55,9 +55,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
     successors = {"supervisor": "research_overview", "research_overview": None}
     finalized: list[str] = []
 
-    async def execute(
-        name: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str | None]:
+    async def execute(name: str, state: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
         return state, successors[name]
 
     async def finalize(task: Any, **_: Any) -> dict[str, Any]:
@@ -93,14 +91,10 @@ async def test_worker_consumes_independent_specialist_task_chain(
     ]
 
 
-def _seed_finalize_task(
-    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
-) -> Any:
+def _seed_finalize_task(run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str) -> Any:
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
-        literature_grounding=(
-            "Astrocyte lactate accelerates synaptic ATP recovery."
-        ),
+        literature_grounding=("Astrocyte lactate accelerates synaptic ATP recovery."),
     )
     state = _task_state(run_id)
     state["hypotheses"] = [hypothesis]
@@ -112,9 +106,7 @@ def _seed_finalize_task(
         )
     ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    task = enqueue_task(
-        run_id, engine_tasks_support.FINALIZE_TASK, "finalize", db_path=db_path
-    )
+    task = enqueue_task(run_id, engine_tasks_support.FINALIZE_TASK, "finalize", db_path=db_path)
     _patch_restore_generator(monkeypatch, _Generator(state))
     return task
 
@@ -154,13 +146,9 @@ async def test_finalize_lease_survives_a_slow_grounding_wave(
         time.sleep(sleep_seconds)
         return real_assess(*args, **kwargs)
 
-    monkeypatch.setattr(
-        drain_claim_grounding, "assess_hypothesis_claims", _slow_assess
-    )
+    monkeypatch.setattr(drain_claim_grounding, "assess_hypothesis_claims", _slow_assess)
 
-    completed = await task_worker.run_once(
-        "worker-a", db_path=isolated_db, lease_seconds=0.06
-    )
+    completed = await task_worker.run_once("worker-a", db_path=isolated_db, lease_seconds=0.06)
 
     assert completed
     # One catch-up renewal occurs even on a blocked loop; multiple renewals
@@ -188,9 +176,7 @@ async def test_execute_engine_task_enforces_the_ceiling_across_tasks(
     )
 
     def spend(count: int) -> Any:
-        async def node_task(
-            task: Any, *, db_path: str | None = None
-        ) -> dict[str, Any]:
+        async def node_task(task: Any, *, db_path: str | None = None) -> dict[str, Any]:
             for _ in range(count):
                 record_provider_request()
             return {"status": "completed"}
@@ -237,9 +223,7 @@ def _grounded_state(run_id: str) -> dict[str, Any]:
     return state
 
 
-def _seed_overview_task(
-    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
-) -> None:
+def _seed_overview_task(run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str) -> None:
     state = _grounded_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
     enqueue_task(
@@ -268,10 +252,7 @@ async def test_overview_degrades_only_after_its_retries_and_still_reports(
 
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
 
-    by_type = {
-        task.task_type: task
-        for task in store_tasks.list_tasks(run.id, db_path=isolated_db)
-    }
+    by_type = {task.task_type: task for task in store_tasks.list_tasks(run.id, db_path=isolated_db)}
     overview = by_type["engine.node.research_overview"]
     assert overview.status == "completed"
     assert overview.attempt == overview.max_attempts == 3
@@ -302,22 +283,16 @@ _ROUTED_NODES = (
 _DIVERTED_TO = "proximity"
 
 
-async def _schedule_successor(
-    node: str, commit: TaskCommit, state: dict[str, Any]
-) -> str:
+async def _schedule_successor(node: str, commit: TaskCommit, state: dict[str, Any]) -> str:
     if node == "ranking":
-        result = await engine_tasks_ranking._commit_ranking_finalize(
-            commit, state, {}
-        )
+        result = await engine_tasks_ranking._commit_ranking_finalize(commit, state, {})
         return str(result["successor_task_id"])
     advance = engine_tasks_fanout_aggregates._checkpoint_and_advance
     _, successor_id = await advance(commit, state, node)
     return str(successor_id)
 
 
-async def _commit_node(
-    run_id: str, node: str, db_path: str, *, mcp_available: bool = False
-) -> str:
+async def _commit_node(run_id: str, node: str, db_path: str, *, mcp_available: bool = False) -> str:
     state = _task_state(run_id)
     state["mcp_available"] = mcp_available
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
@@ -328,13 +303,9 @@ async def _commit_node(
         inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
-    task = store_tasks.claim_task(
-        f"routing-{node}", run_id=run_id, db_path=db_path
-    )
+    task = store_tasks.claim_task(f"routing-{node}", run_id=run_id, db_path=db_path)
     assert task is not None and task.id == queued.id
-    successor_id = await _schedule_successor(
-        node, TaskCommit(task, checkpoint_seq, db_path), state
-    )
+    successor_id = await _schedule_successor(node, TaskCommit(task, checkpoint_seq, db_path), state)
     successor = store_tasks.get_task(successor_id, db_path=db_path)
     assert successor is not None
     return successor.task_type
@@ -360,9 +331,7 @@ def _seed_halted_finalize(
     state["hypotheses"] = [
         Hypothesis(
             text="Astrocyte lactate accelerates synaptic ATP recovery.",
-            literature_grounding=(
-                "Astrocyte lactate accelerates synaptic ATP recovery."
-            ),
+            literature_grounding=("Astrocyte lactate accelerates synaptic ATP recovery."),
         )
     ]
     if halted:
@@ -377,12 +346,8 @@ def _seed_halted_finalize(
             }
         ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    queued = enqueue_task(
-        run_id, engine_tasks_support.FINALIZE_TASK, "finalize", db_path=db_path
-    )
-    task = store_tasks.claim_task(
-        "finalize-safety-worker", run_id=run_id, db_path=db_path
-    )
+    queued = enqueue_task(run_id, engine_tasks_support.FINALIZE_TASK, "finalize", db_path=db_path)
+    task = store_tasks.claim_task("finalize-safety-worker", run_id=run_id, db_path=db_path)
     assert task is not None and task.id == queued.id
     _patch_restore_generator(monkeypatch, _Generator(state))
     return task
@@ -432,9 +397,7 @@ def _seed_steered_node_task(
     state = _task_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
     messages.append_message(
-        NewMessage(
-            run_id=run_id, sender="user", content=_STEER, kind="steering"
-        ),
+        NewMessage(run_id=run_id, sender="user", content=_STEER, kind="steering"),
         db_path=db_path,
     )
     enqueue_task(
@@ -457,9 +420,7 @@ def _seed_steered_node_task(
 def _record_preferences_and_commit(seen: list[str], *, priority: bool) -> Any:
     # Orchestrator successor planning unconditionally reads next_task_priority.
 
-    async def _run_node(
-        _node: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str | None]:
+    async def _run_node(_node: str, state: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
         seen.append(str(state.get("preferences") or ""))
         if priority:
             state["next_task_priority"] = 90
@@ -469,9 +430,7 @@ def _record_preferences_and_commit(seen: list[str], *, priority: bool) -> Any:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("node", "acknowledged"), [("proximity", False), ("orchestrator", True)]
-)
+@pytest.mark.parametrize(("node", "acknowledged"), [("proximity", False), ("orchestrator", True)])
 async def test_only_the_orchestrator_commit_acknowledges_steering(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -481,9 +440,7 @@ async def test_only_the_orchestrator_commit_acknowledges_steering(
     # Only the orchestrator schedules from pending_steering; earlier
     # acknowledgment loses the decision input.
     run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(
-        run.id, monkeypatch, isolated_db, node=node
-    )
+    leased = _seed_steered_node_task(run.id, monkeypatch, isolated_db, node=node)
     seen: list[str] = []
     _patch_task_node(
         monkeypatch,
@@ -494,9 +451,7 @@ async def test_only_the_orchestrator_commit_acknowledges_steering(
 
     assert _STEER in seen[0]
     pending = messages.get_pending_steering(run.id, db_path=isolated_db)
-    assert [message.content for message in pending] == (
-        [] if acknowledged else [_STEER]
-    )
+    assert [message.content for message in pending] == ([] if acknowledged else [_STEER])
 
 
 @pytest.mark.asyncio
@@ -506,13 +461,9 @@ async def test_steering_text_survives_to_the_node_it_was_meant_for(
     # Applied steering must remain folded into preferences after acknowledgment
     # or the successor loses guidance.
     run = seed_run("Steering survives")
-    orchestrator = _seed_steered_node_task(
-        run.id, monkeypatch, isolated_db, node="orchestrator"
-    )
+    orchestrator = _seed_steered_node_task(run.id, monkeypatch, isolated_db, node="orchestrator")
 
-    async def _orchestrator_run(
-        name: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str]:
+    async def _orchestrator_run(name: str, state: dict[str, Any]) -> tuple[dict[str, Any], str]:
         assert name == "orchestrator"
         out = dict(state)
         out["next_task"] = "reflection"
@@ -520,22 +471,14 @@ async def test_steering_text_survives_to_the_node_it_was_meant_for(
         return out, "reflection"
 
     _patch_task_node(monkeypatch, _orchestrator_run)
-    committed = await engine_tasks.execute_node_task(
-        orchestrator, db_path=isolated_db
-    )
-    assert lifecycle.complete_task(
-        orchestrator.id, "worker", committed, db_path=isolated_db
-    )
+    committed = await engine_tasks.execute_node_task(orchestrator, db_path=isolated_db)
+    assert lifecycle.complete_task(orchestrator.id, "worker", committed, db_path=isolated_db)
 
-    reflection = store_tasks.claim_task(
-        "worker", run_id=run.id, db_path=isolated_db
-    )
+    reflection = store_tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert reflection is not None
     assert reflection.task_type == "engine.node.reflection"
     seen: list[str] = []
-    _patch_task_node(
-        monkeypatch, _record_preferences_and_commit(seen, priority=False)
-    )
+    _patch_task_node(monkeypatch, _record_preferences_and_commit(seen, priority=False))
 
     await engine_tasks.execute_node_task(reflection, db_path=isolated_db)
 

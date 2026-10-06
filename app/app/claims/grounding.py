@@ -67,9 +67,7 @@ def claim_fingerprint(
         "role": record.role,
         "evidence": [
             _passage_identity(passage)
-            for passage in retrieve_passages(
-                record.claim, passages, top_k=top_k
-            )
+            for passage in retrieve_passages(record.claim, passages, top_k=top_k)
         ],
     }
     return hashlib.sha256(
@@ -102,19 +100,13 @@ def _span_from_dict(payload: Mapping[str, Any]) -> SupportSpan:
     )
 
 
-def _spans_from(
-    payload: Mapping[str, Any], key: str
-) -> tuple[SupportSpan, ...]:
+def _spans_from(payload: Mapping[str, Any], key: str) -> tuple[SupportSpan, ...]:
     return tuple(
-        _span_from_dict(span)
-        for span in payload.get(key) or ()
-        if isinstance(span, Mapping)
+        _span_from_dict(span) for span in payload.get(key) or () if isinstance(span, Mapping)
     )
 
 
-def _restore_one(
-    record: Mapping[str, Any], assessor_id: str
-) -> ClaimAssessment | None:
+def _restore_one(record: Mapping[str, Any], assessor_id: str) -> ClaimAssessment | None:
     claim = str(record.get("claim") or "")
     label = str(record.get("label") or "")
     if not claim or label not in {item.value for item in EntailmentLabel}:
@@ -125,9 +117,7 @@ def _restore_one(
         supporting_passages=_spans_from(record, "supporting_passages"),
         contradicting_passages=_spans_from(record, "contradicting_passages"),
         assessor=assessor_id,
-        verification_method=str(
-            record.get("verification_method") or "legacy_unknown"
-        ),
+        verification_method=str(record.get("verification_method") or "legacy_unknown"),
     )
 
 
@@ -198,9 +188,7 @@ def assess_claim_groups(
             assessor_id=spec.assessor_id,
             parallel=parallel,
         )
-    flat = [
-        (index, claim) for index, group in enumerate(groups) for claim in group
-    ]
+    flat = [(index, claim) for index, group in enumerate(groups) for claim in group]
     if not flat:
         return [[] for _ in groups]
     results = _assess_flat_claims(
@@ -234,9 +222,7 @@ def _assess_grouped_batches(
     if parallel and len(groups) > 1:
         from app.async_bridge import propagate_context
 
-        with ThreadPoolExecutor(
-            max_workers=min(ASSESSMENT_CONCURRENCY, len(groups))
-        ) as pool:
+        with ThreadPoolExecutor(max_workers=min(ASSESSMENT_CONCURRENCY, len(groups))) as pool:
             return list(pool.map(propagate_context(_assess_one), groups))
     return [_assess_one(group) for group in groups]
 
@@ -262,9 +248,7 @@ def _assess_flat_claims(
 ) -> list[ClaimAssessment]:
 
     def _assess_one(item: tuple[int, str]) -> ClaimAssessment:
-        return assess_claim(
-            item[1], passages, assessor=assessor, assessor_id=assessor_id
-        )
+        return assess_claim(item[1], passages, assessor=assessor, assessor_id=assessor_id)
 
     if parallel:
         from app.async_bridge import propagate_context
@@ -272,9 +256,7 @@ def _assess_flat_claims(
         # ThreadPoolExecutor does not copy contextvars; each call carries caller
         # budget
         # and telemetry scope explicitly.
-        with ThreadPoolExecutor(
-            max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))
-        ) as pool:
+        with ThreadPoolExecutor(max_workers=min(ASSESSMENT_CONCURRENCY, len(flat))) as pool:
             return list(pool.map(propagate_context(_assess_one), flat))
     return [_assess_one(item) for item in flat]
 
@@ -293,14 +275,10 @@ def assess_hypothesis_claims(
     candidates = [p for p in passages if p.text]
     per_hypothesis = _per_hypothesis_claim_records(hyps)
     plans = [
-        _plan_claim_group(
-            hyp_id, records, candidates, spec.assessor_id, reuse or {}
-        )
+        _plan_claim_group(hyp_id, records, candidates, spec.assessor_id, reuse or {})
         for hyp_id, records in per_hypothesis
     ]
-    grouped = assess_claim_groups(
-        [plan.to_assess for plan in plans], candidates, spec
-    )
+    grouped = assess_claim_groups([plan.to_assess for plan in plans], candidates, spec)
     return [
         (plan.hypothesis_id, plan.merge(assessed))
         for plan, assessed in zip(plans, grouped, strict=True)
@@ -314,14 +292,9 @@ class _ClaimGroupPlan:
     reused: dict[str, ClaimAssessment]
     to_assess: list[str]
 
-    def merge(
-        self, assessed: Sequence[ClaimAssessment]
-    ) -> list[tuple[ClaimAssessment, str]]:
+    def merge(self, assessed: Sequence[ClaimAssessment]) -> list[tuple[ClaimAssessment, str]]:
         pending = iter(assessed)
-        return [
-            (self.reused.get(claim) or next(pending), role)
-            for claim, role in self.records
-        ]
+        return [(self.reused.get(claim) or next(pending), role) for claim, role in self.records]
 
 
 def _plan_claim_group(
@@ -336,9 +309,7 @@ def _plan_claim_group(
     reused: dict[str, ClaimAssessment] = {}
     if available:
         for claim, role in records:
-            fingerprint = claim_fingerprint(
-                ClaimRecord(claim, role), candidates, assessor_id
-            )
+            fingerprint = claim_fingerprint(ClaimRecord(claim, role), candidates, assessor_id)
             match = available.get(fingerprint)
             if match is not None:
                 reused[claim] = match
@@ -353,11 +324,7 @@ def _plan_claim_group(
 def _per_hypothesis_claim_records(
     hyps: Sequence[Mapping[str, Any]],
 ) -> list[tuple[str, list[tuple[str, str]]]]:
-    return [
-        (hyp_id, _claim_records(hyp))
-        for hyp in hyps
-        if (hyp_id := str(hyp.get("id") or ""))
-    ]
+    return [(hyp_id, _claim_records(hyp)) for hyp in hyps if (hyp_id := str(hyp.get("id") or ""))]
 
 
 def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
@@ -384,9 +351,7 @@ def build_batch_assessor(
     if mode == "llm" and not offline_mode():
         from app.claims.verifier import make_llm_batch_assessor
 
-        batch_assessor, _ = make_llm_batch_assessor(
-            model, call_counter=call_counter
-        )
+        batch_assessor, _ = make_llm_batch_assessor(model, call_counter=call_counter)
         return batch_assessor
     return None
 
@@ -408,9 +373,7 @@ def evidence_passages(
             continue
         text = str(ev.get("passage_text") or "").strip()
         if not text:
-            text = " ".join(
-                str(ev.get(k) or "") for k in ("title", "abstract")
-            ).strip()
+            text = " ".join(str(ev.get(k) or "") for k in ("title", "abstract")).strip()
         if not text:
             continue
         passages.extend(
@@ -463,9 +426,7 @@ def persist_grounding(
     """Persistence performs database work only; assessment and all provider
     I/O must finish beforehand.
     """
-    target = GroundingTarget(
-        allow_speculative=allow_speculative, conn=conn, db_path=db_path
-    )
+    target = GroundingTarget(allow_speculative=allow_speculative, conn=conn, db_path=db_path)
     blocked: set[str] = set()
     unverified = 0
     reason_by_id: dict[str, str] = {}
@@ -477,9 +438,7 @@ def persist_grounding(
             if not _has_supported_claim(assessments):
                 unverified += 1
     _log_gate_outcome(len(blocked), unverified, len(reason_by_id))
-    return GroundingResult(
-        blocked_ids=frozenset(blocked), reason_by_id=reason_by_id
-    )
+    return GroundingResult(blocked_ids=frozenset(blocked), reason_by_id=reason_by_id)
 
 
 def _has_supported_claim(
@@ -488,14 +447,10 @@ def _has_supported_claim(
     """A failed gate does not make supported or partially supported claims
     unverified.
     """
-    return any(
-        assessment.label.is_supporting for assessment, _role in assessments
-    )
+    return any(assessment.label.is_supporting for assessment, _role in assessments)
 
 
-def _log_gate_outcome(
-    blocked_count: int, unverified_count: int, gated_count: int
-) -> None:
+def _log_gate_outcome(blocked_count: int, unverified_count: int, gated_count: int) -> None:
     """Unsupported publication is advisory; only a complete absence of
     supported claims warrants an unverified label.
     """
@@ -537,16 +492,12 @@ def _ground_one_hypothesis(
         [assessment for assessment, _role in assessments],
         allow_speculative=allow_speculative,
         explicitly_speculative_claims={
-            assessment.claim
-            for assessment, role in assessments
-            if is_speculative(role)
+            assessment.claim for assessment, role in assessments if is_speculative(role)
         },
         require_supported_claim=not allow_speculative,
     )
     if gate.decision is GateDecision.BLOCK:
-        _record_blocked_hypothesis(
-            run_id, hyp_id, gate, conn=target.conn, db_path=target.db_path
-        )
+        _record_blocked_hypothesis(run_id, hyp_id, gate, conn=target.conn, db_path=target.db_path)
         logger.info(
             "Hypothesis %s did not clear the claim gate (%s): %s",
             hyp_id,
@@ -559,9 +510,7 @@ def _ground_one_hypothesis(
 def _publication_outcome(
     gate: GateResult, assessments: Sequence[tuple[ClaimAssessment, str]]
 ) -> str:
-    if gate.failed_claims and set(gate.failed_claims) <= set(
-        gate.contradicted_claims
-    ):
+    if gate.failed_claims and set(gate.failed_claims) <= set(gate.contradicted_claims):
         return "withheld from the report"
     if _has_supported_claim(assessments):
         return "published with unsupported claims flagged"
@@ -583,12 +532,8 @@ def _persist_claim_edges(
                 hypothesis_id=hyp_id,
                 claim=assessment.claim,
                 label=assessment.label.value,
-                supporting=[
-                    s.to_dict() for s in assessment.supporting_passages
-                ],
-                contradicting=[
-                    s.to_dict() for s in assessment.contradicting_passages
-                ],
+                supporting=[s.to_dict() for s in assessment.supporting_passages],
+                contradicting=[s.to_dict() for s in assessment.contradicting_passages],
                 assessor=assessment.assessor,
                 verification_method=assessment.verification_method,
                 claim_role=role,

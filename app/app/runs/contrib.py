@@ -62,15 +62,11 @@ def _persist_and_notify_attachment(
 
 
 @attachments_router.post("/{run_id}/attachments")
-async def add_attachment(
-    run_id: str, req: HumanAttachmentRequest
-) -> dict[str, Any]:
+async def add_attachment(run_id: str, req: HumanAttachmentRequest) -> dict[str, Any]:
     """Attach a consented text document to the run's private corpus."""
     _require_run(run_id)
     if not req.consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
+        raise HTTPException(status_code=422, detail="consent is required to index a document")
     ev_id, continuation = _persist_and_notify_attachment(run_id, req)
     return {
         "id": ev_id,
@@ -101,8 +97,7 @@ def _persist_and_notify_upload(
     continuation = _steer_and_continue(
         run_id,
         uploader,
-        "Use the uploaded private research document "
-        f"'{title}' in subsequent work.",
+        f"Use the uploaded private research document '{title}' in subsequent work.",
         {"kind": "attachment", "evidence_id": evidence_id},
     )
     store.append_event(
@@ -124,14 +119,10 @@ async def upload_attachment(
     _require_run(run_id)
     uploader = client_id(request)
     if not consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
+        raise HTTPException(status_code=422, detail="consent is required to index a document")
     extracted = await document_ingest.extract_upload(file)
     title = (file.filename or "Uploaded document").strip()
-    evidence_id, continuation = _persist_and_notify_upload(
-        run_id, title, extracted, uploader
-    )
+    evidence_id, continuation = _persist_and_notify_upload(run_id, title, extracted, uploader)
     return {
         "id": evidence_id,
         "indexed": True,
@@ -166,9 +157,7 @@ router = APIRouter()
 router.include_router(attachments_router)
 
 
-def _persist_manual_hypothesis(
-    run_id: str, hyp: dict[str, Any], author: str
-) -> str:
+def _persist_manual_hypothesis(run_id: str, hyp: dict[str, Any], author: str) -> str:
     """Scientist-authored hypotheses must pass the same safety boundary as
     generated ones.
     """
@@ -191,10 +180,7 @@ def _notify_manual_hypothesis(
     continuation = _steer_and_continue(
         run_id,
         author,
-        (
-            "Scientist-contributed hypothesis to evaluate in "
-            f"subsequent work: {statement}"
-        ),
+        (f"Scientist-contributed hypothesis to evaluate in subsequent work: {statement}"),
         {"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
     )
     store.append_event(
@@ -225,9 +211,7 @@ async def add_human_hypothesis(
     with scoped_execution_policy(
         run.execution_policy,
         campaign_model_name=(
-            campaign_model_for_config(run.config)
-            if run.execution_policy == CAMPAIGN
-            else None
+            campaign_model_for_config(run.config) if run.execution_policy == CAMPAIGN else None
         ),
     ):
         admission = await human_input.admit_human_hypothesis_with_escalation(
@@ -237,9 +221,7 @@ async def add_human_hypothesis(
         return {"admitted": False, "safety": admission.safety_review.to_dict()}
 
     hyp_id = _persist_manual_hypothesis(run_id, admission.hypothesis, author)
-    continuation = _notify_manual_hypothesis(
-        run_id, author, req.statement, hyp_id
-    )
+    continuation = _notify_manual_hypothesis(run_id, author, req.statement, hyp_id)
     return {
         "admitted": True,
         "id": hyp_id,
@@ -252,14 +234,10 @@ async def add_human_hypothesis(
 def _require_run_hypothesis(run_id: str, hypothesis_id: str) -> None:
     hyp = hypotheses.get_hypothesis(hypothesis_id)
     if hyp is None or hyp.get("run_id") != run_id:
-        raise HTTPException(
-            status_code=404, detail="hypothesis not found in this run"
-        )
+        raise HTTPException(status_code=404, detail="hypothesis not found in this run")
 
 
-def _build_human_review_or_422(
-    req: HumanReviewRequest, author: str
-) -> human_input.HumanReview:
+def _build_human_review_or_422(req: HumanReviewRequest, author: str) -> human_input.HumanReview:
     try:
         return human_input.build_human_review(
             hypothesis_id=req.hypothesis_id,

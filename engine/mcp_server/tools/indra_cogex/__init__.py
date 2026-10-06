@@ -19,8 +19,7 @@ def parse_id(identifier: str) -> list[str]:
     parts = identifier.split(":", 1)
     if len(parts) != 2 or not parts[0] or not parts[1]:
         raise ValueError(
-            f"invalid identifier: '{identifier}'. "
-            f"expected 'NAMESPACE:id' (e.g. 'HGNC:6407')"
+            f"invalid identifier: '{identifier}'. expected 'NAMESPACE:id' (e.g. 'HGNC:6407')"
         )
     return parts
 
@@ -95,19 +94,11 @@ async def query_gene_disease_network(
             )
         result: dict[str, Any] = {"query": query_meta}
         result_key = "genes" if entity_type == "disease" else "diseases"
-        raw = await indra_post(
-            f"/api/get_{result_key}_for_{entity_type}", {entity_type: curie}
-        )
-        result[result_key], result[f"total_{result_key}"] = cap_results(
-            raw, max_results
-        )
+        raw = await indra_post(f"/api/get_{result_key}_for_{entity_type}", {entity_type: curie})
+        result[result_key], result[f"total_{result_key}"] = cap_results(raw, max_results)
         if include_variants:
-            raw = await indra_post(
-                f"/api/get_variants_for_{entity_type}", {entity_type: curie}
-            )
-            result["variants"], result["total_variants"] = cap_results(
-                raw, max_results
-            )
+            raw = await indra_post(f"/api/get_variants_for_{entity_type}", {entity_type: curie})
+            result["variants"], result["total_variants"] = cap_results(raw, max_results)
         return result
     except Exception as exc:
         logger.error("query_gene_disease_network failed: %s", exc)
@@ -135,9 +126,7 @@ async def query_gene_codependents(
     """
     query_meta = {"gene_id": gene_id}
     try:
-        raw = await indra_post(
-            "/api/get_codependents_for_gene", {"gene": parse_id(gene_id)}
-        )
+        raw = await indra_post("/api/get_codependents_for_gene", {"gene": parse_id(gene_id)})
         genes, total = cap_results(raw, max_results)
         return {
             "codependent_genes": genes,
@@ -187,9 +176,7 @@ async def query_drug_info(
         curie = parse_id(identifier)
         if query_type not in _DRUG_ENDPOINTS:
             valid = ", ".join(_DRUG_ENDPOINTS)
-            return tool_error(
-                f"invalid query_type '{query_type}', use: {valid}", query_meta
-            )
+            return tool_error(f"invalid query_type '{query_type}', use: {valid}", query_meta)
         endpoint, param_name, result_key = _DRUG_ENDPOINTS[query_type]
         raw = await indra_post(endpoint, {param_name: curie})
         items, total = cap_results(raw, max_results)
@@ -230,9 +217,7 @@ async def query_clinical_trials(
                 f"invalid entity_type '{entity_type}', use 'disease' or 'drug'",
                 query_meta,
             )
-        raw = await indra_post(
-            f"/api/get_trials_for_{entity_type}", {entity_type: curie}
-        )
+        raw = await indra_post(f"/api/get_trials_for_{entity_type}", {entity_type: curie})
         trials, total = cap_results(raw, max_results)
         return {"trials": trials, "total_trials": total, "query": query_meta}
     except Exception as exc:
@@ -271,13 +256,10 @@ async def run_enrichment_analysis(
     """
     query_meta = {"analysis_type": analysis_type, "gene_count": len(gene_list)}
     if analysis_type == "signed" and not negative_genes:
-        return tool_error(
-            "signed analysis requires 'negative_genes'", query_meta
-        )
+        return tool_error("signed analysis requires 'negative_genes'", query_meta)
     if analysis_type not in ("discrete", "signed", "kinase"):
         return tool_error(
-            f"invalid analysis_type '{analysis_type}', "
-            "use: discrete, signed, kinase",
+            f"invalid analysis_type '{analysis_type}', use: discrete, signed, kinase",
             query_meta,
         )
 
@@ -325,13 +307,9 @@ async def query_pathways(
     try:
         curies = [parse_id(gene_id) for gene_id in gene_ids]
         if len(curies) == 1:
-            raw = await indra_post(
-                "/api/get_pathways_for_gene", {"gene": curies[0]}
-            )
+            raw = await indra_post("/api/get_pathways_for_gene", {"gene": curies[0]})
         else:
-            raw = await indra_post(
-                "/api/get_shared_pathways_for_genes", {"genes": curies}
-            )
+            raw = await indra_post("/api/get_shared_pathways_for_genes", {"genes": curies})
         pathways, total = cap_results(raw, max_results)
         return {
             "pathways": pathways,
@@ -460,9 +438,7 @@ async def query_mechanistic_statements(
             )
             raw = await indra_post("/api/get_statements", payload)
         else:
-            return tool_error(
-                "provide either 'agent' or 'mesh_term'", query_meta
-            )
+            return tool_error("provide either 'agent' or 'mesh_term'", query_meta)
         statements, total = cap_results(raw, limit)
         return {
             "statements": statements,

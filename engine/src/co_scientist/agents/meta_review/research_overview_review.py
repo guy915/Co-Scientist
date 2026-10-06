@@ -53,9 +53,7 @@ async def review_research_overview(
         calls += 1
         if _accepted(verdict):
             return current, _review_meta(round_index), calls
-        current = await _call_reviser(
-            context, current, verdict.get("notes") or []
-        )
+        current = await _call_reviser(context, current, verdict.get("notes") or [])
         calls += 1
     return current, _review_meta(_MAX_OVERVIEW_REVISION_ROUNDS), calls
 
@@ -116,9 +114,7 @@ def _format_overview_for_review(response: dict[str, Any]) -> str:
     overview = response.get("overview") or {}
     aims = response.get("nih_specific_aims") or {}
     lines = [f"Summary: {overview.get('summary', '')}"]
-    for index, direction in enumerate(
-        overview.get("research_directions") or []
-    ):
+    for index, direction in enumerate(overview.get("research_directions") or []):
         lines.append(
             f"Direction {index + 1} - {direction.get('title', '')}: "
             f"{direction.get('importance', '')}"
@@ -128,8 +124,7 @@ def _format_overview_for_review(response: dict[str, Any]) -> str:
     lines.append(f"Proposed solution: {aims.get('proposed_solution', '')}")
     for index, aim in enumerate(aims.get("aims") or []):
         lines.append(
-            f"Aim {index + 1} - {aim.get('overarching_goal', '')}: "
-            f"{aim.get('hypothesis', '')}"
+            f"Aim {index + 1} - {aim.get('overarching_goal', '')}: {aim.get('hypothesis', '')}"
         )
     lines.append(f"Pilot evaluation: {aims.get('pilot_evaluation', '')}")
     lines.extend(_format_knowledge_base_for_review(response))
@@ -155,7 +150,5 @@ def _format_review_notes(notes: list[Any]) -> str:
             continue
         evidence_id = note.get("evidence_id")
         suffix = f" (evidence_id: {evidence_id})" if evidence_id else ""
-        lines.append(
-            f"- {note.get('location', '')}: {note.get('issue', '')}{suffix}"
-        )
+        lines.append(f"- {note.get('location', '')}: {note.get('issue', '')}{suffix}")
     return "\n".join(lines) if lines else "No specific notes."

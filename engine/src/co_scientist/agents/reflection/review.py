@@ -96,9 +96,7 @@ def _sanitize_review_scores(scores: Any) -> dict[str, int]:
             logger.debug("dropping non-numeric review score %s=%r", name, value)
             continue
         if not REVIEW_SCORE_MINIMUM <= value <= REVIEW_SCORE_MAXIMUM:
-            logger.debug(
-                "dropping out-of-range review score %s=%r", name, value
-            )
+            logger.debug("dropping out-of-range review score %s=%r", name, value)
             continue
         sanitized[str(name)] = round(value)
     return sanitized
@@ -117,12 +115,8 @@ def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
     novelty_review = data.get("novelty_review")
     if not isinstance(novelty_review, dict):
         novelty_review = {}
-    if scores:
-        # Criterion-derived averages stay consistent with the scores shown to
-        # the scientist.
-        overall_score = sum(scores.values()) / len(scores)
-    else:
-        overall_score = data.get("overall_score", 0.0)
+    # Criterion-derived averages stay consistent with the scores shown to the scientist.
+    overall_score = sum(scores.values()) / len(scores) if scores else data.get("overall_score", 0.0)
 
     return HypothesisReview(
         review_summary=data.get("review_summary", ""),
@@ -131,12 +125,8 @@ def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
         detailed_feedback=data.get("detailed_feedback", {}),
         constructive_feedback=data.get("constructive_feedback", ""),
         overall_score=overall_score,
-        already_explored=_sanitize_novelty_list(
-            novelty_review.get("already_explored")
-        ),
-        novel_aspects=_sanitize_novelty_list(
-            novelty_review.get("novel_aspects")
-        ),
+        already_explored=_sanitize_novelty_list(novelty_review.get("already_explored")),
+        novel_aspects=_sanitize_novelty_list(novelty_review.get("novel_aspects")),
     )
 
 
@@ -174,10 +164,7 @@ def _build_hypotheses_list_text(hypotheses: list[Hypothesis]) -> str:
     """Response hypothesis_index refers to these one-based labels, not array
     position."""
     return "\n\n".join(
-        [
-            f"**Hypothesis {number}:**\n{hyp.text}"
-            for number, hyp in enumerate(hypotheses, start=1)
-        ]
+        [f"**Hypothesis {number}:**\n{hyp.text}" for number, hyp in enumerate(hypotheses, start=1)]
     )
 
 
@@ -205,9 +192,7 @@ def _log_batch_review_response_shape(
         type(reviews_data),
         len(reviews_data) if isinstance(reviews_data, list) else "N/A",
     )
-    logger.info(
-        "Expected %s reviews, received %s", len(hypotheses), len(reviews_data)
-    )
+    logger.info("Expected %s reviews, received %s", len(hypotheses), len(reviews_data))
 
     if len(reviews_data) != len(hypotheses):
         logger.error(
@@ -231,9 +216,7 @@ def _match_batch_entries_to_hypotheses(
     unplaced: list[Any] = []
     claimed: set[int] = set()
     for entry in reviews_data:
-        number = (
-            entry.get("hypothesis_index") if isinstance(entry, dict) else None
-        )
+        number = entry.get("hypothesis_index") if isinstance(entry, dict) else None
         if (
             isinstance(number, int)
             and not isinstance(number, bool)
@@ -252,9 +235,7 @@ def _match_batch_entries_to_hypotheses(
     return slots
 
 
-def _convert_matched_entry(
-    entry: Any, position: int
-) -> HypothesisReview | None:
+def _convert_matched_entry(entry: Any, position: int) -> HypothesisReview | None:
     """A malformed entry must not abort valid peers; leave it unreviewed for
     retry."""
     if entry is None:
@@ -280,8 +261,7 @@ def _parse_batch_review_response(
     _log_batch_review_response_shape(response, reviews_data, hypotheses, run_id)
     matched = _match_batch_entries_to_hypotheses(reviews_data, len(hypotheses))
     return [
-        _convert_matched_entry(entry, position)
-        for position, entry in enumerate(matched, start=1)
+        _convert_matched_entry(entry, position) for position, entry in enumerate(matched, start=1)
     ]
 
 
@@ -372,9 +352,7 @@ async def _call_review_llm(
         ),
         options=LLMCallOptions(
             run_id=run_id,
-            prompt_name=indexed_prompt_name(
-                "review_individual", hypothesis_index
-            ),
+            prompt_name=indexed_prompt_name("review_individual", hypothesis_index),
         ),
     )
 
@@ -385,10 +363,7 @@ async def review_parallel_individual(
 ) -> list[HypothesisReview | None]:
     review_tasks = _build_parallel_review_tasks(hypotheses, context)
     results = await asyncio.gather(*review_tasks, return_exceptions=True)
-    return [
-        _individual_review_result(result, index)
-        for index, result in enumerate(results)
-    ]
+    return [_individual_review_result(result, index) for index, result in enumerate(results)]
 
 
 def _individual_review_result(
@@ -400,9 +375,7 @@ def _individual_review_result(
     if isinstance(result, TASK_CONTROL_FLOW_ERRORS):
         raise result
     if isinstance(result, BaseException):
-        logger.warning(
-            "Review failed for hypothesis %s: %s", hypothesis_index, result
-        )
+        logger.warning("Review failed for hypothesis %s: %s", hypothesis_index, result)
         return None
     return result
 
@@ -483,13 +456,9 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     if not unreviewed:
         return _skipped_review_result(hypotheses)
 
-    reviews, llm_calls, strategy_name, failed_count = await _run_review_phase(
-        state, unreviewed
-    )
+    reviews, llm_calls, strategy_name, failed_count = await _run_review_phase(state, unreviewed)
 
-    return _review_node_result(
-        hypotheses, reviews, llm_calls, strategy_name, failed_count
-    )
+    return _review_node_result(hypotheses, reviews, llm_calls, strategy_name, failed_count)
 
 
 async def _run_review_phase(
@@ -504,9 +473,7 @@ async def _run_review_phase(
         PROGRESS_REVIEW_START,
     )
 
-    reviews, llm_calls = await _run_review_strategy(
-        state, unreviewed, use_comparative
-    )
+    reviews, llm_calls = await _run_review_strategy(state, unreviewed, use_comparative)
 
     attached, failed_count = _finalize_reviews(
         unreviewed, reviews, strategy_name, state.get("criteria")
@@ -523,9 +490,7 @@ async def _run_review_phase(
     return attached, llm_calls, strategy_name, failed_count
 
 
-def _log_review_intake(
-    hypotheses: list[Hypothesis], unreviewed: list[Hypothesis]
-) -> None:
+def _log_review_intake(hypotheses: list[Hypothesis], unreviewed: list[Hypothesis]) -> None:
     logger.info("Starting review node")
     logger.info(
         "Reviewing %s unreviewed of %s hypotheses",
@@ -581,9 +546,7 @@ def _review_node_result(
     strategy_name: str,
     failed_count: int = 0,
 ) -> dict[str, Any]:
-    metrics = create_metrics_update(
-        deltas=MetricDeltas(reviews=len(reviews), llm_calls=llm_calls)
-    )
+    metrics = create_metrics_update(deltas=MetricDeltas(reviews=len(reviews), llm_calls=llm_calls))
     logger.debug(
         "review node creating metrics delta: reviews=%s, llm_calls=%s",
         len(reviews),

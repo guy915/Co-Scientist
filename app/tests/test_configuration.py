@@ -71,9 +71,7 @@ async def test_semantic_safety_selects_campaign_before_credential_check(
     models: list[tuple[str, str]] = []
     monkeypatch.setattr(settings, "semantic_safety_enabled", True)
     monkeypatch.setattr(settings, "semantic_safety_model", "configured/safety")
-    monkeypatch.setattr(
-        settings, "supervisor_model_name", "configured/supervisor"
-    )
+    monkeypatch.setattr(settings, "supervisor_model_name", "configured/supervisor")
     monkeypatch.setattr(settings, "model_name", "configured/worker")
 
     def credential_available(model: str) -> bool:
@@ -87,9 +85,7 @@ async def test_semantic_safety_selects_campaign_before_credential_check(
     fake_process_mode.online(credential=credential_available)
     monkeypatch.setattr(safety, "run_semantic_safety_model", assess)
 
-    with scoped_execution_policy(
-        CAMPAIGN, campaign_model_name=CAMPAIGN_MODEL_NAME
-    ):
+    with scoped_execution_policy(CAMPAIGN, campaign_model_name=CAMPAIGN_MODEL_NAME):
         await safety.screen_contextual("A benign research goal.", "intake")
     with scoped_execution_policy(STANDARD):
         await safety.screen_contextual("A benign research goal.", "intake")
@@ -155,9 +151,7 @@ def _expire_claimed_task(run_id: str, db_path: str) -> str:
 
 
 def _dispatch_spy(outcomes: dict[str, str]) -> Any:
-    async def dispatch(
-        task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
+    async def dispatch(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
         credential = credentials.current_byok()
         if credential is None:
             assert current_api_key() is None
@@ -199,15 +193,11 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     monkeypatch.setattr(settings, "campaign_researcher_ids", {"campaign-user"})
     monkeypatch.setattr(settings, "byok_encryption_key", "encrypt-test-secret")
     monkeypatch.setitem(BYOK_PROVIDER_DEFAULT_MODELS, "openrouter", _PAID_MODEL)
-    free_catalog.install_catalog_reader(
-        free_catalog.CatalogReader(_paid_catalog)
-    )
+    free_catalog.install_catalog_reader(free_catalog.CatalogReader(_paid_catalog))
     sent: list[dict[str, Any]] = []
     install_completion_backend(monkeypatch, _transport_spy(sent))
     monkeypatch.setattr(runs_crud, "_populate_run_title", _no_background_model)
-    monkeypatch.setattr(
-        runs_crud, "_populate_goal_restatement", _no_background_model
-    )
+    monkeypatch.setattr(runs_crud, "_populate_goal_restatement", _no_background_model)
 
     token = auth.create_session_token("campaign-user")
     campaign_response = _create_run(
@@ -239,12 +229,8 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     assert [call["api_key"] for call in sent] == [_PAID_KEY]
     sent.clear()
 
-    stale_paid = credentials.ByokCredential(
-        "openrouter", _PAID_KEY, _PAID_MODEL
-    )
-    credentials.store_run_credential(
-        campaign_id, "campaign-user", stale_paid, isolated_db
-    )
+    stale_paid = credentials.ByokCredential("openrouter", _PAID_KEY, _PAID_MODEL)
+    credentials.store_run_credential(campaign_id, "campaign-user", stale_paid, isolated_db)
 
     campaign_task = _expire_claimed_task(campaign_id, isolated_db)
     ordinary_task = _expire_claimed_task(ordinary_id, isolated_db)
@@ -254,17 +240,11 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
 
     store_db._initialized.discard(isolated_db)
     outcomes: dict[str, str] = {}
-    monkeypatch.setattr(
-        engine_tasks, "_dispatch_engine_task", _dispatch_spy(outcomes)
-    )
+    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _dispatch_spy(outcomes))
 
-    assert await task_worker.run_once(
-        "recovery-campaign", run_id=campaign_id, db_path=isolated_db
-    )
+    assert await task_worker.run_once("recovery-campaign", run_id=campaign_id, db_path=isolated_db)
     assert sent == []
-    assert await task_worker.run_once(
-        "recovery-ordinary", run_id=ordinary_id, db_path=isolated_db
-    )
+    assert await task_worker.run_once("recovery-ordinary", run_id=ordinary_id, db_path=isolated_db)
 
     assert outcomes == {campaign_id: "blocked", ordinary_id: "sent"}
     assert len(sent) == 1
@@ -315,9 +295,7 @@ def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     from app.store import db as store_db
 
     store_db._initialized.discard(isolated_db)
-    resumed = make_client().get(
-        f"/api/interviews/{interview['id']}", headers=headers
-    )
+    resumed = make_client().get(f"/api/interviews/{interview['id']}", headers=headers)
     assert resumed.json()["execution_policy"] == "campaign"
 
     run = _create_run(
@@ -383,9 +361,7 @@ async def test_campaign_run_rejects_byok_before_transport(
         nonlocal called
         called = True
 
-    monkeypatch.setattr(
-        credentials, "validate_byok_credential", _unexpected_validation
-    )
+    monkeypatch.setattr(credentials, "validate_byok_credential", _unexpected_validation)
 
     interview_response = make_client().post(
         "/api/interviews",
@@ -396,9 +372,7 @@ async def test_campaign_run_rejects_byok_before_transport(
     assert "campaign" in interview_response.json()["detail"].lower()
     assert interviews.list_interviews("researcher-a") == []
 
-    response = _create_run(
-        make_client(), "Map treatment resistance", headers=headers
-    )
+    response = _create_run(make_client(), "Map treatment resistance", headers=headers)
 
     assert response.status_code == 400
     assert "campaign" in response.json()["detail"].lower()
@@ -485,9 +459,7 @@ async def test_contribution_safety_uses_persisted_run_policy(
             title=kwargs.get("title", ""),
         )
 
-    monkeypatch.setattr(
-        human_input, "admit_human_hypothesis_with_escalation", admit
-    )
+    monkeypatch.setattr(human_input, "admit_human_hypothesis_with_escalation", admit)
     request = Request({"type": "http", "headers": [(b"x-client-id", b"owner")]})
 
     response = await runs_contrib.add_human_hypothesis(
@@ -525,8 +497,7 @@ def _default_models() -> set[str]:
 
 def test_every_default_and_byok_model_is_priced() -> None:
     unpriced = sorted(
-        (_default_models() | set(BYOK_PROVIDER_DEFAULT_MODELS.values()))
-        - set(MODEL_PRICING)
+        (_default_models() | set(BYOK_PROVIDER_DEFAULT_MODELS.values())) - set(MODEL_PRICING)
     )
 
     assert not unpriced, f"models missing from MODEL_PRICING: {unpriced}"
@@ -539,8 +510,6 @@ def test_the_free_default_route_reasons_at_medium_effort_in_chat() -> None:
         deepseek_thinking_kwargs,
     )
 
-    kwargs = deepseek_thinking_kwargs(
-        DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT
-    )
+    kwargs = deepseek_thinking_kwargs(DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT)
 
     assert kwargs["extra_body"]["reasoning"]["effort"] == "medium"

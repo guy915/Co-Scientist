@@ -48,9 +48,7 @@ def _substitute_placeholders(
     return value
 
 
-def resolve_content_params(
-    params: dict[str, Any], context: dict[str, Any]
-) -> dict[str, Any]:
+def resolve_content_params(params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
     if not params:
         return {}
     resolved: dict[str, Any] = {}
@@ -157,34 +155,26 @@ class ToolConfig:
             server=data.get("server", "default"),
             mcp_tool_name=data.get("mcp_tool_name", tool_id),
             display_name=data.get("display_name", tool_id),
-            response_format=ResponseFormat.from_dict(
-                data.get("response_format", {})
-            ),
+            response_format=ResponseFormat.from_dict(data.get("response_format", {})),
             parameters=parameters,
             **kwargs,
         )
 
     # Mappings use caller-canonical vocabulary; unmapped parameters pass through
     # to the server.
-    def map_parameters(
-        self, canonical_params: dict[str, Any]
-    ) -> dict[str, Any]:
+    def map_parameters(self, canonical_params: dict[str, Any]) -> dict[str, Any]:
         if not self.parameter_mapping:
             return canonical_params
 
         mapped = {}
         for canonical_name, value in canonical_params.items():
-            tool_param_name, mapped_value = self._map_single_parameter(
-                canonical_name, value
-            )
+            tool_param_name, mapped_value = self._map_single_parameter(canonical_name, value)
             if tool_param_name is not None:
                 mapped[tool_param_name] = mapped_value
 
         return mapped
 
-    def _map_single_parameter(
-        self, canonical_name: str, value: Any
-    ) -> tuple[str | None, Any]:
+    def _map_single_parameter(self, canonical_name: str, value: Any) -> tuple[str | None, Any]:
         if canonical_name not in self.parameter_mapping:
             return canonical_name, value
 
@@ -192,10 +182,7 @@ class ToolConfig:
         if tool_param_name is None:
             return None, None
 
-        if (
-            canonical_name == "recency_years"
-            and tool_param_name == "starting_year"
-        ):
+        if canonical_name == "recency_years" and tool_param_name == "starting_year":
             return tool_param_name, _recency_years_to_starting_year(value)
 
         return tool_param_name, value
@@ -381,9 +368,7 @@ class ToolsConfig:
         tools = _parse_tools_by_category(data)
         workflows = _parse_workflows(data)
         prompts = PromptsConfig.from_dict(data.get("prompts", {}))
-        enrichments = [
-            EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])
-        ]
+        enrichments = [EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])]
 
         # Raw settings/merge_strategy remain registry-owned rather than parsed
         # dataclass fields.
@@ -421,8 +406,4 @@ class ToolsConfig:
         return all_tools
 
     def get_enabled_tools(self) -> dict[str, ToolConfig]:
-        return {
-            tool_id: tool
-            for tool_id, tool in self.get_all_tools().items()
-            if tool.enabled
-        }
+        return {tool_id: tool for tool_id, tool in self.get_all_tools().items() if tool.enabled}

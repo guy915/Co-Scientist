@@ -52,9 +52,7 @@ def _section_or_none(response: dict[str, Any], key: str) -> str | None:
     return value
 
 
-def _extract_evolution_fields(
-    hypothesis: Hypothesis, response: dict[str, Any]
-) -> _RefinedFields:
+def _extract_evolution_fields(hypothesis: Hypothesis, response: dict[str, Any]) -> _RefinedFields:
     refined_text = response.get("hypothesis") or response.get(
         "refined_hypothesis_text", hypothesis.text
     )
@@ -67,9 +65,7 @@ def _extract_evolution_fields(
         experiment=format_experiment_plan(
             response.get("experiment"), fallback=hypothesis.experiment
         ),
-        refinement_summary=response.get(
-            "refinement_summary", "no refinement summary provided"
-        ),
+        refinement_summary=response.get("refinement_summary", "no refinement summary provided"),
         introduction=_section_or_none(response, "introduction"),
         recent_findings=_section_or_none(response, "recent_findings"),
         literature_grounding=_section_or_none(response, "literature_grounding"),
@@ -107,9 +103,7 @@ def _merged_partners(
     return resolved
 
 
-def _partner_at(
-    partners: tuple[Hypothesis, ...], raw: Any
-) -> Hypothesis | None:
+def _partner_at(partners: tuple[Hypothesis, ...], raw: Any) -> Hypothesis | None:
     if not isinstance(raw, int) or isinstance(raw, bool):
         return None
     if not 1 <= raw <= len(partners):
@@ -143,9 +137,7 @@ def _build_evolution_child(
         explanation=fields.explanation,
         experiment=fields.experiment,
         literature_grounding=fields.literature_grounding,
-        citation_map=resolve_citation_keys(
-            fields.literature_grounding, citation_sources or {}
-        ),
+        citation_map=resolve_citation_keys(fields.literature_grounding, citation_sources or {}),
         elo_rating=INITIAL_ELO_RATING,
         win_count=0,
         loss_count=0,
@@ -227,8 +219,7 @@ def _near_duplicate_similarity(
     if max_similarity <= DUPLICATE_SIMILARITY_THRESHOLD:
         return max_similarity
     logger.info(
-        "Evolution result duplicates an existing hypothesis "
-        "(similarity %.2f); no child",
+        "Evolution result duplicates an existing hypothesis (similarity %.2f); no child",
         max_similarity,
     )
     logger.debug("original: %s...", hypothesis.text[:100])
@@ -257,12 +248,8 @@ def _apply_evolution_result(
     )
     if max_similarity is None:
         return None, None
-    child, detail = _apply_refined_hypothesis(
-        parents, fields, max_similarity, context
-    )
-    detail["operator"] = str(
-        response.get("_evolution_operator") or "enhancement"
-    )
+    child, detail = _apply_refined_hypothesis(parents, fields, max_similarity, context)
+    detail["operator"] = str(response.get("_evolution_operator") or "enhancement")
     return child, detail
 
 

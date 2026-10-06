@@ -45,9 +45,7 @@ def route_next_task(state: WorkflowState) -> str:
     """A missing scheduler decision falls back to terminal synthesis."""
     next_task = state.get("next_task") or "terminate"
     companions = _stacked_companions(state)
-    node = TASK_ROUTES.get(
-        companions[0] if companions else next_task, "research_overview"
-    )
+    node = TASK_ROUTES.get(companions[0] if companions else next_task, "research_overview")
     logger.info("Orchestrator routing next_task=%s -> %s", next_task, node)
     return node
 
@@ -120,7 +118,5 @@ WORKFLOW_ROUTES: dict[str, Route] = {
 
 def literature_review_nodes() -> frozenset[str]:
     return frozenset(
-        route.on
-        for route in WORKFLOW_ROUTES.values()
-        if isinstance(route, LiteratureGated)
+        route.on for route in WORKFLOW_ROUTES.values() if isinstance(route, LiteratureGated)
     )

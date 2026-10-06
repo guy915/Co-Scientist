@@ -81,23 +81,17 @@ def _ruleset_attr(abi: int, handled: int) -> ctypes.Array[ctypes.c_char]:
     ABI.
     """
     if abi >= 6:
-        return ctypes.create_string_buffer(
-            struct.pack("=QQQ", handled, 0, 0), 24
-        )
+        return ctypes.create_string_buffer(struct.pack("=QQQ", handled, 0, 0), 24)
     if abi >= 4:
         return ctypes.create_string_buffer(struct.pack("=QQ", handled, 0), 16)
     return ctypes.create_string_buffer(struct.pack("=Q", handled), 8)
 
 
-def _add_path_rule(
-    libc: ctypes.CDLL, ruleset_fd: int, path: Path, access: int
-) -> None:
+def _add_path_rule(libc: ctypes.CDLL, ruleset_fd: int, path: Path, access: int) -> None:
     parent_fd = os.open(path, _O_PATH | os.O_CLOEXEC)
     try:
         # landlock_path_beneath_attr is packed: 8+4 bytes, not 16.
-        attr = ctypes.create_string_buffer(
-            struct.pack("=Qi", access, parent_fd), 12
-        )
+        attr = ctypes.create_string_buffer(struct.pack("=Qi", access, parent_fd), 12)
         if libc.syscall(
             _NR_ADD_RULE,
             ctypes.c_int(ruleset_fd),
@@ -159,7 +153,5 @@ def restrict_self(policy: SandboxPolicy) -> None:
 def _commit(libc: ctypes.CDLL, ruleset_fd: int) -> None:
     if libc.prctl(_PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0):
         raise OSError(ctypes.get_errno(), "PR_SET_NO_NEW_PRIVS failed")
-    if libc.syscall(
-        _NR_RESTRICT_SELF, ctypes.c_int(ruleset_fd), ctypes.c_uint32(0)
-    ):
+    if libc.syscall(_NR_RESTRICT_SELF, ctypes.c_int(ruleset_fd), ctypes.c_uint32(0)):
         raise OSError(ctypes.get_errno(), "landlock_restrict_self failed")

@@ -21,9 +21,7 @@ if env_path.exists():
     load_dotenv(dotenv_path=env_path)
     logger.info("Loaded environment from %s", env_path)
 else:
-    logger.warning(
-        ".env file not found at %s - using system environment only", env_path
-    )
+    logger.warning(".env file not found at %s - using system environment only", env_path)
 
 from mcp_server.campaign import (
     PUBLIC_TOOLS,
@@ -32,8 +30,7 @@ from mcp_server.campaign import (
 )
 
 configured_log_level = (
-    os.environ.get("COSCIENTIST_MCP_LOG_LEVEL")
-    or os.environ.get("LOG_LEVEL", "INFO")
+    os.environ.get("COSCIENTIST_MCP_LOG_LEVEL") or os.environ.get("LOG_LEVEL", "INFO")
 ).upper()
 log_level = getattr(logging, configured_log_level, logging.INFO)
 logging.basicConfig(
@@ -152,9 +149,7 @@ _MCP_TOOLS = (
 )
 
 if campaign_free_mode():
-    _MCP_TOOLS = tuple(
-        entry for entry in _MCP_TOOLS if entry[1] in PUBLIC_TOOLS
-    )
+    _MCP_TOOLS = tuple(entry for entry in _MCP_TOOLS if entry[1] in PUBLIC_TOOLS)
 
 for _tool_fn, _tool_name in _MCP_TOOLS:
     mcp.tool(with_call_logging(_tool_fn, _tool_name), name=_tool_name)
@@ -216,9 +211,7 @@ async def root() -> JSONResponse:
                 "WEB_SEARCH": web_search_provider is not None,
             },
             "integrations": {
-                "indra_cogex": os.getenv(
-                    "INDRA_COGEX_URL", "https://discovery.indra.bio"
-                ),
+                "indra_cogex": os.getenv("INDRA_COGEX_URL", "https://discovery.indra.bio"),
                 "web_search_provider": web_search_provider,
                 # Credential refusals are observed on real searches, not
                 # inferred at startup.

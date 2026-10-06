@@ -17,9 +17,7 @@ def _substitute_env_vars_in_string(value: str) -> str:
             return env_value
         if default is not None:
             return default
-        logger.warning(
-            "environment variable %s not set and no default provided", var_name
-        )
+        logger.warning("environment variable %s not set and no default provided", var_name)
         return ""
 
     return re.sub(pattern, replacer, value)

@@ -54,9 +54,7 @@ def enqueue_bootstrap(
     )
 
 
-def _bootstrap_start_status(
-    task: ScientificTask, run: RunRow, db_path: str | None
-) -> str:
+def _bootstrap_start_status(task: ScientificTask, run: RunRow, db_path: str | None) -> str:
     status = runs.mark_bootstrap_running(
         run.id,
         task.id,
@@ -67,9 +65,7 @@ def _bootstrap_start_status(
     if status is None:
         from app.task_worker.outcomes import _LeaseLostError
 
-        raise _LeaseLostError(
-            f"bootstrap task {task.id} lost its lease before run start"
-        )
+        raise _LeaseLostError(f"bootstrap task {task.id} lost its lease before run start")
     return status
 
 
@@ -82,15 +78,11 @@ async def _screen_bootstrap_intake(
     screen_with_escalation = engine_tasks_runtime.active().screen
     decision = await screen_with_escalation(
         run.id,
-        ScreenSubject(
-            "intake", run.research_goal, screen_intake(run.research_goal)
-        ),
+        ScreenSubject("intake", run.research_goal, screen_intake(run.research_goal)),
         provider=run.provider,
         db_path=db_path,
     )
-    lease_guard = (
-        (task.id, task.lease_owner, task.attempt) if task is not None else None
-    )
+    lease_guard = (task.id, task.lease_owner, task.attempt) if task is not None else None
     async for _ in apply_safety_gate(
         run.id,
         decision,
@@ -117,9 +109,7 @@ def reopen_for_pending_scientist_input(
     pending = messages.get_pending_steering(run_id, db_path=db_path)
     if not pending:
         return None
-    return enqueue_scientist_continuation(
-        run_id, pending[0].id, db_path=db_path
-    )
+    return enqueue_scientist_continuation(run_id, pending[0].id, db_path=db_path)
 
 
 def enqueue_scientist_continuation(
@@ -269,9 +259,7 @@ def _merge_scientist_reviews(
         if hypothesis is None:
             continue
         marker = _review_marker(row)
-        if any(
-            marker in review.review_summary for review in hypothesis.reviews
-        ):
+        if any(marker in review.review_summary for review in hypothesis.reviews):
             continue
         hypothesis.reviews.append(_scientist_hypothesis_review(row))
 
@@ -313,9 +301,7 @@ async def _prepare_bootstrap_state(
     first orchestrator decision; pause is fenced by the commit
     transaction.
     """
-    generator, opts = engine_tasks_runtime.active().generator_and_opts(
-        task, db_path
-    )
+    generator, opts = engine_tasks_runtime.active().generator_and_opts(task, db_path)
     state = await generator.prepare_task_state(
         run.research_goal,
         opts=opts,
@@ -330,9 +316,7 @@ async def _prepare_bootstrap_state(
     return state, commit
 
 
-async def execute_bootstrap(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
+async def execute_bootstrap(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
     withheld = await _screen_bootstrap_intake(run, emit, db_path, task=task)

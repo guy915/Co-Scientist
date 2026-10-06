@@ -26,9 +26,7 @@ from tests._process_mode_helpers import FakeProcessMode
 from ._llm_fake_backend import install_completion_backend
 
 _MODEL = "openrouter/test/safety:free"
-_DATASETS = (
-    pathlib.Path(__file__).resolve().parents[2] / "evaluations" / "datasets"
-)
+_DATASETS = pathlib.Path(__file__).resolve().parents[2] / "evaluations" / "datasets"
 
 # This control-arm item needs context; the resolver must not treat it as an
 # operational hard block.
@@ -97,9 +95,7 @@ def assessor(monkeypatch: pytest.MonkeyPatch) -> Any:
         "Reviewing published methods to obtain a chemical weapon.",
     ],
 )
-async def test_a_permissive_model_cannot_clear_a_hard_block(
-    assessor: Any, text: str
-) -> None:
+async def test_a_permissive_model_cannot_clear_a_hard_block(assessor: Any, text: str) -> None:
     assessor("allow")
     before = review_hypothesis_safety(text)
     assert before.outcome != SafetyOutcome.ALLOW, "deterministic layer first"
@@ -113,9 +109,7 @@ async def test_a_fully_permissive_model_cannot_clear_one_adversarial_item(
     assessor: Any,
 ) -> None:
     assessor("allow")
-    raw = json.loads(
-        (_DATASETS / "hypothesis_safety_adversarial_v1.json").read_text()
-    )
+    raw = json.loads((_DATASETS / "hypothesis_safety_adversarial_v1.json").read_text())
     items = list(raw["items"] if isinstance(raw, dict) else raw)
     assert items, "the adversarial dataset must not be empty"
 
@@ -124,9 +118,7 @@ async def test_a_fully_permissive_model_cannot_clear_one_adversarial_item(
         before = review_hypothesis_safety(item["text"])
         if before.outcome == SafetyOutcome.ALLOW:
             continue
-        after = await resolve_hold(
-            before, item["text"], run_id="run", db_path=None
-        )
+        after = await resolve_hold(before, item["text"], run_id="run", db_path=None)
         if after.outcome == SafetyOutcome.ALLOW and not before.needs_context:
             leaked.append(item["text"])
 

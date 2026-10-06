@@ -18,17 +18,13 @@ from co_scientist.workflow_topology import (
 TaskNode = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
 # Registry keys are persisted in durable tasks and checkpoints.
-TASK_NODES: dict[str, TaskNode] = {
-    key: spec.node for key, spec in NODE_REGISTRY.items()
-}
+TASK_NODES: dict[str, TaskNode] = {key: spec.node for key, spec in NODE_REGISTRY.items()}
 
 
 Reducer = Callable[[Any, Any], Any]
 
 
-def apply_task_update(
-    state: WorkflowState, update: dict[str, Any]
-) -> WorkflowState:
+def apply_task_update(state: WorkflowState, update: dict[str, Any]) -> WorkflowState:
     merged: dict[str, Any] = dict(state)
     for key, value in update.items():
         reducer = _CHANNEL_REDUCERS.get(key)
@@ -117,10 +113,7 @@ def _resolve_walkable_hop(current: str, state: WorkflowState) -> str | None:
 def plan_portfolio(start: str, state: WorkflowState) -> list[str]:
     chain = [start]
     current = start
-    while (
-        current not in _PORTFOLIO_STOP_NODES
-        and len(chain) < _MAX_PORTFOLIO_DEPTH
-    ):
+    while current not in _PORTFOLIO_STOP_NODES and len(chain) < _MAX_PORTFOLIO_DEPTH:
         next_hop = _resolve_walkable_hop(current, state)
         if next_hop is None:
             break

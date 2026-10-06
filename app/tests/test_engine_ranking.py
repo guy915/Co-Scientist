@@ -132,9 +132,7 @@ def _tasks_gate_multi_claim_state() -> dict[str, Any]:
 async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
-        literature_grounding=(
-            "Astrocyte lactate accelerates synaptic ATP recovery."
-        ),
+        literature_grounding=("Astrocyte lactate accelerates synaptic ATP recovery."),
     )
     hypothesis.review_disposition = "viable"
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
@@ -211,9 +209,7 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
     assert hypothesis.review_disposition == "viable"
     gate = hypothesis.enrichments["claim_gate"]
     assert gate["decision"] == "allow"
-    go_no_go_claims = [
-        claim for claim in gate["claims"] if "**Go:**" in claim["claim"]
-    ]
+    go_no_go_claims = [claim for claim in gate["claims"] if "**Go:**" in claim["claim"]]
     assert go_no_go_claims, "the Go/No-Go claim was not extracted at all"
     assert all(claim["role"] == "speculative" for claim in go_no_go_claims)
     assert any(claim["label"] == "contradicts" for claim in go_no_go_claims), (
@@ -225,9 +221,7 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
     ("role", "disposition"),
     [("categorical", "evidence_blocked"), ("speculative", "viable")],
 )
-def test_gate_verdict_blocks_only_a_categorical_contradiction(
-    role: str, disposition: str
-) -> None:
+def test_gate_verdict_blocks_only_a_categorical_contradiction(role: str, disposition: str) -> None:
     claim = "Kinase X inhibition reduces AML relapse rates."
     hypothesis = Hypothesis(text=claim)
     hypothesis.review_disposition = "viable"
@@ -294,9 +288,7 @@ async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
         "articles": [
             Article(
                 title="Astrocyte energetics",
-                abstract=(
-                    "Astrocyte lactate accelerates synaptic ATP recovery."
-                ),
+                abstract=("Astrocyte lactate accelerates synaptic ATP recovery."),
             )
         ],
     }
@@ -311,9 +303,7 @@ def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
 
     async def _fake_acompletion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content='{"verdicts": []}')
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
-        )
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
 
     install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "claim_assessor", "llm")
@@ -359,13 +349,9 @@ async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
 
     metrics = state["metrics"]
     gate_usage = {
-        key: entry
-        for key, entry in metrics.model_usage.items()
-        if key.startswith("claim_gate::")
+        key: entry for key, entry in metrics.model_usage.items() if key.startswith("claim_gate::")
     }
-    assert gate_usage, (
-        f"no claim_gate telemetry recorded: {metrics.model_usage}"
-    )
+    assert gate_usage, f"no claim_gate telemetry recorded: {metrics.model_usage}"
     total_calls = sum(entry["calls"] for entry in gate_usage.values())
     assert total_calls >= 1
     assert metrics.llm_calls == total_calls
@@ -394,9 +380,7 @@ def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("pairs", "consumed", "rounds_left"), [(6, 12, None), (12, 9, 3)]
-)
+@pytest.mark.parametrize(("pairs", "consumed", "rounds_left"), [(6, 12, None), (12, 9, 3)])
 async def test_budget_left_decides_the_scheduled_tournament(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,

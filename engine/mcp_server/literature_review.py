@@ -58,9 +58,7 @@ class PubmedSource(_EntrezClient):
                 # Entrez's blocking HTTP calls and rate limiter must run off
                 # the event loop. to_thread preserves the run's trace context.
                 with pilot_trace_context(None, paper_id):
-                    metadata = await asyncio.to_thread(
-                        self._fetch_paper_details, paper_id
-                    )
+                    metadata = await asyncio.to_thread(self._fetch_paper_details, paper_id)
                 write_metadata_cache_file(metadata_file, metadata)
                 link_metadata_to_run(run_dir, paper_id)
                 record_pilot_metadata_origin(paper_id, "entrez_fetch")
@@ -81,23 +79,15 @@ class PubmedSource(_EntrezClient):
         if os.getenv(PUBMED_METADATA_BATCH_ENV) == "1":
             from mcp_server.pubmed_metadata_batch import gather_metadata
 
-            return await gather_metadata(
-                self, paper_ids, shared_dir, run_dir, semaphore
-            )
+            return await gather_metadata(self, paper_ids, shared_dir, run_dir, semaphore)
         results = await asyncio.gather(
             *(
-                self._fetch_one_paper_metadata(
-                    paper_id, shared_dir, run_dir, semaphore
-                )
+                self._fetch_one_paper_metadata(paper_id, shared_dir, run_dir, semaphore)
                 for paper_id in paper_ids
             )
         )
         # gather preserves search order, independent of completion order.
-        return {
-            paper_id: metadata
-            for paper_id, metadata in results
-            if metadata is not None
-        }
+        return {paper_id: metadata for paper_id, metadata in results if metadata is not None}
 
     def _download_pmc_fulltext(self, pmc_id: str) -> str:
         """PMC can truncate documents across efetch responses, requiring
@@ -121,9 +111,7 @@ class PubmedSource(_EntrezClient):
                 break
         return "".join(chunks)
 
-    def get_pubmed_fulltext(
-        self, pmc_id: str, slug: str, run_id: str | None = None
-    ) -> str | None:
+    def get_pubmed_fulltext(self, pmc_id: str, slug: str, run_id: str | None = None) -> str | None:
         try:
             shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
             fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
@@ -188,16 +176,12 @@ class PubmedSource(_EntrezClient):
                 if pmc_id and (shared_dir / f"{pmc_id}.fulltext.html").exists():
                     candidates.append((paper_id, metadata))
             except Exception as exc:
-                logger.debug(
-                    "Failed to read shared pool paper %s: %s", paper_id, exc
-                )
+                logger.debug("Failed to read shared pool paper %s: %s", paper_id, exc)
         candidates.sort(key=_shared_pool_paper_year, reverse=True)
         supplements = candidates[:shortfall]
         for paper_id, metadata in supplements:
             link_metadata_to_run(run_dir, paper_id)
-            link_shared_file_to_run(
-                run_dir, f"{metadata['pmc_full_text_id']}.fulltext.html"
-            )
+            link_shared_file_to_run(run_dir, f"{metadata['pmc_full_text_id']}.fulltext.html")
             papers_to_use.append(paper_id)
             all_details[paper_id] = metadata
         logger.info("Supplemented %s papers from shared pool", len(supplements))
@@ -221,9 +205,7 @@ class PubmedSource(_EntrezClient):
                     }
                 )
 
-    def _prepare_run_directories(
-        self, slug: str, run_id: str | None
-    ) -> tuple[Path, Path | None]:
+    def _prepare_run_directories(self, slug: str, run_id: str | None) -> tuple[Path, Path | None]:
         base_dir = self.qualified_path / slug
         shared_dir = base_dir / "shared"
         shared_dir.mkdir(parents=True, exist_ok=True)
@@ -239,15 +221,10 @@ class PubmedSource(_EntrezClient):
         max_papers: int,
     ) -> dict[str, Any]:
         selected_ids = list(dict.fromkeys(papers_to_use))
-        selected_ids.extend(
-            paper_id for paper_id in all_details if paper_id not in selected_ids
-        )
-        return {
-            paper_id: all_details[paper_id]
-            for paper_id in selected_ids[:max_papers]
-        }
+        selected_ids.extend(paper_id for paper_id in all_details if paper_id not in selected_ids)
+        return {paper_id: all_details[paper_id] for paper_id in selected_ids[:max_papers]}
 
-    async def pubmed_search(  # noqa: C901
+    async def pubmed_search(
         self,
         query: str,
         slug: str,
@@ -315,9 +292,7 @@ class PubmedSource(_EntrezClient):
                     )
                 if trace is not None:
                     record_fetched_papers(trace, all_details)
-                results = self._assemble_final_results(
-                    papers_to_use, all_details, max_papers
-                )
+                results = self._assemble_final_results(papers_to_use, all_details, max_papers)
             except Exception as exc:
                 if trace is not None:
                     if trace.get("error") is None:

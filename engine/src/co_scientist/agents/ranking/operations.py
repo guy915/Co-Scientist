@@ -114,7 +114,5 @@ def apply_ranking_matchup(
     detail = _build_matchup_detail(
         pair, judgement.winner, judgement.response, outcome, current_iteration
     )
-    calls = int(
-        judgement.response.get("debate_turns", judgement.budgeted_turns)
-    )
+    calls = int(judgement.response.get("debate_turns", judgement.budgeted_turns))
     return RankingMatchResult(detail, calls)

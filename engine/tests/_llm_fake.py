@@ -67,9 +67,7 @@ class FakeBackend:
         supports_json_schema: Callable[[str], bool] | None = None,
     ) -> None:
         self._respond = respond
-        self.requests: list[dict[str, Any]] = (
-            [] if requests is None else requests
-        )
+        self.requests: list[dict[str, Any]] = [] if requests is None else requests
         self._supports = supports_json_schema
 
     async def complete(self, **completion_args: Any) -> Any:
@@ -95,9 +93,7 @@ def install_fake_backend(
     requests: list[dict[str, Any]] | None = None,
     supports_json_schema: Callable[[str], bool] | None = None,
 ) -> FakeBackend:
-    fake = FakeBackend(
-        respond, requests=requests, supports_json_schema=supports_json_schema
-    )
+    fake = FakeBackend(respond, requests=requests, supports_json_schema=supports_json_schema)
     restore_backend_at_teardown(monkeypatch)
     backend.install_backend(fake)
     return fake
@@ -156,9 +152,7 @@ def mock_call_llm_json(
     module: types.ModuleType,
     response: dict[str, Any] | None = None,
     *,
-    side_effect: Exception
-    | Callable[..., Awaitable[dict[str, Any]]]
-    | None = None,
+    side_effect: Exception | Callable[..., Awaitable[dict[str, Any]]] | None = None,
 ) -> AsyncMock:
     fake = AsyncMock(return_value=response, side_effect=side_effect)
     monkeypatch.setattr(module, "call_llm_json", fake)
@@ -188,11 +182,7 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
             content = _supervisor_allocation_response(_prompt_text(kwargs))
             return _fake_response(content)
         length_hint = _ARRAY_LENGTH_HINTS.get(json_schema.get("name", ""))
-        hints = _FillHints(
-            array_lengths=(
-                length_hint(_prompt_text(kwargs)) if length_hint else {}
-            )
-        )
+        hints = _FillHints(array_lengths=(length_hint(_prompt_text(kwargs)) if length_hint else {}))
         content = json.dumps(_fill_schema(schema, _next_leaf, hints))
     elif response_format and response_format.get("type") == "json_object":
         content = "{}"
@@ -252,9 +242,7 @@ def make_usage(
     return SimpleNamespace(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        completion_tokens_details=SimpleNamespace(
-            reasoning_tokens=reasoning_tokens
-        ),
+        completion_tokens_details=SimpleNamespace(reasoning_tokens=reasoning_tokens),
     )
 
 
@@ -270,9 +258,7 @@ def make_completion(
 
 
 def make_tool_call(call_id: str, name: str, arguments: Any) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=call_id, function=SimpleNamespace(name=name, arguments=arguments)
-    )
+    return SimpleNamespace(id=call_id, function=SimpleNamespace(name=name, arguments=arguments))
 
 
 def patch_acompletion(
@@ -292,9 +278,7 @@ def patch_acompletion(
 
 
 # The wrapper only reads the shared schema, so tests can safely reuse it.
-SEARCH_TOOL: list[dict[str, Any]] = [
-    {"type": "function", "function": {"name": "search"}}
-]
+SEARCH_TOOL: list[dict[str, Any]] = [{"type": "function", "function": {"name": "search"}}]
 
 _MODEL = "deepseek/deepseek-v4-flash"
 # Not a declared gateway model, so the rung that answers a mandatory
@@ -343,9 +327,7 @@ class Entry:
             return await call_llm("a prompt", spec, self.options, max_attempts)
         if self.kind == "json":
             spec = replace(spec, json_schema=_SCHEMA)
-            return await call_llm_json(
-                "a prompt", spec, max_attempts, self.options
-            )
+            return await call_llm_json("a prompt", spec, max_attempts, self.options)
         loop = ToolLoop(tools=SEARCH_TOOL, executor=self.executor)
         return await call_llm_with_tools("a prompt", spec, loop, self.options)
 
@@ -383,11 +365,7 @@ class Run:
 
     @property
     def logged(self) -> list[Line]:
-        return [
-            line
-            for line in self.lines
-            if line[1] in {"WARNING", "ERROR", "CRITICAL"}
-        ]
+        return [line for line in self.lines if line[1] in {"WARNING", "ERROR", "CRITICAL"}]
 
     @property
     def retry_announcements(self) -> list[Line]:
@@ -405,15 +383,11 @@ def _classify(record: logging.LogRecord) -> Line | None:
 
 
 class Driver:
-    def __init__(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._monkeypatch = monkeypatch
         self._caplog = caplog
 
-    async def __call__(
-        self, entry: Entry, script: list[Any], max_attempts: int = 3
-    ) -> Run:
+    async def __call__(self, entry: Entry, script: list[Any], max_attempts: int = 3) -> Run:
         disable_llm_cache(self._monkeypatch)
         calls: list[dict[str, Any]] = []
         slept: list[float] = []
@@ -451,16 +425,12 @@ class Driver:
             result=result,
             lines=[k for r in records if (k := _classify(r)) is not None],
             throttled=rate_limited_attempt_count() - throttled_before,
-            retries=sum(
-                usage["retries"] for usage in telemetry.snapshot().values()
-            ),
+            retries=sum(usage["retries"] for usage in telemetry.snapshot().values()),
         )
 
 
 @pytest.fixture
-def drive(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> Driver:
+def drive(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> Driver:
     return Driver(monkeypatch, caplog)
 
 

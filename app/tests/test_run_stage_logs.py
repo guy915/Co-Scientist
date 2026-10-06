@@ -58,8 +58,6 @@ def test_stage_logging_never_breaks_the_event_write(
         raise RuntimeError("logging is down")
 
     monkeypatch.setattr("app.store.events._log_stage", boom)
-    seq = store.append_event(
-        run_id, "generate", {"count": 1}, db_path=isolated_db
-    )
+    seq = store.append_event(run_id, "generate", {"count": 1}, db_path=isolated_db)
     assert seq >= 1
     assert len(store.list_events(run_id, db_path=isolated_db)) == 1

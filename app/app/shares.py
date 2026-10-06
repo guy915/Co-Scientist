@@ -86,9 +86,7 @@ def _referenced_evidence_ids(edges: list[dict[str, Any]]) -> set[str]:
     for edge in edges:
         for key in ("supporting", "contradicting"):
             for span in edge.get(key) or []:
-                raw = (
-                    span.get("evidence_id") if isinstance(span, dict) else None
-                )
+                raw = span.get("evidence_id") if isinstance(span, dict) else None
                 if raw:
                     ids.add(parent_evidence_id(str(raw)))
     return ids
@@ -102,9 +100,7 @@ def _released_content(
     """
     all_hypotheses = store_hypotheses.list_hypotheses(run_id)
     claim_edges = records.list_claim_evidence(run_id)
-    hypotheses = exclude_unsafe_hypotheses(
-        run_id, all_hypotheses, None, claim_edges
-    )
+    hypotheses = exclude_unsafe_hypotheses(run_id, all_hypotheses, None, claim_edges)
     evidence = records.list_evidence(run_id)
     released_edges = released_claim_evidence(hypotheses, claim_edges, evidence)
     referenced = _referenced_evidence_ids(released_edges)

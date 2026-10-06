@@ -70,10 +70,7 @@ def test_offline_ablation_sweep_pairs_every_goal_across_arms() -> None:
     assert set(summary["arms"]) == set(_ARMS)
     by_run = {arm["run_id"]: arm for arm in report["driven"]}
     for record in report["records"]:
-        assert (
-            record["evaluation_identity"]
-            == by_run[record["run_id"]]["evaluation_identity"]
-        )
+        assert record["evaluation_identity"] == by_run[record["run_id"]]["evaluation_identity"]
         assert record["cost_usd"] == 0.0, "offline calls must cost nothing"
         assert isinstance(record["latency_seconds"], float)
         assert isinstance(record["diversity"], float)
@@ -101,8 +98,7 @@ def test_ablation_toggles_reach_persisted_workflow_state(
 
 def test_offline_budget_curve_orders_tiers_by_compute() -> None:
     report = run_budget_curve(
-        "Explain a plausible mechanism of antibiotic tolerance in "
-        "biofilm-embedded bacteria.",
+        "Explain a plausible mechanism of antibiotic tolerance in biofilm-embedded bacteria.",
         ["express", "standard"],
         live=False,
     )

@@ -16,13 +16,7 @@ from evaluations._artifacts import write_dated_artifact
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _INDRA_CONFIG = (
-    _ROOT
-    / "engine"
-    / "src"
-    / "co_scientist"
-    / "config"
-    / "examples"
-    / "indra_cancer.yaml"
+    _ROOT / "engine" / "src" / "co_scientist" / "config" / "examples" / "indra_cancer.yaml"
 )
 _TIER = "express"
 # Tier overrides may raise, never lower, the smallest durable baseline.
@@ -48,9 +42,7 @@ _GOAL = (
 def _configure_env(db_path: str) -> None:
     model = os.getenv("MODEL_NAME", "").strip()
     if not model or "/" not in model:
-        raise ValueError(
-            "golden run requires explicit provider/model MODEL_NAME"
-        )
+        raise ValueError("golden run requires explicit provider/model MODEL_NAME")
     if "app.config" in sys.modules:
         raise RuntimeError("golden run requires a fresh process")
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
@@ -163,8 +155,7 @@ def _cost_summary(metrics: dict[str, Any] | None) -> dict[str, Any]:
         "usage_evidence": evidence,
         "llm_calls": (metrics or {}).get("llm_calls"),
         "by_phase_model": {
-            key: round(float(v.get("cost_usd") or 0.0), 6)
-            for key, v in usage.items()
+            key: round(float(v.get("cost_usd") or 0.0), 6) for key, v in usage.items()
         },
     }
 
@@ -181,17 +172,13 @@ def _support_passages(
     return spans
 
 
-def _assess(
-    collected: dict[str, Any], tool_calls: dict[str, int]
-) -> dict[str, Any]:
+def _assess(collected: dict[str, Any], tool_calls: dict[str, int]) -> dict[str, Any]:
     evidence = collected["evidence"]
     sources = sorted({str(e.get("source") or "") for e in evidence})
     indra_calls = {t: c for t, c in tool_calls.items() if t in _INDRA_TOOLS}
     spans = _support_passages(collected["claim_edges"])
     nonempty_spans = [s for s in spans if str(s.get("quote") or "").strip()]
-    completed, real_backend = _run_driver.run_completion_status(
-        collected["run"]
-    )
+    completed, real_backend = _run_driver.run_completion_status(collected["run"])
 
     checks = {
         "run_completed": completed,
@@ -264,16 +251,11 @@ def _build_report(
         "events_recorded": events,
         "acceptance": assessment,
         "evidence_sample": _sample_evidence(collected["evidence"]),
-        "support_span_sample": _sample_spans(
-            _support_passages(collected["claim_edges"])
-        ),
-        "report_hypothesis_count": (report_row.get("payload") or {}).get(
-            "hypothesis_count"
-        ),
+        "support_span_sample": _sample_spans(_support_passages(collected["claim_edges"])),
+        "report_hypothesis_count": (report_row.get("payload") or {}).get("hypothesis_count"),
         "cost": _cost_summary(collected["metrics"]),
         "reproduce": (
-            "Export MODEL_NAME and its provider key; "
-            ".venv/bin/python -m evaluations.golden_run"
+            "Export MODEL_NAME and its provider key; .venv/bin/python -m evaluations.golden_run"
         ),
         "captured_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
@@ -308,9 +290,7 @@ def run() -> dict[str, Any]:
     engine_adapter.validate_tools_config(settings.tools_config)
 
     run_id = _persist_run(db_path)
-    events, _elapsed = _run_driver.drain_run(
-        run_id, db_path, worker_prefix="golden-run"
-    )
+    events, _elapsed = _run_driver.drain_run(run_id, db_path, worker_prefix="golden-run")
     collected = _collect(run_id, db_path)
     assessment = _assess(collected, tool_calls)
     return _build_report(run_id, events, collected, assessment)

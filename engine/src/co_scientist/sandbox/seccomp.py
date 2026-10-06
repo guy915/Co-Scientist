@@ -72,9 +72,7 @@ class _SockFprog(ctypes.Structure):
 def deny_network() -> None:
     architecture = _ARCHITECTURES.get(platform.machine())
     if architecture is None:
-        raise SeccompUnavailableError(
-            f"no seccomp filter for machine {platform.machine()!r}"
-        )
+        raise SeccompUnavailableError(f"no seccomp filter for machine {platform.machine()!r}")
 
     program = _deny_inet_program(*architecture)
     blob = ctypes.create_string_buffer(program, len(program))
@@ -82,12 +80,6 @@ def deny_network() -> None:
 
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(_PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0):
-        raise SeccompUnavailableError(
-            ctypes.get_errno(), "PR_SET_NO_NEW_PRIVS failed"
-        )
-    if libc.prctl(
-        _PR_SET_SECCOMP, _SECCOMP_MODE_FILTER, ctypes.byref(fprog), 0, 0
-    ):
-        raise SeccompUnavailableError(
-            ctypes.get_errno(), "PR_SET_SECCOMP failed"
-        )
+        raise SeccompUnavailableError(ctypes.get_errno(), "PR_SET_NO_NEW_PRIVS failed")
+    if libc.prctl(_PR_SET_SECCOMP, _SECCOMP_MODE_FILTER, ctypes.byref(fprog), 0, 0):
+        raise SeccompUnavailableError(ctypes.get_errno(), "PR_SET_SECCOMP failed")

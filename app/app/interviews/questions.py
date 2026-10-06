@@ -69,9 +69,7 @@ def normalized_questions(raw: Any) -> list[dict[str, Any]]:
     if raw and not questions:
         # Invalid options are logged because otherwise lost prose questions are
         # invisible to operators.
-        logger.warning(
-            "Interview turn offered %d question(s), none usable", len(raw)
-        )
+        logger.warning("Interview turn offered %d question(s), none usable", len(raw))
     return questions[:MAX_QUESTIONS]
 
 
@@ -83,9 +81,7 @@ _QUESTION_SCHEMA = obj(
         "multi_select": {"type": "boolean"},
         "options": {
             "type": "array",
-            "items": obj(
-                {"label": {"type": "string"}, "description": {"type": "string"}}
-            ),
+            "items": obj({"label": {"type": "string"}, "description": {"type": "string"}}),
         },
     }
 )
@@ -117,17 +113,13 @@ The turn:
 
 
 def _prompt(message: str) -> str:
-    return _PROMPT.format(
-        min=MIN_OPTIONS, max=MAX_OPTIONS, message=message.strip()
-    )
+    return _PROMPT.format(min=MIN_OPTIONS, max=MAX_OPTIONS, message=message.strip())
 
 
 async def repair_questions(message: str) -> list[dict[str, Any]]:
     if not message.strip() or not offline_guard.remote_chat_allowed():
         return []
-    model, api_key = credentials.byok_model_and_key(
-        settings.effective_chat_model
-    )
+    model, api_key = credentials.byok_model_and_key(settings.effective_chat_model)
     spec = CompletionSpec(
         model_name=model,
         max_tokens=_MAX_TOKENS,
@@ -140,9 +132,7 @@ async def repair_questions(message: str) -> list[dict[str, Any]]:
             _prompt(message),
             spec,
             max_attempts=2,
-            options=LLMCallOptions(
-                prompt_name="interview_question_repair", enable_thinking=False
-            ),
+            options=LLMCallOptions(prompt_name="interview_question_repair", enable_thinking=False),
         )
     except Exception:
         logger.warning("Interview question repair failed", exc_info=True)

@@ -85,9 +85,7 @@ def _recheck_receipt_and_documents(
     from app.store.documents import get_staged_documents
 
     if idempotency_key is not None:
-        receipt = lookup_run_creation_receipt(
-            client_id, idempotency_key, conn=conn
-        )
+        receipt = lookup_run_creation_receipt(client_id, idempotency_key, conn=conn)
         if receipt is not None:
             return [], receipt
     document_ids = [str(document["id"]) for document in staged_documents]
@@ -124,9 +122,7 @@ def commit_run_creation(
         run = create_run(conn)
         if byok is not None:
             credentials.store_run_credential(run.id, client_id, byok, conn=conn)
-        index_staged_documents_for_run(
-            run.id, current_documents, attachment_source, conn=conn
-        )
+        index_staged_documents_for_run(run.id, current_documents, attachment_source, conn=conn)
         if idempotency_key is not None and request_digest is not None:
             add_run_creation_receipt(
                 client_id,

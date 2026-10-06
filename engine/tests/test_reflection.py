@@ -55,9 +55,7 @@ async def test_reflection_needs_hypotheses_and_literature_to_run(
     assert await reflection_node(state) == {}
 
 
-def _stub_review_research(
-    monkeypatch: pytest.MonkeyPatch, *, fails: bool = False
-) -> None:
+def _stub_review_research(monkeypatch: pytest.MonkeyPatch, *, fails: bool = False) -> None:
 
     async def fake_research(_state: object, _hypothesis: object) -> object:
         if fails:
@@ -104,13 +102,8 @@ def test_retracted_evidence_never_reaches_a_prompt() -> None:
         is_retracted=True,
     )
     only_retracted = make_state(articles=[retracted])
-    assert (
-        review_prompt_context._build_domain_context(only_retracted, None) == ""
-    )
-    assert (
-        deep_verification_evidence._retrieved_evidence_context([retracted])
-        == ""
-    )
+    assert review_prompt_context._build_domain_context(only_retracted, None) == ""
+    assert deep_verification_evidence._retrieved_evidence_context([retracted]) == ""
     state = make_state(
         articles=[
             make_article(
@@ -150,13 +143,12 @@ def test_selection_preserves_pool_order_and_once_ever_markers() -> None:
     issued = make_hypothesis()
     mark_verification_issued(issued)
     current = make_hypothesis()
-    current.deep_verification_fingerprint = verification_fingerprint(
-        current, "m"
-    )
+    current.deep_verification_fingerprint = verification_fingerprint(current, "m")
     next_pending = make_hypothesis()
-    assert select_hypotheses_to_verify(
-        [pending, blocked, issued, current, next_pending], "m"
-    ) == [pending, next_pending]
+    assert select_hypotheses_to_verify([pending, blocked, issued, current, next_pending], "m") == [
+        pending,
+        next_pending,
+    ]
     assert not pending.enrichments
 
 
@@ -192,9 +184,7 @@ async def test_failures_degrade_but_task_control_propagates(
     )
     if isinstance(error, RuntimeError):
         result = await operation(*args)
-        assert (
-            result.result if isinstance(result, ReviewRun) else result
-        ) is None
+        assert (result.result if isinstance(result, ReviewRun) else result) is None
     else:
         with pytest.raises(type(error)) as caught:
             await operation(*args)
@@ -228,9 +218,7 @@ class TestDegradation:
     async def test_a_failing_loop_reviews_mentally(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        monkeypatch.setattr(
-            se, "workspace_tool_schemas", lambda policy: _RUNNABLE_TOOLS
-        )
+        monkeypatch.setattr(se, "workspace_tool_schemas", lambda policy: _RUNNABLE_TOOLS)
         monkeypatch.setattr(
             se,
             "open_review_workspace",

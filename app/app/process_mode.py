@@ -47,10 +47,7 @@ class EnvProcessMode:
         # credential-module cycles.
         from app import credentials
 
-        return (
-            credentials.current_byok() is not None
-            or has_provider_credential(model)
-        )
+        return credentials.current_byok() is not None or has_provider_credential(model)
 
 
 _current: ProcessMode = EnvProcessMode()

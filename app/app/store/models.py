@@ -121,17 +121,11 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
         updated_at=row["updated_at"],
         completed_at=row["completed_at"],
         error=row["error"],
-        execution_policy=(
-            row["execution_policy"]
-            if "execution_policy" in keys
-            else "standard"
-        ),
+        execution_policy=(row["execution_policy"] if "execution_policy" in keys else "standard"),
         title=row["title"] if "title" in keys else None,
         top_elo=row["top_elo"] if "top_elo" in keys else None,
         llm_backend=row["llm_backend"] if "llm_backend" in keys else None,
-        goal_restatement=(
-            row["goal_restatement"] if "goal_restatement" in keys else None
-        ),
+        goal_restatement=(row["goal_restatement"] if "goal_restatement" in keys else None),
     )
 
 
@@ -158,9 +152,7 @@ def _row_to_message(row: sqlite3.Row) -> MessageRow:
         applied=bool(row["applied"]),
         meta=_parse_message_meta(row),
         applied_at=row["applied_at"] if "applied_at" in keys else None,
-        applied_decision=(
-            row["applied_decision"] if "applied_decision" in keys else None
-        ),
+        applied_decision=(row["applied_decision"] if "applied_decision" in keys else None),
     )
 
 

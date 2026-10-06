@@ -474,9 +474,7 @@ def test_meta_review_fires_once_new_critique_material_exists(
     overrides: dict[str, Any], fires: bool
 ) -> None:
     stats = _settled_stats(**overrides)
-    decision = validate_decision(
-        decide_next_task(stats, Budget(max_iterations=4)), stats
-    )
+    decision = validate_decision(decide_next_task(stats, Budget(max_iterations=4)), stats)
     assert (decision.next_task is TaskType.META_REVIEW) is fires
 
 
@@ -505,12 +503,8 @@ def _overview_due(**overrides: object) -> SchedulerStats:
 
 def test_the_overview_companion_is_gated_by_the_tier_ceiling() -> None:
     stats = _overview_due()
-    decision = stack_companions(
-        decide_next_task(stats, _CHEAP_BUDGET), stats, _CHEAP_BUDGET
-    )
-    assert stacked_task_values(decision.queue_actions) == (
-        TaskType.META_REVIEW.value,
-    )
+    decision = stack_companions(decide_next_task(stats, _CHEAP_BUDGET), stats, _CHEAP_BUDGET)
+    assert stacked_task_values(decision.queue_actions) == (TaskType.META_REVIEW.value,)
 
 
 def test_the_stacked_list_survives_a_checkpoint_round_trip() -> None:
@@ -521,17 +515,13 @@ def test_the_stacked_list_survives_a_checkpoint_round_trip() -> None:
         {"action": "enqueue", "task_type": TaskType.META_REVIEW.value},
         {"action": "enqueue", "task_type": TaskType.SYNTHESIZE.value},
     ]
-    restored = restore_workflow_state(
-        serialize_workflow_state(dict(state), last_event_seq=0)
-    )
+    restored = restore_workflow_state(serialize_workflow_state(dict(state), last_event_seq=0))
     assert stacked_task_values(restored["supervisor_queue_actions"]) == (
         TaskType.META_REVIEW.value,
         TaskType.SYNTHESIZE.value,
     )
     assert is_interim_firing(cast(WorkflowState, restored))
-    assert route_after_meta_review(cast(WorkflowState, restored)) == (
-        "research_overview"
-    )
+    assert route_after_meta_review(cast(WorkflowState, restored)) == ("research_overview")
 
 
 def test_a_terminating_decision_is_never_wrapped() -> None:

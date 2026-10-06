@@ -63,9 +63,7 @@ def test_the_global_flag_stays_authoritative_and_fails_closed(
 
     with scoped_campaign_mode(scope):
         if expected is None:
-            with pytest.raises(
-                FreeModelEligibilityError, match="setting is invalid"
-            ):
+            with pytest.raises(FreeModelEligibilityError, match="setting is invalid"):
                 campaign_free_mode()
         else:
             assert campaign_free_mode() is expected
@@ -86,9 +84,7 @@ async def test_campaign_scope_is_isolated_between_tasks_and_follows_copies(
     campaign_task = asyncio.create_task(observe(True))
     await ready.wait()
     ordinary_task = asyncio.create_task(observe(False))
-    campaign_result, ordinary_result = await asyncio.gather(
-        campaign_task, ordinary_task
-    )
+    campaign_result, ordinary_result = await asyncio.gather(campaign_task, ordinary_task)
     assert campaign_result is True
     assert ordinary_result is False
     assert not campaign_free_mode()
@@ -146,9 +142,7 @@ async def test_campaign_scope_rejects_paid_byok_before_transport(
         with scoped_campaign_mode(False):
             return await call_llm("probe", spec, options=OPTIONS)
 
-    campaign_result, ordinary_result = await asyncio.gather(
-        campaign_call(), ordinary_call()
-    )
+    campaign_result, ordinary_result = await asyncio.gather(campaign_call(), ordinary_call())
     assert campaign_result is None
     assert ordinary_result == "ordinary"
     assert len(requests) == 1
@@ -283,9 +277,7 @@ async def test_client_accepts_real_deployment_manifests_during_rollout(
         "search_gwas_catalog_associations": "GWAS associations",
     }
     _patch_mcp_seam.tools = [string_tool("search_pubmed", "public evidence")]
-    _patch_mcp_seam.tools.extend(
-        string_tool(name, tool_text[name]) for name in expected_additions
-    )
+    _patch_mcp_seam.tools.extend(string_tool(name, tool_text[name]) for name in expected_additions)
 
     client = MCPToolClient(server_url=URL)
     await client.initialize()
@@ -315,9 +307,7 @@ async def test_client_rejects_gwas_manifest_without_m10_citation_tool(
     assert _patch_mcp_seam.instances_created == 0
 
 
-@pytest.mark.parametrize(
-    "change", ["url", "transport", "headers", "extra", "multi"]
-)
+@pytest.mark.parametrize("change", ["url", "transport", "headers", "extra", "multi"])
 async def test_custom_configuration_is_rejected_before_sdk_connection(
     qualified: dict[str, Any], _patch_mcp_seam: Any, change: str
 ) -> None:
@@ -338,9 +328,7 @@ async def test_custom_configuration_is_rejected_before_sdk_connection(
     assert _patch_mcp_seam.instances_created == 0
 
 
-@pytest.mark.parametrize(
-    "mutation", [None, {"version": "old"}, {"enabled": False}]
-)
+@pytest.mark.parametrize("mutation", [None, {"version": "old"}, {"enabled": False}])
 async def test_unqualified_serving_policy_prevents_tool_discovery(
     qualified: dict[str, Any], _patch_mcp_seam: Any, mutation: Any
 ) -> None:
@@ -432,9 +420,7 @@ async def test_campaign_confines_preexisting_network_workspace(
         monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
         result: ExecResult | SessionRead
         if persistent:
-            command = await session.sessions.start(
-                argv, policy=session.policy, cwd=session.root
-            )
+            command = await session.sessions.start(argv, policy=session.policy, cwd=session.root)
             await command.wait_for(10)
             result = command.read()
         else:
@@ -476,9 +462,7 @@ def test_campaign_schema_for_preexisting_workspace_is_offline(
     provider = WorkspaceToolProvider(session)
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     _, schemas = provider.get_tools()
-    command = next(
-        s["function"] for s in schemas if s["function"]["name"] == "run_command"
-    )
+    command = next(s["function"] for s in schemas if s["function"]["name"] == "run_command")
     assert "not reach the network" in command["description"].lower()
 
 
@@ -515,15 +499,11 @@ async def test_recognized_skill_receives_no_campaign_host_credentials(
             "run_command",
             json.dumps({"argv": [sys.executable, str(script)]}),
         )
-        control = json.loads(
-            (await provider.execute_tool_call(call))["content"]
-        )
+        control = json.loads((await provider.execute_tool_call(call))["content"])
         assert "CREDENTIAL_PRESENT" in control["stdout"]
         monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
         with usage.scoped_skill_usage() as tally:
-            result = json.loads(
-                (await provider.execute_tool_call(call))["content"]
-            )
+            result = json.loads((await provider.execute_tool_call(call))["content"])
         assert tally.snapshot() == {}
         assert result["exit_code"] == 0, result
         assert "CREDENTIAL_ABSENT" in result["stdout"]

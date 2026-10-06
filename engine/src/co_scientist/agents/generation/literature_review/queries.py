@@ -116,16 +116,10 @@ def _resolve_query_format(workflow: "WorkflowConfig") -> str:
 def _resolve_query_generation_tool(
     config: SearchConfig,
 ) -> tuple[str, str] | None:
-    if not (
-        config.tool_registry
-        and config.workflow
-        and config.workflow.query_generation_tool
-    ):
+    if not (config.tool_registry and config.workflow and config.workflow.query_generation_tool):
         return None
 
-    tool_cfg = config.tool_registry.get_tool(
-        config.workflow.query_generation_tool
-    )
+    tool_cfg = config.tool_registry.get_tool(config.workflow.query_generation_tool)
     if not tool_cfg:
         return None
 
@@ -142,9 +136,7 @@ async def _try_mcp_query_generation(
         return []
 
     tool_name, query_format = resolved
-    logger.info(
-        "Using MCP query generation: %s (format: %s)", tool_name, query_format
-    )
+    logger.info("Using MCP query generation: %s (format: %s)", tool_name, query_format)
     return await _generate_queries_via_mcp(
         mcp_client,
         state["research_goal"],

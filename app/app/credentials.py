@@ -75,9 +75,7 @@ class ByokCredential:
         """
         keys = {self.model: self.api_key}
         if self.supervisor_model:
-            keys[self.supervisor_model] = (
-                self.supervisor_api_key or self.api_key
-            )
+            keys[self.supervisor_model] = self.supervisor_api_key or self.api_key
         return keys
 
 
@@ -91,9 +89,7 @@ def _fernet() -> Fernet:
 
     secret = settings.byok_encryption_key
     if not secret:
-        raise ByokNotConfiguredError(
-            "bring-your-own-key support requires BYOK_ENCRYPTION_KEY"
-        )
+        raise ByokNotConfiguredError("bring-your-own-key support requires BYOK_ENCRYPTION_KEY")
     derived = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
@@ -117,8 +113,7 @@ def decrypt_api_key(token: str) -> str:
         return _fernet().decrypt(token.encode("ascii")).decode("utf-8")
     except (InvalidToken, ValueError) as exc:
         raise RuntimeError(
-            "stored BYOK credential cannot be decrypted; the encryption "
-            "key may have rotated"
+            "stored BYOK credential cannot be decrypted; the encryption key may have rotated"
         ) from exc
 
 
@@ -128,9 +123,7 @@ def idempotency_secret_fingerprint(api_key: str) -> str:
     """
     secret = settings.byok_encryption_key
     if not secret:
-        raise ByokNotConfiguredError(
-            "bring-your-own-key support requires BYOK_ENCRYPTION_KEY"
-        )
+        raise ByokNotConfiguredError("bring-your-own-key support requires BYOK_ENCRYPTION_KEY")
     return hmac.new(
         secret.encode("utf-8"),
         b"co-scientist/run-create-idempotency/v1\0" + api_key.encode("utf-8"),
@@ -154,15 +147,11 @@ def run_creation_request_digest(
             "request": request_fields,
             "byok_provider": (provider or "").strip().lower() if key else None,
             "byok_secret_fingerprint": fingerprint,
-            "byok_supervisor_provider": (supervisor_provider or "")
-            .strip()
-            .lower()
+            "byok_supervisor_provider": (supervisor_provider or "").strip().lower()
             if supervisor_key
             else None,
             "byok_supervisor_fingerprint": (
-                idempotency_secret_fingerprint(supervisor_key)
-                if supervisor_key
-                else None
+                idempotency_secret_fingerprint(supervisor_key) if supervisor_key else None
             ),
         },
         ensure_ascii=False,
@@ -184,8 +173,7 @@ def _supervisor_route(
     sup_key = (headers.get(SUPERVISOR_API_KEY_HEADER) or "").strip()
     if bool(sup_provider) != bool(sup_key):
         raise ByokRequestError(
-            f"{SUPERVISOR_PROVIDER_HEADER} and {SUPERVISOR_API_KEY_HEADER} "
-            "must be sent together"
+            f"{SUPERVISOR_PROVIDER_HEADER} and {SUPERVISOR_API_KEY_HEADER} must be sent together"
         )
     sup_provider = sup_provider.lower()
     if not sup_provider or (sup_provider == provider and sup_key == api_key):
@@ -203,14 +191,10 @@ def credential_from_headers(
         return None
     provider = (headers.get(PROVIDER_HEADER) or "").strip().lower()
     if not provider:
-        raise ByokRequestError(
-            f"the {API_KEY_HEADER} header requires {PROVIDER_HEADER}"
-        )
+        raise ByokRequestError(f"the {API_KEY_HEADER} header requires {PROVIDER_HEADER}")
     if byok_default_model(provider) is None:
         raise ByokRequestError(f"unsupported provider: {provider}")
-    supervisor_route, sup_provider, sup_key = _supervisor_route(
-        headers, provider, api_key
-    )
+    supervisor_route, sup_provider, sup_key = _supervisor_route(headers, provider, api_key)
     try:
         model = byok_models.resolve_model_choice(
             provider, headers.get(byok_models.WORKER_MODEL_HEADER)
@@ -269,9 +253,7 @@ def store_run_credential(
         )
 
 
-def get_run_credential(
-    run_id: str, db_path: str | None = None
-) -> ByokCredential | None:
+def get_run_credential(run_id: str, db_path: str | None = None) -> ByokCredential | None:
     from app.store.db import connect
 
     with connect(db_path) as conn:
@@ -330,9 +312,7 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
                     drop_params=True,
                 )
     except AuthenticationError as exc:
-        raise ByokValidationError(
-            "the provider rejected the API key (invalid or expired)"
-        ) from exc
+        raise ByokValidationError("the provider rejected the API key (invalid or expired)") from exc
     except ByokValidationError:
         raise
     except Exception as exc:
@@ -342,9 +322,7 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
         ) from exc
 
 
-_current_byok: ContextVar[ByokCredential | None] = ContextVar(
-    "cosci_byok", default=None
-)
+_current_byok: ContextVar[ByokCredential | None] = ContextVar("cosci_byok", default=None)
 
 
 def current_byok() -> ByokCredential | None:

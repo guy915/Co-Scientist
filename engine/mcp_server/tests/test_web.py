@@ -126,9 +126,7 @@ async def test_read_url_extracts_readable_text_without_page_furniture(
     monkeypatch: pytest.MonkeyPatch, resolve_to: Any
 ) -> None:
     resolve_to(_PUBLIC)
-    stub_responses(
-        monkeypatch, _page(200, _PAGE.encode(), "text/html; charset=utf-8")
-    )
+    stub_responses(monkeypatch, _page(200, _PAGE.encode(), "text/html; charset=utf-8"))
 
     text = await read_url("https://example.com/a")
 
@@ -189,9 +187,7 @@ async def test_read_url_screens_every_redirect_hop(
     monkeypatch: pytest.MonkeyPatch, resolve_to: Any
 ) -> None:
     resolve_to(_PUBLIC | {"internal.example": "10.0.0.5"})
-    client = stub_responses(
-        monkeypatch, _redirect("http://internal.example/admin")
-    )
+    client = stub_responses(monkeypatch, _redirect("http://internal.example/admin"))
 
     result = await read_url("https://example.com/a")
 
@@ -264,9 +260,7 @@ async def test_brave_results_normalize_into_clean_stable_records(
 
 @pytest.fixture
 def keys(monkeypatch: pytest.MonkeyPatch) -> Any:
-    def configure(
-        brave: bool = False, tavily: bool = False, prefer: str | None = None
-    ) -> None:
+    def configure(brave: bool = False, tavily: bool = False, prefer: str | None = None) -> None:
         for name, present in (
             ("BRAVE_API_KEY", brave),
             ("TAVILY_API_KEY", tavily),
@@ -294,9 +288,7 @@ def _clear_credential_state() -> Any:
 def _status_error(status: int) -> httpx.HTTPStatusError:
     request = httpx.Request("GET", "https://example.invalid/search")
     response = httpx.Response(status, request=request)
-    return httpx.HTTPStatusError(
-        f"{status}", request=request, response=response
-    )
+    return httpx.HTTPStatusError(f"{status}", request=request, response=response)
 
 
 @pytest.mark.usefixtures("_clear_credential_state")
@@ -329,9 +321,7 @@ class TestWebSearchProviders:
         assert recorded is not None
         assert (recorded["provider"], recorded["status"]) == (provider, status)
 
-    @pytest.mark.parametrize(
-        "failure", [_status_error(429), httpx.ConnectError("no route")]
-    )
+    @pytest.mark.parametrize("failure", [_status_error(429), httpx.ConnectError("no route")])
     async def test_throttling_and_outages_say_nothing_about_the_credential(
         self, monkeypatch: pytest.MonkeyPatch, failure: Exception
     ) -> None:
@@ -385,17 +375,13 @@ class TestWebSearchProviders:
         asked: list[str],
     ) -> None:
         keys(brave=True, tavily=True)
-        tavily_answer = {
-            "results": [{"title": "found", "url": "https://e.com"}]
-        }
+        tavily_answer = {"results": [{"title": "found", "url": "https://e.com"}]}
         client = stub_responses(monkeypatch, brave_answer, tavily_answer)
 
         results = await search_web("anything")
 
         assert bool(results) is found
-        assert [
-            "brave" if "brave" in url else "tavily" for url, _ in client.calls
-        ] == asked
+        assert ["brave" if "brave" in url else "tavily" for url, _ in client.calls] == asked
 
 
 @pytest.mark.usefixtures("_clear_credential_state")

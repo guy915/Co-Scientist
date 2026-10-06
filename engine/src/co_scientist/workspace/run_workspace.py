@@ -39,13 +39,9 @@ def _safe_run_id(run_id: str) -> str:
     """An empty sanitized ID would grant every run the same workspace."""
     cleaned = _UNSAFE_IN_RUN_ID.sub("_", run_id)[:_MAX_RUN_ID_CHARS]
     if not cleaned.strip("_"):
-        raise WorkspaceIdError(
-            f"run id {run_id!r} contains nothing usable as a directory name"
-        )
+        raise WorkspaceIdError(f"run id {run_id!r} contains nothing usable as a directory name")
     if cleaned != run_id:
-        logger.warning(
-            "run id %r was sanitized to %r for use as a path", run_id, cleaned
-        )
+        logger.warning("run id %r was sanitized to %r for use as a path", run_id, cleaned)
     return cleaned
 
 
@@ -60,9 +56,7 @@ def workspace_path(run_id: str) -> Path:
     return workspaces_root() / _safe_run_id(run_id)
 
 
-def open_run_workspace(
-    run_id: str, *, network_allowed: bool = False
-) -> WorkspaceSession:
+def open_run_workspace(run_id: str, *, network_allowed: bool = False) -> WorkspaceSession:
     root = workspace_path(run_id)
     existed = root.exists()
     session = WorkspaceSession(root, network_allowed=network_allowed)
@@ -97,9 +91,7 @@ def open_draft_workspace(run_id: str, draft_id: str) -> WorkspaceSession:
 
 
 def review_workspace_path(run_id: str, hypothesis_id: str) -> Path:
-    return (
-        workspace_path(run_id) / _REVIEWS_DIRNAME / _safe_run_id(hypothesis_id)
-    )
+    return workspace_path(run_id) / _REVIEWS_DIRNAME / _safe_run_id(hypothesis_id)
 
 
 def open_review_workspace(

@@ -61,19 +61,14 @@ _PIRFENIDONE_QUOTE = (
     "(BMP-4)/Gremlin1, and downregulation of α-smooth muscle actin, "
     "fibronectin, and FHL2, similar to that observed post-CTHRC1 inhibition."
 )
-_AMPK_CLAIM = (
-    "Metformin enters cardiac fibroblasts and activates AMPK via LKB1."
-)
+_AMPK_CLAIM = "Metformin enters cardiac fibroblasts and activates AMPK via LKB1."
 _GLUCOSE_QUOTE = (
     "We found that glucose starvation transiently activates AMPK, whereas "
     "changes in glucagon and insulin levels had no impact on AMPK."
 )
-_COLLAGEN_CLAIM = (
-    "Metformin reduces collagen I expression in human cardiac fibroblasts."
-)
+_COLLAGEN_CLAIM = "Metformin reduces collagen I expression in human cardiac fibroblasts."
 _ON_SUBJECT_NEGATION = (
-    "Metformin did not reduce collagen I expression in human cardiac "
-    "fibroblasts."
+    "Metformin did not reduce collagen I expression in human cardiac fibroblasts."
 )
 
 
@@ -83,8 +78,7 @@ _ON_SUBJECT_NEGATION = (
         (
             _REDUCTION_CLAIM,
             [
-                "Wnt inhibition and the fibrotic phenotype in cardiac "
-                "fibroblasts.",
+                "Wnt inhibition and the fibrotic phenotype in cardiac fibroblasts.",
                 _REDUCTION_QUOTE,
             ],
             _REDUCTION_QUOTE,
@@ -127,8 +121,7 @@ def test_a_negation_about_something_else_is_not_a_contradiction(
 
 def test_on_subject_negation_contradicts_and_is_the_cited_quote() -> None:
     passage = _passage(
-        "Metformin reduces collagen I expression in human cardiac "
-        "fibroblasts, we hypothesized.",
+        "Metformin reduces collagen I expression in human cardiac fibroblasts, we hypothesized.",
         "Cells were treated for 48 hours.",
         _ON_SUBJECT_NEGATION,
     )
@@ -165,9 +158,7 @@ def _contradicted_assessments() -> list[ClaimAssessment]:
     return [
         assess_claim(
             _CONTRADICTED_CLAIM,
-            as_passages(
-                ["Kinase X inhibition did not reduce AML tumor growth."]
-            ),
+            as_passages(["Kinase X inhibition did not reduce AML tumor growth."]),
         )
     ]
 
@@ -176,9 +167,7 @@ def test_gate_blocks_a_categorical_contradiction_whatever_is_allowed() -> None:
     assessments = _contradicted_assessments()
 
     assert publication_gate(assessments).decision is GateDecision.BLOCK
-    loosened = publication_gate(
-        assessments, allow_speculative=True, require_supported_claim=False
-    )
+    loosened = publication_gate(assessments, allow_speculative=True, require_supported_claim=False)
     assert loosened.decision is GateDecision.BLOCK
 
 
@@ -193,9 +182,7 @@ def test_gate_allows_a_contradicted_claim_the_idea_only_proposes() -> None:
     assert "contradicted" in result.reason
 
 
-def test_gate_blocks_a_categorical_contradiction_beside_a_speculative_one() -> (
-    None
-):
+def test_gate_blocks_a_categorical_contradiction_beside_a_speculative_one() -> None:
     grounding = "Kinase X inhibition reduces AML relapse rates."
     assessments = [
         *_contradicted_assessments(),
@@ -210,20 +197,14 @@ def test_gate_blocks_a_categorical_contradiction_beside_a_speculative_one() -> (
         ),
     ]
 
-    result = publication_gate(
-        assessments, explicitly_speculative_claims={_CONTRADICTED_CLAIM}
-    )
+    result = publication_gate(assessments, explicitly_speculative_claims={_CONTRADICTED_CLAIM})
 
     assert result.decision is GateDecision.BLOCK
     assert result.failed_claims == (grounding,)
 
 
-def test_gate_withholds_unsupported_claims_unless_explicitly_speculative() -> (
-    None
-):
-    proposed = assess_claim(
-        "We hypothesize kinase X may alter neuronal recovery.", _UNRELATED
-    )
+def test_gate_withholds_unsupported_claims_unless_explicitly_speculative() -> None:
+    proposed = assess_claim("We hypothesize kinase X may alter neuronal recovery.", _UNRELATED)
     categorical = assess_claim(
         "Kinase X is established as the neuronal recovery controller.",
         _UNRELATED,
@@ -231,15 +212,11 @@ def test_gate_withholds_unsupported_claims_unless_explicitly_speculative() -> (
     speculative = {proposed.claim}
 
     assert publication_gate([proposed]).decision is GateDecision.BLOCK
-    blocked = publication_gate(
-        [proposed, categorical], explicitly_speculative_claims=speculative
-    )
+    blocked = publication_gate([proposed, categorical], explicitly_speculative_claims=speculative)
     assert blocked.decision is GateDecision.BLOCK
     assert blocked.speculative_claims == (proposed.claim,)
 
-    allowed = publication_gate(
-        [proposed], explicitly_speculative_claims=speculative
-    )
+    allowed = publication_gate([proposed], explicitly_speculative_claims=speculative)
     assert allowed.decision is GateDecision.ALLOW
     assert allowed.speculative_claims == (proposed.claim,)
 

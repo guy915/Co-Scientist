@@ -42,9 +42,7 @@ async def _checkpoint_and_advance(
     # Unfollowed engine imports arrive as Any; assert the declared return type
     # at this boundary.
     successor: str | None = next_task_type(node_name, committed)
-    checkpoint_seq, successor_id = _save_state_and_enqueue(
-        commit, committed, successor
-    )
+    checkpoint_seq, successor_id = _save_state_and_enqueue(commit, committed, successor)
     await _emit_node_completion(
         commit.task.run_id,
         NodeCompletion(node_name, successor, checkpoint_seq),
@@ -151,9 +149,7 @@ def _mature_reflection_update(
         phase_message,
     )
 
-    state["articles"] = merge_retrieved_articles(
-        state.get("articles"), items.results
-    )
+    state["articles"] = merge_retrieved_articles(state.get("articles"), items.results)
     return {
         "hypotheses": state["hypotheses"],
         "articles": state["articles"],
@@ -166,8 +162,7 @@ def _mature_reflection_update(
         ),
         "messages": phase_message(
             "reflection",
-            f"Completed {items.successful} mature reviews; "
-            f"{items.failed} isolated failures",
+            f"Completed {items.successful} mature reviews; {items.failed} isolated failures",
         ),
     }
 
@@ -175,9 +170,7 @@ def _mature_reflection_update(
 async def execute_mature_reflection_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    replay, state, current_seq = leased_state(
-        task, db_path, label="reflection aggregate"
-    )
+    replay, state, current_seq = leased_state(task, db_path, label="reflection aggregate")
     if replay is not None:
         return replay
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
@@ -189,9 +182,7 @@ async def execute_mature_reflection_aggregate(
     )
     from co_scientist.task_runtime import apply_task_update
 
-    committed = apply_task_update(
-        state, _mature_reflection_update(state, items)
-    )
+    committed = apply_task_update(state, _mature_reflection_update(state, items))
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
         TaskCommit(task, current_seq, db_path),
         committed,
@@ -235,18 +226,14 @@ def _completed_verification(item: Any) -> dict[str, Any] | None:
     return verification if isinstance(verification, dict) else None
 
 
-def _record_verification(
-    hypothesis: Any, verification: dict[str, Any], model_name: str
-) -> None:
+def _record_verification(hypothesis: Any, verification: dict[str, Any], model_name: str) -> None:
     from co_scientist.agents.reflection.deep_verification import (
         verification_fingerprint,
     )
 
     hypothesis.deep_verification_probes = verification.get("probes", [])
     hypothesis.deep_verification_verdict = verification.get("verdict")
-    hypothesis.deep_verification_fingerprint = verification_fingerprint(
-        hypothesis, model_name
-    )
+    hypothesis.deep_verification_fingerprint = verification_fingerprint(hypothesis, model_name)
     hypothesis.enrichments["deep_verification"] = verification
 
 
@@ -299,9 +286,7 @@ def _verification_aggregate_update(
         phase_message,
     )
 
-    state["articles"] = merge_retrieved_articles(
-        state.get("articles"), items.results
-    )
+    state["articles"] = merge_retrieved_articles(state.get("articles"), items.results)
     return {
         "hypotheses": state["hypotheses"],
         "articles": state["articles"],
@@ -311,8 +296,7 @@ def _verification_aggregate_update(
         ),
         "messages": phase_message(
             "deep_verification",
-            f"Deep-verified {items.successful} hypotheses; "
-            f"{items.failed} isolated failures",
+            f"Deep-verified {items.successful} hypotheses; {items.failed} isolated failures",
         ),
     }
 
@@ -320,9 +304,7 @@ def _verification_aggregate_update(
 async def execute_verification_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    replay, state, current_seq = leased_state(
-        task, db_path, label="verification aggregate"
-    )
+    replay, state, current_seq = leased_state(task, db_path, label="verification aggregate")
     if replay is not None:
         return replay
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
@@ -334,9 +316,7 @@ async def execute_verification_aggregate(
     )
     from co_scientist.task_runtime import apply_task_update
 
-    committed = apply_task_update(
-        state, _verification_aggregate_update(state, items)
-    )
+    committed = apply_task_update(state, _verification_aggregate_update(state, items))
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
         TaskCommit(task, current_seq, db_path), committed, "deep_verification"
     )
@@ -433,9 +413,7 @@ def _review_aggregate_update(
     return {
         "hypotheses": state["hypotheses"],
         "metrics": create_metrics_update(
-            deltas=MetricDeltas(
-                reviews=successful, llm_calls=successful + failed
-            ),
+            deltas=MetricDeltas(reviews=successful, llm_calls=successful + failed),
             model_usage=model_usage,
         ),
         "messages": phase_message(
@@ -449,9 +427,7 @@ def _review_aggregate_update(
 async def execute_review_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    replay, state, current_seq = leased_state(
-        task, db_path, label="review aggregate"
-    )
+    replay, state, current_seq = leased_state(task, db_path, label="review aggregate")
     if replay is not None:
         return replay
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
@@ -511,8 +487,7 @@ def _collect_generation_results(
             continue
         strategy = str(item.result["strategy"])
         buckets[strategy].extend(
-            Hypothesis.from_dict(payload)
-            for payload in item.result.get("hypotheses", [])
+            Hypothesis.from_dict(payload) for payload in item.result.get("hypotheses", [])
         )
         transcripts.extend(item.result.get("transcripts", []))
         llm_calls += int(item.result.get("llm_calls", 0))
@@ -570,14 +545,10 @@ async def _generation_aggregate_update(
 async def execute_generation_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    replay, state, current_seq = leased_state(
-        task, db_path, label="generation aggregate"
-    )
+    replay, state, current_seq = leased_state(task, db_path, label="generation aggregate")
     if replay is not None:
         return replay
-    items = _collect_generation_results(
-        task.inputs.get("item_task_ids", []), db_path
-    )
+    items = _collect_generation_results(task.inputs.get("item_task_ids", []), db_path)
     from co_scientist.task_runtime import apply_task_update
 
     update = await _generation_aggregate_update(task, state, items)

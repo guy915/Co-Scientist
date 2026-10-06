@@ -32,17 +32,10 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _decide_enable_literature_review(
-    opts: dict[str, Any], mcp_available: bool
-) -> bool:
-    enable_literature_review_node = opts.get(
-        "enable_literature_review_node", mcp_available
-    )
+def _decide_enable_literature_review(opts: dict[str, Any], mcp_available: bool) -> bool:
+    enable_literature_review_node = opts.get("enable_literature_review_node", mcp_available)
     if not mcp_available and enable_literature_review_node:
-        logger.warning(
-            "Literature review node requested but MCP server"
-            " unavailable - disabling"
-        )
+        logger.warning("Literature review node requested but MCP server unavailable - disabling")
         return False
     return cast(bool, enable_literature_review_node)
 
@@ -70,9 +63,7 @@ class HypothesisGenerator:
         self.evolution_max_count = evolution_max_count
         self.tournament_pairs = opts.tournament_pairs
         self.elo_k_factor = opts.elo_k_factor
-        self.literature_review_papers_count = (
-            opts.literature_review_papers_count
-        )
+        self.literature_review_papers_count = opts.literature_review_papers_count
         # Credentials stay outside checkpoints; credential-free shared cache
         # keys require BYOK bypass.
         self.api_key = opts.api_key
@@ -80,17 +71,14 @@ class HypothesisGenerator:
         _configure_cache_dir_env(opts.cache_dir)
         # Keep the provider-neutral bundled registry unless custom configuration
         # replaces it.
-        self._tool_registry = _build_tool_registry(
-            opts.tools_config, opts.disable_tools
-        )
+        self._tool_registry = _build_tool_registry(opts.tools_config, opts.disable_tools)
         self.invalidate_configuration_caches()
 
     async def prepare_task_state(
         self,
         research_goal: str,
         *,
-        progress_callback: None
-        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        progress_callback: None | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
     ) -> WorkflowState:
@@ -111,9 +99,7 @@ class HypothesisGenerator:
             user_inputs=user_inputs,
         )
 
-    async def _resolve_generation_settings(
-        self, opts: dict[str, Any]
-    ) -> RunCapabilities:
+    async def _resolve_generation_settings(self, opts: dict[str, Any]) -> RunCapabilities:
         (
             mcp_available,
             pubmed_available,
@@ -130,17 +116,11 @@ class HypothesisGenerator:
             mcp_available=mcp_available,
             pubmed_available=pubmed_available,
             enable_tool_calling_generation=enable_tool_calling,
-            enable_simulation_execution=_resolve_simulation_execution(
-                opts, self.model_name
-            ),
-            enable_overview_review=_resolve_overview_review(
-                opts, self.supervisor_model_name
-            ),
+            enable_simulation_execution=_resolve_simulation_execution(opts, self.model_name),
+            enable_overview_review=_resolve_overview_review(opts, self.supervisor_model_name),
             research_tier=_resolve_research_tier(opts, mcp_available),
             enable_meta_review=_resolve_meta_review(opts),
-            generation_strategy=_resolve_generation_strategy(
-                opts, enable_tool_calling
-            ),
+            generation_strategy=_resolve_generation_strategy(opts, enable_tool_calling),
             dev_test_lit_tools_isolation=_resolve_dev_isolation_flag(opts),
             dev_mode=_resolve_dev_mode_flag(opts),
         )
@@ -155,9 +135,7 @@ class HypothesisGenerator:
             "evolution_max_count": self.evolution_max_count,
             "tournament_pairs": self.tournament_pairs,
             "elo_k_factor": self.elo_k_factor,
-            "literature_review_papers_count": (
-                self.literature_review_papers_count
-            ),
+            "literature_review_papers_count": (self.literature_review_papers_count),
             "budget": self.budget,
             "tool_registry": self._tool_registry,
         }
@@ -169,10 +147,7 @@ class HypothesisGenerator:
     async def _check_cached_availability(self) -> tuple[bool, bool]:
         # Availability flags are always set together, so knowing either
         # establishes both.
-        if (
-            self._mcp_available is not None
-            and self._pubmed_available is not None
-        ):
+        if self._mcp_available is not None and self._pubmed_available is not None:
             return self._mcp_available, self._pubmed_available
 
         from co_scientist.mcp_client import (
@@ -182,9 +157,7 @@ class HypothesisGenerator:
 
         mcp_available, pubmed_available = await asyncio.gather(
             check_mcp_available(tool_registry=self._tool_registry),
-            check_literature_source_available(
-                tool_registry=self._tool_registry
-            ),
+            check_literature_source_available(tool_registry=self._tool_registry),
         )
         self._mcp_available = mcp_available
         self._pubmed_available = pubmed_available
@@ -202,9 +175,7 @@ class HypothesisGenerator:
             pubmed_available,
         ) = await self._check_cached_availability()
 
-        enable_literature_review_node = _decide_enable_literature_review(
-            opts, mcp_available
-        )
+        enable_literature_review_node = _decide_enable_literature_review(opts, mcp_available)
         return mcp_available, pubmed_available, enable_literature_review_node
 
     def invalidate_configuration_caches(self) -> None:

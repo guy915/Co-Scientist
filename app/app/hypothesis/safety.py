@@ -31,9 +31,7 @@ def is_resolvable_hold(review: SafetyReview) -> bool:
     """Only the Tier B resolver sets needs_context; no model output may
     route a certain Tier A verdict through this gate.
     """
-    return bool(review.needs_context) and (
-        review.outcome == SafetyOutcome.UNCERTAIN
-    )
+    return bool(review.needs_context) and (review.outcome == SafetyOutcome.UNCERTAIN)
 
 
 def _cleared(review: SafetyReview) -> SafetyReview:
@@ -46,9 +44,7 @@ def _cleared(review: SafetyReview) -> SafetyReview:
     )
 
 
-def _raised(
-    review: SafetyReview, reason: str, matches: tuple[str, ...]
-) -> SafetyReview:
+def _raised(review: SafetyReview, reason: str, matches: tuple[str, ...]) -> SafetyReview:
     return SafetyReview(
         SafetyOutcome.PROHIBITED,
         reason,
@@ -72,17 +68,14 @@ async def resolve_hold(
         return review
     import app.safety as app_safety
 
-    decision = await app_safety.assess_hold_contextually(
-        run_id, text, _STAGE, db_path=db_path
-    )
+    decision = await app_safety.assess_hold_contextually(run_id, text, _STAGE, db_path=db_path)
     if decision is None:
         return review
     if decision.decision == "block":
         return _raised(review, decision.reason, tuple(decision.matches))
     if decision.decision == "allow":
         logger.info(
-            "Contextual assessment cleared a held hypothesis in run %s "
-            "(category term %s).",
+            "Contextual assessment cleared a held hypothesis in run %s (category term %s).",
             run_id,
             ", ".join(review.matches) or "unrecorded",
         )
@@ -180,12 +173,8 @@ def escalate_held_hypotheses(
     def _escalate_one(item: HeldHypothesis) -> EscalatedVerdict:
         return _escalate_one_on_worker_thread(item, run_id, db_path)
 
-    with ThreadPoolExecutor(
-        max_workers=min(_ESCALATION_CONCURRENCY, len(held))
-    ) as pool:
-        futures = [
-            pool.submit(propagate_context(_escalate_one), item) for item in held
-        ]
+    with ThreadPoolExecutor(max_workers=min(_ESCALATION_CONCURRENCY, len(held))) as pool:
+        futures = [pool.submit(propagate_context(_escalate_one), item) for item in held]
         return [future.result() for future in futures]
 
 

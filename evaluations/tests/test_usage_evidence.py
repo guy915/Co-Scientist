@@ -130,9 +130,7 @@ def test_unknown_or_overclaimed_usage_cannot_be_a_complete_zero_estimate(
 _ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize(
-    "panel", ["usefulness", "citation", "elo", "citation_failure"]
-)
+@pytest.mark.parametrize("panel", ["usefulness", "citation", "elo", "citation_failure"])
 def test_panel_artifact_records_served_model_and_unknown_price(
     tmp_path: Path,
     panel: str,
@@ -246,9 +244,7 @@ def test_offline_panels_do_not_claim_live_usage() -> None:
 
     reports = [
         citation_eval.run(),
-        citation_usefulness_eval.run_deterministic(
-            {"name": "empty", "items": []}
-        ),
+        citation_usefulness_eval.run_deterministic({"name": "empty", "items": []}),
         elo_concordance_eval.run(use_llm=False),
     ]
     for report in reports:
@@ -256,10 +252,7 @@ def test_offline_panels_do_not_claim_live_usage() -> None:
         assert report["evaluation_identity"]["execution_mode"] == "offline"
         assert report["execution_mode"] == "offline"
         assert report["usage_evidence"] is None
-    assert all(
-        result["execution_mode"] == "offline"
-        for result in reports[-1]["results"].values()
-    )
+    assert all(result["execution_mode"] == "offline" for result in reports[-1]["results"].values())
 
 
 @pytest.mark.parametrize(
@@ -271,9 +264,7 @@ def test_offline_panels_do_not_claim_live_usage() -> None:
         'citation_usefulness_eval.run_llm({}, "deepseek/paid")',
     ],
 )
-def test_panels_reject_implicit_models_before_judging(
-    tmp_path: Path, invocation: str
-) -> None:
+def test_panels_reject_implicit_models_before_judging(tmp_path: Path, invocation: str) -> None:
     module = invocation.split(".", 1)[0]
     script = f"""
 import sys

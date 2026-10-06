@@ -67,9 +67,7 @@ def read_trace(cache_root: Path, slug: str, run_id: str) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(text))
 
 
-def install_entrez(
-    monkeypatch: pytest.MonkeyPatch, **requests: Callable[..., Any]
-) -> None:
+def install_entrez(monkeypatch: pytest.MonkeyPatch, **requests: Callable[..., Any]) -> None:
     # Keep Entrez callback names for trace attribution while bypassing waits.
     monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
     for name, request in requests.items():
@@ -84,9 +82,7 @@ def pubmed_article(paper_id: str) -> dict[str, Any]:
                 "MedlineCitation": {
                     "Article": {
                         "ArticleTitle": f"Paper {paper_id}",
-                        "Abstract": {
-                            "AbstractText": ["A real-shaped abstract."]
-                        },
+                        "Abstract": {"AbstractText": ["A real-shaped abstract."]},
                         "Journal": {"Title": "Example Journal"},
                         "AuthorList": [{"LastName": "Smith", "ForeName": "A"}],
                         "PublicationTypeList": ["Journal Article"],
@@ -110,9 +106,7 @@ def seed_shared_pool(cache_root: Path, slug: str, paper_id: str) -> Path:
         "publication": "Example Journal",
         "pmc_full_text_id": f"PMC{paper_id}",
     }
-    (shared_dir / f"{paper_id}.metadata.json").write_text(
-        json.dumps(metadata), encoding="utf-8"
-    )
+    (shared_dir / f"{paper_id}.metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
     (shared_dir / f"PMC{paper_id}.fulltext.html").write_text(
         "<html><body>Cached full text.</body></html>", encoding="utf-8"
     )
@@ -138,9 +132,7 @@ def raising(error: Exception) -> Callable[..., NoReturn]:
     return request
 
 
-def install_fake_entrez(
-    monkeypatch: pytest.MonkeyPatch, ids: list[str]
-) -> list[dict[str, Any]]:
+def install_fake_entrez(monkeypatch: pytest.MonkeyPatch, ids: list[str]) -> list[dict[str, Any]]:
     esearch_calls: list[dict[str, Any]] = []
 
     def esearch(**kwargs: Any) -> CannedEntrezHandle:

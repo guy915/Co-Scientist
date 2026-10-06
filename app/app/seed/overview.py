@@ -143,24 +143,18 @@ def full_review_row(scenario_key: str, index: int) -> tuple[str, str, str]:
     go_no_go, time_to_verdict = _FULL_REVIEWS[scenario_key][index]
     summary = "Full review verdict: sound"
     critique = f"Justification: {go_no_go}\nTime to verdict: {time_to_verdict}"
-    detail = json.dumps(
-        {"go_no_go": go_no_go, "time_to_verdict": time_to_verdict}
-    )
+    detail = json.dumps({"go_no_go": go_no_go, "time_to_verdict": time_to_verdict})
     return summary, critique, detail
 
 
-def simulation_review_row(
-    scenario_key: str, index: int
-) -> tuple[str, str, str]:
+def simulation_review_row(scenario_key: str, index: int) -> tuple[str, str, str]:
     failure_points, decisive_step = _SIMULATION_REVIEWS[scenario_key][index]
     summary = "Simulation review verdict: holds"
     critique = "\n".join(
         [f"Failure point: {point}" for point in failure_points]
         + [f"Decisive step: {decisive_step}"]
     )
-    detail = json.dumps(
-        {"failure_points": list(failure_points), "decisive_step": decisive_step}
-    )
+    detail = json.dumps({"failure_points": list(failure_points), "decisive_step": decisive_step})
     return summary, critique, detail
 
 
@@ -324,21 +318,17 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
         axes=("Perturbation target", "Assay readiness"),
         idea_values=(
             (
-                "Whole-biofilm metabolic state, raised transiently before "
-                "vancomycin exposure.",
+                "Whole-biofilm metabolic state, raised transiently before vancomycin exposure.",
                 "Standard, immediately deployable assays (CFU, ATP, biomass).",
             ),
             (
-                "MazEF toxin-antitoxin transcriptional state in the "
-                "surviving subpopulation.",
+                "MazEF toxin-antitoxin transcriptional state in the surviving subpopulation.",
                 "Needs new time-resolved RNA profiling and a validated "
                 "reporter before causality can be tested.",
             ),
             (
-                "Spatial nutrient/oxygen microgradient within an intact "
-                "biofilm's matrix.",
-                "Needs a new spatial mapping readout before any "
-                "intervention can be tested.",
+                "Spatial nutrient/oxygen microgradient within an intact biofilm's matrix.",
+                "Needs a new spatial mapping readout before any intervention can be tested.",
             ),
         ),
         existing_summary=(
@@ -387,14 +377,12 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
                 "adult behavioral readout.",
             ),
             (
-                "Molecular: a complement-associated tag on individual "
-                "synapses.",
+                "Molecular: a complement-associated tag on individual synapses.",
                 "Correlative unless paired with a cell-type-specific "
                 "manipulation, which the review already flags as needed.",
             ),
             (
-                "Circuit: population-level prefrontal synchrony during a "
-                "rule-shift task.",
+                "Circuit: population-level prefrontal synchrony during a rule-shift task.",
                 "Indirect -- an intermediate readout that still needs the "
                 "imaging/behavior pipeline to establish mediation.",
             ),
@@ -413,8 +401,7 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
         axes=("Biomarker for stratification", "Translational readiness"),
         idea_values=(
             (
-                "CPEB1 status (loss-of-function), gating an NRF2 redox-"
-                "buffering program.",
+                "CPEB1 status (loss-of-function), gating an NRF2 redox-buffering program.",
                 "A rescue arm is already designed in; still needs "
                 "confirmation the observed killing is ferroptotic, not a "
                 "generic stress response.",
@@ -425,8 +412,7 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
                 "be tested before this reads as a clean subgroup effect.",
             ),
             (
-                "Early (2-72h) lipid-peroxidation kinetics, not a static "
-                "marker.",
+                "Early (2-72h) lipid-peroxidation kinetics, not a static marker.",
                 "A de-risking predictive assay meant to pair with the "
                 "other two, not itself a therapeutic target.",
             ),
@@ -446,8 +432,7 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
                 (
                     "No -- efficacy is limited by an unaddressed anti-"
                     "ferroptotic buffering program.",
-                    "Unselected -- given regardless of CPEB1, ARID3A, or "
-                    "GPX4 status.",
+                    "Unselected -- given regardless of CPEB1, ARID3A, or GPX4 status.",
                 ),
             ),
             (
@@ -455,8 +440,7 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
                 (
                     "No -- targets proliferation broadly rather than the "
                     "redox-buffering mechanism these hypotheses target.",
-                    "Unselected, and reserved for fitter patients given "
-                    "its toxicity.",
+                    "Unselected, and reserved for fitter patients given its toxicity.",
                 ),
             ),
         ),
@@ -489,8 +473,7 @@ def _existing_solutions_comparison(table: _ComparisonTable) -> dict[str, Any]:
         "summary": table.existing_summary,
         "axes": list(table.existing_axes),
         "rows": [
-            {"method": method, "values": list(values)}
-            for method, values in table.existing_rows
+            {"method": method, "values": list(values)} for method, values in table.existing_rows
         ],
     }
 
@@ -535,9 +518,7 @@ def _curated_meta_review(
         comparison_fields["existing_solutions_comparison"] = existing
     return {
         "summary": scenario.meta_review,
-        "main_research_directions": curated_main_research_directions(
-            scenario_key(scenario)
-        ),
+        "main_research_directions": curated_main_research_directions(scenario_key(scenario)),
         "common_strengths": _COMMON_STRENGTHS,
         "common_weaknesses": _COMMON_WEAKNESSES,
         "emerging_themes": _EMERGING_THEMES,
@@ -704,11 +685,7 @@ def _overview_knowledge_base(
             "uncertainty": item.review,
             "references": [
                 {"title": evidence[item.evidence_index].title},
-                {
-                    "title": evidence[
-                        (item.evidence_index + 1) % len(evidence)
-                    ].title
-                },
+                {"title": evidence[(item.evidence_index + 1) % len(evidence)].title},
             ],
         }
         for item in hypotheses[:6]
@@ -850,13 +827,9 @@ def _curated_research_overview(
         },
         "nih_specific_aims": _overview_nih_aims(top),
         "research_contacts": _overview_contacts(evidence, top, directions),
-        "research_contact_groups": _overview_contact_groups(
-            top, directions, ids
-        ),
+        "research_contact_groups": _overview_contact_groups(top, directions, ids),
         "knowledge_base": _overview_knowledge_base(evidence, hypotheses),
-        "unexpected_research_directions": curated_unexpected_directions(
-            scenario_key(scenario)
-        ),
+        "unexpected_research_directions": curated_unexpected_directions(scenario_key(scenario)),
     }
 
 

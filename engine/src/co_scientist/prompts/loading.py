@@ -16,9 +16,7 @@ _PROMPTS_DIR = Path(__file__).parent / "templates"
 _VARIABLE_PATTERN = re.compile(r"\{\{([^}]+)\}\}")
 
 
-def load_prompt(
-    prompt_name: str, variables: dict[str, Any] | None = None
-) -> str:
+def load_prompt(prompt_name: str, variables: dict[str, Any] | None = None) -> str:
     prompt_template = _read_prompt_template(prompt_name)
 
     if variables:

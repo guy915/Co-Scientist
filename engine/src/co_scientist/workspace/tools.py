@@ -73,9 +73,7 @@ class _ToolContext:
     recorder: OutputRecorder
 
 
-async def _handle_apply_patch(
-    context: "_ToolContext", args: dict[str, Any]
-) -> dict[str, Any]:
+async def _handle_apply_patch(context: "_ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     session = context.session
     patch_text = args.get("patch")
     if not isinstance(patch_text, str) or not patch_text.strip():
@@ -85,21 +83,15 @@ async def _handle_apply_patch(
     outcome = await asyncio.to_thread(session.apply_patch_text, patch_text)
     payload: dict[str, Any] = {
         "changed": list(outcome.changed),
-        "match_rungs": {
-            path: list(rungs) for path, rungs in outcome.rungs.items()
-        },
+        "match_rungs": {path: list(rungs) for path, rungs in outcome.rungs.items()},
     }
-    findings = await asyncio.to_thread(
-        check_paths, session.root, outcome.changed
-    )
+    findings = await asyncio.to_thread(check_paths, session.root, outcome.changed)
     if findings:
         payload["problems"] = [finding.as_dict() for finding in findings]
     return payload
 
 
-async def _handle_read_file(
-    context: "_ToolContext", args: dict[str, Any]
-) -> dict[str, Any]:
+async def _handle_read_file(context: "_ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Files can contain command output; redaction here prevents bypassing
     stdout protection.
     """
@@ -120,9 +112,7 @@ async def _handle_read_file(
     return payload
 
 
-async def _handle_write_file(
-    context: "_ToolContext", args: dict[str, Any]
-) -> dict[str, Any]:
+async def _handle_write_file(context: "_ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Whole-file writes must run the same safety scan as patches to avoid
     bypassing it.
     """
@@ -134,17 +124,13 @@ async def _handle_write_file(
         raise WorkspaceToolInputError("content must be a string")
     await asyncio.to_thread(context.session.write_file, path, content)
     payload: dict[str, Any] = {"path": path, "bytes": len(content.encode())}
-    findings = await asyncio.to_thread(
-        check_paths, context.session.root, [path]
-    )
+    findings = await asyncio.to_thread(check_paths, context.session.root, [path])
     if findings:
         payload["problems"] = [finding.as_dict() for finding in findings]
     return payload
 
 
-async def _handle_list_files(
-    context: "_ToolContext", args: dict[str, Any]
-) -> dict[str, Any]:
+async def _handle_list_files(context: "_ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     del args
     files = await asyncio.to_thread(context.session.list_files)
     return {"files": list(files)}
@@ -171,9 +157,7 @@ def _resolve_seconds(raw: Any, default: float, floor: float = 0.0) -> float:
 
 
 def _resolve_yield(args: dict[str, Any]) -> float:
-    return _resolve_seconds(
-        args.get("yield_seconds"), DEFAULT_YIELD_SECONDS, floor=0.001
-    )
+    return _resolve_seconds(args.get("yield_seconds"), DEFAULT_YIELD_SECONDS, floor=0.001)
 
 
 def _resolve_wait(args: dict[str, Any]) -> float:
@@ -190,9 +174,7 @@ def _full_output_paths(
     }
 
 
-def _session_payload(
-    context: "_ToolContext", read: SessionRead
-) -> dict[str, Any]:
+def _session_payload(context: "_ToolContext", read: SessionRead) -> dict[str, Any]:
     """A running command is a successful session response; poll it rather than
     restarting.
     """
@@ -208,8 +190,7 @@ def _session_payload(
         "stderr": streams["stderr"].text,
         "cursor": read.cursor,
         "truncated": {
-            name: bounded.truncated or read.truncated[name]
-            for name, bounded in streams.items()
+            name: bounded.truncated or read.truncated[name] for name, bounded in streams.items()
         },
     }
     spilled = _full_output_paths(streams)
@@ -218,9 +199,7 @@ def _session_payload(
     return payload
 
 
-async def _handle_run_command(
-    context: "_ToolContext", args: dict[str, Any]
-) -> dict[str, Any]:
+async def _handle_run_command(context: "_ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Sessions preserve long-running work beyond the initial wait instead of
     killing it.
     """
@@ -228,9 +207,7 @@ async def _handle_run_command(
     # Inject credentials only into recognized skill scripts, never arbitrary
     # network-capable model programs.
     skill = (
-        invoked_skill(argv)
-        if context.session.skills_enabled and not campaign_free_mode()
-        else None
+        invoked_skill(argv) if context.session.skills_enabled and not campaign_free_mode() else None
     )
     if skill is not None:
         # Attribution is per data source; run_command alone cannot identify the
@@ -249,9 +226,7 @@ async def _handle_run_command(
     return payload
 
 
-def _named_session(
-    context: "_ToolContext", args: dict[str, Any]
-) -> CommandSession:
+def _named_session(context: "_ToolContext", args: dict[str, Any]) -> CommandSession:
     session_id = args.get("session_id")
     if not isinstance(session_id, str) or not session_id:
         raise WorkspaceToolInputError("session_id must be a string")
@@ -275,9 +250,7 @@ async def _send_input(session: CommandSession, args: dict[str, Any]) -> None:
         raise WorkspaceToolInputError(str(exc)) from None
 
 
-async def _handle_poll_command(
-    context: "_ToolContext", args: dict[str, Any]
-) -> dict[str, Any]:
+async def _handle_poll_command(context: "_ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     session = _named_session(context, args)
     await _send_input(session, args)
     if args.get("kill"):
@@ -327,17 +300,13 @@ def workspace_tool_schemas(
     # actually run.
     skills = (
         available_skills()
-        if skills_enabled
-        and not campaign_free_mode()
-        and can_run_commands(policy)
+        if skills_enabled and not campaign_free_mode() and can_run_commands(policy)
         else ()
     )
     if skills:
         schemas.append(read_skill_schema(tuple(s.name for s in skills)))
     if can_run_commands(policy):
-        schemas.insert(
-            0, run_command_schema(network_allowed=policy.allows_network)
-        )
+        schemas.insert(0, run_command_schema(network_allowed=policy.allows_network))
         schemas.insert(1, poll_command_schema())
     else:
         logger.warning(
@@ -348,9 +317,7 @@ def workspace_tool_schemas(
     return schemas
 
 
-async def _handle_read_skill(
-    context: "_ToolContext", args: dict[str, Any]
-) -> dict[str, Any]:
+async def _handle_read_skill(context: "_ToolContext", args: dict[str, Any]) -> dict[str, Any]:
     """Bundled instructions contain no command-injected secrets; do not
     truncate or redact them.
     """
@@ -369,9 +336,7 @@ async def _handle_read_skill(
                 "to the skill directory, as its own document writes it"
             )
         available = ", ".join(skill.name for skill in available_skills())
-        raise WorkspaceToolInputError(
-            f"no skill named {name!r}; available skills: {available}"
-        )
+        raise WorkspaceToolInputError(f"no skill named {name!r}; available skills: {available}")
     return {"name": name, "path": path or "SKILL.md", "instructions": document}
 
 
@@ -394,9 +359,7 @@ def _parse_arguments(raw: Any) -> dict[str, Any]:
     try:
         parsed = json.loads(raw)
     except (TypeError, ValueError) as exc:
-        raise WorkspaceToolInputError(
-            f"arguments were not valid JSON: {exc}"
-        ) from exc
+        raise WorkspaceToolInputError(f"arguments were not valid JSON: {exc}") from exc
     if not isinstance(parsed, dict):
         raise WorkspaceToolInputError("arguments must be a JSON object")
     return parsed
@@ -438,9 +401,7 @@ class WorkspaceToolProvider:
     def get_tools(self) -> tuple[set[str], list[dict[str, Any]]]:
         return set(self._names), self._schemas()
 
-    def merge_tools(
-        self, mcp_tools: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def merge_tools(self, mcp_tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         kept = []
         for schema in mcp_tools:
             name = schema.get("function", {}).get("name")
@@ -460,33 +421,23 @@ class WorkspaceToolProvider:
         """
         name = tool_call.function.name
         if name == READ_SKILL and campaign_free_mode():
-            return tool_error_message(
-                name, tool_call.id, "skills are unavailable in campaign mode"
-            )
+            return tool_error_message(name, tool_call.id, "skills are unavailable in campaign mode")
         handler = _HANDLERS.get(name) if name in self._names else None
         if handler is None:
             return await self._delegate_call(tool_call, name)
 
         try:
-            payload = await handler(
-                self._context, _parse_arguments(tool_call.function.arguments)
-            )
+            payload = await handler(self._context, _parse_arguments(tool_call.function.arguments))
         except (WorkspaceToolInputError, PatchError) as exc:
             logger.info("workspace tool %s rejected a call: %s", name, exc)
             return tool_error_message(name, tool_call.id, str(exc))
         except Exception as exc:
             logger.exception("workspace tool %s failed", name)
-            return tool_error_message(
-                name, tool_call.id, f"tool execution failed: {exc}"
-            )
+            return tool_error_message(name, tool_call.id, f"tool execution failed: {exc}")
         return tool_result_message(name, tool_call.id, payload)
 
     async def _delegate_call(self, tool_call: Any, name: str) -> dict[str, Any]:
         if self._delegate is None:
-            return tool_error_message(
-                name, tool_call.id, f"unknown tool: {name}"
-            )
-        result: dict[str, Any] = await self._delegate.execute_tool_call(
-            tool_call
-        )
+            return tool_error_message(name, tool_call.id, f"unknown tool: {name}")
+        result: dict[str, Any] = await self._delegate.execute_tool_call(tool_call)
         return result

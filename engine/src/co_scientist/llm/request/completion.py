@@ -97,9 +97,7 @@ def _apply_response_format(
     json_schema: dict[str, Any] | None,
 ) -> None:
     if json_schema:
-        _apply_schema_response_format(
-            completion_args, prompt, model_name, json_schema
-        )
+        _apply_schema_response_format(completion_args, prompt, model_name, json_schema)
     elif force_json and model_profile(model_name).json_object:
         completion_args["response_format"] = {"type": "json_object"}
 
@@ -123,9 +121,7 @@ def _apply_timeout(completion_args: dict[str, Any]) -> None:
 _TIMEOUT_GRACE_SECONDS = 30.0
 
 
-async def _acompletion_within_timeout(
-    completion_args: dict[str, Any], model_name: str
-) -> Any:
+async def _acompletion_within_timeout(completion_args: dict[str, Any], model_name: str) -> Any:
     """Cache hits bypass this seam, so telemetry here counts physical
     attempts only.
     """
@@ -140,9 +136,7 @@ async def _acompletion_within_timeout(
 
 # LiteLLM streaming/non-streaming Pydantic field mismatches produce
 # serialization warnings.
-warnings.filterwarnings(
-    "ignore", message=r".*Pydantic serializer warnings.*", category=UserWarning
-)
+warnings.filterwarnings("ignore", message=r".*Pydantic serializer warnings.*", category=UserWarning)
 
 
 def _clamp_temperature(model_name: str, temperature: float) -> float:
@@ -210,13 +204,9 @@ def _build_completion_args(
     """BYOK travels in task context, keeping request/cache arguments
     credential-free.
     """
-    completion_args = _base_completion_args(
-        prompt, model_name, max_tokens, temperature
-    )
+    completion_args = _base_completion_args(prompt, model_name, max_tokens, temperature)
 
-    _apply_response_format(
-        completion_args, prompt, model_name, shape.force_json, shape.json_schema
-    )
+    _apply_response_format(completion_args, prompt, model_name, shape.force_json, shape.json_schema)
 
     _apply_thinking_args(completion_args, model_name, shape.enable_thinking)
 

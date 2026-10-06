@@ -93,9 +93,7 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
     plan = await prepare_generation(state)
 
     try:
-        tasks = _build_generation_tasks(
-            state, plan.counts, plan.literature, plan.reference_index
-        )
+        tasks = _build_generation_tasks(state, plan.counts, plan.literature, plan.reference_index)
         gathered = await asyncio.gather(*(task for _, task in tasks))
         results = _unpack_generation_results(tasks, gathered)
         result = await finalize_generation(state, plan.counts, results)

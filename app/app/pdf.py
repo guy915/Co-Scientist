@@ -29,9 +29,7 @@ def compress_to_levels(raw: dict[_Key, _Rank]) -> dict[_Key, int]:
 # Weak bookmark matches are worse than leaving a title unmatched.
 _MATCH_THRESHOLD = 0.72
 
-_LEADING_MARKER = re.compile(
-    r"^\s*(?:\(?[0-9]+(?:\.[0-9]+)*[).]?|\(?[A-Za-z]{1,2}[).])[\s.:)\-]*"
-)
+_LEADING_MARKER = re.compile(r"^\s*(?:\(?[0-9]+(?:\.[0-9]+)*[).]?|\(?[A-Za-z]{1,2}[).])[\s.:)\-]*")
 
 
 def _norm(text: str) -> str:
@@ -63,9 +61,7 @@ def _best_match(title: str, lines: list[str], claimed: set[int]) -> int | None:
     return best_index
 
 
-def raw_bookmark_matches(
-    outline: list[tuple[str, int]], lines: list[str]
-) -> dict[int, int]:
+def raw_bookmark_matches(outline: list[tuple[str, int]], lines: list[str]) -> dict[int, int]:
     claimed: set[int] = set()
     matches: dict[int, int] = {}
     for title, depth in outline:
@@ -184,15 +180,10 @@ def _parse_marker(text: str) -> _Marker | None:
 
 
 def _has_unambiguous(markers: list[_Marker | None], family: str) -> bool:
-    return any(
-        m is not None and not m.ambiguous and m.family == family
-        for m in markers
-    )
+    return any(m is not None and not m.ambiguous and m.family == family for m in markers)
 
 
-def _resolve_one_ambiguous(
-    marker: _Marker, has_roman: bool, has_alpha: bool
-) -> None:
+def _resolve_one_ambiguous(marker: _Marker, has_roman: bool, has_alpha: bool) -> None:
     upper = marker.token is not None and marker.token.isupper()
     if has_roman and not has_alpha:
         roman = True
@@ -201,9 +192,7 @@ def _resolve_one_ambiguous(
     else:
         roman = marker.token in ("I", "i")
     marker.family = (
-        ("roman_u" if roman else "alpha_u")
-        if upper
-        else ("roman_l" if roman else "alpha_l")
+        ("roman_u" if roman else "alpha_u") if upper else ("roman_l" if roman else "alpha_l")
     )
     marker.ambiguous = False
 
@@ -349,14 +338,8 @@ def _cluster_sizes(sizes: set[float]) -> dict[float, int]:
     return clusters
 
 
-def rank_heading_styles(
-    styles: dict[int, LineStyle], body_size: float
-) -> dict[int, int]:
-    candidates = {
-        index: style
-        for index, style in styles.items()
-        if style.size > body_size
-    }
+def rank_heading_styles(styles: dict[int, LineStyle], body_size: float) -> dict[int, int]:
+    candidates = {index: style for index, style in styles.items() if style.size > body_size}
     if not candidates:
         return {}
 
@@ -373,9 +356,7 @@ def rank_heading_styles(
 _MAX_LEVEL = 3
 
 
-def _walk_outline(
-    reader: Any, items: Any, depth: int, out: list[tuple[str, int, int]]
-) -> None:
+def _walk_outline(reader: Any, items: Any, depth: int, out: list[tuple[str, int, int]]) -> None:
     for item in items:
         if isinstance(item, list):
             _walk_outline(reader, item, depth + 1, out)
@@ -404,11 +385,7 @@ def _pool_bookmark_levels(
 ) -> dict[tuple[int, int], int]:
     raw: dict[tuple[int, int], int] = {}
     for page_index, lines in enumerate(lines_per_page):
-        page_outline = [
-            (title, depth)
-            for title, depth, page in outline
-            if page == page_index
-        ]
+        page_outline = [(title, depth) for title, depth, page in outline if page == page_index]
         if not page_outline:
             continue
         matches = raw_bookmark_matches(page_outline, lines)
@@ -427,9 +404,7 @@ def _pool_numbering_levels(
         if line.strip() and len(line.strip()) <= MAX_HEADING_CHARS
     ]
     levels = infer_numbering_levels([text for *_, text in positions])
-    return {
-        (positions[i][0], positions[i][1]): level for i, level in levels.items()
-    }
+    return {(positions[i][0], positions[i][1]): level for i, level in levels.items()}
 
 
 def _pool_style_levels(
@@ -441,9 +416,7 @@ def _pool_style_levels(
         all_sizes.extend(style.size for style in styles.values())
     if not all_sizes:
         return {}
-    body_size = Counter(round(size, 1) for size in all_sizes).most_common(1)[0][
-        0
-    ]
+    body_size = Counter(round(size, 1) for size in all_sizes).most_common(1)[0][0]
     candidates = [
         ((page_index, line_index), style)
         for page_index, lines in enumerate(lines_per_page)
@@ -462,9 +435,7 @@ def _combine_levels(
     style: dict[tuple[int, int], int],
 ) -> dict[tuple[int, int], int]:
     combined = {**style, **numbering, **bookmark}
-    return {
-        key: max(1, min(level, _MAX_LEVEL)) for key, level in combined.items()
-    }
+    return {key: max(1, min(level, _MAX_LEVEL)) for key, level in combined.items()}
 
 
 def _rewrite_lines(
@@ -481,9 +452,7 @@ def _rewrite_lines(
     return pages_out
 
 
-def apply_heading_markup(
-    reader: Any, pages: list[Any], pages_text: list[str]
-) -> list[str]:
+def apply_heading_markup(reader: Any, pages: list[Any], pages_text: list[str]) -> list[str]:
     lines_per_page = [text.split("\n") for text in pages_text]
     outline = flatten_outline(reader)
     bookmark_levels = _pool_bookmark_levels(outline, lines_per_page)

@@ -79,9 +79,7 @@ def test_claim_provider_records_only_deterministic_substitution(
         )
     assert result.label is EntailmentLabel.SUPPORTS
     row = usage.snapshot()["claims::deepseek/deepseek-chat"]
-    assert row["deterministic_fallbacks"] == (
-        {"claim_single": 1} if failure else {}
-    )
+    assert row["deterministic_fallbacks"] == ({"claim_single": 1} if failure else {})
 
 
 @pytest.mark.parametrize("has_evidence", [True, False])
@@ -110,11 +108,7 @@ def test_batch_fallback_counts_claims_only_after_judging(
 @pytest.mark.parametrize("calls", [25, 0])
 def test_gate_telemetry_is_folded_into_the_run_metrics(calls: int) -> None:
     state: dict[str, Any] = {"metrics": ExecutionMetrics(llm_calls=7)}
-    usage = (
-        {"claim_gate::llm:test-model": {"calls": 25, "prompt_tokens": 100}}
-        if calls
-        else {}
-    )
+    usage = {"claim_gate::llm:test-model": {"calls": 25, "prompt_tokens": 100}} if calls else {}
 
     engine_tasks_gate._fold_gate_telemetry(state, usage)
 
@@ -132,8 +126,7 @@ _RELEVANT = (
     "substantially across every cohort."
 )
 _UNRELATED = (
-    "Sediment cores from the Baltic show a shift in diatom assemblages "
-    "during the mid-Holocene."
+    "Sediment cores from the Baltic show a shift in diatom assemblages during the mid-Holocene."
 )
 
 
@@ -156,9 +149,7 @@ def _gate_record(
     }
 
 
-def test_a_claim_fingerprint_tracks_only_its_own_evidence_and_assessor() -> (
-    None
-):
+def test_a_claim_fingerprint_tracks_only_its_own_evidence_and_assessor() -> None:
     record = ClaimRecord(_CLAIM, "speculative")
     relevant = as_passages([_RELEVANT])
 
@@ -175,9 +166,7 @@ def test_a_claim_fingerprint_tracks_only_its_own_evidence_and_assessor() -> (
         "protein-study",
         "H adopts native structure through a concerted transition.",
     )
-    assert (
-        claim_fingerprint(identifier_claim, [new_evidence], "llm:test") != empty
-    )
+    assert claim_fingerprint(identifier_claim, [new_evidence], "llm:test") != empty
 
 
 def test_a_stored_verdict_is_reused_only_when_its_fingerprint_matches() -> None:
@@ -188,9 +177,7 @@ def test_a_stored_verdict_is_reused_only_when_its_fingerprint_matches() -> None:
         seen.append(claim)
         return AssessorDraft(EntailmentLabel.INSUFFICIENT)
 
-    fingerprint = claim_fingerprint(
-        ClaimRecord(_OTHER, "categorical"), passages, "test-v1"
-    )
+    fingerprint = claim_fingerprint(ClaimRecord(_OTHER, "categorical"), passages, "test-v1")
     hypothesis = {"id": "h1", "statement": _CLAIM, "mechanism": _OTHER}
     spec = AssessorSpec(assessor, "test-v1")
 
@@ -198,11 +185,7 @@ def test_a_stored_verdict_is_reused_only_when_its_fingerprint_matches() -> None:
         [hypothesis],
         passages,
         spec,
-        reuse={
-            "h1": reusable_assessments(
-                _gate_record([(_OTHER, "categorical", fingerprint)])
-            )
-        },
+        reuse={"h1": reusable_assessments(_gate_record([(_OTHER, "categorical", fingerprint)]))},
     )
     assert seen == [_CLAIM]
     pairs = [(a.claim, role) for a, role in reused[0][1]]
@@ -212,9 +195,7 @@ def test_a_stored_verdict_is_reused_only_when_its_fingerprint_matches() -> None:
     seen.clear()
     assess_hypothesis_claims([hypothesis], passages, spec, reuse={})
     assert sorted(seen) == sorted([_CLAIM, _OTHER])
-    assert (
-        reusable_assessments(_gate_record([(_CLAIM, "speculative", "")])) == {}
-    )
+    assert reusable_assessments(_gate_record([(_CLAIM, "speculative", "")])) == {}
 
 
 @pytest.mark.parametrize(
@@ -224,9 +205,7 @@ def test_a_stored_verdict_is_reused_only_when_its_fingerprint_matches() -> None:
         (None, "legacy_unknown"),
     ],
 )
-def test_a_reused_verdict_keeps_its_verification_method(
-    method: str | None, expected: str
-) -> None:
+def test_a_reused_verdict_keeps_its_verification_method(method: str | None, expected: str) -> None:
     record = _gate_record([(_CLAIM, "speculative", "fixed-fingerprint")])
     if method:
         record["claims"][0]["verification_method"] = method
@@ -238,9 +217,7 @@ def test_a_reused_verdict_keeps_its_verification_method(
 
 # Hypotheses persist their claim graph; the gate decides publication from it.
 
-_CONTRADICTED = (
-    "Inhibiting kinase X reduces melanoma tumor growth in mouse models."
-)
+_CONTRADICTED = "Inhibiting kinase X reduces melanoma tumor growth in mouse models."
 _CONTRADICTING_EVIDENCE = (
     "In mouse models, inhibiting kinase X did not reduce melanoma tumor "
     "growth; there was no significant effect on tumor growth."
@@ -259,9 +236,7 @@ def test_ground_persists_graph_and_blocks_contradicted(
     isolated_db: str,
 ) -> None:
     run = seed_run("grounding goal", provider="mock")
-    bad_id = _add_categorical(
-        run.id, "Contradicted", _CONTRADICTED, isolated_db
-    )
+    bad_id = _add_categorical(run.id, "Contradicted", _CONTRADICTED, isolated_db)
     ok_id = _add(run.id, "Benign", _SUPPORTED, isolated_db)
 
     result = persist_grounding(
@@ -287,10 +262,7 @@ def test_ground_persists_graph_and_blocks_contradicted(
     assert speculative["label"] == "insufficient"
     assert speculative["claim_role"] == "speculative"
     decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
-    assert any(
-        d["stage"] == "claim_gate" and d["decision"] == "block"
-        for d in decisions
-    )
+    assert any(d["stage"] == "claim_gate" and d["decision"] == "block" for d in decisions)
 
 
 def test_unsupported_categorical_rationale_is_quarantined(
@@ -311,9 +283,7 @@ def test_unsupported_categorical_rationale_is_quarantined(
         run.id,
         assess_hypothesis_claims(
             hypotheses.list_hypotheses(run.id, db_path=isolated_db),
-            as_passages(
-                ["An unrelated passage about photosynthesis in plants."]
-            ),
+            as_passages(["An unrelated passage about photosynthesis in plants."]),
         ),
         db_path=isolated_db,
     )
@@ -356,9 +326,7 @@ def _seed_contradiction_report_run(
     return run, bad_id, ok_id
 
 
-@pytest.mark.parametrize(
-    ("categorical", "bad_reaches_the_report"), [(True, False), (False, True)]
-)
+@pytest.mark.parametrize(("categorical", "bad_reaches_the_report"), [(True, False), (False, True)])
 async def test_only_a_contradicted_established_fact_is_withheld_from_the_report(
     isolated_db: str, categorical: bool, bad_reaches_the_report: bool
 ) -> None:
@@ -385,9 +353,7 @@ async def test_speculative_insufficient_hypothesis_remains_visible(
         NewHypothesis(
             run_id=run.id,
             title="Novel proposal",
-            statement=(
-                "We hypothesize channel X may alter neuronal ATP recovery."
-            ),
+            statement=("We hypothesize channel X may alter neuronal ATP recovery."),
             mechanism="Astrocytes contribute to neuronal energy metabolism.",
         ),
         db_path=isolated_db,
@@ -420,12 +386,8 @@ async def test_speculative_insufficient_hypothesis_remains_visible(
     assert edge["label"] == "insufficient"
     report_edges = payload["claim_evidence"]
     assert {item["hypothesis_id"] for item in report_edges} == {hypothesis_id}
-    supported = next(
-        item for item in report_edges if item["label"] == "supports"
-    )
-    assert supported["supporting"][0]["source_title"] == (
-        "General energetics review"
-    )
+    supported = next(item for item in report_edges if item["label"] == "supports")
+    assert supported["supporting"][0]["source_title"] == ("General energetics review")
     assert "**Supported · categorical**" in markdown
     assert "**Speculative — evidence insufficient · speculative**" in markdown
 
@@ -500,9 +462,7 @@ def test_ground_with_llm_assessor_persists_provenance(
             title="Kinase X melanoma study",
             source="pubmed",
             url="https://example.org/ev",
-            abstract=(
-                "Kinase X inhibition reduces melanoma tumor growth markedly."
-            ),
+            abstract=("Kinase X inhibition reduces melanoma tumor growth markedly."),
         ),
         db_path=isolated_db,
     )
@@ -582,22 +542,15 @@ def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
             active -= 1
         return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
 
-    hyps = [
-        {"id": f"h{i}", "title": f"H{i}", "statement": _SUPPORTED}
-        for i in range(8)
-    ]
+    hyps = [{"id": f"h{i}", "title": f"H{i}", "statement": _SUPPORTED} for i in range(8)]
     from app.claims.grounding import AssessorSpec
 
-    assess_hypothesis_claims(
-        hyps, as_passages([_SUPPORTED]), AssessorSpec(_slow_assessor)
-    )
+    assess_hypothesis_claims(hyps, as_passages([_SUPPORTED]), AssessorSpec(_slow_assessor))
 
     assert peak > 1, f"claims were assessed serially (peak concurrency {peak})"
 
 
-@pytest.mark.parametrize(
-    ("hypothesis_count", "claims_each", "calls"), [(13, 17, 13), (1, 25, 2)]
-)
+@pytest.mark.parametrize(("hypothesis_count", "claims_each", "calls"), [(13, 17, 13), (1, 25, 2)])
 def test_batch_assessor_costs_one_call_per_hypothesis_and_splits_dense_ones(
     hypothesis_count: int, claims_each: int, calls: int
 ) -> None:
@@ -608,12 +561,10 @@ def test_batch_assessor_costs_one_call_per_hypothesis_and_splits_dense_ones(
         return [AssessorDraft(label=EntailmentLabel.INSUFFICIENT)] * len(claims)
 
     statement = " ".join(
-        f"Claim number {i} about a dietary change improving outcomes."
-        for i in range(claims_each)
+        f"Claim number {i} about a dietary change improving outcomes." for i in range(claims_each)
     )
     hyps = [
-        {"id": f"h{i}", "title": f"H{i}", "statement": statement}
-        for i in range(hypothesis_count)
+        {"id": f"h{i}", "title": f"H{i}", "statement": statement} for i in range(hypothesis_count)
     ]
 
     assessed = assess_hypothesis_claims(
@@ -623,6 +574,4 @@ def test_batch_assessor_costs_one_call_per_hypothesis_and_splits_dense_ones(
     )
 
     assert len(seen) == calls
-    assert [len(claims) for _, claims in assessed] == [
-        claims_each
-    ] * hypothesis_count
+    assert [len(claims) for _, claims in assessed] == [claims_each] * hypothesis_count

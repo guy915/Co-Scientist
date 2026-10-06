@@ -23,9 +23,7 @@ def _clear_metrics_cache() -> None:
 
 
 def _families(text: str) -> dict[str, Any]:
-    return {
-        family.name: family for family in text_string_to_metric_families(text)
-    }
+    return {family.name: family for family in text_string_to_metric_families(text)}
 
 
 def _make_run(db_path: str, status: RunStatus = RunStatus.COMPLETED) -> str:
@@ -34,9 +32,7 @@ def _make_run(db_path: str, status: RunStatus = RunStatus.COMPLETED) -> str:
     return run.id
 
 
-def _enqueue(
-    run_id: str, key: str, db_path: str, task_type: str = "engine.node.x"
-) -> str:
+def _enqueue(run_id: str, key: str, db_path: str, task_type: str = "engine.node.x") -> str:
     task = enqueue_task(run_id, task_type, key, db_path=db_path)
     return task.id
 

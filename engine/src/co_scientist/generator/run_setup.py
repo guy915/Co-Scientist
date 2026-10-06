@@ -47,21 +47,14 @@ def _resolve_meta_review(opts: dict[str, Any]) -> bool:
     return opts.get("enable_meta_review", True) is not False
 
 
-def _resolve_generation_strategy(
-    opts: dict[str, Any], enable_tool_calling_generation: bool
-) -> str:
+def _resolve_generation_strategy(opts: dict[str, Any], enable_tool_calling_generation: bool) -> str:
     """Forced tool strategies need a real tool loop; unavailable prerequisites
     must fail.
     """
     requested = opts.get("generation_strategy")
-    if not isinstance(requested, str) or requested not in (
-        GENERATION_STRATEGY_LABELS
-    ):
+    if not isinstance(requested, str) or requested not in (GENERATION_STRATEGY_LABELS):
         return ""
-    if (
-        requested in TOOLS_REQUIRING_STRATEGIES
-        and not enable_tool_calling_generation
-    ):
+    if requested in TOOLS_REQUIRING_STRATEGIES and not enable_tool_calling_generation:
         logger.warning(
             "generation_strategy=%s requires tool-calling generation, which"
             " is off for this run - deriving the strategy instead",
@@ -93,14 +86,10 @@ def _resolve_tool_calling_generation(
             )
         return False
 
-    return _resolve_tool_calling_given_mcp_available(
-        opts, enable_literature_review_node, requested
-    )
+    return _resolve_tool_calling_given_mcp_available(opts, enable_literature_review_node, requested)
 
 
-def _resolve_simulation_execution(
-    opts: dict[str, Any], model_name: str
-) -> bool:
+def _resolve_simulation_execution(opts: dict[str, Any], model_name: str) -> bool:
     """Confinement availability belongs to the executing worker and is checked
     at point of use.
     """
@@ -149,9 +138,7 @@ def _resolve_research_tier(opts: dict[str, Any], mcp_available: bool) -> str:
     return requested
 
 
-def _tool_calling_disabled_before_availability(
-    requested: bool | None, model_name: str
-) -> bool:
+def _tool_calling_disabled_before_availability(requested: bool | None, model_name: str) -> bool:
     """Offline responders never emit tool calls; explicit opt-outs avoid
     availability probes.
     """
@@ -218,8 +205,7 @@ def _resolve_dev_isolation_flag(opts: dict[str, Any]) -> bool:
     enabled = bool(opts.get("dev_test_lit_tools_isolation", False))
     if enabled:
         logger.info(
-            "Dev isolation mode enabled: forcing lit review cache"
-            " + all hypotheses to lit tools"
+            "Dev isolation mode enabled: forcing lit review cache + all hypotheses to lit tools"
         )
     return enabled
 
@@ -233,9 +219,7 @@ def _resolve_dev_mode_flag(opts: dict[str, Any]) -> bool:
         requested = parse_bool_env(os.getenv("COSCIENTIST_DEV_MODE", "false"))
     enabled = bool(requested)
     if enabled:
-        logger.info(
-            "Dev mode enabled: using the reduced literature-review budget"
-        )
+        logger.info("Dev mode enabled: using the reduced literature-review budget")
     return enabled
 
 

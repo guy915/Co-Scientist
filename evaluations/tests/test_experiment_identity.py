@@ -28,18 +28,14 @@ def _persist(
     db = str(tmp_path / "arms.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
     invocation = _run_driver.ArmInvocation("comparison-test", "offline", db)
-    run_id = _run_driver.persist_arm_run(
-        goal, tier, overrides or {}, invocation
-    )
+    run_id = _run_driver.persist_arm_run(goal, tier, overrides or {}, invocation)
     return run_id, db
 
 
 def _identity(run_id: str, db: str) -> dict[str, Any]:
     from app.store import runs
 
-    identity: dict[str, Any] = runs.get_run(run_id, db_path=db).config[
-        "evaluation_identity"
-    ]
+    identity: dict[str, Any] = runs.get_run(run_id, db_path=db).config["evaluation_identity"]
     return identity
 
 
@@ -104,9 +100,7 @@ def test_model_and_fallback_changes_change_persisted_identity(
     import co_scientist.llm.profile as routes
     from app.config import settings
 
-    monkeypatch.setattr(
-        settings, "model_name", "openrouter/minimax/minimax-m3:free"
-    )
+    monkeypatch.setattr(settings, "model_name", "openrouter/minimax/minimax-m3:free")
     original = _identity(*_persist(tmp_path))
     model = settings.model_name
     declared = routes.ROUTES[model]
@@ -120,9 +114,7 @@ def test_model_and_fallback_changes_change_persisted_identity(
     assert changed_model["goal_sha256"] == original["goal_sha256"]
 
 
-def test_identity_refuses_an_enabled_cache(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_identity_refuses_an_enabled_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     db = str(tmp_path / "arms.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "1")
@@ -176,9 +168,7 @@ def test_worker_drift_cannot_produce_an_arm_result(
 
     async def changed_worker(run_id: str, *args: Any, **kwargs: Any) -> None:
         if fault == "model":
-            monkeypatch.setattr(
-                settings, "model_name", "openrouter/changed:free"
-            )
+            monkeypatch.setattr(settings, "model_name", "openrouter/changed:free")
             return
         config = runs.get_run(run_id, db_path=db).config
         if fault == "config":
@@ -219,9 +209,7 @@ def _record(tmp_path: Path, goal: str = "Public goal", **extra: Any) -> Any:
     }
 
 
-def _run_cli(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, key: str, records: Any
-) -> int:
+def _run_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, key: str, records: Any) -> int:
     path = tmp_path / "records.json"
     path.write_text(json.dumps({key: records}))
     monkeypatch.setattr("sys.argv", ["scaling_eval", str(path)])
@@ -347,20 +335,14 @@ def _changed_panel(report: dict[str, Any], change: str) -> dict[str, Any]:
     if change == "mode":
         candidate["execution_mode"] = "live_requested"
     if change in ("kind", "incomplete"):
-        changes: dict[str, Any] = (
-            {"kind": "arm"} if change == "kind" else {"dataset": None}
-        )
+        changes: dict[str, Any] = {"kind": "arm"} if change == "kind" else {"dataset": None}
         _reseal(report, **changes)
         _reseal(candidate, **changes)
     return candidate
 
 
-@pytest.mark.parametrize(
-    "change", ["none", "dataset", "missing", "mode", "kind", "incomplete"]
-)
-def test_panel_comparison_requires_matched_declared_inputs(
-    tmp_path: Path, change: str
-) -> None:
+@pytest.mark.parametrize("change", ["none", "dataset", "missing", "mode", "kind", "incomplete"])
+def test_panel_comparison_requires_matched_declared_inputs(tmp_path: Path, change: str) -> None:
     report = run_deterministic({"name": "frozen", "items": []})
     candidate = _changed_panel(report, change)
     paths = [tmp_path / "baseline.json", tmp_path / "candidate.json"]
@@ -385,9 +367,7 @@ def test_panel_comparison_requires_matched_declared_inputs(
         assert "ValueError" in result.stderr
 
 
-def test_provenance_records_source_and_prompts_and_passes_inputs_through() -> (
-    None
-):
+def test_provenance_records_source_and_prompts_and_passes_inputs_through() -> None:
     provenance = _artifacts.build_provenance(
         model="offline/test-model", seed="42", cost={"total_usd": 0.01}
     )

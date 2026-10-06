@@ -47,9 +47,7 @@ def _criterion_display_line(item: Any) -> str:
 def criteria_display_strings(raw_values: Any) -> list[str]:
     if not isinstance(raw_values, list):
         return []
-    return [
-        line for item in raw_values if (line := _criterion_display_line(item))
-    ]
+    return [line for item in raw_values if (line := _criterion_display_line(item))]
 
 
 def _default_criteria() -> list[dict[str, str]]:
@@ -144,9 +142,7 @@ def _join_with_or(values: list[str]) -> str:
 
 
 def _scaled_display_line(name: str, scale: dict[str, str]) -> str:
-    anchors = ", ".join(
-        f"{point}: {scale[point]}" for point in _SCALE_POINTS if point in scale
-    )
+    anchors = ", ".join(f"{point}: {scale[point]}" for point in _SCALE_POINTS if point in scale)
     return f"{name}: 1-5 scale ({anchors})" if anchors else name
 
 
@@ -176,9 +172,7 @@ def _attribute_display_line(item: Any) -> str:
 def attribute_display_strings(raw_values: Any) -> list[str]:
     if not isinstance(raw_values, list):
         return []
-    return [
-        line for item in raw_values if (line := _attribute_display_line(item))
-    ]
+    return [line for item in raw_values if (line := _attribute_display_line(item))]
 
 
 def attribute_names(raw_values: Any) -> list[str]:
@@ -186,11 +180,7 @@ def attribute_names(raw_values: Any) -> list[str]:
         return []
     names: list[str] = []
     for item in raw_values:
-        name = (
-            str(item.get("name") or "").strip()
-            if isinstance(item, dict)
-            else str(item).strip()
-        )
+        name = str(item.get("name") or "").strip() if isinstance(item, dict) else str(item).strip()
         if name:
             names.append(name)
     return names
@@ -321,10 +311,8 @@ def setup_config(
     lists = lists or PlanningLists()
     return {
         "goal": research_goal.strip(),
-        "requirements": clean_string_list(lists.requirements)
-        or list(DEFAULT_REQUIREMENTS),
-        "attributes": clean_attributes_list(lists.attributes)
-        or _default_attributes(),
+        "requirements": clean_string_list(lists.requirements) or list(DEFAULT_REQUIREMENTS),
+        "attributes": clean_attributes_list(lists.attributes) or _default_attributes(),
         "criteria": clean_criteria_list(lists.criteria) or _default_criteria(),
         "focus": normalize_run_focus(focus),
         "tier": normalize_run_tier(tier),
@@ -351,10 +339,7 @@ def focus_guidance(focus: str | None) -> str:
             "Surface uncertainties explicitly instead of over-penalizing "
             "speculative but testable mechanisms."
         )
-    return (
-        "Balance: weigh evidence support, novelty, feasibility, and "
-        "testability evenly."
-    )
+    return "Balance: weigh evidence support, novelty, feasibility, and testability evenly."
 
 
 def _setup_field_lines(title: str, values: list[str]) -> list[str]:
@@ -399,9 +384,7 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def _apply_numeric_override(
-    base: dict[str, Any], key: str, raw_value: Any
-) -> None:
+def _apply_numeric_override(base: dict[str, Any], key: str, raw_value: Any) -> None:
     """Overrides may raise tier baselines but never undo a selected larger
     tier.
     """
@@ -423,21 +406,15 @@ _VERBATIM_OVERRIDES = {
     "discovery",
 }
 _OVERRIDE_COERCIONS: dict[str, Callable[[Any], Any]] = {
-    "focus": lambda value: normalize_run_focus(
-        value if isinstance(value, str) else None
-    ),
-    "llm_backend": lambda value: (
-        value if value in ("offline", "real") else None
-    ),
+    "focus": lambda value: normalize_run_focus(value if isinstance(value, str) else None),
+    "llm_backend": lambda value: value if value in ("offline", "real") else None,
     "enable_literature_review": bool,
     "enable_web_search": bool,
     "enable_meta_review": bool,
 }
 
 
-def _apply_run_config_override(
-    base: dict[str, Any], key: str, raw_value: Any
-) -> None:
+def _apply_run_config_override(base: dict[str, Any], key: str, raw_value: Any) -> None:
     if key == "tier":
         return
     if key in _VERBATIM_OVERRIDES:

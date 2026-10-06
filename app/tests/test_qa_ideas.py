@@ -21,9 +21,7 @@ def _idea(title: str, **fields: Any) -> dict[str, Any]:
 
 
 def _fragment(index: int, **fields: Any) -> SimpleNamespace:
-    function = SimpleNamespace(
-        name=fields.get("name"), arguments=fields.get("arguments")
-    )
+    function = SimpleNamespace(name=fields.get("name"), arguments=fields.get("arguments"))
     return SimpleNamespace(index=index, id=fields.get("id"), function=function)
 
 
@@ -72,15 +70,11 @@ def _search_call_chunk() -> Any:
 def test_a_model_that_asks_for_ideas_is_given_them_and_answers(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    fake = _scripted_litellm(
-        [[_search_call_chunk()], [_chunk("Idea one says X.")]]
-    )
+    fake = _scripted_litellm([[_search_call_chunk()], [_chunk("Idea one says X.")]])
     install_completion_backend(monkeypatch, (fake).acompletion)
 
     deltas = _drain(
-        qa.stream_llm_deltas(
-            "model", "sys", "what does it say?", [_idea("Lipid repair")]
-        )
+        qa.stream_llm_deltas("model", "sys", "what does it say?", [_idea("Lipid repair")])
     )
 
     assert deltas == [("chunk", "Idea one says X.")]
@@ -126,10 +120,7 @@ def test_run_artifact_lookup_uses_same_bounded_two_round_stream(
     )
     assert output == [("chunk", "Replication remains necessary.")]
     assert len(scripted.sent) == 2
-    assert (
-        scripted.sent[0]["tools"][0]["function"]["name"]
-        == "search_run_artifacts"
-    )
+    assert scripted.sent[0]["tools"][0]["function"]["name"] == "search_run_artifacts"
     assert "tools" not in scripted.sent[1]
     messages = scripted.sent[1]["messages"]
     assert messages[-1]["tool_call_id"] == "run_lookup"

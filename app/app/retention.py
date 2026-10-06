@@ -30,9 +30,7 @@ def _retention_days(env_var: str, default_days: int) -> int:
 
 
 def run_retention_days() -> int:
-    return _retention_days(
-        "COSCIENTIST_RUN_RETENTION_DAYS", _DEFAULT_RUN_RETENTION_DAYS
-    )
+    return _retention_days("COSCIENTIST_RUN_RETENTION_DAYS", _DEFAULT_RUN_RETENTION_DAYS)
 
 
 def document_retention_days() -> int:

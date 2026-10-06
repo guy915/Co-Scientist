@@ -168,9 +168,7 @@ _DEFAULT_GOALS = (
 _DEFAULT_TIER = "express"
 
 
-def _arm_record(
-    arm: dict[str, Any], goal_id: str, arm_name: str
-) -> dict[str, Any]:
+def _arm_record(arm: dict[str, Any], goal_id: str, arm_name: str) -> dict[str, Any]:
     hyps = arm["hypotheses"]
     texts = [h["text"] for h in hyps]
     total_assessed = sum(h["assessed_claims"] for h in hyps)
@@ -189,9 +187,7 @@ def _arm_record(
         "expert_quality": None,
         "diversity": hypothesis_diversity(texts),
         "verified_claim_ratio": (
-            round(total_verified / total_assessed, 4)
-            if total_assessed
-            else None
+            round(total_verified / total_assessed, 4) if total_assessed else None
         ),
         "cost_usd": arm["metrics"]["cost_usd"],
         "cost_basis": "partial_static_estimate",
@@ -239,9 +235,7 @@ def run_ablation_sweep(
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="ablation-sweep-"))
     db_path = str(tmp / "ablation.db")
     _run_driver.configure_environment(db_path, str(tmp / "cache"), live=live)
-    driven, records = _drive_every_pair(
-        goals, tier, arm_overrides, db_path, live=live
-    )
+    driven, records = _drive_every_pair(goals, tier, arm_overrides, db_path, live=live)
     from evaluations._identity import validate_comparison
 
     validation = validate_comparison(driven, kind="ablation")

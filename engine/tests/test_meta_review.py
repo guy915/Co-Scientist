@@ -16,9 +16,7 @@ def _policy_pool() -> list[Any]:
             "CRISPR-Cas9 targeting of BRCA1 mutations in breast cancer",
             id="safe-1",
         ),
-        make_hypothesis(
-            "Weaponize engineered pathogens for maximum spread", id="bad-1"
-        ),
+        make_hypothesis("Weaponize engineered pathogens for maximum spread", id="bad-1"),
     ]
 
 
@@ -32,14 +30,10 @@ async def test_meta_review_context_never_overrides_safety_policy() -> None:
     with_context = await safety_screen_node(
         make_state(hypotheses=_policy_pool(), meta_review=praising)
     )
-    without_context = await safety_screen_node(
-        make_state(hypotheses=_policy_pool())
-    )
+    without_context = await safety_screen_node(make_state(hypotheses=_policy_pool()))
 
     assert with_context["hypotheses"] == without_context["hypotheses"]
     assert [d["outcome"] for d in with_context["safety_decisions"]] == [
         d["outcome"] for d in without_context["safety_decisions"]
     ]
-    assert [d["hypothesis_id"] for d in with_context["safety_decisions"]] == [
-        "bad-1"
-    ]
+    assert [d["hypothesis_id"] for d in with_context["safety_decisions"]] == ["bad-1"]

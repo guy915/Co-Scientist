@@ -10,17 +10,12 @@ from typing import Any
 import pytest
 
 _ENGINE_FAKE_PATH = (
-    pathlib.Path(__file__).resolve().parents[2]
-    / "engine"
-    / "tests"
-    / "_llm_fake.py"
+    pathlib.Path(__file__).resolve().parents[2] / "engine" / "tests" / "_llm_fake.py"
 )
 
 
 def load_engine_fake() -> Any:
-    spec = importlib.util.spec_from_file_location(
-        "engine_llm_fake", _ENGINE_FAKE_PATH
-    )
+    spec = importlib.util.spec_from_file_location("engine_llm_fake", _ENGINE_FAKE_PATH)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -51,11 +46,7 @@ def install_completion_backend(
 
 def completion_response(content: str) -> types.SimpleNamespace:
     return types.SimpleNamespace(
-        choices=[
-            types.SimpleNamespace(
-                message=types.SimpleNamespace(content=content)
-            )
-        ]
+        choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=content))]
     )
 
 

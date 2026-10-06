@@ -25,11 +25,7 @@ def _fill_reserved_slots(
         remaining = budget - len(reserved)
         if remaining <= 0:
             break
-        from_source = [
-            paper_id
-            for paper_id in ranked
-            if source_map.get(paper_id) == source.tool
-        ]
+        from_source = [paper_id for paper_id in ranked if source_map.get(paper_id) == source.tool]
         reserved.extend(from_source[: min(source.reserved_slots, remaining)])
     return reserved
 
@@ -110,9 +106,7 @@ _DEFAULT_SOURCE_RRF_WEIGHT = 1.0
 
 
 def _source_rrf_weight(metadata: dict[str, Any]) -> float:
-    source = str(
-        metadata.get("source") or metadata.get("_source_name") or ""
-    ).lower()
+    source = str(metadata.get("source") or metadata.get("_source_name") or "").lower()
     return _SOURCE_RRF_WEIGHTS.get(source, _DEFAULT_SOURCE_RRF_WEIGHT)
 
 
@@ -122,16 +116,10 @@ def _rrf_position_score(position: int, weight: float) -> float:
     return 1.0 / ((position + 1) / weight + _RRF_K - 1)
 
 
-def _normalize_rrf_pool(
-    raw_scores: dict[str, float], retracted_ids: set[str]
-) -> dict[str, float]:
+def _normalize_rrf_pool(raw_scores: dict[str, float], retracted_ids: set[str]) -> dict[str, float]:
     """Retracted scores must not skew the live pool's range; RRF has no fixed
     raw scale."""
-    live = {
-        pid: score
-        for pid, score in raw_scores.items()
-        if pid not in retracted_ids
-    }
+    live = {pid: score for pid, score in raw_scores.items() if pid not in retracted_ids}
     if not live:
         return dict.fromkeys(raw_scores, 0.0)
     lo, hi = min(live.values()), max(live.values())
@@ -152,16 +140,12 @@ def _rank_search_results(
     raw_scores: dict[str, float],
 ) -> dict[str, dict[str, Any]]:
     retracted_ids = {
-        paper_id
-        for paper_id, item in metadata.items()
-        if _metadata_is_retracted(item)
+        paper_id for paper_id, item in metadata.items() if _metadata_is_retracted(item)
     }
     normalized = _normalize_rrf_pool(raw_scores, retracted_ids)
     for paper_id, item in metadata.items():
         item["retrieval_score"] = normalized[paper_id]
-        item["correction_status"] = (
-            "retracted" if paper_id in retracted_ids else "current"
-        )
+        item["correction_status"] = "retracted" if paper_id in retracted_ids else "current"
     return dict(
         sorted(
             metadata.items(),
@@ -190,9 +174,7 @@ def _duplicate_owner_id(
         return None
     owner_id = seen_titles.get(title)
     if owner_id is not None:
-        logger.debug(
-            "Duplicate title, folding into %s: %s...", owner_id, title[:60]
-        )
+        logger.debug("Duplicate title, folding into %s: %s...", owner_id, title[:60])
         return owner_id
     seen_titles[title] = paper_id
     return None
@@ -210,9 +192,7 @@ def merge_search_results(
 
     for source_tool_id, results in source_results:
         for position, (paper_id, metadata) in enumerate(results.items()):
-            owner_id = _duplicate_owner_id(
-                paper_id, metadata, deduplicate, seen_titles
-            )
+            owner_id = _duplicate_owner_id(paper_id, metadata, deduplicate, seen_titles)
             if owner_id is None:
                 all_paper_metadata[paper_id] = metadata
 
@@ -221,12 +201,10 @@ def merge_search_results(
                 paper_source_map[paper_id] = source_tool_id
             weight = _source_rrf_weight(metadata)
             target_id = owner_id or paper_id
-            raw_rrf_scores[target_id] = raw_rrf_scores.get(
-                target_id, 0.0
-            ) + _rrf_position_score(position, weight)
+            raw_rrf_scores[target_id] = raw_rrf_scores.get(target_id, 0.0) + _rrf_position_score(
+                position, weight
+            )
 
     ranked = _rank_search_results(all_paper_metadata, raw_rrf_scores)
-    ranked_source_map = {
-        paper_id: paper_source_map[paper_id] for paper_id in ranked
-    }
+    ranked_source_map = {paper_id: paper_source_map[paper_id] for paper_id in ranked}
     return ranked, ranked_source_map

@@ -125,9 +125,7 @@ async def _search_papers_via_tool_config(
     )
     mapped_params = tool_config.map_parameters(canonical_params)
 
-    result = await ctx.mcp_client.call_tool(
-        tool_config.mcp_tool_name, **mapped_params
-    )
+    result = await ctx.mcp_client.call_tool(tool_config.mcp_tool_name, **mapped_params)
 
     parser = ResponseParser(tool_config)
     articles = parser.parse_to_articles(result)
@@ -154,10 +152,7 @@ async def _search_papers_legacy_fallback(
 
 
 def _skip_search_no_tool_configured() -> dict[str, dict[str, Any]]:
-    logger.warning(
-        "no search tools configured for validation workflow,"
-        " skipping novelty search"
-    )
+    logger.warning("no search tools configured for validation workflow, skipping novelty search")
     return {}
 
 
@@ -169,16 +164,12 @@ async def _search_papers_for_hypothesis(
     _, tool_config = _find_search_tool(ctx.tool_registry)
 
     if tool_config:
-        return await _search_papers_via_tool_config(
-            tool_config, hypothesis_text, ctx, max_papers
-        )
+        return await _search_papers_via_tool_config(tool_config, hypothesis_text, ctx, max_papers)
 
     if ctx.tool_registry:
         return _skip_search_no_tool_configured()
 
-    return await _search_papers_legacy_fallback(
-        hypothesis_text, ctx, max_papers
-    )
+    return await _search_papers_legacy_fallback(hypothesis_text, ctx, max_papers)
 
 
 _PaperAnalyzer = Callable[
@@ -194,14 +185,10 @@ class _NoveltyStageContext:
     analyze_paper: _PaperAnalyzer
 
 
-def _build_novelty_analysis_prompt(
-    hypothesis_text: str, metadata: dict[str, Any]
-) -> str:
+def _build_novelty_analysis_prompt(hypothesis_text: str, metadata: dict[str, Any]) -> str:
     """Strip a paper's citation markers only from the prompt copy so the
     verdict cannot echo them as apparent evidence."""
-    fulltext = strip_citation_markers(
-        truncate_for_prompt(metadata.get("fulltext", ""))
-    )
+    fulltext = strip_citation_markers(truncate_for_prompt(metadata.get("fulltext", "")))
     return get_hypothesis_novelty_analysis_prompt(
         hypothesis_text=hypothesis_text,
         title=metadata.get("title", "Unknown"),
@@ -279,9 +266,7 @@ async def _gather_hypothesis_novelty_analyses(
 ) -> dict[str, Any]:
 
     hypothesis_text = draft.get("hypothesis") or draft.get("text", "")
-    logger.info(
-        "Analyzing hypothesis %s/%s: %s...", idx, total, hypothesis_text[:80]
-    )
+    logger.info("Analyzing hypothesis %s/%s: %s...", idx, total, hypothesis_text[:80])
     papers = await _search_papers_for_draft(hypothesis_text, idx, ctx.search)
     novelty_analyses = await _run_parallel_novelty_analyses(
         hypothesis_text, idx, papers, ctx.model_name, ctx.analyze_paper
@@ -358,9 +343,7 @@ def _setup_validation_tool_provider(
     return provider, openai_tools, tool_registry, max_iterations
 
 
-def _compute_synthesis_max_tokens(
-    batch: list[dict[str, Any]], batch_label: str
-) -> int:
+def _compute_synthesis_max_tokens(batch: list[dict[str, Any]], batch_label: str) -> int:
     # Synthesis writes final full-depth hypotheses, so it needs the
     # deep-generation budget.
 
@@ -410,9 +393,7 @@ def _log_synthesis_tool_call_summary(
 ) -> None:
     total_calls = sum(tool_call_counts.values())
     if total_calls > 0:
-        calls_summary = ", ".join(
-            f"{n}={c}" for n, c in tool_call_counts.items()
-        )
+        calls_summary = ", ".join(f"{n}={c}" for n, c in tool_call_counts.items())
         logger.info(
             "Batch %s: %s tool calls (%s)",
             batch_label,
@@ -421,17 +402,13 @@ def _log_synthesis_tool_call_summary(
         )
 
 
-def _parse_synthesis_response(
-    final_response: str, batch_label: str
-) -> list[dict[str, Any]]:
+def _parse_synthesis_response(final_response: str, batch_label: str) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = parse_tool_loop_json(
         final_response,
         "hypotheses",
         f"Validation synthesis (batch {batch_label})",
     )
-    logger.debug(
-        "Batch %s synthesis returned %s hypotheses", batch_label, len(result)
-    )
+    logger.debug("Batch %s synthesis returned %s hypotheses", batch_label, len(result))
     return result
 
 
@@ -472,16 +449,11 @@ async def _run_synthesis_batches(
     """One failed batch must not cancel successful siblings."""
 
     raw_results = await asyncio.gather(
-        *[
-            call_synthesis(batch, str(i + 1), None)
-            for i, batch in enumerate(batches)
-        ],
+        *[call_synthesis(batch, str(i + 1), None) for i, batch in enumerate(batches)],
         return_exceptions=True,
     )
 
-    all_validated_hypotheses, failed_batches = _partition_synthesis_results(
-        batches, raw_results
-    )
+    all_validated_hypotheses, failed_batches = _partition_synthesis_results(batches, raw_results)
     logger.info(
         "%s/%s batches succeeded, %s need individual retry",
         len(batches) - len(failed_batches),
@@ -516,9 +488,7 @@ async def _retry_one_hypothesis(
     accumulated_texts = retry_state.accumulated_texts
     context = accumulated_texts if accumulated_texts else None
     try:
-        single_result = await retry_state.call_synthesis(
-            [hyp_data], label, context
-        )
+        single_result = await retry_state.call_synthesis([hyp_data], label, context)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
@@ -547,18 +517,14 @@ async def _retry_failed_synthesis_batches(
     retry_state = _SynthesisRetryState(
         all_validated_hypotheses=all_validated_hypotheses,
         accumulated_texts=[
-            h.get("hypothesis", "")
-            for h in all_validated_hypotheses
-            if h.get("hypothesis")
+            h.get("hypothesis", "") for h in all_validated_hypotheses if h.get("hypothesis")
         ],
         call_synthesis=call_synthesis,
     )
 
     for batch_idx, failed_batch in failed_batches:
         for hyp_idx, hyp_data in enumerate(failed_batch):
-            await _retry_one_hypothesis(
-                batch_idx, hyp_idx, hyp_data, retry_state
-            )
+            await _retry_one_hypothesis(batch_idx, hyp_idx, hyp_data, retry_state)
 
 
 def _build_hypotheses_from_synthesis(
@@ -582,9 +548,7 @@ if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
 
-def _build_paper_metadata(
-    paper_id: str, metadata: dict[str, Any]
-) -> dict[str, Any]:
+def _build_paper_metadata(paper_id: str, metadata: dict[str, Any]) -> dict[str, Any]:
     return {
         "paper_id": paper_id,
         "title": metadata.get("title", "Unknown"),
@@ -608,9 +572,7 @@ def _batch_hypotheses_for_synthesis(
 ) -> list[list[dict[str, Any]]]:
     batches = [
         hypotheses_with_analyses[i : i + VALIDATION_SYNTHESIS_BATCH_SIZE]
-        for i in range(
-            0, len(hypotheses_with_analyses), VALIDATION_SYNTHESIS_BATCH_SIZE
-        )
+        for i in range(0, len(hypotheses_with_analyses), VALIDATION_SYNTHESIS_BATCH_SIZE)
     ]
     logger.info(
         "Split into %s batches of up to %s hypotheses",
@@ -624,9 +586,7 @@ async def _run_and_retry_synthesis_batches(
     batches: list[list[dict[str, Any]]],
     call_synthesis: _SynthesisCaller,
 ) -> list[dict[str, Any]]:
-    all_validated_hypotheses, failed_batches = await _run_synthesis_batches(
-        batches, call_synthesis
-    )
+    all_validated_hypotheses, failed_batches = await _run_synthesis_batches(batches, call_synthesis)
 
     if failed_batches:
         await _retry_failed_synthesis_batches(
@@ -648,10 +608,8 @@ def _build_synthesis_context(
         len(hypotheses_with_analyses),
         VALIDATION_SYNTHESIS_BATCH_SIZE,
     )
-    provider, openai_tools, tool_registry, max_iterations = (
-        _setup_validation_tool_provider(
-            mcp_client, tool_registry, len(hypotheses_with_analyses)
-        )
+    provider, openai_tools, tool_registry, max_iterations = _setup_validation_tool_provider(
+        mcp_client, tool_registry, len(hypotheses_with_analyses)
     )
     return _SynthesisContext(
         state,
@@ -668,9 +626,7 @@ if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
 
-async def _call_novelty_analysis_llm(
-    prompt: str, model_name: str
-) -> dict[str, Any]:
+async def _call_novelty_analysis_llm(prompt: str, model_name: str) -> dict[str, Any]:
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
@@ -747,9 +703,7 @@ async def validate_hypotheses(
     tool_registry: Optional["ToolRegistry"] = None,
     reference_index: Any | None = None,
 ) -> tuple[list[Hypothesis], int]:
-    logger.info(
-        "Phase 2: Validating %s draft hypotheses", len(draft_hypotheses)
-    )
+    logger.info("Phase 2: Validating %s draft hypotheses", len(draft_hypotheses))
     hypotheses_with_analyses = await _run_validate_novelty_stage(
         draft_hypotheses, state, mcp_client, tool_registry
     )
@@ -770,13 +724,9 @@ async def _run_single_synthesis_call(
     ctx: _SynthesisContext,
 ) -> list[dict[str, Any]]:
     batch_size = len(batch)
-    logger.info(
-        "Processing synthesis batch %s (%s hypotheses)", batch_label, batch_size
-    )
+    logger.info("Processing synthesis batch %s (%s hypotheses)", batch_label, batch_size)
 
-    call_inputs = _build_synthesis_call_inputs(
-        batch, batch_label, already_validated_texts, ctx
-    )
+    call_inputs = _build_synthesis_call_inputs(batch, batch_label, already_validated_texts, ctx)
 
     final_response, tool_call_counts = await _invoke_synthesis_llm(
         call_inputs,
@@ -799,13 +749,9 @@ async def _run_synthesis_stage_batches(
         batch_label: str,
         already_validated_texts: list[str] | None,
     ) -> list[dict[str, Any]]:
-        return await _run_single_synthesis_call(
-            batch, batch_label, already_validated_texts, ctx
-        )
+        return await _run_single_synthesis_call(batch, batch_label, already_validated_texts, ctx)
 
-    all_validated_hypotheses = await _run_and_retry_synthesis_batches(
-        batches, _call_synthesis
-    )
+    all_validated_hypotheses = await _run_and_retry_synthesis_batches(batches, _call_synthesis)
     logger.info(
         "Combined %s validated hypotheses from %s batches",
         len(all_validated_hypotheses),
@@ -871,9 +817,7 @@ async def _run_synthesis_and_build_hypotheses(
         reference_index,
     )
 
-    hypotheses = _build_hypotheses_from_synthesis(
-        all_validated_hypotheses, reference_index
-    )
+    hypotheses = _build_hypotheses_from_synthesis(all_validated_hypotheses, reference_index)
     logger.info("Generated %s validated hypotheses", len(hypotheses))
     return hypotheses
 
@@ -884,10 +828,7 @@ def _count_validation_llm_calls(
     """Legacy node metrics are a floor; failed calls, retries and tool turns
     remain counted by transport telemetry."""
     novelty_calls = sum(
-        len(item.get("novelty_analyses") or [])
-        for item in hypotheses_with_analyses
+        len(item.get("novelty_analyses") or []) for item in hypotheses_with_analyses
     )
-    synthesis_calls = len(
-        _batch_hypotheses_for_synthesis(hypotheses_with_analyses)
-    )
+    synthesis_calls = len(_batch_hypotheses_for_synthesis(hypotheses_with_analyses))
     return novelty_calls + synthesis_calls

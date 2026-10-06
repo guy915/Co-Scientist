@@ -75,9 +75,7 @@ async def test_probe_search_preserves_sources_and_excludes_retractions(
 def _state(*, mcp_available: bool, opts: dict[str, Any] | None = None) -> Any:
     return _build_initial_state(
         config_fields={},
-        identity=RunIdentity(
-            research_goal="reverse fibrosis", start_time=0.0, run_id="run-1"
-        ),
+        identity=RunIdentity(research_goal="reverse fibrosis", start_time=0.0, run_id="run-1"),
         capabilities=RunCapabilities(mcp_available=mcp_available),
         opts=opts or {},
         user_inputs={},
@@ -101,9 +99,7 @@ def test_a_run_that_cannot_retrieve_names_what_it_lost(
 ) -> None:
     """Ideas and reviews can look healthy without retrieval; the loss must
     reach the report."""
-    degradation = _state(mcp_available=mcp_available, opts=opts)[
-        "retrieval_degradation"
-    ]
+    degradation = _state(mcp_available=mcp_available, opts=opts)["retrieval_degradation"]
 
     assert _state(mcp_available=True)["retrieval_degradation"] is None
     assert degradation is not None
@@ -155,9 +151,7 @@ async def _collect_multi_source(
     )
 
 
-async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> (
-    None
-):
+async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> None:
     registry = make_tool_lookup_registry(
         {
             "src_a": make_tool_config(mcp_tool_name="search_europepmc"),
@@ -168,10 +162,7 @@ async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> (
     class Client:
         async def call_tool(self, name: str, **_: Any) -> Any:
             if name == "search_europepmc":
-                return (
-                    "Error calling tool 'search_europepmc': "
-                    "Europe PMC unavailable: HTTP 503"
-                )
+                return "Error calling tool 'search_europepmc': Europe PMC unavailable: HTTP 503"
             return {"P1": {"title": "Healthy source paper"}}
 
     errors: list[str] = []
@@ -215,17 +206,11 @@ async def test_campaign_scope_skips_a_source_its_policy_refuses(
 def test_shared_evidence_modules_do_not_import_agents() -> None:
     for path in Path(evidence.__file__).parent.glob("*.py"):
         tree = ast.parse(path.read_text())
-        modules = [
-            node.module or ""
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-        ]
+        modules = [node.module or "" for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)]
         modules += [
             alias.name
             for node in ast.walk(tree)
             if isinstance(node, ast.Import)
             for alias in node.names
         ]
-        assert not any(
-            module.startswith("co_scientist.agents") for module in modules
-        ), path
+        assert not any(module.startswith("co_scientist.agents") for module in modules), path

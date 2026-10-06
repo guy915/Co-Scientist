@@ -26,17 +26,11 @@ def _resolve_cache(use_cache: bool) -> "LLMCache | NullCache":
     Cache opt-outs stay task-local rather than altering concurrent
     generators.
     """
-    cache_active = (
-        use_cache
-        and cache_enabled_override() is not False
-        and not campaign_free_mode()
-    )
+    cache_active = use_cache and cache_enabled_override() is not False and not campaign_free_mode()
     return get_cache() if cache_active else NullCache()
 
 
-def _log_cache_lookup(
-    prompt: str, cached_response: dict[str, Any] | None
-) -> None:
+def _log_cache_lookup(prompt: str, cached_response: dict[str, Any] | None) -> None:
     if cached_response is None:
         logger.debug(
             "cache miss for prompt: %s%s",

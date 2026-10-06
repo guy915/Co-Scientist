@@ -70,15 +70,9 @@ def _initial_run_identity_fields(
         "progress_callback": identity.progress_callback,
         "mcp_available": capabilities.mcp_available,
         "pubmed_available": capabilities.pubmed_available,
-        "enable_tool_calling_generation": (
-            capabilities.enable_tool_calling_generation
-        ),
-        "enable_simulation_execution": (
-            capabilities.enable_simulation_execution
-        ),
-        "dev_test_lit_tools_isolation": (
-            capabilities.dev_test_lit_tools_isolation
-        ),
+        "enable_tool_calling_generation": (capabilities.enable_tool_calling_generation),
+        "enable_simulation_execution": (capabilities.enable_simulation_execution),
+        "dev_test_lit_tools_isolation": (capabilities.dev_test_lit_tools_isolation),
         "dev_mode": capabilities.dev_mode,
         "enable_overview_review": capabilities.enable_overview_review,
         "research_tier": capabilities.research_tier,
@@ -129,9 +123,7 @@ def _build_initial_state(
             **config_fields,
             **_initial_runtime_fields(),
             **_initial_run_identity_fields(identity, capabilities),
-            **_initial_user_and_literature_fields(
-                opts=opts, user_inputs=user_inputs
-            ),
+            **_initial_user_and_literature_fields(opts=opts, user_inputs=user_inputs),
             "retrieval_degradation": resolve_retrieval_degradation(
                 mcp_available=bool(capabilities.mcp_available),
                 private_sources=opts.get("context_enrichment_sources"),

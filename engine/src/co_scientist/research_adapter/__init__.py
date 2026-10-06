@@ -77,9 +77,7 @@ class LlmResearchModel:
         )
         return _strings(data.get("stances"))[:limit]
 
-    async def ask_questions(
-        self, *, goal: str, stance: str, limit: int
-    ) -> Sequence[str]:
+    async def ask_questions(self, *, goal: str, stance: str, limit: int) -> Sequence[str]:
         data = await self._ask(
             "research_questions",
             {"research_goal": goal, "stance": stance, "limit": limit},
@@ -88,17 +86,13 @@ class LlmResearchModel:
         return _strings(data.get("questions"))[:limit]
 
     async def to_query(self, *, question: str) -> str:
-        data = await self._ask(
-            "research_query", {"question": question}, DEFAULT_MAX_TOKENS
-        )
+        data = await self._ask("research_query", {"question": question}, DEFAULT_MAX_TOKENS)
         query = data.get("query")
         # An unusable query is not a refused question; retain the original
         # thread as fallback.
         return query.strip() if isinstance(query, str) and query else question
 
-    async def extract(
-        self, *, question: str, documents: Sequence[Document]
-    ) -> Extraction:
+    async def extract(self, *, question: str, documents: Sequence[Document]) -> Extraction:
         if not documents:
             return Extraction()
         data = await self._ask(
@@ -114,9 +108,7 @@ class LlmResearchModel:
             follow_ups=tuple(_strings(data.get("follow_ups"))),
         )
 
-    async def compress(
-        self, *, question: str, findings: Sequence[Finding]
-    ) -> str:
+    async def compress(self, *, question: str, findings: Sequence[Finding]) -> str:
         if not findings:
             return ""
         data = await self._ask(
@@ -124,8 +116,7 @@ class LlmResearchModel:
             {
                 "question": question,
                 "findings": "\n".join(
-                    f"- {finding.text} ({finding.locator})"
-                    for finding in findings
+                    f"- {finding.text} ({finding.locator})" for finding in findings
                 ),
             },
             DEFAULT_MAX_TOKENS,
@@ -164,16 +155,12 @@ def _numbered(documents: Sequence[Document]) -> str:
     blocks = []
     for index, document in enumerate(documents):
         kind = "full text" if document.full_text else "abstract only"
-        text = strip_citation_markers(
-            truncate_for_prompt(document.text, _DOCUMENT_MAX_CHARS)
-        )
+        text = strip_citation_markers(truncate_for_prompt(document.text, _DOCUMENT_MAX_CHARS))
         blocks.append(f"[{index}] {document.hit.title} ({kind})\n{text}")
     return "\n\n".join(blocks)
 
 
-def _findings(
-    raw: object, documents: Sequence[Document]
-) -> tuple[ExtractedFinding, ...]:
+def _findings(raw: object, documents: Sequence[Document]) -> tuple[ExtractedFinding, ...]:
     """Drop unknown document indexes rather than invent plausible source
     provenance.
     """
@@ -183,9 +170,7 @@ def _findings(
     return tuple(finding for finding in bound if finding is not None)
 
 
-def _one_finding(
-    item: object, documents: Sequence[Document]
-) -> ExtractedFinding | None:
+def _one_finding(item: object, documents: Sequence[Document]) -> ExtractedFinding | None:
     if not isinstance(item, dict):
         return None
     index, claim, quote = (
@@ -209,9 +194,7 @@ def _one_finding(
 def _strings(raw: object) -> list[str]:
     if not isinstance(raw, list):
         return []
-    return [
-        item.strip() for item in raw if isinstance(item, str) and item.strip()
-    ]
+    return [item.strip() for item in raw if isinstance(item, str) and item.strip()]
 
 
 # Exclude fetch-varying metadata from content identity so retries hash the same
@@ -271,9 +254,7 @@ class McpRetrieval:
             ResearchRun(run_id=run_id, research_goal=config.research_goal),
         )
 
-    async def search(
-        self, *, query: str, source: str, limit: int
-    ) -> Sequence[SourceHit]:
+    async def search(self, *, query: str, source: str, limit: int) -> Sequence[SourceHit]:
         tool_config = self._registry.get_tool(source)
         if tool_config is None:
             raise RetrievalError(source, "no such tool in the registry")
@@ -281,14 +262,10 @@ class McpRetrieval:
             query, self._run.slug, self._run.run_id, limit, tool_config
         )
         try:
-            raw = await _call_search_tool(
-                self._client, tool_config.mcp_tool_name, params
-            )
+            raw = await _call_search_tool(self._client, tool_config.mcp_tool_name, params)
         except Exception as exc:
             raise RetrievalError(source, describe_exception(exc)) from exc
-        return self._to_hits(
-            normalize_search_response(raw, tool_config), source, limit
-        )
+        return self._to_hits(normalize_search_response(raw, tool_config), source, limit)
 
     def record(self, locator: str) -> dict[str, Any] | None:
         """Opaque locators omit titles, URLs and years; only the original
@@ -323,9 +300,7 @@ class McpRetrieval:
             {"research_goal": self._run.research_goal, "focus_areas": []},
         )
         try:
-            result = await self._client.call_tool(
-                config.mcp_tool_name, url=url, **params
-            )
+            result = await self._client.call_tool(config.mcp_tool_name, url=url, **params)
         except Exception as exc:
             logger.warning(
                 "Could not read %s via %s: %s",
@@ -424,9 +399,7 @@ _REVIEW_HYPOTHESES: dict[str, int] = {
 }
 
 
-def review_budget_for_tier(
-    tier: str, sources: Sequence[str]
-) -> ResearchBudget | None:
+def review_budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
     ceilings = _REVIEW_CEILINGS.get(tier)
     if ceilings is None or not sources:
         return None

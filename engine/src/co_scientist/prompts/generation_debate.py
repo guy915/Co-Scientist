@@ -20,9 +20,7 @@ from co_scientist.prompts.loading import (
 )
 
 
-def _format_debate_key_areas_section(
-    key_areas: list[Any], *, needs_header: bool
-) -> list[str]:
+def _format_debate_key_areas_section(key_areas: list[Any], *, needs_header: bool) -> list[str]:
     if not key_areas:
         return []
 
@@ -63,13 +61,9 @@ def _format_supervisor_guidance_for_debate(
         goal_analysis.get("key_areas", []), needs_header=True
     )
     sections.extend(
-        _format_debate_generation_phase_section(
-            generation_phase, needs_header=not sections
-        )
+        _format_debate_generation_phase_section(generation_phase, needs_header=not sections)
     )
-    config_sections = format_config_generation_guidance(
-        supervisor_guidance, "debate_instructions"
-    )
+    config_sections = format_config_generation_guidance(supervisor_guidance, "debate_instructions")
     if config_sections:
         if sections:
             sections.append("\n")
@@ -179,9 +173,7 @@ def _build_debate_literature_variables(
 ) -> dict[str, Any]:
     variables: dict[str, Any] = {
         "articles_metadata": format_articles_metadata(articles or []),
-        "citation_reference_section": _build_citation_reference_section(
-            reference_list or ""
-        ),
+        "citation_reference_section": _build_citation_reference_section(reference_list or ""),
     }
     if articles_with_reasoning:
         variables["articles_with_reasoning"] = articles_with_reasoning
@@ -224,9 +216,7 @@ def _debate_turn_envelope() -> dict[str, int]:
 def _format_debate_evaluation_criteria(
     criteria: list[str] | None,
 ) -> str:
-    cleaned = [
-        str(item).strip() for item in criteria or [] if str(item).strip()
-    ]
+    cleaned = [str(item).strip() for item in criteria or [] if str(item).strip()]
     if not cleaned:
         return ""
 
@@ -247,8 +237,7 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
         "goal": req.research_goal,
         "transcript": req.transcript or "",
         "preferences": req.preferences
-        or "Novel, testable, scientifically sound, specific, and diverse"
-        " hypotheses",
+        or "Novel, testable, scientifically sound, specific, and diverse hypotheses",
         "attributes": _format_debate_attributes(req.attributes),
         "user_hypotheses": format_user_hypotheses(req.user_hypotheses),
         "instructions": req.instructions or _DEFAULT_DEBATE_INSTRUCTIONS,
@@ -261,8 +250,7 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
 
 def _format_reviews_overview(meta_review: dict[str, Any] | None) -> str:
     return _format_meta_review_context(meta_review).strip() or (
-        "No reviews are available yet; this is the first generation cycle"
-        " of the run."
+        "No reviews are available yet; this is the first generation cycle of the run."
     )
 
 
@@ -270,9 +258,7 @@ def _build_debate_guidance_variables(
     context: PromptRunContext,
 ) -> dict[str, Any]:
     variables: dict[str, Any] = {
-        "supervisor_guidance": _format_supervisor_guidance_for_debate(
-            context.supervisor_guidance
-        ),
+        "supervisor_guidance": _format_supervisor_guidance_for_debate(context.supervisor_guidance),
         "reviews_overview": _format_reviews_overview(context.meta_review),
         "run_guidance": _run_guidance_section(context),
     }
@@ -299,9 +285,7 @@ def _render_debate_prompt(
     is_final_turn: bool,
 ) -> tuple[str, dict[str, Any] | None]:
     prompt_name = (
-        "generation_debate_and_literature"
-        if articles_with_reasoning
-        else "generation_after_debate"
+        "generation_debate_and_literature" if articles_with_reasoning else "generation_after_debate"
     )
     if not is_final_turn:
         return load_prompt(prompt_name, variables), None

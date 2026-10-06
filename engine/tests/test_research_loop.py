@@ -48,9 +48,7 @@ async def test_the_loop_never_opens_more_threads_than_it_may() -> None:
         stances=("mechanism", "prior art", "contradictions", "methods"),
         follow_ups_by_question={},
     )
-    model.follow_ups_by_question = _Everything(
-        ["f1", "f2", "f3", "f4", "f5", "f6"]
-    )
+    model.follow_ups_by_question = _Everything(["f1", "f2", "f3", "f4", "f5", "f6"])
     retrieval = FakeRetrieval({"pubmed": _hits("doc-a")})
     budget = _budget(depth=3, breadth=4)
 
@@ -58,9 +56,7 @@ async def test_the_loop_never_opens_more_threads_than_it_may() -> None:
         goal="fibrosis", model=model, retrieval=retrieval, budget=budget
     )
 
-    started = [
-        t for t in result.threads if t.status is not ThreadStatus.DECLINED
-    ]
+    started = [t for t in result.threads if t.status is not ThreadStatus.DECLINED]
     assert len(started) <= budget.max_threads()
     assert result.levels_run == 3
     assert len(started) == 8
@@ -97,8 +93,7 @@ def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
     outside = {
         name
         for name in borrowed
-        if name.startswith("co_scientist")
-        and not name.startswith("co_scientist.research")
+        if name.startswith("co_scientist") and not name.startswith("co_scientist.research")
     }
     assert not outside
 
@@ -116,8 +111,7 @@ def test_no_production_module_reads_the_raw_criteria_keys() -> None:
             formatter = next(
                 node
                 for node in ast.parse(source).body
-                if isinstance(node, ast.FunctionDef)
-                and node.name == "format_experiment_plan"
+                if isinstance(node, ast.FunctionDef) and node.name == "format_experiment_plan"
             )
             lines = source.splitlines()
             del lines[formatter.lineno - 1 : formatter.end_lineno]

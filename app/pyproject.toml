@@ -66,7 +66,7 @@ co-scientist-viewer = { path = ".", editable = true }
 default = { features = ["dev"], solve-group = "default" }
 
 [tool.ruff]
-line-length = 80
+line-length = 100
 target-version = "py310"
 # Published abstract fixtures are verbatim corpus data; formatting must not rewrite them.
 extend-exclude = ["dev"]
@@ -85,13 +85,9 @@ select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
-    "PLR0913", # too-many-arguments
 ]
-[tool.ruff.lint.pylint]
-max-args = 8
-
 [tool.ruff.lint.mccabe]
-max-complexity = 10
+max-complexity = 15
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

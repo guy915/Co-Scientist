@@ -46,9 +46,7 @@ def _probe(script: str, cwd: Path, **env: str) -> None:
 def test_live_runner_isolates_credentials_and_all_model_roles(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / ".env").write_text(
-        "GEMINI_API_KEY=dotenv-paid\nMODEL_NAME=deepseek/paid\n"
-    )
+    (tmp_path / ".env").write_text("GEMINI_API_KEY=dotenv-paid\nMODEL_NAME=deepseek/paid\n")
     script = """
 import os
 from evaluations._run_driver import configure_environment
@@ -179,9 +177,7 @@ def test_golden_acceptance_requires_persisted_real_completion(
     from evaluations.golden_run import _assess
 
     artifact: dict[str, object] = {
-        "run": SimpleNamespace(status=status, llm_backend=backend)
-        if status
-        else None,
+        "run": SimpleNamespace(status=status, llm_backend=backend) if status else None,
         "evidence": [{"source": "pubmed"}],
         "claim_edges": [{"supporting": [{"quote": "Located passage"}]}],
         "matches": [],

@@ -44,8 +44,7 @@ def showable_articles(
     return [
         article
         for article in (articles or [])
-        if (article.used_in_analysis or not require_analyzed)
-        and not article.is_retracted
+        if (article.used_in_analysis or not require_analyzed) and not article.is_retracted
     ]
 
 
@@ -71,8 +70,7 @@ def _article_sections(articles: list[Article], label: str) -> list[str]:
 
 def _private_sections(sources: list[dict[str, Any]]) -> list[str]:
     return [
-        f"[{PRIVATE_LABEL}{index}] "
-        f"{str(source.get('display') or '')[:PRIVATE_SNIPPET_CHARS]}"
+        f"[{PRIVATE_LABEL}{index}] {str(source.get('display') or '')[:PRIVATE_SNIPPET_CHARS]}"
         for index, source in enumerate(sources, start=1)
     ]
 
@@ -88,9 +86,7 @@ def build_evidence_context(
     usable = showable_articles(articles, require_analyzed=require_analyzed)
     sections = [
         *_article_sections(_head(usable, caps.articles), article_label),
-        *_private_sections(
-            _head(list(private_sources or []), caps.private_sources)
-        ),
+        *_private_sections(_head(list(private_sources or []), caps.private_sources)),
     ]
     joined = "\n\n".join(sections)
     return joined if caps.total_chars is None else joined[: caps.total_chars]
@@ -113,9 +109,7 @@ _CORPUS_MATCH_CHARS = 4000
 _MIN_QUERY_COVERAGE = 0.5
 
 # Persist fallback provenance so unavailable live search is distinguishable.
-CORPUS_FALLBACK_NOTE = (
-    "MCP unavailable; probes grounded against the run's retrieved corpus"
-)
+CORPUS_FALLBACK_NOTE = "MCP unavailable; probes grounded against the run's retrieved corpus"
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -127,9 +121,9 @@ def _tokens(text: str) -> frozenset[str]:
 def _query_coverage(query_terms: frozenset[str], article: Article) -> float:
     """Normalize by query terms: the much larger article union would drive
     matches to zero."""
-    searchable = " ".join(
-        (article.title, article.abstract or "", article.content or "")
-    )[:_CORPUS_MATCH_CHARS]
+    searchable = " ".join((article.title, article.abstract or "", article.content or ""))[
+        :_CORPUS_MATCH_CHARS
+    ]
     matches = query_terms & _tokens(searchable)
     return len(matches) / len(query_terms)
 
@@ -141,9 +135,7 @@ def _corpus_probe_evidence(
     already retrieved."""
     query_term_sets = [terms for terms in map(_tokens, queries) if terms]
     scored: list[tuple[float, int, str, Article]] = []
-    for article in showable_articles(
-        state.get("articles"), require_analyzed=False
-    ):
+    for article in showable_articles(state.get("articles"), require_analyzed=False):
         coverage = max(
             (_query_coverage(terms, article) for terms in query_term_sets),
             default=0.0,
@@ -184,8 +176,7 @@ def merge_retrieved_articles(
 ) -> list[Article]:
     merged = list(existing or [])
     identities = {
-        (article.source, article.source_id or article.doi or article.url)
-        for article in merged
+        (article.source, article.source_id or article.doi or article.url) for article in merged
     }
     for result in results:
         if not result:
@@ -218,9 +209,7 @@ async def _retrieve_probe_evidence(
     )
 
     config = _probe_search_config(state)
-    metadata, errors, failure = await _collect_probe_papers(
-        state, queries, config
-    )
+    metadata, errors, failure = await _collect_probe_papers(state, queries, config)
     if failure is not None:
         return [], failure
 
@@ -260,9 +249,7 @@ async def _collect_probe_papers(
     errors: list[str] = []
     try:
         client = await get_mcp_client(tool_registry=config.tool_registry)
-        metadata, _ = await collect_papers(
-            queries, state, config, client, errors
-        )
+        metadata, _ = await collect_papers(queries, state, config, client, errors)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as exc:
@@ -274,9 +261,7 @@ async def _collect_probe_papers(
 def _retrieved_evidence_context(articles: list[Article]) -> str:
     """Probe keys must not collide with the opening evidence in the same
     prompt."""
-    return build_evidence_context(
-        articles, require_analyzed=False, article_label=RETRIEVED_LABEL
-    )
+    return build_evidence_context(articles, require_analyzed=False, article_label=RETRIEVED_LABEL)
 
 
 def with_researched(
@@ -298,9 +283,7 @@ def with_researched(
     ]
 
 
-def _augment_evidence_context_with_meta_review(
-    evidence_context: str, state: WorkflowState
-) -> str:
+def _augment_evidence_context_with_meta_review(evidence_context: str, state: WorkflowState) -> str:
     """Recurring cross-agent errors must reach verification as well as
     generation."""
     meta_context = _format_meta_review_context(state.get("meta_review"))

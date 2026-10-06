@@ -78,9 +78,7 @@ class TestPubmedPilotTrace:
             for paper_id in ("101", "102", "103")
         ]
         assert evidence["final_ids"] == ["101"]
-        assert trace["source_file"] == str(
-            Path(pubmed_client.__file__).resolve()
-        )
+        assert trace["source_file"] == str(Path(pubmed_client.__file__).resolve())
         assert trace["process_id"] > 0
         assert trace["entrez_retry_policy"] == {
             "max_tries": 1,
@@ -92,10 +90,7 @@ class TestPubmedPilotTrace:
             "102": "entrez_fetch",
             "103": "entrez_fetch",
         }
-        assert all(
-            item["metadata_origin"] == "entrez_fetch"
-            for item in trace["fetched"]
-        )
+        assert all(item["metadata_origin"] == "entrez_fetch" for item in trace["fetched"])
         trace_text = trace_file.read_text(encoding="utf-8")
         assert "A real-shaped abstract." not in trace_text
         assert list(trace_file.parent.glob(".search-trace-*.tmp")) == []
@@ -108,9 +103,7 @@ class TestPubmedPilotTrace:
         monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
         Entrez.max_tries = 1
         Entrez.sleep_between_tries = 0
-        trace: dict[str, Any] = {
-            "entrez_calls": {"esearch": 0, "efetch": 0, "elink": 0}
-        }
+        trace: dict[str, Any] = {"entrez_calls": {"esearch": 0, "efetch": 0, "elink": 0}}
         request_called = False
 
         def fake_esearch(**_kwargs: Any) -> _CannedEntrezHandle:
@@ -284,17 +277,10 @@ class TestPubmedPilotTraceOutcomes:
         assert trace["incomplete_fetch_count"] == 3
         assert trace["entrez_calls"] == {"esearch": 1, "efetch": 3, "elink": 0}
         assert {
-            (error["stage"], error["pmid"], error["type"])
-            for error in trace["fetch_errors"]
-        } == {
-            ("metadata_fetch", paper_id, "OSError")
-            for paper_id in ("801", "802", "803")
-        }
+            (error["stage"], error["pmid"], error["type"]) for error in trace["fetch_errors"]
+        } == {("metadata_fetch", paper_id, "OSError") for paper_id in ("801", "802", "803")}
         fetched = {paper["pmid"]: paper for paper in trace["fetched"]}
-        assert all(
-            not paper["fetched"] and paper["incomplete"]
-            for paper in fetched.values()
-        )
+        assert all(not paper["fetched"] and paper["incomplete"] for paper in fetched.values())
 
     def test_trace_marks_elink_request_failure_as_incomplete(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -302,9 +288,7 @@ class TestPubmedPilotTraceOutcomes:
         """Only a successful ELink response can prove PMC text is absent."""
         cache_root = tmp_path / "elink-errors-cache"
         run_id = "elink-errors-run"
-        configure_trace(
-            monkeypatch, cache_root, "elink-errors-build", free_models=True
-        )
+        configure_trace(monkeypatch, cache_root, "elink-errors-build", free_models=True)
 
         install_entrez(
             monkeypatch,
@@ -321,19 +305,14 @@ class TestPubmedPilotTraceOutcomes:
         assert trace["entrez_calls"] == {"esearch": 1, "efetch": 3, "elink": 3}
         assert {error["stage"] for error in trace["fetch_errors"]} == {"elink"}
         fetched = {paper["pmid"]: paper for paper in trace["fetched"]}
-        assert all(
-            paper["fetched"] and paper["incomplete"]
-            for paper in fetched.values()
-        )
+        assert all(paper["fetched"] and paper["incomplete"] for paper in fetched.values())
 
     def test_trace_records_swallowed_pmc_fulltext_request_failure(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         cache_root = tmp_path / "fulltext-errors-cache"
         run_id = "fulltext-errors-run"
-        configure_trace(
-            monkeypatch, cache_root, "fulltext-errors-build", free_models=True
-        )
+        configure_trace(monkeypatch, cache_root, "fulltext-errors-build", free_models=True)
 
         failed_pmc_fetch = raising(OSError("fake PMC fulltext failure"))
 
@@ -353,9 +332,7 @@ class TestPubmedPilotTraceOutcomes:
         trace = read_trace(cache_root, run_id, run_id)
 
         assert trace["incomplete_fetch_count"] == 1
-        assert trace["fetch_errors"] == [
-            {"stage": "fulltext", "pmid": "901", "type": "OSError"}
-        ]
+        assert trace["fetch_errors"] == [{"stage": "fulltext", "pmid": "901", "type": "OSError"}]
         assert trace["entrez_calls"] == {"esearch": 1, "efetch": 4, "elink": 3}
 
     def test_prior_pool_supplement_is_recorded_in_run_trace(
@@ -364,9 +341,7 @@ class TestPubmedPilotTraceOutcomes:
         cache_root = tmp_path / "pool-cache"
         run_id = "pool-trace-readiness"
         seed_shared_pool(cache_root, run_id, "999")
-        configure_trace(
-            monkeypatch, cache_root, "pool-test-build", free_models=True
-        )
+        configure_trace(monkeypatch, cache_root, "pool-test-build", free_models=True)
         _install_fake_entrez(monkeypatch, ["401", "402", "403"])
 
         results = search("pool supplement provenance", run_id)
@@ -398,9 +373,7 @@ class TestPubmedPilotTraceOutcomes:
         cache_root = tmp_path / "cache-hit-cache"
         run_id = "cache-hit-trace"
         seed_shared_pool(cache_root, run_id, "901")
-        configure_trace(
-            monkeypatch, cache_root, "cache-hit-build", free_models=True
-        )
+        configure_trace(monkeypatch, cache_root, "cache-hit-build", free_models=True)
         esearch_calls = _install_fake_entrez(monkeypatch, ["901", "902", "903"])
 
         results = search("shared metadata cache hit", run_id)
@@ -463,9 +436,7 @@ class TestPubmedPilotTraceOutcomes:
         build_id = "error-test-build"
         configure_trace(monkeypatch, cache_root, build_id, free_models=True)
 
-        install_entrez(
-            monkeypatch, esearch=raising(TimeoutError("fake Entrez timeout"))
-        )
+        install_entrez(monkeypatch, esearch=raising(TimeoutError("fake Entrez timeout")))
 
         with pytest.raises(TimeoutError, match="fake Entrez timeout"):
             search("timeout query", run_id)

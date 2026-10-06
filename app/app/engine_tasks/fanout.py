@@ -29,18 +29,14 @@ from app.store.models import ScientificTask
 from app.store.tasks import NewTask
 
 
-def _hypothesis_for_item(
-    task: ScientificTask, state: dict[str, Any]
-) -> tuple[str, Any]:
+def _hypothesis_for_item(task: ScientificTask, state: dict[str, Any]) -> tuple[str, Any]:
     hypothesis_id = str(task.inputs["hypothesis_id"])
     hypothesis = next(
         (item for item in state["hypotheses"] if item.id == hypothesis_id),
         None,
     )
     if hypothesis is None:
-        raise ValueError(
-            f"hypothesis {hypothesis_id} is absent from checkpoint"
-        )
+        raise ValueError(f"hypothesis {hypothesis_id} is absent from checkpoint")
     return hypothesis_id, hypothesis
 
 
@@ -53,9 +49,7 @@ async def execute_review_item(
     )
     from co_scientist.llm import scoped_telemetry
 
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="review item"
-    )
+    state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="review item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     context = ReviewContext.from_state(state)
     with scoped_telemetry("review") as telemetry:
@@ -78,9 +72,7 @@ async def execute_verification_item(
     from co_scientist.agents.reflection import verify_hypothesis
     from co_scientist.llm import scoped_telemetry
 
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="verification item"
-    )
+    state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="verification item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     with scoped_telemetry("deep_verification") as telemetry:
         result = await verify_hypothesis(state, hypothesis)
@@ -100,9 +92,7 @@ async def execute_mature_reflection_item(
     from co_scientist.agents.reflection import ReviewType, review_hypothesis
     from co_scientist.llm import scoped_telemetry
 
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="mature reflection"
-    )
+    state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="mature reflection")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     mode = ReviewType(str(task.inputs["review_mode"]))
     with scoped_telemetry("comprehensive_reflection") as telemetry:
@@ -111,9 +101,7 @@ async def execute_mature_reflection_item(
             from co_scientist.agents.reflection import observe_hypothesis
 
             if not state.get("articles_with_reasoning"):
-                raise RuntimeError(
-                    "observation review has no literature context"
-                )
+                raise RuntimeError("observation review has no literature context")
             result = await observe_hypothesis(state, hypothesis)
         else:
             _, result, ledger = await review_hypothesis(state, hypothesis, mode)
@@ -308,20 +296,14 @@ async def _run_debate_strategy(
 
     literature = inputs.literature if strategy == "debate_lit" else None
     debate_reference = (
-        inputs.reference_index
-        if strategy == "debate_lit"
-        else ReferenceIndex(text="", sources={})
+        inputs.reference_index if strategy == "debate_lit" else ReferenceIndex(text="", sources={})
     )
     batch_position = None
     if inputs.debate_index is not None and inputs.debate_total is not None:
-        batch_position = DebateBatchPosition(
-            inputs.debate_index, inputs.debate_total
-        )
+        batch_position = DebateBatchPosition(inputs.debate_index, inputs.debate_total)
     # Unfollowed engine imports arrive as Any; assert the declared return type
     # at this boundary.
-    result: tuple[
-        list[Any], list[dict[str, Any]], int
-    ] = await generate_with_debate(
+    result: tuple[list[Any], list[dict[str, Any]], int] = await generate_with_debate(
         state=state,
         count=count,
         articles_with_reasoning=literature,
@@ -345,9 +327,7 @@ async def _run_generation_strategy(
     )
 
     if strategy == "tools":
-        hypotheses, llm_calls = await generate_with_tools(
-            state, count, inputs.reference_index
-        )
+        hypotheses, llm_calls = await generate_with_tools(state, count, inputs.reference_index)
         return hypotheses, [], llm_calls
     if strategy in {"debate_lit", "debate_only"}:
         return await _run_debate_strategy(state, strategy, count, inputs)
@@ -369,9 +349,7 @@ async def execute_generation_strategy(
     from co_scientist.llm import scoped_telemetry
     from co_scientist.skills import scoped_skill_usage
 
-    state, expected_seq = _restore_item_checkpoint(
-        task, db_path, superseded="generation strategy"
-    )
+    state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="generation strategy")
     strategy = str(task.inputs["strategy"])
     count = int(task.inputs["count"])
     inputs = _StrategyRunInputs(
@@ -449,9 +427,7 @@ def _create_fanout_tasks(
     with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         items = enqueue_items(conn)
-        aggregate = _enqueue_aggregate_task(
-            task, items, checkpoint_seq, conn, spec
-        )
+        aggregate = _enqueue_aggregate_task(task, items, checkpoint_seq, conn, spec)
     return items, aggregate
 
 
@@ -469,9 +445,7 @@ def _enqueue_review_fanout(
     from co_scientist.models import has_peer_review
 
     unreviewed = [
-        hypothesis
-        for hypothesis in state["hypotheses"]
-        if not has_peer_review(hypothesis)
+        hypothesis for hypothesis in state["hypotheses"] if not has_peer_review(hypothesis)
     ]
     items, aggregate = _create_fanout_tasks(
         partial(_enqueue_review_item_tasks, task, unreviewed, checkpoint_seq),
@@ -533,13 +507,9 @@ def _enqueue_verification_fanout(
 ) -> dict[str, Any]:
     from co_scientist.agents.reflection import select_hypotheses_to_verify
 
-    selected = select_hypotheses_to_verify(
-        state["hypotheses"], state["model_name"]
-    )
+    selected = select_hypotheses_to_verify(state["hypotheses"], state["model_name"])
     items, aggregate = _create_fanout_tasks(
-        partial(
-            _enqueue_verification_item_tasks, task, selected, checkpoint_seq
-        ),
+        partial(_enqueue_verification_item_tasks, task, selected, checkpoint_seq),
         task,
         checkpoint_seq,
         _VERIFICATION_AGGREGATE_SPEC,
@@ -559,10 +529,7 @@ def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
     """
     from co_scientist.agents.reflection.review_gate import reviews_needed
 
-    return [
-        (hypothesis.id, review.value)
-        for review in reviews_needed(hypothesis, iteration)
-    ]
+    return [(hypothesis.id, review.value) for review in reviews_needed(hypothesis, iteration)]
 
 
 class _ReflectionSpec(NamedTuple):
@@ -571,9 +538,7 @@ class _ReflectionSpec(NamedTuple):
     recheck: bool = False
 
 
-def _viable_specs(
-    hypothesis: Any, iteration: int, literature: Any
-) -> list[_ReflectionSpec]:
+def _viable_specs(hypothesis: Any, iteration: int, literature: Any) -> list[_ReflectionSpec]:
     specs: list[_ReflectionSpec] = []
     if literature and not hypothesis.reflection_notes:
         specs.append(_ReflectionSpec(hypothesis.id, "observation"))
@@ -655,9 +620,7 @@ def _enqueue_mature_reflection_fanout(
 ) -> dict[str, Any]:
     specs = _mature_reflection_specs(state)
     items, aggregate = _create_fanout_tasks(
-        partial(
-            _enqueue_mature_reflection_item_tasks, task, specs, checkpoint_seq
-        ),
+        partial(_enqueue_mature_reflection_item_tasks, task, specs, checkpoint_seq),
         task,
         checkpoint_seq,
         _MATURE_REFLECTION_AGGREGATE_SPEC,

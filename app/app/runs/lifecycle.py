@@ -29,9 +29,7 @@ from app.task_worker.enqueue import is_abandoned_spent_bootstrap
 logger = logging.getLogger(__name__)
 
 
-def _has_paused_engine_task(
-    run_id: str, *, conn: sqlite3.Connection | None = None
-) -> bool:
+def _has_paused_engine_task(run_id: str, *, conn: sqlite3.Connection | None = None) -> bool:
     return lifecycle.has_task_of_type(
         run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused", conn=conn
     )
@@ -40,9 +38,7 @@ def _has_paused_engine_task(
 def _has_leased_precheckpoint_bootstrap(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    return not checkpoints.has_checkpoint(
-        run_id, conn=conn
-    ) and lifecycle.has_task_of_type(
+    return not checkpoints.has_checkpoint(run_id, conn=conn) and lifecycle.has_task_of_type(
         run_id, engine_tasks.BOOTSTRAP_TASK, status="leased", conn=conn
     )
 
@@ -55,10 +51,7 @@ def _has_failed_precheckpoint_bootstrap_while_paused(
     run = runs.get_run(run_id, conn=conn)
     if run is None or run.status != RunStatus.PAUSED.value:
         return False
-    return any(
-        is_abandoned_spent_bootstrap(task)
-        for task in tasks.list_tasks(run_id, conn=conn)
-    )
+    return any(is_abandoned_spent_bootstrap(task) for task in tasks.list_tasks(run_id, conn=conn))
 
 
 def lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
@@ -91,9 +84,7 @@ def _is_resumable(run_id: str) -> bool:
     )
 
 
-def _prepare_resume_state(
-    run_id: str, *, conn: sqlite3.Connection | None = None
-) -> bool:
+def _prepare_resume_state(run_id: str, *, conn: sqlite3.Connection | None = None) -> bool:
     """True engine resume retains committed artifacts and events; legacy
     envelopes clear derived data before fresh bootstrap.
     """
@@ -135,14 +126,10 @@ def _check_resume_admission(
         run.status != expected_status
         or lifecycle_revision(run_id, conn=conn) != expected_lifecycle_revision
     ):
-        raise HTTPException(
-            status_code=409, detail="run status changed while resuming"
-        )
+        raise HTTPException(status_code=409, detail="run status changed while resuming")
 
 
-def _record_resume_transition(
-    run_id: str, true_resume: bool, *, conn: sqlite3.Connection
-) -> None:
+def _record_resume_transition(run_id: str, true_resume: bool, *, conn: sqlite3.Connection) -> None:
     runs.update_run_status(run_id, RunStatus.QUEUED, conn=conn)
     events.append_event(
         run_id,
@@ -175,8 +162,8 @@ def _queue_resume_workflow(
             expected_lifecycle_revision,
             conn=conn,
         )
-        revive_failed_bootstrap = (
-            _has_failed_precheckpoint_bootstrap_while_paused(run_id, conn=conn)
+        revive_failed_bootstrap = _has_failed_precheckpoint_bootstrap_while_paused(
+            run_id, conn=conn
         )
         true_resume = _prepare_resume_state(run_id, conn=conn)
         _record_resume_transition(run_id, true_resume, conn=conn)
@@ -203,9 +190,7 @@ async def _apply_adjudication_lifecycle(
     if decision["stage"] == "hypothesis":
         return
     if resolution == "rejected":
-        _block_rejected_run_if_current(
-            run, expected_lifecycle_revision=expected_lifecycle_revision
-        )
+        _block_rejected_run_if_current(run, expected_lifecycle_revision=expected_lifecycle_revision)
     elif run.status == RunStatus.PAUSED.value:
         await _release_approved_hold(
             run.id,
@@ -214,21 +199,16 @@ async def _apply_adjudication_lifecycle(
         )
 
 
-def _block_rejected_run_if_current(
-    run: RunRow, *, expected_lifecycle_revision: int
-) -> None:
+def _block_rejected_run_if_current(run: RunRow, *, expected_lifecycle_revision: int) -> None:
     with db.transaction() as conn:
         current = runs.get_run(run.id, conn=conn)
         if current is None:
             raise HTTPException(status_code=404, detail="run not found")
         if (
             current.status != run.status
-            or lifecycle_revision(run.id, conn=conn)
-            != expected_lifecycle_revision
+            or lifecycle_revision(run.id, conn=conn) != expected_lifecycle_revision
         ):
-            raise HTTPException(
-                status_code=409, detail="run status changed during adjudication"
-            )
+            raise HTTPException(status_code=409, detail="run status changed during adjudication")
         runs.update_run_status(
             run.id,
             RunStatus.BLOCKED,
@@ -263,12 +243,8 @@ async def adjudicate_safety(
     run, revision = resume_admission_snapshot(run_id)
     reviewer = client_id(request)
     if not reviewer:
-        raise HTTPException(
-            status_code=403, detail="an identified reviewer is required"
-        )
-    resolved = records.resolve_safety_decision(
-        run_id, decision_id, body.resolution, reviewer
-    )
+        raise HTTPException(status_code=403, detail="an identified reviewer is required")
+    resolved = records.resolve_safety_decision(run_id, decision_id, body.resolution, reviewer)
     if not resolved:
         raise HTTPException(
             status_code=409,
@@ -317,9 +293,7 @@ def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
         if current is None:
             raise HTTPException(status_code=404, detail="run not found")
         if current.status != run.status:
-            raise HTTPException(
-                status_code=409, detail="run status changed while starting"
-            )
+            raise HTTPException(status_code=409, detail="run status changed while starting")
         raise HTTPException(
             status_code=409,
             detail=f"concurrent run limit reached ({limit})",
@@ -413,9 +387,7 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
             raise HTTPException(status_code=409, detail="run already finished")
         lifecycle.cancel_run_tasks(run_id, conn=conn)
         runs.update_run_status(run_id, RunStatus.CANCELLED, conn=conn)
-        events.append_event(
-            run_id, "status", {"status": "cancelled"}, conn=conn
-        )
+        events.append_event(run_id, "status", {"status": "cancelled"}, conn=conn)
     return {"id": run_id, "status": "cancelled"}
 
 

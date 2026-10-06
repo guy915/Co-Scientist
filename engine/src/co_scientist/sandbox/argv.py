@@ -92,9 +92,7 @@ def _landlock_argv(argv: list[str], policy: SandboxPolicy) -> list[str]:
     ]
 
 
-_BACKEND_WRAPPERS: dict[
-    str, Callable[[list[str], SandboxPolicy], list[str]]
-] = {
+_BACKEND_WRAPPERS: dict[str, Callable[[list[str], SandboxPolicy], list[str]]] = {
     "seatbelt": seatbelt.wrap_argv,
     "bwrap": bwrap.wrap_argv,
     "landlock": _landlock_argv,
