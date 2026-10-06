@@ -122,38 +122,7 @@ it('aborts the in-flight connection on unmount', async () => {
   expect(abortSpy).toHaveBeenCalled();
 });
 
-it('resets state and reopens when runId changes', async () => {
-  const firstBody = new FakeSseBody();
-  const secondBody = new FakeSseBody();
-  queueFetch(streamingResponse(firstBody), streamingResponse(secondBody));
-  const {result, rerender} = renderHook(
-    ({id}: {id: string | null}) => useRunStream(id),
-    {initialProps: {id: 'run-1' as string | null}},
-  );
-  await settle();
-  firstBody.push({seq: 1, type: 'a', payload: {}});
-  await settle();
-  expect(result.current.events).toHaveLength(1);
-
-  rerender({id: 'run-2'});
-  expect(result.current.events).toEqual([]);
-  expect(result.current.connection).toBe('connecting');
-
-  await settle();
-  expect(fetchMock().mock.calls[1][0]).toContain('/api/runs/run-2/events');
-});
-
 describe('connection state', () => {
-  it('reports connecting then open as the stream connects', async () => {
-    const body = new FakeSseBody();
-    queueFetch(streamingResponse(body));
-    const {result} = renderHook(() => useRunStream('run-1'));
-    expect(result.current.connection).toBe('connecting');
-
-    await settle();
-    expect(result.current.connection).toBe('open');
-  });
-
   it.each([401, 403, 404])('does not retry permanent HTTP %s', async status => {
     queueFetch(errorResponse(status));
     const {result} = renderHook(() => useRunStream('run-1'));

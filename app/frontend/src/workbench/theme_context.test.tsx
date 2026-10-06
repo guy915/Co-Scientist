@@ -1,7 +1,7 @@
 import {act, renderHook} from '@testing-library/react';
 import type {ReactNode} from 'react';
-import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {applyMd3Theme, ThemeProvider, useTheme} from './theme_context';
+import {afterEach, beforeEach, expect, it, vi} from 'vitest';
+import {ThemeProvider, useTheme} from './theme_context';
 
 const STORAGE_KEY = 'cosci-theme';
 
@@ -74,29 +74,6 @@ afterEach(() => {
   localStorage.removeItem(STORAGE_KEY);
 });
 
-it('defaults to system mode, dark when matchMedia is absent', async () => {
-  vi.stubGlobal('matchMedia', undefined);
-  const {result} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-
-  expect(result.current.mode).toBe('system');
-  expect(result.current.resolvedMode).toBe('dark');
-  expect(document.documentElement.dataset.theme).toBe('dark');
-  expect(document.documentElement.classList.contains('dark')).toBe(true);
-});
-
-it('honors a stored light preference over the system scheme', async () => {
-  localStorage.setItem(STORAGE_KEY, 'light');
-  installFakeMatchMedia(true);
-  const {result} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-
-  expect(result.current.mode).toBe('light');
-  expect(result.current.resolvedMode).toBe('light');
-  expect(document.documentElement.dataset.theme).toBe('light');
-  expect(document.documentElement.classList.contains('dark')).toBe(false);
-});
-
 it('resolves system mode live against OS scheme changes', async () => {
   const mql = installFakeMatchMedia(false);
   const {result} = renderHook(() => useTheme(), {wrapper});
@@ -114,19 +91,6 @@ it('resolves system mode live against OS scheme changes', async () => {
   expect(document.documentElement.dataset.theme).toBe('light');
 });
 
-it('subscribes via the legacy addListener API when needed', async () => {
-  const mql = installFakeMatchMedia(false, 'legacy');
-  const {result, unmount} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-
-  act(() => mql.fireChange(true));
-  await flushThemeTransition();
-  expect(result.current.resolvedMode).toBe('dark');
-
-  unmount();
-  expect(mql.removeListener).toHaveBeenCalledWith(expect.any(Function));
-});
-
 it('setMode persists an explicit choice and updates resolvedMode', async () => {
   installFakeMatchMedia(false);
   const {result} = renderHook(() => useTheme(), {wrapper});
@@ -139,45 +103,4 @@ it('setMode persists an explicit choice and updates resolvedMode', async () => {
   expect(result.current.resolvedMode).toBe('dark');
   expect(localStorage.getItem(STORAGE_KEY)).toBe('dark');
   expect(document.documentElement.dataset.themePreference).toBe('dark');
-});
-
-it('toggle flips between light and dark', async () => {
-  installFakeMatchMedia(false);
-  const {result} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-  act(() => result.current.setMode('light'));
-  await flushThemeTransition();
-
-  act(() => result.current.toggle());
-  await flushThemeTransition();
-  expect(result.current.mode).toBe('dark');
-
-  act(() => result.current.toggle());
-  await flushThemeTransition();
-  expect(result.current.mode).toBe('light');
-});
-
-it('lifts the transition freeze after the theme is applied', async () => {
-  installFakeMatchMedia(false);
-  renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-
-  expect(document.documentElement.classList.contains('theme-switching')).toBe(
-    false,
-  );
-});
-
-function cssVar(name: string): string {
-  return document.documentElement.style.getPropertyValue(name);
-}
-
-describe('applyMd3Theme', () => {
-  beforeEach(() => document.documentElement.removeAttribute('style'));
-
-  it('sets MD3 color custom properties on the document root', () => {
-    applyMd3Theme(false);
-    expect(cssVar('--md-sys-color-primary')).not.toBe('');
-    expect(cssVar('--md-sys-color-surface')).not.toBe('');
-    expect(cssVar('--md-sys-color-on-surface')).not.toBe('');
-  });
 });

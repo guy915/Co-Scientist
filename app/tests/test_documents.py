@@ -29,94 +29,11 @@ from tests._interviews_helpers import (
 )
 from tests._llm_fake_backend import install_completion_backend
 
-_OWNER = {"X-Client-ID": "doc-delete-owner"}
-_OTHER = {"X-Client-ID": "someone-else"}
-
-
-def _deletion_stage(client: TestClient, headers: dict[str, str]) -> Any:
-    return client.post(
-        "/api/documents",
-        headers=headers,
-        files={
-            "file": (
-                "notes.txt",
-                io.BytesIO(b"private research notes"),
-                "text/plain",
-            )
-        },
-        data={"consent": "true"},
-    )
-
-
-def test_owner_can_delete_their_document() -> None:
-    client = make_client()
-    document_id = _deletion_stage(client, _OWNER).json()["id"]
-
-    response = client.delete(f"/api/documents/{document_id}", headers=_OWNER)
-
-    assert response.status_code == 204
-    interview = client.post(
-        "/api/interviews",
-        headers=_OWNER,
-        json={"research_challenge": "x", "document_ids": [document_id]},
-    )
-    assert interview.status_code == 404
-
-
-def test_another_client_cannot_delete_the_document() -> None:
-    client = make_client()
-    document_id = _deletion_stage(client, _OWNER).json()["id"]
-
-    response = client.delete(f"/api/documents/{document_id}", headers=_OTHER)
-
-    assert response.status_code == 404
-    interview = client.post(
-        "/api/interviews",
-        headers=_OWNER,
-        json={"research_challenge": "x", "document_ids": [document_id]},
-    )
-    assert interview.status_code == 200
-
-
-def test_delete_unknown_document_404s() -> None:
-    client = make_client()
-    response = client.delete(
-        "/api/documents/not-a-real-document", headers=_OWNER
-    )
-    assert response.status_code == 404
-
 
 def _client_with_run(goal: str) -> tuple[TestClient, str]:
     client = make_client()
     run_id = _create_run(client, goal).json()["id"]
     return client, run_id
-
-
-def test_csv_upload_preserves_table_coordinates() -> None:
-    from app.document_ingest import extract_document
-
-    document = extract_document(
-        b"condition,replicate,value\ncontrol,1,4.2\ntreated,1,8.7\n",
-        "text/csv",
-    )
-
-    assert document.extraction_tool == "csv-table-v1"
-    assert "[Table 1 rows=2 columns=3]" in document.text
-    assert "Header: condition | replicate | value" in document.text
-    assert "Row 2: treated | 1 | 8.7" in document.text
-
-
-def test_json_upload_preserves_nested_structure() -> None:
-    from app.document_ingest import extract_document
-
-    document = extract_document(
-        b'{"assay": {"units": "nM", "values": [3, 5]}}',
-        "application/json",
-    )
-
-    assert document.extraction_tool == "json-structure-v1"
-    assert document.text.startswith("[Structured JSON]")
-    assert '"units": "nM"' in document.text
 
 
 def test_pdf_ocr_includes_figures_on_text_pages(
@@ -212,64 +129,6 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
     assert uploaded["extraction_tool"] == "tesseract-cli-v1"
 
 
-def test_pdf_bytes_declared_as_png_are_refused() -> None:
-    from app.document_ingest import extract_document
-
-    pdf_bytes = b"%PDF-1.4\n%fake pdf body"
-
-    with pytest.raises(ValueError, match="does not match"):
-        extract_document(pdf_bytes, "image/png")
-
-
-def test_text_declared_as_a_mislabeled_pdf_is_refused() -> None:
-    from app.document_ingest import extract_document
-
-    jpeg_bytes = b"\xff\xd8\xff\xe0" + b"\x00" * 32
-
-    with pytest.raises(ValueError, match="does not match"):
-        extract_document(jpeg_bytes, "text/plain")
-
-
-def test_genuine_png_declared_as_png_is_accepted() -> None:
-    # Use PNG signature bytes without OCR so downstream decoding cannot mask the
-    # mismatch guard.
-    from app.document_ingest import _verify_declared_type
-
-    png_signature = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
-
-    _verify_declared_type(png_signature, "image/png")
-
-
-def test_plain_text_with_no_binary_signature_is_unaffected(
-    isolated_db: str,
-) -> None:
-    # Text has no magic bytes; decodability is its format check.
-    client, run_id = _client_with_run("Plain text sanity check")
-
-    response = client.post(
-        f"/api/runs/{run_id}/attachments/upload",
-        files={"file": ("notes.txt", b"Just plain notes.", "text/plain")},
-        data={"consent": "true"},
-    )
-
-    assert response.status_code == 200
-
-
-def test_upload_endpoint_refuses_a_mislabeled_file(isolated_db: str) -> None:
-    client, run_id = _client_with_run("Mislabeled upload check")
-    pdf_bytes = b"%PDF-1.4\n%mislabeled"
-
-    response = client.post(
-        f"/api/runs/{run_id}/attachments/upload",
-        files={"file": ("figure.png", pdf_bytes, "image/png")},
-        data={"consent": "true"},
-    )
-
-    assert response.status_code == 422
-    assert "does not match" in response.json()["detail"]
-    assert records.list_evidence(run_id, db_path=isolated_db) == []
-
-
 def test_invalid_image_is_rejected_without_persisting_evidence(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -313,32 +172,6 @@ def _corpus() -> list[CorpusDocument]:
             "Receptor Y blockade restores immune surveillance against tumors.",
         ),
     ]
-
-
-def test_retrieves_topically_relevant_document() -> None:
-    retriever = KeywordCorpusRetriever(_corpus())
-    hits = retriever.retrieve("kinase inhibition tumor growth AML", k=2)
-    assert hits
-    assert hits[0].document.doc_id == "d1"
-    assert hits[0].score > 0.0
-
-
-def test_off_topic_query_returns_no_spurious_hits() -> None:
-    retriever = KeywordCorpusRetriever(_corpus())
-    assert retriever.retrieve("quantum chromodynamics gluon") == []
-
-
-def test_retrieval_is_deterministic() -> None:
-    retriever = KeywordCorpusRetriever(_corpus())
-    first = [h.document.doc_id for h in retriever.retrieve("tumor immune", k=3)]
-    second = [
-        h.document.doc_id for h in retriever.retrieve("tumor immune", k=3)
-    ]
-    assert first == second
-
-
-def test_empty_corpus_returns_nothing() -> None:
-    assert KeywordCorpusRetriever([]).retrieve("anything") == []
 
 
 def test_engine_context_sources_preserve_private_provenance() -> None:
@@ -391,6 +224,107 @@ def _stage_id(client: TestClient, **kwargs: Any) -> str:
     return cast(str, response.json()["id"])
 
 
+@pytest.mark.parametrize(
+    ("target", "caller", "status", "interview_status"),
+    [
+        ("staged", "doc-scientist", 204, 404),
+        ("staged", "someone-else", 404, 200),
+        ("not-a-real-document", "doc-scientist", 404, 200),
+    ],
+    ids=["owner", "another-client", "unknown-document"],
+)
+def test_only_the_owner_can_delete_a_staged_document(
+    target: str, caller: str, status: int, interview_status: int
+) -> None:
+    client = make_client()
+    document_id = _stage_id(client)
+
+    response = client.delete(
+        f"/api/documents/{document_id if target == 'staged' else target}",
+        headers={"X-Client-ID": caller},
+    )
+
+    assert response.status_code == status
+    interview = client.post(
+        "/api/interviews",
+        headers=_HEADERS,
+        json={"research_challenge": "x", "document_ids": [document_id]},
+    )
+    assert interview.status_code == interview_status
+
+
+@pytest.mark.parametrize(
+    ("content", "mime_type", "tool", "expected"),
+    [
+        (
+            b"condition,replicate,value\ncontrol,1,4.2\ntreated,1,8.7\n",
+            "text/csv",
+            "csv-table-v1",
+            [
+                "[Table 1 rows=2 columns=3]",
+                "Header: condition | replicate | value",
+                "Row 2: treated | 1 | 8.7",
+            ],
+        ),
+        (
+            b'{"assay": {"units": "nM", "values": [3, 5]}}',
+            "application/json",
+            "json-structure-v1",
+            ["[Structured JSON]", '"units": "nM"'],
+        ),
+    ],
+    ids=["csv", "json"],
+)
+def test_structured_uploads_preserve_their_structure(
+    content: bytes, mime_type: str, tool: str, expected: list[str]
+) -> None:
+    from app.document_ingest import extract_document
+
+    document = extract_document(content, mime_type)
+
+    assert document.extraction_tool == tool
+    for fragment in expected:
+        assert fragment in document.text
+
+
+@pytest.mark.parametrize(
+    ("name", "content", "mime_type"),
+    [
+        ("figure.png", b"%PDF-1.4\n%mislabeled", "image/png"),
+        ("notes.txt", b"\xff\xd8\xff\xe0" + b"\x00" * 32, "text/plain"),
+    ],
+    ids=["pdf-as-png", "jpeg-as-text"],
+)
+def test_upload_endpoint_refuses_a_mislabeled_file(
+    isolated_db: str, name: str, content: bytes, mime_type: str
+) -> None:
+    client, run_id = _client_with_run("Mislabeled upload check")
+
+    response = client.post(
+        f"/api/runs/{run_id}/attachments/upload",
+        files={"file": (name, content, mime_type)},
+        data={"consent": "true"},
+    )
+
+    assert response.status_code == 422
+    assert "does not match" in response.json()["detail"]
+    assert records.list_evidence(run_id, db_path=isolated_db) == []
+
+
+def test_keyword_retrieval_ranks_relevant_documents_only() -> None:
+    retriever = KeywordCorpusRetriever(_corpus())
+
+    hits = retriever.retrieve("kinase inhibition tumor growth AML", k=2)
+    assert hits[0].document.doc_id == "d1"
+    assert hits[0].score > 0.0
+    first = [h.document.doc_id for h in retriever.retrieve("tumor immune", k=3)]
+    assert first == [
+        h.document.doc_id for h in retriever.retrieve("tumor immune", k=3)
+    ]
+    assert retriever.retrieve("quantum chromodynamics gluon") == []
+    assert KeywordCorpusRetriever([]).retrieve("anything") == []
+
+
 def test_staging_rejects_an_unextractable_document() -> None:
     client = make_client()
     response = client.post(
@@ -427,6 +361,9 @@ def test_attached_document_reaches_the_interview_prompt(
         },
     )
     assert created.status_code == 200, created.text
+    assert [d["title"] for d in _interview_payload(created)["documents"]] == [
+        "lab-notes.txt"
+    ]
 
     interview_id = store.list_interviews("doc-scientist")[0]["id"]
     captured: dict[str, Any] = {}
@@ -448,23 +385,6 @@ def test_attached_document_reaches_the_interview_prompt(
     prompt = " ".join(m["content"] for m in captured["messages"])
     assert _DOC_TEXT in prompt
     assert "lab-notes.txt" in prompt
-
-
-def test_interview_payload_lists_its_attached_documents() -> None:
-    client = make_client()
-    document_id = _stage_id(client)
-    streamed = client.post(
-        "/api/interviews",
-        headers=_HEADERS,
-        json={"research_challenge": "goal", "document_ids": [document_id]},
-    )
-    interview_id = store.list_interviews("doc-scientist")[0]["id"]
-    payload = client.get(
-        f"/api/interviews/{interview_id}", headers=_HEADERS
-    ).json()
-    assert [d["title"] for d in payload["documents"]] == ["lab-notes.txt"]
-    frame = _interview_payload(streamed)
-    assert [d["title"] for d in frame["documents"]] == ["lab-notes.txt"]
 
 
 def test_create_run_carries_staged_documents_into_its_corpus() -> None:

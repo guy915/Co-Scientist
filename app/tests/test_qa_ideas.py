@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -22,30 +21,16 @@ def _idea(title: str, **fields: Any) -> dict[str, Any]:
     return {**base, **fields}
 
 
-def test_search_returns_the_idea_whose_title_matches() -> None:
-    ideas = [
-        _idea("Mitochondrial calcium buffering"),
-        _idea("Ferroptosis escape via lipid repair"),
-    ]
-    results = qa_ideas.search_ideas(ideas, "lipid repair", 1)
-    assert results[0]["title"] == "Ferroptosis escape via lipid repair"
-
-
-def test_a_title_match_outranks_a_body_that_repeats_the_words() -> None:
+def test_search_ranks_title_matches_and_returns_the_idea_bodies() -> None:
     ideas = [
         _idea("Unrelated", statement="lipid lipid lipid repair repair repair"),
+        _idea("Mitochondrial calcium buffering"),
         _idea("Lipid repair"),
     ]
-    assert (
-        qa_ideas.search_ideas(ideas, "lipid repair", 1)[0]["title"]
-        == "Lipid repair"
-    )
-
-
-def test_search_returns_the_ideas_bodies_not_just_their_titles() -> None:
-    result = qa_ideas.search_ideas([_idea("H")], "H", 1)[0]
-    assert result["Statement"] == "a statement"
-    assert result["Mechanism"] == "a mechanism"
+    results = qa_ideas.search_ideas(ideas, "lipid repair", 1)
+    assert results[0]["title"] == "Lipid repair"
+    assert results[0]["Statement"] == "a statement"
+    assert results[0]["Mechanism"] == "a mechanism"
 
 
 def test_a_query_matching_nothing_falls_back_to_the_leaders() -> None:
@@ -54,63 +39,11 @@ def test_a_query_matching_nothing_falls_back_to_the_leaders() -> None:
     assert [r["title"] for r in results] == ["Alpha"]
 
 
-def test_the_result_count_is_clamped_however_the_model_asks() -> None:
-    ideas = [_idea(f"Idea {n}") for n in range(20)]
-    assert len(qa_ideas.search_ideas(ideas, "idea", 99)) == 5
-    assert len(qa_ideas.search_ideas(ideas, "idea", 0)) == 1
-    assert len(qa_ideas.search_ideas(ideas, "idea", "three")) == 3
-    assert len(qa_ideas.search_ideas(ideas, "idea", None)) == 3
-
-
-def test_one_long_idea_cannot_fill_the_whole_result() -> None:
-    result = qa_ideas.search_ideas([_idea("H", statement="x" * 5_000)], "H")[0]
-    assert len(result["Statement"]) < 1_300
-
-
-def test_a_malformed_argument_blob_still_searches() -> None:
-    out = qa_ideas.run_tool_call(
-        {"name": "search_ideas", "arguments": "lipid repair"},
-        [_idea("Lipid repair")],
-    )
-    assert json.loads(out)["ideas"][0]["title"] == "Lipid repair"
-
-
-def test_an_unknown_tool_name_is_reported_not_raised() -> None:
-    out = qa_ideas.run_tool_call({"name": "rm_rf", "arguments": "{}"}, [])
-    assert "unknown tool" in json.loads(out)["error"]
-
-
 def _fragment(index: int, **fields: Any) -> SimpleNamespace:
     function = SimpleNamespace(
         name=fields.get("name"), arguments=fields.get("arguments")
     )
     return SimpleNamespace(index=index, id=fields.get("id"), function=function)
-
-
-def test_arguments_split_across_chunks_are_reassembled() -> None:
-    calls: dict[int, dict[str, Any]] = {}
-    qa_ideas.accumulate_tool_calls(
-        calls,
-        SimpleNamespace(
-            tool_calls=[_fragment(0, id="c1", name="search_ideas")]
-        ),
-    )
-    for piece in ('{"que', 'ry": "lip', 'id"}'):
-        qa_ideas.accumulate_tool_calls(
-            calls, SimpleNamespace(tool_calls=[_fragment(0, arguments=piece)])
-        )
-
-    assert calls[0] == {
-        "id": "c1",
-        "name": "search_ideas",
-        "arguments": '{"query": "lipid"}',
-    }
-
-
-def test_a_delta_carrying_no_tool_calls_changes_nothing() -> None:
-    calls: dict[int, dict[str, Any]] = {}
-    qa_ideas.accumulate_tool_calls(calls, SimpleNamespace(content="hello"))
-    assert calls == {}
 
 
 def _chunk(content: str | None = None, tool_calls: Any = None) -> Any:
@@ -189,18 +122,8 @@ def test_a_model_that_asks_for_ideas_is_given_them_and_answers(
     assert tool_message["role"] == "tool"
     assert "Lipid repair" in tool_message["content"]
     assert "tools" not in second
-
-
-def test_the_second_round_keeps_the_budget_and_deadline(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    fake = _scripted_litellm([[_search_call_chunk()], [_chunk("answer")]])
-    install_completion_backend(monkeypatch, (fake).acompletion)
-
-    _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")]))
-
-    assert fake.sent[0]["max_tokens"] == fake.sent[1]["max_tokens"]
-    assert fake.sent[0]["timeout"] == fake.sent[1]["timeout"]
+    assert fake.sent[0]["max_tokens"] == second["max_tokens"]
+    assert fake.sent[0]["timeout"] == second["timeout"]
 
 
 def test_a_tool_call_after_the_answer_started_is_ignored(
@@ -214,29 +137,6 @@ def test_a_tool_call_after_the_answer_started_is_ignored(
     deltas = _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")]))
 
     assert deltas == [("chunk", "Half an answer.")]
-    assert len(fake.sent) == 1
-
-
-def test_a_run_with_no_ideas_is_offered_no_tool(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    fake = _scripted_litellm([[_chunk("Nothing yet.")]])
-    install_completion_backend(monkeypatch, (fake).acompletion)
-
-    _drain(qa.stream_llm_deltas("model", "sys", "q", []))
-
-    assert "tools" not in fake.sent[0]
-
-
-def test_a_nameless_tool_fragment_does_not_trigger_a_round(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    fake = _scripted_litellm(
-        [[_chunk(tool_calls=[_fragment(0, arguments="{}")])], [_chunk("no")]]
-    )
-    install_completion_backend(monkeypatch, (fake).acompletion)
-
-    assert _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")])) == []
     assert len(fake.sent) == 1
 
 

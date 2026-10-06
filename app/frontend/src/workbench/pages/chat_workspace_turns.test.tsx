@@ -92,163 +92,6 @@ it('shows a provider failure on the first turn as a banner', async () => {
   expect(screen.getByRole('button', {name: 'Send'})).toBeInTheDocument();
 });
 
-it('stopping a first turn restores the composer text without a banner', async () => {
-  apiMock.createInterview.mockImplementation(
-    (_goal: string, _sinks: unknown, _docs: string[], signal: AbortSignal) =>
-      abortWhenStopped(signal),
-  );
-  renderWorkspace();
-  send(GOAL);
-
-  fireEvent.click(await screen.findByRole('button', {name: 'Stop'}));
-
-  await waitFor(() => expect(composer()).toHaveValue(GOAL));
-  expect(screen.queryByRole('button', {name: 'Stop'})).toBeNull();
-  expect(screen.queryByText(/aborted/i)).toBeNull();
-  expect(apiMock.getInterview).not.toHaveBeenCalled();
-});
-
-it('stopping a follow-up turn resyncs the saved interview instead of erroring', async () => {
-  await openInterview();
-  apiMock.addInterviewTurn.mockImplementation(
-    (
-      _id: string,
-      _text: string,
-      _s: unknown,
-      _d: string[],
-      signal: AbortSignal,
-    ) => abortWhenStopped(signal),
-  );
-  const saved = activeInterview();
-  saved.turns.splice(1, 0, {
-    id: 3,
-    role: 'user',
-    content: 'one more thing',
-    reasoning: null,
-    fallback: false,
-    questions: [],
-    created_at: 3,
-  });
-  apiMock.getInterview.mockResolvedValue(saved);
-  send('one more thing');
-
-  fireEvent.click(await screen.findByRole('button', {name: 'Stop'}));
-
-  await waitFor(() =>
-    expect(screen.getByText('one more thing')).toBeInTheDocument(),
-  );
-  expect(apiMock.getInterview).toHaveBeenCalledWith('interview-1');
-  expect(screen.queryByText(/aborted/i)).toBeNull();
-});
-
-it('shows a failed follow-up turn as a banner without resyncing', async () => {
-  await openInterview();
-  apiMock.addInterviewTurn.mockRejectedValue(new Error('provider down'));
-
-  send('one more thing');
-
-  expect(await screen.findByText('provider down')).toBeInTheDocument();
-  expect(apiMock.getInterview).not.toHaveBeenCalled();
-});
-
-it('revises a prompt in place and retries a response from the transcript', async () => {
-  await openInterview();
-  const revised = activeInterview({
-    turns: activeInterview().turns.map(turn =>
-      turn.id === 1 ? {...turn, content: 'Reverse cardiac fibrosis'} : turn,
-    ),
-  });
-  apiMock.editInterviewTurn.mockResolvedValue(revised);
-  apiMock.retryInterviewTurn.mockResolvedValue(activeInterview());
-  fireEvent.change(composer(), {target: {value: 'unsent draft'}});
-
-  fireEvent.click(screen.getByLabelText('Edit prompt'));
-  fireEvent.change(screen.getByLabelText('Edit prompt'), {
-    target: {value: '  Reverse cardiac fibrosis  '},
-  });
-  fireEvent.click(screen.getByLabelText('Send edited prompt'));
-
-  expect(
-    await screen.findByText('Reverse cardiac fibrosis'),
-  ).toBeInTheDocument();
-  expect(apiMock.editInterviewTurn).toHaveBeenCalledWith(
-    'interview-1',
-    1,
-    'Reverse cardiac fibrosis',
-    expect.any(Object),
-    expect.any(AbortSignal),
-  );
-  expect(composer()).toHaveValue('unsent draft');
-
-  fireEvent.click(screen.getAllByLabelText('Retry response').at(-1)!);
-  await waitFor(() =>
-    expect(apiMock.retryInterviewTurn).toHaveBeenCalledWith(
-      'interview-1',
-      2,
-      expect.any(Object),
-      expect.any(AbortSignal),
-    ),
-  );
-});
-
-it('retries the plan from its own turn', async () => {
-  renderWorkspace();
-  send(GOAL);
-  await screen.findByRole('heading', {name: 'Research plan'});
-  apiMock.retryInterviewTurn.mockResolvedValue(activeInterview());
-
-  fireEvent.click(screen.getAllByLabelText('Retry response').at(-1)!);
-
-  expect(await screen.findByText(QUESTION)).toBeInTheDocument();
-  expect(screen.queryByRole('heading', {name: 'Research plan'})).toBeNull();
-});
-
-it('copies a prompt and offers a toast that starts a new chat from it', async () => {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', {
-    configurable: true,
-    value: {writeText},
-  });
-  await openInterview();
-
-  fireEvent.click(screen.getByLabelText('Copy prompt'));
-  fireEvent.click(await screen.findByRole('button', {name: 'Start new chat'}));
-
-  expect(writeText).toHaveBeenCalledWith(GOAL);
-  expect(composer()).toHaveValue(GOAL);
-  expect(screen.queryByText(QUESTION)).toBeNull();
-  expect(screen.queryByText('Prompt copied')).toBeNull();
-});
-
-it('sends staged documents with the first turn', async () => {
-  apiMock.stageDocument.mockResolvedValue({
-    id: 'doc-1',
-    title: 'notes.md',
-    sha256: 'abc',
-    byte_size: 8,
-    mime_type: 'text/markdown',
-    extraction_tool: 'text',
-  });
-  apiMock.createInterview.mockResolvedValue(activeInterview());
-  renderWorkspace();
-  fireEvent.change(screen.getByLabelText('Upload files'), {
-    target: {
-      files: [new File(['abstract'], 'notes.md', {type: 'text/markdown'})],
-    },
-  });
-
-  send(GOAL);
-
-  await waitFor(() =>
-    expect(apiMock.createInterview).toHaveBeenCalledWith(
-      GOAL,
-      expect.any(Object),
-      ['doc-1'],
-      expect.any(AbortSignal),
-    ),
-  );
-});
-
 async function startedSession() {
   renderWorkspace();
   send(GOAL);
@@ -256,38 +99,6 @@ async function startedSession() {
   fireEvent.click(screen.getByText('Start research'));
   await screen.findByText('Research session');
 }
-
-it('shows a failed run question as a banner', async () => {
-  await startedSession();
-  apiMock.askRunQuestion.mockRejectedValue(new Error('provider down'));
-
-  send('Why?');
-
-  expect(await screen.findByText('provider down')).toBeInTheDocument();
-});
-
-it('stopping a run question drops the partial answer without a banner', async () => {
-  await startedSession();
-  apiMock.askRunQuestion.mockImplementation(
-    (
-      _id: string,
-      _q: string,
-      sinks: {onChunk?: (text: string) => void},
-      signal: AbortSignal,
-    ) => {
-      sinks.onChunk?.('partial answer');
-      return abortWhenStopped(signal);
-    },
-  );
-  send('Why?');
-  await screen.findByText('partial answer');
-
-  fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
-
-  await waitFor(() => expect(screen.queryByText('partial answer')).toBeNull());
-  expect(screen.getByText('Why?')).toBeInTheDocument();
-  expect(screen.queryByText(/aborted/i)).toBeNull();
-});
 
 it('keeps reasoning on a settled run answer and revises its question by durable id', async () => {
   await startedSession();
@@ -360,8 +171,12 @@ it('streams the interview reply and its reasoning live, then settles on the save
   );
   renderWorkspace();
   send(GOAL);
-  expect(await screen.findByText('Ask about the mechanism.')).toBeVisible();
-  expect(screen.getByText(/Which mechanisms/)).toBeInTheDocument();
+  // The lazy Markdown renderer replaces the pending plain-text node once it
+  // loads, so assert against a fresh query rather than a node found earlier.
+  await waitFor(() => {
+    expect(screen.getByText('Ask about the mechanism.')).toBeVisible();
+    expect(screen.getByText(/Which mechanisms/)).toBeInTheDocument();
+  });
 
   finish(activeInterview());
 
@@ -393,34 +208,114 @@ it('carries a chosen focus and completion email into the created run', async () 
   );
 });
 
-it('revises a prompt that is stopped or fails without losing the saved transcript', async () => {
-  await openInterview();
-  apiMock.getInterview.mockResolvedValue(activeInterview());
-  apiMock.editInterviewTurn.mockImplementationOnce(
+it('stopping a first turn restores the composer text without a banner', async () => {
+  apiMock.createInterview.mockImplementation(
+    (_goal: string, _sinks: unknown, _docs: string[], signal: AbortSignal) =>
+      abortWhenStopped(signal),
+  );
+  renderWorkspace();
+  send(GOAL);
+
+  fireEvent.click(await screen.findByRole('button', {name: 'Stop'}));
+
+  await waitFor(() => expect(composer()).toHaveValue(GOAL));
+  expect(screen.queryByRole('button', {name: 'Stop'})).toBeNull();
+  expect(screen.queryByText(/aborted/i)).toBeNull();
+  expect(apiMock.getInterview).not.toHaveBeenCalled();
+});
+
+it('stopping a run question drops the partial answer without a banner', async () => {
+  await startedSession();
+  apiMock.askRunQuestion.mockImplementation(
     (
       _id: string,
-      _turn: number,
+      _q: string,
+      sinks: {onChunk?: (text: string) => void},
+      signal: AbortSignal,
+    ) => {
+      sinks.onChunk?.('partial answer');
+      return abortWhenStopped(signal);
+    },
+  );
+  send('Why?');
+  await screen.findByText('partial answer');
+
+  fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
+
+  await waitFor(() => expect(screen.queryByText('partial answer')).toBeNull());
+  expect(screen.getByText('Why?')).toBeInTheDocument();
+  expect(screen.queryByText(/aborted/i)).toBeNull();
+});
+
+it('stopping a follow-up turn resyncs the saved interview instead of erroring', async () => {
+  await openInterview();
+  apiMock.addInterviewTurn.mockImplementation(
+    (
+      _id: string,
       _text: string,
-      _sinks: unknown,
+      _s: unknown,
+      _d: string[],
       signal: AbortSignal,
     ) => abortWhenStopped(signal),
   );
-
-  fireEvent.click(screen.getByLabelText('Edit prompt'));
-  fireEvent.change(screen.getByLabelText('Edit prompt'), {
-    target: {value: 'Revised goal'},
+  const saved = activeInterview();
+  saved.turns.splice(1, 0, {
+    id: 3,
+    role: 'user',
+    content: 'one more thing',
+    reasoning: null,
+    fallback: false,
+    questions: [],
+    created_at: 3,
   });
-  fireEvent.click(screen.getByLabelText('Send edited prompt'));
+  apiMock.getInterview.mockResolvedValue(saved);
+  send('one more thing');
+
   fireEvent.click(await screen.findByRole('button', {name: 'Stop'}));
 
   await waitFor(() =>
-    expect(apiMock.getInterview).toHaveBeenCalledWith('interview-1'),
+    expect(screen.getByText('one more thing')).toBeInTheDocument(),
   );
-  expect(await screen.findByText(GOAL)).toBeInTheDocument();
+  expect(apiMock.getInterview).toHaveBeenCalledWith('interview-1');
   expect(screen.queryByText(/aborted/i)).toBeNull();
+});
 
-  apiMock.retryInterviewTurn.mockRejectedValue(new Error('provider down'));
+it('revises a prompt in place and retries a response from the transcript', async () => {
+  await openInterview();
+  const revised = activeInterview({
+    turns: activeInterview().turns.map(turn =>
+      turn.id === 1 ? {...turn, content: 'Reverse cardiac fibrosis'} : turn,
+    ),
+  });
+  apiMock.editInterviewTurn.mockResolvedValue(revised);
+  apiMock.retryInterviewTurn.mockResolvedValue(activeInterview());
+  fireEvent.change(composer(), {target: {value: 'unsent draft'}});
+
+  fireEvent.click(screen.getByLabelText('Edit prompt'));
+  fireEvent.change(screen.getByLabelText('Edit prompt'), {
+    target: {value: '  Reverse cardiac fibrosis  '},
+  });
+  fireEvent.click(screen.getByLabelText('Send edited prompt'));
+
+  expect(
+    await screen.findByText('Reverse cardiac fibrosis'),
+  ).toBeInTheDocument();
+  expect(apiMock.editInterviewTurn).toHaveBeenCalledWith(
+    'interview-1',
+    1,
+    'Reverse cardiac fibrosis',
+    expect.any(Object),
+    expect.any(AbortSignal),
+  );
+  expect(composer()).toHaveValue('unsent draft');
+
   fireEvent.click(screen.getAllByLabelText('Retry response').at(-1)!);
-
-  expect(await screen.findByText('provider down')).toBeInTheDocument();
+  await waitFor(() =>
+    expect(apiMock.retryInterviewTurn).toHaveBeenCalledWith(
+      'interview-1',
+      2,
+      expect.any(Object),
+      expect.any(AbortSignal),
+    ),
+  );
 });

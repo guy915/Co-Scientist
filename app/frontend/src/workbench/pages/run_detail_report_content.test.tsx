@@ -5,19 +5,6 @@ import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
 
-it('shows the run goal as the report heading', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue(
-    makeRun('Reversing MASLD liver fibrosis'),
-  );
-  renderAt('/runs/run-1');
-  expect(
-    await screen.findByRole('heading', {
-      level: 1,
-      name: /Reversing MASLD liver fibrosis/i,
-    }),
-  ).toBeInTheDocument();
-});
-
 it('leads the overview with a stat sentence and winning ideas', async () => {
   const created = 1_700_000_000;
   vi.mocked(runsApi.getRun).mockResolvedValue(

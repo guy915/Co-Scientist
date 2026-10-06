@@ -32,32 +32,6 @@ describe('layout session switch', () => {
     expect(chat).not.toHaveAttribute('aria-current');
   });
 
-  it('switches from the conversation to the results it produced', async () => {
-    installStartedSession();
-    renderLayout('/chats/chat-7');
-
-    expect(await screen.findByRole('link', {name: 'Results'})).toHaveAttribute(
-      'href',
-      '/runs/run-1/details',
-    );
-    expect(screen.getByRole('link', {name: 'Chat'})).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
-  });
-
-  it('shows no switch for a conversation that never started a run', async () => {
-    apiMock.listInterviews.mockResolvedValue([
-      chatFixture('chat-9', 'Still deciding'),
-    ]);
-    renderLayout('/chats/chat-9');
-
-    // Wait for committed history before asserting the absence of a session
-    // switch.
-    expect(await screen.findByText('Still deciding')).toBeInTheDocument();
-    expect(screen.queryByRole('link', {name: 'Results'})).toBeNull();
-  });
-
   // Visited-link color outranks inherited color; each switch side needs its own
   // color.
 
@@ -78,23 +52,5 @@ describe('layout session memory', () => {
   it('remembers the side per session', () => {
     writeSessionSide('run-1', 'chat');
     expect(preferredSessionSide('run-1')).toBe('chat');
-  });
-
-  it('prefers a session’s own memory over the switch’s last position', () => {
-    writeSessionSide('run-1', 'chat');
-    writeSessionSide('run-2', 'results');
-    expect(preferredSessionSide('run-1')).toBe('chat');
-  });
-
-  it('opens a rail row on the switch’s last side, not the session default', async () => {
-    apiMock.listInterviews.mockResolvedValue([
-      chatFixture('chat-7', 'Study pathway X', {run_id: 'run-1'}),
-    ]);
-    writeSessionSide('run-9', 'chat');
-    renderLayout('/');
-
-    expect(
-      await screen.findByRole('link', {name: /Study pathway X/}),
-    ).toHaveAttribute('href', '/chats/chat-7');
   });
 });

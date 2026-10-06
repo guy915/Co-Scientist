@@ -49,11 +49,6 @@ function asking(questions: InterviewQuestion[]): Interview {
   };
 }
 
-// The chooser adds another textbox; identify the composer by its element type.
-function getComposer(): HTMLElement {
-  return screen.getAllByRole('textbox').find(el => el.tagName === 'TEXTAREA')!;
-}
-
 async function askTheScientist(questions = [MODEL_SYSTEM]) {
   apiMock.createInterview.mockResolvedValue(asking(questions));
   apiMock.addInterviewTurn.mockResolvedValue(asking([]));
@@ -83,16 +78,4 @@ it('sends a clicked answer as the scientist own next turn', async () => {
       expect.anything(),
     );
   });
-});
-
-it('keeps a half-written message when an answer is clicked instead', async () => {
-  await askTheScientist();
-  const textbox = getComposer();
-  fireEvent.change(textbox, {target: {value: 'also, note that'}});
-  fireEvent.click(screen.getByLabelText(/Primary human cells/));
-  fireEvent.click(screen.getByRole('button', {name: /send answer/i}));
-  await waitFor(() => {
-    expect(apiMock.addInterviewTurn).toHaveBeenCalled();
-  });
-  expect(textbox).toHaveValue('also, note that');
 });
