@@ -196,7 +196,7 @@ Interrupted commands may already have side effects, so aborted output must not
 claim the command never ran.
 
 Workspace spill writes run outside confinement and must resist symlinked or
-missing metadata paths; bubblewrap skips absent `--ro-bind-try` paths. Redact
+missing metadata paths. Redact
 stdout before model transcripts and drop the output if a secret still survives.
 
 ## Settlement and structured answers
