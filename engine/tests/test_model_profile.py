@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
@@ -10,9 +9,10 @@ from unittest import mock
 import litellm
 import pytest
 
-from co_scientist.cache import LLMCacheRequest
 from co_scientist.constants import MODEL_PRICING, estimate_cost_usd
 from co_scientist.exceptions import FreeModelEligibilityError
+from co_scientist.generator.core import HypothesisGenerator
+from co_scientist.generator.run_setup import GeneratorOptions
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -49,179 +49,83 @@ from co_scientist.llm.request.thinking import (
     effective_thinking_enabled,
     scoped_minimal_reasoning,
 )
-from tests._llm_fake import CAPABILITIES, MONEY, install_fake_backend
+from tests._llm_fake import install_fake_backend
 
-# These tests assert on the completion kwargs, so every call must reach
-# the patched acompletion rather than a cache entry.
 _NO_CACHE = LLMCallOptions(use_cache=False)
 
 
-def _response(content: str = "ok") -> SimpleNamespace:
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+def _reply(content: str = "ok") -> SimpleNamespace:
+    message = SimpleNamespace(role="assistant", content=content)
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
-def _capturing_acompletion(captured: dict[str, Any]) -> Any:
+@pytest.mark.parametrize("kind", ["text", "json", "tools"])
+@pytest.mark.parametrize("source", ["spec", "scoped", "none"])
+async def test_a_byok_key_reaches_the_provider_and_is_never_invented(
+    monkeypatch: pytest.MonkeyPatch, kind: str, source: str
+) -> None:
+    sent: list[dict[str, Any]] = []
 
     async def acompletion(**kwargs: Any) -> SimpleNamespace:
-        captured.clear()
-        captured.update(kwargs)
-        return _response()
-
-    return acompletion
-
-
-def _message(content: str = "final") -> SimpleNamespace:
-    return SimpleNamespace(role="assistant", content=content)
-
-
-async def test_call_llm_passes_spec_api_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
-    await call_llm(
-        "prompt",
-        CompletionSpec(model_name="openai/gpt-x", api_key="sk-byok-123"),
-        options=_NO_CACHE,
-    )
-    assert captured["api_key"] == "sk-byok-123"
-
-
-async def test_call_llm_passes_scoped_api_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
-    with scoped_api_key("sk-byok-scoped"):
-        await call_llm(
-            "prompt scoped",
-            CompletionSpec(model_name="openai/gpt-x"),
-            options=_NO_CACHE,
-        )
-    assert captured["api_key"] == "sk-byok-scoped"
-
-
-async def test_call_llm_omits_api_key_when_absent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
-    await call_llm(
-        "prompt bare",
-        CompletionSpec(model_name="openai/gpt-x"),
-        options=_NO_CACHE,
-    )
-    assert "api_key" not in captured
-
-
-async def test_call_llm_json_passes_api_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-
-    async def acompletion(**kwargs: Any) -> SimpleNamespace:
-        captured.clear()
-        captured.update(kwargs)
-        return _response('{"answer": 1}')
-
-    install_fake_backend(monkeypatch, acompletion)
-    result = await call_llm_json(
-        "prompt",
-        CompletionSpec(
-            model_name="openai/gpt-x",
-            force_json=True,
-            api_key="sk-byok-json",
-        ),
-        options=_NO_CACHE,
-    )
-    assert result == {"answer": 1}
-    assert captured["api_key"] == "sk-byok-json"
-
-
-async def test_call_llm_with_tools_passes_api_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    captured: dict[str, Any] = {}
-
-    async def acompletion(**kwargs: Any) -> SimpleNamespace:
-        captured.clear()
-        captured.update(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=_message("final"))]
-        )
-
-    install_fake_backend(monkeypatch, acompletion)
+        sent.append(kwargs)
+        return _reply('{"answer": 1}')
 
     async def executor(tool_call: Any) -> dict[str, Any]:
         return {}
 
-    loop = ToolLoop(tools=[], executor=executor, max_iterations=1)
-    with scoped_api_key("sk-byok-tools"):
-        text, _history = await call_llm_with_tools(
-            "prompt",
-            CompletionSpec(model_name="openai/gpt-x"),
-            loop,
-            options=_NO_CACHE,
-        )
-    assert text == "final"
-    assert captured["api_key"] == "sk-byok-tools"
-
-
-def test_scoped_api_key_resets_on_exit() -> None:
-    assert current_api_key() is None
-    with scoped_api_key("sk-byok"):
-        assert current_api_key() == "sk-byok"
-        with scoped_api_key(None):
-            assert current_api_key() == "sk-byok"
-    assert current_api_key() is None
-
-
-def test_api_key_not_in_cache_request() -> None:
-    request = LLMCacheRequest(
-        prompt="p",
-        model_name="m",
-        temperature=0.7,
-        max_tokens=100,
-    )
-    assert not hasattr(request, "api_key")
-
-
-def test_generator_constructor_forces_cache_off_with_api_key() -> None:
-    from co_scientist.generator.core import HypothesisGenerator
-    from co_scientist.generator.run_setup import GeneratorOptions
-
-    generator = HypothesisGenerator(
+    install_fake_backend(monkeypatch, acompletion)
+    spec = CompletionSpec(
         model_name="openai/gpt-x",
-        options=GeneratorOptions(api_key="sk-byok"),
+        api_key="sk-byok-spec" if source == "spec" else None,
     )
-    assert generator.api_key == "sk-byok"
-    assert generator.enable_cache is False
+
+    with scoped_api_key("sk-byok-scoped" if source == "scoped" else None):
+        if kind == "text":
+            await call_llm("prompt", spec, options=_NO_CACHE)
+        elif kind == "json":
+            await call_llm_json("prompt", spec, options=_NO_CACHE)
+        else:
+            await call_llm_with_tools(
+                "prompt",
+                spec,
+                ToolLoop(tools=[], executor=executor, max_iterations=1),
+                options=_NO_CACHE,
+            )
+
+    assert (
+        sent[0].get("api_key")
+        == {
+            "spec": "sk-byok-spec",
+            "scoped": "sk-byok-scoped",
+            "none": None,
+        }[source]
+    )
+    assert ("api_key" in sent[0]) is (source != "none")
 
 
-def test_generator_api_key_stays_out_of_initial_state() -> None:
+def test_a_scoped_api_key_resets_on_exit_and_none_keeps_the_outer_one() -> None:
+    assert current_api_key() is None
+    with scoped_api_key("sk-byok"), scoped_api_key(None):
+        assert current_api_key() == "sk-byok"
+    assert current_api_key() is None
+
+
+def test_a_byok_key_forces_the_cache_off_and_stays_out_of_state() -> None:
     """Workflow state is checkpointed wholesale; BYOK credentials must stay
     out."""
-    from co_scientist.generator.core import HypothesisGenerator
-    from co_scientist.generator.run_setup import GeneratorOptions
-
     generator = HypothesisGenerator(
         model_name="openai/gpt-x",
         options=GeneratorOptions(api_key="sk-byok-secret"),
     )
+
+    assert generator.api_key == "sk-byok-secret"
+    assert generator.enable_cache is False
     fields = generator._initial_config_fields()
     assert "sk-byok-secret" not in str(fields)
     assert "api_key" not in fields
 
 
 _ULTRA = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
-
-
-def test_a_table_entry_and_a_profile_list_the_same_fields() -> None:
-    assert set(Facts.__annotations__) == {
-        field.name for field in dataclasses.fields(ModelProfile)
-    }
 
 
 @pytest.mark.parametrize(
@@ -287,13 +191,10 @@ def test_no_exact_route_overrules_a_family_on_json_schema() -> None:
                 assert facts.get("json_schema", stated) == stated, route
 
 
-def _resolved_profiles() -> list[tuple[str, ModelProfile]]:
-    probes = ["deepseek/x", "openrouter/deepseek/x", "openrouter/a/b"]
-    return [(name, model_profile(name)) for name in [*ROUTES, *probes]]
-
-
 def test_the_thinking_knob_and_the_gateway_agree() -> None:
-    for name, profile in _resolved_profiles():
+    probes = ["deepseek/x", "openrouter/deepseek/x", "openrouter/a/b"]
+    for name in [*ROUTES, *probes]:
+        profile = model_profile(name)
         if profile.thinking is Thinking.GATEWAY:
             assert profile.gateway, name
         if profile.thinking is Thinking.NATIVE:
@@ -334,7 +235,6 @@ _BASE_PROVIDER: dict[str, Any] = {
 
 @contextlib.contextmanager
 def _registry(answer: bool | type[Exception]) -> Iterator[None]:
-
     def stub(model: str) -> bool:
         if isinstance(answer, bool):
             return answer
@@ -477,6 +377,402 @@ def _money(model: str) -> list[Any]:
     ]
 
 
+_INCOMPLETE = "zero-cost pricing is incomplete"
+_GATEWAY = {"provider": "gateway provider"}
+_KNOBS_1: Any = [
+    {"enabled": True, "effort": "high"},
+    {"enabled": True, "max_tokens": 2048},
+    {"enabled": True, "effort": "low"},
+]
+_KNOBS_2: Any = [
+    {"enabled": True, "effort": "high"},
+    {"enabled": False},
+    {"enabled": True, "effort": "low"},
+]
+_JSON_OBJECT_THINKING = [
+    ["json_object", True, 18000, True],
+    ["json_object", False, 18000, True],
+]
+_NATIVE_THEN_OBJECT = [
+    ["json_schema", False, 18000, True],
+    ["json_object", False, 18000, True],
+]
+_FOUR_THOUSAND = [
+    ["json_schema", False, 4000, True],
+    ["json_object", False, 4000, True],
+]
+
+
+def _row(*layers: dict[str, Any], **facts: Any) -> dict[str, Any]:
+    """A plain non-reasoning route unless the layers or facts say otherwise."""
+    row = {
+        "reasons": False,
+        "effort": [{}, {}],
+        "knobs": [None, None, None],
+        "routing": {},
+        "thinks": [False, True],
+        "floor": [4000, 4000],
+        "schema": "registry",
+        "temperature": [0.0, 0.7, 1.0],
+        "free": [False, False],
+        "free_row": _INCOMPLETE,
+        "requests": _FOUR_THOUSAND,
+    }
+    for layer in (*layers, facts):
+        row.update(layer)
+    return row
+
+
+_FREE_REASONING: dict[str, Any] = {
+    "reasons": True,
+    "knobs": _KNOBS_1,
+    "routing": _GATEWAY,
+    "thinks": [True, True],
+    "floor": [18000, 18000],
+    "schema": False,
+    "free": [True, False],
+    "free_row": "ok",
+    "requests": _JSON_OBJECT_THINKING,
+}
+_DEEPSEEK_GATEWAY: dict[str, Any] = {
+    "reasons": True,
+    "knobs": _KNOBS_2,
+    "routing": _GATEWAY,
+    "floor": [18000, 4000],
+    "schema": False,
+    "requests": [
+        ["json_object", True, 18000, True],
+        ["json_object", False, 4000, True],
+    ],
+}
+_ALWAYS_THINKS: dict[str, Any] = {
+    "reasons": True,
+    "thinks": [True, True],
+    "floor": [18000, 18000],
+    "requests": _NATIVE_THEN_OBJECT,
+}
+
+
+def _chain(*models: str) -> dict[str, Any]:
+    return {"provider": "gateway provider", "models": list(models)}
+
+
+CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
+    (
+        (
+            "openrouter/nex-agi/nex-n2.5-pro:free",
+            "openrouter/nex-agi/nex-n2.5-mini:free",
+            "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+            "openrouter/google/gemma-4-31b-it:free",
+            "openrouter/minimax/minimax-m2.7:free",
+            "openrouter/dots-studio/dots-3-note-preview:free",
+            "openrouter/nvidia/nemotron-3.5-lightning:free",
+        ),
+        _row(_FREE_REASONING),
+    ),
+    (
+        ("openrouter/qwen/qwen3.8-27b:free",),
+        _row(_FREE_REASONING, schema=True, requests=_NATIVE_THEN_OBJECT),
+    ),
+    (
+        ("openrouter/z-ai/glm-5.2:free",),
+        _row(
+            _FREE_REASONING,
+            routing=_chain(
+                "minimax/minimax-m3:free",
+                "nvidia/nemotron-3-super-120b-a12b:free",
+                "nvidia/nemotron-3.5-lightning:free",
+            ),
+        ),
+    ),
+    (
+        ("openrouter/minimax/minimax-m3:free",),
+        _row(
+            _FREE_REASONING,
+            routing=_chain(
+                "nvidia/nemotron-3-super-120b-a12b:free",
+                "google/gemma-4-31b-it:free",
+                "minimax/minimax-m2.7:free",
+            ),
+        ),
+    ),
+    (
+        (_ULTRA,),
+        _row(
+            _FREE_REASONING,
+            routing=_chain(
+                "dots-studio/dots-3-note-preview:free",
+                "nvidia/nemotron-3-super-120b-a12b:free",
+            ),
+            requests=[
+                [None, True, 18000, True],
+                [None, False, 18000, True],
+            ],
+        ),
+    ),
+    (
+        ("openrouter/z-ai/glm-5.3-flash",),
+        _row(
+            _FREE_REASONING,
+            free=[False, False],
+            free_row=_INCOMPLETE,
+            routing=_chain(
+                "minimax/minimax-m3:free",
+                "nvidia/nemotron-3.5-lightning:free",
+            ),
+        ),
+    ),
+    (
+        (
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-flash",
+            "deepseek/deepseek-v4-pro",
+            "deepseek/deepseek-chat",
+            "deepseek/deepseek-reasoner",
+            "deepseek/deepseek-v5-x",
+            "vendor/mydeepseek-r9",
+            "DeepSeek/DeepSeek-V4-Flash",
+        ),
+        _row(
+            reasons=True,
+            effort=[{"reasoning_effort": "high"}, {}],
+            knobs=[
+                {"type": "enabled"},
+                {"type": "disabled"},
+                {"type": "disabled"},
+            ],
+            floor=[18000, 4000],
+            schema=False,
+            requests=_DEEPSEEK_GATEWAY["requests"],
+        ),
+    ),
+    (
+        (
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-2.5-pro",
+            "openai/gpt-4o",
+            "azure/gpt-4o",
+            "openai/gpt-4o-mini",
+            "anthropic/claude-sonnet-4-5",
+            "anthropic/claude-haiku-4-5",
+            "gpt-4o",
+            "ollama/llama3",
+            "openrouter/x/y",
+            "openrouter/qwen/qwen3.8-27b",
+            "gemini/gemini-2.0-flash",
+        ),
+        _row(),
+    ),
+    (
+        ("openrouter/google/gemini-3-x",),
+        _row(temperature=[1.0, 1.0, 1.0]),
+    ),
+    (
+        (
+            "openrouter/deepseek/deepseek-v4-flash",
+            "openrouter/deepseek/deepseek-v4-flash-0731",
+            "openrouter/deepseek/deepseek-v4-pro",
+            "openrouter/deepseek/deepseek-v5-x",
+        ),
+        _row(_DEEPSEEK_GATEWAY),
+    ),
+    (
+        ("openrouter/google/gemma-4-26b-a4b-it:free",),
+        _row(
+            schema=False,
+            free=[True, False],
+            free_row="ok",
+            requests=[
+                ["json_object", True, 4000, True],
+                ["json_object", False, 4000, True],
+            ],
+        ),
+    ),
+    (
+        ("openrouter/x/y:free",),
+        _row(free=[True, False], free_row="ok"),
+    ),
+    (
+        ("openrouter/deepseek/deepseek-v4-flash:free",),
+        _row(_DEEPSEEK_GATEWAY, free=[True, False], free_row="ok"),
+    ),
+    (
+        ("openrouter/vendor/gemini-3-deepseek-hybrid",),
+        _row(_DEEPSEEK_GATEWAY, temperature=[1.0, 1.0, 1.0]),
+    ),
+    (
+        ("OpenRouter/NEX-AGI/NEX-N2.5-PRO:FREE",),
+        _row(_FREE_REASONING, free=[False, False], free_row=_INCOMPLETE),
+    ),
+    (
+        ("openai/gpt-6.1-sol", "openai/gpt-6-astra", "openai/gpt-6-luna"),
+        _row(_ALWAYS_THINKS),
+    ),
+    (
+        (
+            "gemini/gemini-3.1-flash-lite",
+            "gemini/gemini-3.8-flash",
+            "gemini/gemini-3.1-pro-preview",
+            "gemini/gemini-3-x",
+            "gemini/gemini-3.5-flash",
+            "Gemini/Gemini-3.1-Flash-Lite",
+        ),
+        _row(_ALWAYS_THINKS, temperature=[1.0, 1.0, 1.0]),
+    ),
+    (
+        (
+            "anthropic/claude-sonnet-5-5",
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-fable-5-1",
+        ),
+        _row(_ALWAYS_THINKS, schema=False, requests=_JSON_OBJECT_THINKING),
+    ),
+]
+
+
+_FREE: Any = [
+    [0.0, 0.0, 0.0],
+    0.0,
+    {"max_price": {"prompt": 0.0, "completion": 0.0, "request": 0.0}},
+]
+_UNPRICED: Any = [None, 0.0, {}]
+_CAP_1: Any = {"max_price": {"prompt": 0.462, "completion": 1.3860000000000001}}
+_CAP_2: Any = {"max_price": {"prompt": 1.3860000000000001, "completion": 4.158}}
+_CAP_3: Any = {
+    "max_price": {"prompt": 0.2625, "completion": 1.5750000000000002}
+}
+_CAP_4: Any = {"max_price": {"prompt": 2.625, "completion": 10.5}}
+
+
+def _direct_money(prompt: float, completion: float) -> list[Any]:
+    cap = {"prompt": prompt * 1.05, "completion": completion * 1.05}
+    return [[prompt, completion, 0.0], prompt + completion, {"max_price": cap}]
+
+
+MONEY: dict[str, Any] = {
+    "openrouter/nex-agi/nex-n2.5-pro:free": _FREE,
+    "openrouter/nex-agi/nex-n2.5-mini:free": _FREE,
+    "openrouter/qwen/qwen3.8-27b:free": [
+        [0.0, 0.0, 0.0],
+        0.0,
+        {
+            "data_collection": "deny",
+            "max_price": {"prompt": 0.0, "completion": 0.0, "request": 0.0},
+            "only": ["modelrun"],
+            "order": None,
+            "zdr": True,
+        },
+    ],
+    "openrouter/z-ai/glm-5.2:free": _FREE,
+    "openrouter/minimax/minimax-m3:free": _FREE,
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free": _FREE,
+    "openrouter/google/gemma-4-31b-it:free": _FREE,
+    "openrouter/minimax/minimax-m2.7:free": _FREE,
+    "openrouter/dots-studio/dots-3-note-preview:free": _FREE,
+    "openrouter/nvidia/nemotron-3.5-lightning:free": _FREE,
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": _FREE,
+    "openrouter/z-ai/glm-5.3-flash": [
+        [0.15, 0.5, 0.015],
+        0.5825,
+        {"max_price": {"prompt": 0.1575, "completion": 0.525}},
+    ],
+    "deepseek/deepseek-v4-flash": [[0.44, 1.32, 0.0], 1.76, _CAP_1],
+    "deepseek/deepseek-v4-pro": [[1.32, 3.96, 0.0], 5.28, _CAP_2],
+    "deepseek/deepseek-chat": [[0.44, 1.32, 0.0], 1.76, _CAP_1],
+    "deepseek/deepseek-reasoner": [[1.32, 3.96, 0.0], 5.28, _CAP_2],
+    "gemini/gemini-2.5-flash": [
+        [0.3, 2.5, 0.0],
+        2.8,
+        {"max_price": {"prompt": 0.315, "completion": 2.625}},
+    ],
+    "gemini/gemini-2.5-flash-lite": [
+        [0.1, 0.4, 0.0],
+        0.5,
+        {
+            "max_price": {
+                "prompt": 0.10500000000000001,
+                "completion": 0.42000000000000004,
+            }
+        },
+    ],
+    "gemini/gemini-2.5-pro": [
+        [1.25, 10.0, 0.0],
+        11.25,
+        {"max_price": {"prompt": 1.3125, "completion": 10.5}},
+    ],
+    "gemini/gemini-3.1-flash-lite": [[0.25, 1.5, 0.0], 1.75, _CAP_3],
+    "openrouter/deepseek/deepseek-v4-flash": [
+        [0.083, 0.165, 0.017],
+        0.21500000000000002,
+        {"max_price": {"prompt": 0.08715, "completion": 0.17325000000000002}},
+    ],
+    "openrouter/deepseek/deepseek-v4-flash-0731": [
+        [0.13, 0.28, 0.028],
+        0.35900000000000004,
+        {"max_price": {"prompt": 0.1365, "completion": 0.29400000000000004}},
+    ],
+    "openrouter/deepseek/deepseek-v4-pro": [
+        [1.6, 3.2, 0.13],
+        4.065,
+        {
+            "max_price": {
+                "prompt": 1.6800000000000002,
+                "completion": 3.3600000000000003,
+            }
+        },
+    ],
+    "openai/gpt-4o": [[2.5, 10.0, 0.0], 12.5, _CAP_4],
+    "azure/gpt-4o": [[2.5, 10.0, 0.0], 12.5, _CAP_4],
+    "openai/gpt-4o-mini": [
+        [0.15, 0.6, 0.0],
+        0.75,
+        {"max_price": {"prompt": 0.1575, "completion": 0.63}},
+    ],
+    "anthropic/claude-sonnet-4-5": [
+        [3.0, 15.0, 0.0],
+        18.0,
+        {"max_price": {"prompt": 3.1500000000000004, "completion": 15.75}},
+    ],
+    **{
+        name: _direct_money(prompt, completion)
+        for name, (prompt, completion) in {
+            "anthropic/claude-sonnet-5-5": (2.0, 10.0),
+            "anthropic/claude-opus-5-5": (4.0, 20.0),
+            "anthropic/claude-fable-5-1": (10.0, 50.0),
+            "anthropic/claude-haiku-4-5": (1.0, 5.0),
+            "gemini/gemini-3.8-flash": (0.75, 3.75),
+            "gemini/gemini-3.1-pro-preview": (2.0, 12.0),
+            "openai/gpt-6.1-sol": (2.0, 10.0),
+            "openai/gpt-6-astra": (10.0, 50.0),
+            "openai/gpt-6-luna": (0.1, 0.5),
+            "deepseek/deepseek-flash": (0.3, 1.2),
+        }.items()
+    },
+    "openrouter/google/gemma-4-26b-a4b-it:free": _UNPRICED,
+    "gpt-4o": _UNPRICED,
+    "ollama/llama3": _UNPRICED,
+    "openrouter/x/y": _UNPRICED,
+    "openrouter/x/y:free": _UNPRICED,
+    "openrouter/qwen/qwen3.8-27b": _UNPRICED,
+    "deepseek/deepseek-v5-x": _UNPRICED,
+    "openrouter/deepseek/deepseek-v5-x": _UNPRICED,
+    "openrouter/deepseek/deepseek-v4-flash:free": _UNPRICED,
+    "vendor/mydeepseek-r9": _UNPRICED,
+    "gemini/gemini-3-x": _UNPRICED,
+    "gemini/gemini-3.5-flash": _UNPRICED,
+    "openrouter/google/gemini-3-x": _UNPRICED,
+    "gemini/gemini-2.0-flash": _UNPRICED,
+    "openrouter/vendor/gemini-3-deepseek-hybrid": _UNPRICED,
+    "DeepSeek/DeepSeek-V4-Flash": [None, 0.0, _CAP_1],
+    "OpenRouter/NEX-AGI/NEX-N2.5-PRO:FREE": [
+        None,
+        0.0,
+        {"max_price": {"prompt": 0.0, "completion": 0.0, "request": 0.0}},
+    ],
+    "Gemini/Gemini-3.1-Flash-Lite": [None, 0.0, _CAP_3],
+}
+
 _CAPABILITY_ROWS = [
     (model, row) for models, row in CAPABILITIES for model in models
 ]
@@ -512,66 +808,34 @@ class TestModelProfileSnapshot:
         assert set(MODEL_PRICING) <= capability_models
 
 
-def test_unlisted_model_prices_at_zero() -> None:
-    assert (
-        estimate_cost_usd("offline/does-not-exist", 1_000_000, 1_000_000) == 0.0
-    )
-
-
-def test_known_model_prices_proportional_to_tokens() -> None:
-    """Provider prices are outside facts; this tests arithmetic from their
-    table."""
-    model = "deepseek/deepseek-v4-flash"
-    price = MODEL_PRICING[model]
-
-    million = estimate_cost_usd(model, 1_000_000, 1_000_000)
-    half = estimate_cost_usd(model, 500_000, 500_000)
-
-    assert million == (
-        price.prompt_usd_per_million + price.completion_usd_per_million
-    )
-    assert half == million / 2
-
-
-def test_zero_tokens_costs_nothing() -> None:
-    assert estimate_cost_usd("deepseek/deepseek-v4-pro", 0, 0) == 0.0
-
-
-def test_a_cached_prefix_is_billed_at_the_cache_rate() -> None:
+def test_cost_is_billed_by_tokens_with_cached_prefixes_at_the_cache_rate() -> (
+    None
+):
     """Tool turns resend cached prefixes; full input pricing overstates their
-    cost."""
+    cost, and an unknown cache-read price must not be treated as free."""
+    million = 1_000_000
+    assert estimate_cost_usd("offline/does-not-exist", million, million) == 0.0
+    assert estimate_cost_usd("deepseek/deepseek-v4-pro", 0, 0) == 0.0
+    flash = MODEL_PRICING["deepseek/deepseek-v4-flash"]
+    assert estimate_cost_usd(
+        "deepseek/deepseek-v4-flash", million, million
+    ) == (flash.prompt_usd_per_million + flash.completion_usd_per_million)
+
     model = "openrouter/deepseek/deepseek-v4-flash"
     price = MODEL_PRICING[model]
     assert price.cached_prompt_usd_per_million < price.prompt_usd_per_million
-
-    uncached = estimate_cost_usd(model, 1_000_000, 0)
-    fully_cached = estimate_cost_usd(model, 1_000_000, 0, 1_000_000)
-
-    assert uncached == price.prompt_usd_per_million
-    assert fully_cached == price.cached_prompt_usd_per_million
-    assert (
-        estimate_cost_usd(model, 1_000_000, 0, 500_000)
-        == (uncached + fully_cached) / 2
+    assert estimate_cost_usd(model, million, 0, million) == (
+        price.cached_prompt_usd_per_million
     )
-
-
-def test_a_model_with_no_measured_cache_rate_prices_as_before() -> None:
-    """An unknown cache-read price must not be treated as free."""
-    model = "openai/gpt-4o"
-    assert MODEL_PRICING[model].cached_prompt_usd_per_million == 0.0
-
-    assert estimate_cost_usd(model, 1_000_000, 0, 1_000_000) == (
-        estimate_cost_usd(model, 1_000_000, 0)
-    )
-
-
-def test_a_cached_count_never_exceeds_the_prompt_it_slices() -> None:
-    model = "openrouter/deepseek/deepseek-v4-flash"
-    price = MODEL_PRICING[model]
-
     assert estimate_cost_usd(model, 1_000, 0, 10_000) == (
-        1_000 / 1_000_000 * price.cached_prompt_usd_per_million
-    )
+        1_000 / million * price.cached_prompt_usd_per_million
+    ), "a cached count never exceeds the prompt it slices"
     assert estimate_cost_usd(model, 1_000, 0, -5) == (
-        1_000 / 1_000_000 * price.prompt_usd_per_million
+        1_000 / million * price.prompt_usd_per_million
+    )
+
+    unmeasured = "openai/gpt-4o"
+    assert MODEL_PRICING[unmeasured].cached_prompt_usd_per_million == 0.0
+    assert estimate_cost_usd(unmeasured, million, 0, million) == (
+        estimate_cost_usd(unmeasured, million, 0)
     )

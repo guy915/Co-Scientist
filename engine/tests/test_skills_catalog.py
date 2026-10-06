@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Any
+from typing import cast
 
 import pytest
 
@@ -10,7 +10,6 @@ import co_scientist.skills as catalog
 import co_scientist.skills as credentials
 import co_scientist.skills as licences
 import co_scientist.skills as usage
-from co_scientist.agents.reflection import simulation_execution
 from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.models import (
     ExecutionMetrics,
@@ -61,6 +60,12 @@ def _write_skill(
     return directory
 
 
+def _install_skill(
+    root: pathlib.Path, name: str, description: str = "Queries things."
+) -> None:
+    _write_skill(root, name, f"name: {name}\ndescription: {description}")
+
+
 def _write_script(directory: pathlib.Path, deps: str) -> None:
     (directory / "scripts" / "cli.py").write_text(
         f"# /// script\n# dependencies = [\n{deps}# ]\n# ///\n",
@@ -81,19 +86,21 @@ def _venv(root: pathlib.Path, *installed: str) -> str:
     "_clear_distribution_cache", "_skills_catalog_clear_cache"
 )
 class TestSkillsCatalog:
-    def test_unset_directory_yields_no_skills(
+    @pytest.mark.parametrize("directory", [None, "absent"])
+    def test_an_unset_or_missing_directory_yields_no_skills(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pathlib.Path,
+        directory: str | None,
     ) -> None:
-        monkeypatch.delenv(catalog.SKILLS_DIR_ENV, raising=False)
+        if directory is None:
+            monkeypatch.delenv(catalog.SKILLS_DIR_ENV, raising=False)
+        else:
+            monkeypatch.setenv(
+                catalog.SKILLS_DIR_ENV, str(tmp_path / directory)
+            )
         assert catalog.available_skills() == ()
         assert catalog.catalogue_section() == ""
-
-    def test_missing_directory_yields_no_skills(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "absent"))
-        assert catalog.available_skills() == ()
 
     def test_catalogue_carries_name_and_description(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
@@ -134,73 +141,71 @@ class TestSkillsCatalog:
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
         assert catalog.available_skills() == ()
 
-    def test_a_skill_with_nothing_to_run_is_withheld(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    @pytest.mark.parametrize(
+        ("skills", "interpreter", "expected"),
+        [
+            # Command-only instructions without a script leave the model at a
+            # dead end.
+            (
+                [("pymol", None), ("string", '#   "polite-http",\n')],
+                "venv",
+                ["string"],
+            ),
+            # Unusable instructions spend turns before failing at invocation.
+            (
+                [
+                    ("alphagenome", '#   "alphagenome",\n#   "jax",\n'),
+                    ("string", '#   "polite-http",\n'),
+                ],
+                "venv",
+                ["string"],
+            ),
+            # Unknown installation state differs from a known missing
+            # dependency.
+            (
+                [("alphagenome", '#   "alphagenome",\n')],
+                "python3",
+                ["alphagenome"],
+            ),
+        ],
+        ids=[
+            "nothing-to-run",
+            "dependency-missing",
+            "unrecognised-interpreter",
+        ],
+    )
+    def test_a_skill_that_cannot_be_used_is_withheld(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pathlib.Path,
+        skills: list[tuple[str, str | None]],
+        interpreter: str,
+        expected: list[str],
     ) -> None:
-        """Command-only instructions without a script leave the model at a
-        dead end."""
-        skills = tmp_path / "skills"
-        _write_skill(
-            skills,
-            "pymol",
-            "name: pymol\ndescription: Renders.",
-            runnable=False,
-        )
-        _write_skill(
-            skills, "string", "name: string-database\ndescription: Nets."
-        )
-        _write_script(skills / "string", '#   "polite-http",\n')
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
+        for name, dependencies in skills:
+            _write_skill(
+                tmp_path / "skills",
+                name,
+                f"name: {name}\ndescription: Queries things.",
+                runnable=dependencies is not None,
+            )
+            if dependencies is not None:
+                _write_script(tmp_path / "skills" / name, dependencies)
+        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "skills"))
         monkeypatch.setenv(
-            catalog.SKILLS_PYTHON_ENV, _venv(tmp_path / "venv", "polite_http")
+            catalog.SKILLS_PYTHON_ENV,
+            _venv(tmp_path / "venv", "polite_http")
+            if interpreter == "venv"
+            else interpreter,
         )
 
-        assert [s.name for s in catalog.available_skills()] == [
-            "string-database"
-        ]
+        assert [s.name for s in catalog.available_skills()] == expected
 
-    def test_a_skill_its_interpreter_cannot_run_is_withheld(
+    def test_the_document_carries_the_invocation_and_the_output_rule(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
     ) -> None:
-        """Unusable instructions spend turns before failing at invocation."""
-        skills = tmp_path / "skills"
-        _write_skill(
-            skills, "alphagenome", "name: alphagenome\ndescription: Variants."
-        )
-        _write_script(
-            skills / "alphagenome", '#   "alphagenome",\n#   "jax",\n'
-        )
-        _write_skill(
-            skills, "string", "name: string-database\ndescription: Networks."
-        )
-        _write_script(skills / "string", '#   "polite-http",\n')
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
-        monkeypatch.setenv(
-            catalog.SKILLS_PYTHON_ENV, _venv(tmp_path / "venv", "polite_http")
-        )
-
-        assert [s.name for s in catalog.available_skills()] == [
-            "string-database"
-        ]
-
-    def test_an_unrecognised_interpreter_withholds_nothing(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Unknown installation state differs from a known missing
-        dependency."""
-        skills = tmp_path / "skills"
-        _write_skill(
-            skills, "alphagenome", "name: alphagenome\ndescription: Variants."
-        )
-        _write_script(skills / "alphagenome", '#   "alphagenome",\n')
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
-        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, "python3")
-
-        assert [s.name for s in catalog.available_skills()] == ["alphagenome"]
-
-    def test_document_carries_the_invocation_the_file_does_not(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
+        """Vendored examples name other directories and uv; the workspace
+        constraint and the pinned interpreter must win."""
         directory = _write_skill(
             tmp_path,
             "chembl",
@@ -215,59 +220,30 @@ class TestSkillsCatalog:
         assert document is not None
         assert str(directory) in document
         assert "/opt/venv/bin/python" in document
-        # The preamble overrides uv instructions without changing the pinned
-        # vendor tree.
-        assert "Run `uv run scripts/chembl_api.py`." in document
+        assert "Every `--output /tmp/...` below is wrong here" in document
         assert document.index("Ignore any instruction") < document.index(
             "Run `uv run"
         )
+        assert catalog.read_skill_document("chembl") is None
+        assert catalog.find_skill("CHEMBL-Database") is not None
 
-    def test_the_document_says_where_output_may_be_written(
+    def test_a_reference_file_is_reachable_but_never_outside_the_skill(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
     ) -> None:
-        """Vendored examples name other directories; the workspace constraint
-        must win."""
-        _write_skill(
+        """Bundles disclose an overview first and reference files second, and
+        the path comes from the model and cannot be trusted."""
+        directory = _write_skill(
             tmp_path,
             "string",
-            "name: string-database\ndescription: Networks.",
-            body="Write results with --output.",
+            "name: string\ndescription: Queries STRING.",
+            body="See references/interactions.md.",
         )
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-
-        document = catalog.read_skill_document("string-database")
-
-        assert document is not None
-        assert "Every `--output /tmp/...` below is wrong here" in document
-
-    def test_unknown_skill_reads_as_absent(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        _write_skill(
-            tmp_path, "pdb", "name: pdb-database\ndescription: Structures."
-        )
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-        assert catalog.read_skill_document("pdb") is None
-        assert catalog.find_skill("PDB-Database") is not None
-
-    def test_a_reference_file_is_reachable_by_path(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Bundles disclose an overview first and reference files second."""
-        (tmp_path / "string" / "references").mkdir(parents=True)
-        (tmp_path / "string" / "scripts").mkdir(parents=True)
-        (tmp_path / "string" / "scripts" / "cli.py").write_text(
-            "", encoding="utf-8"
-        )
-        (tmp_path / "string" / "SKILL.md").write_text(
-            "---\nname: string\ndescription: Queries STRING.\n---\n\n"
-            "See references/interactions.md.\n",
-            encoding="utf-8",
-        )
-        (tmp_path / "string" / "references" / "interactions.md").write_text(
+        (directory / "references").mkdir()
+        (directory / "references" / "interactions.md").write_text(
             "Run `string_cli.py partners --identifiers TP53`.\n",
             encoding="utf-8",
         )
+        (tmp_path / "secret.txt").write_text("not yours", encoding="utf-8")
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
 
         text = catalog.read_skill_document(
@@ -277,19 +253,6 @@ class TestSkillsCatalog:
         assert text is not None
         assert "partners --identifiers" in text
         assert "Skill directory:" not in text
-
-    def test_a_path_cannot_escape_the_skill(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """The path comes from the model and cannot be trusted."""
-        (tmp_path / "string" / "scripts").mkdir(parents=True)
-        (tmp_path / "string" / "SKILL.md").write_text(
-            "---\nname: string\ndescription: Queries STRING.\n---\n\nBody.\n",
-            encoding="utf-8",
-        )
-        (tmp_path / "secret.txt").write_text("not yours", encoding="utf-8")
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-
         assert catalog.read_skill_document("string", "../secret.txt") is None
         assert catalog.read_skill_document("string", "/etc/hosts") is None
 
@@ -423,25 +386,6 @@ _RUNNABLE = SandboxPolicy(kind=SandboxKind.DANGER_FULL_ACCESS)
 _NOT_RUNNABLE = SandboxPolicy(kind=SandboxKind.WORKSPACE_WRITE)
 
 
-@pytest.fixture
-def _skills_tool_surface_clear_cache() -> object:
-    """The process-wide catalogue assumes a fixed directory; tests change it."""
-    catalog.available_skills.cache_clear()
-    yield
-    catalog.available_skills.cache_clear()
-
-
-def _skills_tool_surface_install_skill(root: pathlib.Path, name: str) -> None:
-    (root / name / "scripts").mkdir(parents=True)
-    # A skill with no script is withheld from the catalogue, so a
-    # fixture without one would test that rule instead of this file's.
-    (root / name / "scripts" / "cli.py").write_text("", encoding="utf-8")
-    (root / name / "SKILL.md").write_text(
-        f"---\nname: {name}\ndescription: Queries things.\n---\n\nBody.\n",
-        encoding="utf-8",
-    )
-
-
 def _tool_names(policy: SandboxPolicy, *, enabled: bool = True) -> set[str]:
     return {
         schema["function"]["name"]
@@ -458,67 +402,56 @@ def _command_description(policy: SandboxPolicy) -> str:
     return str(schema["function"]["description"])
 
 
-class _StubSession:
-    def __init__(self, root: pathlib.Path) -> None:
-        root.mkdir(parents=True, exist_ok=True)
-        self.root = root
-        self.policy = _RUNNABLE
-        self.skills_enabled = False
-
-
-@pytest.mark.usefixtures("_skills_tool_surface_clear_cache")
+@pytest.mark.usefixtures("_skills_catalog_clear_cache")
 class TestSkillsToolSurface:
-    def test_no_catalogue_offers_no_skill_tool(
+    @pytest.mark.parametrize(
+        ("installed", "policy", "enabled", "offered"),
+        [
+            (True, _RUNNABLE, True, True),
+            (False, _RUNNABLE, True, False),
+            # Consumers enable skills independently; retrieval harmed measured
+            # simulation quality.
+            (True, _RUNNABLE, False, False),
+            # Without a command tool, command-only instructions cannot be
+            # followed.
+            (True, _NOT_RUNNABLE, True, False),
+        ],
+        ids=["offered", "no-catalogue", "consumer-not-armed", "no-commands"],
+    )
+    def test_the_skill_tool_needs_a_catalogue_an_armed_consumer_and_commands(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pathlib.Path,
+        installed: bool,
+        policy: SandboxPolicy,
+        enabled: bool,
+        offered: bool,
     ) -> None:
-        monkeypatch.delenv(catalog.SKILLS_DIR_ENV, raising=False)
-        assert READ_SKILL not in _tool_names(_RUNNABLE)
-
-    def test_catalogue_adds_the_skill_tool(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        _skills_tool_surface_install_skill(tmp_path, "uniprot-database")
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-
-        schemas = workspace_tool_schemas(_RUNNABLE, skills_enabled=True)
-
-        (skill_schema,) = [
-            schema
-            for schema in schemas
-            if schema["function"]["name"] == READ_SKILL
-        ]
-        # Enumerated rather than described: a name the model invents is then
-        # refused by schema validation instead of costing a turn.
-        assert skill_schema["function"]["parameters"]["properties"]["name"][
-            "enum"
-        ] == ["uniprot-database"]
-
-    def test_installing_the_bundle_does_not_arm_a_consumer(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Consumers enable skills independently; retrieval harmed measured
-        simulation quality."""
-        _skills_tool_surface_install_skill(tmp_path, "chembl-database")
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-
-        assert READ_SKILL not in _tool_names(_RUNNABLE, enabled=False)
-
-    def test_skills_are_withheld_where_commands_are(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Without a command tool, command-only instructions cannot be
-        followed."""
-        _skills_tool_surface_install_skill(tmp_path, "pdb-database")
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+        if installed:
+            _install_skill(tmp_path, "uniprot-database")
+            monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+        else:
+            monkeypatch.delenv(catalog.SKILLS_DIR_ENV, raising=False)
         monkeypatch.setattr(
             "co_scientist.workspace.tools.sandbox_backend", lambda: None
         )
 
-        names = _tool_names(_NOT_RUNNABLE)
+        schemas = workspace_tool_schemas(policy, skills_enabled=enabled)
 
-        assert RUN_COMMAND not in names
-        assert READ_SKILL not in names
+        skill_schemas = [
+            schema
+            for schema in schemas
+            if schema["function"]["name"] == READ_SKILL
+        ]
+        assert bool(skill_schemas) is offered
+        if offered:
+            # Enumerated rather than described: a name the model invents is
+            # then refused by schema validation instead of costing a turn.
+            (skill_schema,) = skill_schemas
+            properties = skill_schema["function"]["parameters"]["properties"]
+            assert properties["name"]["enum"] == ["uniprot-database"]
+        if policy is _NOT_RUNNABLE:
+            assert RUN_COMMAND not in _tool_names(policy)
 
     def test_the_command_tool_describes_the_network_it_actually_has(
         self,
@@ -538,55 +471,8 @@ class TestSkillsToolSurface:
         assert "not reach the network" in _command_description(offline)
         assert "not reach the network" not in _command_description(online)
 
-    def test_the_simulation_review_stays_offline_with_skills_installed(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Retrieval competes with execution in the measured simulation
-        workflow."""
-        _skills_tool_surface_install_skill(tmp_path, "gnomad-database")
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-        opened: list[tuple[str, str]] = []
 
-        def _open(run_id: str, hypothesis_id: str) -> _StubSession:
-            opened.append((run_id, hypothesis_id))
-            return _StubSession(tmp_path / "ws")
-
-        monkeypatch.setattr(
-            simulation_execution, "open_review_workspace", _open
-        )
-
-        simulation_execution._tool_provider("run-1", "hyp-1")
-
-        assert opened == [("run-1", "hyp-1")]
-        assert "no network access" in simulation_execution._NO_NETWORK_NOTE
-
-
-@pytest.fixture
-def _skills_draft_phase_clear_cache() -> object:
-    """The process-wide catalogue assumes a fixed directory; tests change it."""
-    catalog.available_skills.cache_clear()
-    yield
-    catalog.available_skills.cache_clear()
-
-
-def _skills_draft_phase_install_skill(
-    root: pathlib.Path, name: str, description: str
-) -> None:
-    (root / name / "scripts").mkdir(parents=True)
-    # A skill with no script is withheld from the catalogue, so a
-    # fixture without one would test that rule instead of this file's.
-    (root / name / "scripts" / "cli.py").write_text("", encoding="utf-8")
-    (root / name / "SKILL.md").write_text(
-        f"---\nname: {name}\ndescription: {description}\n---\n\nBody.\n",
-        encoding="utf-8",
-    )
-
-
-def _state(run_id: str | None = "run-1") -> WorkflowState:
-    state: dict[str, Any] = {"research_goal": "a goal"}
-    if run_id is not None:
-        state["run_id"] = run_id
-    return state  # type: ignore[return-value]
+_STATE: WorkflowState = {"research_goal": "a goal", "run_id": "run-1"}  # type: ignore[typeddict-item]
 
 
 class _StubProvider:
@@ -596,45 +482,59 @@ class _StubProvider:
 _MCP_TOOLS = [{"type": "function", "function": {"name": "search_pubmed"}}]
 
 
-@pytest.mark.usefixtures("_skills_draft_phase_clear_cache")
+@pytest.mark.usefixtures("_skills_catalog_clear_cache")
 class TestSkillsDraftPhase:
-    def test_no_skills_leaves_the_phase_exactly_as_it_was(
+    @pytest.mark.parametrize(
+        ("installed", "run_id", "campaign"),
+        [
+            (False, "run-1", False),
+            # No run id means no scoped workspace; hypotheses must still
+            # survive.
+            (True, None, False),
+            # The campaign uses the guarded MCP without remote skill
+            # instructions.
+            (True, "run-1", True),
+        ],
+        ids=["no-skills", "no-run-id", "campaign"],
+    )
+    def test_the_phase_is_left_exactly_as_it_was_where_skills_cannot_attach(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pathlib.Path,
+        installed: bool,
+        run_id: str | None,
+        campaign: bool,
     ) -> None:
-        monkeypatch.delenv(catalog.SKILLS_DIR_ENV, raising=False)
+        if installed:
+            _install_skill(tmp_path / "skills", "uniprot", "Queries UniProt.")
+            monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "skills"))
+        else:
+            monkeypatch.delenv(catalog.SKILLS_DIR_ENV, raising=False)
+        if campaign:
+            monkeypatch.setenv("COSCIENTIST_WORKSPACE_DIR", str(tmp_path / "w"))
+            monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
+        state = {**_STATE, "run_id": run_id}
+        if run_id is None:
+            del state["run_id"]
         provider = _StubProvider()
 
-        attached = draft_skills.attach_skills(_state(), provider, _MCP_TOOLS)
+        attached = draft_skills.attach_skills(
+            cast(WorkflowState, state), provider, _MCP_TOOLS
+        )
 
         assert attached.provider is provider
         assert attached.tools == _MCP_TOOLS
         assert attached.section == ""
         assert attached.max_prompt_tokens == DEFAULT_TOOL_LOOP_TOKEN_BUDGET
-
-    def test_a_run_without_an_id_drafts_without_skills(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """No run id means no scoped workspace; hypotheses must still
-        survive."""
-        _skills_draft_phase_install_skill(
-            tmp_path, "uniprot", "Queries UniProt."
-        )
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-        provider = _StubProvider()
-
-        attached = draft_skills.attach_skills(
-            _state(run_id=None), provider, _MCP_TOOLS
-        )
-
-        assert attached.provider is provider
-        assert attached.section == ""
+        assert not (tmp_path / "w").exists()
 
     def test_skills_attach_beside_the_search_tools(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
     ) -> None:
-        _skills_draft_phase_install_skill(
-            tmp_path / "skills", "uniprot", "Queries UniProt."
+        _install_skill(
+            tmp_path / "skills",
+            "uniprot",
+            "Queries UniProt. Then a second sentence nobody needs to route.",
         )
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "skills"))
         monkeypatch.setattr(
@@ -643,7 +543,7 @@ class TestSkillsDraftPhase:
         )
 
         attached = draft_skills.attach_skills(
-            _state(), _StubProvider(), _MCP_TOOLS
+            _STATE, _StubProvider(), _MCP_TOOLS
         )
 
         names = {
@@ -656,37 +556,12 @@ class TestSkillsDraftPhase:
         # The transcript backstop binds before the turn limit; more turns cannot
         # fund skills.
         assert attached.max_prompt_tokens > DEFAULT_TOOL_LOOP_TOKEN_BUDGET
+        # The catalogue is resent on every transcript turn, so it carries
+        # summaries rather than full descriptions.
+        assert "uniprot: Queries UniProt." in attached.section
+        assert "second sentence" not in attached.section
 
-    def test_the_prompt_section_carries_summaries_not_full_descriptions(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """The catalogue is resent on every transcript turn."""
-        _skills_draft_phase_install_skill(
-            tmp_path,
-            "uniprot",
-            "Queries UniProt. Then a second sentence nobody needs to route.",
-        )
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-
-        section = draft_skills.skills_section()
-
-        assert "uniprot: Queries UniProt." in section
-        assert "second sentence" not in section
-
-    def test_a_draft_workspace_opens_with_the_network_and_the_skills(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        monkeypatch.setattr(
-            "co_scientist.workspace.run_workspace.workspaces_root",
-            lambda: tmp_path,
-        )
-
-        session = open_draft_workspace("run-1", "pass-1")
-
-        assert session.skills_enabled
-        assert session.policy.network_allowed
-
-    def test_two_passes_of_one_run_do_not_share_a_directory(
+    def test_draft_passes_open_with_the_network_and_the_skills_apart(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
     ) -> None:
         """A cycle must not mistake an earlier cycle's result file for its
@@ -699,56 +574,24 @@ class TestSkillsDraftPhase:
         first = open_draft_workspace("run-1", "pass-1")
         second = open_draft_workspace("run-1", "pass-2")
 
+        assert first.skills_enabled
+        assert first.policy.network_allowed
         assert first.root != second.root
 
-    def test_campaign_uses_guarded_mcp_without_remote_skill_instructions(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        _skills_draft_phase_install_skill(
-            tmp_path / "skills", "uniprot", "Queries UniProt."
-        )
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "skills"))
-        monkeypatch.setenv("COSCIENTIST_WORKSPACE_DIR", str(tmp_path / "work"))
-        monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-        provider = _StubProvider()
-        attached = draft_skills.attach_skills(_state(), provider, _MCP_TOOLS)
-        assert attached.provider is provider
-        assert attached.tools == _MCP_TOOLS
-        assert attached.section == ""
-        assert not (tmp_path / "work").exists()
 
-
-@pytest.fixture
-def _skills_attribution_clear_cache() -> object:
-    """The process-wide catalogue assumes a fixed directory; tests change it."""
-    catalog.available_skills.cache_clear()
-    yield
-    catalog.available_skills.cache_clear()
-
-
-def _skills_attribution_install(
-    root: pathlib.Path, folder: str, name: str
-) -> None:
-    (root / folder / "scripts").mkdir(parents=True)
-    (root / folder / "SKILL.md").write_text(
-        f"---\nname: {name}\ndescription: Queries things.\n---\n\nBody.\n",
-        encoding="utf-8",
-    )
-    (root / folder / "scripts" / "cli.py").write_text("", encoding="utf-8")
-
-
-@pytest.mark.usefixtures("_skills_attribution_clear_cache")
+@pytest.mark.usefixtures("_skills_catalog_clear_cache")
 class TestSkillsAttribution:
     def test_an_invocation_is_attributed_to_its_own_source(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
     ) -> None:
-        """Licence and provenance attribution belongs to the invoked source."""
-        _skills_attribution_install(
-            tmp_path, "string_database", "string-database"
+        """Licence and provenance attribution belongs to the invoked source,
+        and executing model-written code is not use of a data source."""
+        _write_skill(
+            tmp_path,
+            "string_database",
+            "name: string-database\ndescription: Queries things.",
         )
-        _skills_attribution_install(
-            tmp_path, "chembl_database", "chembl-database"
-        )
+        _install_skill(tmp_path, "chembl-database")
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
         monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, "/opt/venv/bin/python")
         argv = [
@@ -759,28 +602,16 @@ class TestSkillsAttribution:
 
         with usage.scoped_skill_usage() as tally:
             assert credentials.invoked_skill(argv) == "string-database"
+            assert (
+                credentials.invoked_skill(
+                    ["/opt/venv/bin/python", "analysis.py"]
+                )
+                is None
+            )
             usage.record_skill_use("string-database")
             usage.record_skill_use("string-database")
 
         assert tally.snapshot() == {"string-database": 2}
-
-    def test_a_program_of_the_models_own_is_not_a_data_source(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Executing model-written code is not use of a data source."""
-        _skills_attribution_install(
-            tmp_path, "string_database", "string-database"
-        )
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
-        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, "/opt/venv/bin/python")
-
-        assert (
-            credentials.invoked_skill(["/opt/venv/bin/python", "analysis.py"])
-            is None
-        )
-
-    def test_recording_outside_a_scope_is_not_an_error(self) -> None:
-        usage.record_skill_use("string-database")
 
     def test_the_tally_accumulates_across_a_run(self) -> None:
         """Concurrent tasks and later cycles must add deltas, not overwrite

@@ -1,10 +1,15 @@
+import asyncio
+import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn, cast
 
 import mcp_server.entrez as entrez_rate_limit
 import pytest
 from Bio import Entrez
+from mcp_server.tools.lit_review.search_pubmed import (
+    pubmed_search_with_fulltext,
+)
 
 
 class CannedEntrezHandle:
@@ -31,6 +36,35 @@ def configure_trace(
     if study_id is not None:
         monkeypatch.setenv("COSCIENTIST_PUBMED_STUDY4_RECOVERY", "1")
         monkeypatch.setenv("COSCIENTIST_PUBMED_STUDY_ID", study_id)
+
+
+def search(
+    query: str,
+    run_id: str,
+    *,
+    slug: str | None = None,
+    max_papers: int = 1,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    return asyncio.run(
+        pubmed_search_with_fulltext(
+            query=query,
+            slug=slug or run_id,
+            max_papers=max_papers,
+            run_id=run_id,
+            **kwargs,
+        )
+    )
+
+
+def trace_path(cache_root: Path, slug: str, run_id: str) -> Path:
+    run_dir = cache_root / "pubmed" / slug / "runs" / run_id
+    return run_dir / ".search-trace.json"
+
+
+def read_trace(cache_root: Path, slug: str, run_id: str) -> dict[str, Any]:
+    text = trace_path(cache_root, slug, run_id).read_text(encoding="utf-8")
+    return cast(dict[str, Any], json.loads(text))
 
 
 def install_entrez(
@@ -65,22 +99,58 @@ def pubmed_article(paper_id: str) -> dict[str, Any]:
     }
 
 
+def seed_shared_pool(cache_root: Path, slug: str, paper_id: str) -> Path:
+    shared_dir = cache_root / "pubmed" / slug / "shared"
+    shared_dir.mkdir(parents=True)
+    metadata = {
+        "date_revised": "2023/1/1",
+        "title": "Cached paper",
+        "abstract": "Cached abstract.",
+        "authors": [],
+        "publication": "Example Journal",
+        "pmc_full_text_id": f"PMC{paper_id}",
+    }
+    (shared_dir / f"{paper_id}.metadata.json").write_text(
+        json.dumps(metadata), encoding="utf-8"
+    )
+    (shared_dir / f"PMC{paper_id}.fulltext.html").write_text(
+        "<html><body>Cached full text.</body></html>", encoding="utf-8"
+    )
+    return shared_dir
+
+
+def esearch_ids(*ids: str) -> Callable[..., CannedEntrezHandle]:
+    return lambda **_kwargs: CannedEntrezHandle({"IdList": list(ids)})
+
+
+def efetch_article(**kwargs: Any) -> CannedEntrezHandle:
+    return CannedEntrezHandle(pubmed_article(str(kwargs["id"])))
+
+
+def elink_without_pmc(**_kwargs: Any) -> CannedEntrezHandle:
+    return CannedEntrezHandle([{"LinkSetDb": []}])
+
+
+def raising(error: Exception) -> Callable[..., NoReturn]:
+    def request(**_kwargs: Any) -> NoReturn:
+        raise error
+
+    return request
+
+
 def install_fake_entrez(
     monkeypatch: pytest.MonkeyPatch, ids: list[str]
 ) -> list[dict[str, Any]]:
     esearch_calls: list[dict[str, Any]] = []
 
-    def fake_esearch(**kwargs: Any) -> CannedEntrezHandle:
+    def esearch(**kwargs: Any) -> CannedEntrezHandle:
         esearch_calls.append(kwargs)
-        return CannedEntrezHandle({"IdList": ids})
-
-    def fake_efetch(**kwargs: Any) -> CannedEntrezHandle:
-        return CannedEntrezHandle(pubmed_article(str(kwargs["id"])))
-
-    def fake_elink(**_kwargs: Any) -> CannedEntrezHandle:
-        return CannedEntrezHandle([{"LinkSetDb": []}])
+        return esearch_ids(*ids)()
 
     install_entrez(
-        monkeypatch, esearch=fake_esearch, efetch=fake_efetch, elink=fake_elink
+        monkeypatch,
+        esearch=esearch,
+        efetch=efetch_article,
+        elink=elink_without_pmc,
     )
     return esearch_calls

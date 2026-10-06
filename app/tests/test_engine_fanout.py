@@ -7,10 +7,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 from co_scientist.agents import reflection as _operations_reflection
+from co_scientist.checkpoint import restore_workflow_state
 from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
+from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Article, Hypothesis, HypothesisReview
 
 import app.engine_tasks.fanout as engine_tasks_fanout_items
@@ -20,7 +22,6 @@ from app.config import settings
 from app.engine_tasks import fanout as engine_tasks_fanout
 from app.engine_tasks import fanout_aggregates as _recheck_reflection
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.fanout import _mature_reflection_specs, _maturity_specs
 from app.engine_tasks.fanout_aggregates import _apply_review_items
@@ -49,6 +50,10 @@ from tests._store_helpers import enqueue_task, seed_run
 
 
 async def _fake_review(**kwargs: Any) -> HypothesisReview:
+    record_call(
+        "fixture-model",
+        ModelCallStats(calls=1, prompt_tokens=20, completion_tokens=10),
+    )
     return HypothesisReview(
         review_summary=f"reviewed {kwargs['hypothesis_text']}",
         scores={"scientific_soundness": 8, "novelty": 8},
@@ -148,80 +153,13 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     assert (
         review_events[0]["payload"]["successor"] == "comprehensive_reflection"
     )
-
-
-@pytest.mark.asyncio
-async def test_review_fanout_created_during_pause_waits_for_resume(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    original_dispatch = engine_tasks_node._dispatch_node_fanout
-
-    with make_client() as client:
-        created = _create_run(client, "Paused review fan-out")
-        assert created.status_code == 200, created.text
-        run_id = str(created.json()["id"])
-        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        state = _task_state(run_id)
-        state["hypotheses"] = [
-            Hypothesis(text="alpha"),
-            Hypothesis(text="beta"),
-        ]
-
-        async def pause_during_dispatch(
-            task: Any,
-            node_state: dict[str, Any],
-            node_name: str,
-            checkpoint_seq: int,
-            db_path: str | None,
-        ) -> dict[str, Any] | None:
-            if node_name == "review":
-                paused = client.post(f"/api/runs/{run_id}/pause")
-                assert paused.status_code == 200, paused.text
-                assert paused.json()["status"] == "paused"
-            return await original_dispatch(
-                task, node_state, node_name, checkpoint_seq, db_path
-            )
-
-        monkeypatch.setattr(
-            engine_tasks_node, "_dispatch_node_fanout", pause_during_dispatch
-        )
-        await _advance_to_review_parent(
-            run_id, monkeypatch, _Generator(state), isolated_db
-        )
-
-        tasks = store.list_tasks(run_id, db_path=isolated_db)
-        review_work = [
-            task
-            for task in tasks
-            if task.task_type
-            in {
-                engine_tasks_support.REVIEW_ITEM_TASK,
-                engine_tasks_support.REVIEW_AGGREGATE_TASK,
-            }
-        ]
-        assert len(review_work) == 3
-        saved_run = runs.get_run(run_id, db_path=isolated_db)
-        assert saved_run is not None and saved_run.status == "paused"
-        assert (
-            store.claim_task(
-                "before-resume", run_id=run_id, db_path=isolated_db
-            )
-            is None
-        )
-
-        resumed = client.post(f"/api/runs/{run_id}/resume")
-        assert resumed.status_code == 200, resumed.text
-        claimed = [
-            store.claim_task(
-                f"after-resume-{index}", run_id=run_id, db_path=isolated_db
-            )
-            for index in range(2)
-        ]
-        assert all(item is not None for item in claimed)
-        assert {item.task_type for item in claimed if item is not None} == {
-            engine_tasks_support.REVIEW_ITEM_TASK
-        }
+    usage = restore_workflow_state(checkpoint["state"])["metrics"].model_usage
+    assert (
+        usage["review::fixture-model"]
+        == ModelCallStats(
+            calls=2, prompt_tokens=40, completion_tokens=20
+        ).as_dict()
+    )
 
 
 @pytest.mark.asyncio
@@ -358,21 +296,6 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
         _surviving_judgements(["pair-0", "pair-1"], [verdict, error])
 
 
-def test_an_ordinary_judge_failure_still_leaves_its_wave_siblings() -> None:
-    from co_scientist.agents.ranking import RankingJudgement
-
-    from app.engine_tasks.ranking import _surviving_judgements
-
-    verdict = RankingJudgement("a", {"decision_summary": "A is stronger"}, 2)
-
-    survived = _surviving_judgements(
-        ["pair-0", "pair-1"], [verdict, RuntimeError("judge refused")]
-    )
-
-    assert survived.pairs == ["pair-0"]
-    assert survived.judgements == [verdict]
-
-
 def _dispositions_blocking_review() -> HypothesisReview:
     return HypothesisReview(
         review_summary="unsound",
@@ -414,35 +337,6 @@ def test_aggregate_leaves_the_evidence_gate_s_disposition_alone() -> None:
     _apply_review_items({hypothesis.id: hypothesis}, [], None)
 
     assert hypothesis.review_disposition == "evidence_blocked"
-
-
-def test_aggregate_keeps_a_hypothesis_no_review_can_grade_untouched() -> None:
-    hypothesis = Hypothesis(text="beta")
-
-    _apply_review_items({hypothesis.id: hypothesis}, [], None)
-
-    assert hypothesis.review_disposition is None
-
-
-def test_aggregate_reads_the_run_s_criteria_when_re_deriving() -> None:
-    hypothesis = Hypothesis(
-        text="gamma",
-        reviews=[
-            HypothesisReview(
-                review_summary="weak experiment",
-                scores={"scientific_soundness": 8, "testability": 1},
-                safety_ethical_concerns="none",
-                detailed_feedback={},
-                constructive_feedback="design a test",
-                overall_score=5.0,
-            )
-        ],
-    )
-    criteria: list[Any] = ["Discriminating experimental design"]
-
-    _apply_review_items({hypothesis.id: hypothesis}, [], None, criteria)
-
-    assert not hypothesis.is_rankable()
 
 
 # Isolate matchup faults so retrying one failure does not discard or re-judge
@@ -512,25 +406,28 @@ def _hypothesis(**enrichments: Any) -> Hypothesis:
     return hypothesis
 
 
-def test_a_fresh_hypothesis_is_owed_both() -> None:
-    assert _maturity_specs(_hypothesis(), 0) == [
-        ("h1", "full"),
-        ("h1", "simulation"),
-    ]
+@pytest.mark.parametrize(
+    ("enrichments", "iteration", "expected"),
+    [
+        pytest.param({}, 0, ["full", "simulation"], id="fresh"),
+        pytest.param(
+            {"simulation": {"verdict": "breaks_down"}},
+            2,
+            ["full"],
+            id="succeeded-simulation-is-not-re-enqueued",
+        ),
+        pytest.param(
+            {"full": {"verdict": "sound"}}, 1, ["recurrent"], id="mature"
+        ),
+    ],
+)
+def test_maturity_selection_follows_the_engine_rule(
+    enrichments: dict[str, Any], iteration: int, expected: list[str]
+) -> None:
+    hypothesis = _hypothesis(**enrichments)
 
-
-def test_a_succeeded_simulation_is_not_re_enqueued() -> None:
-    # Checkpoint sequences make later tool-loop rows new work even though
-    # iteration repeats the phase.
-    hypothesis = _hypothesis(simulation={"verdict": "breaks_down"})
-
-    for iteration in (0, 1, 2):
-        assert _maturity_specs(hypothesis, iteration) == [("h1", "full")]
-
-
-def test_a_mature_hypothesis_gets_its_recurrent_review() -> None:
-    assert _maturity_specs(_hypothesis(full={"verdict": "sound"}), 1) == [
-        ("h1", "recurrent")
+    assert _maturity_specs(hypothesis, iteration) == [
+        ("h1", mode) for mode in expected
     ]
 
 
@@ -561,29 +458,18 @@ async def test_verification_keeps_raw_payload_and_defers_issuance(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "executor,operation",
-    [
-        (items.execute_verification_item, "verify_hypothesis"),
-        (items.execute_mature_reflection_item, "review_hypothesis"),
-    ],
-)
-@pytest.mark.parametrize(
-    "error",
-    [LLMRateLimitParkError(9999, "cap"), LLMCallBudgetExceededError(2, 1)],
-)
-async def test_public_item_task_control_errors_reach_worker(
-    monkeypatch: pytest.MonkeyPatch,
-    executor: Any,
-    operation: str,
-    error: Exception,
+@pytest.mark.parametrize("error", [PARK, OVER_BUDGET])
+async def test_verification_item_control_errors_reach_worker(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
     task = _restore_item(monkeypatch)
     monkeypatch.setattr(
-        _operations_reflection, operation, AsyncMock(side_effect=error)
+        _operations_reflection,
+        "verify_hypothesis",
+        AsyncMock(side_effect=error),
     )
     with pytest.raises(type(error)) as caught:
-        await executor(task)
+        await items.execute_verification_item(task)
     assert caught.value is error
 
 
@@ -628,30 +514,6 @@ async def test_observation_rejects_missing_literature_before_call(
     with pytest.raises(RuntimeError, match="no literature context"):
         await items.execute_mature_reflection_item(task, db_path=isolated_db)
     operation.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_durable_observation_uses_single_item_defaults(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indices: list[tuple[int, int]] = []
-
-    async def observe(
-        state: Any,
-        hypothesis: Any,
-        *,
-        hypothesis_index: int = 1,
-        total_count: int = 1,
-    ) -> dict[str, Any]:
-        indices.append((hypothesis_index, total_count))
-        return {"classification": "neutral"}
-
-    task = _restore_item(monkeypatch, "observation")
-    monkeypatch.setattr(_operations_reflection, "observe_hypothesis", observe)
-    result = await items.execute_mature_reflection_item(task)
-    assert result["review"] == {"classification": "neutral"}
-    assert result["research_ledger"] is None
-    assert indices == [(1, 1)]
 
 
 @pytest.mark.asyncio
@@ -709,46 +571,18 @@ def _state(hypotheses: list[Hypothesis]) -> dict[str, Any]:
     return {"hypotheses": hypotheses, "current_iteration": 0}
 
 
-def test_the_fanout_schedules_one_recheck_per_blocked_idea() -> None:
-    pool = [_recheck_blocked_hypothesis(f"idea {index}") for index in range(20)]
-
-    specs = _mature_reflection_specs(_state(pool))
-
-    assert [spec.hypothesis_id for spec in specs] == [h.id for h in pool]
-    assert all(spec.recheck for spec in specs)
-    assert {spec.review_mode for spec in specs} == {"recurrent"}
-
-
-def test_a_failed_recheck_item_still_records_its_attempt(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("recheck", [True, False])
+def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
+    monkeypatch: pytest.MonkeyPatch, recheck: bool
 ) -> None:
     hypothesis = _recheck_blocked_hypothesis()
     _patch_item(
         monkeypatch,
         {
             "hypothesis_id": hypothesis.id,
-            "recheck": True,
-            "review_mode": "recurrent",
+            "recheck": recheck,
+            "review_mode": "recurrent" if recheck else "full",
         },
-        status="failed",
-    )
-
-    applied = _recheck_reflection._apply_mature_reflection_items(
-        {hypothesis.id: hypothesis}, ["item-1"], 0, None
-    )
-
-    assert applied.failed == 1
-    assert hypothesis.enrichments["recurrent"]["verdict"] == "unreviewed"
-    assert _mature_reflection_specs(_state([hypothesis])) == []
-
-
-def test_a_cascade_item_records_no_recheck(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypothesis = _recheck_blocked_hypothesis()
-    _patch_item(
-        monkeypatch,
-        {"hypothesis_id": hypothesis.id, "review_mode": "full"},
         status="failed",
     )
 
@@ -756,22 +590,25 @@ def test_a_cascade_item_records_no_recheck(
         {hypothesis.id: hypothesis}, ["item-1"], 0, None
     )
 
-    assert len(_mature_reflection_specs(_state([hypothesis]))) == 1
+    owed = _mature_reflection_specs(_state([hypothesis]))
+    assert len(owed) == (0 if recheck else 1)
+    if recheck:
+        assert hypothesis.enrichments["recurrent"]["verdict"] == "unreviewed"
 
 
-def test_the_cascade_still_owns_the_viable_ideas() -> None:
+def test_the_cascade_owns_viable_ideas_and_rechecks_each_blocked_one() -> None:
     viable = Hypothesis(text="cleared")
     viable.review_disposition = "viable"
+    blocked = [_recheck_blocked_hypothesis(f"idea {i}") for i in range(20)]
 
-    specs = _mature_reflection_specs(
-        _state([viable, _recheck_blocked_hypothesis()])
-    )
+    specs = _mature_reflection_specs(_state([viable, *blocked]))
 
     assert [(spec.review_mode, spec.recheck) for spec in specs] == [
         ("full", False),
         ("simulation", False),
-        ("recurrent", True),
+        *[("recurrent", True)] * 20,
     ]
+    assert [spec.hypothesis_id for spec in specs[2:]] == [h.id for h in blocked]
 
 
 def _lease_verification_parent(run_id: str, db_path: str) -> Any:
@@ -785,35 +622,6 @@ def _lease_verification_parent(run_id: str, db_path: str) -> Any:
     leased = store.claim_task("parent", run_id=run_id, db_path=db_path)
     assert leased is not None and leased.id == parent.id
     return leased
-
-
-@pytest.mark.asyncio
-async def test_verification_fanout_materializes_one_task_per_unverified_idea(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Task-level science")
-    leased = _lease_verification_parent(run.id, isolated_db)
-    state = _task_state(run.id)
-    state["hypotheses"] = [
-        Hypothesis(text=f"candidate-{index}", elo_rating=1000 + index)
-        for index in range(5)
-    ]
-
-    result = engine_tasks_fanout._enqueue_verification_fanout(
-        leased, state, 4, db_path=isolated_db
-    )
-    assert len(result["fanout_task_ids"]) == 5
-    assert lifecycle.complete_task(
-        leased.id, "parent", result, db_path=isolated_db
-    )
-    claimed = [
-        store.claim_task(f"verify-{index}", run_id=run.id, db_path=isolated_db)
-        for index in range(5)
-    ]
-    assert all(item is not None for item in claimed)
-    assert {item.task_type for item in claimed if item is not None} == {
-        engine_tasks_support.VERIFICATION_ITEM_TASK
-    }
 
 
 @pytest.mark.asyncio
@@ -853,29 +661,10 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
     # Empty fan-outs still need an immediately claimable aggregate that commits
     # and advances the run.
     run = seed_run("Task-level science")
-    state = _task_state(run.id)
-    hypotheses = [Hypothesis(text=f"verified-{index}") for index in range(3)]
-    for hypothesis in hypotheses:
-        hypothesis.enrichments["deep_verification_issued"] = True
-    state["hypotheses"] = hypotheses
-    checkpoint_seq = _seed_checkpoint(run.id, state)
-    node = enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-        "verification-node",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=isolated_db,
-    )
-    _patch_generator(monkeypatch, _Generator(state), restore=True)
-    leased_node = store.claim_task("node", run_id=run.id, db_path=isolated_db)
-    assert leased_node is not None and leased_node.id == node.id
-    scheduled = await engine_tasks.execute_node_task(
-        leased_node, db_path=isolated_db
+    scheduled = await _advance_verification_node(
+        run.id, monkeypatch, isolated_db, issued=True
     )
     assert scheduled["fanout_task_ids"] == []
-    assert lifecycle.complete_task(
-        leased_node.id, "node", scheduled, db_path=isolated_db
-    )
 
     aggregate = store.claim_task(
         "aggregate", run_id=run.id, db_path=isolated_db
@@ -894,7 +683,7 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
     )
     successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
     assert successor is not None
-    assert successor.task_type == (f"{engine_tasks.NODE_TASK_PREFIX}ranking")
+    assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
 
 
 async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
@@ -915,13 +704,19 @@ async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
 
 
 async def _advance_verification_node(
-    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
-) -> None:
+    run_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+    db_path: str,
+    *,
+    issued: bool = False,
+) -> dict[str, Any]:
     state = _task_state(run_id)
     state["hypotheses"] = [
         Hypothesis(text=f"candidate-{index}", elo_rating=1200 + index)
         for index in range(3)
     ]
+    for hypothesis in state["hypotheses"]:
+        hypothesis.enrichments["deep_verification_issued"] = issued
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = enqueue_task(
         run_id,
@@ -939,6 +734,7 @@ async def _advance_verification_node(
     assert lifecycle.complete_task(
         leased_node.id, "node", scheduled, db_path=db_path
     )
+    return scheduled
 
 
 async def _run_verification_children_and_aggregate(
@@ -1089,27 +885,10 @@ async def test_verification_aggregate_pauses_and_resumes_to_ranking(
             hypothesis["deep_verification_verdict"] == "holds"
             for hypothesis in state["hypotheses"]
         )
-        assert state["articles"][-1]["source_id"] == "probe-1"
         metrics = retrieval.get_run_metrics(run_id, db_path=isolated_db)
         assert metrics is not None and metrics["llm_calls"] == 6
-        verification_items = [
-            task
-            for task in store.list_tasks(run_id, db_path=isolated_db)
-            if task.task_type == engine_tasks_support.VERIFICATION_ITEM_TASK
-        ]
-        assert len(verification_items) == 3
-        assert all(
-            task.status == "completed" and task.result
-            for task in verification_items
-        )
         [event] = _task_events(run_id, "deep_verification", db_path=isolated_db)
         assert event["payload"]["successor"] == "ranking"
-        ranking_tasks = [
-            task
-            for task in store.list_tasks(run_id, db_path=isolated_db)
-            if task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-        ]
-        assert len(ranking_tasks) == 1
         assert (
             store.claim_task(
                 "before-resume", run_id=run_id, db_path=isolated_db

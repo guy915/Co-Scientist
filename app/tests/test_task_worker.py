@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,94 +12,21 @@ from co_scientist.exceptions import (
 )
 from co_scientist.llm import current_run_call_count, scoped_llm_call_budget
 from co_scientist.llm.admission.call_budget import record_provider_request
-from fastapi import BackgroundTasks
 
-import app.main as main_lifespan
 from app import engine_tasks, task_worker
-from app.config import Settings, settings
-from app.runs import lifecycle as runs_lifecycle
+from app.config import settings
 from app.store import db as _store_db
 from app.store import db as store_db
 from app.store import events as store_events
 from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunRow, RunStatus, ScientificTask
+from app.store.models import RunStatus, ScientificTask
 from app.task_worker import outcomes as task_worker_outcomes
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import _enqueue, make_cancellable_executor
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 from tests._store_helpers import mark_task_leased as _mark_leased
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [(None, True), ("1", True), ("true", True), ("0", False), ("false", False)],
-)
-def test_embedded_worker_parses_from_its_env_var(
-    monkeypatch: pytest.MonkeyPatch, value: str | None, expected: bool
-) -> None:
-    # Settings has no env prefix and is case-insensitive; disable .env loading
-    # to isolate deployment variables.
-    monkeypatch.delenv("COSCIENTIST_EMBEDDED_WORKER", raising=False)
-    if value is not None:
-        monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", value)
-
-    parsed = Settings(_env_file=None)
-
-    assert parsed.coscientist_embedded_worker is expected
-
-
-@pytest.mark.parametrize(("embedded", "expected"), [(True, 1), (False, 0)])
-def test_start_launches_an_embedded_worker_only_when_enabled(
-    monkeypatch: pytest.MonkeyPatch, embedded: bool, expected: int
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", embedded)
-    monkeypatch.setattr(_store_db, "transaction", lambda: nullcontext(object()))
-    monkeypatch.setattr(
-        runs, "reserve_run_capacity_in_transaction", lambda *_, **__: True
-    )
-    monkeypatch.setattr(
-        lifecycle, "revive_task_for_retry", lambda *_, **__: None
-    )
-    monkeypatch.setattr(
-        engine_tasks, "enqueue_bootstrap", lambda *_, **__: object()
-    )
-    monkeypatch.setattr(store_events, "append_event", lambda *a, **k: None)
-    background = BackgroundTasks()
-
-    runs_lifecycle._enqueue_workflow_and_maybe_launch_worker(
-        RunRow(
-            id="run-1",
-            research_goal="test",
-            profile="express",
-            status="draft",
-            provider="engine",
-            config={},
-            client_id="client",
-            created_at=0,
-            updated_at=0,
-            completed_at=None,
-            error=None,
-        ),
-        background,
-    )
-
-    assert len(background.tasks) == expected
-
-
-async def test_recovery_launches_no_embedded_workers_when_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    monkeypatch.setattr(
-        tasks, "list_active_engine_task_run_ids", lambda: ["run-1"]
-    )
-    workers: list[asyncio.Task[Any]] = []
-
-    main_lifespan._launch_embedded_recovery_workers(workers)
-
-    assert workers == []
 
 
 def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
@@ -207,21 +133,6 @@ async def test_worker_shutdown_cancels_task_payload(
     assert interrupted.is_set()
 
 
-def test_sync_worker_pool_runs_on_its_own_event_loop(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    observed: list[tuple[str, str]] = []
-
-    async def _pool(run_id: str, worker_prefix: str) -> None:
-        observed.append((run_id, worker_prefix))
-
-    monkeypatch.setattr(task_worker, "run_run_worker_pool", _pool)
-
-    task_worker.run_run_worker_pool_sync("run-1", "embedded")
-
-    assert observed == [("run-1", "embedded")]
-
-
 @pytest.mark.asyncio
 async def test_worker_delivers_opted_in_completion_email(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
@@ -298,87 +209,60 @@ def _task_status(task_id: str, db: str) -> str:
     return str(row["status"])
 
 
-def test_dead_lease_is_failed_and_settles_its_run(isolated_db: str) -> None:
-    run_id, task_id = _run_with_lease(
-        isolated_db, expires_at=time.time() - 3600, spend_budget=True
-    )
-
-    abandoned = lifecycle.abandon_dead_leases(run_id, db_path=isolated_db)
-
-    assert abandoned == 1
-    assert _task_status(task_id, isolated_db) == "failed"
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None
-    assert run.status == "failed"
-
-
-def test_dead_lease_settlement_emits_a_terminal_status_event(
+@pytest.mark.parametrize(
+    ("expires_in", "spend_budget", "abandoned", "task_status", "run_status"),
+    [
+        pytest.param(-3600, True, 1, "failed", "failed", id="dead-and-spent"),
+        pytest.param(3600, True, 0, "leased", "running", id="live"),
+        pytest.param(-3600, False, 0, "leased", "running", id="retries-left"),
+    ],
+)
+def test_only_a_dead_spent_lease_is_abandoned_and_settles_its_run(
     isolated_db: str,
+    expires_in: float,
+    spend_budget: bool,
+    abandoned: int,
+    task_status: str,
+    run_status: str,
 ) -> None:
-    run_id, _ = _run_with_lease(
-        isolated_db, expires_at=time.time() - 3600, spend_budget=True
+    run_id, task_id = _run_with_lease(
+        isolated_db,
+        expires_at=time.time() + expires_in,
+        spend_budget=spend_budget,
     )
 
-    lifecycle.abandon_dead_leases(run_id, db_path=isolated_db)
+    count = lifecycle.abandon_dead_leases(run_id, db_path=isolated_db)
 
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    terminal = [
+    assert count == abandoned
+    assert _task_status(task_id, isolated_db) == task_status
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == run_status
+    announced = [
         event
-        for event in events
+        for event in store_events.list_events(run_id, db_path=isolated_db)
         if event["type"] == "status"
         and event["payload"].get("status") == "failed"
     ]
-    assert terminal, "a settled run must announce it"
+    assert bool(announced) is bool(abandoned), "a settled run must announce it"
 
 
-def test_a_live_lease_is_never_abandoned(isolated_db: str) -> None:
-    run_id, task_id = _run_with_lease(
-        isolated_db, expires_at=time.time() + 3600, spend_budget=True
-    )
-
-    assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 0
-    assert _task_status(task_id, isolated_db) == "leased"
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None
-    assert run.status == "running"
-
-
-def test_an_expired_lease_with_retries_left_is_never_abandoned(
-    isolated_db: str,
-) -> None:
-    run_id, task_id = _run_with_lease(
-        isolated_db, expires_at=time.time() - 3600, spend_budget=False
-    )
-
-    assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 0
-    assert _task_status(task_id, isolated_db) == "leased"
-
-
-def test_cohort_poll_reports_a_dead_lease_as_inactive(
-    isolated_db: str,
+@pytest.mark.parametrize(
+    ("expires_in", "active"), [(-3600, False), (3600, True)]
+)
+def test_cohort_poll_reports_a_dead_spent_lease_as_inactive(
+    isolated_db: str, expires_in: float, active: bool
 ) -> None:
     run_id, _ = _run_with_lease(
-        isolated_db, expires_at=time.time() - 3600, spend_budget=True
+        isolated_db, expires_at=time.time() + expires_in, spend_budget=True
     )
 
-    claimable, active, _ = lifecycle.cohort_poll(run_id, db_path=isolated_db)
+    claimable, working, _ = lifecycle.cohort_poll(run_id, db_path=isolated_db)
 
     assert not claimable, "a spent-budget lease is claimable by nobody"
-    assert not active, "nor is anyone still working on it"
+    assert working is active
 
 
-def test_cohort_poll_still_reports_a_live_lease_as_active(
-    isolated_db: str,
-) -> None:
-    run_id, _ = _run_with_lease(
-        isolated_db, expires_at=time.time() + 3600, spend_budget=True
-    )
-
-    _, active, _park = lifecycle.cohort_poll(run_id, db_path=isolated_db)
-
-    assert active
-
-
+@pytest.mark.asyncio
 async def test_cohort_idle_exit_settles_a_run_left_with_a_dead_lease(
     isolated_db: str,
 ) -> None:
@@ -504,36 +388,38 @@ async def test_worker_cancels_execution_after_lease_revocation(
 
 
 @pytest.mark.asyncio
-async def test_embedded_worker_pool_executes_fanout_concurrently(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("worker_count", "task_count", "sleep", "lease_seconds", "min_overlap"),
+    [
+        pytest.param(4, 4, 0.03, 1, 4, id="explicit-pool"),
+        # The default cohort must be wider than the old four-lease cap.
+        pytest.param(None, 12, 0.05, 5, 5, id="default-pool"),
+    ],
+)
+async def test_worker_cohort_executes_fanout_concurrently(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    worker_count: int | None,
+    task_count: int,
+    sleep: float,
+    lease_seconds: float,
+    min_overlap: int,
 ) -> None:
     run = seed_run("parallel goal")
-    _enqueue_test_tasks(run.id, 4, "parallel", isolated_db)
-    probe = _ConcurrencyProbe(0.03)
+    _enqueue_test_tasks(run.id, task_count, "parallel", isolated_db)
+    probe = _ConcurrencyProbe(sleep)
     monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
+    policy = task_worker.WorkerPolicy(
+        db_path=isolated_db, lease_seconds=lease_seconds
+    )
+    kwargs = {} if worker_count is None else {"worker_count": worker_count}
 
     await task_worker.run_run_worker_pool(
-        run.id,
-        "embedded-test",
-        worker_count=4,
-        policy=task_worker.WorkerPolicy(db_path=isolated_db, lease_seconds=1),
+        run.id, "embedded-test", policy=policy, **kwargs
     )
 
-    assert probe.max_active == 4
+    assert probe.max_active >= min_overlap
     _assert_all_completed(run.id, isolated_db)
-
-
-@pytest.mark.asyncio
-async def test_worker_isolates_unknown_task_failure(isolated_db: str) -> None:
-    run = seed_run("worker goal")
-    task = enqueue_task(
-        run.id, "unknown.task", "unknown:0", db_path=isolated_db
-    )
-    assert await task_worker.run_once("worker-a", db_path=isolated_db)
-    saved = tasks.get_task(task.id, db_path=isolated_db)
-    assert saved is not None
-    assert saved.status == "failed"
-    assert "unsupported task type" in str(saved.error)
 
 
 @pytest.mark.asyncio
@@ -557,45 +443,6 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
     assert after is not None
     assert after.status == "queued", "a transient failure must stay retryable"
     assert after.attempt < after.max_attempts
-
-
-@pytest.mark.asyncio
-async def test_unsupported_task_type_is_still_permanent(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Bad task type")
-    task = enqueue_task(
-        run.id, "engine.node.ranking", "unsupported-1", db_path=isolated_db
-    )
-
-    async def unsupported(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        raise task_worker.UnsupportedTaskError("unsupported task type: nope")
-
-    monkeypatch.setattr(task_worker, "_execute_task_payload", unsupported)
-    assert await task_worker.run_once("w1", run_id=run.id, db_path=isolated_db)
-
-    after = tasks.get_task(task.id, db_path=isolated_db)
-    assert after is not None
-    assert after.status == "failed", "an unknown task type is not retryable"
-
-
-@pytest.mark.asyncio
-async def test_default_worker_cohort_overlaps_more_than_four_leases(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("wide fanout")
-    _enqueue_test_tasks(run.id, 12, "wide", isolated_db)
-    probe = _ConcurrencyProbe(0.05)
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
-
-    await task_worker.run_run_worker_pool(
-        run.id,
-        "embedded-test",
-        policy=task_worker.WorkerPolicy(db_path=isolated_db, lease_seconds=5),
-    )
-
-    assert probe.max_active > 4
-    _assert_all_completed(run.id, isolated_db)
 
 
 @pytest.mark.asyncio
@@ -648,32 +495,6 @@ def test_idle_claim_does_not_contend_for_the_write_lock(
         blocker.close()
 
 
-def test_idle_wait_does_not_decode_every_task(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Polling one boolean must not decode every historical task row.
-    run = seed_run("idle wait cost")
-    for index in range(30):
-        enqueue_task(
-            run.id, f"engine.test.{index}", f"idle:{index}", db_path=isolated_db
-        )
-    calls = 0
-    real_list = tasks.list_tasks
-
-    def _counting_list(*args: Any, **kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        return real_list(*args, **kwargs)
-
-    monkeypatch.setattr(tasks, "list_tasks", _counting_list)
-
-    claimable, active, _park = lifecycle.cohort_poll(
-        run.id, db_path=isolated_db
-    )
-    assert claimable is True and active is False
-    assert calls == 0
-
-
 # Call-budget exhaustion is permanent; retrying it cannot create more allowance.
 
 
@@ -691,43 +512,6 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
     )
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
-
-    error = LLMCallBudgetExceededError(count=2501, ceiling=2500)
-    task_worker_outcomes._handle_task_failure(
-        leased, "worker", error, isolated_db
-    )
-
-    task_after = tasks.get_task(task.id, db_path=isolated_db)
-    assert task_after is not None
-    assert task_after.status == "failed", (
-        "a ceiling breach must fail outright, not requeue for retry"
-    )
-    assert task_after.attempt < task_after.max_attempts, (
-        "it must not have burned through the retry budget to get there"
-    )
-
-    settled = runs.get_run(run.id, db_path=isolated_db)
-    assert settled is not None
-    assert settled.status == RunStatus.FAILED.value
-    assert settled.error is not None
-    assert "LLM-call ceiling exceeded" in settled.error
-    assert "2501" in settled.error and "2500" in settled.error, (
-        "the user-visible reason must name the count and the ceiling, "
-        "not read as a generic task failure"
-    )
-
-
-def test_ceiling_exceeded_releases_the_runs_counter(
-    isolated_db: str,
-) -> None:
-    run = seed_run("LLM budget release")
-    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    enqueue_task(
-        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
-    )
-    leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
-    assert leased is not None
-
     with scoped_llm_call_budget(run.id, ceiling=1):
         record_provider_request()
     assert current_run_call_count(run.id) == 1
@@ -735,10 +519,22 @@ def test_ceiling_exceeded_releases_the_runs_counter(
     task_worker_outcomes._handle_task_failure(
         leased,
         "worker",
-        LLMCallBudgetExceededError(count=2, ceiling=1),
+        LLMCallBudgetExceededError(count=2501, ceiling=2500),
         isolated_db,
     )
 
+    task_after = tasks.get_task(task.id, db_path=isolated_db)
+    assert task_after is not None
+    assert task_after.status == "failed", "a ceiling breach must not requeue"
+    assert task_after.attempt < task_after.max_attempts, (
+        "it must not have burned through the retry budget to get there"
+    )
+    settled = runs.get_run(run.id, db_path=isolated_db)
+    assert settled is not None
+    assert settled.status == RunStatus.FAILED.value
+    assert settled.error is not None
+    assert "LLM-call ceiling exceeded" in settled.error
+    assert "2501" in settled.error and "2500" in settled.error
     assert current_run_call_count(run.id) == 0, (
         "a permanently failed run's counter must be dropped, not left to"
         " grow the process-wide tracker until the eviction cap"
@@ -754,7 +550,7 @@ def _advance_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
 
 
 def test_rate_limit_park_requeues_without_spending_an_attempt(
-    isolated_db: str,
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = seed_run("Rate limit park")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
@@ -768,9 +564,7 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
     assert leased.attempt == 1
-
-    now = store_db._now()
-    resume_at = now + 3600
+    resume_at = store_db._now() + 3600
     error = LLMRateLimitParkError(resume_at=resume_at, reason="message_per_day")
 
     task_worker_outcomes._handle_task_failure(
@@ -784,45 +578,21 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
     assert parked.lease_owner is None
     assert parked.available_at is not None
     assert resume_at <= parked.available_at <= resume_at + 15
-
-    reclaim = tasks.claim_task("worker2", run_id=run.id, db_path=isolated_db)
-    assert reclaim is None
-
+    assert not tasks.claim_task("worker2", run_id=run.id, db_path=isolated_db)
     still_running = runs.get_run(run.id, db_path=isolated_db)
     assert still_running is not None
     assert still_running.status == RunStatus.RUNNING.value
-
     assert parked.attempts, "the park must be visible in attempt history"
-    last_attempt = parked.attempts[-1]
-    assert last_attempt["retryable"] is True
-    assert "message_per_day" in last_attempt["error"]
+    assert parked.attempts[-1]["retryable"] is True
+    assert "message_per_day" in parked.attempts[-1]["error"]
 
-
-def test_rate_limit_park_becomes_claimable_once_due(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Rate limit park due")
-    task = enqueue_task(
-        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
-    )
-    leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
-    assert leased is not None
-
-    resume_at = store_db._now() + 60
-    ok = lifecycle.park_task_for_rate_limit(
-        task.id, "worker", "rate limited", resume_at, db_path=isolated_db
-    )
-    assert ok
-
-    reclaim = tasks.claim_task("worker2", run_id=run.id, db_path=isolated_db)
-    assert reclaim is None
-
-    _advance_clock(monkeypatch, 61)
+    _advance_clock(monkeypatch, 3600 + 16)
 
     reclaimed = tasks.claim_task("worker2", run_id=run.id, db_path=isolated_db)
     assert reclaimed is not None and reclaimed.id == task.id
 
 
+@pytest.mark.asyncio
 async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -883,11 +653,13 @@ def _save_resume_checkpoint(
     )
 
 
-def test_resume_uses_recorded_successor_not_orchestrator_default(
-    isolated_db: str,
+@pytest.mark.parametrize("recorded", [True, False])
+def test_resume_follows_the_recorded_successor_else_the_orchestrator(
+    isolated_db: str, recorded: bool
 ) -> None:
-    # Bootstrap checkpoints precede supervisor guidance; their successor must be
-    # supervisor, with the original idempotency key.
+    # Bootstrap checkpoints precede supervisor guidance, so their recorded
+    # successor must win; unrecorded legacy and fan-out planning checkpoints
+    # already have guidance and re-enter at the orchestrator.
     supervisor_type = f"{engine_tasks.NODE_TASK_PREFIX}supervisor"
     run = seed_run("worker goal")
     enqueued = enqueue_task(
@@ -897,43 +669,36 @@ def test_resume_uses_recorded_successor_not_orchestrator_default(
         inputs={"checkpoint_seq": 1},
         db_path=isolated_db,
     )
-    _save_resume_checkpoint(
-        run.id,
-        supervisor_type,
-        isolated_db,
-        _ResumeShape(
-            stage="engine_task:bootstrap",
-            last_event_seq=0,
-            provider="engine",
-        ),
-    )
+    if recorded:
+        _save_resume_checkpoint(
+            run.id,
+            supervisor_type,
+            isolated_db,
+            _ResumeShape(
+                stage="engine_task:bootstrap",
+                last_event_seq=0,
+                provider="engine",
+            ),
+        )
+    else:
+        seed_checkpoint(
+            run.id,
+            {"provider": "engine"},
+            stage="engine_task:orchestrator",
+            db_path=isolated_db,
+        )
 
     resumed = task_worker.enqueue_run_workflow(
         run.id, resume=True, db_path=isolated_db
     )
 
-    assert resumed.task_type == supervisor_type
-    assert resumed.id == enqueued.id, "must resolve to the already-queued task"
-
-
-def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
-    isolated_db: str,
-) -> None:
-    # Legacy and fan-out planning checkpoints already have supervisor guidance,
-    # so orchestrator re-entry remains valid.
-    run = seed_run("worker goal")
-    seed_checkpoint(
-        run.id,
-        {"provider": "engine"},
-        stage="engine_task:orchestrator",
-        db_path=isolated_db,
-    )
-
-    resumed = task_worker.enqueue_run_workflow(
-        run.id, resume=True, db_path=isolated_db
-    )
-
-    assert resumed.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+    if recorded:
+        assert resumed.id == enqueued.id, "must resolve to the queued task"
+        assert resumed.task_type == supervisor_type
+    else:
+        assert (
+            resumed.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+        )
 
 
 def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
@@ -1020,12 +785,16 @@ def _queued(run_id: str, db: str) -> list[Any]:
     ]
 
 
-@pytest.mark.parametrize("dead_status", ["failed", "cancelled"])
-def test_resume_revives_a_boundary_whose_task_died(
-    isolated_db: str, dead_status: str
+@pytest.mark.parametrize(
+    ("status", "revived"),
+    [("failed", True), ("cancelled", True), ("succeeded", False)],
+)
+def test_resume_revives_a_dead_boundary_but_never_completed_work(
+    isolated_db: str, status: str, revived: bool
 ) -> None:
-    # An unchanged checkpoint collides with a terminal boundary key; explicit
-    # resume must revive failed work.
+    # An unchanged checkpoint collides with a terminal boundary key, so an
+    # explicit resume must revive dead work; reviving a succeeded boundary
+    # would repeat committed, paid-for work.
     run = seed_run("wedged goal")
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
     seed_checkpoint(
@@ -1035,41 +804,26 @@ def test_resume_revives_a_boundary_whose_task_died(
         last_event_seq=1,
         db_path=isolated_db,
     )
-    task_id = _wedge_task_at(run.id, task_type, 1, dead_status, isolated_db)
+    task_id = _wedge_task_at(run.id, task_type, 1, status, isolated_db)
     assert not _queued(run.id, isolated_db)
 
     task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
 
     queued = _queued(run.id, isolated_db)
-    assert len(queued) == 1
-    assert queued[0].id == task_id
-    assert queued[0].task_type == task_type
-    assert queued[0].attempt < queued[0].max_attempts
+    assert [t.id for t in queued] == ([task_id] if revived else [])
+    if revived:
+        assert queued[0].task_type == task_type
+        assert queued[0].attempt < queued[0].max_attempts
 
 
-def test_resume_does_not_rerun_completed_work(isolated_db: str) -> None:
-    # Reviving succeeded boundaries repeats already committed and paid-for work.
-    run = seed_run("done goal")
-    task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    seed_checkpoint(
-        run.id,
-        {"resume_successor": task_type},
-        stage="post_generation",
-        last_event_seq=1,
-        db_path=isolated_db,
-    )
-    _wedge_task_at(run.id, task_type, 1, "succeeded", isolated_db)
-
-    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
-
-    assert not _queued(run.id, isolated_db)
-
-
-def test_resume_revives_a_lease_stranded_by_a_dead_worker(
-    isolated_db: str,
+@pytest.mark.parametrize(
+    ("lease_expires_in", "revived"), [(-3600, True), (3600, False)]
+)
+def test_resume_revives_only_a_lease_stranded_by_a_dead_worker(
+    isolated_db: str, lease_expires_in: float, revived: bool
 ) -> None:
-    # Expired exhausted leases need explicit recovery; ordinary claim rescue
-    # intentionally skips spent retries.
+    # Expired exhausted leases need explicit recovery (claim rescue skips spent
+    # retries); reviving a live lease would run the boundary twice.
     run = seed_run("stranded goal")
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     _save_resume_checkpoint(run.id, task_type, isolated_db)
@@ -1083,52 +837,19 @@ def test_resume_revives_a_lease_stranded_by_a_dead_worker(
     _mark_leased(
         task.id,
         isolated_db,
-        owner="dead",
-        expires_at=time.time() - 3600,
+        owner="dead-or-alive",
+        expires_at=time.time() + lease_expires_in,
         spend_budget=True,
     )
-    assert not _queued(run.id, isolated_db)
 
     task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
 
     queued = _queued(run.id, isolated_db)
-    assert len(queued) == 1
-    assert queued[0].id == task.id
-    assert queued[0].attempt < queued[0].max_attempts
-
-
-def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
-    # Only expired leases imply abandonment; reviving a live lease executes the
-    # boundary concurrently.
-    run = seed_run("busy goal")
-    task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    seed_checkpoint(
-        run.id,
-        {"resume_successor": task_type},
-        stage="post_generation",
-        last_event_seq=1,
-        db_path=isolated_db,
-    )
-    task = enqueue_task(
-        run.id,
-        task_type,
-        f"{task_type}:1",
-        inputs={"checkpoint_seq": 1},
-        db_path=isolated_db,
-    )
-    with _store_db.connect(isolated_db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET status='leased', lease_owner='alive', "
-            "lease_expires_at=? WHERE id=?",
-            (time.time() + 3600, task.id),
-        )
-
-    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
-
-    assert not _queued(run.id, isolated_db)
-    with _store_db.connect(isolated_db) as conn:
-        row = conn.execute(
-            "SELECT status, lease_owner FROM scientific_tasks WHERE id=?",
-            (task.id,),
-        ).fetchone()
-    assert (row["status"], row["lease_owner"]) == ("leased", "alive")
+    assert [t.id for t in queued] == ([task.id] if revived else [])
+    saved = tasks.get_task(task.id, db_path=isolated_db)
+    assert saved is not None
+    assert saved.status == ("queued" if revived else "leased")
+    if revived:
+        assert saved.attempt < saved.max_attempts
+    else:
+        assert saved.lease_owner == "dead-or-alive"

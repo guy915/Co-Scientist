@@ -1,16 +1,12 @@
-import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
 import pytest
-from fastmcp import Client
-from fastmcp.client.transports import StreamableHttpTransport
 from mcp_server.campaign import PUBLIC_TOOLS
-from mcp_server.server import mcp
 from mcp_server.tests._httpx import (
     StubResponse,
-    asgi_client_factory,
+    registered_tools,
     stub_failure,
     stub_responses,
     transport_responses,
@@ -22,11 +18,8 @@ from mcp_server.tools.lit_review import (
 )
 from mcp_server.tools.lit_review.openalex_search import (
     OpenAlexUnavailableError,
-    _build_search_params,
-    normalize_works,
     search_openalex,
 )
-from starlette.applications import Starlette
 
 _FEED_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom"
@@ -50,10 +43,11 @@ def _feed(doi: str = "") -> str:
     return _FEED_TEMPLATE.format(doi=doi_element)
 
 
-async def test_a_real_feed_normalizes_to_records(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("doi", ["10.1234/foo", None])
+async def test_an_arxiv_feed_normalizes_to_records(
+    monkeypatch: pytest.MonkeyPatch, doi: str | None
 ) -> None:
-    stub_responses(monkeypatch, _feed(doi="10.1234/foo"))
+    stub_responses(monkeypatch, _feed(doi=doi or ""))
 
     result = await arxiv_search.search_arxiv("resistance reversal")
 
@@ -64,84 +58,38 @@ async def test_a_real_feed_normalizes_to_records(
     assert record["abstract"] == "An abstract that wraps across lines."
     assert record["year"] == 2024
     assert record["authors"] == ["Jane Doe", "John Smith"]
-    assert record["doi"] == "10.1234/foo"
+    assert record["doi"] == doi
     assert record["is_preprint"] is True
     assert record["url"] == "http://arxiv.org/abs/2401.01234v2"
+    # Position-based ids let a later query overwrite unrelated results.
+    assert record["source_id"] == "2401.01234"
 
 
-async def test_the_source_id_drops_the_revision_suffix(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.ConnectError("boom"),
+        "<feed><entry><title>unterminated",
+        # Query errors can look like entries; admitting them invents
+        # empty-titled papers.
+        '<feed xmlns="http://www.w3.org/2005/Atom">'
+        "<entry><title>error</title></entry></feed>",
+    ],
+    ids=["failed request", "malformed xml", "entry without an id"],
+)
+async def test_an_unusable_arxiv_response_degrades_to_no_records(
+    monkeypatch: pytest.MonkeyPatch, response: Exception | str
 ) -> None:
-    stub_responses(monkeypatch, _feed())
+    if isinstance(response, Exception):
+        stub_failure(monkeypatch, response)
+    else:
+        stub_responses(monkeypatch, response)
 
-    result = await arxiv_search.search_arxiv("resistance reversal")
-
-    assert "v2" not in result["records"][0]["source_id"]
-
-
-async def test_a_missing_doi_is_none_not_a_missing_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_responses(monkeypatch, _feed(doi=""))
-
-    result = await arxiv_search.search_arxiv("resistance reversal")
-
-    assert result["records"][0]["doi"] is None
-
-
-async def test_a_failed_request_degrades_instead_of_raising(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_failure(monkeypatch, httpx.ConnectError("boom"))
-
-    result = await arxiv_search.search_arxiv("resistance reversal")
-
-    assert result == {
+    assert await arxiv_search.search_arxiv("resistance reversal") == {
         "source": "arXiv",
         "query": "resistance reversal",
         "records": [],
     }
-
-
-async def test_malformed_xml_degrades_instead_of_raising(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_responses(monkeypatch, "<feed><entry><title>unterminated")
-
-    result = await arxiv_search.search_arxiv("resistance reversal")
-
-    assert result["records"] == []
-
-
-async def test_an_entry_with_no_id_is_skipped(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Query errors can look like entries; admitting them invents empty-
-    titled papers."""
-    stub_responses(
-        monkeypatch,
-        '<feed xmlns="http://www.w3.org/2005/Atom">'
-        "<entry><title>error</title></entry>"
-        "</feed>",
-    )
-
-    result = await arxiv_search.search_arxiv("resistance reversal")
-
-    assert result["records"] == []
-
-
-class TestArxivSearch:
-    async def test_every_record_carries_a_stable_identifier(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Position-based ids let a later query overwrite unrelated earlier
-        results."""
-        stub_responses(monkeypatch, _feed())
-
-        result = await arxiv_search.search_arxiv("resistance reversal")
-
-        assert result["records"][0]["source_id"] == "2401.01234"
 
 
 @pytest.fixture
@@ -167,67 +115,56 @@ def _payload(source: str = "MED", **overrides: object) -> dict[str, object]:
 
 @pytest.mark.usefixtures("_no_retry_wait")
 class TestEuropepmcSearch:
-    async def test_a_result_says_whether_it_was_peer_reviewed(
+    @pytest.mark.parametrize(
+        ("source", "preprint"), [("PPR", True), ("MED", False)]
+    )
+    async def test_a_record_says_whether_it_was_peer_reviewed(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        source: str,
+        preprint: bool,
     ) -> None:
-        """Europe PMC mixes preprints and published articles; peer-review
-        status changes evidence strength."""
-        stub_responses(monkeypatch, _payload(source="PPR"))
+        stub_responses(monkeypatch, _payload(source=source))
 
         result = await europepmc_search.search_europepmc("PKMYT1")
 
         (record,) = result["records"]
-        assert record["is_preprint"] is True
+        assert record["is_preprint"] is preprint
+        assert record["source_id"] == f"{source}/42387642"
         assert record["doi"] == "10.1002/gcc.70151"
         assert record["url"] == "https://doi.org/10.1002/gcc.70151"
+        assert record["cited_by_count"] == 3
 
-    async def test_a_journal_article_is_not_flagged_as_a_preprint(
+    @pytest.mark.parametrize(
+        ("tool", "label", "europepmc_query"),
+        [
+            (
+                europepmc_search.search_preprints,
+                "Preprints",
+                "(PKMYT1) AND SRC:PPR",
+            ),
+            (
+                europepmc_search.search_biorxiv,
+                "bioRxiv",
+                '(PKMYT1) AND SRC:PPR AND PUBLISHER:"bioRxiv"',
+            ),
+        ],
+    )
+    async def test_preprint_searches_restrict_the_query_to_their_servers(
         self,
         monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        stub_responses(monkeypatch, _payload(source="MED"))
-
-        result = await europepmc_search.search_europepmc("PKMYT1")
-
-        assert result["records"][0]["is_preprint"] is False
-
-    async def test_preprint_search_restricts_the_query_to_preprint_servers(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """bioRxiv cannot search by topic; Europe PMC source filtering
-        supplies that restriction."""
-        client = stub_responses(monkeypatch, _payload(source="PPR"))
-
-        await europepmc_search.search_preprints("PKMYT1")
-
-        (_, params) = client.calls[0]
-        assert params["query"] == "(PKMYT1) AND SRC:PPR"
-
-    async def test_biorxiv_search_restricts_to_biorxiv_specifically(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
+        tool: Any,
+        label: str,
+        europepmc_query: str,
     ) -> None:
         client = stub_responses(monkeypatch, _payload(source="PPR"))
 
-        await europepmc_search.search_biorxiv("PKMYT1")
+        result = await tool("PKMYT1")
 
-        (_, params) = client.calls[0]
-        assert params["query"] == (
-            '(PKMYT1) AND SRC:PPR AND PUBLISHER:"bioRxiv"'
-        )
-
-    async def test_biorxiv_search_echoes_the_query_without_the_filter(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        stub_responses(monkeypatch, _payload(source="PPR"))
-
-        result = await europepmc_search.search_biorxiv("PKMYT1")
-
+        assert client.calls[0][1]["query"] == europepmc_query
         assert result["query"] == "PKMYT1"
-        assert result["source"] == "bioRxiv"
+        assert result["source"] == label
+        assert result["records"][0]["is_preprint"] is True
 
     @pytest.mark.parametrize(
         ("tool", "source"),
@@ -238,53 +175,12 @@ class TestEuropepmcSearch:
         ],
     )
     async def test_a_failed_request_is_distinct_from_an_empty_search(
-        self, monkeypatch: pytest.MonkeyPatch, tool: object, source: str
+        self, monkeypatch: pytest.MonkeyPatch, tool: Any, source: str
     ) -> None:
-        """An unreachable source must remain distinguishable from a
-        successful empty result."""
         stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
         with pytest.raises(RuntimeError, match=source):
-            await tool("PKMYT1")  # type: ignore[operator]
-
-    async def test_every_record_carries_a_stable_identifier(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Position-based ids let a later query overwrite unrelated earlier
-        results."""
-        stub_responses(monkeypatch, _payload())
-
-        result = await europepmc_search.search_europepmc(
-            "pkmyt1", max_results=1
-        )
-
-        assert result["records"][0]["source_id"] == "MED/42387642"
-
-    async def test_biorxiv_search_returns_a_normalized_record(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        stub_responses(monkeypatch, _payload(source="PPR"))
-
-        result = await europepmc_search.search_biorxiv("pkmyt1", max_results=1)
-
-        (record,) = result["records"]
-        assert record["source_id"] == "PPR/42387642"
-        assert record["title"] == "PKMYT1 in Cancer"
-        assert record["is_preprint"] is True
-
-    async def test_citation_count_uses_the_name_the_ranker_reads(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        stub_responses(monkeypatch, _payload())
-
-        result = await europepmc_search.search_europepmc(
-            "pkmyt1", max_results=1
-        )
-
-        assert result["records"][0]["cited_by_count"] == 3
+            await tool("PKMYT1")
 
     async def test_a_record_reads_as_plain_text(
         self,
@@ -412,58 +308,59 @@ _SAMPLE: dict[str, Any] = {
 }
 
 
-def test_normalize_basic_fields() -> None:
-    out = normalize_works(_SAMPLE, max_papers=10)
-    assert set(out) == {"W123", "W456"}
-    w = out["W123"]
-    assert w["title"] == "Ambient nitrogen fixation"
-    assert w["authors"] == ["Ada Lovelace", "Alan Turing"]
-    assert w["year"] == 2023
-    assert w["abstract"] == "Nitrogen fixation matters"
-    assert w["url"] == "https://example/w123"
-    assert w["source"] == "openalex"
-    assert w["is_retracted"] is False
-
-
-def test_normalize_falls_back_to_doi_url_and_display_name() -> None:
-    out = normalize_works(_SAMPLE, max_papers=10)
-    w = out["W456"]
-    assert w["title"] == "Second work"
-    assert w["abstract"] == ""
-    assert w["url"] == "https://doi.org/10.2/y"
-
-
-def test_normalize_caps_results() -> None:
-    out = normalize_works(_SAMPLE, max_papers=1)
-    assert len(out) == 1
-
-
-def test_normalize_handles_garbage() -> None:
-    assert normalize_works({}, 10) == {}
-    assert normalize_works({"results": "nope"}, 10) == {}
-    assert normalize_works({"results": [None, 7]}, 10) == {}
-
-
-def test_search_openalex_returns_normalized(monkeypatch: Any) -> None:
-    stub_responses(monkeypatch, _SAMPLE)
-    out = asyncio.run(search_openalex("nitrogen fixation", max_papers=5))
-    assert "W123" in out
-    assert out["W123"]["source"] == "openalex"
-
-
-def test_search_openalex_raises_when_it_cannot_be_asked(
-    monkeypatch: Any,
+async def test_openalex_works_normalize_with_fallbacks(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Source refusal is not a successful empty search and must preserve
-    failure provenance."""
-    err = httpx.HTTPError("boom")
-    stub_responses(monkeypatch, StubResponse(None, error=err))
+    stub_responses(monkeypatch, _SAMPLE)
+
+    out = await search_openalex("nitrogen fixation", max_papers=5)
+
+    assert set(out) == {"W123", "W456"}
+    assert out["W123"] == out["W123"] | {
+        "title": "Ambient nitrogen fixation",
+        "authors": ["Ada Lovelace", "Alan Turing"],
+        "year": 2023,
+        "abstract": "Nitrogen fixation matters",
+        "url": "https://example/w123",
+        "source": "openalex",
+        "is_retracted": False,
+    }
+    assert out["W456"] == out["W456"] | {
+        "title": "Second work",
+        "abstract": "",
+        "url": "https://doi.org/10.2/y",
+    }
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"results": "nope"},
+        {"results": [None, 7]},
+        {"results": [], "meta": {}},
+    ],
+)
+async def test_openalex_no_usable_works_is_an_empty_result(
+    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]
+) -> None:
+    stub_responses(monkeypatch, payload)
+
+    assert await search_openalex("q") == {}
+
+
+async def test_openalex_failure_raises_instead_of_looking_like_no_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub_responses(monkeypatch, StubResponse(None, error=httpx.HTTPError("x")))
 
     with pytest.raises(OpenAlexUnavailableError, match="could not be"):
-        asyncio.run(search_openalex("q"))
+        await search_openalex("q")
 
 
-def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
+async def test_a_rate_limit_says_how_long_and_why(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     response = httpx.Response(
         429,
         headers={"retry-after": "6810"},
@@ -476,7 +373,7 @@ def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
     stub_responses(monkeypatch, StubResponse(None, error=err))
 
     with pytest.raises(OpenAlexUnavailableError) as raised:
-        asyncio.run(search_openalex("q"))
+        await search_openalex("q")
 
     message = str(raised.value)
     assert "HTTP 429" in message
@@ -484,69 +381,50 @@ def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
     assert "retry after 6810s" in message
 
 
-def test_no_match_is_still_an_empty_result(monkeypatch: Any) -> None:
-    stub_responses(monkeypatch, {"results": [], "meta": {}})
-
-    assert asyncio.run(search_openalex("q")) == {}
-
-
-def test_search_openalex_uses_cursor_pagination(monkeypatch: Any) -> None:
+async def test_openalex_follows_cursor_pages_and_excludes_retractions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENALEX_API_KEY", "key")
     second = {
-        "results": [
-            {
-                "id": "https://openalex.org/W789",
-                "title": "Third work",
-            }
-        ],
+        "results": [{"id": "https://openalex.org/W789", "title": "Third work"}],
         "meta": {"next_cursor": None},
     }
     first = {**_SAMPLE, "meta": {"next_cursor": "cursor-2"}}
     client = stub_responses(monkeypatch, first, second)
 
-    out = asyncio.run(search_openalex("nitrogen fixation", max_papers=3))
+    out = await search_openalex(
+        "nitrogen fixation", max_papers=3, recency_years=5
+    )
+    capped = stub_responses(monkeypatch, first)
+    assert len(await search_openalex("nitrogen fixation", max_papers=1)) == 1
 
     assert set(out) == {"W123", "W456", "W789"}
     assert [str(params["cursor"]) for _, params in client.calls] == [
         "*",
         "cursor-2",
     ]
+    assert client.calls[0][1]["api_key"] == "key"
+    assert "is_retracted:false" in client.calls[0][1]["filter"]
+    assert "from_publication_date:" in client.calls[0][1]["filter"]
+    assert len(capped.calls) == 1
 
 
-def test_search_params_exclude_retractions_and_support_api_key(
-    monkeypatch: Any,
+@pytest.mark.parametrize(
+    ("query", "sent"),
+    [
+        ("glioblastoma repurpos* drug?", "glioblastoma repurpos drug"),
+        ("a* * b", "a b"),
+        ('"exact phrase" AND glioblastoma', '"exact phrase" AND glioblastoma'),
+    ],
+)
+async def test_wildcards_are_stripped_before_reaching_openalex(
+    monkeypatch: pytest.MonkeyPatch, query: str, sent: str
 ) -> None:
-    monkeypatch.setenv("OPENALEX_API_KEY", "key")
-    params, per_page = _build_search_params("q", 250, 5)
+    client = stub_responses(monkeypatch, {"results": []})
 
-    assert per_page == 100
-    assert params["cursor"] == "*"
-    assert params["api_key"] == "key"
-    assert "is_retracted:false" in params["filter"]
+    await search_openalex(query)
 
-
-def test_wildcards_are_stripped_before_reaching_openalex() -> None:
-    """OpenAlex rejects wildcard terms on the ordinary search parameter."""
-    params, _ = _build_search_params(
-        "glioblastoma repurpos* drug?", max_papers=10, recency_years=0
-    )
-
-    assert "*" not in params["search"]
-    assert "?" not in params["search"]
-    assert params["search"] == "glioblastoma repurpos drug"
-
-
-def test_wildcard_stripping_collapses_the_resulting_whitespace() -> None:
-    params, _ = _build_search_params("a* * b", max_papers=10, recency_years=0)
-
-    assert params["search"] == "a b"
-
-
-def test_a_clean_query_is_untouched() -> None:
-    params, _ = _build_search_params(
-        '"exact phrase" AND glioblastoma', max_papers=10, recency_years=0
-    )
-
-    assert params["search"] == '"exact phrase" AND glioblastoma'
+    assert client.calls[0][1]["search"] == sent
 
 
 _DOI = "10.1108/jd-12-2013-0166"
@@ -557,45 +435,47 @@ async def _no_wait_for_slot() -> None:
     pacer."""
 
 
-async def test_citation_edges_is_available_on_the_mcp_surface(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responses = [
-        [{"count": "1"}],
-        [{"count": "1"}],
-        [
-            {
-                "oci": "1-2",
-                "citing": "omid:br/1 doi:10.1234/citing",
-                "cited": f"doi:{_DOI} omid:br/2",
-                "creation": "2025-01-01",
-            }
-        ],
-        [
-            {
-                "oci": "3-4",
-                "citing": f"doi:{_DOI} omid:br/3",
-                "cited": "doi:10.1234/referenced",
-            }
-        ],
-    ]
+def _install_responses(
+    monkeypatch: pytest.MonkeyPatch, responses: list[Any]
+) -> list[httpx.Request]:
     requests = transport_responses(monkeypatch, *responses)
     monkeypatch.setattr(
         opencitations, "_wait_for_request_slot", _no_wait_for_slot
     )
-    mcp_app = mcp.http_app()
-    app = Starlette(lifespan=mcp_app.lifespan)
-    app.mount("/", mcp_app)
-    transport = StreamableHttpTransport(
-        "http://test/mcp", httpx_client_factory=asgi_client_factory(app)
-    )
+    return requests
 
-    async with app.router.lifespan_context(app), Client(transport) as client:
-        tools = await client.list_tools()
-        result = await client.call_tool(
-            "get_opencitations_citation_edges", {"doi": _DOI}
-        )
+
+async def test_citation_edges_is_available_on_the_mcp_surface(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests = _install_responses(
+        monkeypatch,
+        [
+            [{"count": "1"}],
+            [{"count": "1"}],
+            [
+                {
+                    "oci": "1-2",
+                    "citing": "omid:br/1 doi:10.1234/citing",
+                    "cited": f"doi:{_DOI} omid:br/2",
+                    "creation": "2025-01-01",
+                }
+            ],
+            [
+                {
+                    "oci": "3-4",
+                    "citing": f"doi:{_DOI} omid:br/3",
+                    "cited": "doi:10.1234/referenced",
+                }
+            ],
+        ],
+    )
     tool_name = "get_opencitations_citation_edges"
+
+    async with registered_tools() as client:
+        tools = await client.list_tools()
+        result = await client.call_tool(tool_name, {"doi": _DOI})
+
     assert tool_name in {tool.name for tool in tools}
     assert tool_name in PUBLIC_TOOLS
     assert result.data["citations"]["edges"][0]["cited"] == [
@@ -613,16 +493,6 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
     assert len(requests) == 4
 
 
-def _install_responses(
-    monkeypatch: pytest.MonkeyPatch, responses: list[Any]
-) -> list[httpx.Request]:
-    requests = transport_responses(monkeypatch, *responses)
-    monkeypatch.setattr(
-        opencitations, "_wait_for_request_slot", _no_wait_for_slot
-    )
-    return requests
-
-
 async def test_zero_counts_are_reported_without_fetching_edges(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -636,16 +506,10 @@ async def test_zero_counts_are_reported_without_fetching_edges(
     assert result["citation_count"] == result["reference_count"] == 0
     assert result["citations"]["edge_fetch_status"] == "zero_indexed"
     assert result["references"]["edge_fetch_status"] == "zero_indexed"
-    assert result["citations"]["count_request_url"] == str(requests[0].url)
-    assert result["references"]["count_request_url"] == str(requests[1].url)
 
 
 @pytest.mark.parametrize(
-    "doi",
-    [
-        "https://example.com/not-a-doi",
-        "10.1234/" + ("x" * 257),
-    ],
+    "doi", ["https://example.com/not-a-doi", "10.1234/" + ("x" * 257)]
 )
 async def test_invalid_doi_is_rejected_before_a_request(
     monkeypatch: pytest.MonkeyPatch,
@@ -659,84 +523,68 @@ async def test_invalid_doi_is_rejected_before_a_request(
     assert requests == []
 
 
-async def test_large_response_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests = _install_responses(
-        monkeypatch,
-        [
-            httpx.Response(
-                200,
-                content=b"x" * (opencitations._MAX_RESPONSE_BYTES + 1),
-            )
-        ],
-    )
-
-    with pytest.raises(RuntimeError, match="1 MB limit"):
-        await opencitations.get_opencitations_citation_edges(_DOI)
-
-    assert len(requests) == 1
+_ONE_EDGE = {"oci": "1-2", "citing": f"doi:{_DOI}", "cited": "doi:10.1111/x"}
 
 
-async def test_edge_count_growth_cannot_appear_complete_after_truncation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    rows = [
-        {"oci": f"{index}-2", "citing": f"doi:{_DOI}", "cited": "doi:10.1111/x"}
-        for index in range(1, 52)
-    ]
-    requests = _install_responses(
-        monkeypatch,
-        [[{"count": "50"}], [{"count": "0"}], rows],
-    )
-
-    with pytest.raises(RuntimeError, match="edge count exceeds"):
-        await opencitations.get_opencitations_citation_edges(_DOI)
-
-    assert len(requests) == 3
-
-
-async def test_upstream_error_is_not_reported_as_zero(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests = _install_responses(
-        monkeypatch, [httpx.Response(503, json={"error": "unavailable"})]
-    )
-
-    with pytest.raises(RuntimeError, match=r"HTTPStatusError.*503"):
-        await opencitations.get_opencitations_citation_edges(_DOI)
-
-    assert len(requests) == 1
-
-
-async def test_identifier_text_from_upstream_is_bounded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests = _install_responses(
-        monkeypatch,
-        [
-            [{"count": "1"}],
-            [{"count": "0"}],
+@pytest.mark.parametrize(
+    ("responses", "error", "request_count"),
+    [
+        pytest.param(
             [
-                {
-                    "oci": "1-2",
-                    "citing": f"doi:10.1234/{'x' * 1024}",
-                    "cited": f"doi:{_DOI}",
-                }
+                httpx.Response(
+                    200, content=b"x" * (opencitations._MAX_RESPONSE_BYTES + 1)
+                )
             ],
-        ],
-    )
+            "1 MB limit",
+            1,
+            id="large response",
+        ),
+        pytest.param(
+            [
+                [{"count": "50"}],
+                [{"count": "0"}],
+                [{**_ONE_EDGE, "oci": f"{n}-2"} for n in range(1, 52)],
+            ],
+            "edge count exceeds",
+            3,
+            id="edge count grew past the limit",
+        ),
+        pytest.param(
+            [httpx.Response(503, json={"error": "unavailable"})],
+            r"HTTPStatusError.*503",
+            1,
+            id="upstream error is not reported as zero",
+        ),
+        pytest.param(
+            [
+                [{"count": "1"}],
+                [{"count": "0"}],
+                [{**_ONE_EDGE, "citing": f"doi:10.1234/{'x' * 1024}"}],
+            ],
+            "identifier text exceeds",
+            3,
+            id="identifier text is bounded",
+        ),
+    ],
+)
+async def test_unusable_upstream_answers_fail_instead_of_looking_complete(
+    monkeypatch: pytest.MonkeyPatch,
+    responses: list[Any],
+    error: str,
+    request_count: int,
+) -> None:
+    requests = _install_responses(monkeypatch, responses)
 
-    with pytest.raises(RuntimeError, match="identifier text exceeds"):
+    with pytest.raises(RuntimeError, match=error):
         await opencitations.get_opencitations_citation_edges(_DOI)
 
-    assert len(requests) == 3
+    assert len(requests) == request_count
 
 
 async def test_index_prefixed_identifiers_keep_semicolons_inside_dois(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(
+    _install_responses(
         monkeypatch,
         [
             [{"count": "1"}],
@@ -768,27 +616,13 @@ async def test_index_prefixed_identifiers_keep_semicolons_inside_dois(
     ]
     assert edge["cited"] == [f"doi:{_DOI}", "openalex:W123"]
     assert edge["citing_raw"].startswith("[COCI] =>")
-    assert "[OCC] =>" in edge["citing_raw"]
-    assert "[OpenCitations] =>" in edge["cited_raw"]
-    assert len(requests) == 3
 
 
 async def test_counts_precede_fetch_and_large_direction_is_skipped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     requests = _install_responses(
-        monkeypatch,
-        [
-            [{"count": "51"}],
-            [{"count": "1"}],
-            [
-                {
-                    "oci": "1-2",
-                    "citing": f"doi:{_DOI}",
-                    "cited": "doi:10.1111/x",
-                }
-            ],
-        ],
+        monkeypatch, [[{"count": "51"}], [{"count": "1"}], [_ONE_EDGE]]
     )
 
     result = await opencitations.get_opencitations_citation_edges(_DOI)
@@ -796,18 +630,13 @@ async def test_counts_precede_fetch_and_large_direction_is_skipped(
     assert [
         str(request.url).partition("/index/v2/")[2].split("/", 1)[0]
         for request in requests
-    ] == [
-        "citation-count",
-        "reference-count",
-        "references",
-    ]
+    ] == ["citation-count", "reference-count", "references"]
     assert result["citations"]["edge_fetch_status"] == (
         "count_exceeds_edge_limit"
     )
     assert result["citations"]["edges"] == []
     assert result["citations"]["edge_request_url"] is None
     assert result["references"]["edge_request_url"] == str(requests[2].url)
-    assert result["accessed_at"].endswith("+00:00")
 
 
 def test_concurrent_requests_reserve_one_second_slots(

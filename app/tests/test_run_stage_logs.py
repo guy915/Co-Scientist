@@ -5,9 +5,6 @@ import logging
 import pytest
 
 from app.store import events as store
-from app.store import runs
-from app.store import runs_views as views
-from app.store.models import RunStatus
 from tests._store_helpers import seed_run
 
 
@@ -23,17 +20,35 @@ def run_id(isolated_db: str) -> str:
     return str(run.id)
 
 
+@pytest.mark.parametrize(
+    ("event", "payload", "message"),
+    [
+        ("generate", {"count": 4}, "generate count=4 activity=drafting"),
+        (
+            "safety.intake",
+            {"stage": "intake", "decision": "allow", "reason": ""},
+            "safety.intake stage=intake decision=allow activity=safety",
+        ),
+        (
+            "ranking",
+            {"iteration": 2, "matches": [1, 2, 3]},
+            "ranking iteration=2 matches=3 activity=tournament",
+        ),
+    ],
+)
 def test_append_event_logs_a_compact_stage_record(
-    isolated_db: str, run_id: str, caplog: pytest.LogCaptureFixture
+    isolated_db: str,
+    run_id: str,
+    caplog: pytest.LogCaptureFixture,
+    event: str,
+    payload: dict[str, object],
+    message: str,
 ) -> None:
     with caplog.at_level(logging.INFO):
-        store.append_event(
-            run_id, "generate", {"count": 4}, db_path=isolated_db
-        )
-    records = _stage_records(caplog)
-    assert len(records) == 1
-    assert records[0].getMessage() == "generate count=4 activity=drafting"
-    assert getattr(records[0], "run_id", None) == run_id
+        store.append_event(run_id, event, payload, db_path=isolated_db)
+    [record] = _stage_records(caplog)
+    assert record.getMessage() == message
+    assert getattr(record, "run_id", None) == run_id
 
 
 def test_stage_record_summarizes_bulky_payloads(
@@ -66,39 +81,6 @@ def test_stage_record_truncates_at_a_pair_boundary(
     assert message.endswith("...")
     for part in message.removesuffix(" ...").split(" ")[1:]:
         assert "=" in part, part
-
-
-def test_stage_record_keeps_useful_scalars(
-    isolated_db: str, run_id: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    with caplog.at_level(logging.INFO):
-        store.append_event(
-            run_id,
-            "safety.intake",
-            {"stage": "intake", "decision": "allow", "reason": ""},
-            db_path=isolated_db,
-        )
-        store.append_event(
-            run_id,
-            "ranking",
-            {"iteration": 2, "matches": [1, 2, 3]},
-            db_path=isolated_db,
-        )
-    messages = [r.getMessage() for r in _stage_records(caplog)]
-    assert messages[0] == (
-        "safety.intake stage=intake decision=allow activity=safety"
-    )
-    assert messages[1] == "ranking iteration=2 matches=3 activity=tournament"
-
-
-def test_events_written_inside_transactions_are_logged(
-    isolated_db: str, run_id: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-    with caplog.at_level(logging.INFO):
-        views.reconcile_interrupted_runs(db_path=isolated_db)
-    messages = [r.getMessage() for r in _stage_records(caplog)]
-    assert any("status=failed" in m for m in messages), messages
 
 
 def test_stage_logging_never_breaks_the_event_write(

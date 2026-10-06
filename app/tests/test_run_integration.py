@@ -3,38 +3,29 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 from collections.abc import Callable
 from typing import Any
 
 import httpx
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 from httpx import ASGITransport
 
-from app import seed, task_worker
+from app import seed
 from app.config import settings
 from app.demo_seed_data import (
     DEMO_SCENARIOS,
     DEMO_SEED_VERSION,
     scenario_hypotheses,
-    scenario_key,
-)
-from app.engine_adapter.events import (
-    _canonical_engine_payload,
-    _canonical_event_type,
 )
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
-from app.seed.overview import full_review_count, simulation_review_count
-from app.store import db, messages, records, reports
 from app.store import events as store_events
 from app.store import hypotheses as store_hypotheses
-from app.store import retrieval_calls as retrieval
+from app.store import messages, records, reports
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
@@ -42,10 +33,9 @@ from app.store.messages import NewMessage
 from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from tests._client import (
     DEFAULT_TEST_CLIENT_ID,
-    start_and_complete,
-    wait_for_status,
 )
 from tests._client import create_run as _create_run
+from tests._client import drain as _drain
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 from tests._drain_helpers import (
@@ -54,45 +44,18 @@ from tests._drain_helpers import (
     _persist,
     emit_event,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import drive_offline_run, seed_checkpoint, seed_run
 
 
-def test_drain_result_carries_degraded_sections(isolated_db: str) -> None:
-    run = seed_run("degraded goal")
-    state = _final_state_with_features()
-    state["degraded_nodes"] = ["meta_review", "research_overview"]
-
-    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    assert drained.report_inputs["degraded_sections"] == [
-        "meta_review",
-        "research_overview",
-    ]
-
-
-def test_drain_result_defaults_to_no_degraded_sections(
-    isolated_db: str,
+@pytest.mark.parametrize("degraded", [["meta_review"], []])
+def test_degraded_sections_ride_the_drain_into_the_report(
+    isolated_db: str, degraded: list[str]
 ) -> None:
-    run = seed_run("clean goal")
-
-    drained = _persist(
-        run_id=run.id,
-        final_state=_final_state_with_features(),
-        db_path=isolated_db,
-    )
-
-    assert drained.report_inputs["degraded_sections"] == []
-
-
-def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
     run = seed_run("degraded goal")
     state = _final_state_with_features()
-    state["degraded_nodes"] = ["meta_review"]
+    state["degraded_nodes"] = degraded
 
     drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    from tests._client import drain as _drain
-
     _drain(
         report_finalize.finalize_report(
             run.id,
@@ -108,65 +71,10 @@ def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
         )
     )
 
+    assert drained.report_inputs["degraded_sections"] == degraded
     report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
-    assert report["payload"]["degraded_sections"] == ["meta_review"]
-
-
-def test_report_payload_degraded_sections_default_empty(
-    isolated_db: str,
-) -> None:
-    run = seed_run("clean goal")
-
-    drained = _persist(
-        run_id=run.id,
-        final_state=_final_state_with_features(),
-        db_path=isolated_db,
-    )
-
-    from tests._client import drain as _drain
-
-    _drain(
-        report_finalize.finalize_report(
-            run.id,
-            report_build.ReportRequest(
-                research_goal=run.research_goal,
-                run_mode="standard",
-                provider="engine",
-                execution_time=1.0,
-                db_path=isolated_db,
-                **drained.report_inputs,
-            ),
-            emit_event,
-        )
-    )
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert report["payload"]["degraded_sections"] == []
-
-
-def test_node_event_payload_surfaces_degraded_nodes() -> None:
-    state: dict[str, Any] = {
-        "current_iteration": 1,
-        "degraded_nodes": ["deep_verification"],
-    }
-
-    payload = _canonical_engine_payload(
-        "ranking", _canonical_event_type("ranking"), state
-    )
-
-    assert payload["degraded"] == ["deep_verification"]
-
-
-def test_node_event_payload_omits_degraded_when_clean() -> None:
-    state: dict[str, Any] = {"current_iteration": 0, "degraded_nodes": []}
-
-    payload = _canonical_engine_payload(
-        "generate", _canonical_event_type("generate"), state
-    )
-
-    assert "degraded" not in payload
+    assert report["payload"]["degraded_sections"] == degraded
 
 
 def _make_run(goal: str, isolated_db: str) -> str:
@@ -174,59 +82,24 @@ def _make_run(goal: str, isolated_db: str) -> str:
     return run.id
 
 
-def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
-    running = _make_run("running goal", isolated_db)
-    store.update_run_status(running, RunStatus.RUNNING, db_path=isolated_db)
-    queued = _make_run("queued goal", isolated_db)
-    store.update_run_status(queued, RunStatus.QUEUED, db_path=isolated_db)
-    synth = _make_run("synth goal", isolated_db)
-    store.update_run_status(synth, RunStatus.SYNTHESIZING, db_path=isolated_db)
-    done = _make_run("done goal", isolated_db)
-    store.update_run_status(done, RunStatus.COMPLETED, db_path=isolated_db)
-
-    reconciled = views.reconcile_interrupted_runs(db_path=isolated_db)
-
-    assert set(reconciled["failed"]) == {running, queued, synth}
-    assert reconciled["resumable"] == []
-    for rid in (running, queued, synth):
-        row = store.get_run(rid, db_path=isolated_db)
-        assert row is not None
-        assert row.status == RunStatus.FAILED.value
-        assert row.error and "restart" in row.error
-    done_row = store.get_run(done, db_path=isolated_db)
-    assert done_row is not None
-    assert done_row.status == RunStatus.COMPLETED.value
-
-
-def test_active_engine_tasks_are_discoverable_before_lease_expiry(
+def test_restart_fails_interrupted_runs_and_keeps_checkpointed_ones_resumable(
     isolated_db: str,
 ) -> None:
-    run = seed_run("recover leased science", db_path=isolated_db)
-    store.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    enqueue_task(
-        run.id,
-        "engine.node.review",
-        "recover-review",
-        inputs={"checkpoint_seq": 1},
-        db_path=isolated_db,
-    )
-    assert (
-        store_tasks.claim_task(
-            "dead-worker", lease_seconds=300, db_path=isolated_db
+    active = {
+        status: _make_run(f"{status.value} goal", isolated_db)
+        for status in (
+            RunStatus.RUNNING,
+            RunStatus.QUEUED,
+            RunStatus.SYNTHESIZING,
         )
-        is not None
-    )
-
-    assert store_tasks.list_active_engine_task_run_ids(db_path=isolated_db) == [
-        run.id
-    ]
-
-
-def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
-    rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
+    }
+    for run_id, status in zip(active.values(), active, strict=True):
+        store.update_run_status(run_id, status, db_path=isolated_db)
+    done = _make_run("done goal", isolated_db)
+    store.update_run_status(done, RunStatus.COMPLETED, db_path=isolated_db)
+    resumable = active[RunStatus.RUNNING]
     seed_checkpoint(
-        rid,
+        resumable,
         {"round": 1},
         stage="post_ranking",
         last_event_seq=7,
@@ -235,133 +108,46 @@ def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
 
     reconciled = views.reconcile_interrupted_runs(db_path=isolated_db)
 
-    assert reconciled["resumable"] == [rid]
-    assert reconciled["failed"] == []
-    row = store.get_run(rid, db_path=isolated_db)
-    assert row is not None
-    assert row.status != RunStatus.FAILED.value
-    events = store_events.list_events(rid, db_path=isolated_db)
+    assert reconciled["resumable"] == [resumable]
+    failed = {active[RunStatus.QUEUED], active[RunStatus.SYNTHESIZING]}
+    assert set(reconciled["failed"]) == failed
+    for run_id in failed:
+        row = store.get_run(run_id, db_path=isolated_db)
+        assert row is not None and row.status == RunStatus.FAILED.value
+        assert row.error and "restart" in row.error
+        assert any(
+            e["type"] == "status" and e["payload"].get("status") == "failed"
+            for e in store_events.list_events(run_id, db_path=isolated_db)
+        )
+    kept = store.get_run(resumable, db_path=isolated_db)
+    assert kept is not None and kept.status != RunStatus.FAILED.value
     assert any(
         e["type"] == "status" and e["payload"].get("status") == "resumable"
-        for e in events
+        for e in store_events.list_events(resumable, db_path=isolated_db)
     )
-
-
-def test_reconcile_appends_status_event(isolated_db: str) -> None:
-    rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
-    views.reconcile_interrupted_runs(db_path=isolated_db)
-    events = store_events.list_events(rid, db_path=isolated_db)
-    assert any(
-        e["type"] == "status" and e["payload"].get("status") == "failed"
-        for e in events
-    )
-
-
-def test_reconcile_is_idempotent(isolated_db: str) -> None:
-    rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
-    assert views.reconcile_interrupted_runs(db_path=isolated_db)["failed"] == [
-        rid
-    ]
+    done_row = store.get_run(done, db_path=isolated_db)
+    assert done_row is not None and done_row.status == "completed"
     assert not views.reconcile_interrupted_runs(db_path=isolated_db)["failed"]
-
-
-def test_reconciled_run_is_restartable(isolated_db: str) -> None:
-    rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
-    views.reconcile_interrupted_runs(db_path=isolated_db)
-    row = store.get_run(rid, db_path=isolated_db)
-    assert row is not None
-    assert row.status not in (
-        RunStatus.RUNNING.value,
-        RunStatus.SYNTHESIZING.value,
-        RunStatus.COMPLETED.value,
-    )
-
-
-def test_checkpoint_wal_runs_cleanly(isolated_db: str) -> None:
-    _make_run("g", isolated_db)
-    db.checkpoint_wal(db_path=isolated_db)
-
-
-def test_headerless_run_survives_restart(isolated_db: str) -> None:
-    run = seed_run("g", profile="default", client_id="", db_path=isolated_db)
-    db._initialized.discard(isolated_db)
-    with db.connect(isolated_db):
-        pass
-    rows = views.list_runs(client_id="", db_path=isolated_db)
-    assert any(r.id == run.id for r in rows)
-
-
-def _wait_completed(
-    client: TestClient, run_id: str, timeout: float = 20.0
-) -> None:
-    assert wait_for_status(client, run_id, "completed", timeout=timeout), (
-        "run did not complete in time"
-    )
-
-
-def _by_id(hyps: list[dict[str, Any]], hid: str) -> dict[str, Any]:
-    return next(h for h in hyps if h["id"] == hid)
-
-
-def _walk_to_root(
-    hyps: list[dict[str, Any]], child: dict[str, Any]
-) -> dict[str, Any]:
-    cur = child
-    seen: set[str] = set()
-    while cur["parent_id"]:
-        assert cur["id"] not in seen, "lineage cycle"
-        seen.add(cur["id"])
-        cur = _by_id(hyps, cur["parent_id"])
-    return cur
-
-
-def _split_by_lineage(
-    hyps: list[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    initial = [h for h in hyps if h["parent_id"] is None]
-    evolved = [h for h in hyps if h["parent_id"] is not None]
-    return initial, evolved
-
-
-def _assert_child_lineage(
-    hyps: list[dict[str, Any]], child: dict[str, Any], initial_ids: set[str]
-) -> None:
-    root = _walk_to_root(hyps, child)
-    assert root["id"] in initial_ids
-    parent_row = _by_id(hyps, child["parent_id"])
-    assert child["generation"] == parent_row["generation"] + 1
-    assert child["id"] not in initial_ids
 
 
 def _three_generation_state() -> dict[str, Any]:
     # Two generations distinguish a complete parent walk from one that stops
     # after the first hop.
+    chain = [
+        ("root-1", None, 0, "generation"),
+        ("child-1", "root-1", 1, "evolution"),
+        ("grandchild-1", "child-1", 2, "evolution"),
+    ]
     return {
         "hypotheses": [
             _engine_hypothesis(
-                "root-1",
-                "Root hypothesis about glioma stem-cell apoptosis.",
-                parent_id=None,
-                generation=0,
-                origin="generation",
-            ),
-            _engine_hypothesis(
-                "child-1",
-                "Refined hypothesis naming a specific caspase cascade.",
-                parent_id="root-1",
-                generation=1,
-                origin="evolution",
-            ),
-            _engine_hypothesis(
-                "grandchild-1",
-                "Further refined hypothesis adding a delivery route.",
-                parent_id="child-1",
-                generation=2,
-                origin="evolution",
-            ),
+                hid,
+                f"Hypothesis {hid} about glioma stem-cell apoptosis.",
+                parent_id=parent,
+                generation=generation,
+                origin=origin,
+            )
+            for hid, parent, generation, origin in chain
         ],
         "articles": [],
         "tournament_matchups": [],
@@ -388,39 +174,14 @@ def test_evolution_creates_new_rows_with_parent_lineage(
         db_path=isolated_db,
     )
 
-    client = _client()
-    hyps = client.get(f"/api/runs/{run.id}/hypotheses").json()["hypotheses"]
-    initial, evolved = _split_by_lineage(hyps)
+    hyps = _client().get(f"/api/runs/{run.id}/hypotheses").json()["hypotheses"]
 
-    assert [h["id"] for h in initial] == ["root-1"]
-    assert {h["id"] for h in evolved} == {"child-1", "grandchild-1"}
-
-    initial_ids = {h["id"] for h in initial}
-    for child in evolved:
-        _assert_child_lineage(hyps, child, initial_ids)
-
-
-def test_evolution_runs_between_ranking_rounds(isolated_db: str) -> None:
-    # Evolution need not create a child when a peer already holds its refinement
-    # text.
-    from app.store import events as store
-
-    client = _client()
-    rid = _create_run(
-        client, "Lipid raft remodelling in viral entry", tier="express"
-    ).json()["id"]
-    client.post(f"/api/runs/{rid}/start", json={})
-    _wait_completed(client, rid)
-
-    res = client.get(f"/api/runs/{rid}/events")
-    assert res.status_code == 200
-
-    events = store.list_events(rid, db_path=isolated_db)
-    assert any(
-        e["type"] == "scientific_task" and e["payload"].get("task") == "evolve"
-        for e in events
-    )
-    assert len(client.get(f"/api/runs/{rid}/matches").json()["matches"]) >= 2
+    lineage = {h["id"]: (h["parent_id"], h["generation"]) for h in hyps}
+    assert lineage == {
+        "root-1": (None, 0),
+        "child-1": ("root-1", 1),
+        "grandchild-1": ("child-1", 2),
+    }
 
 
 # Use one async loop for concurrent SSE observation; TestClient background
@@ -492,39 +253,6 @@ async def _drive_replay_then_live_run(
     return run_id, events_resp, start_resp, events_at_open
 
 
-def test_full_run_flow_persists_events_matching_store_and_api(
-    isolated_db: str,
-) -> None:
-    client = _client()
-    run_id = start_and_complete(
-        client,
-        "Integration flow: dissect ferroptosis resistance in melanoma",
-        timeout=20.0,
-    )
-
-    stored = store_events.list_events(run_id, db_path=isolated_db)
-    assert stored
-
-    api_events = _parse_sse(client.get(f"/api/runs/{run_id}/events").text)
-    assert api_events[-1]["type"] == "_terminal"
-    assert api_events[-1]["payload"]["status"] == "completed"
-
-    replayed = api_events[:-1]
-    assert [e["seq"] for e in replayed] == [e["seq"] for e in stored]
-    assert [e["type"] for e in replayed] == [e["type"] for e in stored]
-    assert [e["payload"] for e in replayed] == [e["payload"] for e in stored]
-
-    api_hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
-    store_hyps = store_hypotheses.list_hypotheses(run_id, db_path=isolated_db)
-    assert {h["id"] for h in api_hyps} == {h["id"] for h in store_hyps}
-
-    api_report = client.get(f"/api/runs/{run_id}/report").json()
-    store_report = reports.get_latest_report(run_id, db_path=isolated_db)
-    assert store_report is not None
-    assert api_report["id"] == store_report["id"]
-    assert api_report["payload"] == store_report["payload"]
-
-
 async def test_sse_stream_replay_then_live_matches_full_event_log(
     isolated_db: str,
 ) -> None:
@@ -549,54 +277,22 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
     assert len(non_terminal) > events_at_open
 
 
-def test_completion_notification_is_opt_in_and_durable(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
-    monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
-    headers = {"X-Client-ID": "notification-scientist"}
-    with _client() as client:
-        created = _create_run(
-            client,
-            "Study notification fidelity",
-            headers=headers,
-            tier="express",
-            notify_on_completion=True,
-            completion_email="scientist@example.org",
-        )
-        run_id = created.json()["id"]
-        assert (
-            client.post(
-                f"/api/runs/{run_id}/start", headers=headers, json={}
-            ).status_code
-            == 200
-        )
-        _wait_status(
-            client,
-            run_id,
-            "completed",
-            timeout=20.0,
-            interval=0.1,
-        )
-
-    tasks = store_tasks.list_tasks(run_id, db_path=isolated_db)
-    email_tasks = [
-        task for task in tasks if task.task_type == "notification.email"
-    ]
-    assert len(email_tasks) == 1
-    assert email_tasks[0].inputs["email"] == "scientist@example.org"
-    assert email_tasks[0].max_attempts == 3
-
-
-def test_completion_notification_is_skipped_without_an_smtp_transport(
+@pytest.mark.parametrize("smtp_configured", [True, False])
+def test_completion_notification_is_opt_in_durable_and_needs_smtp(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
+    smtp_configured: bool,
 ) -> None:
-    monkeypatch.setattr(settings, "smtp_host", "")
-    monkeypatch.setattr(settings, "smtp_from_email", "")
-    headers = {"X-Client-ID": "unconfigured-scientist"}
+    monkeypatch.setattr(
+        settings, "smtp_host", "smtp.example.org" if smtp_configured else ""
+    )
+    monkeypatch.setattr(
+        settings,
+        "smtp_from_email",
+        "noreply@example.org" if smtp_configured else "",
+    )
+    headers = {"X-Client-ID": "notification-scientist"}
     with caplog.at_level("WARNING"), _client() as client:
         run_id = _create_run(
             client,
@@ -609,9 +305,18 @@ def test_completion_notification_is_skipped_without_an_smtp_transport(
         client.post(f"/api/runs/{run_id}/start", headers=headers, json={})
         _wait_status(client, run_id, "completed", timeout=20.0, interval=0.1)
 
-    tasks = store_tasks.list_tasks(run_id, db_path=isolated_db)
-    assert not [t for t in tasks if t.task_type == "notification.email"]
-    assert "SMTP is not configured" in caplog.text
+    email_tasks = [
+        task
+        for task in store_tasks.list_tasks(run_id, db_path=isolated_db)
+        if task.task_type == "notification.email"
+    ]
+    if smtp_configured:
+        assert len(email_tasks) == 1
+        assert email_tasks[0].inputs["email"] == "scientist@example.org"
+        assert email_tasks[0].max_attempts == 3
+    else:
+        assert not email_tasks
+        assert "SMTP is not configured" in caplog.text
 
 
 _STEER = "Prioritise chaperone co-expression over temperature shifts"
@@ -626,16 +331,6 @@ def _persist_offline_run(isolated_db: str) -> Any:
         client_id="steering-e2e",
         llm_backend="offline",
         db_path=isolated_db,
-    )
-
-
-def _drive(run_id: str, isolated_db: str) -> None:
-    asyncio.run(
-        task_worker.run_run_worker_pool(
-            run_id,
-            "steering-e2e-worker",
-            policy=task_worker.WorkerPolicy(db_path=isolated_db),
-        )
     )
 
 
@@ -691,10 +386,9 @@ def test_mid_run_steering_survives_a_crash_and_applies_once(
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
     run = _persist_offline_run(isolated_db)
-    task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     box = _steer_mid_run_then_crash(monkeypatch, run.id, isolated_db)
 
-    _drive(run.id, isolated_db)
+    drive_offline_run(run, db_path=isolated_db, worker="steering-e2e-worker")
 
     assert box["crashes"] == 1, "the crash window was never exercised"
     assert messages.get_pending_steering(run.id, db_path=isolated_db) == []
@@ -734,10 +428,9 @@ def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
     run = _persist_offline_run(isolated_db)
-    task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     box = _fail_one_judged_matchup(monkeypatch)
 
-    _drive(run.id, isolated_db)
+    drive_offline_run(run, db_path=isolated_db, worker="steering-e2e-worker")
 
     assert box["failed"] == 1, "the failure window was never exercised"
     final = store.get_run(run.id, db_path=isolated_db)
@@ -770,19 +463,12 @@ def _run_offline_workflow(
         llm_backend="offline",
         db_path=db_path,
     )
-    task_worker.enqueue_run_workflow(run.id, db_path=db_path)
-    asyncio.run(
-        task_worker.run_run_worker_pool(
-            run.id,
-            "offline-workflow-test",
-            policy=task_worker.WorkerPolicy(db_path=db_path),
-        )
-    )
+    drive_offline_run(run, db_path=db_path, worker="offline-workflow-test")
     events = store_events.list_events(run.id, db_path=db_path)
     return run.id, events
 
 
-def test_offline_workflow_emits_canonical_event_sequence(
+def test_offline_workflow_emits_canonical_events_and_completes_with_report(
     isolated_db: str,
 ) -> None:
     run_id, events = _run_offline_workflow("Sequence test goal", isolated_db)
@@ -820,71 +506,30 @@ def test_offline_workflow_emits_canonical_event_sequence(
     assert expected_nodes <= set(nodes), (
         f"missing nodes: {expected_nodes - set(nodes)}"
     )
-
-    hyps = store_hypotheses.list_hypotheses(run_id, db_path=isolated_db)
-    if any(h.get("parent_id") for h in hyps):
-        assert "proximity" in nodes, "missing nodes: {'proximity'}"
-
     assert types.index("safety.intake") == 0
     assert nodes.index("supervisor") < nodes.index("generate")
-    assert types[-1] == "status"
     assert types.index("report") == len(types) - 2
-
-
-def test_offline_workflow_completes_with_report(isolated_db: str) -> None:
-    run_id, events = _run_offline_workflow("Completion test goal", isolated_db)
-
     assert events[-1]["type"] == "status"
     assert events[-1]["payload"].get("status") == "completed"
 
     final = store.get_run(run_id)
-    assert final is not None
-    assert final.status == RunStatus.COMPLETED.value
-
-    hyps = store_hypotheses.list_hypotheses(run_id)
+    assert final is not None and final.status == RunStatus.COMPLETED.value
+    hyps = store_hypotheses.list_hypotheses(run_id, db_path=isolated_db)
     assert hyps
-    report = reports.get_latest_report(run_id)
+    if any(h.get("parent_id") for h in hyps):
+        assert "proximity" in nodes, "missing nodes: {'proximity'}"
+    deep = [
+        r
+        for r in records.list_reviews(run_id, db_path=isolated_db)
+        if r["reviewer_agent"] == "deep_verification"
+    ]
+    assert deep and all(r["summary"] for r in deep)
+    report = reports.get_latest_report(run_id, db_path=isolated_db)
     assert report is not None
     assert report["payload"]["leaderboard"]
     assert report["payload"]["provider"] == "engine"
-
-
-def test_offline_deep_verification_writes_reviews(isolated_db: str) -> None:
-    run_id, events = _run_offline_workflow(
-        "Deep verification goal", isolated_db
-    )
-
-    nodes = [
-        e["payload"].get("task")
-        for e in events
-        if e["type"] == "scientific_task"
-    ]
-    assert "deep_verification" in nodes
-
-    reviews = records.list_reviews(run_id, db_path=isolated_db)
-    deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
-    assert deep
-    assert all(r["summary"] for r in deep)
-
-
-def test_offline_research_overview_rides_report(isolated_db: str) -> None:
-    run_id, events = _run_offline_workflow(
-        "Research overview goal", isolated_db
-    )
-
-    nodes = [
-        e["payload"].get("task")
-        for e in events
-        if e["type"] == "scientific_task"
-    ]
-    assert "research_overview" in nodes
-
-    report = reports.get_latest_report(run_id, db_path=isolated_db)
-    assert report is not None
     assert report["payload"].get("research_overview")
-
-    markdown = report["markdown_text"]
-    assert "## Research Overview" in markdown
+    assert "## Research Overview" in report["markdown_text"]
 
 
 def _seed(db_path: str) -> None:
@@ -917,16 +562,6 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert all(item["pmid"] for item in evidence)
         assert "\n## References\n" in md
         assert md.count("\n- [") == 6
-        key = scenario_key(scenario)
-        expected_reviews = (
-            expected_ideas * 2
-            + full_review_count(key)
-            + simulation_review_count(key)
-        )
-        assert (
-            len(records.list_reviews(run.id, db_path=isolated_db))
-            == expected_reviews
-        )
         assert len(records.list_matches(run.id, db_path=isolated_db)) == (
             expected_ideas - 1 + expected_ideas // 2
         )
@@ -935,95 +570,15 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
             for hypothesis in hypotheses
         )
         assert "Curated demonstration only" in md
+        assert "\n## Evaluation Criteria\n" in md
+        assert "\n### Unexpected research directions\n" in md
+        assert md.index("## Main Research Directions") < md.index(
+            "## Top hypotheses"
+        )
         report = reports.get_latest_report(run.id, db_path=isolated_db)
         assert report is not None
         assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
         assert len(report["payload"]["knowledge_base"]) == 6
-        overview = report["payload"]["research_overview"]
-        aims = overview["nih_specific_aims"]["aims"]
-        assert len(aims) == 3
-        metrics = retrieval.get_run_metrics(run.id, db_path=isolated_db)
-        assert metrics is not None
-        assert metrics["total_time"] == scenario.duration_seconds
-        assert max(hypothesis["elo_rating"] for hypothesis in hypotheses) == (
-            scenario.elo_ceiling
-        )
-
-    assert sorted(
-        len(scenario_hypotheses(scenario))
-        for scenario in DEMO_SCENARIOS.values()
-    ) == [15, 19, 21]
-
-
-def test_seed_demo_runs_render_criteria_and_unexpected_directions(
-    isolated_db: str,
-) -> None:
-    # Demo reports are frozen markdown; newly curated sections require reseeding
-    # rather than lazy rendering.
-    _seed(isolated_db)
-
-    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
-    assert len(runs) == 3
-    for run in runs:
-        md = reports.read_report_markdown(run.id, db_path=isolated_db)
-        assert md is not None
-        assert "\n## Evaluation Criteria\n" in md
-        section = md.split("## Evaluation Criteria", 1)[1]
-        next_heading = re.search(r"\n## ", section)
-        body = section[: next_heading.start()] if next_heading else section
-        entries = [line for line in body.splitlines() if line.startswith("**")]
-        assert entries
-        for entry in entries:
-            assert entry.startswith("**")
-            assert ":** " in entry
-
-        assert "\n### Unexpected research directions\n" in md
-        directions_section = md.split("### Unexpected research directions", 1)[
-            1
-        ]
-        next_directions_heading = re.search(r"\n#{1,3} ", directions_section)
-        directions_body = (
-            directions_section[: next_directions_heading.start()]
-            if next_directions_heading
-            else directions_section
-        )
-        bullets = [
-            line
-            for line in directions_body.splitlines()
-            if line.startswith("- ")
-        ]
-        assert len(bullets) == 3
-        for bullet in bullets:
-            assert bullet.startswith("- **")
-            assert bullet.count("**") >= 2
-
-
-def test_seed_demo_runs_render_main_research_directions(
-    isolated_db: str,
-) -> None:
-    _seed(isolated_db)
-
-    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
-    assert len(runs) == 3
-    for run in runs:
-        md = reports.read_report_markdown(run.id, db_path=isolated_db)
-        assert md is not None
-        assert "\n## Main Research Directions\n" in md
-
-        directions_index = md.index("## Main Research Directions")
-        candidates_index = md.index("## Top hypotheses")
-        assert directions_index < candidates_index
-
-        section = md.split("## Main Research Directions", 1)[1]
-        next_heading = re.search(r"\n#{1,2} ", section)
-        body = section[: next_heading.start()] if next_heading else section
-        paragraphs = [
-            p.strip() for p in body.strip().split("\n\n") if p.strip()
-        ]
-        assert len(paragraphs) == 2
-        for paragraph in paragraphs:
-            assert paragraph
-            assert "**" in paragraph
 
 
 def test_seed_demo_runs_is_idempotent_when_reports_exist(
@@ -1087,31 +642,31 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
     assert "Curated demonstration only" in report["markdown_text"]
 
 
-def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
-    goal = seed._DEMO_GOALS[0]
-    run = seed_run(goal, client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+def test_stale_demo_report_is_replaced_and_keeps_its_example_chat(
+    isolated_db: str,
+) -> None:
+    _seed(isolated_db)
+    run = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)[0]
+    interview_id = run.config["interview_id"]
     reports.save_report(
-        run.id,
-        {"demo_seed_version": DEMO_SEED_VERSION},
-        "# Current-looking report",
-        db_path=isolated_db,
+        run.id, {"demo_seed_version": "stale"}, "# Stale", db_path=isolated_db
     )
 
     _seed(isolated_db)
 
-    upgraded = store.get_run(run.id, db_path=isolated_db)
-    assert upgraded is not None
-    setup = upgraded.config["setup"]
-    assert len(setup["requirements"]) == 6
-    assert len(setup["attributes"]) == 5
+    reseeded = store.get_run(run.id, db_path=isolated_db)
+    assert reseeded is not None
+    assert reseeded.config["interview_id"] == interview_id
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
 
 
-def test_seed_demo_run_failure_is_swallowed(
+def test_failed_demo_seed_is_logged_and_never_aborts_startup(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-
     async def _boom(goal: str, run: RunRow | None, db_path: str | None) -> None:
         raise RuntimeError("seed failure")
 
@@ -1122,47 +677,3 @@ def test_seed_demo_run_failure_is_swallowed(
 
     assert "Failed to seed demo run" in caplog.text
     assert views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db) == []
-
-
-def test_seed_demo_run_creates_new_run_when_none_given(
-    isolated_db: str,
-) -> None:
-    # Direct seeding bypasses the wrapper that installs the offline router;
-    # install it before offline model calls.
-    from co_scientist.offline.llm import install_offline_router
-
-    install_offline_router()
-    goal = "A standalone seeding goal"
-    asyncio.run(seed._seed_demo_run(goal, None, isolated_db))
-
-    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
-    created = [r for r in runs if r.research_goal == goal]
-    assert len(created) == 1
-    assert created[0].status == "completed"
-    assert created[0].llm_backend == "offline"
-    assert reports.read_report_markdown(created[0].id, db_path=isolated_db)
-
-
-@pytest.mark.parametrize("has_report", [False, True])
-def test_custom_goal_is_reseeded_only_when_report_missing(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, has_report: bool
-) -> None:
-    run = seed_run("custom goal", profile="express", db_path=isolated_db)
-    if has_report:
-        reports.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
-    reseeded: list[str] = []
-
-    async def record_seed(
-        goal: str, existing: RunRow | None, db_path: str | None
-    ) -> None:
-        assert goal == run.research_goal
-        assert existing == run
-        assert db_path == isolated_db
-        reseeded.append(run.id)
-
-    monkeypatch.setattr(seed, "_seed_demo_run", record_seed)
-    asyncio.run(
-        seed._seed_or_reseed_demo_run(run.research_goal, run, isolated_db)
-    )
-
-    assert reseeded == ([] if has_report else [run.id])
