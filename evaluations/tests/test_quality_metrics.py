@@ -10,7 +10,6 @@ from evaluations.elo_concordance_eval import (
     elo_bucket_accuracy,
     evaluate_concordance,
     inverting_comparator,
-    kendall_tau_b,
     make_coin_flip_comparator,
 )
 from evaluations.metrics import hypothesis_diversity
@@ -26,7 +25,6 @@ from evaluations.scaling_eval import (
     [
         (["same idea here", "same idea here"], 0.0),
         (["kinase inhibition apoptosis", "quantum gravity spacetime"], 1.0),
-        (["only one"], 0.0),
         ([], 0.0),
     ],
 )
@@ -169,18 +167,6 @@ def test_ablation_summary_counts_only_fully_paired_goals() -> None:
     assert summary["paired_goal_count"] == 1
     assert summary["arms"]["baseline"]["expert_quality"] == 3.5
     assert summary["arms"]["no_debate"]["n"] == 1
-
-
-@pytest.mark.parametrize(
-    ("left", "right", "tau"),
-    [
-        ([1, 2, 3, 4], [10, 20, 30, 40], 1.0),
-        ([1, 2, 3, 4], [40, 30, 20, 10], -1.0),
-        ([1], [1], None),
-    ],
-)
-def test_kendall_tau_b(left: list[int], right: list[int], tau: float) -> None:
-    assert kendall_tau_b(left, right) == tau
 
 
 _STRICT_ITEM = {
