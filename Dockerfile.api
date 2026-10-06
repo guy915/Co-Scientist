@@ -13,26 +13,10 @@ RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements-api.txt
 RUN apt-get update && apt-get install -y tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
-# Editable src-layout installs need src/ and the declared README before source contents
-# arrive.
-COPY engine/pyproject.toml engine/README.md engine/LICENSE engine/NOTICE /workspace/co-scientist-engine/
-RUN mkdir -p /workspace/co-scientist-engine/src \
-    && pip install --no-cache-dir --no-deps -e /workspace/co-scientist-engine
-
-COPY app/pyproject.toml app/LICENSE app/NOTICE ./
-RUN pip install --no-cache-dir --no-deps -e .
-
-COPY engine/src/ /workspace/co-scientist-engine/src/
-
-COPY app/app/ ./app/
-COPY LICENSE NOTICE /usr/share/doc/co-scientist/
-
-# Confined skill scripts execute in the API process, so this image needs the vendored bundle.
-COPY vendor/science-skills/ ./vendor/science-skills/
-
-# Skills remain opt-in per workspace; installing the bundle does not enable every node.
-# Third-party notices must remain available for report attribution.
-ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
+# Create the runtime user and the skills closure before any source arrives, so a source
+# edit reuses these layers.
+RUN groupadd --system coscientist \
+    && useradd --system --gid coscientist --home-dir /app coscientist
 
 # Resolve skill dependencies at build time: sandboxed requests must never install from
 # indexes.
@@ -44,16 +28,38 @@ RUN python -m venv /app/skills-venv \
         -r /tmp/requirements-skills.txt
 ENV COSCIENTIST_SKILLS_PYTHON=/app/skills-venv/bin/python
 
+# Editable src-layout installs need src/ and the declared README before source contents
+# arrive.
+COPY engine/pyproject.toml engine/README.md engine/LICENSE engine/NOTICE /workspace/co-scientist-engine/
+RUN mkdir -p /workspace/co-scientist-engine/src \
+    && pip install --no-cache-dir --no-deps -e /workspace/co-scientist-engine
+
+COPY app/pyproject.toml app/LICENSE app/NOTICE ./
+RUN pip install --no-cache-dir --no-deps -e .
+
 # Only the SQLite store belongs on the persistent volume; the LLM cache stays container-local.
 ENV COSCIENTIST_DB_PATH=/app/data/coscientist.db
 ENV COSCIENTIST_CACHE_DIR=/app/cache
-RUN mkdir -p /app/data /app/cache
-
 # Railway overlays /app/data with a root-owned volume at runtime; image chown cannot reach it.
 # RAILWAY_RUN_UID=0 is required for SQLite writes on that mount.
-RUN groupadd --system coscientist \
-    && useradd --system --gid coscientist --home-dir /app coscientist \
+RUN mkdir -p /app/data /app/cache \
     && chown -R coscientist:coscientist /app /workspace/co-scientist-engine
+
+# Source arrives owned by the runtime user, so no recursive chown follows it.
+COPY --chown=coscientist:coscientist engine/src/ /workspace/co-scientist-engine/src/
+
+COPY --chown=coscientist:coscientist app/app/ ./app/
+COPY LICENSE NOTICE /usr/share/doc/co-scientist/
+
+# Confined skill scripts execute in the API process, so this image needs the vendored bundle.
+COPY --chown=coscientist:coscientist vendor/science-skills/ ./vendor/science-skills/
+
+# Skills remain opt-in per workspace; installing the bundle does not enable every node.
+# Third-party notices must remain available for report attribution.
+ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
+# Railway shows log lines as they are written, not when a buffer fills.
+ENV PYTHONUNBUFFERED=1
+
 USER coscientist
 
 # Probe explicit imports as the runtime user: unreadable namespace trees can pass an empty
@@ -71,4 +77,5 @@ EXPOSE ${PORT:-8008}
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${PORT:-8008}/health', timeout=5)" || exit 1
 
-CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8008}"]
+# Open SSE streams would otherwise hold shutdown until the platform kills the process.
+CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8008} --timeout-graceful-shutdown 20"]
