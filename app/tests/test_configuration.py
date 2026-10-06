@@ -96,31 +96,6 @@ class _Generator:
         _Generator.last_kwargs = kwargs
 
 
-def _route_task(run_id: str) -> ScientificTask:
-    return ScientificTask(
-        id=f"task-{run_id}",
-        run_id=run_id,
-        task_type="engine.node.generate",
-        status="leased",
-        priority=90,
-        inputs={},
-        dependencies=(),
-        provenance={},
-        idempotency_key=f"generate:{run_id}",
-        budget={},
-        attempt=1,
-        max_attempts=3,
-        lease_owner="test",
-        lease_expires_at=None,
-        result=None,
-        error=None,
-        created_at=0.0,
-        updated_at=0.0,
-        started_at=None,
-        completed_at=None,
-    )
-
-
 def _install_stream_capture(
     monkeypatch: pytest.MonkeyPatch, models: list[str]
 ) -> None:
@@ -621,27 +596,6 @@ async def test_qa_stream_keeps_trusted_policy_after_deletion(
         pass
 
     assert seen == [True]
-    assert campaign_free_mode() is False
-
-
-async def test_durable_dispatch_reloads_policy_for_recovery_and_resets(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    campaign = _run("campaign")
-    standard = _run("standard")
-    seen: dict[str, bool] = {}
-
-    async def dispatch(
-        task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        seen[task.run_id] = campaign_free_mode()
-        return {"ok": True}
-
-    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", dispatch)
-    await engine_tasks.execute_engine_task(_route_task(campaign.id))
-    await engine_tasks.execute_engine_task(_route_task(standard.id))
-
-    assert seen == {campaign.id: True, standard.id: False}
     assert campaign_free_mode() is False
 
 

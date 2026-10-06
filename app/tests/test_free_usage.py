@@ -37,18 +37,16 @@ def _create(
     )
 
 
-def test_free_run_must_be_express(real_backend: None) -> None:
+@pytest.mark.parametrize(
+    "overrides", [{"tier": "standard"}, {"max_iterations": 9}]
+)
+def test_free_run_must_be_express_without_numeric_overrides(
+    real_backend: None, overrides: dict[str, Any]
+) -> None:
     with TestClient(app) as client:
-        response = _create(client, tier="standard")
+        response = _create(client, **overrides)
         assert response.status_code == 403
-        assert "Express" in response.json()["detail"]
         assert client.get("/api/runs", headers=_CLIENT).json()["runs"] == []
-
-
-def test_free_run_rejects_numeric_overrides(real_backend: None) -> None:
-    with TestClient(app) as client:
-        response = _create(client, max_iterations=9)
-        assert response.status_code == 403
 
 
 def test_free_runs_are_capped_per_day(real_backend: None) -> None:

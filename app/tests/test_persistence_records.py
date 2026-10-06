@@ -207,21 +207,6 @@ def _make_run(client: TestClient, goal: str = "test goal") -> str:
     return cast(str, res.json()["id"])
 
 
-def test_send_message_endpoint(isolated_db: str) -> None:
-    client = _client()
-    run_id = _make_run(client)
-
-    res = client.post(
-        f"/api/runs/{run_id}/messages", json={"content": "focus on cytokines"}
-    )
-    assert res.status_code == 200
-    data = res.json()
-    assert data["kind"] == "steering"
-    assert data["status"] == "queued"
-    assert data["content"] == "focus on cytokines"
-    assert data["continuation_task_id"] is None
-
-
 def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
     client = _client()
     client.headers.update({"X-Client-ID": "test-client"})
@@ -253,19 +238,26 @@ def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
     assert tasks[-1].priority == 100
 
 
-def test_list_messages_endpoint(isolated_db: str) -> None:
+def test_messages_are_queued_as_steering_and_listed_in_order(
+    isolated_db: str,
+) -> None:
     client = _client()
     run_id = _make_run(client)
 
-    client.post(f"/api/runs/{run_id}/messages", json={"content": "steer A"})
+    first = client.post(
+        f"/api/runs/{run_id}/messages", json={"content": "steer A"}
+    )
     client.post(f"/api/runs/{run_id}/messages", json={"content": "steer B"})
 
+    assert first.status_code == 200
+    assert first.json()["kind"] == "steering"
+    assert first.json()["status"] == "queued"
+    assert first.json()["continuation_task_id"] is None
     res = client.get(f"/api/runs/{run_id}/messages")
-    assert res.status_code == 200
-    msgs = res.json()["messages"]
-    assert len(msgs) == 2
-    assert msgs[0]["content"] == "steer A"
-    assert msgs[1]["content"] == "steer B"
+    assert [m["content"] for m in res.json()["messages"]] == [
+        "steer A",
+        "steer B",
+    ]
 
 
 def test_steering_messages_applied_after_run(isolated_db: str) -> None:

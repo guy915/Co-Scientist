@@ -32,18 +32,15 @@ def test_encrypt_decrypt_round_trip(byok_secret: str) -> None:
     assert credentials.decrypt_api_key(token) == _KEY
 
 
-def test_decrypt_rejects_a_tampered_token(byok_secret: str) -> None:
-    token = credentials.encrypt_api_key(_KEY)
-    tampered = token[:-4] + ("aaaa" if not token.endswith("aaaa") else "bbbb")
-    with pytest.raises(RuntimeError):
-        credentials.decrypt_api_key(tampered)
-
-
-def test_decrypt_with_a_different_secret_fails(
-    byok_secret: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("fault", ["tampered", "other_secret"])
+def test_decrypt_rejects_a_tampered_token_or_another_secret(
+    byok_secret: str, monkeypatch: pytest.MonkeyPatch, fault: str
 ) -> None:
     token = credentials.encrypt_api_key(_KEY)
-    monkeypatch.setattr(settings, "byok_encryption_key", "another-secret")
+    if fault == "tampered":
+        token = token[:-4] + ("aaaa" if not token.endswith("aaaa") else "bbbb")
+    else:
+        monkeypatch.setattr(settings, "byok_encryption_key", "another-secret")
     with pytest.raises(RuntimeError):
         credentials.decrypt_api_key(token)
 
