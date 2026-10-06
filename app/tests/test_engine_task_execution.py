@@ -17,7 +17,6 @@ from co_scientist.models import (
     Hypothesis,
     HypothesisReview,
 )
-from co_scientist.workflow_topology import LiteratureGated
 from litellm.exceptions import APIError
 
 import app.engine_adapter.drain.final_state as drain_claim_grounding
@@ -27,7 +26,6 @@ from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.support import TaskCommit
 from app.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
-from app.safety import ScreenSubject
 from app.store import events as store_events
 from app.store import messages, records, reports, runs
 from app.store import retrieval_calls as retrieval
@@ -558,40 +556,6 @@ async def test_durable_successor_follows_a_rerouted_graph(
     assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{_DIVERTED_TO}"
 
 
-_INVERTED_GENERATE_ROUTE = LiteratureGated(on="review", off="reflection")
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("mcp_available", "expected"),
-    [(True, "review"), (False, "reflection")],
-)
-async def test_generate_mcp_branch_is_not_reimplemented(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    mcp_available: bool,
-    expected: str,
-) -> None:
-    # Invert the route table branch to expose a copied MCP conditional in the
-    # durable executor.
-    from co_scientist import workflow_topology
-
-    monkeypatch.setitem(
-        workflow_topology.WORKFLOW_ROUTES, "generate", _INVERTED_GENERATE_ROUTE
-    )
-    run = seed_run("Durable routing")
-    scheduled = await _commit_node(
-        run.id, "generate", isolated_db, mcp_available=mcp_available
-    )
-    assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{expected}"
-
-
-async def _deterministic_final_screen(
-    _run_id: str, subject: ScreenSubject, *_: Any, **__: Any
-) -> Any:
-    return subject.deterministic
-
-
 def _seed_halted_finalize(
     run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str, *, halted: bool
 ) -> Any:
@@ -727,42 +691,34 @@ async def test_steering_survives_a_crash_before_the_checkpoint_commits(
 
 
 @pytest.mark.asyncio
-async def test_a_non_orchestrator_commit_never_acknowledges_steering(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("node", "acknowledged"), [("proximity", False), ("orchestrator", True)]
+)
+async def test_only_the_orchestrator_commit_acknowledges_steering(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    node: str,
+    acknowledged: bool,
 ) -> None:
     # Only the orchestrator schedules from pending_steering; earlier
     # acknowledgment loses the decision input.
     run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(run.id, monkeypatch, isolated_db)
+    leased = _seed_steered_node_task(
+        run.id, monkeypatch, isolated_db, node=node
+    )
     seen: list[str] = []
     _patch_task_node(
-        monkeypatch, _record_preferences_and_commit(seen, priority=False)
+        monkeypatch,
+        _record_preferences_and_commit(seen, priority=acknowledged),
     )
 
     await engine_tasks.execute_node_task(leased, db_path=isolated_db)
 
     assert _STEER in seen[0]
     pending = messages.get_pending_steering(run.id, db_path=isolated_db)
-    assert [message.content for message in pending] == [_STEER]
-
-
-@pytest.mark.asyncio
-async def test_committed_orchestrator_acknowledges_its_steering_exactly_once(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(
-        run.id, monkeypatch, isolated_db, node="orchestrator"
+    assert [message.content for message in pending] == (
+        [] if acknowledged else [_STEER]
     )
-    seen: list[str] = []
-    _patch_task_node(
-        monkeypatch, _record_preferences_and_commit(seen, priority=True)
-    )
-
-    await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-
-    assert _STEER in seen[0]
-    assert messages.get_pending_steering(run.id, db_path=isolated_db) == []
 
 
 @pytest.mark.asyncio

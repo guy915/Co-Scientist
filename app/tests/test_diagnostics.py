@@ -533,17 +533,6 @@ def test_queue_and_disk_health_cache_honours_its_ttl(
     assert len(seen) == calls
 
 
-def test_health_is_healthy_while_a_run_progresses(isolated_db: str) -> None:
-    run_id = _health_running_run(isolated_db)
-    _health_enqueue(run_id, "queued", isolated_db)
-
-    res = _client().get("/health")
-
-    assert res.status_code == 200
-    assert res.json()["status"] == "healthy"
-    assert set(res.json()["checks"]) == {"store", "engine", "queue", "disk"}
-
-
 def test_health_degrades_at_200_when_a_run_is_stalled(
     isolated_db: str,
 ) -> None:

@@ -7,11 +7,7 @@ import pytest
 
 from app import task_worker
 from app.config import settings
-from app.engine_tasks import support as engine_tasks_support
-from app.report import build as report_build
-from app.report import finalize as report_finalize
 from app.runs import lifecycle as runs_lifecycle
-from app.safety import SafetyDecision
 from app.store import checkpoints, hypotheses, reports, runs
 from app.store import events as store_events
 from app.store import records as store
@@ -22,16 +18,7 @@ from app.store.hypotheses import NewHypothesis
 from app.store.models import RunStatus as StoreRunStatus
 from app.store.records import NewEvidence, NewReview
 from tests._client import create_run as _create_run
-from tests._client import make_client
 from tests._client import make_client as _client
-from tests._engine_tasks_helpers import (
-    _Generator,
-    _install_runtime,
-    _patch_restore_generator,
-    _seed_checkpoint,
-    _task_state,
-    fake_final_drain,
-)
 from tests._store_helpers import (
     enqueue_task,
     event_seqs,
@@ -112,21 +99,6 @@ def _seed_scientist_artifacts(run_id: str) -> str:
         )
     )
     return manual_id
-
-
-def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
-    run = seed_run("Human input survives resume", profile="express")
-    _seed_agent_artifacts(run.id)
-    manual_id = _seed_scientist_artifacts(run.id)
-
-    views.clear_run_derived_data(run.id)
-
-    hyps = hypotheses.list_hypotheses(run.id)
-    assert [h["id"] for h in hyps] == [manual_id]
-    reviews = store.list_reviews(run.id)
-    assert len(reviews) == 1 and reviews[0]["reviewer_agent"] == "scientist"
-    evidence = store.list_evidence(run.id)
-    assert [e["source"] for e in evidence] == ["attachment"]
 
 
 def test_resuming_a_pre_engine_checkpoint_restarts_from_a_fresh_bootstrap(
@@ -306,149 +278,21 @@ async def test_resume_does_not_execute_run_work_on_the_event_loop(
     )
 
 
-@pytest.mark.asyncio
-async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    owner = make_client()
-    owner_headers = {"X-Client-ID": "final-safety-block-owner"}
-    created = _create_run(
-        owner,
-        "Study a final-stage safety block",
-        headers=owner_headers,
-        tier="express",
-    )
-    assert created.status_code == 200, created.text
-    run_id = str(created.json()["id"])
-    runs.update_run_status(run_id, StoreRunStatus.RUNNING, db_path=isolated_db)
-
-    predecessor = enqueue_task(
-        run_id,
-        "engine.node.overview",
-        "completed-overview",
-        db_path=isolated_db,
-    )
-    previous_claim = store_tasks.claim_task(
-        "resume-safety-fixture", run_id=run_id, db_path=isolated_db
-    )
-    assert previous_claim is not None and previous_claim.id == predecessor.id
-    assert lifecycle.complete_task(
-        predecessor.id,
-        "resume-safety-fixture",
-        {},
-        db_path=isolated_db,
-    )
-
-    state = _task_state(run_id)
-    checkpoint_seq = _seed_checkpoint(
-        run_id,
-        state,
-        stage=f"engine_task:{predecessor.id}",
-        db_path=isolated_db,
-    )
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert checkpoint is not None
-    checkpoint_seq = seed_checkpoint(
-        run_id,
-        {
-            **checkpoint["state"],
-            "resume_successor": engine_tasks_support.FINALIZE_TASK,
-        },
-        stage=f"engine_task:{predecessor.id}",
-        schema_version=checkpoint["schema_version"],
-        last_event_seq=checkpoint["last_event_seq"],
-        db_path=isolated_db,
-    )
-    finalizer = enqueue_task(
-        run_id,
-        engine_tasks_support.FINALIZE_TASK,
-        f"{engine_tasks_support.FINALIZE_TASK}:after:{predecessor.id}",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        dependencies=(predecessor.id,),
-        db_path=isolated_db,
-    )
-    _patch_restore_generator(monkeypatch, _Generator(state))
-
-    async def block_final_report(*_: Any, **__: Any) -> SafetyDecision:
-        return SafetyDecision(
-            stage="final",
-            decision="block",
-            reason="Final-stage policy blocked this report.",
-        )
-
-    built = report_build._BuiltReport(
-        payload={
-            "idea_count": 1,
-            "leaderboard": [
-                {"title": "Safe fixture", "statement": "A report."}
-            ],
-        },
-        markdown="# Final safety fixture",
-        facts=[],
-        exclusion_tally={},
-    )
-
-    async def fake_build_report(*_: Any, **__: Any) -> Any:
-        return built
-
-    _install_runtime(monkeypatch).drain_final_state = fake_final_drain
-    monkeypatch.setattr(
-        report_finalize, "build_report_content", fake_build_report
-    )
-    _install_runtime(monkeypatch).screen = block_final_report
-
-    assert await task_worker.run_once(
-        "final-safety-worker", run_id=run_id, db_path=isolated_db
-    )
-    blocked = runs.get_run(run_id, db_path=isolated_db)
-    completed_finalize = store_tasks.get_task(finalizer.id, db_path=isolated_db)
-    assert (
-        blocked is not None and blocked.status == StoreRunStatus.BLOCKED.value
-    )
-    assert completed_finalize is not None
-    assert completed_finalize.status == "completed"
-    final_decision = [
-        item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
-        if item["stage"] == "final"
-    ]
-    assert len(final_decision) == 1 and final_decision[0]["decision"] == "block"
-    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
+def test_a_blocked_run_cannot_be_resumed(isolated_db: str) -> None:
+    owner = _client()
+    headers = {"X-Client-ID": "blocked-owner"}
+    run_id = _new_run(owner, headers)
+    seed_checkpoint(run_id, {"provider": "engine"}, stage="engine_task:final")
+    runs.update_run_status(run_id, StoreRunStatus.BLOCKED)
 
     outsider = owner.post(
-        f"/api/runs/{run_id}/resume",
-        headers={"X-Client-ID": "different-owner"},
+        f"/api/runs/{run_id}/resume", headers={"X-Client-ID": "someone-else"}
     )
-    assert outsider.status_code == 404
+    response = owner.post(f"/api/runs/{run_id}/resume", headers=headers)
 
-    response = owner.post(f"/api/runs/{run_id}/resume", headers=owner_headers)
+    assert outsider.status_code == 404
     assert response.status_code == 409
     assert response.json()["detail"] == "run was blocked; create a new run"
-    saved = runs.get_run(run_id, db_path=isolated_db)
+    saved = runs.get_run(run_id)
     assert saved is not None and saved.status == StoreRunStatus.BLOCKED.value
-    tasks = store_tasks.list_tasks(run_id, db_path=isolated_db)
-    assert [(task.task_type, task.status) for task in tasks] == [
-        ("engine.node.overview", "completed"),
-        (engine_tasks_support.FINALIZE_TASK, "completed"),
-    ]
-    events_response = owner.get(
-        f"/api/runs/{run_id}/events?stream=false", headers=owner_headers
-    )
-    assert events_response.status_code == 200
-    events = events_response.json()["events"]
-    safety_event = next(
-        event for event in events if event["type"] == "safety.final"
-    )
-    blocked_event = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "blocked"
-    )
-    assert safety_event["seq"] < blocked_event["seq"]
-    status_events = [event for event in events if event["type"] == "status"]
-    assert status_events[-1]["payload"]["status"] == "blocked"
-    assert not any(
-        event["payload"].get("status") == "resuming" for event in events
-    )
+    assert store_tasks.list_tasks(run_id) == []

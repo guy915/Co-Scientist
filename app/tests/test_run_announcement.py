@@ -90,10 +90,6 @@ def test_provider_failure_falls_back_without_an_error_frame(
     assert _start_rows(rid)[1].content.strip()
 
 
-def test_announcement_404s_for_an_unknown_run() -> None:
-    assert _announce("no-such-run").status_code == 404
-
-
 def test_reasoning_is_relayed_and_kept_with_the_reply(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:

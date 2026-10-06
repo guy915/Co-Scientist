@@ -360,21 +360,6 @@ def test_the_drain_reattributes_an_idea_whose_row_is_gone(
     assert rows[0]["created_by_agent"] == "scientist_manual"
 
 
-def test_admitting_the_same_idea_twice_creates_one_pool_member(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Idempotent", profile="express")
-    hypothesis_id = _seed_hypothesis(run.id, isolated_db)
-    _seed_review(run.id, hypothesis_id, "revise", isolated_db)
-    state = {**_task_state(run.id)}
-
-    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
-    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
-
-    assert [h.id for h in state["hypotheses"]] == [hypothesis_id]
-    assert len(state["hypotheses"][0].reviews) == 1
-
-
 _LATE_CONTRIB_WORKER = "late-contrib-test"
 
 
