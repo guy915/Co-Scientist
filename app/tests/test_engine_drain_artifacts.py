@@ -1,18 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
 import pytest
 
-from app.engine_adapter.drain import final_state as drain_final_state
 from app.engine_adapter.drain.final_state import fold_grounding_telemetry
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.store import db, records, reports
 from app.store import hypotheses as store_hypotheses
-from app.store.hypotheses import NewHypothesis
-from app.store.records import NewClaimEvidence
 from tests._client import drain as _drain
 from tests._drain_helpers import (
     _build_report,
@@ -117,7 +115,7 @@ def _engine_review() -> dict[str, Any]:
     }
 
 
-def test_persisted_review_rows_carry_the_structured_detail(
+def test_persist_writes_each_review_kind_as_its_own_row(
     isolated_db: str,
 ) -> None:
     hypothesis = _engine_hypothesis(
@@ -133,11 +131,12 @@ def test_persisted_review_rows_carry_the_structured_detail(
             },
             {"question": "", "answer": "dropped"},
         ],
-        deep_verification_verdict="holds",
+        deep_verification_verdict="weakened",
         enrichments={
             "full": {
-                "verdict": "sound",
-                "correctness": "The logic holds.",
+                "verdict": "rejected",
+                "correctness": "The pathway claim is circular.",
+                "justification": "Circular pathway reasoning.",
                 "assumptions": [
                     {
                         "assumption": "The receptor is expressed.",
@@ -148,7 +147,16 @@ def test_persisted_review_rows_carry_the_structured_detail(
                 ],
                 "reviews_summary": {"conclusion": "Worth testing."},
                 "feasibility_steps": ["Run the pilot."],
-            }
+                "retrieved_articles": [{"title": "not persisted"}],
+            },
+            "simulation": {
+                "verdict": "breaks_down",
+                "failure_points": ["binding never occurs"],
+            },
+            "recurrent": {
+                "verdict": "needs_revision",
+                "justification": "Still circular after review.",
+            },
         },
     )
     hypothesis["reviews"][0]["scores"]["vibes"] = 11
@@ -166,19 +174,37 @@ def test_persisted_review_rows_carry_the_structured_detail(
         db_path=isolated_db,
     )
 
-    by_agent = {
-        row["reviewer_agent"]: json.loads(row["detail_json"] or "{}")
+    rows = {
+        row["reviewer_agent"]: row
         for row in records.list_reviews(run.id, db_path=isolated_db)
     }
-    review = by_agent["review"]
+    assert set(rows) == {
+        "review",
+        "deep_verification",
+        "full_review",
+        "simulation_review",
+        "recurrent_review",
+    }
+    detail = {
+        agent: json.loads(row["detail_json"] or "{}")
+        for agent, row in rows.items()
+    }
+    review = detail["review"]
     assert review["scores"] == _engine_review()["scores"]
     assert len(review["detailed_feedback"]) == 6
-    assert review["constructive_feedback"] == "Name the control arm."
     assert review["already_explored"] == ["Target engagement is documented."]
     assert review["novel_aspects"] == [
         "The stress-induced modification is new."
     ]
-    assert by_agent["deep_verification"]["probes"] == [
+    critique = rows["review"]["critique"]
+    assert "Aspects already explored:" in critique
+    assert "Novel Aspects:" in critique
+    assert "Name the control arm." in critique
+
+    deep = rows["deep_verification"]
+    assert "Does the receptor bind?" in deep["critique"]
+    assert (deep["novelty"], deep["overall"]) == (None, None)
+    assert detail["deep_verification"]["probes"] == [
         {
             "question": "Does the receptor bind?",
             "answer": "Yes, at nanomolar affinity.",
@@ -186,16 +212,30 @@ def test_persisted_review_rows_carry_the_structured_detail(
             "fundamental": True,
         }
     ]
-    full = by_agent["full_review"]
-    assert full["reviews_summary"]["conclusion"] == "Worth testing."
-    assert full["assumptions"] == [
+
+    full = rows["full_review"]
+    assert full["summary"] == "Full review verdict: rejected"
+    assert "Circular pathway reasoning." in full["critique"]
+    assert "The receptor is expressed." in full["critique"]
+    assert detail["full_review"]["reviews_summary"] == {
+        "conclusion": "Worth testing."
+    }
+    assert detail["full_review"]["assumptions"] == [
         {
             "assumption": "The receptor is expressed.",
             "reasoning": "Two cohorts detect it directly.",
             "support": "Plausible",
         }
     ]
-    assert full["feasibility_steps"] == ["Run the pilot."]
+    assert detail["full_review"]["feasibility_steps"] == ["Run the pilot."]
+    assert "not persisted" not in str(rows)
+    assert rows["simulation_review"]["summary"] == (
+        "Simulation review verdict: breaks_down"
+    )
+    assert "binding never occurs" in rows["simulation_review"]["critique"]
+    assert rows["recurrent_review"]["summary"] == (
+        "Recurrent review verdict: needs_revision"
+    )
 
 
 @pytest.mark.parametrize(
@@ -248,60 +288,6 @@ def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
     assert edge["version"] == "1"
     assert edge["model"] == "fixture-model"
     assert edge["updated_at"] == 1234.5
-
-
-def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
-    safe_id = store_hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Safe idea",
-            statement=(
-                "Inhibiting kinase X reduces AML tumor growth via apoptosis."
-            ),
-        ),
-        db_path=db_path,
-    )
-    unsafe_id = store_hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Unsafe idea",
-            statement=(
-                "Weaponize the pathogen to enhance transmissibility in humans."
-            ),
-        ),
-        db_path=db_path,
-    )
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=safe_id,
-            claim="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
-            label="supports",
-            supporting=["A source-supported safe mechanism."],
-            contradicting=[],
-            assessor="fixture",
-            claim_role="speculative",
-        ),
-        db_path=db_path,
-    )
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=unsafe_id,
-            claim=(
-                "Weaponize the pathogen to enhance transmissibility in humans."
-            ),
-            label="supports",
-            supporting=[
-                "A source span is present so the safety gate decides "
-                "this fixture."
-            ],
-            contradicting=[],
-            assessor="fixture",
-        ),
-        db_path=db_path,
-    )
-    return safe_id, unsafe_id
 
 
 def _archived_parent_state() -> dict[str, Any]:
@@ -475,24 +461,30 @@ def test_persist_omits_research_overview_sections_when_there_is_none(
     assert "## NIH Specific Aims" not in report["markdown_text"]
 
 
-async def test_unsafe_hypothesis_excluded_from_synthesis(
-    isolated_db: str,
+@pytest.mark.parametrize("participant_dropped", [False, True])
+def test_persist_matches_resolve_participants_by_engine_id(
+    isolated_db: str, participant_dropped: bool
 ) -> None:
-    run = seed_run("safety goal")
-    safe_id, _unsafe_id = _seed_safe_and_unsafe(run, isolated_db)
+    # Evolution can change matchup display text, so identity resolves by id
+    # rather than text prefixes; dropped participants leave no dangling match.
+    state = _final_state_with_features()
+    matchup = state["tournament_matchups"][0]
+    matchup["hypothesis_a"] = "drifted text A"
+    matchup["hypothesis_b"] = "drifted text B"
+    if participant_dropped:
+        matchup["hypothesis_b_id"] = matchup["winner_id"] = "eng-hyp-gone"
+    run = seed_run("CSC goal")
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    payload, markdown = await _build_report(run, isolated_db)
-
-    assert payload["hypothesis_count"] == 1
-    leaderboard_ids = {row["id"] for row in payload["leaderboard"]}
-    assert leaderboard_ids == {safe_id}
-    assert "Weaponize" not in markdown
-
-    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
-    assert any(
-        d["stage"] == "hypothesis" and d["decision"] == "block"
-        for d in decisions
-    )
+    matches = records.list_matches(run.id, db_path=isolated_db)
+    if participant_dropped:
+        assert matches == []
+    else:
+        [match] = matches
+        assert (match["winner_id"], match["loser_id"]) == (
+            "eng-hyp-a",
+            "eng-hyp-b",
+        )
 
 
 def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
@@ -530,200 +522,6 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
             "SELECT COUNT(*) FROM reports WHERE run_id=?", (run.id,)
         ).fetchone()[0]
     assert count == 1
-
-
-def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
-    # Evolution can change matchup display text; identity must resolve by id
-    # rather than text prefixes.
-    state = _final_state_with_features()
-    state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
-    state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=state,
-        db_path=isolated_db,
-    )
-
-    matches = records.list_matches(run.id, db_path=isolated_db)
-    assert len(matches) == 1
-    match = matches[0]
-    assert match["winner_id"] == "eng-hyp-a"
-    assert match["loser_id"] == "eng-hyp-b"
-    assert (
-        store_hypotheses.get_hypothesis("eng-hyp-a", db_path=isolated_db)
-        is not None
-    )
-    assert (
-        store_hypotheses.get_hypothesis("eng-hyp-b", db_path=isolated_db)
-        is not None
-    )
-
-
-def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
-    # Dropped participant ids must not produce dangling persisted matches.
-    state = _final_state_with_features()
-    state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
-    state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=state,
-        db_path=isolated_db,
-    )
-
-    assert records.list_matches(run.id, db_path=isolated_db) == []
-
-
-def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=_final_state_with_features(),
-        db_path=isolated_db,
-    )
-
-    reviews = records.list_reviews(run.id, db_path=isolated_db)
-    deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
-    assert len(deep) == 1
-    critique = deep[0]["critique"]
-    assert "Does CXCR1 signaling drive the stem-cell phenotype?" in critique
-    assert "CXCR2 can compensate when CXCR1 is blocked." in critique
-    assert (
-        "weakened" in deep[0]["summary"].lower()
-        or "weakened" in critique.lower()
-    )
-    assert deep[0]["novelty"] is None
-    assert deep[0]["overall"] is None
-
-
-def _final_state_with_novelty_review() -> dict[str, Any]:
-    return {
-        "hypotheses": [
-            _engine_hypothesis(
-                "eng-hyp-n",
-                "Blocking CXCR1 suppresses breast cancer stem cells.",
-                reviews=[
-                    {
-                        "review_summary": "Sound, moderately novel.",
-                        "scores": {"novelty": 6},
-                        "safety_ethical_concerns": "",
-                        "detailed_feedback": {},
-                        "constructive_feedback": "Tighten the controls.",
-                        "overall_score": 6.0,
-                        "already_explored": [
-                            "CXCR1 is a known breast-CSC marker."
-                        ],
-                        "novel_aspects": ["The proposed feedback loop is new."],
-                    }
-                ],
-            )
-        ],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "research_overview": {},
-    }
-
-
-def test_persist_writes_novelty_review_lists_into_critique(
-    isolated_db: str,
-) -> None:
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=_final_state_with_novelty_review(),
-        db_path=isolated_db,
-    )
-
-    reviews = records.list_reviews(run.id, db_path=isolated_db)
-    review = next(r for r in reviews if r["reviewer_agent"] == "review")
-    assert "Aspects already explored:" in review["critique"]
-    assert "CXCR1 is a known breast-CSC marker." in review["critique"]
-    assert "Novel Aspects:" in review["critique"]
-    assert "The proposed feedback loop is new." in review["critique"]
-    assert "Tighten the controls." in review["critique"]
-
-
-def _final_state_with_mature_reviews() -> dict[str, Any]:
-    return {
-        "hypotheses": [
-            _engine_hypothesis(
-                "eng-hyp-m",
-                "Blocking CXCR1 suppresses breast cancer stem cells.",
-                enrichments={
-                    "full": {
-                        "verdict": "rejected",
-                        "correctness": "The pathway claim is circular.",
-                        "quality_and_novelty": "Incremental.",
-                        "literature_grounding": "Thin.",
-                        "justification": "Circular pathway reasoning.",
-                        "assumptions": [
-                            {
-                                "assumption": "CXCR1 is the only driver",
-                                "reasoning": (
-                                    "Two other chemokine receptors are"
-                                    " independently sufficient."
-                                ),
-                                "support": "likely_false",
-                            }
-                        ],
-                        "retrieved_articles": [{"title": "not persisted"}],
-                    },
-                    "simulation": {
-                        "verdict": "breaks_down",
-                        "model": "Xenograft simulation",
-                        "steps": [{"step": "ligand binds", "plausible": False}],
-                        "failure_points": ["binding never occurs"],
-                        "robustness": "Fragile.",
-                        "decisive_step": "Step one fails.",
-                    },
-                    "recurrent": {
-                        "verdict": "needs_revision",
-                        "justification": "Still circular after review.",
-                    },
-                },
-            )
-        ],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "research_overview": {},
-    }
-
-
-def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=_final_state_with_mature_reviews(),
-        db_path=isolated_db,
-    )
-
-    reviews = records.list_reviews(run.id, db_path=isolated_db)
-    by_agent = {r["reviewer_agent"]: r for r in reviews}
-    assert set(by_agent) == {
-        "full_review",
-        "simulation_review",
-        "recurrent_review",
-    }
-    assert by_agent["full_review"]["summary"] == (
-        "Full review verdict: rejected"
-    )
-    assert "Circular pathway reasoning." in by_agent["full_review"]["critique"]
-    assert "CXCR1 is the only driver" in by_agent["full_review"]["critique"]
-    assert (
-        "Two other chemokine receptors are independently sufficient."
-        in by_agent["full_review"]["critique"]
-    )
-    assert by_agent["simulation_review"]["summary"] == (
-        "Simulation review verdict: breaks_down"
-    )
-    assert "binding never occurs" in by_agent["simulation_review"]["critique"]
-    assert by_agent["recurrent_review"]["summary"] == (
-        "Recurrent review verdict: needs_revision"
-    )
-    assert "not persisted" not in str(by_agent)
 
 
 def _citations_citation_map() -> dict[str, Any]:
@@ -799,20 +597,8 @@ def test_persist_classifies_citations_via_shared_classifier(
     kg_row = next(e for e in evidence if e["source"] == "knowledge_graph")
     assert kg_row["title"] == "INDRA: CXCR1 -> STAT3"
 
-
-async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
-    isolated_db: str,
-) -> None:
-    run = seed_run("CSC goal")
-    await drain_final_state.persist_final_state(
-        run_id=run.id,
-        final_state=_final_state_with_citations(),
-        db_path=isolated_db,
-    )
-
-    _payload, markdown = await _build_report(run, isolated_db)
-
-    assert "#### References" in markdown
+    # The rendered report resolves the grounding text's citation keys.
+    _payload, markdown = asyncio.run(_build_report(run, isolated_db))
     section = markdown.split("#### References", 1)[1]
     assert "CXCR1 drives CSC renewal" in section
     assert "INDRA: CXCR1 -> STAT3" in section

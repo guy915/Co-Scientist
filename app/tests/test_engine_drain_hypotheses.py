@@ -24,7 +24,6 @@ from app.citations import (
 )
 from app.claims.grounding import evidence_passages
 from app.config import settings
-from app.engine_adapter.drain import final_state as drain_final_state
 from app.engine_adapter.drain.matches import _persist_engine_matches
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis import screen_hypotheses
@@ -88,30 +87,40 @@ def _held_status(run_id: str, isolated_db: str) -> str:
     return str(by_id["held-1"]["safety_status"])
 
 
-def test_drain_escalates_and_raises_a_held_verdict(
+@pytest.mark.parametrize(
+    ("verdict", "status", "decision"),
+    [("prohibited", "prohibited", "block"), ("allowed", None, "allow")],
+)
+def test_drain_escalates_and_audits_the_resolved_verdict(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     fake_process_mode: FakeProcessMode,
+    verdict: str,
+    status: str | None,
+    decision: str,
 ) -> None:
-    async def block_completion(**_: object) -> SimpleNamespace:
-        return _fake_semantic_response("prohibited")
+    # Audit rows must reflect the resolved outcome, including allow, rather
+    # than a historical hardcoded block.
+    async def completion(**_: object) -> SimpleNamespace:
+        return _fake_semantic_response(verdict)
 
     _stub_eligible(monkeypatch, fake_process_mode)
-    install_completion_backend(monkeypatch, block_completion)
-    run = _real_run("drain escalation raise")
+    install_completion_backend(monkeypatch, completion)
+    run = _real_run("drain escalation resolve")
 
     _persist(
         run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
     )
 
-    assert _held_status(run.id, isolated_db) == "prohibited"
-    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
-    raised = [
+    if status is not None:
+        assert _held_status(run.id, isolated_db) == status
+    resolved = [
         d
-        for d in decisions
-        if d["stage"] == "hypothesis" and "prohibited" in d["reason"]
+        for d in records.list_safety_decisions(run.id, db_path=isolated_db)
+        if d["stage"] == "hypothesis" and "uncertain" not in d["reason"]
     ]
-    assert raised, "expected an audit row recording the escalation's raise"
+    assert resolved, "the resolution must leave an audit row"
+    assert {d["decision"] for d in resolved} == {decision}
 
 
 def test_campaign_scope_reaches_held_hypothesis_executor(
@@ -266,39 +275,6 @@ def test_escalation_does_not_hold_the_write_lock(
         release_call.set()
         worker.join(timeout=5)
     assert not errors, errors
-
-
-async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
-    monkeypatch: pytest.MonkeyPatch,
-    isolated_db: str,
-    fake_process_mode: FakeProcessMode,
-) -> None:
-    # Audit decisions must reflect resolved outcomes, including allow, rather
-    # than a historical hardcoded block.
-    _stub_eligible(monkeypatch, fake_process_mode)
-
-    async def _allow(**_: object) -> SimpleNamespace:
-        return _fake_semantic_response("allowed")
-
-    install_completion_backend(monkeypatch, _allow)
-    run = _real_run("cleared hold audit")
-
-    await drain_final_state.persist_final_state(
-        run_id=run.id,
-        final_state=_escalation_state(),
-        db_path=isolated_db,
-    )
-
-    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
-    held_rows = [
-        row
-        for row in decisions
-        if row["stage"] == "hypothesis" and "uncertain" not in row["reason"]
-    ]
-    assert held_rows, "the resolution must leave an audit row"
-    assert all(row["decision"] == "allow" for row in held_rows), (
-        f"a cleared hold was audited as a block: {held_rows}"
-    )
 
 
 def _final_state_with_article(article: dict[str, Any]) -> dict[str, Any]:
@@ -458,48 +434,6 @@ def test_live_resolver_dereferences_and_persists_retraction(
 _STATEMENT = "Blocking CXCR1 suppresses breast cancer stem cells. It works."
 
 
-def test_persist_derives_the_title_for_an_evolved_child_without_one(
-    isolated_db: str,
-) -> None:
-    # A child's mechanism can diverge; missing titles derive from its own text
-    # rather than its parent.
-    run = seed_run("CSC goal")
-    final_state = {
-        "hypotheses": [
-            _engine_hypothesis(
-                "parent-1",
-                "Parent hypothesis about kinase X. Details follow.",
-                title="Kinase X Inhibition Strategy",
-                parent_id=None,
-                generation=0,
-                origin="generation",
-            ),
-            _engine_hypothesis(
-                "child-1",
-                "Child hypothesis: kinase X plus cofactor W. More detail.",
-                parent_id="parent-1",
-                generation=1,
-                origin="evolution",
-            ),
-        ],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "evolution_details": [],
-        "research_overview": {},
-    }
-    _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
-
-    hyps = {
-        h["id"]: h
-        for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-    }
-    assert hyps["parent-1"]["title"] == "Kinase X Inhibition Strategy"
-    assert hyps["child-1"]["title"] == (
-        "Child hypothesis: kinase X plus cofactor W"
-    )
-
-
 _DERIVED_TITLE = "Blocking CXCR1 suppresses breast cancer stem cells"
 
 
@@ -585,18 +519,18 @@ def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
     )
 
 
+@pytest.mark.parametrize("engine_audit", [True, False])
 def test_drain_persists_held_hypotheses_as_reviewable_decisions(
-    isolated_db: str,
+    isolated_db: str, engine_audit: bool
 ) -> None:
     # Held ideas leave the engine pool, so drain must preserve adjudicable
-    # decisions before they disappear.
+    # decisions before they disappear, even when the audit join is missing.
     run = seed_run("held hypotheses goal")
+    state = _held_final_state()
+    if not engine_audit:
+        state["safety_decisions"] = []
 
-    _persist(
-        run_id=run.id,
-        final_state=_held_final_state(),
-        db_path=isolated_db,
-    )
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     holds = [d for d in decisions if d["decision"] == "hold"]
@@ -605,37 +539,18 @@ def test_drain_persists_held_hypotheses_as_reviewable_decisions(
         assert row["stage"] == "hypothesis"
         assert row["requires_review"] is True
         assert row["resolution"] is None
+        assert row["reason"]
+    assert [h["id"] for h in hypotheses.list_hypotheses(run.id)] == ["safe-1"]
+    if not engine_audit:
+        return
+    for row in holds:
         assert row["policy_version"] == "coscientist-safety-v5"
         assert row["matches"] == ["for research purposes only"]
-        assert "uncertain" in row["reason"]
         assert "obfuscated intent" in row["reason"]
     reasons = " ".join(row["reason"] for row in holds)
     assert "held-1" in reasons and "held-2" in reasons
     assert "enhance pathogen transmissibility" in reasons
     assert "toxin production line" in reasons
-    assert [h["id"] for h in hypotheses.list_hypotheses(run.id)] == ["safe-1"]
-
-
-def test_drain_records_a_hold_without_an_engine_audit_entry(
-    isolated_db: str,
-) -> None:
-    # Missing audit joins must not discard held hypotheses; retain a hold with
-    # fallback rationale.
-    run = seed_run("orphan hold goal")
-    state = _held_final_state()
-    state["safety_decisions"] = []
-
-    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    holds = [
-        d
-        for d in records.list_safety_decisions(run.id, db_path=isolated_db)
-        if d["decision"] == "hold"
-    ]
-    assert len(holds) == 2
-    for row in holds:
-        assert row["requires_review"] is True
-        assert row["reason"]
 
 
 def _multi_parent_state() -> dict[str, Any]:

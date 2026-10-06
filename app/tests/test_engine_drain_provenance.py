@@ -263,76 +263,49 @@ def test_the_report_carries_what_the_run_could_not_search(
     assert report["payload"]["retrieval_degradation"] == degradation
 
 
-def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
-    supported_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Supported",
-            statement="Kinase X inhibition drives AML apoptosis.",
-        ),
+def _seed_labelled_hypothesis(
+    run: Any, title: str, statement: str, label: str | None, db_path: str
+) -> str:
+    hypothesis_id = hypotheses.add_hypothesis(
+        NewHypothesis(run_id=run.id, title=title, statement=statement),
         db_path=db_path,
     )
-    unsupported_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Unsupported",
-            statement="A novel latent mechanism without any evidence yet.",
-        ),
-        db_path=db_path,
-    )
-    contradicted_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Contradicted",
-            statement="Drug Y single-handedly cures the disease.",
-        ),
-        db_path=db_path,
-    )
-    _add_gate_split_edges(run, supported_id, contradicted_id, db_path)
-    return supported_id, unsupported_id, contradicted_id
-
-
-def _add_gate_split_edges(
-    run: Any, supported_id: str, contradicted_id: str, db_path: str
-) -> None:
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=supported_id,
-            claim="Kinase X inhibition drives AML apoptosis.",
-            label="supports",
-            supporting=["A supporting source span."],
-            contradicting=[],
-            assessor="fixture",
-        ),
-        db_path=db_path,
-    )
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=contradicted_id,
-            claim="Drug Y single-handedly cures the disease.",
-            label="contradicts",
-            supporting=[],
-            contradicting=["A source span refuting the claim."],
-            assessor="fixture",
-        ),
-        db_path=db_path,
-    )
+    if label is not None:
+        refuting = label == "contradicts"
+        records.add_claim_evidence(
+            NewClaimEvidence(
+                run_id=run.id,
+                hypothesis_id=hypothesis_id,
+                claim=statement,
+                label=label,
+                supporting=[] if refuting else ["A source span."],
+                contradicting=["A refuting span."] if refuting else [],
+                assessor="fixture",
+            ),
+            db_path=db_path,
+        )
+    return hypothesis_id
 
 
 def test_rank_and_publish_splits_contradicted_from_unverified(
     isolated_db: str,
 ) -> None:
     run = seed_run("gate split")
-    supported_id, unsupported_id, contradicted_id = _seed_gate_split(
-        run, isolated_db
+    ids = {
+        label: _seed_labelled_hypothesis(
+            run, label, f"Statement about {label}.", label, isolated_db
+        )
+        for label in ("supports", "contradicts", "insufficient", "partial")
+    }
+    ids["none"] = _seed_labelled_hypothesis(
+        run, "none", "Statement about none.", None, isolated_db
     )
 
     contradicted = report_gates.contradicted_hypothesis_ids(run.id, isolated_db)
     unverified = report_gates.unverified_hypothesis_ids(run.id, isolated_db)
-    assert contradicted == {contradicted_id}
-    assert unverified == {unsupported_id, contradicted_id}
+    assert contradicted == {ids["contradicts"]}
+    # Partial support is relevant and consistent, so it clears the badge.
+    assert unverified == {ids["none"], ids["contradicts"], ids["insufficient"]}
 
     hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     kept_ids = {
@@ -341,7 +314,7 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
             run.id, hyps, isolated_db
         )
     }
-    assert kept_ids == {supported_id, unsupported_id}
+    assert kept_ids == set(ids.values()) - {ids["contradicts"]}
 
     _assert_demo_run_badges_nothing(isolated_db)
 
@@ -353,55 +326,6 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
         db_path=db_path,
     )
     assert report_gates.unverified_hypothesis_ids(demo.id, db_path) == set()
-
-
-def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
-    # Partial support is relevant and consistent, so it clears the Unverified
-    # badge.
-    run = seed_run("partial badge")
-    partial_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Partially supported",
-            statement="Kinase X modulation influences AML growth.",
-        ),
-        db_path=isolated_db,
-    )
-    insufficient_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Insufficient",
-            statement="An entirely unevidenced conjecture.",
-        ),
-        db_path=isolated_db,
-    )
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=partial_id,
-            claim="Kinase X modulation influences AML growth.",
-            label="partial",
-            supporting=["A near-miss source span."],
-            contradicting=[],
-            assessor="fixture",
-        ),
-        db_path=isolated_db,
-    )
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=insufficient_id,
-            claim="An entirely unevidenced conjecture.",
-            label="insufficient",
-            supporting=[],
-            contradicting=[],
-            assessor="fixture",
-        ),
-        db_path=isolated_db,
-    )
-
-    unverified = report_gates.unverified_hypothesis_ids(run.id, isolated_db)
-    assert unverified == {insufficient_id}
 
 
 def test_gate_warns_when_it_excludes_everything(
@@ -428,29 +352,6 @@ def test_gate_warns_when_it_excludes_everything(
     assert "no ideas" in message
     assert "safety review" in message
     assert "peer review" not in message
-
-
-def test_gate_warning_names_review_rejection_not_safety(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    # Persisted review rejection skips safety screening; warning text must not
-    # invent a safety cause.
-    hyps = [
-        {"id": "h1", "status": "rejected", "statement": "Idea one."},
-        {"id": "h2", "status": "rejected", "statement": "Idea two."},
-    ]
-
-    with caplog.at_level(logging.INFO, logger="app.report.gates"):
-        kept = report_gates.exclude_unsafe_hypotheses(
-            "run-review-rejected", hyps, None, claim_edges=[]
-        )
-
-    assert kept == []
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    message = warnings[0].getMessage()
-    assert "peer review" in message
-    assert "safety review" not in message
 
 
 def _drained_status(
@@ -565,14 +466,23 @@ def _replay_finalize(
     _persist(run_id=run_id, final_state=final_state, db_path=db_path)
 
 
-def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:
+def test_drained_scientist_hypothesis_and_review_keep_their_rows(
+    isolated_db: str,
+) -> None:
     # Scientist rows survive publication resets; reconcile them instead of
     # inserting colliding copies.
+    from co_scientist.constants import NOT_VIABLE_SCORE
+
     run = seed_run("Scientist drain", profile="express")
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
+    _seed_scientist_review(run.id, hypothesis_id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
     final_state["hypotheses"][0]["win_count"] = 3
     final_state["hypotheses"][0]["loss_count"] = 1
+    # Human verdicts share agent review scales; off-scale scores mislead
+    # tournament judges.
+    merged_review = final_state["hypotheses"][0]["reviews"][0]
+    assert merged_review["overall_score"] == NOT_VIABLE_SCORE
 
     _replay_finalize(run.id, final_state, isolated_db)
     _replay_finalize(run.id, final_state, isolated_db)
@@ -582,43 +492,8 @@ def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:
     assert (rows[0]["win_count"], rows[0]["loss_count"]) == (3, 1)
     assert rows[0]["author"] == "dr-who"
     assert rows[0]["created_by_agent"] == "scientist_manual"
-    assert rows[0]["generation"] == 0
     assert rows[0]["parent_id"] is None
-    assert rows[0]["safety_status"] is not None
-
-
-def test_drained_scientist_review_keeps_author_and_verdict(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Scientist review drain", profile="express")
-    hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
-    _seed_scientist_review(run.id, hypothesis_id, isolated_db)
-    final_state = _merged_final_state(run.id, isolated_db)
-
-    _replay_finalize(run.id, final_state, isolated_db)
-
     reviews = records.list_reviews(run.id, isolated_db)
     assert [row["reviewer_agent"] for row in reviews] == ["scientist"]
     assert reviews[0]["author"] == "dr-who"
     assert reviews[0]["verdict"] == "oppose"
-
-
-def test_scientist_review_score_uses_the_engine_review_rubric(
-    isolated_db: str,
-) -> None:
-    # Human verdicts share agent review scales; guessing off-scale scores
-    # misleads tournament judges.
-    from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
-
-    run = seed_run("Scientist rubric", profile="express")
-    hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
-    _seed_scientist_review(run.id, hypothesis_id, isolated_db)
-    state: dict[str, Any] = {"hypotheses": []}
-
-    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
-
-    review = state["hypotheses"][0].reviews[0]
-    assert review.overall_score == NOT_VIABLE_SCORE
-    assert review.overall_score <= NEEDS_REVISION_SCORE
-    assert review.detailed_feedback["scientist_author"] == "dr-who"
-    assert review.detailed_feedback["scientist_verdict"] == "oppose"

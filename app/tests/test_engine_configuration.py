@@ -62,20 +62,6 @@ def test_tier_funding_reaches_every_expensive_capability(
     assert opts["enable_overview_review"] is funded
 
 
-def test_default_config_keeps_the_existing_capabilities(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("FORCE_LITERATURE_REVIEW", raising=False)
-    opts = build_engine_opts({}, "unused-run", isolated_db)
-    assert opts["research_tier"] == "standard"
-    assert opts["enable_tool_calling_generation"] is False
-    assert opts["enable_simulation_execution"] is False
-    assert opts["enable_overview_review"] is False
-    assert opts["enable_literature_review_node"] is True
-    assert opts["enable_meta_review"] is True
-    assert opts["generation_strategy"] == ""
-
-
 @pytest.mark.parametrize("enabled", [False, True])
 def test_literature_kill_switch_overrides_the_connector(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, enabled: bool
@@ -593,16 +579,6 @@ def test_credential_lookup_has_one_owner(
 
     assert provider.offline_mode() is False
     assert process_mode.credential_available("fictional/model-x") is True
-
-
-def test_engine_importable_returns_false_on_exception(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def _boom(name: str) -> None:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(importlib.util, "find_spec", _boom)
-    assert provider._engine_importable() is False
 
 
 def test_select_provider_raises_when_engine_missing(

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 import types
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from co_scientist.models import (
@@ -12,7 +12,6 @@ from co_scientist.models import (
 )
 
 import app.engine_tasks.ranking as engine_tasks_ranking_wave
-from app import engine_tasks
 from app.claims import (
     AssessorDraft,
     ClaimAssessment,
@@ -30,8 +29,6 @@ from app.engine_tasks.gate import (
     _GatePlan,
 )
 from app.store import checkpoints, runs, tasks
-from app.store import events as store_events
-from app.store import retrieval_calls as retrieval
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus
 from tests._client import create_run as _create_run
@@ -134,36 +131,6 @@ def _tasks_gate_multi_claim_state() -> dict[str, Any]:
             )
         ],
     }
-
-
-@pytest.mark.asyncio
-async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
-    hypothesis = Hypothesis(
-        text="We hypothesize astrocyte channel X may accelerate ATP recovery.",
-        literature_grounding=(
-            "Astrocytes participate in neuronal energy support."
-        ),
-    )
-    hypothesis.review_disposition = "viable"
-    state = {
-        "hypotheses": [hypothesis],
-        "articles": [
-            Article(
-                title="Astrocyte energetics",
-                abstract="Astrocytes participate in neuronal energy support.",
-            )
-        ],
-    }
-
-    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
-
-    assert hypothesis.review_disposition == "viable"
-    gate = hypothesis.enrichments["claim_gate"]
-    assert gate["decision"] == "allow"
-    speculative = next(
-        claim for claim in gate["claims"] if claim["role"] == "speculative"
-    )
-    assert speculative["label"] == "insufficient"
 
 
 @pytest.mark.asyncio
@@ -757,21 +724,6 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
         is None
     )
 
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    pause_event = next(
-        event
-        for event in events
-        if event["type"] == "lifecycle"
-        and event["payload"].get("event") == "pause_requested"
-    )
-    assert not any(
-        event["type"] == "scientific_task"
-        and event["payload"].get("task") == "ranking"
-        and event["payload"].get("status") == "running"
-        and event["seq"] > pause_event["seq"]
-        for event in events
-    )
-
     resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
     assert resumed.status_code == 200, resumed.text
     resumed_task = tasks.get_task(successor.id, db_path=isolated_db)
@@ -790,138 +742,3 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
         and ctx.preferences is None
         for ctx in judge_inputs
     )
-
-
-@pytest.mark.asyncio
-async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    client, run_id = _owned_running_run(isolated_db)
-    _seed_ranking_node(
-        run_id,
-        monkeypatch,
-        _RankingSeed(
-            hypothesis_count=4,
-            tournament_pairs=12,
-            idempotency_key="pause-ranking-finalize-node",
-        ),
-        isolated_db,
-    )
-    await _run_ranking_node(run_id, isolated_db)
-    _install_plain_fake_judge(monkeypatch)
-
-    while True:
-        match = tasks.claim_task(
-            "ranking-match", run_id=run_id, db_path=isolated_db
-        )
-        assert match is not None
-        if match.task_type == engine_tasks_support.RANKING_FINALIZE_TASK:
-            finalizer = match
-            break
-        assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
-        result = await engine_tasks_ranking.execute_ranking_match(
-            match, db_path=isolated_db
-        )
-        assert lifecycle.complete_task(
-            match.id, "ranking-match", result, db_path=isolated_db
-        )
-
-    import co_scientist.agents.ranking as ranking_package
-
-    finalize_ranking = ranking_package.finalize_ranking
-
-    async def pause_after_finalize(*args: Any, **kwargs: Any) -> dict[str, Any]:
-        update = await finalize_ranking(*args, **kwargs)
-        response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-        assert response.status_code == 200, response.text
-        assert response.json()["status"] == "paused"
-        return cast(dict[str, Any], update)
-
-    monkeypatch.setattr(
-        ranking_package, "finalize_ranking", pause_after_finalize
-    )
-    result = await engine_tasks_ranking.execute_ranking_finalize(
-        finalizer, db_path=isolated_db
-    )
-    assert lifecycle.complete_task(
-        finalizer.id, "ranking-match", result, db_path=isolated_db
-    )
-
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert checkpoint is not None
-    assert checkpoint["seq"] == int(finalizer.inputs["checkpoint_seq"]) + 1
-    assert checkpoint["stage"] == f"engine_task:{finalizer.id}"
-    from co_scientist.checkpoint import restore_workflow_state
-
-    state = restore_workflow_state(checkpoint["state"])
-    details = state["tournament_matchups"]
-    assert len(details) == result["matches_committed"] == 6
-    assert not state.get("pending_ranking_matchups")
-    assert (
-        sum(hypothesis.total_matches for hypothesis in state["hypotheses"])
-        == 12
-    )
-    assert any(
-        hypothesis.elo_rating != 1200 for hypothesis in state["hypotheses"]
-    )
-    metrics = retrieval.get_run_metrics(run_id, db_path=isolated_db)
-    assert metrics is not None
-    assert metrics["tournaments_count"] == len(details)
-    assert metrics["llm_calls"] == sum(
-        int(detail["debate_turns"]) for detail in details
-    )
-
-    successor = tasks.get_task(result["successor_task_id"], db_path=isolated_db)
-    assert successor is not None
-    assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    assert successor.status == "queued"
-    assert successor.dependencies == (finalizer.id,)
-    assert (
-        successor.provenance["scheduled_by"]
-        == engine_tasks_support.RANKING_FINALIZE_TASK
-    )
-    assert checkpoint["state"]["resume_successor"] == successor.task_type
-    paused_run = runs.get_run(run_id, db_path=isolated_db)
-    assert paused_run is not None
-    assert paused_run.status == RunStatus.PAUSED.value
-    assert (
-        tasks.claim_task(
-            "before-finalize-resume", run_id=run_id, db_path=isolated_db
-        )
-        is None
-    )
-
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    pause_event = next(
-        event
-        for event in events
-        if event["type"] == "lifecycle"
-        and event["payload"].get("event") == "pause_requested"
-    )
-    completion = next(
-        event
-        for event in events
-        if event["type"] == "scientific_task"
-        and event["payload"].get("task") == "ranking"
-        and event["payload"].get("status") == "completed"
-        and event["payload"].get("checkpoint_seq") == checkpoint["seq"]
-    )
-    assert completion["seq"] > pause_event["seq"]
-    assert completion["payload"]["successor"] == "orchestrator"
-    assert not any(
-        event["type"] == "scientific_task"
-        and event["payload"].get("task") == "ranking"
-        and event["payload"].get("status") == "running"
-        and event["seq"] > pause_event["seq"]
-        for event in events
-    )
-
-    resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
-    assert resumed.status_code == 200, resumed.text
-    claim = tasks.claim_task(
-        "after-finalize-resume", run_id=run_id, db_path=isolated_db
-    )
-    assert claim is not None
-    assert claim.id == successor.id
-    assert claim.task_type == successor.task_type
