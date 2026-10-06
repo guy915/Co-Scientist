@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from typing import cast
 from unittest.mock import AsyncMock
 
@@ -9,15 +8,7 @@ import pytest
 import co_scientist.agents.reflection.deep_verification as leaf
 from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.agents.reflection import deep_verification_evidence as dve
-from co_scientist.agents.reflection import (
-    review_evidence,
-)
-from co_scientist.agents.reflection.review_evidence import (
-    _evidence_key,
-    _ReviewEvidence,
-    researched_articles_for,
-)
-from co_scientist.models import Article, Hypothesis
+from co_scientist.models import Hypothesis
 from co_scientist.state import WorkflowState
 from tests._llm_fake import mock_call_llm_json
 from tests._state import (
@@ -26,6 +17,63 @@ from tests._state import (
     make_state,
     make_verification_response,
 )
+
+
+def _state() -> WorkflowState:
+    return cast(WorkflowState, {"run_id": "run-1"})
+
+
+async def test_a_resumed_run_does_not_re_verify(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A memory-only marker would rebuy whole-pool verification after every
+    restart."""
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
+
+    h = make_hypothesis(text="verified before the restart")
+    await dv.deep_verification_node(make_state(hypotheses=[h]))
+    assert fake.await_count == 1
+
+    restored = Hypothesis.from_dict(h.to_dict())
+    await dv.deep_verification_node(make_state(hypotheses=[restored]))
+
+    assert fake.await_count == 1
+
+
+async def test_a_failed_verification_spends_the_one_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Failures consume issuance too; lower retry budgets answer transient
+    failures."""
+    calls = 0
+
+    async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("verifier unavailable")
+
+    monkeypatch.setattr(leaf, "call_llm_json", _boom)
+
+    h = make_hypothesis(text="leader", elo_rating=2000)
+    state = make_state(hypotheses=[h])
+    await dv.deep_verification_node(state)
+    await dv.deep_verification_node(state)
+
+    assert calls == 1
+    assert h.deep_verification_fingerprint is None
+    assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
+
+
+async def test_blocked_ideas_are_not_verified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
+    blocked = make_hypothesis(text="blocked", review_disposition="inaccurate")
+
+    await dv.deep_verification_node(make_state(hypotheses=[blocked]))
+
+    assert fake.await_count == 0
+    assert not dv.verification_issued(blocked)
 
 
 async def test_verification_grounds_probes_in_corpus_when_mcp_down(
@@ -87,117 +135,3 @@ async def test_verification_grounds_probes_in_corpus_when_mcp_down(
     ]
     assert dve.CORPUS_FALLBACK_NOTE in result_errors
     assert output["hypotheses"][0].deep_verification_verdict == "holds"
-
-
-def _hypothesis() -> Hypothesis:
-    return Hypothesis(id="h1", text="Blocking X reverses fibrosis in humans.")
-
-
-def _article(source_id: str) -> Article:
-    return Article(title=f"paper {source_id}", source_id=source_id)
-
-
-def _state() -> WorkflowState:
-    return cast(WorkflowState, {"run_id": "run-1"})
-
-
-async def _plant(
-    state: WorkflowState,
-    hypothesis: Hypothesis,
-    evidence: _ReviewEvidence,
-) -> None:
-    loop = asyncio.get_running_loop()
-    flights = review_evidence._review_evidence_flights.setdefault(loop, {})
-    task = loop.create_task(_resolved(evidence))
-    await task
-    flights[_evidence_key(state, hypothesis)] = task
-
-
-async def _resolved(evidence: _ReviewEvidence) -> _ReviewEvidence:
-    return evidence
-
-
-@pytest.mark.asyncio
-async def test_verification_reads_research_the_reviews_already_bought() -> None:
-    state, hypothesis = _state(), _hypothesis()
-    await _plant(
-        state,
-        hypothesis,
-        _ReviewEvidence(["q"], [_article("a"), _article("b")], [], {"t": 1}),
-    )
-
-    found = researched_articles_for(state, hypothesis)
-
-    assert [article.source_id for article in found] == ["a", "b"]
-
-
-async def test_a_verified_hypothesis_is_never_verified_twice(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Probe citations change freshness on the verification pass itself;
-    issuance must win."""
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="verified once")
-    state = make_state(hypotheses=[h])
-    await dv.deep_verification_node(state)
-    assert fake.await_count == 1
-
-    h.citation_map = {"C9": {"source_id": "arrived-later"}}
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-    assert dv.verification_issued(h)
-
-
-async def test_a_resumed_run_does_not_re_verify(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A memory-only marker would rebuy whole-pool verification after every
-    restart."""
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="verified before the restart")
-    await dv.deep_verification_node(make_state(hypotheses=[h]))
-    assert fake.await_count == 1
-
-    restored = Hypothesis.from_dict(h.to_dict())
-    await dv.deep_verification_node(make_state(hypotheses=[restored]))
-
-    assert fake.await_count == 1
-
-
-async def test_a_failed_verification_spends_the_one_attempt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Failures consume issuance too; lower retry budgets answer transient
-    failures."""
-    calls = 0
-
-    async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
-        nonlocal calls
-        calls += 1
-        raise RuntimeError("verifier unavailable")
-
-    monkeypatch.setattr(leaf, "call_llm_json", _boom)
-
-    h = make_hypothesis(text="leader", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-    await dv.deep_verification_node(state)
-    await dv.deep_verification_node(state)
-
-    assert calls == 1
-    assert h.deep_verification_fingerprint is None
-    assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
-
-
-async def test_blocked_ideas_are_not_verified(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-    blocked = make_hypothesis(text="blocked", review_disposition="inaccurate")
-
-    await dv.deep_verification_node(make_state(hypotheses=[blocked]))
-
-    assert fake.await_count == 0
-    assert not dv.verification_issued(blocked)

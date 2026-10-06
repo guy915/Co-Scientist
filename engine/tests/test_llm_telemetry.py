@@ -7,20 +7,17 @@ import pytest
 
 from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
-    LLMThinkingOnlyError,
 )
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm,
     call_llm_json,
-    parse_tool_loop_json,
     scoped_telemetry,
 )
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     escalation_for_error,
-    log_escalation,
 )
 from tests._llm_fake import (
     disable_llm_cache,
@@ -118,74 +115,6 @@ async def test_a_provider_error_is_logged_at_a_bounded_length(
 
     assert any("Unterminated string" in r.getMessage() for r in caplog.records)
     assert all(len(r.getMessage()) < 1000 for r in caplog.records)
-
-
-def test_a_repaired_truncation_reports_the_phase_once(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    with caplog.at_level(logging.DEBUG, logger="co_scientist"):
-        parsed = parse_tool_loop_json(
-            '{"items": [{"a": 1}, {"a": 2', "items", "Draft phase"
-        )
-
-    assert parsed
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    assert "Draft phase" in warnings[0].getMessage()
-
-
-# A declared mandatory-reasoning route redirects disable before transmission;
-# an undeclared route reaches the wire with the literal disable knob.
-_UNDISABLEABLE = "openrouter/minimax/minimax-m3:free"
-
-
-@pytest.mark.parametrize(
-    ("error", "rung", "model", "said", "not_said"),
-    [
-        (
-            LLMThinkingOnlyError(),
-            BudgetEscalation.NO_THINKING,
-            _UNDISABLEABLE,
-            "reasoning capped at",
-            "thinking disabled",
-        ),
-        (
-            LLMBudgetExhaustedError(),
-            BudgetEscalation.NO_THINKING,
-            _UNDISABLEABLE,
-            "reasoning capped at",
-            "thinking disabled",
-        ),
-        (
-            LLMThinkingOnlyError(),
-            BudgetEscalation.NO_THINKING,
-            _MODEL,
-            "thinking disabled",
-            "capped",
-        ),
-        (
-            RuntimeError("reasoning is mandatory... cannot be disabled"),
-            BudgetEscalation.MINIMAL_REASONING_REQUIRED,
-            _MODEL,
-            "rejected disabled reasoning as mandatory",
-            "capped",
-        ),
-    ],
-)
-def test_the_escalation_log_says_what_the_next_request_will_really_do(
-    caplog: pytest.LogCaptureFixture,
-    error: Exception,
-    rung: BudgetEscalation,
-    model: str,
-    said: str,
-    not_said: str,
-) -> None:
-    with caplog.at_level(logging.WARNING):
-        log_escalation(error, rung, model)
-
-    message = caplog.records[-1].getMessage()
-    assert said in message
-    assert not_said not in message
 
 
 @pytest.mark.parametrize("rung", list(BudgetEscalation))

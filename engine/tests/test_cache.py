@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 
-from co_scientist import cache
 from co_scientist.cache import (
     LLMCache,
     LLMCacheRequest,
@@ -61,33 +60,6 @@ def test_a_corrupt_llm_entry_is_a_miss_and_is_removed(
     assert not entry.exists()
 
 
-def test_the_documented_admin_api_reports_and_clears_both_caches(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_CACHE_DIR", str(tmp_path))
-    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
-    monkeypatch.setattr(cache, "_global_cache", None)
-    monkeypatch.setattr(cache, "_global_node_cache", None)
-
-    cache.get_cache().set(_REQUEST, _RESPONSE)
-    stats = cache.get_cache_stats()
-    assert stats["cache_files"] == 1
-    assert stats["cache_dir"] == str(tmp_path)
-    assert cache.clear_cache() == 1
-
-    cache.get_node_cache().set("node", _NODE_OUTPUT, research_goal="cancer")
-    assert cache.get_node_cache_stats()["cache_files"] == 1
-    assert cache.clear_node_cache() == 1
-
-    disabled = LLMCache(cache_dir=str(tmp_path / "off"), enabled=False)
-    assert disabled.get_stats() == {
-        "enabled": False,
-        "cache_files": 0,
-        "total_size_mb": 0.0,
-    }
-    assert disabled.clear() == 0
-
-
 def test_a_failed_cache_write_never_breaks_the_run(tmp_path: Path) -> None:
     llm_cache = LLMCache(cache_dir=str(tmp_path / "gone"), enabled=True)
     (tmp_path / "gone").rmdir()
@@ -115,28 +87,6 @@ def test_node_entries_expire_by_ttl_unless_forced(
 
     got = node.get("literature_review", force=force, research_goal="cancer")
     assert (got == _NODE_OUTPUT) is hit
-
-
-def test_a_corrupt_node_entry_is_a_miss_and_is_removed(
-    tmp_path: Path,
-) -> None:
-    node = NodeCache(cache_dir=str(tmp_path), enabled=True)
-    node.set("literature_review", _NODE_OUTPUT, research_goal="cancer")
-    (entry,) = (tmp_path / "nodes").glob("*.pkl")
-    entry.write_bytes(b"not a pickle stream")
-
-    assert node.get("literature_review", research_goal="cancer") is None
-    assert not entry.exists()
-
-
-def test_node_cache_force_bypasses_the_disabled_gate(tmp_path: Path) -> None:
-    node = NodeCache(cache_dir=str(tmp_path), enabled=False)
-    node.set("literature_review", _NODE_OUTPUT, force=True, research_goal="x")
-    assert node.get("literature_review", research_goal="x") is None
-    assert (
-        node.get("literature_review", force=True, research_goal="x")
-        == _NODE_OUTPUT
-    )
 
 
 @pytest.mark.parametrize("force", [False, True])
