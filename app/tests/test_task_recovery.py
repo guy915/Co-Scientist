@@ -151,12 +151,28 @@ def _expire_lease(task_id: str, db_path: str) -> None:
         conn.commit()
 
 
-def test_snapshot_empty_when_no_active_runs(isolated_db: str) -> None:
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-    assert snapshot == QueueHealthSnapshot((), 0, 0, 0)
+def _snapshot_with_lease(
+    db_path: str, *, max_attempts: int = 3, expired: bool = False
+) -> tuple[str, QueueHealthSnapshot]:
+    run_id = _health_running_run(db_path)
+    task_id = _health_enqueue(
+        run_id, "leased", db_path, max_attempts=max_attempts
+    )
+    leased = store.claim_task("w1", run_id=run_id, db_path=db_path)
+    assert leased is not None and leased.id == task_id
+    if expired:
+        _expire_lease(task_id, db_path)
+    return run_id, queue_health_snapshot(db_path=db_path)
 
 
-def test_queued_task_is_not_stalled(isolated_db: str) -> None:
+def test_snapshot_without_active_work_has_nothing_stalled(
+    isolated_db: str,
+) -> None:
+    assert queue_health_snapshot(db_path=isolated_db) == QueueHealthSnapshot(
+        (), 0, 0, 0
+    )
+    done = seed_run("done goal")
+    runs.update_run_status(done.id, RunStatus.COMPLETED, db_path=isolated_db)
     run_id = _health_running_run(isolated_db)
     _health_enqueue(run_id, "queued", isolated_db)
 
@@ -166,54 +182,26 @@ def test_queued_task_is_not_stalled(isolated_db: str) -> None:
     assert snapshot.queued_depth == 1
 
 
-def test_active_lease_is_not_stalled(isolated_db: str) -> None:
-    run_id = _health_running_run(isolated_db)
-    task_id = _health_enqueue(run_id, "leased", isolated_db)
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == task_id
+def test_active_and_rescuable_leases_are_not_stalled(isolated_db: str) -> None:
+    _, active = _snapshot_with_lease(isolated_db)
+    assert active.stalled_run_ids == ()
 
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-
-    assert snapshot.stalled_run_ids == ()
-
-
-def test_rescuable_expired_lease_is_not_stalled(isolated_db: str) -> None:
-    run_id = _health_running_run(isolated_db)
-    task_id = _health_enqueue(run_id, "rescuable", isolated_db, max_attempts=3)
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == task_id
-    _expire_lease(task_id, isolated_db)
-
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-
-    assert snapshot.stalled_run_ids == ()
-    assert snapshot.rescuable_leases == 1
+    _, rescuable = _snapshot_with_lease(isolated_db, expired=True)
+    assert rescuable.stalled_run_ids == ()
+    assert rescuable.rescuable_leases == 1
 
 
 def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
     # A dead exhausted lease has no owner to fail it; health must expose the
     # stranded running state.
-    run_id = _health_running_run(isolated_db)
-    task_id = _health_enqueue(run_id, "orphaned", isolated_db, max_attempts=1)
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == task_id
-    _expire_lease(task_id, isolated_db)
-
-    snapshot = queue_health_snapshot(db_path=isolated_db)
+    run_id, snapshot = _snapshot_with_lease(
+        isolated_db, max_attempts=1, expired=True
+    )
 
     assert snapshot.stalled_run_ids == (run_id,)
     assert snapshot.rescuable_leases == 0
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "running"
-
-
-def test_completed_run_is_excluded(isolated_db: str) -> None:
-    run = seed_run("done goal")
-    runs.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
-
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-
-    assert snapshot.stalled_run_ids == ()
 
 
 def test_failed_task_counted_without_stalling_active_sibling(
@@ -234,129 +222,80 @@ def test_failed_task_counted_without_stalling_active_sibling(
     assert snapshot.stalled_run_ids == ()
 
 
-def test_check_queue_ok_with_no_active_runs(isolated_db: str) -> None:
-    result = diagnostics.check_queue(isolated_db)
-    assert result.ok is True
-    assert result.detail is None
-
-
-def test_check_queue_flags_stalled_run(isolated_db: str) -> None:
-    run_id = _health_running_run(isolated_db)
-    task_id = _health_enqueue(run_id, "orphaned", isolated_db, max_attempts=1)
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == task_id
-    _expire_lease(task_id, isolated_db)
-
-    result = diagnostics.check_queue(isolated_db)
-
-    assert result.ok is False
-    assert result.detail is not None and run_id in result.detail
-
-
-def test_check_queue_reports_error_on_exception(
-    monkeypatch: pytest.MonkeyPatch,
+def test_check_queue_flags_a_stalled_run_and_reports_errors(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    assert diagnostics.check_queue(isolated_db) == HealthCheck(ok=True)
+    run_id, _ = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
+
+    stalled = diagnostics.check_queue(isolated_db)
+
+    assert stalled.ok is False
+    assert stalled.detail is not None and run_id in stalled.detail
+
     def _boom(db_path: str | None = None) -> QueueHealthSnapshot:
         raise RuntimeError("db unreachable")
 
     monkeypatch.setattr(diagnostics, "queue_health_snapshot", _boom)
-
-    result = diagnostics.check_queue()
-
-    assert result.ok is False
-    assert result.detail is not None and "db unreachable" in result.detail
+    failed = diagnostics.check_queue()
+    assert failed.ok is False
+    assert failed.detail is not None and "db unreachable" in failed.detail
 
 
-def test_check_disk_ok_when_space_available(tmp_path: object) -> None:
-    result = diagnostics.check_disk(
-        str(tmp_path) + "/db.sqlite", min_free_bytes=0
-    )
-    assert result.ok is True
+def test_check_disk_flags_only_space_below_the_floor(tmp_path: Any) -> None:
+    path = str(tmp_path / "db.sqlite")
+
+    assert diagnostics.check_disk(path, min_free_bytes=0).ok is True
+    low = diagnostics.check_disk(path, min_free_bytes=10**18)
+    assert low.ok is False
+    assert low.detail is not None and "floor" in low.detail
 
 
-def test_check_disk_flags_low_free_space(tmp_path: object) -> None:
-    huge_floor = 10**18
-    result = diagnostics.check_disk(
-        str(tmp_path) + "/db.sqlite", min_free_bytes=huge_floor
-    )
-    assert result.ok is False
-    assert result.detail is not None and "floor" in result.detail
-
-
-def test_derive_overall_health_degrades_never_unhealthy_on_queue_or_disk() -> (
-    None
-):
-    status = diagnostics.derive_overall_health(
-        HealthCheck(ok=True),
-        HealthCheck(ok=True),
-        HealthCheck(ok=False, detail="stalled"),
-        HealthCheck(ok=False, detail="low disk"),
-    )
-    assert status == diagnostics.DEGRADED
-
-
-def test_derive_overall_health_unhealthy_when_store_down_regardless() -> None:
-    status = diagnostics.derive_overall_health(
-        HealthCheck(ok=False, detail="boom"),
-        HealthCheck(ok=True),
-        HealthCheck(ok=True),
-        HealthCheck(ok=True),
-    )
-    assert status == diagnostics.UNHEALTHY
-
-
-def test_queue_and_disk_health_cache_reuses_within_ttl(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("store_ok", "queue_ok", "disk_ok", "status"),
+    [
+        (True, False, False, diagnostics.DEGRADED),
+        (False, True, True, diagnostics.UNHEALTHY),
+    ],
+)
+def test_queue_and_disk_degrade_health_but_a_down_store_is_unhealthy(
+    store_ok: bool, queue_ok: bool, disk_ok: bool, status: str
 ) -> None:
-    calls: list[int] = []
+    assert (
+        diagnostics.derive_overall_health(
+            HealthCheck(ok=store_ok),
+            HealthCheck(ok=True),
+            HealthCheck(ok=queue_ok),
+            HealthCheck(ok=disk_ok),
+        )
+        == status
+    )
+
+
+@pytest.mark.parametrize(("ttl", "calls"), [(60.0, 1), (0.0, 2)])
+def test_queue_and_disk_health_cache_honours_its_ttl(
+    monkeypatch: pytest.MonkeyPatch, ttl: float, calls: int
+) -> None:
+    seen: list[int] = []
 
     def _stub_queue(db_path: str | None = None) -> HealthCheck:
-        calls.append(1)
+        seen.append(1)
         return HealthCheck(ok=True)
 
     monkeypatch.setattr(diagnostics, "check_queue", _stub_queue)
     monkeypatch.setattr(
         diagnostics, "check_disk", lambda db_path=None: HealthCheck(ok=True)
     )
-    monkeypatch.setattr(settings, "health_check_cache_ttl_seconds", 60.0)
+    monkeypatch.setattr(settings, "health_check_cache_ttl_seconds", ttl)
     diagnostics.clear_health_check_cache()
 
     diagnostics.queue_and_disk_health_cached()
     diagnostics.queue_and_disk_health_cached()
 
-    assert len(calls) == 1
+    assert len(seen) == calls
 
 
-def test_queue_and_disk_health_cache_expires_after_ttl(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[int] = []
-
-    def _stub_queue(db_path: str | None = None) -> HealthCheck:
-        calls.append(1)
-        return HealthCheck(ok=True)
-
-    monkeypatch.setattr(diagnostics, "check_queue", _stub_queue)
-    monkeypatch.setattr(
-        diagnostics, "check_disk", lambda db_path=None: HealthCheck(ok=True)
-    )
-    monkeypatch.setattr(settings, "health_check_cache_ttl_seconds", 0.0)
-    diagnostics.clear_health_check_cache()
-
-    diagnostics.queue_and_disk_health_cached()
-    diagnostics.queue_and_disk_health_cached()
-
-    assert len(calls) == 2
-
-
-def test_health_reports_all_four_checks() -> None:
-    data = _client().get("/health").json()
-    assert set(data["checks"]) == {"store", "engine", "queue", "disk"}
-
-
-def test_health_healthy_with_a_busy_but_progressing_run(
-    isolated_db: str,
-) -> None:
+def test_health_is_healthy_while_a_run_progresses(isolated_db: str) -> None:
     run_id = _health_running_run(isolated_db)
     _health_enqueue(run_id, "queued", isolated_db)
 
@@ -364,16 +303,13 @@ def test_health_healthy_with_a_busy_but_progressing_run(
 
     assert res.status_code == 200
     assert res.json()["status"] == "healthy"
+    assert set(res.json()["checks"]) == {"store", "engine", "queue", "disk"}
 
 
 def test_health_degrades_at_200_when_a_run_is_stalled(
     isolated_db: str,
 ) -> None:
-    run_id = _health_running_run(isolated_db)
-    task_id = _health_enqueue(run_id, "orphaned", isolated_db, max_attempts=1)
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == task_id
-    _expire_lease(task_id, isolated_db)
+    run_id, _ = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
 
     res = _client().get("/health")
 
@@ -444,31 +380,6 @@ def test_lease_renewal_does_not_move_recorded_start_time(
     assert saved.attempts[0]["started_at"] == claim_time
 
 
-def test_two_failures_record_distinct_attempts_in_order(
-    isolated_db: str,
-) -> None:
-    run_id = _history_running_run(isolated_db)
-    task_id = _history_enqueue(run_id, "k", isolated_db, max_attempts=3)
-
-    first = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert first is not None
-    assert store.fail_task(first.id, "w1", "first failure", db_path=isolated_db)
-
-    second = store.claim_task("w2", run_id=run_id, db_path=isolated_db)
-    assert second is not None
-    assert store.fail_task(
-        second.id, "w2", "second failure", db_path=isolated_db
-    )
-
-    saved = store.get_task(task_id, db_path=isolated_db)
-    assert saved is not None
-    assert [a["error"] for a in saved.attempts] == [
-        "first failure",
-        "second failure",
-    ]
-    assert [a["attempt"] for a in saved.attempts] == [1, 2]
-
-
 def test_attempts_history_is_capped(isolated_db: str) -> None:
     run_id = _history_running_run(isolated_db)
     over_cap = store_tasks_attempts._MAX_STORED_ATTEMPTS + 3
@@ -489,6 +400,9 @@ def test_attempts_history_is_capped(isolated_db: str) -> None:
     assert saved.attempts[-1]["error"] == f"failure {over_cap - 1}"
     first_kept = over_cap - store_tasks_attempts._MAX_STORED_ATTEMPTS
     assert saved.attempts[0]["error"] == f"failure {first_kept}"
+    assert [a["attempt"] for a in saved.attempts] == list(
+        range(first_kept + 1, over_cap + 1)
+    )
 
 
 def test_failed_attempt_write_is_transactional_with_settlement(
@@ -535,49 +449,29 @@ def test_tasks_endpoint_returns_attempt_history(isolated_db: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_owned_run_api_retains_typed_budget_failure_after_reopen(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-
-    async def _over_budget(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        raise LLMCallBudgetExceededError(count=251, ceiling=250)
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _over_budget)
-
-    with make_client() as client:
-        created = _create_run(client, "typed failure goal")
-        run_id = created.json()["id"]
-        assert (
-            client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
-        )
-        assert await task_worker.run_once("worker", db_path=isolated_db)
-
-    with make_client() as reopened:
-        response = reopened.get(f"/api/runs/{run_id}")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "failed"
-    assert body["failure_kind"] == "llm_call_budget_exceeded"
-    assert "251 provider requests against a budget of 250" in body["error"]
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("error", "expected_kind", "expected_message"),
+    ("error", "attempts", "expected_kind", "expected_message"),
     [
-        (
+        pytest.param(
+            LLMCallBudgetExceededError(count=251, ceiling=250),
+            1,
+            "llm_call_budget_exceeded",
+            "251 provider requests against a budget of 250",
+            id="budget",
+        ),
+        pytest.param(
             LLMTimeoutError("provider timed out"),
+            1,
             "llm_timeout_unknown",
             UNKNOWN_PROVIDER_OUTCOME_ERROR,
+            id="timeout",
         ),
-        (
+        pytest.param(
             RuntimeError("LLM-call ceiling exceeded: 251 provider requests"),
+            3,
             None,
             "LLM-call ceiling exceeded: 251 provider requests",
+            id="near-miss-is-unclassified",
         ),
     ],
 )
@@ -585,6 +479,7 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     error: Exception,
+    attempts: int,
     expected_kind: str | None,
     expected_message: str,
 ) -> None:
@@ -600,13 +495,11 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
     )
 
     with make_client() as client:
-        created = _create_run(client, "typed timeout goal")
+        created = _create_run(client, "typed failure goal")
         run_id = created.json()["id"]
         assert (
             client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
         )
-
-        attempts = 1 if isinstance(error, LLMTimeoutError) else 3
         for _ in range(attempts):
             assert await task_worker.run_once("worker", db_path=isolated_db)
 
@@ -708,80 +601,6 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
-
-    async def _echo_key(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        raise LLMTimeoutError(f"provider echoed {_BYOK_KEY}; {_DIAGNOSTIC}")
-
-    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _echo_key)
-
-    with make_client() as client:
-        created = _create_run(client, "synthetic failure goal")
-        assert created.status_code == 200
-        run_id = created.json()["id"]
-        credentials.store_run_credential(
-            run_id,
-            DEFAULT_TEST_CLIENT_ID,
-            credentials.ByokCredential(
-                provider="deepseek",
-                api_key=_BYOK_KEY,
-                model="deepseek/deepseek-v4-flash",
-            ),
-            db_path=isolated_db,
-        )
-        assert (
-            client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
-        )
-
-        assert await task_worker.run_once(
-            "synthetic-worker", db_path=isolated_db
-        )
-        assert not await task_worker.run_once(
-            "synthetic-worker", db_path=isolated_db
-        )
-
-    with make_client() as reopened:
-        run = reopened.get(f"/api/runs/{run_id}")
-        tasks = reopened.get(f"/api/runs/{run_id}/tasks")
-        events = reopened.get(f"/api/runs/{run_id}/events")
-        logs = reopened.get(
-            f"/api/runs/{run_id}/logs", params={"verbose": True}
-        )
-
-    assert (
-        run.status_code
-        == tasks.status_code
-        == events.status_code
-        == logs.status_code
-        == 200
-    )
-    run_body = run.json()
-    task_rows = tasks.json()["tasks"]
-    replayed_events = _redaction_parse_sse(events.text)
-    serialized = json.dumps(
-        [run_body, task_rows, replayed_events, logs.json()], sort_keys=True
-    )
-    assert run_body["status"] == "failed"
-    assert run_body["failure_kind"] == "llm_timeout_unknown"
-    assert _BYOK_KEY not in serialized
-    assert "[REDACTED]" in serialized
-    assert _DIAGNOSTIC in serialized
-    assert task_rows[-1]["status"] == "failed"
-    assert len(task_rows[-1]["attempts"]) == 1
-    assert replayed_events[-1]["type"] == "_terminal"
-    assert any(
-        row.get("exc_text") and _DIAGNOSTIC in row["exc_text"]
-        for row in logs.json()["logs"]
-    )
-
-
-@pytest.mark.asyncio
-async def test_required_auth_owner_can_reopen_redacted_failure_replay(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
     monkeypatch.setattr(settings, "auth_mode", "required")
     monkeypatch.setattr(settings, "auth_secret", "synthetic-test-signing-key")
     monkeypatch.setattr(
@@ -798,21 +617,16 @@ async def test_required_auth_owner_can_reopen_redacted_failure_replay(
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _echo_key)
 
     with make_client() as client:
-        owner_session = client.post(
-            "/api/auth/exchange", json={"access_code": "owner-invite"}
-        )
-        other_session = client.post(
-            "/api/auth/exchange", json={"access_code": "other-invite"}
-        )
-        assert owner_session.status_code == other_session.status_code == 200
-        owner_headers = {
-            "Authorization": f"Bearer {owner_session.json()['access_token']}"
+        sessions = {
+            name: client.post(
+                "/api/auth/exchange", json={"access_code": f"{name}-invite"}
+            ).json()["access_token"]
+            for name in ("owner", "other")
         }
-        other_headers = {
-            "Authorization": f"Bearer {other_session.json()['access_token']}"
-        }
+        owner = {"Authorization": f"Bearer {sessions['owner']}"}
+        other = {"Authorization": f"Bearer {sessions['other']}"}
         created = _create_run(
-            client, "authenticated synthetic failure", headers=owner_headers
+            client, "authenticated synthetic failure", headers=owner
         )
         assert created.status_code == 200
         run_id = created.json()["id"]
@@ -826,35 +640,45 @@ async def test_required_auth_owner_can_reopen_redacted_failure_replay(
             ),
             db_path=isolated_db,
         )
-        assert (
-            client.post(
-                f"/api/runs/{run_id}/start", headers=owner_headers, json={}
-            ).status_code
-            == 200
+        started = client.post(
+            f"/api/runs/{run_id}/start", headers=owner, json={}
         )
+        assert started.status_code == 200
         assert await task_worker.run_once(
+            "synthetic-worker", db_path=isolated_db
+        )
+        assert not await task_worker.run_once(
             "synthetic-worker", db_path=isolated_db
         )
 
     with make_client() as reopened:
-        owner_run = reopened.get(f"/api/runs/{run_id}", headers=owner_headers)
-        owner_events = reopened.get(
-            f"/api/runs/{run_id}/events", headers=owner_headers
-        )
-        owner_logs = reopened.get(
+        run = reopened.get(f"/api/runs/{run_id}", headers=owner)
+        task_rows = reopened.get(f"/api/runs/{run_id}/tasks", headers=owner)
+        events = reopened.get(f"/api/runs/{run_id}/events", headers=owner)
+        logs = reopened.get(
             f"/api/runs/{run_id}/logs",
-            headers=owner_headers,
+            headers=owner,
             params={"verbose": True},
         )
-        other_run = reopened.get(f"/api/runs/{run_id}", headers=other_headers)
-        other_events = reopened.get(
-            f"/api/runs/{run_id}/events", headers=other_headers
-        )
+        other_run = reopened.get(f"/api/runs/{run_id}", headers=other)
+        other_events = reopened.get(f"/api/runs/{run_id}/events", headers=other)
 
-    assert owner_run.status_code == owner_events.status_code == 200
-    assert owner_logs.status_code == 200
+    assert run.status_code == task_rows.status_code == 200
+    assert events.status_code == logs.status_code == 200
     assert other_run.status_code == other_events.status_code == 404
-    replayed = _redaction_parse_sse(owner_events.text)
+    run_body = run.json()
+    rows = task_rows.json()["tasks"]
+    replayed = _redaction_parse_sse(events.text)
+    owned_output = json.dumps(
+        [run_body, rows, replayed, logs.json()], sort_keys=True
+    )
+    assert run_body["status"] == "failed"
+    assert run_body["failure_kind"] == "llm_timeout_unknown"
+    assert _BYOK_KEY not in owned_output
+    assert "[REDACTED]" in owned_output
+    assert _DIAGNOSTIC in owned_output
+    assert rows[-1]["status"] == "failed" and len(rows[-1]["attempts"]) == 1
+    assert replayed[-1]["type"] == "_terminal"
     failed = [
         event
         for event in replayed
@@ -862,12 +686,10 @@ async def test_required_auth_owner_can_reopen_redacted_failure_replay(
         and event.get("payload", {}).get("status") == "failed"
     ]
     assert len(failed) == 1
-    owned_output = json.dumps(
-        [owner_run.json(), replayed, owner_logs.json()], sort_keys=True
+    assert any(
+        row.get("exc_text") and _DIAGNOSTIC in row["exc_text"]
+        for row in logs.json()["logs"]
     )
-    assert "[REDACTED]" in owned_output
-    assert _BYOK_KEY not in owned_output
-    assert _DIAGNOSTIC in owned_output
 
 
 # Settle runs transactionally when their last claimable task fails, or SSE never
@@ -923,59 +745,20 @@ def test_exhausted_retry_budget_settles_run(isolated_db: str) -> None:
     assert "provider timeout again" in failed_events[0]["payload"]["error"]
 
 
-def test_permanent_failure_settles_run(isolated_db: str) -> None:
-    run_id = _settlement_running_run(isolated_db)
-    task_id = _history_enqueue(
-        run_id, "unsupported", isolated_db, max_attempts=3
-    )
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == task_id
-
-    assert store.fail_task(
-        leased.id,
-        "w1",
-        "unsupported task type: nope",
-        retryable=False,
-        db_path=isolated_db,
-    )
-
-    saved = store.get_task(task_id, db_path=isolated_db)
-    assert saved is not None and saved.status == "failed"
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None
-    assert run.status == "failed"
-    assert run.error is not None
-    assert "unsupported task type" in run.error
-    assert len(_failed_status_events(run_id, isolated_db)) == 1
-
-
-def test_claimable_sibling_task_blocks_settlement(isolated_db: str) -> None:
+@pytest.mark.parametrize("sibling_leased", [False, True])
+def test_a_live_sibling_task_blocks_settlement(
+    isolated_db: str, sibling_leased: bool
+) -> None:
     run_id = _settlement_running_run(isolated_db)
     doomed = _history_enqueue(run_id, "doomed", isolated_db, max_attempts=1)
-    _history_enqueue(run_id, "survivor", isolated_db, max_attempts=1)
+    _history_enqueue(run_id, "sibling", isolated_db, max_attempts=1)
     leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
     assert leased is not None and leased.id == doomed
+    if sibling_leased:
+        assert store.claim_task("w2", run_id=run_id, db_path=isolated_db)
 
     assert store.fail_task(
         leased.id, "w1", "boom", retryable=False, db_path=isolated_db
-    )
-
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "running"
-    assert _failed_status_events(run_id, isolated_db) == []
-
-
-def test_active_sibling_lease_blocks_settlement(isolated_db: str) -> None:
-    run_id = _settlement_running_run(isolated_db)
-    doomed = _history_enqueue(run_id, "doomed", isolated_db, max_attempts=1)
-    sibling = _history_enqueue(run_id, "sibling", isolated_db, max_attempts=1)
-    leased_doomed = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    leased_sibling = store.claim_task("w2", run_id=run_id, db_path=isolated_db)
-    assert leased_doomed is not None and leased_doomed.id == doomed
-    assert leased_sibling is not None and leased_sibling.id == sibling
-
-    assert store.fail_task(
-        leased_doomed.id, "w1", "boom", retryable=False, db_path=isolated_db
     )
 
     run = runs.get_run(run_id, db_path=isolated_db)
@@ -1078,57 +861,23 @@ async def test_cohort_settles_run_when_budget_exhausts(
 
 
 @pytest.mark.asyncio
-async def test_unsupported_task_type_settles_run(isolated_db: str) -> None:
+async def test_unsupported_task_type_fails_permanently_and_settles_run(
+    isolated_db: str,
+) -> None:
     run_id = _settlement_running_run(isolated_db)
-    enqueue_task(run_id, "unknown.task", "unknown", db_path=isolated_db)
+    task = enqueue_task(
+        run_id, "unknown.task", "unknown", max_attempts=3, db_path=isolated_db
+    )
 
     assert await task_worker.run_once("w1", db_path=isolated_db)
 
+    failed = store.get_task(task.id, db_path=isolated_db)
+    assert failed is not None and failed.status == "failed"
+    assert failed.attempt < failed.max_attempts, (
+        "an unknown type is not retried"
+    )
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
     assert "unsupported task type" in (run.error or "")
     assert len(_failed_status_events(run_id, isolated_db)) == 1
-
-
-@pytest.mark.asyncio
-async def test_failed_run_settles_through_api_and_sse(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-
-    async def _always_fail(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        raise RuntimeError("provider exploded")
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _always_fail)
-
-    with make_client() as client:
-        created = _create_run(client, "doomed goal")
-        run_id = created.json()["id"]
-        started = client.post(f"/api/runs/{run_id}/start", json={})
-        assert started.status_code == 200
-
-        for _ in range(3):
-            assert await task_worker.run_once("w", db_path=isolated_db)
-        assert not await task_worker.run_once("w", db_path=isolated_db)
-
-        body = client.get(f"/api/runs/{run_id}").json()
-        assert body["status"] == "failed"
-        assert "provider exploded" in body["error"]
-
-        frames = _redaction_parse_sse(
-            client.get(f"/api/runs/{run_id}/events").text
-        )
-
-    assert frames[-1]["type"] == "_terminal"
-    assert frames[-1]["payload"]["status"] == "failed"
-    failed = [
-        frame
-        for frame in frames
-        if frame["type"] == "status"
-        and (frame.get("payload") or {}).get("status") == "failed"
-    ]
-    assert len(failed) == 1
-    assert "provider exploded" in failed[0]["payload"]["error"]

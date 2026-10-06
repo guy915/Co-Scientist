@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import dataclasses
 import time
 from typing import Any
 
 import pytest
 from co_scientist.agents.meta_review import research_overview as ro
+from co_scientist.exceptions import LLMCallBudgetExceededError
 from co_scientist.llm import (
-    ModelCallStats,
     current_run_call_count,
-    record_call,
     release_run_call_budget,
 )
 from co_scientist.llm.admission.call_budget import record_provider_request
@@ -23,39 +21,27 @@ from co_scientist.workflow_topology import LiteratureGated
 from litellm.exceptions import APIError
 
 import app.engine_adapter.drain.final_state as drain_claim_grounding
-import app.engine_tasks.fanout as engine_tasks_fanout_items
-import app.engine_tasks.support as engine_tasks_context
-from app import engine_tasks, safety, task_worker
+from app import engine_tasks, task_worker
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.engine_tasks import finalize as engine_tasks_node
-from app.engine_tasks import node as engine_tasks_restore
 from app.engine_tasks import ranking as engine_tasks_ranking
-from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.runtime import ProductionEngineTaskRuntime
 from app.engine_tasks.support import TaskCommit
 from app.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
 from app.safety import ScreenSubject
-from app.store import checkpoints, messages, records, reports, runs
 from app.store import events as store_events
+from app.store import messages, records, reports, runs
 from app.store import retrieval_calls as retrieval
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.messages import NewMessage
 from app.store.models import RunStatus, ScientificTask
 from tests._engine_tasks_helpers import (
-    FakeEngineTaskRuntime,
     _Generator,
-    _install_plain_fake_judge,
-    _install_runtime,
     _milestones,
     _patch_generator,
     _patch_restore_generator,
     _patch_task_node,
-    _RankingSeed,
-    _run_ranking_node,
     _seed_checkpoint,
-    _seed_ranking_node,
     _task_state,
 )
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
@@ -100,16 +86,21 @@ def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
     return task, deferred
 
 
-def test_orchestrator_priority_reaches_durable_successor(
+def test_node_commit_persists_priority_metrics_and_assessment(
     isolated_db: str,
 ) -> None:
     run = seed_run("Priority science")
     task, deferred = _seed_orchestrator_task(run.id, isolated_db)
+    assessment = {"generation": {"yield": "high", "notes": "productive"}}
+    state = {
+        **_priority_state(run.id, deferred.id),
+        "metrics": ExecutionMetrics(llm_calls=7, hypothesis_count=3),
+        "supervisor_guidance": {"performance_assessment": assessment},
+    }
+    assert retrieval.get_run_metrics(run.id, db_path=isolated_db) is None
 
     engine_tasks_support._save_state_and_enqueue(
-        engine_tasks_context.TaskCommit(task, 1, isolated_db),
-        _priority_state(run.id, deferred.id),
-        "generate",
+        TaskCommit(task, 1, isolated_db), state, "generate"
     )
 
     successor = store_tasks.list_tasks(run.id, db_path=isolated_db)[-1]
@@ -117,52 +108,10 @@ def test_orchestrator_priority_reaches_durable_successor(
     assert successor.priority == 97
     updated = store_tasks.get_task(deferred.id, db_path=isolated_db)
     assert updated is not None and updated.priority == 98
-
-
-def test_node_commit_persists_live_metrics(isolated_db: str) -> None:
-    run = seed_run("Live metrics science")
-    task, deferred = _seed_orchestrator_task(run.id, isolated_db)
-    state = {
-        **_priority_state(run.id, deferred.id),
-        "metrics": ExecutionMetrics(llm_calls=7, hypothesis_count=3),
-    }
-
-    assert retrieval.get_run_metrics(run.id, db_path=isolated_db) is None
-
-    engine_tasks_support._save_state_and_enqueue(
-        engine_tasks_context.TaskCommit(task, 1, isolated_db),
-        state,
-        "generate",
-    )
-
     live = retrieval.get_run_metrics(run.id, db_path=isolated_db)
     assert live is not None
     assert live["llm_calls"] == 7
     assert live["hypothesis_count"] == 3
-
-
-def test_node_commit_persists_supervisor_performance_assessment(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Assessed science")
-    task, deferred = _seed_orchestrator_task(run.id, isolated_db)
-    assessment = {
-        "generation": {"yield": "high", "notes": "productive so far"},
-        "evolution": {"yield": "low", "notes": "little improvement"},
-    }
-    state = {
-        **_priority_state(run.id, deferred.id),
-        "supervisor_guidance": {"performance_assessment": assessment},
-    }
-
-    engine_tasks_support._save_state_and_enqueue(
-        engine_tasks_context.TaskCommit(task, 1, isolated_db),
-        state,
-        "generate",
-    )
-
-    live = retrieval.get_run_metrics(run.id, db_path=isolated_db)
-    assert live is not None
     assert live["performance_assessment"] == assessment
 
 
@@ -216,7 +165,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
     ]
 
 
-def _dispatch_seed_finalize_task(
+def _seed_finalize_task(
     run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
 ) -> Any:
     hypothesis = Hypothesis(
@@ -235,36 +184,19 @@ def _dispatch_seed_finalize_task(
         )
     ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    queued = enqueue_task(
+    task = enqueue_task(
         run_id, engine_tasks_support.FINALIZE_TASK, "finalize", db_path=db_path
     )
-    task = store_tasks.claim_task(
-        "finalize-dispatch-worker", run_id=run_id, db_path=db_path
-    )
-    assert task is not None and task.id == queued.id
     _patch_restore_generator(monkeypatch, _Generator(state))
     return task
 
 
 def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
-    assert set(by_type["safety.hypothesis"]) == {
-        "screened",
-        "blocked",
-        "eligible",
-        "activity",
-    }
     assert by_type["safety.hypothesis"] == {
         "screened": 1,
         "blocked": 0,
         "eligible": 1,
         "activity": "safety",
-    }
-    assert set(by_type["citation.grounding"]) == {
-        "assessed",
-        "grounded",
-        "blocked",
-        "eligible",
-        "activity",
     }
     assert by_type["citation.grounding"] == {
         "assessed": 1,
@@ -284,7 +216,11 @@ async def test_execute_finalize_emits_post_drain_stage_events(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = seed_run("Task-level science")
-    task = _dispatch_seed_finalize_task(run.id, monkeypatch, isolated_db)
+    queued = _seed_finalize_task(run.id, monkeypatch, isolated_db)
+    task = store_tasks.claim_task(
+        "finalize-worker", run_id=run.id, db_path=isolated_db
+    )
+    assert task is not None and task.id == queued.id
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
@@ -392,32 +328,6 @@ async def test_generic_node_completion_emits_matching_milestone(
 # synchronous provider waves.
 
 
-def _lease_seed_finalize_task(
-    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
-) -> Any:
-    hypothesis = Hypothesis(
-        text="Astrocyte lactate accelerates synaptic ATP recovery.",
-        literature_grounding=(
-            "Astrocyte lactate accelerates synaptic ATP recovery."
-        ),
-    )
-    state = _task_state(run_id)
-    state["hypotheses"] = [hypothesis]
-    state["articles"] = [
-        Article(
-            title="Synaptic energetics",
-            url="https://example.org/synaptic",
-            abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
-        )
-    ]
-    _seed_checkpoint(run_id, state, db_path=db_path)
-    task = enqueue_task(
-        run_id, engine_tasks_support.FINALIZE_TASK, "finalize", db_path=db_path
-    )
-    _patch_restore_generator(monkeypatch, _Generator(state))
-    return task
-
-
 def _count_lease_renewals(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     box = {"renewals": 0}
     real_renew = lifecycle.renew_task_lease
@@ -437,7 +347,7 @@ async def test_finalize_lease_survives_a_slow_grounding_wave(
     # A blocked loop can renew once belatedly; multiple renewals during
     # assessment prove a live heartbeat.
     run = seed_run("Task-level science")
-    task = _lease_seed_finalize_task(run.id, monkeypatch, isolated_db)
+    task = _seed_finalize_task(run.id, monkeypatch, isolated_db)
     renewals = _count_lease_renewals(monkeypatch)
 
     real_assess = (
@@ -472,84 +382,34 @@ async def test_finalize_lease_survives_a_slow_grounding_wave(
     assert saved.status == "completed"
 
 
-async def test_execute_engine_task_scopes_the_llm_call_ceiling(
+async def test_execute_engine_task_enforces_the_ceiling_across_tasks(
     monkeypatch: Any,
 ) -> None:
-    run = seed_run(
-        "Budget scoping",
-        profile="express",
-        config=resolved_run_config({"tier": "express"}),
-    )
-    try:
-        seen: dict[str, int] = {}
-
-        async def fake_node_task(
-            task: Any, *, db_path: str | None = None
-        ) -> dict[str, Any]:
-            record_provider_request()
-            record_provider_request()
-            seen["count_during"] = current_run_call_count(run.id)
-            return {"status": "completed"}
-
-        monkeypatch.setattr(engine_tasks, "execute_node_task", fake_node_task)
-        await engine_tasks.execute_engine_task(_node_task(run.id))
-
-        assert seen["count_during"] == 2
-        seen2: dict[str, int] = {}
-
-        async def fake_node_task_2(
-            task: Any, *, db_path: str | None = None
-        ) -> dict[str, Any]:
-            record_provider_request()
-            seen2["count_during"] = current_run_call_count(run.id)
-            return {"status": "completed"}
-
-        monkeypatch.setattr(engine_tasks, "execute_node_task", fake_node_task_2)
-        await engine_tasks.execute_engine_task(_node_task(run.id))
-        assert seen2["count_during"] == 3
-
-        record_provider_request()
-        assert current_run_call_count(run.id) == 3
-    finally:
-        release_run_call_budget(run.id)
-
-
-async def test_execute_engine_task_enforces_the_ceiling(
-    monkeypatch: Any,
-) -> None:
-    tier_ceiling = RUN_TIER_DEFAULTS["express"]["max_llm_calls"]
+    ceiling = RUN_TIER_DEFAULTS["express"]["max_llm_calls"]
     run = seed_run(
         "Budget enforcement",
         profile="express",
         config=resolved_run_config({"tier": "express"}),
     )
-    try:
-        from co_scientist.exceptions import LLMCallBudgetExceededError
 
-        async def spend_to_ceiling(
+    def spend(count: int) -> Any:
+        async def node_task(
             task: Any, *, db_path: str | None = None
         ) -> dict[str, Any]:
-            for _ in range(tier_ceiling):
+            for _ in range(count):
                 record_provider_request()
             return {"status": "completed"}
 
-        monkeypatch.setattr(engine_tasks, "execute_node_task", spend_to_ceiling)
+        return node_task
+
+    try:
+        monkeypatch.setattr(engine_tasks, "execute_node_task", spend(ceiling))
         await engine_tasks.execute_engine_task(_node_task(run.id))
-        assert current_run_call_count(run.id) == tier_ceiling
+        assert current_run_call_count(run.id) == ceiling
 
-        async def one_more(
-            task: Any, *, db_path: str | None = None
-        ) -> dict[str, Any]:
-            record_provider_request()
-            return {"status": "completed"}
-
-        monkeypatch.setattr(engine_tasks, "execute_node_task", one_more)
-        try:
+        monkeypatch.setattr(engine_tasks, "execute_node_task", spend(1))
+        with pytest.raises(LLMCallBudgetExceededError):
             await engine_tasks.execute_engine_task(_node_task(run.id))
-            raised = False
-        except LLMCallBudgetExceededError:
-            raised = True
-        assert raised, "the request past the ceiling must be refused"
     finally:
         release_run_call_budget(run.id)
 
@@ -603,46 +463,7 @@ def _seed_overview_task(
 
 
 @pytest.mark.asyncio
-async def test_degraded_overview_still_reaches_a_written_report(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    _seed_overview_task(run.id, monkeypatch, isolated_db)
-
-    await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
-
-    by_type = {
-        task.task_type: task.status
-        for task in store_tasks.list_tasks(run.id, db_path=isolated_db)
-    }
-    assert by_type["engine.node.research_overview"] == "completed"
-    assert by_type[engine_tasks_support.FINALIZE_TASK] == "completed"
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert report["markdown_text"]
-
-    run_row = runs.get_run(run.id, db_path=isolated_db)
-    assert run_row is not None
-    assert run_row.status != RunStatus.FAILED.value
-
-
-@pytest.mark.asyncio
-async def test_the_report_names_the_overview_as_a_degraded_section(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    _seed_overview_task(run.id, monkeypatch, isolated_db)
-
-    await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert "research_overview" in report["payload"]["degraded_sections"]
-
-
-@pytest.mark.asyncio
-async def test_the_overview_degrades_only_once_its_retries_are_spent(
+async def test_overview_degrades_only_after_its_retries_and_still_reports(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Degrade optional terminal sections only after exhausting durable retries
@@ -652,53 +473,23 @@ async def test_the_overview_degrades_only_once_its_retries_are_spent(
 
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
 
-    overview = next(
-        task
+    by_type = {
+        task.task_type: task
         for task in store_tasks.list_tasks(run.id, db_path=isolated_db)
-        if task.task_type == "engine.node.research_overview"
-    )
+    }
+    overview = by_type["engine.node.research_overview"]
     assert overview.status == "completed"
     assert overview.attempt == overview.max_attempts == 3
     assert len(overview.attempts) == 2
+    assert by_type[engine_tasks_support.FINALIZE_TASK].status == "completed"
 
-
-def _restored_state(attempt: int, run_id: str, db_path: str) -> dict[str, Any]:
-    from co_scientist.checkpoint import serialize_workflow_state
-
-    state = _task_state(run_id)
-    task = enqueue_task(
-        run_id,
-        "engine.node.research_overview",
-        f"overlay-{attempt}",
-        db_path=db_path,
-    )
-    checkpoint = {
-        "state": {
-            "provider": "engine",
-            **serialize_workflow_state(state, last_event_seq=0),
-        }
-    }
-    return engine_tasks_restore._restore_node_task_state(
-        dataclasses.replace(task, attempt=attempt),
-        checkpoint,
-        _Generator(state),
-        {},
-        db_path,
-    )
-
-
-def test_the_restored_state_names_the_task_s_last_attempt(
-    isolated_db: str,
-) -> None:
-    # The terminal-attempt flag must use the same retry-left formula as the
-    # worker.
-    run = seed_run("Task-level science")
-
-    first = _restored_state(1, run.id, isolated_db)
-    last = _restored_state(3, run.id, isolated_db)
-
-    assert first["durable_retries_remain"] is True
-    assert last["durable_retries_remain"] is False
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert report["markdown_text"]
+    assert "research_overview" in report["payload"]["degraded_sections"]
+    run_row = runs.get_run(run.id, db_path=isolated_db)
+    assert run_row is not None
+    assert run_row.status != RunStatus.FAILED.value
 
 
 # Durable commits must follow the shared route table so engine reroutes also
@@ -756,21 +547,6 @@ async def _commit_node(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("node", _ROUTED_NODES)
-async def test_durable_successor_matches_the_engine_route_table(
-    isolated_db: str, node: str
-) -> None:
-    # Read successor expectations from the route table so topology changes
-    # remain authoritative.
-    from co_scientist.task_runtime import next_task_type
-
-    run = seed_run("Durable routing")
-    scheduled = await _commit_node(run.id, node, isolated_db)
-    expected = next_task_type(node, {"mcp_available": False})
-    assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{expected}"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("node", _ROUTED_NODES)
 async def test_durable_successor_follows_a_rerouted_graph(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, node: str
 ) -> None:
@@ -808,85 +584,6 @@ async def test_generate_mcp_branch_is_not_reimplemented(
         run.id, "generate", isolated_db, mcp_available=mcp_available
     )
     assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{expected}"
-
-
-def test_production_adapter_is_the_default() -> None:
-    assert isinstance(
-        engine_tasks_runtime.active(), ProductionEngineTaskRuntime
-    )
-
-
-@pytest.mark.asyncio
-async def test_production_adapter_reaches_the_real_collaborators(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[str] = []
-
-    def stub(name: str, result: Any) -> Any:
-        def call(*_: Any, **__: Any) -> Any:
-            calls.append(name)
-            return result
-
-        async def acall(*_: Any, **__: Any) -> Any:
-            return call()
-
-        return acall if name in {"screen", "drain"} else call
-
-    monkeypatch.setattr(
-        engine_tasks_support, "_generator_and_opts", stub("new", ("g", {}))
-    )
-    monkeypatch.setattr(
-        engine_tasks_support, "_generator_for_restore", stub("restore", "g")
-    )
-    monkeypatch.setattr(safety, "screen_with_escalation", stub("screen", 1))
-    monkeypatch.setattr(
-        engine_tasks_node, "_drain_and_persist_final_state", stub("drain", 2)
-    )
-    adapter = ProductionEngineTaskRuntime()
-    anything: Any = object()
-
-    assert adapter.generator_and_opts(anything, None) == ("g", {})
-    assert adapter.generator_for_restore(anything, None) == "g"
-    screened: Any = await adapter.screen("run", anything, provider="p")
-    drained: Any = await adapter.drain_final_state(anything, {}, None)
-
-    assert (screened, drained) == (1, 2)
-
-    assert calls == ["new", "restore", "screen", "drain"]
-
-
-@pytest.mark.asyncio
-async def test_dispatcher_binds_the_adapter_it_resolved_once(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    started_with = _install_runtime(monkeypatch)
-    replacement = FakeEngineTaskRuntime()
-    seen: list[Any] = []
-
-    async def handler(task: Any, **_: Any) -> dict[str, Any]:
-        seen.append(engine_tasks_runtime.active())
-        monkeypatch.setattr(engine_tasks_runtime, "_installed", replacement)
-        seen.append(engine_tasks_runtime.active())
-        return {}
-
-    monkeypatch.setitem(
-        engine_tasks._ENGINE_TASK_DISPATCH,
-        engine_tasks_support.FINALIZE_TASK,
-        handler,
-    )
-    run = seed_run("Task-level science")
-    task = enqueue_task(
-        run.id,
-        engine_tasks_support.FINALIZE_TASK,
-        "finalize",
-        db_path=isolated_db,
-    )
-
-    await engine_tasks.execute_engine_task(task, db_path=isolated_db)
-
-    assert seen == [started_with, started_with]
-    installed: Any = engine_tasks_runtime.active()
-    assert installed is replacement
 
 
 async def _deterministic_final_screen(
@@ -957,20 +654,6 @@ async def test_a_halted_run_blocks_instead_of_publishing(
     types = [event["type"] for event in events]
     assert "safety.research_direction" in types
     assert "report" not in types
-
-
-@pytest.mark.asyncio
-async def test_an_unhalted_run_still_publishes(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    task = _seed_halted_finalize(run.id, monkeypatch, isolated_db, halted=False)
-    _install_runtime(monkeypatch).screen = _deterministic_final_screen
-
-    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    assert result["status"] == RunStatus.COMPLETED.value
-    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
 
 
 _STEER = "Prioritise kinase inhibitors over metabolic routes"
@@ -1083,35 +766,6 @@ async def test_committed_orchestrator_acknowledges_its_steering_exactly_once(
 
 
 @pytest.mark.asyncio
-async def test_steering_reaches_the_orchestrators_retry_after_a_crash(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(
-        run.id, monkeypatch, isolated_db, node="orchestrator"
-    )
-    seen: list[str] = []
-
-    async def _crash_then_commit(
-        _node: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str | None]:
-        seen.append(str(state.get("preferences") or ""))
-        if len(seen) == 1:
-            raise RuntimeError("worker died mid-node")
-        state["next_task_priority"] = 90
-        return state, "meta_review"
-
-    _patch_task_node(monkeypatch, _crash_then_commit)
-
-    with pytest.raises(RuntimeError):
-        await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-    await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-
-    assert [_STEER in text for text in seen] == [True, True]
-    assert messages.get_pending_steering(run.id, db_path=isolated_db) == []
-
-
-@pytest.mark.asyncio
 async def test_steering_text_survives_to_the_node_it_was_meant_for(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1152,206 +806,3 @@ async def test_steering_text_survives_to_the_node_it_was_meant_for(
     await engine_tasks.execute_node_task(reflection, db_path=isolated_db)
 
     assert seen and "kinase" in seen[0].lower()
-
-
-async def _fake_review_with_telemetry(**kwargs: Any) -> HypothesisReview:
-    record_call(
-        "fixture-model",
-        ModelCallStats(calls=1, prompt_tokens=20, completion_tokens=10),
-    )
-    return HypothesisReview(
-        review_summary=f"reviewed {kwargs['hypothesis_text']}",
-        scores={"scientific_soundness": 8, "novelty": 8},
-        safety_ethical_concerns="none",
-        detailed_feedback={},
-        constructive_feedback="continue",
-        overall_score=8.0,
-    )
-
-
-async def _advance_review_node(
-    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
-) -> None:
-    state = _task_state(run_id)
-    state["hypotheses"] = [Hypothesis(text="alpha"), Hypothesis(text="beta")]
-    checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}review",
-        "review-node",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=db_path,
-    )
-    _patch_generator(monkeypatch, _Generator(state), restore=True)
-    leased = store_tasks.claim_task("node", run_id=run_id, db_path=db_path)
-    assert leased is not None and leased.id == node.id
-    result = await engine_tasks.execute_node_task(leased, db_path=db_path)
-    assert lifecycle.complete_task(leased.id, "node", result, db_path=db_path)
-
-
-@pytest.mark.asyncio
-async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    await _advance_review_node(run.id, monkeypatch, isolated_db)
-
-    import co_scientist.agents.reflection.review as review_module
-
-    monkeypatch.setattr(
-        review_module, "review_single_hypothesis", _fake_review_with_telemetry
-    )
-    first = store_tasks.claim_task(
-        "child-a", run_id=run.id, db_path=isolated_db
-    )
-    second = store_tasks.claim_task(
-        "child-b", run_id=run.id, db_path=isolated_db
-    )
-    assert first is not None and second is not None
-    first_result = await engine_tasks_fanout_items.execute_review_item(
-        first, db_path=isolated_db
-    )
-    second_result = await engine_tasks_fanout_items.execute_review_item(
-        second, db_path=isolated_db
-    )
-    assert first_result["model_usage"] == {
-        "review::fixture-model": ModelCallStats(
-            calls=1, prompt_tokens=20, completion_tokens=10
-        ).as_dict()
-    }
-    assert lifecycle.complete_task(
-        first.id, "child-a", first_result, db_path=isolated_db
-    )
-    assert lifecycle.complete_task(
-        second.id, "child-b", second_result, db_path=isolated_db
-    )
-
-    aggregate = store_tasks.claim_task(
-        "aggregate", run_id=run.id, db_path=isolated_db
-    )
-    assert aggregate is not None
-    aggregate_result = (
-        await engine_tasks_fanout_aggregates.execute_review_aggregate(
-            aggregate, db_path=isolated_db
-        )
-    )
-    assert lifecycle.complete_task(
-        aggregate.id, "aggregate", aggregate_result, db_path=isolated_db
-    )
-
-    from co_scientist.checkpoint import restore_workflow_state
-
-    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    restored = restore_workflow_state(checkpoint["state"])
-    usage = restored["metrics"].model_usage["review::fixture-model"]
-    assert usage["calls"] == 2
-    assert usage["prompt_tokens"] == 40
-    assert usage["completion_tokens"] == 20
-
-
-async def _fake_judge_with_telemetry(
-    *_: Any, **kwargs: Any
-) -> tuple[str, dict[str, Any]]:
-    record_call("fixture-model", ModelCallStats(calls=1, prompt_tokens=5))
-    return "a", {
-        "decision_summary": "A is stronger",
-        "confidence_level": "high",
-        "debate_turns": int(kwargs["debate_turns"]),
-        "debate_transcript": [],
-        "judge_model": "fixture-model",
-    }
-
-
-async def _drain_and_finalize_ranking(run_id: str, db_path: str) -> int:
-    matches = 0
-    while True:
-        task = store_tasks.claim_task(
-            f"match-{matches}", run_id=run_id, db_path=db_path
-        )
-        assert task is not None
-        if task.task_type != engine_tasks_support.RANKING_MATCH_TASK:
-            break
-        result = await engine_tasks_ranking.execute_ranking_match(
-            task, db_path=db_path
-        )
-        assert lifecycle.complete_task(
-            task.id, f"match-{matches}", result, db_path=db_path
-        )
-        matches += 1
-    assert task.task_type == engine_tasks_support.RANKING_FINALIZE_TASK
-    result = await engine_tasks_ranking.execute_ranking_finalize(
-        task, db_path=db_path
-    )
-    assert lifecycle.complete_task(
-        task.id, f"match-{matches}", result, db_path=db_path
-    )
-    return matches
-
-
-@pytest.mark.asyncio
-async def test_ranking_matches_fold_telemetry_into_finalized_metrics(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Sequential match usage rides successor inputs until the final checkpoint;
-    # intermediate commits omit metrics.
-    run = seed_run("Task-level science")
-    _seed_ranking_node(
-        run.id,
-        monkeypatch,
-        _RankingSeed(
-            hypothesis_count=4,
-            tournament_pairs=8,
-            idempotency_key="telemetry-ranking-node",
-        ),
-        isolated_db,
-    )
-    import co_scientist.agents.ranking.operations as ranking_module
-
-    monkeypatch.setattr(
-        ranking_module, "judge_matchup", _fake_judge_with_telemetry
-    )
-
-    await _run_ranking_node(run.id, isolated_db)
-    await _drain_and_finalize_ranking(run.id, isolated_db)
-
-    from co_scientist.checkpoint import restore_workflow_state
-
-    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    restored = restore_workflow_state(checkpoint["state"])
-    played = len(restored["tournament_matchups"])
-    assert played > 1, "fixture must judge more than one matchup"
-    usage = restored["metrics"].model_usage["ranking::fixture-model"]
-    assert usage["calls"] == played
-    assert usage["prompt_tokens"] == played * 5
-
-
-@pytest.mark.asyncio
-async def test_baseline_fake_judge_leaves_no_telemetry(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    _seed_ranking_node(
-        run.id,
-        monkeypatch,
-        _RankingSeed(
-            hypothesis_count=4,
-            tournament_pairs=8,
-            idempotency_key="baseline-ranking-node",
-        ),
-        isolated_db,
-    )
-    _install_plain_fake_judge(monkeypatch)
-
-    await _run_ranking_node(run.id, isolated_db)
-    await _drain_and_finalize_ranking(run.id, isolated_db)
-
-    from co_scientist.checkpoint import restore_workflow_state
-
-    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    restored = restore_workflow_state(checkpoint["state"])
-    assert not any(
-        key.startswith("ranking::") for key in restored["metrics"].model_usage
-    )

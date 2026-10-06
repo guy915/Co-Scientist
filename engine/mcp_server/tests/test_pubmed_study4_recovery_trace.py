@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import json
 import os
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
@@ -12,9 +10,15 @@ from urllib.error import HTTPError
 import mcp_server.entrez as entrez_rate_limit
 import pytest
 from Bio import Entrez
-from mcp_server.tests._entrez import CannedEntrezHandle as _CannedEntrezHandle
-from mcp_server.tests._entrez import configure_trace, install_entrez
-from mcp_server.tests._entrez import pubmed_article as _pubmed_article
+from mcp_server.tests._entrez import (
+    configure_trace,
+    efetch_article,
+    elink_without_pmc,
+    esearch_ids,
+    install_entrez,
+    read_trace,
+    search,
+)
 from mcp_server.tests._httpx import _validate_study4_recovery_trace
 from mcp_server.tests.test_entrez import (
     _STUDY_ID,
@@ -22,13 +26,8 @@ from mcp_server.tests.test_entrez import (
     _trace,
     isolate_process_budget,
 )
-from mcp_server.tools.lit_review import search_pubmed as pubmed_tool
 
 __all__ = ["isolate_process_budget"]
-
-
-def _study4_trace_validator() -> Any:
-    return _validate_study4_recovery_trace
 
 
 @pytest.mark.usefixtures("isolate_process_budget")
@@ -62,39 +61,22 @@ class TestPubmedStudy4RecoveryTrace:
         monkeypatch.setattr(entrez_rate_limit, "_sleep", lambda _seconds: None)
         search_calls: list[dict[str, Any]] = []
 
-        def esearch(**kwargs: Any) -> _CannedEntrezHandle:
+        def esearch(**kwargs: Any) -> Any:
             search_calls.append(kwargs)
             if len(search_calls) == 1:
                 raise _http_error(429, retry_after)
-            return _CannedEntrezHandle({"IdList": ["991"]})
+            return esearch_ids("991")()
 
         install_entrez(
             monkeypatch,
             esearch=esearch,
-            efetch=lambda **kwargs: _CannedEntrezHandle(
-                _pubmed_article(str(kwargs["id"]))
-            ),
-            elink=lambda **_kwargs: _CannedEntrezHandle([{"LinkSetDb": []}]),
+            efetch=efetch_article,
+            elink=elink_without_pmc,
         )
 
-        result = asyncio.run(
-            pubmed_tool.pubmed_search_with_fulltext(
-                query="offline producer consumer",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
-        validated = _study4_trace_validator()(
+        result = search("offline producer consumer", run_id)
+        trace = read_trace(cache_root, run_id, run_id)
+        validated = _validate_study4_recovery_trace(
             trace,
             run_id=run_id,
             expected_build_id=build_id,
@@ -133,11 +115,7 @@ class TestPubmedStudy4RecoveryTrace:
             study_id=_STUDY_ID,
         )
         monkeypatch.setattr(entrez_rate_limit, "_sleep", lambda _seconds: None)
-        monkeypatch.setattr(
-            Entrez,
-            "esearch",
-            lambda **_kwargs: _CannedEntrezHandle({"IdList": ["992"]}),
-        )
+        monkeypatch.setattr(Entrez, "esearch", esearch_ids("992"))
         fetch_calls = 0
 
         def failed_fetch(**_kwargs: Any) -> None:
@@ -147,23 +125,8 @@ class TestPubmedStudy4RecoveryTrace:
 
         install_entrez(monkeypatch, efetch=failed_fetch)
 
-        result = asyncio.run(
-            pubmed_tool.pubmed_search_with_fulltext(
-                query="terminal retry failure",
-                slug=run_id,
-                max_papers=1,
-                run_id=run_id,
-            )
-        )
-        trace_path = (
-            cache_root
-            / "pubmed"
-            / run_id
-            / "runs"
-            / run_id
-            / ".search-trace.json"
-        )
-        trace = json.loads(trace_path.read_text(encoding="utf-8"))
+        result = search("terminal retry failure", run_id)
+        trace = read_trace(cache_root, run_id, run_id)
 
         assert result == {}
         assert fetch_calls == 2
