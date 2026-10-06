@@ -184,8 +184,8 @@ test-app:
 test-engine:
 	@cd "$(ENGINE)" && "$(PY)" -m pytest -q
 
-# Linux bubblewrap differs from macOS seatbelt; production confinement needs Linux coverage.
-# Privileged namespace preflight prevents denial tests passing when no sandbox can launch.
+# Linux Landlock differs from macOS seatbelt; production confinement needs Linux coverage.
+# Backend preflight prevents denial tests passing when no sandbox can launch.
 test-sandbox-linux:
 	@docker info >/dev/null 2>&1 || { \
 		echo "Docker is not running. Start Docker Desktop and retry."; \
@@ -196,9 +196,6 @@ test-sandbox-linux:
 	@echo ""
 	@echo "== unprivileged (what production actually runs) =="
 	@docker run --rm coscientist-sandbox-linux
-	@echo ""
-	@echo "== privileged (exercises the bubblewrap backend) =="
-	@docker run --rm --privileged coscientist-sandbox-linux
 
 # MCP imports resolve from engine/; strict mypy configuration lives in mcp_server/.
 # Its dev extras omit mypy, so install it separately.

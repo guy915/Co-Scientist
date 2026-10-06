@@ -28,9 +28,19 @@ jobs:
       MODEL_NAME: openrouter/inclusionai/ling-3.1-flash
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       TIER: ${{ inputs.tier }}
+      # Free runs execute in campaign mode, which only admits one explicitly
+      # qualified MCP endpoint with shared-secret auth; without it retrieval is
+      # disabled and every claim scores unsupported.
+      MCP_SERVER_URL: http://127.0.0.1:8888/mcp
+      COSCIENTIST_CAMPAIGN_MCP_URL: http://127.0.0.1:8888/mcp
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate the MCP shared secret
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "COSCIENTIST_MCP_SHARED_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Set up backend
         uses: ./.github/actions/setup-backend
       - name: Install MCP server

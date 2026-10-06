@@ -107,7 +107,7 @@ def test_reading_outside_the_workspace_is_refused(tmp_path: Path, path: str) -> 
 async def test_a_carve_out_backend_refuses_to_replace_the_metadata_dir(
     tmp_path: Path,
 ) -> None:
-    """Landlock only adds access; seatbelt/bwrap can protect writable carve-
+    """Landlock only adds access; seatbelt can protect writable carve-
     outs."""
     if sandbox_backend() == "landlock":
         pytest.skip("landlock cannot express a carve-out; see the next test")
