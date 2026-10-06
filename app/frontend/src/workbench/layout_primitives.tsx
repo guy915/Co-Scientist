@@ -67,7 +67,7 @@ export function HeaderControlTrigger({
   return (
     <button
       type="button"
-      className={tooltipClassNames({className, placement: 'left'})}
+      className={tooltipClassNames({className, placement: 'bottom'})}
       aria-label={ariaLabel}
       aria-haspopup={ariaHasPopup}
       data-tooltip={tooltip}
