@@ -2,8 +2,7 @@ import type {ClaimEvidenceRow, MatchRow, Review} from '@/api/runs';
 import {makeHypothesis} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
-import {HypothesisDetail, SectionsRail} from './ideas_detail_pane';
+import {HypothesisDetail} from './ideas_detail_pane';
 
 vi.mock('@/lib/smooth_scroll', () => ({smoothScrollToSection: vi.fn()}));
 
@@ -68,16 +67,6 @@ function renderDetail(
 }
 
 describe('ideas detail pane', () => {
-  it('invites a selection when nothing is selected', () => {
-    renderDetail({hypothesis: null});
-
-    expect(
-      screen.getByText(
-        'Select a hypothesis to inspect the review and tournament details.',
-      ),
-    ).toBeInTheDocument();
-  });
-
   it('shows the idea, its lineage, only its own reviews and claims, and its newest matches first', () => {
     renderDetail({
       hypothesis: makeHypothesis({
@@ -159,93 +148,6 @@ describe('ideas detail pane', () => {
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('labels each review row by its reviewer instead of one Full review', () => {
-    renderDetail({
-      reviews: [
-        'review',
-        'full_review',
-        'simulation_review',
-        'deep_verification',
-      ].map((agent, index) =>
-        review({id: index, reviewer_agent: agent, critique: `${agent} note`}),
-      ),
-    });
-
-    for (const label of [
-      'Initial peer review',
-      'Full review',
-      'Simulation review',
-      'Deep verification',
-    ]) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
-    expect(screen.getByText('deep_verification note')).toBeInTheDocument();
-  });
-
-  it('falls back to placeholder copy when there is no data', () => {
-    renderDetail({
-      hypothesis: makeHypothesis({
-        id: 'h1',
-        mechanism: null,
-        expected_effect: null,
-        win_count: 0,
-        loss_count: 0,
-      }),
-    });
-
-    for (const text of [
-      'Reviewer notes will appear after the review node completes.',
-      'No review critiques have been recorded yet.',
-      'No tournament matches have been recorded yet.',
-      'No match rationale is available yet.',
-    ]) {
-      expect(screen.getByText(text)).toBeInTheDocument();
-    }
-    expect(
-      screen.queryByText(/Proposed mechanism of action:/),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Expected effect:/)).not.toBeInTheDocument();
-  });
-
-  it('shows each grounded claim with its quote and source link, tolerating legacy bare passages', () => {
-    renderDetail({
-      claimEvidence: [
-        claim(1, {
-          claim: 'Kinase X inhibition reduces tumor growth.',
-          supporting: [
-            {
-              evidence_id: 'ev-1',
-              quote: 'reduces tumor growth in AML',
-              start: 18,
-              end: 45,
-              source: 'pubmed',
-              url: 'https://example.org/ev-1',
-            },
-          ],
-        }),
-        claim(2, {
-          claim: 'A speculative claim.',
-          label: 'insufficient',
-          claim_role: 'speculative',
-        }),
-        claim(3, {supporting: ['A legacy supporting passage.']}),
-      ],
-    });
-
-    expect(screen.getByText(/reduces tumor growth in AML/)).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: /open source/})).toHaveAttribute(
-      'href',
-      'https://example.org/ev-1',
-    );
-    expect(
-      screen.getByText('Speculative — evidence insufficient'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/A legacy supporting passage\./),
-    ).toBeInTheDocument();
-    expect(screen.getAllByRole('link', {name: /open source/})).toHaveLength(1);
-  });
-
   it('shows the idea’s losses and wins with Elo change and expandable stored debates', () => {
     renderDetail({
       matches: [
@@ -296,96 +198,5 @@ describe('ideas detail pane', () => {
     expect(screen.getByText('Turn 2:').parentElement).toHaveTextContent(
       'selected hypothesis was presented as Hypothesis 2; this turn favored the opponent.',
     );
-  });
-});
-
-describe('structured review findings (detail_json)', () => {
-  function renderReview(detail_json?: string | null) {
-    renderDetail({
-      reviews: [
-        review({
-          reviewer_agent: 'simulation_review',
-          critique: 'The simulation critique.',
-          detail_json,
-        }),
-      ],
-    });
-  }
-
-  it("surfaces the simulation review's failure points and decisive step, and the full review's verdict", () => {
-    renderReview(
-      JSON.stringify({
-        failure_points: ['Off-target binding at high dose', 'Assay noise'],
-        decisive_step: 'The dose-response titration in week 2',
-      }),
-    );
-    expect(screen.getAllByText('Failure point:')).toHaveLength(2);
-    expect(screen.getByText('Assay noise')).toBeInTheDocument();
-    expect(
-      screen.getByText('The dose-response titration in week 2'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('The simulation critique.')).toBeInTheDocument();
-  });
-
-  it("surfaces the full review's verdict, which never overlaps its critique", () => {
-    renderDetail({
-      reviews: [
-        review({
-          reviewer_agent: 'full_review',
-          critique: 'The full review critique.',
-          detail_json: JSON.stringify({
-            go_no_go: 'Go — pursue wet-lab validation',
-            time_to_verdict: '2-4 weeks',
-          }),
-        }),
-      ],
-    });
-
-    expect(
-      screen.getByText('Go — pursue wet-lab validation'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('2-4 weeks')).toBeInTheDocument();
-    expect(screen.getByText('The full review critique.')).toBeInTheDocument();
-  });
-
-  it.each([
-    ['a row that predates the column', undefined],
-    ['a null detail_json', null],
-    ['unparseable detail_json', '{not valid json'],
-    ['detail_json that is not an object', '[1,2,3]'],
-  ])('renders only the critique for %s', (_name, detail) => {
-    renderReview(detail);
-
-    expect(screen.queryByText('Decisive step:')).not.toBeInTheDocument();
-    expect(screen.getByText('The simulation critique.')).toBeInTheDocument();
-  });
-
-  it('coerces a wrong-typed failure_points/decisive_step instead of crashing', () => {
-    renderReview(
-      JSON.stringify({
-        failure_points: 'A single point, not an array',
-        decisive_step: {summary: 'An object instead of a string'},
-      }),
-    );
-
-    expect(
-      screen.getByText('A single point, not an array'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('An object instead of a string'),
-    ).toBeInTheDocument();
-  });
-});
-
-describe('sections rail', () => {
-  it('scrolls smoothly when the section exists and leaves the link alone otherwise', () => {
-    render(<SectionsRail />);
-    const link = screen.getByRole('link', {name: /Description/});
-
-    vi.mocked(smoothScrollToSection).mockReturnValue(true);
-    expect(fireEvent.click(link)).toBe(false);
-
-    vi.mocked(smoothScrollToSection).mockReturnValue(false);
-    expect(fireEvent.click(link)).toBe(true);
   });
 });

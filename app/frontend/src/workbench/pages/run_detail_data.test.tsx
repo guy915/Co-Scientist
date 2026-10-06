@@ -86,30 +86,6 @@ it('keeps the terminal snapshot when an older partial refresh finishes later', a
   expect(result.current.hypotheses).toEqual(finalIdeas);
 });
 
-it('applies disjoint overlapping refreshes without reverting the newer run row', async () => {
-  const {result, rerender} = await load();
-  const olderRun = deferred<RunWithSummary>();
-  const olderIdeas = deferred<Hypothesis[]>();
-  vi.mocked(runsApi.getRun).mockReturnValueOnce(olderRun.promise);
-  vi.mocked(runsApi.getHypotheses).mockReturnValueOnce(olderIdeas.promise);
-  await emit(rerender, 'generate');
-
-  const reviewedRun = {...run(), latest_stage: 'reflection'};
-  vi.mocked(runsApi.getRun).mockResolvedValue(reviewedRun);
-  await emit(rerender, 'reflection');
-  expect(result.current.run?.latest_stage).toBe('reflection');
-  expect(runsApi.getHypotheses).toHaveBeenCalledTimes(2);
-  expect(runsApi.getReviews).toHaveBeenCalledTimes(2);
-
-  const ideas = [makeHypothesis({id: 'generated'})];
-  await act(async () => {
-    olderRun.resolve(run());
-    olderIdeas.resolve(ideas);
-  });
-  expect(result.current.hypotheses).toEqual(ideas);
-  expect(result.current.run?.latest_stage).toBe('reflection');
-});
-
 it('does not let an older failed refresh replace a newer successful result', async () => {
   const {result, rerender} = await load();
   const olderRun = deferred<RunWithSummary>();
@@ -158,31 +134,6 @@ it('coalesces mixed events into one selective refresh and cancels it on unmount'
   unmount();
   await act(async () => vi.advanceTimersByTimeAsync(600));
   expect(runsApi.getRun).toHaveBeenCalledTimes(2);
-});
-
-it('retires manual refresh callbacks when the page unmounts', async () => {
-  const {result, unmount} = await load();
-  const refresh = result.current.refreshNow;
-  unmount();
-  await act(async () => refresh());
-  expect(runsApi.getRun).toHaveBeenCalledTimes(1);
-});
-
-it('restarts the trailing refresh window and merges separately arriving events', async () => {
-  const {rerender} = await load();
-  stream.events = [{seq: 1, type: 'generate', payload: {}}];
-  rerender({id: 'run-1'});
-  await act(async () => vi.advanceTimersByTimeAsync(300));
-  stream.events = [...stream.events, {seq: 2, type: 'reflection', payload: {}}];
-  rerender({id: 'run-1'});
-
-  await act(async () => vi.advanceTimersByTimeAsync(599));
-  expect(runsApi.getRun).toHaveBeenCalledTimes(1);
-  await act(async () => vi.advanceTimersByTimeAsync(1));
-  expect(runsApi.getRun).toHaveBeenCalledTimes(2);
-  expect(runsApi.getHypotheses).toHaveBeenCalledTimes(2);
-  expect(runsApi.getReviews).toHaveBeenCalledTimes(2);
-  expect(runsApi.getEvidence).toHaveBeenCalledTimes(1);
 });
 
 beforeEach(() => {

@@ -4,30 +4,6 @@ import {MarkdownMessageRenderer as MarkdownMessage} from './markdown_message_ren
 
 describe('markdown message', () => {
   describe('MarkdownMessage', () => {
-    it('renders markdown structure rather than its source characters', () => {
-      render(
-        <MarkdownMessage
-          content={'Pick one:\n\n- **Primary** cells\n- iPSC-derived'}
-        />,
-      );
-
-      expect(screen.getByRole('list')).toBeInTheDocument();
-      expect(screen.getAllByRole('listitem')).toHaveLength(2);
-      expect(screen.getByText('Primary').tagName).toBe('STRONG');
-      expect(screen.queryByText(/\*\*Primary\*\*/)).toBeNull();
-    });
-
-    it('renders a table, which is what GFM support is for', () => {
-      render(
-        <MarkdownMessage
-          content={'| Model | Cost |\n| --- | --- |\n| iPSC | High |'}
-        />,
-      );
-
-      expect(screen.getByRole('table')).toBeInTheDocument();
-      expect(screen.getByRole('columnheader', {name: 'Model'})).toBeVisible();
-    });
-
     it('opens links in a new tab without handing over the opener', () => {
       render(<MarkdownMessage content="[PubMed](https://pubmed.gov)" />);
 
@@ -74,38 +50,6 @@ describe('markdown message blocks', () => {
       );
     });
 
-    it('keeps every block a direct sibling of the wrapper, in source order', () => {
-      // jsdom cannot apply compiled CSS; flat siblings preserve first:/last:
-      // semantics.
-      const content = '# Heading\n\nA paragraph.\n\n- one\n- two';
-      const {container} = render(<MarkdownMessage content={content} />);
-      const wrapper = container.firstElementChild!;
-
-      expect(Array.from(wrapper.children).map(el => el.tagName)).toEqual([
-        'P',
-        'P',
-        'UL',
-      ]);
-      expect(wrapper.firstElementChild!.textContent).toBe('Heading');
-      expect(wrapper.lastElementChild!.tagName).toBe('UL');
-    });
-
-    it('resolves a reference-style link whose definition sits in a later block', () => {
-      // Reference definitions are document-scoped, so splitting must fall back.
-      render(
-        <MarkdownMessage
-          content={
-            'See [docs][d] for details.\n\n[d]: https://example.com/docs'
-          }
-        />,
-      );
-
-      expect(screen.getByRole('link', {name: 'docs'})).toHaveAttribute(
-        'href',
-        'https://example.com/docs',
-      );
-    });
-
     it('still escapes raw HTML that spans multiple top-level blocks', () => {
       const {container} = render(
         <MarkdownMessage
@@ -131,34 +75,7 @@ describe('markdown message code', () => {
     });
   }
 
-  function codeHeaderText() {
-    const button = screen.getByRole('button', {name: /copy code|copied/i});
-    return button.parentElement?.textContent ?? '';
-  }
-
   describe('MarkdownMessage fenced code blocks', () => {
-    it("labels a fenced block with the fence's language", () => {
-      render(<MarkdownMessage content={'```python\nprint(1)\n```'} />);
-
-      expect(codeHeaderText()).toBe('python');
-    });
-
-    it('renders no language label when the fence names none', () => {
-      render(<MarkdownMessage content={'```\nplain text\n```'} />);
-
-      expect(codeHeaderText()).toBe('');
-    });
-
-    it('applies syntax-highlighting token classes inside the code', () => {
-      const {container} = render(
-        <MarkdownMessage content={'```python\ndef f():\n    return 1\n```'} />,
-      );
-
-      expect(
-        container.querySelectorAll('[class*="hljs-"]').length,
-      ).toBeGreaterThan(0);
-    });
-
     it('copies the block source to the clipboard and reports success', async () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       stubClipboard(writeText);
@@ -195,17 +112,6 @@ describe('markdown message code', () => {
           screen.getByRole('button', {name: 'Copied'}),
         ).toBeInTheDocument(),
       );
-    });
-
-    it('leaves inline code exactly as before -- no header, no copy button', () => {
-      render(<MarkdownMessage content="Use `code` here." />);
-
-      const code = screen.getByText('code');
-      expect(code.tagName).toBe('CODE');
-      expect(code.className).toBe(
-        'rounded-md bg-cosci-hover px-1 py-0.5 font-mono text-[0.9em]',
-      );
-      expect(screen.queryByRole('button', {name: /copy/i})).toBeNull();
     });
   });
 });

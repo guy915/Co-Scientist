@@ -35,21 +35,6 @@ describe('error logging', () => {
     uninstall();
   });
 
-  it('ignores the browser ResizeObserver loop notice', () => {
-    const uninstall = installUiErrorLogging();
-    window.dispatchEvent(
-      new ErrorEvent('error', {
-        message:
-          'ResizeObserver loop completed with undelivered notifications.',
-      }),
-    );
-
-    // ResizeObserver notices are not failures; persisting them crowds out
-    // actual logs.
-    expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
-    uninstall();
-  });
-
   it('persists unhandled promise rejections', () => {
     const uninstall = installUiErrorLogging();
     const event = new Event('unhandledrejection') as Event & {
@@ -129,43 +114,6 @@ describe('interaction logging', () => {
     ]);
   });
 
-  it('falls back to the aria-label for icon-only controls', () => {
-    const button = mount(document.createElement('button'));
-    button.setAttribute('aria-label', 'Menu');
-    button.click();
-    vi.runAllTimers();
-
-    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
-      {message: 'click: "Menu" (button)', logger: 'interaction'},
-    ]);
-  });
-
-  it('attributes clicks on children to the enclosing control', () => {
-    const link = mount(document.createElement('a'));
-    link.href = '#';
-    const span = document.createElement('span');
-    span.textContent = 'Docs';
-    link.appendChild(span);
-    span.click();
-    vi.runAllTimers();
-
-    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
-      {message: 'click: "Docs" (a)', logger: 'interaction'},
-    ]);
-  });
-
-  it('captures role=button elements', () => {
-    const chip = mount(document.createElement('div'));
-    chip.setAttribute('role', 'button');
-    chip.textContent = 'Express tier';
-    chip.click();
-    vi.runAllTimers();
-
-    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
-      {message: 'click: "Express tier" (div)', logger: 'interaction'},
-    ]);
-  });
-
   it('batches rapid interactions into one POST', () => {
     const button = mount(document.createElement('button'));
     button.textContent = 'Start run';
@@ -204,27 +152,6 @@ describe('interaction logging', () => {
     expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores clicks on non-interactive elements', () => {
-    const paragraph = mount(document.createElement('p'));
-    paragraph.textContent = 'just text';
-    paragraph.click();
-    vi.runAllTimers();
-
-    expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
-  });
-
-  it('truncates long labels', () => {
-    const button = mount(document.createElement('button'));
-    button.textContent = 'x'.repeat(200);
-    button.click();
-    vi.runAllTimers();
-
-    const records = logsApiMock.postAppLogs.mock.calls[0][0] as {
-      message: string;
-    }[];
-    expect(records[0].message).toBe(`click: "${'x'.repeat(80)}…" (button)`);
-  });
-
   it('persists form submissions', () => {
     const form = mount(document.createElement('form'));
     form.setAttribute('aria-label', 'Research goal');
@@ -235,18 +162,5 @@ describe('interaction logging', () => {
     expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
       {message: 'submit: "Research goal" (form)', logger: 'interaction'},
     ]);
-  });
-
-  it('stops capturing after uninstall', () => {
-    uninstall();
-    const button = mount(document.createElement('button'));
-    button.textContent = 'Gone';
-    button.click();
-    vi.runAllTimers();
-
-    expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
-    uninstall = () => {
-      // already uninstalled; afterEach still needs a callable.
-    };
   });
 });

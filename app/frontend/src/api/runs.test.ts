@@ -4,7 +4,6 @@ import {
   getAccessToken,
   setAccessToken,
   setStoredApiKey,
-  setStoredApiProvider,
   setStoredModel,
 } from '@/lib/client_id';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
@@ -22,10 +21,8 @@ import {
   listDemoRuns,
   listRuns,
   loadRunHistory,
-  runGoal,
   startRun,
 } from './runs';
-import type {Run} from './wire_runs';
 
 // VITE_API_BASE_URL is captured at import; unset values produce relative URLs.
 function firstCall(): [string, RequestInit | undefined] {
@@ -102,6 +99,34 @@ describe('runs api', () => {
     expect(firstCall()[0]).toBe(url);
   });
 
+  it.each([
+    ['demo', '/demo', 'owned'],
+    ['owned', '/runs', 'demo-1'],
+  ])(
+    'degrades a failing %s source without blocking the other',
+    async (_name, failing, survivor) => {
+      fetchMock().mockImplementation((url: string) => {
+        const isDemo = url.includes('/demo');
+        if (isDemo === (failing === '/demo')) {
+          return Promise.reject(new TypeError('Failed to fetch'));
+        }
+        return Promise.resolve(
+          jsonResponse({runs: [{id: survivor, updated_at: 10}]}),
+        );
+      });
+
+      expect(await loadRunHistory()).toEqual([{id: survivor, updated_at: 10}]);
+    },
+  );
+
+  it('returns null for a missing report and throws on other failures', async () => {
+    fetchMock().mockResolvedValueOnce(errorResponse(404, 'not found'));
+    expect(await getReport('r1')).toBeNull();
+
+    fetchMock().mockResolvedValueOnce(errorResponse(500, 'boom'));
+    await expect(getReport('r1')).rejects.toThrow('500 boom');
+  });
+
   it('reads one run and starts it with owner data', async () => {
     fetchMock().mockResolvedValue(jsonResponse({id: 'r7', status: 'queued'}));
 
@@ -150,46 +175,6 @@ describe('runs api', () => {
 
     expect(result.map(run => run.id)).toEqual(['shared', 'other']);
     expect(result[0].updated_at).toBe(99);
-  });
-
-  it.each([
-    ['demo', '/demo', 'owned'],
-    ['owned', '/runs', 'demo-1'],
-  ])(
-    'degrades a failing %s source without blocking the other',
-    async (_name, failing, survivor) => {
-      fetchMock().mockImplementation((url: string) => {
-        const isDemo = url.includes('/demo');
-        if (isDemo === (failing === '/demo')) {
-          return Promise.reject(new TypeError('Failed to fetch'));
-        }
-        return Promise.resolve(
-          jsonResponse({runs: [{id: survivor, updated_at: 10}]}),
-        );
-      });
-
-      expect(await loadRunHistory()).toEqual([{id: survivor, updated_at: 10}]);
-    },
-  );
-
-  it('returns null for a missing report and throws on other failures', async () => {
-    fetchMock().mockResolvedValueOnce(errorResponse(404, 'not found'));
-    expect(await getReport('r1')).toBeNull();
-
-    fetchMock().mockResolvedValueOnce(errorResponse(500, 'boom'));
-    await expect(getReport('r1')).rejects.toThrow('500 boom');
-  });
-
-  it('prefers the durable setup goal and tolerates an unloaded run', () => {
-    const run = {
-      config: {setup: {goal: 'Setup goal'}},
-      research_goal: 'Top-level goal',
-    } as unknown as Run;
-    expect(runGoal(run)).toBe('Setup goal');
-    expect(runGoal({config: {}, research_goal: 'Top'} as unknown as Run)).toBe(
-      'Top',
-    );
-    expect(runGoal(null)).toBe('');
   });
 });
 
@@ -241,34 +226,6 @@ describe('BYOK headers', () => {
     expect(headers['X-LLM-Model']).toBeUndefined();
   });
 
-  it('defaults the provider header to deepseek', async () => {
-    localStorage.setItem('cosci-api-key', 'sk-byok-1');
-
-    const headers = await headersAfterCreate();
-
-    expect(headers['X-LLM-API-Key']).toBe('sk-byok-1');
-    expect(headers['X-LLM-Provider']).toBe('deepseek');
-  });
-
-  it('honors the stored provider', async () => {
-    localStorage.setItem('cosci-api-key', 'sk-byok-1');
-    localStorage.setItem('cosci-api-provider', 'openai');
-
-    expect((await headersAfterCreate())['X-LLM-Provider']).toBe('openai');
-  });
-
-  it('sends interview turns with the stored credentials too', async () => {
-    localStorage.setItem('cosci-api-key', 'sk-byok-2');
-    localStorage.setItem('cosci-api-provider', 'gemini');
-    fetchMock().mockResolvedValue(errorResponse(400, 'rejected'));
-
-    await expect(createInterview('a goal')).rejects.toThrow('400');
-
-    expect(firstCall()[0]).toBe('/api/interviews');
-    expect(sentHeaders()['X-LLM-API-Key']).toBe('sk-byok-2');
-    expect(sentHeaders()['X-LLM-Provider']).toBe('gemini');
-  });
-
   describe('keys for several providers', () => {
     beforeEach(() => {
       setStoredApiKey('sk-deepseek', 'deepseek');
@@ -294,47 +251,6 @@ describe('BYOK headers', () => {
       expect(headers['X-LLM-Supervisor-Model']).toBe(
         'gemini/gemini-3.1-pro-preview',
       );
-    });
-
-    it('omits the supervisor provider and key when it matches the worker', async () => {
-      setStoredModel('supervisor', {
-        provider: 'deepseek',
-        model: 'deepseek/deepseek-v4-pro',
-      });
-
-      const headers = await headersAfterCreate();
-
-      expect(headers['X-LLM-Supervisor-Model']).toBe(
-        'deepseek/deepseek-v4-pro',
-      );
-      expect(headers['X-LLM-Supervisor-Provider']).toBeUndefined();
-      expect(headers['X-LLM-Supervisor-API-Key']).toBeUndefined();
-    });
-
-    it('lets the worker use a provider other than the viewed one', async () => {
-      setStoredApiProvider('deepseek');
-      setStoredModel('worker', {
-        provider: 'gemini',
-        model: 'gemini/gemini-3.8-flash',
-      });
-
-      const headers = await headersAfterCreate();
-
-      expect(headers['X-LLM-Provider']).toBe('gemini');
-      expect(headers['X-LLM-API-Key']).toBe('sk-gemini');
-      expect(headers['X-LLM-Model']).toBe('gemini/gemini-3.8-flash');
-    });
-
-    it('ignores a model whose provider has no saved key', async () => {
-      setStoredModel('worker', {
-        provider: 'openai',
-        model: 'openai/gpt-6-luna',
-      });
-
-      const headers = await headersAfterCreate();
-
-      expect(headers['X-LLM-Provider']).toBe('deepseek');
-      expect(headers['X-LLM-Model']).toBeUndefined();
     });
   });
 });

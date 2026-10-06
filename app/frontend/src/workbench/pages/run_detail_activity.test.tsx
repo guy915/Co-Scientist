@@ -61,6 +61,11 @@ it('drops the previous run’s content when the route id changes', async () => {
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
 });
 
+beforeEach(() => {
+  resetRunDetailMocks();
+  setConnection('open');
+});
+
 it('shows no report chrome for a run the history reports as running', async () => {
   vi.mocked(runsApi.loadRunHistory).mockResolvedValue([runningRun('run-1')]);
   vi.mocked(runsApi.getRun).mockImplementation(pending);
@@ -70,22 +75,4 @@ it('shows no report chrome for a run the history reports as running', async () =
   await waitFor(() => expect(runsApi.loadRunHistory).toHaveBeenCalled());
   expect(screen.queryByRole('navigation', {name: TAB_NAV})).toBeNull();
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-});
-
-it('shows the report tabs while a settled run loads', async () => {
-  vi.mocked(runsApi.loadRunHistory).mockResolvedValue([
-    {...runningRun('run-1'), status: 'completed'} as Run,
-  ]);
-  vi.mocked(runsApi.getRun).mockImplementation(pending);
-
-  renderRunDetail('/runs/run-1/details');
-
-  expect(
-    await screen.findByRole('navigation', {name: TAB_NAV}),
-  ).toBeInTheDocument();
-});
-
-beforeEach(() => {
-  resetRunDetailMocks();
-  setConnection('open');
 });

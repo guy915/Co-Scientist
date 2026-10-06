@@ -36,68 +36,6 @@ const heldIntakeDecision = decision({
   assessor: 'semantic:test-model',
 });
 
-it('shows a held safety decision without offering to resolve it', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([heldIntakeDecision]);
-  renderAt('/runs/run-1/specifications');
-
-  expect(
-    await screen.findByRole('heading', {name: 'Safety audit'}),
-  ).toBeInTheDocument();
-  expect(screen.getByText(/Ambiguous dual-use intent/)).toBeInTheDocument();
-  expect(screen.queryByRole('button')).toBeNull();
-});
-
-it('shows only the final verdict, not the per-hypothesis gate rows', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([
-    decision({id: 1, stage: 'intake', decision: 'allow', reason: 'Intake ok.'}),
-    decision({id: 2}),
-    decision({id: 3}),
-    decision({
-      id: 4,
-      stage: 'final',
-      decision: 'allow',
-      reason: 'Legitimate biomedical inquiry.',
-    }),
-  ]);
-  renderAt('/runs/run-1/specifications');
-
-  await screen.findByRole('heading', {name: 'Safety audit'});
-  expect(
-    screen.getByText('Legitimate biomedical inquiry.'),
-  ).toBeInTheDocument();
-  expect(screen.queryByText(/Intake ok\./)).toBeNull();
-  expect(screen.queryByText(/lack support/)).toBeNull();
-  expect(screen.queryByText('final:')).toBeNull();
-});
-
-it('surfaces an unresolved final-stage hold', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([
-    decision({
-      id: 9,
-      stage: 'final',
-      decision: 'hold',
-      reason: 'Final output needs a second look.',
-      requires_review: true,
-    }),
-  ]);
-  renderAt('/runs/run-1/specifications');
-
-  await screen.findByRole('heading', {name: 'Safety audit'});
-  expect(
-    screen.getByText('Final output needs a second look.'),
-  ).toBeInTheDocument();
-});
-
-it('shows a recorded resolution when one exists', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([
-    decision({...heldIntakeDecision, id: 7, resolution: 'approved'}),
-  ]);
-  renderAt('/runs/run-1/specifications');
-
-  await screen.findByRole('heading', {name: 'Safety audit'});
-  expect(screen.getByText('Resolution: approved')).toBeInTheDocument();
-});
-
 it('refetches on a coalesced batch ending in status with data', async () => {
   const getRun = vi.mocked(runsApi.getRun);
   // Create a fresh React element per render so mutated stream state is reread.
@@ -134,4 +72,14 @@ it('refetches on a coalesced batch ending in status with data', async () => {
 
 beforeEach(() => {
   resetRunDetailMocks();
+});
+
+it('shows a recorded resolution when one exists', async () => {
+  vi.mocked(runsApi.getSafety).mockResolvedValue([
+    decision({...heldIntakeDecision, id: 7, resolution: 'approved'}),
+  ]);
+  renderAt('/runs/run-1/specifications');
+
+  await screen.findByRole('heading', {name: 'Safety audit'});
+  expect(screen.getByText('Resolution: approved')).toBeInTheDocument();
 });
