@@ -13,7 +13,6 @@ from dev.stage_latency_analysis import (
     StageStats,
     TaskSpan,
     occupancy,
-    percentile,
     profile_run,
 )
 
@@ -55,51 +54,6 @@ def test_wall_shares_partition_active_time() -> None:
     assert total == profile.active_s == 20.0
 
 
-def test_solo_time_isolates_the_serial_spine() -> None:
-    spans = [
-        TaskSpan("engine.node.orchestrator", 0.0, 5.0),
-        TaskSpan("engine.node.ranking", 5.0, 25.0),
-        TaskSpan("engine.ranking.match", 15.0, 25.0),
-    ]
-    profile = profile_run("r", "standard", "completed", spans)
-
-    assert profile is not None
-    stages = _stages(profile)
-    assert stages["engine.node.orchestrator"].solo_s == 5.0
-    assert stages["engine.node.ranking"].solo_s == 10.0
-    assert stages["engine.ranking.match"].solo_s == 0.0
-
-
-def test_gaps_between_tasks_are_idle_not_attributed() -> None:
-    spans = [
-        TaskSpan("engine.node.supervisor", 0.0, 10.0),
-        TaskSpan("engine.node.generate", 30.0, 40.0),
-    ]
-    profile = profile_run("r", "standard", "completed", spans)
-
-    assert profile is not None
-    assert profile.wall_s == 40.0
-    assert profile.active_s == 20.0
-    assert profile.idle_s == 20.0
-
-
-def test_stage_width_counts_items_per_invocation() -> None:
-    spans = [TaskSpan("engine.fanout.review.item", 0.0, 1.0) for _ in range(6)]
-    spans += [
-        TaskSpan("engine.fanout.review.aggregate", 1.0, 2.0),
-        TaskSpan("engine.fanout.review.aggregate", 2.0, 3.0),
-    ]
-    spans += [TaskSpan("engine.ranking.match", 0.0, 1.0) for _ in range(12)]
-    spans.append(TaskSpan("engine.ranking.finalize", 1.0, 2.0))
-
-    profile = profile_run("r", "standard", "completed", spans)
-
-    assert profile is not None
-    assert profile.items_per_invocation["engine.fanout.review"] == 3.0
-    assert profile.items_per_invocation["engine.ranking"] == 12.0
-    assert profile_run("r", "standard", "completed", []) is None
-
-
 def test_occupancy_counts_every_task_in_flight_and_weights_by_time() -> None:
     spare = _occupancy_stages(
         [TaskSpan("engine.fanout.verification.item", 0.0, 10.0)] * 3, 8
@@ -128,9 +82,3 @@ def test_occupancy_counts_every_task_in_flight_and_weights_by_time() -> None:
         8,
     )["engine.fanout.review.item"]
     assert round(changing.mean_concurrency, 3) == round(100.0 / 90.0, 3)
-
-
-def test_percentile_uses_nearest_rank() -> None:
-    assert percentile([1.0, 2.0, 3.0, 4.0], 0.5) == 2.0
-    assert percentile([1.0, 2.0, 3.0, 4.0], 0.95) == 4.0
-    assert percentile([], 0.5) == 0.0

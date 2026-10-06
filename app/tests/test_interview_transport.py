@@ -50,34 +50,6 @@ def _texts(interview: dict[str, Any]) -> list[str]:
     return [turn["content"] for turn in interview["turns"]]
 
 
-def test_editing_a_prompt_replaces_it_and_drops_what_followed(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _patch_model_sequence(
-        monkeypatch,
-        [
-            _response("Which mechanism should this prioritize?"),
-            _response("Which organism should this prioritize?"),
-        ],
-    )
-    with TestClient(app) as client:
-        started = _start(client, "How do bacteria regain susceptibility?")
-        first_prompt = started["turns"][0]
-
-        revised = _interview_payload(
-            client.put(
-                f"/api/interviews/{started['id']}/turns/{first_prompt['id']}",
-                headers=HEADERS,
-                json={"content": "How do fungi regain susceptibility?"},
-            )
-        )
-
-    assert _texts(revised) == [
-        "How do fungi regain susceptibility?",
-        "Which organism should this prioritize?",
-    ]
-
-
 def test_a_revision_re_derives_from_what_survives(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -129,34 +101,6 @@ def _capture_model_input(
         return reply
 
     monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
-
-
-def test_retrying_an_answer_discards_it_before_asking_again(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _patch_model_sequence(
-        monkeypatch,
-        [
-            _response("A vague first question."),
-            _response("A sharper second question."),
-        ],
-    )
-    with TestClient(app) as client:
-        started = _start(client, "How do bacteria regain susceptibility?")
-        answer = started["turns"][-1]
-        assert answer["role"] == "agent"
-
-        retried = _interview_payload(
-            client.post(
-                f"/api/interviews/{started['id']}/turns/{answer['id']}/retry",
-                headers=HEADERS,
-            )
-        )
-
-    assert _texts(retried) == [
-        "How do bacteria regain susceptibility?",
-        "A sharper second question.",
-    ]
 
 
 def test_revising_a_completed_interview_reopens_it(

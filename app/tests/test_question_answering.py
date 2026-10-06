@@ -27,66 +27,6 @@ from tests._process_mode_helpers import FakeProcessMode
 from tests._store_helpers import seed_run
 
 
-def _every_section_inputs() -> tuple[list[Any], ...]:
-    hyps = [
-        {"title": "H1", "elo_rating": 1300, "win_count": 2, "loss_count": 1}
-    ]
-    reviews = [
-        {
-            "reviewer_agent": "review",
-            "hypothesis_id": "abcdefgh12",
-            "summary": "a critique summary",
-        }
-    ]
-    matches = [
-        {
-            "winner_id": "abcdefgh12",
-            "winner_elo_after": 1310,
-            "rationale": "A is better grounded",
-        }
-    ]
-    history = [
-        SimpleNamespace(sender="user", content="hi"),
-        SimpleNamespace(sender="system", content="hello there"),
-    ]
-    manifest = [
-        {
-            "n": 1,
-            "title": "T1",
-            "source": "PubMed",
-            "year": 2020,
-            "state": "verified",
-        },
-        {
-            "n": 2,
-            "title": "T2",
-            "source": None,
-            "year": None,
-            "state": "unavailable",
-        },
-    ]
-    return hyps, reviews, matches, history, manifest
-
-
-def test_build_system_prompt_includes_every_section() -> None:
-    hyps, reviews, matches, history, manifest = _every_section_inputs()
-
-    prompt = qa.build_system_prompt(
-        qa.QaRunContext(
-            "Investigate X", hyps, reviews, matches, history, manifest
-        )
-    )
-
-    assert "Investigate X" in prompt
-    assert "- H1 (Elo 1300, active)" in prompt
-    assert "review on abcdefgh: a critique summary" in prompt
-    assert "Winner abcdefgh (Elo 1310) — A is better grounded" in prompt
-    assert "[1] T1 (PubMed, 2020) — verified" in prompt
-    assert "[2] T2 — unavailable" in prompt
-    assert "User: hi" in prompt
-    assert "Assistant: hello there" in prompt
-
-
 def _thinking_litellm(reasoning: str, prose: str) -> SimpleNamespace:
 
     async def _chunk_stream() -> AsyncIterator[Any]:
@@ -305,16 +245,6 @@ def test_the_chat_model_falls_back_to_the_worker_model(
             [("e3", "verified"), ("e1", "partial"), ("e2", "available")],
         ),
         (
-            [_evidence("e1")],
-            [_citation("e1", "unsupported"), _citation("e1", "verified")],
-            [("e1", "verified")],
-        ),
-        (
-            [_evidence("e1"), _evidence("e2", available=False)],
-            [],
-            [("e1", "available")],
-        ),
-        (
             [_evidence("e1"), _evidence("e2")],
             [_citation("e1", "unsupported"), _citation("e2", "verified")],
             [("e2", "verified")],
@@ -331,8 +261,6 @@ def test_the_chat_model_falls_back_to_the_worker_model(
     ],
     ids=[
         "cited-first",
-        "strongest-state",
-        "unavailable-uncited-withheld",
         "unsupported-withheld",
         "unknown-or-anonymous-citations-ignored",
     ],

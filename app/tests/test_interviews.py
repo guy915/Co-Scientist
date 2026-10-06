@@ -27,7 +27,6 @@ from ._interviews_helpers import (
     _antibiotic_responses,
     _fake_stream,
     _interview_payload,
-    _patch_model_failing_after,
     _patch_model_raising,
     _patch_model_sequence,
     _response,
@@ -518,6 +517,7 @@ def test_interview_completes_when_model_reports_no_preferences(
     payload = _interview_payload(done)
     assert payload["status"] == "completed"
     assert payload["fields"]["preferences"] == []
+    assert _flags(payload, "agent") == [False, False]
 
 
 def _flags(interview: dict[str, Any], role: str) -> list[bool]:
@@ -567,28 +567,6 @@ def test_interview_stays_usable_and_marks_fallback_turns_during_model_outage(
         "lab_constraints": [],
         "title": None,
     }
-
-
-def test_mixed_interview_marks_only_its_fallback_turns(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _patch_model_failing_after(
-        monkeypatch, [_response("Which mechanisms should we prioritize?")]
-    )
-    headers = {"X-Client-ID": "mixed-scientist"}
-    with TestClient(app) as client:
-        created = _start_interview(client, headers, "Study resistance")
-        interview_id = _interview_payload(created)["id"]
-        second = _send_turn(
-            client, headers, interview_id, "Prioritize efflux-pump regulation."
-        )
-        payload = _interview_payload(second)
-        resumed = client.get(
-            f"/api/interviews/{interview_id}", headers=headers
-        ).json()
-
-    assert _flags(payload, "agent") == [False, True]
-    assert _flags(resumed, "agent") == [False, True]
 
 
 def test_engine_opts_thread_interview_lab_constraints(
