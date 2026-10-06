@@ -106,3 +106,13 @@ def _fresh_health_check_cache() -> None:
     from app.diagnostics import clear_health_check_cache
 
     clear_health_check_cache()
+
+
+@pytest.fixture
+def manual_worker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests that step tasks by hand must not race the embedded per-run cohort that start,
+    resume and startup recovery launch.
+    """
+    from app import task_worker
+
+    monkeypatch.setattr(task_worker, "run_run_worker_pool_sync", lambda *_: None)

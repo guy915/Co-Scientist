@@ -107,10 +107,6 @@ class Settings(BaseSettings):
     # leave writer headroom for ordinary API requests.
     worker_pool_size: int = 8
 
-    # Disable embedded cohorts when a separate durable worker service consumes
-    # the same queue.
-    coscientist_embedded_worker: bool = True
-
     status_probe_timeout_seconds: float = 3.0
     status_probe_cache_ttl_seconds: float = 30.0
 

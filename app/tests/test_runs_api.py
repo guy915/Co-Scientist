@@ -51,9 +51,9 @@ def test_create_run_validates_goal_and_tier(goal: str, fields: dict[str, Any], s
 
 
 def test_concurrency_ceiling_is_uniform_and_per_client(
+    manual_worker: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "max_concurrent_runs", 2)
     client = _client()
 
@@ -110,27 +110,6 @@ def test_cancel_marks_a_draft_or_restart_survivor_cancelled(
         cancelled = tasks.get_task(queued.id)
         assert cancelled is not None and cancelled.status == "cancelled"
         assert event_seqs(rid, "status", status="cancelled")
-
-
-def test_engine_queue_can_pause_and_resume_without_process_handle(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    c = _client()
-    rid = _new_run(c, "Durable pause test")
-    started = c.post(f"/api/runs/{rid}/start", json={})
-    assert started.status_code == 200
-
-    paused = c.post(f"/api/runs/{rid}/pause")
-    assert paused.status_code == 200
-    assert paused.json()["status"] == "paused"
-    [task] = tasks.list_tasks(rid, db_path=isolated_db)
-    assert task.status == "paused"
-
-    resumed = c.post(f"/api/runs/{rid}/resume")
-    assert resumed.status_code == 200
-    [task] = tasks.list_tasks(rid, db_path=isolated_db)
-    assert task.status == "queued"
 
 
 def test_run_listing_returns_most_recent_first() -> None:

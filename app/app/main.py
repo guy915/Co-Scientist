@@ -103,8 +103,6 @@ def _launch_embedded_recovery_workers(
     """Recover off the API loop so synchronous checkpoint writes and
     serialization cannot starve request handling or lease renewal.
     """
-    if not settings.coscientist_embedded_worker:
-        return
     import app.task_worker as task_worker
 
     for run_id in tasks.list_active_engine_task_run_ids():

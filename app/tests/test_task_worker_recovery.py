@@ -22,7 +22,12 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import (
+    enqueue_task,
+    resume_run_async,
+    seed_checkpoint,
+    seed_run,
+)
 from tests._store_helpers import mark_task_leased as _mark_leased
 
 
@@ -320,9 +325,8 @@ def _assert_unknown_outcome_failed_closed(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cause", ["stored-credential", "paid-to-free-route"])
 async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, cause: str
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch, cause: str
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     routes = ("model_name", "supervisor_model_name", "chat_model_name")
     credentialed = cause == "stored-credential"
     if credentialed:
@@ -366,7 +370,7 @@ async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
         assert not await task_worker.run_once("unacknowledged-worker", db_path=isolated_db)
         assert dispatches == []
 
-        assert restarted.post(f"/api/runs/{run_id}/resume").status_code == 200
+        await resume_run_async(run_id)
         assert await task_worker.run_once("owner-resume", db_path=isolated_db)
 
     assert dispatches == ["engine.node.generate"]
@@ -374,9 +378,8 @@ async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
 
 @pytest.mark.asyncio
 async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     accepted: list[int] = []
 
     async def _timeout_once(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
@@ -417,13 +420,13 @@ async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
     ],
 )
 async def test_unknown_fanout_outcome_preserves_siblings_and_aggregate(
+    manual_worker: None,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     expired: bool,
     family: str,
     kind: str,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     calls: list[str] = []
 
     async def dispatch(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:

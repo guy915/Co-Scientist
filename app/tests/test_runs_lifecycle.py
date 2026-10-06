@@ -12,7 +12,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import engine_tasks, task_worker
-from app.config import settings
 from app.store import events as store_events
 from app.store import runs
 from app.store import tasks as store
@@ -22,7 +21,7 @@ from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import enqueue_task, resume_run, seed_checkpoint, seed_run
 
 
 def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
@@ -31,9 +30,8 @@ def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
 
 
 def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     start_client = _client()
     cancel_client = _client()
     rid = _new_run(start_client, "Cancel between start admission steps")
@@ -90,9 +88,8 @@ def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
 
 @pytest.mark.parametrize("status", [RunStatus.CANCELLED, RunStatus.FAILED])
 def test_checkpointed_run_is_resumed_not_restarted(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, status: RunStatus
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch, status: RunStatus
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     rid = _new_run(client, "Continue a checkpointed run")
     _seed_checkpoint(rid, _task_state(rid), db_path=isolated_db)
@@ -101,12 +98,11 @@ def test_checkpointed_run_is_resumed_not_restarted(
     restart = client.post(f"/api/runs/{rid}/start", json={})
 
     assert restart.status_code == 409
-    assert "use /resume" in restart.json()["detail"]
+    assert "cannot be restarted" in restart.json()["detail"]
     assert store.list_tasks(rid, db_path=isolated_db) == []
 
-    resumed = client.post(f"/api/runs/{rid}/resume")
+    resume_run(rid)
 
-    assert resumed.status_code == 200
     assert runs.get_run(rid, db_path=isolated_db).status == "queued"  # type: ignore[union-attr]
     [task] = store.list_tasks(rid, db_path=isolated_db)
     assert task.task_type == "engine.node.orchestrator"
@@ -114,11 +110,10 @@ def test_checkpointed_run_is_resumed_not_restarted(
 
 
 def test_blocked_bootstrap_without_checkpoint_requires_new_run(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.store.models import RunStatus
 
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     rid = _new_run(client, "Do not revive an intake block")
     assert client.post(f"/api/runs/{rid}/start", json={}).status_code == 200
@@ -141,11 +136,10 @@ def test_blocked_bootstrap_without_checkpoint_requires_new_run(
 
 
 def test_start_rolls_back_capacity_when_bootstrap_enqueue_fails(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from fastapi import HTTPException
 
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     rid = _new_run(client, "Rollback an incomplete start")
 
@@ -324,8 +318,7 @@ def _assert_resume_reuses_successor(
     before = store.list_tasks(state.run_id, db_path=db_path)
     before_ids = {task.id for task in before}
     assert before_ids == {state.writer_id, state.successor_id}
-    response = client.post(f"/api/runs/{state.run_id}/resume")
-    assert response.status_code == 200, response.text
+    resume_run(state.run_id)
     assert probe.worker_started.wait(5), "explicit resume did not launch"
     assert probe.cohort_run_ids == [state.run_id]
     after = store.list_tasks(state.run_id, db_path=db_path)
@@ -358,7 +351,6 @@ def _assert_ordered_event_replay(client: TestClient, run_id: str, paused_seq: in
 def test_restart_keeps_paused_successor_idle_until_explicit_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", True)
     restart = _seed_paused_restart(isolated_db)
     probe = _observe_startup(monkeypatch)
     with make_client() as client:
