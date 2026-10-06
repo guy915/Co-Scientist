@@ -8,7 +8,8 @@ from typing import Any
 
 import pytest
 
-from app import engine_tasks, safety, task_worker
+from app import engine_tasks, task_worker
+from app.engine_tasks import inputs
 from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
 from app.store import db, records, reports, runs, tasks
@@ -19,22 +20,17 @@ from tests._client import make_client
 from tests._engine_tasks_helpers import _install_runtime
 from tests._store_helpers import seed_run
 
-_STRICT_GOAL = "Assess select agent stockpile resilience across regions."
-
-
-@pytest.fixture(autouse=True)
-def _strict_intake(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(safety, "SAFETY_MODE", safety.SafetyMode.STRICT)
+_GOAL = "Assess select agent stockpile resilience across regions."
 
 
 def _persist_run(db_path: str) -> Any:
     return seed_run(
-        _STRICT_GOAL,
+        _GOAL,
         profile="express",
         config={"tier": "express", "enable_literature_review": False},
         options=RunCreateOptions(
             client_id="intake-redaction",
-            title=f"Study of {_STRICT_GOAL}",
+            title=f"Study of {_GOAL}",
             llm_backend="offline",
             db_path=db_path,
         ),
@@ -46,11 +42,11 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
     manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner = make_client()
-    created = _create_run(owner, _STRICT_GOAL)
+    created = _create_run(owner, _GOAL)
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
-    runs.set_run_title(run_id, f"Study {_STRICT_GOAL}", db_path=isolated_db)
-    runs.set_run_goal_restatement(run_id, f"Investigate {_STRICT_GOAL}", db_path=isolated_db)
+    runs.set_run_title(run_id, f"Study {_GOAL}", db_path=isolated_db)
+    runs.set_run_goal_restatement(run_id, f"Investigate {_GOAL}", db_path=isolated_db)
     assert owner.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     task = tasks.claim_task("cancelled-intake-worker", run_id=run_id, db_path=isolated_db)
     assert task is not None
@@ -71,8 +67,8 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
     assert "select agent" in detail.json()["research_goal"].lower()
     stored = runs.get_run(run_id, db_path=isolated_db)
     assert stored is not None
-    assert stored.title == f"Study {_STRICT_GOAL}"
-    assert stored.goal_restatement == f"Investigate {_STRICT_GOAL}"
+    assert stored.title == f"Study {_GOAL}"
+    assert stored.goal_restatement == f"Investigate {_GOAL}"
     assert [
         decision
         for decision in records.list_safety_decisions(run_id, db_path=isolated_db)
@@ -124,7 +120,14 @@ async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
     assert not any(event["type"] == "safety.intake" for event in events.json()["events"])
 
 
-def test_intake_redaction_survives_into_the_report(isolated_db: str) -> None:
+def test_intake_redaction_survives_into_the_report(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        inputs,
+        "screen_intake",
+        lambda _goal: SafetyDecision(stage="intake", decision="redact", matches=["select agent"]),
+    )
     run = _persist_run(isolated_db)
     owner = make_client()
     headers = {"X-Client-ID": "intake-redaction"}
