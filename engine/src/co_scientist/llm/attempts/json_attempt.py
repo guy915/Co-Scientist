@@ -1,11 +1,10 @@
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 from jsonschema.exceptions import ValidationError
 
-from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.exceptions import short_error_text
 from co_scientist.llm.admission.free_policy import scoped_api_key
 from co_scientist.llm.attempts.escalation import _JsonCallSpec
@@ -32,7 +31,7 @@ from co_scientist.llm.structured.validate import (
     reshape_json_output,
     validate_json_schema,
 )
-from co_scientist.llm.values import CompletionSpec, LLMCallOptions
+from co_scientist.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +76,9 @@ def _report_call_llm_failure(
     )
 
 
-async def _call_llm_and_cache(
-    request: LLMCacheRequest,
-    enable_thinking: bool,
-    cache: "LLMCache | NullCache",
-) -> str:
-    """The request is also a cache key and must remain credential-free. The
-    effective key comes from this task context after temperature clamping.
+async def _call_llm_once(request: LLMRequest, enable_thinking: bool) -> str:
+    """The request stays credential-free; the effective key comes from this
+    task context after temperature clamping.
     """
     completion_args = _build_completion_args(
         request.prompt,
@@ -98,9 +93,7 @@ async def _call_llm_and_cache(
     )
     _apply_api_key(completion_args)
     response = await _acompletion_within_timeout(completion_args, request.model_name)
-    content = _extract_completion_content(response, request.model_name)
-    cache.set(request, {"text": content})
-    return content
+    return _extract_completion_content(response, request.model_name)
 
 
 async def _call_llm_single_attempt(
@@ -110,7 +103,7 @@ async def _call_llm_single_attempt(
 ) -> str:
     # An explicit key overrides this task context only for this call.
     with scoped_api_key(spec.api_key):
-        request = LLMCacheRequest(
+        request = LLMRequest(
             prompt=prompt,
             model_name=spec.model_name,
             temperature=spec.temperature,
@@ -118,12 +111,9 @@ async def _call_llm_single_attempt(
             json_schema=spec.json_schema,
             force_json=spec.force_json,
         )
-        request, cache, cached_response = await _prepare_llm_call(request, opt)
-        if cached_response is not None:
-            logger.debug("using cached llm response")
-            return cast(str, cached_response["text"])
+        request = _prepare_llm_call(request)
         try:
-            return await _call_llm_and_cache(request, opt.enable_thinking, cache)
+            return await _call_llm_once(request, opt.enable_thinking)
         except Exception as e:
             _report_call_llm_failure(spec, opt, e)
             raise
@@ -195,7 +185,6 @@ def _validation_failure(
 class JsonJudge:
     original_prompt: str
     spec: _JsonCallSpec
-    cache: LLMCache | NullCache
 
     def prompt_for(self, attempt: Attempt) -> str:
         return self.original_prompt + (attempt.feedback or "")
@@ -224,20 +213,4 @@ class JsonJudge:
                 _backfill_and_validate(result, self.spec.json_schema, self.spec.model_name)
         except ValidationError as e:
             return _validation_failure(e, response_text, attempt, repaired)
-        self._cache_result(self.prompt_for(attempt), result)
         return Accepted(result)
-
-    def _cache_result(self, prompt: str, result: dict[str, Any]) -> None:
-        """Validation feedback changes the prompt, so cache under the prompt
-        actually sent.
-        """
-        self.cache.set(
-            LLMCacheRequest(
-                prompt=prompt,
-                model_name=self.spec.model_name,
-                temperature=self.spec.temperature,
-                max_tokens=self.spec.max_tokens,
-                json_schema=self.spec.json_schema,
-            ),
-            result,
-        )

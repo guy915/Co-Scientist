@@ -21,16 +21,12 @@ from co_scientist.research_adapter import tier_researches
 
 @dataclass(frozen=True)
 class GeneratorOptions:
-    """Credentials stay outside checkpoints; credential-free shared cache keys
-    require BYOK cache bypass.
-    """
+    """Credentials stay outside checkpoints."""
 
     supervisor_model_name: str | None = None
     tournament_pairs: int = 12
     elo_k_factor: int = ELO_K_FACTOR
     literature_review_papers_count: int = 8
-    enable_cache: bool | None = None
-    cache_dir: str | None = None
     tools_config: str | None = None
     disable_tools: list[str] | None = None
     budget: dict[str, Any] | None = field(default=None)
@@ -183,16 +179,6 @@ def _resolve_tool_calling_given_mcp_available(
     return False
 
 
-def _configure_cache_dir_env(cache_dir: str | None) -> None:
-    """Cache directory overrides must precede the first process-wide memoized
-    cache lookup.
-    """
-    if cache_dir is None:
-        return
-
-    os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
-
-
 def _resolve_run_identity(run_id: str | None) -> tuple[float, str]:
     start_time = time.time()
     if run_id is None:
@@ -204,9 +190,7 @@ def _resolve_run_identity(run_id: str | None) -> tuple[float, str]:
 def _resolve_dev_isolation_flag(opts: dict[str, Any]) -> bool:
     enabled = bool(opts.get("dev_test_lit_tools_isolation", False))
     if enabled:
-        logger.info(
-            "Dev isolation mode enabled: forcing lit review cache + all hypotheses to lit tools"
-        )
+        logger.info("Dev isolation mode enabled: all hypotheses use lit tools")
     return enabled
 
 

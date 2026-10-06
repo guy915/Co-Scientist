@@ -11,7 +11,6 @@ from co_scientist.agents.safety import (
     review_direction_safety,
     safety_screen_node,
 )
-from co_scientist.cache import scoped_cache_override
 from co_scientist.models import GenerationMethod, Hypothesis, HypothesisOrigin
 from co_scientist.safety import (
     POLICY_VERSION,
@@ -483,24 +482,23 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
     )
     events: list[tuple[str, dict[str, Any]]] = []
     node: str | None = "supervisor"
-    with scoped_cache_override(generator.enable_cache):
-        for _ in range(100):
-            assert node is not None
-            completed = node
-            state, node = await execute_task_node(completed, state)
-            events.append(
-                (
-                    completed,
-                    {
-                        **state,
-                        "hypotheses": [h.to_dict() for h in state["hypotheses"]],
-                    },
-                )
+    for _ in range(100):
+        assert node is not None
+        completed = node
+        state, node = await execute_task_node(completed, state)
+        events.append(
+            (
+                completed,
+                {
+                    **state,
+                    "hypotheses": [h.to_dict() for h in state["hypotheses"]],
+                },
             )
-            if node is None:
-                break
-        else:
-            pytest.fail("durable scientific chain did not terminate")
+        )
+        if node is None:
+            break
+    else:
+        pytest.fail("durable scientific chain did not terminate")
     _assert_injected_then_screened(events)
     _assert_absent_from_final(events[-1][1])
     _assert_block_recorded(events[-1][1])

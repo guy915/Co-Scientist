@@ -68,7 +68,7 @@ def _owned_process_groups(registry: SessionRegistry) -> set[int]:
 
 
 def _reap_process_groups(groups: set[int]) -> None:
-    # Bubblewrap's inner namespace has its own session and inherits the pipes.
+    # Confined children may start their own session and inherit the pipes.
     for group in groups:
         with suppress(ProcessLookupError):
             os.killpg(group, signal.SIGKILL)
@@ -532,7 +532,7 @@ def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:
 def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(
     tmp_path: Path,
 ) -> None:
-    """Bubblewrap skips absent read-only bind paths; host-side spills must
+    """Host-side spills must
     resist later symlinks."""
     root = tmp_path / "workspace"
     root.mkdir()

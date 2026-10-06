@@ -561,7 +561,7 @@ def _synthesis_tool_contract(
     tool_registry: Optional["ToolRegistry"],
 ) -> dict[str, Any] | None:
     """Tool schemas alone miss endpoint/mapping semantics; include resolved
-    configuration to invalidate stale cached transcripts."""
+    configuration."""
     if tool_registry is None:
         return None
     return dataclasses.asdict(tool_registry.config)

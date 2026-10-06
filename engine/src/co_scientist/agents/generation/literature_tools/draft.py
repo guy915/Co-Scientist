@@ -344,7 +344,6 @@ async def _call_draft_llm_with_tools(
     call: _DraftCall,
     draft_max_tokens: int,
 ) -> tuple[str, int]:
-    # Diversity-critical drafting must remain fresh rather than cache-frozen.
     final_response, messages = await call_llm_with_tools(
         prompt=call.prompt,
         spec=CompletionSpec(
@@ -359,7 +358,6 @@ async def _call_draft_llm_with_tools(
             max_prompt_tokens=call.max_prompt_tokens,
         ),
         options=LLMCallOptions(
-            use_cache=False,
             run_id=state.get("run_id"),
             prompt_name="generate_draft_with_tools",
         ),

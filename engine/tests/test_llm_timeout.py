@@ -25,7 +25,6 @@ from co_scientist.exceptions import (
 )
 from co_scientist.llm import (
     CompletionSpec,
-    LLMCallOptions,
     call_llm,
     scoped_telemetry,
 )
@@ -43,8 +42,6 @@ from tests._llm_fake import (
 from tests._llm_fake import drive as drive
 
 __all__ = ["drive"]
-
-_NO_CACHE = LLMCallOptions(use_cache=False)
 
 
 @pytest.mark.parametrize(
@@ -80,7 +77,7 @@ async def test_the_provider_is_asked_to_stop_at_the_timeout(
 
     backend = install_fake_backend(monkeypatch, answer)
 
-    await call_llm("prompt", CompletionSpec("deepseek/deepseek-v4-flash"), _NO_CACHE)
+    await call_llm("prompt", CompletionSpec("deepseek/deepseek-v4-flash"))
 
     assert backend.requests[0].get("timeout") == sent
 
@@ -101,7 +98,7 @@ async def test_a_hung_provider_is_cut_off_and_recorded_as_a_timeout(
         scoped_telemetry("test_phase") as telemetry,
         pytest.raises(LLMTimeoutError, match=model),
     ):
-        await call_llm("prompt", CompletionSpec(model), _NO_CACHE)
+        await call_llm("prompt", CompletionSpec(model))
 
     assert len(backend.requests) == 1, "a timeout is never replayed"
     entry = telemetry.snapshot()[f"test_phase::{model}"]
@@ -131,7 +128,7 @@ async def test_a_provider_timeout_says_whether_a_zero_cost_request_went_out(
     backend = install_fake_backend(monkeypatch, accepted_then_lost)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
-        await call_llm("prompt", CompletionSpec(model, api_key=api_key), _NO_CACHE)
+        await call_llm("prompt", CompletionSpec(model, api_key=api_key))
 
     assert len(backend.requests) == 1, "an ambiguous call must not replay"
     assert excinfo.value.zero_cost_admitted is zero_cost_admitted

@@ -12,12 +12,10 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 
 import app.engine_adapter as engine_adapter
 from app import API_VERSION
-from app.account_export import router as account_export_router
 from app.auth import Principal, auth_required, principal_for_request
 from app.auth import router as auth_router
 from app.byok_models import router as byok_models_router
@@ -34,10 +32,8 @@ from app.logging_setup import (
     shutdown_log_capture,
 )
 from app.logs_api import router as logs_router
-from app.operator_access import is_operator
 from app.runs import router as runs_router
 from app.seed import seed_demo_runs
-from app.shares import router as shares_router
 from app.store import checkpoints as store
 from app.store import db, runs, tasks
 from app.store import runs_views as views
@@ -184,10 +180,6 @@ coscientist_logger.setLevel(_app_log_level)
 # provider variables directly.
 if settings.gemini_api_key:
     os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
-if settings.coscientist_cache_enabled:
-    os.environ["COSCIENTIST_CACHE_ENABLED"] = "true"
-if settings.coscientist_cache_dir:
-    os.environ["COSCIENTIST_CACHE_DIR"] = settings.coscientist_cache_dir
 
 # The engine MCP client reads its URL from environment rather than a Settings
 # parameter.
@@ -299,11 +291,7 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     # Authorize routed ASGI paths, not URLs reconstructed from caller-controlled
     # Host headers.
     path = request.scope["path"]
-    public_api = (
-        path.startswith("/api/auth/")
-        or path.startswith("/api/shared/")
-        or (path == "/api/feedback/admin" and request.method == "GET")
-    )
+    public_api = path.startswith("/api/auth/")
     try:
         principal = principal_for_request(request)
     except HTTPException as exc:
@@ -335,50 +323,12 @@ app.add_middleware(
 app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(documents_router)
-app.include_router(shares_router)
-app.include_router(account_export_router)
 app.include_router(free_usage_router)
 app.include_router(byok_models_router)
 app.include_router(auth_router)
 app.include_router(logs_router)
 app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
-
-
-def _not_found_for_non_operator(request: Request) -> Response | None:
-    """A 404 hides the existence of operator documentation rather than
-    advertising it through an authorization challenge.
-    """
-    if is_operator(request):
-        return None
-    return JSONResponse({"detail": "not found"}, status_code=404)
-
-
-@app.get("/docs", include_in_schema=False)
-async def _operator_swagger_ui(request: Request) -> Response:
-    """Swagger UI, visible only to an operator caller."""
-    gate = _not_found_for_non_operator(request)
-    if gate is not None:
-        return gate
-    return get_swagger_ui_html(openapi_url="/openapi.json", title=f"{app.title} - Swagger UI")
-
-
-@app.get("/redoc", include_in_schema=False)
-async def _operator_redoc(request: Request) -> Response:
-    """ReDoc UI, visible only to an operator caller."""
-    gate = _not_found_for_non_operator(request)
-    if gate is not None:
-        return gate
-    return get_redoc_html(openapi_url="/openapi.json", title=f"{app.title} - ReDoc")
-
-
-@app.get("/openapi.json", include_in_schema=False)
-async def _operator_openapi_schema(request: Request) -> Response:
-    """The full OpenAPI schema, visible only to an operator caller."""
-    gate = _not_found_for_non_operator(request)
-    if gate is not None:
-        return gate
-    return JSONResponse(app.openapi())
 
 
 if __name__ == "__main__":

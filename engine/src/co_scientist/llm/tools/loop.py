@@ -8,7 +8,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import Any, NoReturn
 
-from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.exceptions import (
     FreeModelEligibilityError,
     LLMCallBudgetExceededError,
@@ -29,7 +28,6 @@ from co_scientist.llm.request.response import _extract_completion_content
 from co_scientist.llm.request.thinking import _apply_thinking_args
 from co_scientist.llm.tools.policy import (
     DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
-    _guard_cache_for_local_tools,
     _handoff_iteration,
     _handoff_message,
     _handoff_spend,
@@ -46,7 +44,7 @@ from co_scientist.llm.tools.transcript import (
     normalize_tool_transcript,
     object_arguments,
 )
-from co_scientist.llm.values import CompletionSpec, LLMCallOptions
+from co_scientist.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
 from co_scientist.tool_effects import batch_by_effects
 
 logger = logging.getLogger(__name__)
@@ -101,12 +99,10 @@ async def _execute_tool_calls(
 
 def _build_tool_loop_completion_args(
     messages: list[dict[str, Any]],
-    request: LLMCacheRequest,
+    request: LLMRequest,
     escalation: BudgetEscalation = BudgetEscalation.NONE,
 ) -> dict[str, Any]:
-    """Use the shared thinking floor and both timeout layers; credentials
-    stay out of cache keys.
-    """
+    """Use the shared thinking floor and both timeout layers."""
     completion_args: dict[str, Any] = {
         "model": request.model_name,
         # Repair at send time so every cut transcript reaches the provider with
@@ -136,7 +132,7 @@ def _final_content(response: Any, model_name: str) -> str | None:
 
 async def _answered_completion(
     messages: list[dict[str, Any]],
-    request: LLMCacheRequest,
+    request: LLMRequest,
     iteration: int,
 ) -> tuple[Any, str | None]:
     """Retries must stop before tool execution or repeat side effects.
@@ -155,7 +151,7 @@ async def _answered_completion(
 
 async def _run_tool_call_iteration(
     messages: list[dict[str, Any]],
-    request: LLMCacheRequest,
+    request: LLMRequest,
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
     iteration: int = 0,
 ) -> tuple[bool, str | None]:
@@ -176,7 +172,7 @@ async def _run_tool_call_iteration(
 
 async def _run_iteration_logged(
     messages: list[dict[str, Any]],
-    request: LLMCacheRequest,
+    request: LLMRequest,
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
     iteration: int,
 ) -> tuple[bool, str | None]:
@@ -186,7 +182,7 @@ async def _run_iteration_logged(
 
 async def _answer_without_tools(
     messages: list[dict[str, Any]],
-    request: LLMCacheRequest,
+    request: LLMRequest,
 ) -> str | None:
     """Withholding tools turns paid investigation into prose, not more actions.
     Provider-call budget errors must propagate, never become empty fallbacks.
@@ -202,34 +198,6 @@ async def _answer_without_tools(
     except Exception as exc:
         logger.warning("Could not harvest a final answer: %s", exc)
         return None
-
-
-def _cache_tool_call_result(
-    cache: LLMCache | NullCache,
-    request: LLMCacheRequest,
-    final_content: str,
-    messages: list[dict[str, Any]],
-) -> None:
-    """Only validated final content is cached; failed loops must retry fresh."""
-    cache.set(
-        request,
-        # Cache repaired transcripts so replay remains valid regardless of how
-        # the turn ended.
-        {
-            "final_response": final_content,
-            "message_history": normalize_tool_transcript(messages),
-        },
-    )
-
-
-def _finalize_tool_loop_success(
-    cache: LLMCache | NullCache,
-    request: LLMCacheRequest,
-    final_content: str,
-    messages: list[dict[str, Any]],
-) -> tuple[str, list[dict[str, Any]]]:
-    _cache_tool_call_result(cache, request, final_content, messages)
-    return final_content, messages
 
 
 def _raise_budget_exhausted(loop: ToolLoop) -> NoReturn:
@@ -285,11 +253,10 @@ def _drop_dead_context(messages: list[dict[str, Any]]) -> None:
 
 
 async def _harvest_partial_answer(
-    request: LLMCacheRequest,
+    request: LLMRequest,
     messages: list[dict[str, Any]],
     loop: ToolLoop,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Do not cache a degraded partial answer as a completed investigation."""
     answer = await _answer_without_tools(messages, request)
     if not answer:
         _raise_budget_exhausted(loop)
@@ -301,11 +268,10 @@ async def _harvest_partial_answer(
 
 
 async def _run_tool_call_loop(
-    request: LLMCacheRequest,
+    request: LLMRequest,
     messages: list[dict[str, Any]],
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
     loop: ToolLoop,
-    cache: LLMCache | NullCache,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Turns resend the whole transcript, so a turn count alone cannot bound
     spend.
@@ -329,37 +295,14 @@ async def _run_tool_call_loop(
         if done:
             assert final_content is not None
             logger.debug("llm finished after %s iterations", iteration + 1)
-            return _finalize_tool_loop_success(cache, request, final_content, messages)
+            return final_content, messages
 
     return await _harvest_partial_answer(request, messages, loop)
 
 
-async def _prepare_tool_call(
-    request: LLMCacheRequest, opts: LLMCallOptions
-) -> tuple[
-    LLMCacheRequest,
-    LLMCache | NullCache,
-    tuple[str, list[dict[str, Any]]] | None,
-]:
-    request, cache, cached_response = await _prepare_llm_call(request, opts)
-    if cached_response is None:
-        return request, cache, None
-    logger.debug("using cached llm tool call response")
-    return (
-        request,
-        cache,
-        (
-            cached_response["final_response"],
-            cached_response["message_history"],
-        ),
-    )
-
-
 @dataclass(frozen=True)
 class ToolLoop:
-    """Tool configuration belongs in cache keys despite unchanged schemas.
-    A closing turn can exceed local bounds but never the provider cap.
-    """
+    """A closing turn can exceed local bounds but never the provider cap."""
 
     tools: list[dict[str, Any]]
     executor: Callable[[Any], Awaitable[dict[str, Any]]]
@@ -374,12 +317,10 @@ async def call_llm_with_tools(
     loop: ToolLoop,
     options: LLMCallOptions | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    opt = options if options is not None else LLMCallOptions()
-    opt = _guard_cache_for_local_tools(loop, opt)
     # An explicit key overrides this task context for the loop, not shared
     # backend state.
     with scoped_api_key(spec.api_key):
-        request = LLMCacheRequest(
+        request = LLMRequest(
             prompt=prompt,
             model_name=spec.model_name,
             temperature=spec.temperature,
@@ -387,8 +328,6 @@ async def call_llm_with_tools(
             tools=loop.tools,
             tool_contract=loop.tool_contract,
         )
-        request, cache, cached_result = await _prepare_tool_call(request, opt)
-        if cached_result is not None:
-            return cached_result
+        request = _prepare_llm_call(request)
         messages = [{"role": "user", "content": prompt}]
-        return await _run_tool_call_loop(request, messages, loop.executor, loop, cache)
+        return await _run_tool_call_loop(request, messages, loop.executor, loop)

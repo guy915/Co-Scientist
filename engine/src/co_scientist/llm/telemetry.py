@@ -20,8 +20,7 @@ UNSPECIFIED_PHASE = "unspecified"
 @dataclass(frozen=True)
 class ModelCallStats:
     """Every field is an additive delta, not an independently cumulative
-    snapshot. Provider prompt-cache reads are part of input tokens and
-    differ from our cache hits.
+    snapshot.
     """
 
     deterministic_fallbacks: dict[str, int] = field(default_factory=dict)
@@ -37,8 +36,6 @@ class ModelCallStats:
     cost_usd: float = 0.0
     latency_seconds: float = 0.0
     retries: int = 0
-    cache_hits: int = 0
-    cache_misses: int = 0
     errors: dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -65,8 +62,6 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
         cost_usd=a.cost_usd + b.cost_usd,
         latency_seconds=a.latency_seconds + b.latency_seconds,
         retries=a.retries + b.retries,
-        cache_hits=a.cache_hits + b.cache_hits,
-        cache_misses=a.cache_misses + b.cache_misses,
         errors=errors,
     )
 
@@ -189,11 +184,6 @@ def record_completion_failure(
 
 def record_retry(model_name: str) -> None:
     record_call(model_name, ModelCallStats(retries=1))
-
-
-def record_cache_result(model_name: str, hit: bool) -> None:
-    stats = ModelCallStats(cache_hits=1) if hit else ModelCallStats(cache_misses=1)
-    record_call(model_name, stats)
 
 
 def record_deterministic_fallback(model_name: str, reason: str) -> None:

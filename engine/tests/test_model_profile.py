@@ -10,7 +10,6 @@ from co_scientist.generator.core import HypothesisGenerator
 from co_scientist.generator.run_setup import GeneratorOptions
 from co_scientist.llm import (
     CompletionSpec,
-    LLMCallOptions,
     ToolLoop,
     call_llm,
     call_llm_json,
@@ -30,8 +29,6 @@ from co_scientist.llm.request.thinking import (
 from tests._llm_fake import (
     install_fake_backend,
 )
-
-_NO_CACHE = LLMCallOptions(use_cache=False)
 
 
 def _reply(content: str = "ok") -> SimpleNamespace:
@@ -61,15 +58,14 @@ async def test_a_byok_key_reaches_the_provider_and_is_never_invented(
 
     with scoped_api_key("sk-byok-scoped" if source == "scoped" else None):
         if kind == "text":
-            await call_llm("prompt", spec, options=_NO_CACHE)
+            await call_llm("prompt", spec)
         elif kind == "json":
-            await call_llm_json("prompt", spec, options=_NO_CACHE)
+            await call_llm_json("prompt", spec)
         else:
             await call_llm_with_tools(
                 "prompt",
                 spec,
                 ToolLoop(tools=[], executor=executor, max_iterations=1),
-                options=_NO_CACHE,
             )
 
     assert (
@@ -83,7 +79,7 @@ async def test_a_byok_key_reaches_the_provider_and_is_never_invented(
     assert ("api_key" in sent[0]) is (source != "none")
 
 
-def test_a_byok_key_forces_the_cache_off_and_stays_out_of_state() -> None:
+def test_a_byok_key_stays_out_of_state() -> None:
     """Workflow state is checkpointed wholesale; BYOK credentials must stay
     out."""
     generator = HypothesisGenerator(
@@ -92,7 +88,6 @@ def test_a_byok_key_forces_the_cache_off_and_stays_out_of_state() -> None:
     )
 
     assert generator.api_key == "sk-byok-secret"
-    assert generator.enable_cache is False
     fields = generator._initial_config_fields()
     assert "sk-byok-secret" not in str(fields)
     assert "api_key" not in fields

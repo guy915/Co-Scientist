@@ -40,7 +40,6 @@ from app.store.tasks_lifecycle import park_task as park_task
 from app.store.tasks_lifecycle import (
     park_task_for_rate_limit as park_task_for_rate_limit,
 )
-from app.store.tasks_lifecycle import pause_run_tasks as pause_run_tasks
 from app.store.tasks_lifecycle import (
     queue_health_snapshot as queue_health_snapshot,
 )
