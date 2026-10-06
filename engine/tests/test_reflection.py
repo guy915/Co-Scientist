@@ -1,24 +1,67 @@
 from __future__ import annotations
 
+import asyncio
+import json
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
 
+import co_scientist.agents.reflection.deep_verification as leaf
+from co_scientist.agents.reflection import (
+    ReviewRun,
+    ReviewType,
+    apply_initial_review_gate,
+    deep_verification_evidence,
+    observe_hypothesis,
+    reflection,
+    review_hypothesis,
+    select_hypotheses_to_verify,
+    verify_hypothesis,
+)
 from co_scientist.agents.reflection import comprehensive_reflection as cr
-from co_scientist.agents.reflection import reflection
+from co_scientist.agents.reflection import (
+    comprehensive_reflection as review_prompt_context,
+)
+from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import reflection as observation
 from co_scientist.agents.reflection import review_evidence as ev
+from co_scientist.agents.reflection import simulation_execution as se
+from co_scientist.agents.reflection.deep_verification import (
+    mark_verification_issued,
+    verification_fingerprint,
+)
 from co_scientist.agents.reflection.reflection import reflection_node
 from co_scientist.agents.reflection.reflection_helpers import (
     extract_entity_names,
+    fetch_indra_evidence,
     get_kg_tools_for_workflow,
 )
-from co_scientist.agents.reflection.review_evidence import ReviewResearch
+from co_scientist.agents.reflection.review_evidence import (
+    ReviewResearch,
+    _seed_questions,
+    research_for_review,
+)
 from co_scientist.config import ToolRegistry
-from co_scientist.models import Article
+from co_scientist.evidence.search_support import SearchConfig
+from co_scientist.exceptions import (
+    LLMCallBudgetExceededError,
+    LLMRateLimitParkError,
+)
+from co_scientist.generator import run_setup
+from co_scientist.models import Article, Hypothesis
+from co_scientist.workspace.session import WorkspaceSession
 from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
 from tests._mcp import WorkflowToolRegistry
-from tests._state import make_hypothesis, make_state
+from tests._research_fakes import (
+    FakeResearchClient,
+    _ScriptedModel,
+    install_research_client,
+    make_search_config,
+    research_registry,
+)
+from tests._state import make_article, make_hypothesis, make_review, make_state
 
 _ARTICLES = "Article 1: observation A supports pathway X."
 
@@ -246,4 +289,369 @@ def test_entity_extraction_keeps_gene_symbols_only(
     assert extract_entity_names(text) == entities
     assert (
         len(extract_entity_names("KRAS TREM2 APOE TP53", max_entities=2)) == 2
+    )
+
+
+def _fake_registry() -> ToolRegistry:
+    """Knowledge-graph source typing is required because literature tools
+    reject INDRA arguments."""
+    return cast(
+        ToolRegistry,
+        WorkflowToolRegistry(
+            ["indra_relations"],
+            ["get_relations"],
+            tool_mcp_names={"indra_relations": "get_relations"},
+        ),
+    )
+
+
+class _FakeMcpClient:
+    def __init__(
+        self,
+        available_tools: set[str],
+        responses: dict[str, Any] | None = None,
+    ) -> None:
+        self._available_tools = available_tools
+        self._responses = responses or {}
+
+    def has_tool(self, name: str) -> bool:
+        return name in self._available_tools
+
+    async def call_tool(self, _tool_name: str, **kwargs: Any) -> Any:
+        entity = kwargs["agent"]
+        if entity not in self._responses:
+            return {"statements": []}
+        response = self._responses[entity]
+        if response is None:
+            raise RuntimeError(f"simulated query failure for {entity}")
+        return response
+
+
+_ACTIVATION_STATEMENT = {
+    "type": "Activation",
+    "belief": 0.9,
+    "evidence": [1, 2],
+    "subj": {"name": "KRAS"},
+    "obj": {"name": "BRAF"},
+}
+
+
+async def test_fetch_indra_evidence_returns_client_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_client = _FakeMcpClient(
+        available_tools={"get_relations"},
+        responses={
+            "KRAS": json.dumps({"statements": [_ACTIVATION_STATEMENT]}),
+        },
+    )
+
+    async def fake_get_mcp_client(**_: Any) -> _FakeMcpClient:
+        return fake_client
+
+    monkeypatch.setattr(
+        "co_scientist.mcp_client.get_mcp_client", fake_get_mcp_client
+    )
+
+    result = await fetch_indra_evidence(
+        "KRAS drives tumor growth", tool_registry=_fake_registry()
+    )
+
+    assert "KRAS --[Activation]--> BRAF" in result["prompt_text"]
+    assert result["enrichment_items"]
+
+
+def test_retracted_evidence_never_reaches_a_prompt() -> None:
+    """Retraction checks belong at every formatting boundary, not only
+    retrieval."""
+    retracted = make_article(
+        "Retracted paper",
+        abstract="Withdrawn mechanistic claim.",
+        used_in_analysis=True,
+        is_retracted=True,
+    )
+    only_retracted = make_state(articles=[retracted])
+    assert (
+        review_prompt_context._build_domain_context(only_retracted, None) == ""
+    )
+    assert (
+        deep_verification_evidence._retrieved_evidence_context([retracted])
+        == ""
+    )
+    state = make_state(
+        articles=[
+            make_article(
+                "Retracted paper",
+                abstract="Withdrawn mechanistic claim.",
+                used_in_analysis=True,
+                is_retracted=True,
+            ),
+            make_article(
+                "Standing paper",
+                abstract="Replicated mechanistic finding.",
+                used_in_analysis=True,
+            ),
+        ]
+    )
+
+    context = dv._verification_evidence_context(state)
+
+    assert "Standing paper" in context
+    assert "Retracted paper" not in context
+    assert "Withdrawn mechanistic claim" not in context
+
+
+def test_gate_honors_scientist_criteria_and_safety() -> None:
+    ideas = [make_hypothesis(), make_hypothesis()]
+    reviews = [
+        make_review(scores={"novelty": 1, "testability": 8, "safety": 8}),
+        make_review(scores={"testability": 8, "safety": 1}),
+    ]
+    apply_initial_review_gate(ideas, reviews, ["Experimental feasibility"])
+    assert [idea.review_disposition for idea in ideas] == ["viable", "unsafe"]
+
+
+def test_selection_preserves_pool_order_and_once_ever_markers() -> None:
+    pending = make_hypothesis()
+    blocked = make_hypothesis(review_disposition="unsafe")
+    issued = make_hypothesis()
+    mark_verification_issued(issued)
+    current = make_hypothesis()
+    current.deep_verification_fingerprint = verification_fingerprint(
+        current, "m"
+    )
+    next_pending = make_hypothesis()
+    assert select_hypotheses_to_verify(
+        [pending, blocked, issued, current, next_pending], "m"
+    ) == [pending, next_pending]
+    assert not pending.enrichments
+
+
+@pytest.mark.asyncio
+async def test_single_verification_assembles_bounded_context_and_local_limiter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semaphores: list[asyncio.Semaphore] = []
+    contexts: list[str] = []
+
+    async def capture(
+        semaphore: asyncio.Semaphore,
+        hypothesis: Any,
+        context: Any,
+        evidence: str,
+    ) -> dict[str, Any]:
+        assert context.state is state
+        semaphores.append(semaphore)
+        contexts.append(evidence)
+        return {"verdict": "holds"}
+
+    state = make_state(
+        articles=[
+            make_article(
+                "Long evidence", abstract="x" * 100000, used_in_analysis=True
+            )
+        ],
+        context_enrichment_sources=[{"display": "y" * 100000}],
+        meta_review={"common_weaknesses": ["Recurring assumption error"]},
+    )
+    monkeypatch.setattr(leaf, "_verify_within_semaphore", capture)
+    for _ in range(2):
+        assert await verify_hypothesis(state, make_hypothesis()) == {
+            "verdict": "holds"
+        }
+    assert semaphores[0] is not semaphores[1]
+    assert all(semaphore._value == 1 for semaphore in semaphores)
+    assert all(len(context) < 20000 for context in contexts)
+    assert "Long evidence" in contexts[0]
+    assert "Recurring assumption error" in contexts[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation,owner",
+    [
+        (verify_hypothesis, leaf),
+        (observe_hypothesis, observation),
+        (review_hypothesis, cr),
+    ],
+)
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("ordinary"),
+        LLMRateLimitParkError(9999, "cap"),
+        LLMCallBudgetExceededError(2, 1),
+    ],
+)
+async def test_failures_degrade_but_task_control_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+    operation: Any,
+    owner: Any,
+    error: Exception,
+) -> None:
+    mock_call_llm_json(monkeypatch, owner, side_effect=error)
+    state = make_state(articles_with_reasoning="Retrieved literature")
+    args = (
+        (state, make_hypothesis(), ReviewType.FULL)
+        if operation is review_hypothesis
+        else (state, make_hypothesis())
+    )
+    if isinstance(error, RuntimeError):
+        result = await operation(*args)
+        assert (
+            result.result if isinstance(result, ReviewRun) else result
+        ) is None
+    else:
+        with pytest.raises(type(error)) as caught:
+            await operation(*args)
+        assert caught.value is error
+
+
+@pytest.fixture
+def scripted(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
+    model = _ScriptedModel()
+    monkeypatch.setattr("co_scientist.research_adapter.call_llm_json", model)
+    return model
+
+
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
+    return install_research_client(monkeypatch)
+
+
+def _reflection_research_evidence_state(
+    tmp_path: Path, hypotheses: list[Hypothesis], *, tier: str
+) -> Any:
+    return make_state(
+        research_goal="reverse fibrosis",
+        model_name="offline/test",
+        run_id="run-1",
+        hypotheses=hypotheses,
+        mcp_available=True,
+        research_tier=tier,
+        tool_registry=research_registry(tmp_path),
+    )
+
+
+def _viable(text: str, *, elo: int) -> Hypothesis:
+    hypothesis = make_hypothesis(text=text)
+    hypothesis.review_disposition = "viable"
+    hypothesis.elo_rating = elo
+    return hypothesis
+
+
+async def test_the_first_questions_are_the_doubts_already_on_record(
+    tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
+) -> None:
+    hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
+    hypothesis.enrichments["full"] = {
+        "assumptions": [
+            {
+                "assumption": "the receptor is expressed in humans",
+                "support": "uncertain",
+            },
+            {"assumption": "fibrosis is reversible", "support": "supported"},
+        ]
+    }
+
+    found = await research_for_review(
+        _reflection_research_evidence_state(
+            tmp_path, [hypothesis], tier="extended"
+        ),
+        hypothesis,
+    )
+
+    assert found is not None
+    asked = [thread["question"]["text"] for thread in found.ledger["threads"]]
+    assert "the receptor is expressed in humans" in asked
+    assert "fibrosis is reversible" not in asked
+    assert not any("perspectives to research" in p for p in scripted.prompts)
+
+
+def test_a_simulation_failure_point_is_a_doubt_too() -> None:
+    hypothesis = make_hypothesis(text="mechanism X")
+    hypothesis.enrichments["simulation"] = {
+        "failure_points": ["step 3 needs a cofactor nothing supplies"]
+    }
+
+    assert _seed_questions(hypothesis, 4) == [
+        "step 3 needs a cofactor nothing supplies"
+    ]
+
+
+# Offer run_command explicitly so these tests exercise the loop on every host.
+_RUNNABLE_TOOLS = [{"function": {"name": "run_command"}}]
+
+
+def _reflection_simulation_execution_state(**overrides: Any) -> Any:
+    state = make_state(hypotheses=[], current_iteration=0)
+    for key, value in overrides.items():
+        state[key] = value  # type: ignore[literal-required]
+    return state
+
+
+class TestTheOfflineBackendNeverExecutes:
+    def test_an_offline_run_stays_mental(self) -> None:
+        # Offline replies emit no tool calls, so an execution loop would observe
+        # nothing.
+        assert (
+            run_setup._resolve_simulation_execution(
+                {"enable_simulation_execution": True}, "offline/deterministic"
+            )
+            is False
+        )
+
+
+class TestDegradation:
+    async def test_a_failing_loop_reviews_mentally(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(
+            se, "workspace_tool_schemas", lambda policy: _RUNNABLE_TOOLS
+        )
+        monkeypatch.setattr(
+            se,
+            "open_review_workspace",
+            lambda *a, **k: WorkspaceSession(tmp_path),
+        )
+        monkeypatch.setattr(
+            se,
+            "call_llm_with_tools",
+            AsyncMock(side_effect=RuntimeError("provider fell over")),
+        )
+
+        assert (
+            await se.simulation_observations(
+                _reflection_simulation_execution_state(run_id="r1"),
+                make_hypothesis(text="a"),
+            )
+            is None
+        )
+
+
+class TestIsolation:
+    def test_two_reviews_of_one_run_do_not_share_a_directory(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Concurrent leased reviews sharing a directory would report
+        observations of each other's models."""
+        from co_scientist.workspace import run_workspace
+
+        monkeypatch.setattr(run_workspace, "workspaces_root", lambda: tmp_path)
+
+        first = run_workspace.open_review_workspace("run-1", "hyp-a")
+        second = run_workspace.open_review_workspace("run-1", "hyp-b")
+
+        assert first.root != second.root
+        assert first.root.is_dir() and second.root.is_dir()
+
+
+def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
+    return make_search_config(
+        search_tool_name="search_pubmed",
+        source_name="pubmed",
+        papers_to_read_count=6,
+        research_goal="a research goal",
+        model_name="offline/deterministic",
+        semantic_relevance_enabled=semantic_relevance_enabled,
     )

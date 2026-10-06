@@ -1,33 +1,64 @@
 from __future__ import annotations
 
+import ast
+import asyncio
 import json
+import pathlib
 import subprocess
 import sys
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import pytest
+from jsonschema.exceptions import ValidationError
+from litellm.exceptions import BadRequestError
 
+import co_scientist.agents.generation.literature_tools.validate as vs
+import co_scientist.agents.reflection.deep_verification as dv
+from co_scientist.agents.reflection import comprehensive_reflection as cr
+from co_scientist.agents.reflection import reflection as refl
+from co_scientist.agents.reflection import review as rv
+from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
+from co_scientist.agents.reflection.review_gate import ReviewType
+from co_scientist.exceptions import (
+    LLMCallBudgetExceededError,
+    LLMRateLimitParkError,
+)
 from co_scientist.llm import (
     CompletionSpec,
+    LLMCallOptions,
+    call_llm,
     call_llm_json,
     complete_request,
     scoped_telemetry,
 )
+from co_scientist.llm.attempts import json_attempt
+from co_scientist.llm.request import backend
+from co_scientist.llm.request.completion import (
+    _apply_response_format,
+    _supports_json_schema_response_format,
+)
 from co_scientist.llm.structured.validate import attempt_json_repair
 from co_scientist.mcp_client import MCPToolClient
+from co_scientist.offline import llm as offline_llm
 from co_scientist.tools.provider import MCPToolProvider
 from tests._llm_fake import (
+    FakeBackend,
     disable_llm_cache,
     install_fake_backend,
     make_completion,
     make_message,
     patch_acompletion,
+    scripted_backend,
 )
-from tests._mcp import make_tool_call
+from tests._mcp import isolate_offline_router, make_tool_call
+from tests._state import make_hypothesis, make_state
 
 _FENCED = '```json\n{"a": 1}\n```'
+
+
 _LATEX = r'{"experiment": "use GFP-Ub\(^{G76V}\) reporter"}'
 
 
@@ -240,3 +271,382 @@ async def test_usage_is_recorded_once_after_the_stream_finishes(
     assert usage["completion_tokens"] == 3
     assert usage["reported_usage_calls"] == 1
     assert usage["errors"] == {}
+
+
+_INT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"a": {"type": "integer"}},
+    "required": ["a"],
+}
+
+
+@pytest.mark.parametrize(
+    ("content", "schema", "expected"),
+    [
+        ('{"a": 1, "b": "x"}', None, {"a": 1, "b": "x"}),
+        ('```json\n{"a": 7}\n```', None, {"a": 7}),
+        ('{"a": 1,}', _INT_SCHEMA, {"a": 1}),
+        ("this is not json at all", None, json.JSONDecodeError),
+        ('{"a": "not an int"}', _INT_SCHEMA, ValidationError),
+    ],
+    ids=["clean", "fenced", "trailing-comma", "unparseable", "wrong-type"],
+)
+async def test_call_llm_json_repairs_what_it_can_and_raises_what_it_cannot(
+    monkeypatch: pytest.MonkeyPatch,
+    content: str,
+    schema: dict[str, Any] | None,
+    expected: Any,
+) -> None:
+    disable_llm_cache(monkeypatch)
+    patch_acompletion(monkeypatch, [make_completion(make_message(content))] * 2)
+    spec = CompletionSpec(model_name="test-model", json_schema=schema)
+
+    if isinstance(expected, type):
+        with pytest.raises(expected):
+            await call_llm_json("a prompt", spec, max_attempts=2)
+    else:
+        assert await call_llm_json("a prompt", spec, max_attempts=2) == expected
+
+
+async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unsupported bounds degrade to a reasoning tier instead of failing."""
+    disable_llm_cache(monkeypatch)
+    model = "openrouter/minimax/minimax-m3:free"
+    backend = scripted_backend(
+        monkeypatch,
+        [
+            BadRequestError(
+                message=(
+                    "reasoning.max_tokens is not supported for this model."
+                ),
+                model=model,
+                llm_provider="openrouter",
+            ),
+            make_completion(make_message('{"a": 1}')),
+        ],
+    )
+
+    result = await call_llm_json(
+        "a prompt",
+        CompletionSpec(
+            model_name=model, max_tokens=12000, json_schema=_INT_SCHEMA
+        ),
+        max_attempts=3,
+        options=LLMCallOptions(enable_thinking=False),
+    )
+
+    assert result == {"a": 1}
+    first, second = (r["extra_body"]["reasoning"] for r in backend.requests)
+    assert first["max_tokens"] > 0
+    assert second == {"enabled": True, "effort": "low"}
+
+
+async def _answer(**_kwargs: Any) -> Any:
+    return make_completion(make_message("ok"))
+
+
+@pytest.mark.parametrize(
+    "model", ["anthropic/claude-opus-5-5", "openai/gpt-6-astra"]
+)
+async def test_models_that_reject_sampling_knobs_never_get_them(
+    monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    disable_llm_cache(monkeypatch)
+    backend = install_fake_backend(monkeypatch, _answer)
+
+    await call_llm("prompt", CompletionSpec(model_name=model))
+
+    assert "temperature" not in backend.requests[0]
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-6.1-sol", "openai/gpt-6-astra"])
+async def test_gpt6_calls_go_through_the_responses_api_once_per_retry(
+    monkeypatch: pytest.MonkeyPatch, model: str
+) -> None:
+    """Chat Completions refuses function calling on these models."""
+    disable_llm_cache(monkeypatch)
+    backend = scripted_backend(
+        monkeypatch, [RuntimeError("blip"), make_completion(make_message("ok"))]
+    )
+
+    await call_llm("prompt", CompletionSpec(model_name=model), max_attempts=2)
+
+    assert [r["model"] for r in backend.requests] == [
+        model.replace("openai/", "openai/responses/", 1)
+    ] * 2
+
+
+_ROUTING_SCHEMA: dict[str, Any] = {
+    "name": "routing_probe",
+    "schema": {
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"],
+        "additionalProperties": False,
+    },
+}
+
+
+async def _answers_ok(**_kwargs: Any) -> str:
+    return "ok"
+
+
+def test_a_backend_scope_restores_what_it_replaced_even_when_it_raises() -> (
+    None
+):
+    assert isinstance(backend.active_backend(), backend.LitellmBackend)
+    first, second = FakeBackend(_answers_ok), FakeBackend(_answers_ok)
+
+    previous = backend.install_backend(first)
+    try:
+        assert previous is None
+        assert backend.install_backend(second) is first
+    finally:
+        backend.install_backend(previous)
+    assert isinstance(backend.active_backend(), backend.LitellmBackend)
+
+    with pytest.raises(RuntimeError), backend.using_backend(first):
+        assert backend.active_backend() is first
+        raise RuntimeError("boom")
+    assert isinstance(backend.active_backend(), backend.LitellmBackend)
+
+
+def _args(model: str) -> dict[str, Any]:
+    return {
+        "model": model,
+        "messages": [{"role": "user", "content": "probe"}],
+    }
+
+
+# Validation holds the default capability answer bound before router
+# installation.
+_default_capability = _supports_json_schema_response_format
+
+
+def _registry_says_no_native_schema(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.supports_response_schema",
+        lambda **_kwargs: False,
+    )
+    _default_capability.cache_clear()
+
+
+def _response_format_for(model: str) -> str:
+    args = _args(model)
+    _apply_response_format(args, "probe", model, False, _ROUTING_SCHEMA)
+    return str(args["response_format"]["type"])
+
+
+def test_the_capability_answer_steers_the_format_but_not_the_validation_shim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Request shaping asks the installed backend on every call; validation
+    binds the default answer before router installation."""
+    isolate_offline_router(monkeypatch)
+    _registry_says_no_native_schema(monkeypatch)
+    model = offline_llm.DEFAULT_OFFLINE_MODEL
+
+    try:
+        assert _response_format_for(model) == "json_object"
+        offline_llm.install_offline_router()
+        assert _response_format_for(model) == "json_schema"
+        assert _response_format_for("openrouter/some/model") == "json_object"
+
+        result = {"answer": "x", "invented": 1}
+        json_attempt._backfill_and_validate(result, _ROUTING_SCHEMA, model)
+        assert result == {"answer": "x"}
+    finally:
+        _default_capability.cache_clear()
+
+
+PARK = LLMRateLimitParkError(1788825600.0, "message_per_day")
+
+
+OVER_BUDGET = LLMCallBudgetExceededError(2501, 2500)
+
+
+ORDINARY = ValueError("provider returned unparseable JSON")
+
+
+def _stub_review_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _evidence(*_: object, **__: object) -> _ReviewEvidence:
+        return _ReviewEvidence([], [], [], None)
+
+    async def _observations(*_: object, **__: object) -> str | None:
+        return None
+
+    monkeypatch.setattr(cr, "_review_evidence_for", _evidence)
+    monkeypatch.setattr(cr, "_observations_for", _observations)
+
+
+async def _mature_review(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> Any:
+    _stub_review_inputs(monkeypatch)
+    monkeypatch.setattr(cr, "call_llm_json", AsyncMock(side_effect=error))
+    hypothesis = make_hypothesis(text="a mechanism")
+    run = await cr._run_review(
+        make_state(hypotheses=[hypothesis]), hypothesis, ReviewType.FULL
+    )
+    return run.result
+
+
+async def _observation_reflection(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> Any:
+    monkeypatch.setattr(
+        refl, "_call_reflection_llm", AsyncMock(side_effect=error)
+    )
+    return await refl.analyze_single_hypothesis(
+        hypothesis=make_hypothesis(text="a mechanism"),
+        hypothesis_index=1,
+        total_count=1,
+        context=refl._ReflectionContext(
+            articles_with_reasoning="retrieved observations",
+            model_name="fixture",
+        ),
+    )
+
+
+async def _deep_verification(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> Any:
+    monkeypatch.setattr(dv, "_verify_with_probes", AsyncMock(side_effect=error))
+    context = dv._VerificationContext(
+        research_goal="g",
+        model_name="fixture",
+        tool_registry=None,
+        state=make_state(),
+    )
+    return await dv._verify_within_semaphore(
+        asyncio.Semaphore(1),
+        make_hypothesis(text="a mechanism"),
+        context,
+        "",
+    )
+
+
+async def _initial_reviews(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> Any:
+    monkeypatch.setattr(
+        rv, "review_single_hypothesis", AsyncMock(side_effect=error)
+    )
+    return await rv.review_parallel_individual(
+        [make_hypothesis(text="a"), make_hypothesis(text="b")],
+        rv.ReviewContext.from_state(make_state()),
+    )
+
+
+_FALLBACK_SITES = [
+    (_mature_review, None),
+    (_observation_reflection, None),
+    (_deep_verification, None),
+    (_initial_reviews, [None, None]),
+]
+
+
+@pytest.mark.parametrize(
+    ("site", "degraded"),
+    _FALLBACK_SITES,
+    ids=[
+        "mature-review",
+        "observation",
+        "deep-verification",
+        "initial-reviews",
+    ],
+)
+async def test_a_batch_fallback_degrades_ordinary_failures_but_not_spent_caps(
+    monkeypatch: pytest.MonkeyPatch, site: Any, degraded: Any
+) -> None:
+    """Batch fallback buys per-item retries; swallowing a spent cap
+    multiplies doomed requests."""
+    assert await site(monkeypatch, ORDINARY) == degraded
+    for error in (PARK, OVER_BUDGET):
+        with pytest.raises(type(error)):
+            await site(monkeypatch, error)
+
+
+def test_a_synthesis_batch_is_retried_individually_unless_a_cap_is_spent() -> (
+    None
+):
+    batches = [[{"a": 1}], [{"b": 2}]]
+    validated, failed = vs._partition_synthesis_results(
+        batches, [[{"ok": True}], RuntimeError("batch refused")]
+    )
+    assert (validated, failed) == ([{"ok": True}], [(1, batches[1])])
+
+    for error in (PARK, OVER_BUDGET):
+        with pytest.raises(type(error)):
+            vs._partition_synthesis_results(batches, [[], error])
+
+
+_AGENTS_DIR = (
+    pathlib.Path(__file__).resolve().parents[1] / "src/co_scientist/agents"
+)
+
+
+_LLM_CALLS = {"call_llm", "call_llm_json", "call_llm_with_tools"}
+
+
+_GUARD = "TASK_CONTROL_FLOW_ERRORS"
+
+
+def _calls_an_llm(node: ast.AST) -> bool:
+    return any(
+        isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Name)
+        and child.func.id in _LLM_CALLS
+        for child in ast.walk(node)
+    )
+
+
+def _catches_bare_exception(handler: ast.ExceptHandler) -> bool:
+    return isinstance(handler.type, ast.Name) and handler.type.id == "Exception"
+
+
+def _unguarded_handlers(node: ast.Try) -> list[int]:
+    """A re-raise after a broad handler cannot run; guard order matters."""
+    offenders = []
+    guarded = False
+    for handler in node.handlers:
+        if _GUARD in ast.dump(handler.type or ast.Pass()):
+            guarded = True
+        elif _catches_bare_exception(handler) and not guarded:
+            offenders.append(handler.lineno)
+    return offenders
+
+
+def _unguarded_llm_fallbacks(tree: ast.AST) -> list[int]:
+    return [
+        line
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Try) and _calls_an_llm(node)
+        for line in _unguarded_handlers(node)
+    ]
+
+
+def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
+    unguarded: dict[str, list[int]] = {}
+    for path in sorted(_AGENTS_DIR.rglob("*.py")):
+        offenders = _unguarded_llm_fallbacks(
+            ast.parse(path.read_text(encoding="utf-8"))
+        )
+        if offenders:
+            unguarded[str(path.relative_to(_AGENTS_DIR))] = offenders
+
+    assert not unguarded, (
+        "these handlers swallow a rate-limit park or the run's call-budget "
+        f"ceiling: {unguarded}"
+    )
+
+    bare = "try:\n    await call_llm_json(p)\nexcept Exception:\n    pass\n"
+    guarded = (
+        "try:\n    await call_llm_json(p)\n"
+        "except TASK_CONTROL_FLOW_ERRORS:\n    raise\n"
+        "except Exception:\n    pass\n"
+    )
+    assert _unguarded_llm_fallbacks(ast.parse(bare)) == [3]
+    assert _unguarded_llm_fallbacks(ast.parse(guarded)) == []

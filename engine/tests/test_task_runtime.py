@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -15,7 +16,10 @@ from co_scientist.agents.reflection.reflection_helpers import (
 from co_scientist.cache import LLMCache
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.llm import CompletionSpec, call_llm, precall
-from co_scientist.llm.tools.loop import _execute_tool_calls
+from co_scientist.llm.tools.loop import (
+    _execute_logged_tool,
+    _execute_tool_calls,
+)
 from co_scientist.state import WorkflowState
 from co_scientist.task_runtime import (
     TASK_NODES,
@@ -35,9 +39,7 @@ from tests._llm_fake import (
     make_usage,
     patch_acompletion,
 )
-from tests._state import (
-    make_state,
-)
+from tests._state import make_state
 
 
 async def test_execute_task_node_captures_llm_telemetry_by_phase(
@@ -216,3 +218,39 @@ def test_indra_example_config_selects_its_knowledge_graph_tool(
     assert kg_tools, "the INDRA example must reach a knowledge-graph tool"
     for tool_name in kg_tools:
         assert accepted[tool_name] >= _KG_ENTITY_ARGUMENTS
+
+
+@pytest.mark.parametrize("outcome", ["returned", "failed", "cancelled"])
+async def test_tool_diagnostics_preserve_outcome_without_arguments_or_output(
+    caplog: pytest.LogCaptureFixture, outcome: str
+) -> None:
+    call = make_tool_call("call-id", "search_literature", "private request")
+    calls: list[Any] = []
+
+    async def execute(value: Any) -> dict[str, Any]:
+        calls.append(value)
+        if outcome == "failed":
+            raise ValueError("private error")
+        if outcome == "cancelled":
+            raise asyncio.CancelledError()
+        return {"role": "tool", "content": "private result"}
+
+    with caplog.at_level(logging.INFO, logger="co_scientist.llm.tools.loop"):
+        if outcome == "failed":
+            with pytest.raises(ValueError):
+                await _execute_logged_tool(call, execute)
+        elif outcome == "cancelled":
+            with pytest.raises(asyncio.CancelledError):
+                await _execute_logged_tool(call, execute)
+        else:
+            assert await _execute_logged_tool(call, execute) == {
+                "role": "tool",
+                "content": "private result",
+            }
+    assert calls == [call]
+    assert "name=search_literature" in caplog.text
+    assert (
+        f"outcome={outcome}" in caplog.text
+        and "duration_seconds=" in caplog.text
+    )
+    assert "private" not in caplog.text

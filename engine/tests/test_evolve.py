@@ -3,11 +3,22 @@ from __future__ import annotations
 import random
 from typing import Any
 
+import pytest
+
+from co_scientist.agents.evolution import EvolutionContext, evolve
+from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
 from co_scientist.agents.evolution.evolve_prompt import (
+    EvolutionOperator,
+    _build_evolution_prompt,
+    _build_supervisor_guidance_text,
+    _EvolutionOperation,
+    operator_instruction,
+    operator_template,
     sample_context_hypotheses,
 )
 from co_scientist.models import Hypothesis
-from tests._state import make_hypothesis
+from tests._llm_fake import stub_call_llm_json
+from tests._state import make_hypothesis, make_state
 
 # Disjoint vocabulary avoids unchanged and near-duplicate guards.
 _RAPAMYCIN_RESPONSE: dict[str, Any] = {
@@ -16,9 +27,6 @@ _RAPAMYCIN_RESPONSE: dict[str, Any] = {
     "experiment": "knock down the kinase and measure growth",
     "refinement_summary": "pivoted to a kinase mechanism",
 }
-
-
-# Ascending ratings put the strongest ideas last, exposing list-order slicing.
 
 
 def _children(result: dict[str, Any]) -> list[Hypothesis]:
@@ -55,3 +63,84 @@ def test_sample_context_hypotheses_large_pool_caps_at_max_context() -> None:
     top_five_texts = {h.text for h in others[:5]}
     assert top_five_texts.issubset({h.text for h in result})
     assert all(h.text != exclude.text for h in result)
+
+
+@pytest.mark.parametrize("guidance", [None, {}, {"workflow_plan": {}}])
+def test_supervisor_guidance_without_an_evolution_phase_adds_nothing(
+    guidance: dict[str, Any] | None,
+) -> None:
+    assert _build_supervisor_guidance_text(guidance) == ""
+
+
+def _evolution_context(**state_overrides: Any) -> EvolutionContext:
+    return EvolutionContext(
+        model_name="test-model",
+        meta_review={},
+        removed_duplicates=[],
+        state=make_state(**state_overrides),
+    )
+
+
+def test_evolution_prompt_renders_lab_constraints() -> None:
+    prompt, _ = _build_evolution_prompt(
+        make_hypothesis(text="the parent hypothesis"),
+        ["a peer hypothesis"],
+        _evolution_context(lab_constraints=["No mammalian cell culture"]),
+        _EvolutionOperation(),
+    )
+    assert "## Scientist's Lab Constraints" in prompt
+    assert "No mammalian cell culture" in prompt
+
+
+def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:
+    return {
+        "hypothesis": (
+            f"The {operator.value} route tests a distinct temporal "
+            "checkpoint with an orthogonal perturbation and readout."
+        ),
+        "explanation": "The operator creates a separately testable path.",
+        "experiment": "Perturb the checkpoint and compare the readout.",
+        "refinement_summary": f"Applied {operator.value} behavior.",
+    }
+
+
+@pytest.mark.parametrize("operator", list(EvolutionOperator))
+async def test_every_operator_executes_as_a_distinct_evolution_task(
+    monkeypatch: pytest.MonkeyPatch,
+    operator: EvolutionOperator,
+) -> None:
+    calls = stub_call_llm_json(
+        monkeypatch,
+        evolve,
+        _operator_child_payload(operator),
+        copy_response=True,
+    )
+    parent = make_hypothesis(
+        "A parent proposal links metabolic state to recovery kinetics."
+    )
+
+    child, detail = await evolve_single_hypothesis(
+        parent,
+        other_hypotheses=[],
+        context=EvolutionContext(
+            model_name="fake/model",
+            meta_review={},
+            removed_duplicates=[],
+            creation_iteration=2,
+        ),
+        operation=_EvolutionOperation(operator=operator),
+    )
+
+    observed_prompt = calls[-1]["prompt"]
+    assert child is not None
+    assert detail is not None
+    if operator_template(operator) == "evolution":
+        assert f"**Operator:** {operator.value}" in observed_prompt
+        assert operator_instruction(operator) in observed_prompt
+    else:
+        assert "## Required Evolution Operator" not in observed_prompt
+    assert detail["operator"] == operator.value
+    assert child.parent_id == parent.id
+    assert child.parent_ids == [parent.id]
+    assert child.generation == parent.generation + 1
+    assert child.creation_iteration == 2
