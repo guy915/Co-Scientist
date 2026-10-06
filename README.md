@@ -77,8 +77,8 @@ has its own configuration under `engine/mcp_server/.env`. See
 Run `make help` for all targets.
 
 Before exposing the API, follow [deployment](docs/DEPLOYMENT.md) and
-[launch guidance](docs/LAUNCH.md), including `AUTH_MODE=required`. Compatibility mode
-uses caller-selected IDs and is intended for local development.
+[launch guidance](docs/LAUNCH.md). Ownership is a per-browser client ID, not
+verified identity.
 
 ## Using the workbench
 

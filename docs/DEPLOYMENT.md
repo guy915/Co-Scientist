@@ -2,7 +2,7 @@
 
 How the three deployed services are built and configured. The load-bearing invariants are also summarised in the [root AGENTS.md](../AGENTS.md) Production hosting stub — keep the two in sync when either changes.
 
-Use [LAUNCH.md](LAUNCH.md) for release validation, public authentication,
+Use [LAUNCH.md](LAUNCH.md) for release validation,
 backup and restore, and repository publication requirements. Deployment
 settings and receipts below include dated historical snapshots; read back
 the intended environment before treating any of them as current.

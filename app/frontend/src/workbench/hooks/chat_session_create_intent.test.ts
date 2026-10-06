@@ -4,11 +4,13 @@ import {
   setStoredApiProvider,
   setStoredModel,
 } from '@/lib/client_id';
-import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {
   getPendingCreateIntent,
   readPendingCreateIntent,
 } from './chat_session_start_run';
+
+const setClientId = (id: string) =>
+  localStorage.setItem('co_scientist_client_id', id);
 
 const PAYLOAD = {
   research_goal: 'map the pathway',
@@ -24,7 +26,7 @@ beforeEach(() => {
 
 describe('pending create intent', () => {
   it('reuses the same key and exact payload after the helper is reloaded', async () => {
-    setAccessToken('bearer-secret-one');
+    setClientId('client-one');
     setStoredApiProvider('openai');
     setStoredApiKey('sk-secret-one');
     const first = await getPendingCreateIntent('chat-1', PAYLOAD);
@@ -39,17 +41,13 @@ describe('pending create intent', () => {
 
     expect(second.key).toBe(first.key);
     expect(JSON.stringify(second.payload)).toBe(JSON.stringify(PAYLOAD));
-    expect(storedRecord).not.toContain('bearer-secret-one');
     expect(storedRecord).not.toContain('sk-secret-one');
-    expect(
-      sessionStorage.getItem('co_scientist_pending_run_create:chat-1'),
-    ).not.toContain('bearer-secret-one');
   });
 
   it('does not expose an intent after the owner changes', async () => {
-    setAccessToken('bearer-secret-one');
+    setClientId('client-one');
     await getPendingCreateIntent('chat-1', PAYLOAD);
-    setAccessToken('bearer-secret-two');
+    setClientId('client-two');
 
     expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
   });
@@ -57,14 +55,8 @@ describe('pending create intent', () => {
   it.each([
     [
       'the owner changes',
-      () => setAccessToken('bearer-secret-one'),
-      () => setAccessToken('bearer-secret-two'),
-      PAYLOAD,
-    ],
-    [
-      'auth falls back from bearer to client id',
-      () => setAccessToken('bearer-secret'),
-      () => clearAccessToken(),
+      () => setClientId('client-one'),
+      () => setClientId('client-two'),
       PAYLOAD,
     ],
     [

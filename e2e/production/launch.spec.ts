@@ -1,17 +1,23 @@
-import { createCompletedRun, expect, test } from "../support/fixtures";
-import {
-  API_URL,
-  E2E_OTHER_RESEARCHER_ACCESS_CODE,
-  E2E_RESEARCHER_ACCESS_CODE,
-} from "../support/paths";
+import { createCompletedRun, expect, test, CLIENT_ID } from "../support/fixtures";
+import { API_URL } from "../support/paths";
+
+const FOREIGN_CLIENT_ID = "e2e-foreign-client";
+const GOAL = "Offline production check of enzyme stability hypotheses";
 
 test("deep links serve built assets and retain private-page metadata", async ({
   page,
+  api,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/access");
-  await expect(page.getByLabel("Access code")).toBeVisible();
+  const id = await createCompletedRun(api, {
+    research_goal: GOAL,
+    tier: "express",
+  });
+  await page.goto(`/runs/${id}/details`);
+  await expect(
+    page.getByRole("heading", { name: /run specifications/i }),
+  ).toBeVisible();
   const scripts = await page
     .locator("script[src]")
     .evaluateAll((elements) =>
@@ -29,49 +35,60 @@ test("deep links serve built assets and retain private-page metadata", async ({
   );
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Researcher access" }),
+    page.getByRole("heading", { name: /run specifications/i }),
   ).toBeVisible();
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+    "content",
+    /noindex/,
+  );
   expect(errors).toEqual([]);
 });
 
-test("required authentication rejects client IDs and malformed Host headers", async ({
+test("anonymous ownership refuses headerless creation and foreign client IDs", async ({
   request,
+  api,
 }) => {
-  for (const host of [undefined, "example.com/#", "example.com/?"]) {
-    const response = await request.get(`${API_URL}/api/runs`, {
-      headers: { "X-Client-ID": "e2e-client", ...(host ? { Host: host } : {}) },
-    });
-    expect(response.status()).toBe(401);
-  }
-  const response = await request.post(`${API_URL}/api/runs`, {
+  const created = await request.post(`${API_URL}/api/runs`, {
     data: {
-      research_goal: "An unauthenticated research goal",
+      research_goal: "An anonymous research goal",
       tier: "express",
     },
   });
-  expect(response.status()).toBe(401);
+  expect(created.status()).toBe(400);
+  expect(await created.text()).toContain("X-Client-ID");
+
+  const { id } = await api.createRun({
+    research_goal: GOAL,
+    tier: "express",
+  });
+  for (const host of [undefined, "example.com/#", "example.com/?"]) {
+    const response = await request.get(`${API_URL}/api/runs/${id}`, {
+      headers: {
+        "X-Client-ID": FOREIGN_CLIENT_ID,
+        ...(host ? { Host: host } : {}),
+      },
+    });
+    expect(response.status()).toBe(404);
+  }
+  const owner = await request.get(`${API_URL}/api/runs/${id}`, {
+    headers: { "X-Client-ID": CLIENT_ID },
+  });
+  expect(owner.status()).toBe(200);
 });
 
-test("signed-in researchers can read their completed research after a reload", async ({
+test("the browser owns its research by client ID and keeps it after a reload", async ({
   page,
   api,
 }) => {
-  await page.goto("/access");
-  await page.getByLabel("Access code").fill("invalid-test-invite");
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("alert")).toBeVisible();
-  await page.getByLabel("Access code").fill(E2E_RESEARCHER_ACCESS_CODE);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page).toHaveURL(/\/$/);
-  const token = await page.evaluate(() =>
-    sessionStorage.getItem("co_scientist_access_token"),
-  );
-  expect(token).toBeTruthy();
-
-  const goal = "Offline production check of enzyme stability hypotheses";
-  const id = await createCompletedRun(api.asResearcher(token!), {
-    research_goal: goal,
+  const id = await createCompletedRun(api, {
+    research_goal: GOAL,
     tier: "express",
+  });
+  const apiRequests: { url: string; headers: Record<string, string> }[] = [];
+  page.on("request", (req) => {
+    if (req.url().startsWith(`${API_URL}/api/`)) {
+      apiRequests.push({ url: req.url(), headers: req.headers() });
+    }
   });
   const loaded = page.waitForResponse(
     (response) =>
@@ -80,12 +97,12 @@ test("signed-in researchers can read their completed research after a reload", a
   );
   await page.goto(`/runs/${id}/details`);
   const read = await loaded;
-  expect(read.request().headers().authorization).toBe(`Bearer ${token}`);
-  expect(read.request().headers()["x-client-id"]).toBeUndefined();
+  expect(read.request().headers()["x-client-id"]).toBe(CLIENT_ID);
+  expect(read.request().headers().authorization).toBeUndefined();
   await expect(
     page.getByRole("heading", { name: /run specifications/i }),
   ).toBeVisible();
-  await expect(page.getByText(goal).first()).toBeVisible();
+  await expect(page.getByText(GOAL).first()).toBeVisible();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: /run specifications/i }),
@@ -97,13 +114,19 @@ test("signed-in researchers can read their completed research after a reload", a
     page.getByRole("heading", { name: /agent insights/i }),
   ).toBeVisible();
 
-  const otherToken = await api.exchangeAccessCode(
-    E2E_OTHER_RESEARCHER_ACCESS_CODE,
+  const runRequests = apiRequests.filter(({ url }) =>
+    url.startsWith(`${API_URL}/api/runs/${id}`),
   );
-  const otherRead = await page.request.get(`${API_URL}/api/runs/${id}`, {
-    headers: { Authorization: `Bearer ${otherToken}` },
+  expect(runRequests.length).toBeGreaterThan(0);
+  for (const { url, headers } of apiRequests) {
+    expect(headers.authorization, url).toBeUndefined();
+  }
+  for (const { url, headers } of runRequests) {
+    expect(headers["x-client-id"], url).toBe(CLIENT_ID);
+  }
+
+  const foreignRead = await page.request.get(`${API_URL}/api/runs/${id}`, {
+    headers: { "X-Client-ID": FOREIGN_CLIENT_ID },
   });
-  expect(otherRead.status()).toBe(404);
-  const anonymousRead = await page.request.get(`${API_URL}/api/runs/${id}`);
-  expect(anonymousRead.status()).toBe(401);
+  expect(foreignRead.status()).toBe(404);
 });
