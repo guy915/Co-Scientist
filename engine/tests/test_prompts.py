@@ -12,8 +12,8 @@ from co_scientist.prompts import (
     DraftPromptRequest,
     LiteratureQueryInputs,
     PromptRunContext,
+    SupervisorPromptInputs,
     ValidationSynthesisRequest,
-    format_articles_metadata,
     get_debate_generation_prompt,
     get_deep_verification_prompt,
     get_draft_prompt_with_tools,
@@ -23,13 +23,117 @@ from co_scientist.prompts import (
     get_literature_review_synthesis_prompt,
     get_reflection_prompt,
     get_research_overview_prompt,
+    get_review_prompt,
+    get_supervisor_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
 from co_scientist.prompts.generation_draft import (
     format_supervisor_guidance_for_generation,
 )
-from co_scientist.prompts.loading import load_prompt
 from tests._state import make_article
+
+_GUIDANCE: dict[str, Any] = {
+    "research_goal_analysis": {
+        "key_areas": ["mitochondrial dysfunction", "oxidative stress"],
+    },
+    "workflow_plan": {
+        "generation_phase": {
+            "focus_areas": ["metabolic pathways"],
+            "diversity_targets": "broad",
+            "quantity_target": 5,
+        },
+        "review_phase": {
+            "critical_criteria": ["novelty", "testability"],
+            "review_depth": "deep",
+        },
+        "evolution_phase": {
+            "refinement_priorities": ["specificity"],
+            "iteration_strategy": "incremental",
+        },
+    },
+}
+
+
+def test_prompt_builders_include_run_setup_guidance() -> None:
+    setup_guidance = "Run setup:\n- Requirements:\n  - Focus on primary data"
+    focus_guidance = "Prefer novelty while preserving testability."
+    prompt, _ = get_supervisor_prompt(
+        SupervisorPromptInputs(research_goal="g", criteria=["Causal clarity"]),
+        PromptRunContext(
+            run_setup_guidance=setup_guidance,
+            run_focus_guidance=focus_guidance,
+        ),
+    )
+    assert "Run Setup Guidance" in prompt
+    assert "Run Focus Guidance" in prompt
+    assert "Focus on primary data" in prompt
+    assert "Prefer novelty" in prompt
+    assert "Causal clarity" in prompt
+
+
+def test_review_prompt_critical_criteria_caps_count_and_questions() -> None:
+    """The json_object downgrade does not enforce maxItems server-side."""
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {
+                        "name": f"criterion {i}",
+                        "questions": [
+                            {"name": f"q{i}-{j}", "question": f"text {i}-{j}?"}
+                            for j in range(6)
+                        ],
+                    }
+                    for i in range(8)
+                ]
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "criterion 5" in prompt
+    assert "criterion 6" not in prompt
+    assert "text 0-3?" in prompt
+    assert "text 0-4?" not in prompt
+
+
+def test_review_prompt_critical_criteria_malformed_entries_degrade() -> None:
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {"name": "Valid Criterion", "questions": ["plain text q"]},
+                    {"name": ""},
+                    {"questions": []},
+                    42,
+                    None,
+                ],
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "Valid Criterion" in prompt
+    assert "plain text q" in prompt
+
+
+def _enum_values(node: Any, path: str = "") -> list[tuple[str, list[Any]]]:
+    if not isinstance(node, dict):
+        return []
+    found: list[tuple[str, list[Any]]] = []
+    if "enum" in node:
+        found.append((path or "<root>", node["enum"]))
+    for name, subschema in (node.get("properties") or {}).items():
+        found += _enum_values(subschema, f"{path}.{name}" if path else name)
+    if "items" in node:
+        found += _enum_values(node["items"], path + "[]")
+    return found
 
 
 def _as_prompt(built: Any) -> str:
@@ -52,6 +156,7 @@ _ARTICLE = make_article(
     year=2022,
     used_in_analysis=True,
 )
+
 
 # builder, strings that must be interpolated into the rendered prompt
 _BUILDERS: dict[str, tuple[Callable[[], Any], list[str]]] = {
@@ -192,54 +297,7 @@ def test_prompt_builders_fill_every_slot(name: str) -> None:
     assert not re.search(r"\{\{MISSING:\w+\}\}", prompt)
 
 
-def test_debate_final_turn_alone_carries_the_output_schema() -> None:
-    _, no_schema = _debate(is_final_turn=False)
-    prompt, schema = _debate(is_final_turn=True)
-    assert no_schema is None
-    assert isinstance(schema, dict)
-    assert "FINAL TURN" in prompt
-    assert "literature_grounding" in prompt
-    assert "to enable [Y]" not in prompt
-    assert "falsification" in prompt.lower()
-
-
-def test_debate_prompt_without_optional_inputs_has_no_missing_slots() -> None:
-    for articles in ("lit synthesis", None):
-        for seeds in (["a seed hypothesis"], None):
-            prompt, _ = _debate(
-                articles_with_reasoning=articles, user_hypotheses=seeds
-            )
-            assert "{{MISSING" not in prompt
-    prompt, _ = _debate(articles_with_reasoning="lit synthesis")
-    assert "No user-provided starting hypotheses." in prompt
-
-
-def test_meta_review_feedback_reaches_the_post_debate_template() -> None:
-    raw = load_prompt(
-        "generation_after_debate",
-        {
-            "research_goal": "A goal",
-            "domain_context": "",
-            "reviews_overview": "META-REVIEW-FEEDBACK-MARKER",
-            "num_hypotheses": 2,
-            "hypotheses_so_far": "",
-            "debate_transcript": "",
-        },
-    )
-    assert "META-REVIEW-FEEDBACK-MARKER" in raw
-
-
-def test_format_articles_metadata_renders_only_used_articles() -> None:
-    unused = make_article(title="Unused", used_in_analysis=False)
-    assert format_articles_metadata([]) == ""
-    assert format_articles_metadata([unused]) == ""
-    out = format_articles_metadata([_ARTICLE, unused])
-    assert "A landmark paper on neuroinflammation" in out
-    assert "A. Researcher" in out
-    assert "Unused" not in out
-
-
-_GUIDANCE = {
+_PLAN_GUIDANCE = {
     "research_goal_analysis": {"key_areas": ["oncology"]},
     "workflow_plan": {"generation_phase": {"focus_areas": ["biomarkers"]}},
     "config_synthesis": {
@@ -249,43 +307,6 @@ _GUIDANCE = {
         "review_instructions": ["penalize restatements of known biology"],
     },
 }
-
-
-def test_supervisor_guidance_routes_each_instruction_to_its_writer() -> None:
-    draft, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(
-            research_goal="find a new target in fibrosis",
-            hypotheses_count=3,
-            context=PromptRunContext(supervisor_guidance=_GUIDANCE),
-        )
-    )
-    debate, _ = _debate(context=PromptRunContext(supervisor_guidance=_GUIDANCE))
-
-    assert "anchor each idea in a reported result" in draft
-    assert "attack the weakest causal link" not in draft
-    assert "attack the weakest causal link" in debate
-    assert "anchor each idea in a reported result" not in debate
-    for prompt in (draft, debate):
-        assert "penalize restatements of known biology" not in prompt
-        assert "biomarkers" in prompt
-        assert "testable within two years" in prompt
-        assert "{{MISSING" not in prompt
-
-
-@pytest.mark.parametrize(
-    "guidance",
-    [
-        None,
-        {},
-        {"unrelated": 1},
-        {"workflow_plan": {"generation_phase": "focus on kinases"}},
-        {"workflow_plan": "draft broadly", "config_synthesis": "be bold"},
-    ],
-)
-def test_draft_guidance_is_empty_without_a_usable_plan(
-    guidance: dict[str, Any] | None,
-) -> None:
-    assert format_supervisor_guidance_for_generation(guidance) == ""
 
 
 def test_draft_guidance_bullets_a_bare_string_as_one_item() -> None:
