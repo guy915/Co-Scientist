@@ -12,6 +12,7 @@
 | [Dependencies](../requirements/README.md) | Hash-pinned runtime locks and audits |
 | [Contributor guidance](../AGENTS.md) | Repository rules and operating invariants |
 | [Test campaign](../PLAN.md) | Active phases and progress rules |
+| [Production cuts](PROD-CUTS.md) | Agreed feature removals, next after the test campaign |
 
 Retired audits, guides, incident records and screenshots remain in
 [immutable history at 33ec8984](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688/docs).
