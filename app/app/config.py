@@ -1,5 +1,5 @@
 import os
-from typing import Any, Literal
+from typing import Any
 
 from co_scientist.constants import (
     THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
@@ -9,7 +9,7 @@ from co_scientist.llm import effective_max_tokens as _effective_max_tokens
 from co_scientist.llm import model_profile as _model_profile
 from co_scientist.llm import model_reasons as _model_reasons
 from co_scientist.llm import reasoning_effort_args as _effort_args
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONVERSATIONAL_REASONING_EFFORT = "medium"
@@ -126,14 +126,6 @@ class Settings(BaseSettings):
     # requester.
     log_report_email: str = "guybarel2006@gmail.com"
 
-    auth_mode: Literal["compatibility", "required"] = "compatibility"
-    auth_secret: str = ""
-    researcher_access_codes: str = "{}"
-    auth_session_hours: int = Field(default=12, gt=0)
-    auth_exchange_per_minute: int = Field(default=20, gt=0)
-
-    # Encryption and session-signing secrets are separate purposes; rotating one
-    # must not silently rotate the other.
     byok_encryption_key: str = ""
     # Removing the daily cap does not remove the free express-only envelope.
     free_runs_per_day: int = 3
@@ -153,12 +145,6 @@ class Settings(BaseSettings):
         extra="ignore",
         hide_input_in_errors=True,
     )
-
-    @model_validator(mode="after")
-    def _validate_auth_configuration(self) -> "Settings":
-        if self.auth_mode == "required" and not self.auth_secret.strip():
-            raise ValueError("AUTH_SECRET is required for AUTH_MODE=required")
-        return self
 
     @property
     def effective_chat_model(self) -> str:

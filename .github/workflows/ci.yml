@@ -362,7 +362,7 @@ jobs:
           bunx playwright install --with-deps chromium
       - name: Run browser e2e suite
         run: make e2e
-      - name: Test production assets and required researcher access
+      - name: Test production assets and anonymous ownership
         run: make e2e-production
 
   docker-build:

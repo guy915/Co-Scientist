@@ -21,7 +21,7 @@ make docker-build
 The first validation command runs format/lint, strict types, backend and
 frontend unit suites, evaluation harness tests, offline evaluation smoke,
 the production frontend build, isolated development browser tests, and a
-separate built-asset check with required authentication. The second builds
+separate built-asset check with anonymous ownership. The second builds
 both production images without pushing or deploying. CI performs these
 checks in separate jobs. Configure branch protection to require **Required
 checks**, the aggregate job that rejects any selected failed/cancelled job.
@@ -45,7 +45,6 @@ changing a service. Confirm these settings on the intended release:
 
 | Concern | Required configuration |
 | --- | --- |
-| Researcher identity | `AUTH_MODE=required`, random `AUTH_SECRET`, unique high-entropy invite codes in `RESEARCHER_ACCESS_CODES` |
 | Browser access | Exact frontend origins in `ALLOWED_ORIGINS`; correct `VITE_API_BASE_URL` |
 | BYOK | Separate random `BYOK_ENCRYPTION_KEY` if enabled; keys stay encrypted at rest |
 | Literature tools | MCP stays private; matching `COSCIENTIST_MCP_SHARED_SECRET` on both services |
@@ -55,11 +54,9 @@ changing a service. Confirm these settings on the intended release:
 | Notifications | Correct SMTP settings and `PUBLIC_APP_URL` if enabled |
 | Operations | Retained logs, disk monitoring, private operator token, tested backups and recovery |
 
-Required authentication rejects unknown mode values and missing signing
-secrets during configuration loading. Compatibility mode remains the local
-setup default and must not be used as internet-facing identity verification.
-The invite-exchange limit is per connecting IP and API process. Configure
-trusted proxy handling; neither CORS nor client-selected IDs establish identity.
+Ownership is a per-browser client ID: neither CORS nor client-selected IDs
+establish identity, so treat runs as private-by-obscurity, not authenticated.
+Configure trusted proxy handling for per-IP limits.
 
 Deploy the validated revision through the established release process.
 Record the commit and deployment identifiers, health/readiness results, and

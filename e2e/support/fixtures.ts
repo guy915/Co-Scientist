@@ -22,8 +22,6 @@ export interface BackendApi {
   cancelRun(id: string): Promise<void>;
   getRun(id: string): Promise<{status: string; [k: string]: unknown}>;
   listDemoRuns(): Promise<{id: string; research_goal: string}[]>;
-  exchangeAccessCode(accessCode: string): Promise<string>;
-  asResearcher(accessToken: string): BackendApi;
 }
 
 async function send(
@@ -37,33 +35,27 @@ async function send(
   return res;
 }
 
-function makeBackendApi(
-  ctx: APIRequestContext,
-  accessToken?: string,
-): BackendApi {
-  const authHeaders = accessToken
-    ? {headers: {Authorization: `Bearer ${accessToken}`}}
-    : {};
+function makeBackendApi(ctx: APIRequestContext): BackendApi {
   return {
     async createRun(body) {
       const res = await send('createRun', () =>
-        ctx.post('/api/runs', {data: body, ...authHeaders}),
+        ctx.post('/api/runs', {data: body}),
       );
       return (await res.json()) as {id: string};
     },
     async startRun(id) {
       await send('startRun', () =>
-        ctx.post(`/api/runs/${id}/start`, {data: {}, ...authHeaders}),
+        ctx.post(`/api/runs/${id}/start`, {data: {}}),
       );
     },
     async cancelRun(id) {
       await send('cancelRun', () =>
-        ctx.post(`/api/runs/${id}/cancel`, {data: {}, ...authHeaders}),
+        ctx.post(`/api/runs/${id}/cancel`, {data: {}}),
       );
     },
     async getRun(id) {
       const res = await send('getRun', () =>
-        ctx.get(`/api/runs/${id}`, authHeaders),
+        ctx.get(`/api/runs/${id}`),
       );
       return (await res.json()) as {status: string};
     },
@@ -73,16 +65,6 @@ function makeBackendApi(
         runs: {id: string; research_goal: string}[];
       };
       return payload.runs;
-    },
-    async exchangeAccessCode(accessCode) {
-      const res = await send('exchangeAccessCode', () =>
-        ctx.post('/api/auth/exchange', {data: {access_code: accessCode}}),
-      );
-      const payload = (await res.json()) as {access_token: string};
-      return payload.access_token;
-    },
-    asResearcher(accessToken) {
-      return makeBackendApi(ctx, accessToken);
     },
   };
 }

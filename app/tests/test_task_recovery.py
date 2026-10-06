@@ -353,13 +353,6 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
     manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
-    monkeypatch.setattr(settings, "auth_mode", "required")
-    monkeypatch.setattr(settings, "auth_secret", "synthetic-test-signing-key")
-    monkeypatch.setattr(
-        settings,
-        "researcher_access_codes",
-        '{"failure-owner":"owner-invite","failure-other":"other-invite"}',
-    )
 
     async def _echo_key(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
         raise LLMTimeoutError(f"provider echoed {_BYOK_KEY}; {_DIAGNOSTIC}")
@@ -367,15 +360,9 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _echo_key)
 
     with make_client() as client:
-        sessions = {
-            name: client.post("/api/auth/exchange", json={"access_code": f"{name}-invite"}).json()[
-                "access_token"
-            ]
-            for name in ("owner", "other")
-        }
-        owner = {"Authorization": f"Bearer {sessions['owner']}"}
-        other = {"Authorization": f"Bearer {sessions['other']}"}
-        created = _create_run(client, "authenticated synthetic failure", headers=owner)
+        owner = {"X-Client-ID": "failure-owner"}
+        other = {"X-Client-ID": "failure-other"}
+        created = _create_run(client, "owned synthetic failure", headers=owner)
         assert created.status_code == 200
         run_id = created.json()["id"]
         credentials.store_run_credential(
