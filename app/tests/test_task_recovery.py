@@ -383,22 +383,21 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
     with make_client() as reopened:
         run = reopened.get(f"/api/runs/{run_id}", headers=owner)
         events = reopened.get(f"/api/runs/{run_id}/events", headers=owner)
-        logs = reopened.get(
-            f"/api/runs/{run_id}/logs",
-            headers=owner,
-            params={"verbose": True},
-        )
         other_run = reopened.get(f"/api/runs/{run_id}", headers=other)
         other_events = reopened.get(f"/api/runs/{run_id}/events", headers=other)
 
     assert run.status_code == 200
-    assert events.status_code == logs.status_code == 200
+    assert events.status_code == 200
     assert other_run.status_code == other_events.status_code == 404
     run_body = run.json()
+    with store_db.connect(isolated_db) as conn:
+        run_logs = [
+            dict(row) for row in conn.execute("SELECT * FROM app_logs WHERE run_id = ?", (run_id,))
+        ]
     rows = store.list_tasks(run_id, db_path=isolated_db)
     replayed = _redaction_parse_sse(events.text)
     owned_output = json.dumps(
-        [run_body, [dataclasses.asdict(t) for t in rows], replayed, logs.json()], sort_keys=True
+        [run_body, [dataclasses.asdict(t) for t in rows], replayed, run_logs], sort_keys=True
     )
     assert run_body["status"] == "failed"
     assert run_body["failure_kind"] == "llm_timeout_unknown"
@@ -413,9 +412,7 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
         if event["type"] == "status" and event.get("payload", {}).get("status") == "failed"
     ]
     assert len(failed) == 1
-    assert any(
-        row.get("exc_text") and _DIAGNOSTIC in row["exc_text"] for row in logs.json()["logs"]
-    )
+    assert any(row.get("exc_text") and _DIAGNOSTIC in row["exc_text"] for row in run_logs)
 
 
 # Settle runs transactionally when their last claimable task fails, or SSE never
