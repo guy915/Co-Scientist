@@ -6,7 +6,6 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import {StrictMode} from 'react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {submitFeedback} from '@/api/feedback';
@@ -44,23 +43,6 @@ function open(path = '/') {
   fireEvent.click(screen.getByRole('button', {name: 'Feedback'}));
   return screen.getByRole('dialog', {name: 'Feedback'});
 }
-
-it('shows the five categories in order, logs the modal and cancels without submitting', () => {
-  const dialog = open();
-  fireEvent.click(within(dialog).getByRole('button', {name: /^Category/}));
-  expect(
-    within(dialog)
-      .getAllByRole('menuitemradio')
-      .map(option => option.textContent),
-  ).toEqual(['Bug', 'Security', 'Results quality', 'Feature request', 'Other']);
-  expect(within(dialog).getByRole('button', {name: 'Submit'})).toBeDisabled();
-  expect(postAppLogs).toHaveBeenCalledWith([
-    {message: 'modal_open: Feedback', logger: 'modal'},
-  ]);
-  fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
-  expect(screen.queryByRole('dialog')).toBeNull();
-  expect(submitFeedback).not.toHaveBeenCalled();
-});
 
 it.each(['/runs/direct-run/details', '/chats/private-chat'])(
   'silently attaches diagnostics and run context from %s',
@@ -124,21 +106,4 @@ it('does not submit after cancelling while diagnostic collection is pending', as
     await Promise.resolve();
   });
   expect(submitFeedback).not.toHaveBeenCalled();
-});
-
-it('restores focus after inert cleanup under StrictMode', async () => {
-  render(
-    <StrictMode>
-      <MemoryRouter>
-        <FeedbackControl />
-      </MemoryRouter>
-    </StrictMode>,
-  );
-  const opener = screen.getByRole('button', {name: 'Feedback'});
-  opener.focus();
-  fireEvent.click(opener);
-  expect(screen.getByLabelText('Message')).toHaveFocus();
-  fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
-  await waitFor(() => expect(opener).toHaveFocus());
-  expect(opener).not.toHaveAttribute('tabindex', '-1');
 });

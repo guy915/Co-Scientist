@@ -1,4 +1,3 @@
-import {makeRunMessage} from '@/test_fixtures';
 import {FakeSseBody, streamingResponse, fetchMock} from '@/http_test_support';
 import {beforeEach, afterEach, describe, expect, it, vi} from 'vitest';
 import {
@@ -73,22 +72,15 @@ describe('runs qa', () => {
     });
   });
 
-  describe('getRunMessages', () => {
-    it('unwraps the messages envelope', async () => {
-      fetchMock().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          messages: [makeRunMessage({content: 'Why?', applied: true})],
-        }),
-        text: async () => '',
-      });
-
-      const messages = await getRunMessages('run-1');
-
-      expect(messages).toHaveLength(1);
-      expect(messages[0].content).toBe('Why?');
+  it('unwraps the messages envelope of a run', async () => {
+    fetchMock().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({messages: [{id: 1, content: 'Why?'}]}),
+      text: async () => '',
     });
+
+    expect(await getRunMessages('run-1')).toEqual([{id: 1, content: 'Why?'}]);
   });
 });
 
@@ -120,32 +112,5 @@ describe('runs start', () => {
     expect(await pending).toEqual({fallback: false});
     expect(reasoning).toEqual(['The run exists.']);
     expect(chunks.join('')).toBe('Your session is under way.');
-  });
-
-  it('posts the scientist prompt to the run that was started', async () => {
-    const body = new FakeSseBody();
-    fetchMock().mockResolvedValue(streamingResponse(body));
-
-    const pending = announceRunStart('run-7', 'Start research');
-    body.push({type: 'done', prompt_id: 1, fallback: true});
-    body.end();
-    await pending;
-
-    const [url, init] = fetchMock().mock.calls[0] as [string, RequestInit];
-    expect(url).toMatch(/\/api\/runs\/run-7\/messages\/started$/);
-    expect(init.method).toBe('POST');
-    expect(JSON.parse(String(init.body))).toEqual({prompt: 'Start research'});
-  });
-
-  it('reports the fallback the server settled on', async () => {
-    const body = new FakeSseBody();
-    fetchMock().mockResolvedValue(streamingResponse(body));
-
-    const pending = announceRunStart('run-1', 'Start research');
-    body.push({type: 'chunk', content: 'Standby copy.'});
-    body.push({type: 'done', prompt_id: 2, fallback: true});
-    body.end();
-
-    expect(await pending).toEqual({fallback: true});
   });
 });

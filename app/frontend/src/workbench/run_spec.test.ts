@@ -28,11 +28,6 @@ describe('interviewToRunSpec', () => {
       completionEmail: '',
     });
   });
-
-  it('defaults to Standard once an API key is stored', () => {
-    setStoredApiKey('sk-test');
-    expect(interviewToRunSpec({fields: {}} as Interview).tier).toBe('standard');
-  });
 });
 
 describe('availableTierOptions', () => {

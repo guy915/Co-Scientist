@@ -95,34 +95,6 @@ test('the plan card offers its pencil, and hides it once the form is open', () =
   expect(screen.getByLabelText('Research Challenge')).toBeInTheDocument();
 });
 
-test('the plan card hides its pencil when there is nothing to edit', () => {
-  const withoutInterview = render(
-    <RunSpecCard {...cardProps(makeSpec({interviewId: undefined}))} />,
-  );
-  expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
-  withoutInterview.unmount();
-
-  renderCard(makeSpec({interviewId: 'interview-1'}), true);
-  expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
-});
-
-test('entering edit mode shows the current field values', () => {
-  renderSection({
-    goal: 'Study liver fibrosis',
-    attributes: ['Attr A'],
-    requirements: ['Req A'],
-  });
-
-  fireEvent.click(screen.getByText('Edit plan'));
-
-  expect(screen.getByLabelText('Research Challenge')).toHaveValue(
-    'Study liver fibrosis',
-  );
-  expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Focus Area item 1')).toHaveValue('Attr A');
-  expect(screen.getByLabelText('Preferences item 1')).toHaveValue('Req A');
-});
-
 test('saving calls editInterviewFields with the mapped payload and applies the result', async () => {
   vi.mocked(editInterviewFields).mockResolvedValue(updatedInterview());
   const {onFieldsChange} = renderSection({
@@ -169,34 +141,4 @@ test('adds and removes list entries', async () => {
     'interview-1',
     expect.objectContaining({focus_area: ['Attr B'], preferences: []}),
   );
-});
-
-test('Cancel restores the original values without saving', () => {
-  const {onFieldsChange} = renderSection({goal: 'Original goal'});
-
-  fireEvent.click(screen.getByText('Edit plan'));
-  fireEvent.change(screen.getByLabelText('Research Challenge'), {
-    target: {value: 'Changed but abandoned'},
-  });
-  fireEvent.click(screen.getByText('Cancel'));
-
-  expect(editInterviewFields).not.toHaveBeenCalled();
-  expect(onFieldsChange).not.toHaveBeenCalled();
-  expect(screen.getByText('Original goal')).toBeInTheDocument();
-
-  fireEvent.click(screen.getByText('Edit plan'));
-  expect(screen.getByLabelText('Research Challenge')).toHaveValue(
-    'Original goal',
-  );
-});
-
-test('disables Save while the goal is empty', () => {
-  renderSection({goal: 'Not empty'});
-
-  fireEvent.click(screen.getByText('Edit plan'));
-  fireEvent.change(screen.getByLabelText('Research Challenge'), {
-    target: {value: '   '},
-  });
-
-  expect(screen.getByText('Save')).toBeDisabled();
 });

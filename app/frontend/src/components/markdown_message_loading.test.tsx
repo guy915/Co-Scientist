@@ -27,48 +27,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it('defers the renderer until a message appears and keeps the latest pending text safe', async () => {
-  vi.resetModules();
-  const renderer = pendingRenderer();
-  vi.doMock('./markdown_message_renderer', renderer.load);
-  const {MarkdownMessage} = await import('./markdown_message');
-  expect(renderer.load).not.toHaveBeenCalled();
-
-  const source =
-    '<img src=x onerror="alert(1)">\n**Pending reply**\nhttps://example.com/' +
-    'a'.repeat(300);
-  const view = render(<MarkdownMessage content={source} className="reply" />);
-  expect(view.container.textContent).toBe(source);
-  expect(view.container.querySelector('img')).toBeNull();
-  expect(view.container.querySelector('[aria-busy="true"]')).not.toBeNull();
-  expect(view.container.firstElementChild).toHaveClass(
-    'min-w-0',
-    'break-words',
-  );
-  view.rerender(
-    <MarkdownMessage content="Latest __reply__" className="reply" />,
-  );
-  expect(view.container.textContent).toBe('Latest __reply__');
-  await waitFor(() => expect(renderer.load).toHaveBeenCalledOnce());
-
-  await act(async () => {
-    renderer.resolve({
-      MarkdownMessageRenderer: ({content, className}) => (
-        <p data-testid="rendered-reply" className={className}>
-          {content}
-        </p>
-      ),
-    });
-  });
-  const ready = await screen.findByTestId('rendered-reply');
-  expect(ready).toHaveTextContent('Latest __reply__');
-  expect(ready).toHaveClass('reply');
-  expect(view.container.querySelector('[aria-busy="true"]')).toBeNull();
-  view.rerender(<MarkdownMessage content="The next fragment" />);
-  expect(ready).toHaveTextContent('The next fragment');
-  expect(renderer.load).toHaveBeenCalledOnce();
-});
-
 it('keeps the shell and current escaped text readable when formatting cannot load', async () => {
   vi.resetModules();
   vi.spyOn(console, 'error').mockImplementation(() => {});

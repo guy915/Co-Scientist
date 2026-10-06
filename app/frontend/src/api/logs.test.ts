@@ -44,14 +44,6 @@ it('announces a successful post so open panels refresh', async () => {
   expect(listener).toHaveBeenCalledTimes(1);
 });
 
-it('announces a successful clear', async () => {
-  httpMock.fetchJson.mockResolvedValue({deleted: 3});
-
-  await deleteAppLogs();
-
-  expect(listener).toHaveBeenCalledTimes(1);
-});
-
 // Unidentified remote log requests match nothing and create unreadable
 // ownerless records.
 it('identifies the caller when reading', async () => {

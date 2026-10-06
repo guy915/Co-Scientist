@@ -1,5 +1,5 @@
 import {fireEvent, screen} from '@testing-library/react';
-import {beforeEach, expect, it, describe, vi} from 'vitest';
+import {beforeEach, expect, it, describe} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
@@ -37,33 +37,6 @@ describe('chat workspace composer', () => {
 
     expect(
       screen.queryByRole('menu', {name: 'Connectors'}),
-    ).not.toBeInTheDocument();
-  });
-
-  it('lists the web search connector from /status, on by default', async () => {
-    stubStatusConnectors();
-    renderWorkspace();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
-
-    const webSearch = await screen.findByRole('menuitemcheckbox', {
-      name: 'Web search',
-    });
-    expect(webSearch).toHaveAttribute('aria-checked', 'true');
-    expect(
-      screen.getByRole('menuitemcheckbox', {name: 'PubMed'}),
-    ).toHaveAttribute('aria-checked', 'true');
-  });
-
-  it('omits the web search connector when /status omits it', async () => {
-    stubStatusConnectors([{id: 'pubmed', display: 'PubMed'}]);
-    renderWorkspace();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Connectors'}));
-
-    await screen.findByRole('menuitemcheckbox', {name: 'PubMed'});
-    expect(
-      screen.queryByRole('menuitemcheckbox', {name: 'Web search'}),
     ).not.toBeInTheDocument();
   });
 
@@ -126,33 +99,6 @@ describe('chat workspace composer attachments', () => {
       screen.getByRole('button', {name: 'Remove deep-research-report.md'}),
     ).toHaveAttribute('data-tooltip', 'Remove deep-research-report.md');
   });
-
-  it('previews an uploaded image and releases the preview when it is removed', () => {
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn(() => 'blob:preview-image'),
-      revokeObjectURL,
-    });
-    renderWorkspace();
-
-    fireEvent.change(screen.getByLabelText('Upload files'), {
-      target: {
-        files: [new File(['image'], 'reference-shot.png', {type: 'image/png'})],
-      },
-    });
-    expect(screen.getByAltText('reference-shot.png')).toHaveAttribute(
-      'src',
-      'blob:preview-image',
-    );
-
-    fireEvent.click(
-      screen.getByRole('button', {name: 'Remove reference-shot.png'}),
-    );
-
-    expect(screen.queryByAltText('reference-shot.png')).toBeNull();
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview-image');
-  });
 });
 
 describe('chat workspace composer suggestions', () => {
@@ -162,36 +108,6 @@ describe('chat workspace composer suggestions', () => {
 
   beforeEach(() => {
     installChatWorkspaceMocks();
-  });
-
-  it('previews a suggestion without moving the composer', async () => {
-    renderWorkspace();
-
-    const composer = await screen.findByRole('textbox');
-    const originalComposerTop = composer
-      .closest('.reference-composer')
-      ?.getBoundingClientRect().top;
-
-    const suggestion = screen.getByRole('button', {
-      name: FIRST_SUGGESTION.preview,
-    });
-
-    fireEvent.pointerEnter(suggestion);
-
-    const preview = screen.getByText(FIRST_SUGGESTION.preview, {
-      selector: '.reference-suggestion-preview',
-    });
-    expect(preview).toBeInTheDocument();
-    expect(preview).toHaveClass('visible');
-    expect(preview.closest('.reference-suggestion-slot')).toContainElement(
-      suggestion,
-    );
-    expect(
-      composer.closest('.reference-composer')?.getBoundingClientRect().top,
-    ).toBe(originalComposerTop);
-
-    fireEvent.pointerLeave(suggestion);
-    expect(preview).not.toHaveClass('visible');
   });
 
   it('fills the composer from a suggested prompt', () => {

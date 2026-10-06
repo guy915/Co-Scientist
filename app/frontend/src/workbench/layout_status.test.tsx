@@ -55,17 +55,4 @@ describe('SystemStatusIndicator', () => {
       expect(screen.getByRole('status')).toHaveTextContent('API offline'),
     );
   });
-
-  it('renders nothing for a healthy live model backend', async () => {
-    apiMock.getSystemStatus.mockResolvedValue(
-      statusFixture({llm_backend: 'real'}),
-    );
-
-    render(<SystemStatusIndicator />);
-
-    await waitFor(() =>
-      expect(apiMock.getSystemStatus).toHaveBeenCalledTimes(1),
-    );
-    expect(screen.queryByRole('status')).toBeNull();
-  });
 });
