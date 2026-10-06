@@ -15,13 +15,16 @@ from co_scientist.llm import (
     call_llm,
     call_llm_json,
     call_llm_with_tools,
+    deepseek_thinking_extra_body,
     model_profile,
     scoped_api_key,
 )
 from co_scientist.llm.profile import (
     gateway_routes,
+    priced_routes,
 )
 from co_scientist.llm.request.thinking import (
+    _GATEWAY_MAX_FALLBACKS,
     _gateway_provider,
 )
 from tests._llm_fake import (
@@ -120,3 +123,42 @@ def test_every_catalogued_route_arms_the_routing_ceiling() -> None:
                 "completion": 0,
                 "request": 0,
             }
+
+
+def test_every_declared_gateway_route_is_priced_and_funded() -> None:
+    routes = gateway_routes()
+    assert routes
+    for name in routes:
+        profile = model_profile(name)
+        assert profile.price is not None, name
+        assert profile.reasons, name
+
+
+def test_no_declared_chain_exceeds_openrouters_fallback_cap() -> None:
+    """OpenRouter accepts at most three models in a fallback chain."""
+    for primary in gateway_routes():
+        body = deepseek_thinking_extra_body(primary)
+        fallbacks = model_profile(primary).fallbacks
+        assert len(fallbacks) <= _GATEWAY_MAX_FALLBACKS, primary
+        assert len(body.get("models", [])) <= _GATEWAY_MAX_FALLBACKS, primary
+
+
+def test_no_chain_head_claims_disable_support_a_fallback_lacks() -> None:
+    """Every fallback sees the same request and must honor its reasoning
+    policy."""
+    for primary in gateway_routes():
+        declared = model_profile(primary)
+        if not declared.reasoning_can_disable:
+            continue
+        for name in declared.fallbacks:
+            fallback = model_profile(f"openrouter/{name}")
+            assert fallback.gateway and fallback.reasoning_can_disable, (
+                f"{primary} claims reasoning_can_disable=True but its "
+                f"fallback {name} does not"
+            )
+
+
+def test_the_price_table_is_the_profile_prices() -> None:
+    assert priced_routes() == MODEL_PRICING
+    for name, price in MODEL_PRICING.items():
+        assert model_profile(name).price == price, name

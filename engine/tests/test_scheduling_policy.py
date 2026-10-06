@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
+from co_scientist.agents.meta_review.research_overview import is_interim_firing
+from co_scientist.checkpoint import (
+    restore_workflow_state,
+    serialize_workflow_state,
+)
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -15,7 +20,9 @@ from co_scientist.scheduling import (
     validate_decision,
 )
 from co_scientist.scheduling.policy import stack_companions
-from tests._state import BUDGET, healthy_stats
+from co_scientist.state import WorkflowState
+from co_scientist.workflow_topology import route_after_meta_review
+from tests._state import BUDGET, healthy_stats, make_state
 
 _G, _E = TaskType.GENERATE, TaskType.EVOLVE
 
@@ -504,3 +511,32 @@ def test_the_overview_companion_is_gated_by_the_tier_ceiling() -> None:
     assert stacked_task_values(decision.queue_actions) == (
         TaskType.META_REVIEW.value,
     )
+
+
+def test_the_stacked_list_survives_a_checkpoint_round_trip() -> None:
+    """Companion tasks read restored state; losing this key silently skips or
+    mislabels synthesis."""
+    state = make_state(next_task=TaskType.REFLECT.value)
+    state["supervisor_queue_actions"] = [
+        {"action": "enqueue", "task_type": TaskType.META_REVIEW.value},
+        {"action": "enqueue", "task_type": TaskType.SYNTHESIZE.value},
+    ]
+    restored = restore_workflow_state(
+        serialize_workflow_state(dict(state), last_event_seq=0)
+    )
+    assert stacked_task_values(restored["supervisor_queue_actions"]) == (
+        TaskType.META_REVIEW.value,
+        TaskType.SYNTHESIZE.value,
+    )
+    assert is_interim_firing(cast(WorkflowState, restored))
+    assert route_after_meta_review(cast(WorkflowState, restored)) == (
+        "research_overview"
+    )
+
+
+def test_a_terminating_decision_is_never_wrapped() -> None:
+    stats = _due_stats(unreviewed_count=0, llm_calls=99)
+    spent = Budget(max_iterations=4, max_llm_calls=1)
+    decision = stack_companions(decide_next_task(stats, spent), stats, spent)
+    assert decision.terminate
+    assert not stacked_task_values(decision.queue_actions)

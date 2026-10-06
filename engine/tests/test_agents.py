@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import ast
+import pathlib
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 from litellm.exceptions import APIError
 
+import co_scientist.llm as llm
 from co_scientist.agents.meta_review import meta_review as mr
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.agents.proximity import proximity as px
@@ -142,3 +146,102 @@ def test_a_safety_halt_ends_the_durable_path_from_every_node(
     for state in decision_states():
         halted = make_state(**{**state, "safety_blocked": True})
         assert next_task_type(node, halted) is None
+
+
+def test_no_module_imports_the_interface_it_implements() -> None:
+    modules = _modules()
+    for name, path in modules.items():
+        assert "" not in _runtime_imports(path, set(modules)), name
+
+
+def test_imports_only_point_downward() -> None:
+    modules = _modules()
+    for name, path in modules.items():
+        for imported in _runtime_imports(path, set(modules)) - {""}:
+            if (name.split(".")[0], imported) in _ALLOWED_UPWARD:
+                continue
+            assert _layer(imported) <= _layer(name), f"{name} -> {imported}"
+
+
+def test_module_level_imports_form_no_cycle() -> None:
+    modules = _modules()
+    graph = {
+        name: _runtime_imports(path, set(modules)) - {""}
+        for name, path in modules.items()
+    }
+    for name in graph:
+        assert name not in _reachable(graph, name), name
+
+
+def _layer(module: str) -> int:
+    return _LAYERS.index(module.split(".")[0])
+
+
+def _runtime_imports(path: pathlib.Path, modules: set[str]) -> set[str]:
+    found: set[str] = set()
+    for node in _runtime_nodes(ast.parse(path.read_text()).body):
+        found |= _targets(node, modules)
+    return found
+
+
+def _modules() -> dict[str, pathlib.Path]:
+    return {
+        ".".join(path.relative_to(_ROOT).with_suffix("").parts): path
+        for path in _ROOT.rglob("*.py")
+        if path.name != "__init__.py"
+    }
+
+
+def _reachable(graph: dict[str, set[str]], start: str) -> set[str]:
+    seen: set[str] = set()
+    todo = list(graph.get(start, ()))
+    while todo:
+        module = todo.pop()
+        if module not in seen:
+            seen.add(module)
+            todo.extend(graph.get(module, ()))
+    return seen
+
+
+_ALLOWED_UPWARD = {("telemetry", "request.response")}
+
+
+# Telemetry reads request.response; request.completion records into telemetry.
+# That request-layer edge is the explicit layering exception.
+_LAYERS = (
+    "profile",
+    "values",
+    "admission",
+    "structured",
+    "telemetry",
+    "request",
+    "precall",
+    "attempts",
+    "tools",
+    "call",
+)
+
+
+def _runtime_nodes(body: list[ast.stmt]) -> Iterator[ast.ImportFrom]:
+    for node in body:
+        if isinstance(node, ast.If) and "TYPE_CHECKING" not in ast.dump(
+            node.test
+        ):
+            yield from _runtime_nodes(node.body + node.orelse)
+        elif isinstance(node, ast.ImportFrom):
+            yield node
+
+
+def _targets(node: ast.ImportFrom, modules: set[str]) -> set[str]:
+    module = node.module or ""
+    if not module.startswith(_PACKAGE):
+        return set()
+    base = module.removeprefix(_PACKAGE).removeprefix(".")
+    joined = {f"{base}.{a.name}" if base else a.name for a in node.names}
+    return {j if j in modules else base for j in joined}
+
+
+_ROOT = pathlib.Path(llm.__file__).parent
+
+
+_PACKAGE = "co_scientist.llm"

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import ast
 import json
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
 
+import co_scientist.evidence as evidence
 from co_scientist.agents.reflection import deep_verification_evidence as probes
 from co_scientist.config import ToolRegistry
 from co_scientist.evidence import search
@@ -207,3 +210,22 @@ async def test_campaign_scope_skips_a_source_its_policy_refuses(
     assert [name for name, _ in client.calls] == ["search_pubmed"]
     assert set(metadata) == {"P1"}
     assert errors == []
+
+
+def test_shared_evidence_modules_do_not_import_agents() -> None:
+    for path in Path(evidence.__file__).parent.glob("*.py"):
+        tree = ast.parse(path.read_text())
+        modules = [
+            node.module or ""
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+        ]
+        modules += [
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        ]
+        assert not any(
+            module.startswith("co_scientist.agents") for module in modules
+        ), path

@@ -4,6 +4,8 @@ import ast
 import asyncio
 import json
 import pathlib
+import subprocess
+import sys
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any, cast
@@ -474,3 +476,15 @@ def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
     )
     assert _unguarded_llm_fallbacks(ast.parse(bare)) == [3]
     assert _unguarded_llm_fallbacks(ast.parse(guarded)) == []
+
+
+def test_importing_a_foundation_module_first_does_not_cycle() -> None:
+    """Only a fresh interpreter exposes cycles involving a half-initialized
+    cache module."""
+    result = subprocess.run(
+        [sys.executable, "-c", "import co_scientist.cache"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
