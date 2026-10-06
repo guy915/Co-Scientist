@@ -182,8 +182,9 @@ Finish each phase's exit test before starting the next.
 - **Delegation:** the orchestrating session runs Claude Opus 5.5 at high
   effort and plans, reviews and merges. Implementation goes to subagents on
   Claude Sonnet 5.5 at medium effort (`model: "sonnet"`), and no other model.
-  Run independent suites in parallel when it saves time; each works on its own
-  suite and branch. Give each these rules, the ratchet and the coverage guard,
+  Run 2–4 subagents at once, scaled to the independent work available: each
+  takes one theme on its own branch, and parallel themes in one suite touch
+  disjoint files. Give each these rules, the ratchet and the coverage guard,
   and have it confirm its files are on disk before reporting.
 - **Progress:** keep each PR body current with phase, suite, theme, test lines
   removed, tests and files removed, coverage before and after, and the new
