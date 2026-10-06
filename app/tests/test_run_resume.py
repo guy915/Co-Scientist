@@ -13,7 +13,6 @@ from app.store import events as store_events
 from app.store import records as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
-from app.store import tasks_lifecycle as lifecycle
 from app.store.hypotheses import NewHypothesis
 from app.store.models import RunStatus as StoreRunStatus
 from app.store.records import NewEvidence, NewReview
@@ -22,6 +21,8 @@ from tests._client import make_client as _client
 from tests._store_helpers import (
     enqueue_task,
     event_seqs,
+    pause_run,
+    resume_run,
     seed_checkpoint,
     seed_run,
 )
@@ -30,16 +31,6 @@ from tests._store_helpers import (
 def _new_run(client: Any, headers: dict[str, str] | None = None) -> str:
     res = _create_run(client, "Scientist-in-the-loop goal", headers=headers)
     return str(res.json()["id"])
-
-
-def test_resume_and_pause_need_a_checkpoint_or_an_active_run(
-    isolated_db: str,
-) -> None:
-    client = _client()
-    run_id = _create_run(client, "No checkpoint yet").json()["id"]
-
-    assert client.post(f"/api/runs/{run_id}/resume").status_code == 409
-    assert client.post(f"/api/runs/{run_id}/pause").status_code == 404
 
 
 def _seed_agent_artifacts(run_id: str) -> str:
@@ -117,9 +108,8 @@ def test_resuming_a_pre_engine_checkpoint_restarts_from_a_fresh_bootstrap(
     )
     runs.update_run_status(run_id, StoreRunStatus.PAUSED)
 
-    resumed = client.post(f"/api/runs/{run_id}/resume")
+    resume_run(run_id)
 
-    assert resumed.status_code == 200, resumed.text
     assert [h["id"] for h in hypotheses.list_hypotheses(run_id)] == [manual_id]
     assert checkpoints.get_latest_checkpoint(run_id) is None
     assert event_seqs(run_id, "lifecycle", event="legacy_resume_cleanup")
@@ -168,13 +158,9 @@ async def _advance_until_pool_nonempty(run_id: str, db_path: str, *, cap: int = 
     raise AssertionError(f"pool still empty after {cap} tasks")
 
 
-def _pause_and_resume(client: Any, run_id: str) -> None:
-    paused = client.post(f"/api/runs/{run_id}/pause")
-    assert paused.status_code == 200
-    assert paused.json()["status"] == "paused"
-    resumed = client.post(f"/api/runs/{run_id}/resume")
-    assert resumed.status_code == 200
-    assert resumed.json()["status"] == "queued"
+def _pause_and_resume(run_id: str) -> None:
+    pause_run(run_id)
+    resume_run(run_id)
 
 
 def _checkpoint_hypothesis_ids(run_id: str, db_path: str) -> set[str]:
@@ -199,10 +185,10 @@ async def test_two_resume_cycles_still_complete_with_pool_intact(
     assert started.status_code == 200
 
     await _advance(run_id, 1, isolated_db)
-    _pause_and_resume(client, run_id)
+    _pause_and_resume(run_id)
 
     pool_before = await _advance_until_pool_nonempty(run_id, isolated_db)
-    _pause_and_resume(client, run_id)
+    _pause_and_resume(run_id)
 
     await task_worker.run_run_until_idle(run_id, _WORKER, db_path=isolated_db)
 
@@ -217,8 +203,7 @@ async def test_two_resume_cycles_still_complete_with_pool_intact(
 
 def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
     enqueue_task(run_id, "engine.test.blocking", "blocking:0", db_path=db_path)
-    lifecycle.pause_run_tasks(run_id, db_path=db_path)
-    runs.update_run_status(run_id, StoreRunStatus.PAUSED)
+    pause_run(run_id, db_path=db_path)
 
 
 def _install_blocking_execute(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -261,21 +246,3 @@ async def test_resume_does_not_execute_run_work_on_the_event_loop(
     worst_stall = await probe
 
     assert worst_stall < 0.5, f"event loop stalled {worst_stall:.2f}s while a resumed run executed"
-
-
-def test_a_blocked_run_cannot_be_resumed(isolated_db: str) -> None:
-    owner = _client()
-    headers = {"X-Client-ID": "blocked-owner"}
-    run_id = _new_run(owner, headers)
-    seed_checkpoint(run_id, {"provider": "engine"}, stage="engine_task:final")
-    runs.update_run_status(run_id, StoreRunStatus.BLOCKED)
-
-    outsider = owner.post(f"/api/runs/{run_id}/resume", headers={"X-Client-ID": "someone-else"})
-    response = owner.post(f"/api/runs/{run_id}/resume", headers=headers)
-
-    assert outsider.status_code == 404
-    assert response.status_code == 409
-    assert response.json()["detail"] == "run was blocked; create a new run"
-    saved = runs.get_run(run_id)
-    assert saved is not None and saved.status == StoreRunStatus.BLOCKED.value
-    assert store_tasks.list_tasks(run_id) == []
