@@ -4,7 +4,8 @@ Bring the code that stays after `docs/PROD-CUTS.md` down to the size its
 features need. Behavior does not change; only how the code is written does.
 The owner approved every lever below on 6 October 2026.
 
-**Status:** not started. It starts when the cuts plan finishes, about 96k lines.
+**Status:** not started. Work on a folder starts once that folder's cuts in
+`docs/PROD-CUTS.md` are merged; the whole cuts plan leaves about 96k lines.
 The expected result is about 80k, plus about 4k from the line-length change,
 reported separately.
 
@@ -48,11 +49,18 @@ Literal copy-paste is small (about 1.5k lines). The size comes from habits:
 
 ## Order
 
-1. Lint and format (1), alone, so later diffs stay readable.
-2. Low-risk mechanical work: 4, 5, then 2 suite by suite.
-3. Fan-out primitive (3) and the LLM stack (6).
-4. Frontend: 8, 7, 9.
-5. Engine merge (11), then typed models (10), one concept per PR.
+Folder by folder, as the cuts finish each folder, so shrinking never touches
+code that is about to be deleted:
+
+1. **Engine and MCP server**, once their cuts merge: 5, 2, 6.
+2. **App backend**, once its cuts merge: 4, 3, 5, 2.
+3. **Frontend**, once its cuts merge: 8, 7, 9.
+4. **Last, with no other campaign PR open:** the engine merge (11), then typed
+   models (10) one concept per PR, then the lint and format change (1) alone.
+   These touch nearly every file, so they run when nothing else is in flight.
+
+Because the 80-column limit and complexity rules stay until step 4, inline
+wrappers (2) only where the result still passes the current lint.
 
 ## Rules
 

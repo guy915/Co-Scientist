@@ -4,8 +4,8 @@ Remove the features, modes and dev tooling the owner chose to give up on
 6 October 2026. This plan only deletes. Condensing what stays is a separate,
 later plan that starts from the size this one leaves.
 
-**Status:** not started. It starts when the test campaign in `PLAN.md`
-finishes, and then replaces `PLAN.md`.
+**Status:** started 6 October 2026. It runs alongside the test campaign in
+`PLAN.md`, split by folder as described under Lanes.
 
 ## Scope
 
@@ -71,18 +71,31 @@ search.
 Not in this plan: the "Download report" button and giving Q&A the Markdown
 report instead of structured data. Those are feature changes, done separately.
 
-## Order
+## Lanes
 
-One theme per PR, in this order, so later PRs delete code earlier ones made
-unreachable:
+Two campaigns run at once without editing the same files:
 
-1. Dev and evaluation tooling.
-2. Features with no UI.
-3. Campaign mode, access page and required auth.
-4. The remaining modes and switches.
-5. Logs panel shrink.
-6. Demo snapshot.
-7. Legacy data: the migration PR, then the deletion PR after the owner runs it.
+1. **Now.** The test campaign finishes Phase 2 for the app, the frontend and
+   the evaluations. The cuts touch only `engine/` (including
+   `engine/mcp_server/`), `app/dev/` and their tests and docs: PubMed study
+   code, the LLM cache, bwrap, domain tool configs, the MCP side of campaign
+   mode and the `COSCIENTIST_FORCE_MOCK` alias. Edit `app/app/` only to remove
+   the hook of a cut engine feature (a setting, an import, a wiring line), and
+   `app/tests/` only to delete tests of that hook.
+2. **After the test campaign finishes Phase 2** for the app, the frontend and
+   the evaluations, the cuts take `app/`, `app/frontend/` and `evaluations/`
+   in this order: features with no UI; campaign mode, access page and required
+   auth; the remaining modes and switches; the logs panel; the evaluation
+   scripts; the demo snapshot. Meanwhile the test campaign runs Phase 3 on the
+   engine and MCP suites, and on the app and frontend suites after their cuts
+   merge.
+3. **Last:** the legacy-data migration PR, then the deletion PR after the owner
+   runs the migration.
+
+One theme per PR. Only one open PR at a time edits
+`docs/test-campaign/coverage-baseline.json`; bring in `main` before merging.
+Shrink work on a folder starts when its cuts are merged (see
+`docs/PROD-SHRINK.md`).
 
 ## Rules
 

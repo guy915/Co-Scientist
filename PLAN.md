@@ -15,6 +15,16 @@ Phase counts and verification are recorded in
 The improvements campaign is preserved in merged history; PR #184 deliberately
 retired `IMPROVEMENTS.md` when it opened this campaign.
 
+## Coordination with the production cuts
+
+`docs/PROD-CUTS.md` runs alongside this campaign, split by folder. While this
+campaign finishes Phase 2 for the app, the frontend and the evaluations, the
+cuts touch only `engine/`, `engine/mcp_server/`, `app/dev/` and the tests of
+code they delete. After Phase 2, the cuts take the app, frontend and
+evaluations, and Phase 3 here starts with the engine and MCP suites, reaching
+the app and frontend suites after their cuts merge. Only one open PR at a time
+edits `docs/test-campaign/coverage-baseline.json`.
+
 ## Destination
 
 Each suite tests behavior through the interface its users reach: the HTTP API
