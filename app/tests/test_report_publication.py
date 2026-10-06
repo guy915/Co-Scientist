@@ -16,7 +16,9 @@ from app.report import gates as report_gates
 from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
 from app.store import checkpoints, hypotheses, records, reports, runs, tasks
+from app.store import events as store_events
 from app.store import retrieval_calls as retrieval
+from app.store import tasks_lifecycle as lifecycle
 from app.store.hypotheses import NewHypothesis
 from app.store.models import RunStatus
 from tests._client import create_run as _create_run
@@ -29,7 +31,7 @@ from tests._engine_tasks_helpers import (
     _task_state,
     fake_final_drain,
 )
-from tests._store_helpers import enqueue_task
+from tests._store_helpers import enqueue_task, seed_checkpoint
 from tests.test_report_cancel_publication import (
     _OWNER,
     _install_report_stubs,
@@ -611,3 +613,71 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     ]
     assert resume_event["seq"] < stages[0]["seq"]
     assert stages[-1]["seq"] < report_event["seq"] < completion_event["seq"]
+
+
+@pytest.mark.asyncio
+async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner, run_id, task, hypothesis_id = _seed_owned_finalize(
+        isolated_db, monkeypatch
+    )
+    _install_report_stubs(hypothesis_id, monkeypatch)
+    previous = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert previous is not None
+    resume_state = {
+        **previous["state"],
+        "resume_successor": engine_tasks_support.FINALIZE_TASK,
+    }
+    seed_checkpoint(
+        run_id,
+        resume_state,
+        stage=f"engine_task:{task.id}",
+        schema_version=previous["schema_version"],
+        last_event_seq=store_events.latest_event_seq(
+            run_id, db_path=isolated_db
+        ),
+        db_path=isolated_db,
+    )
+    paused = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
+    assert paused.status_code == 200, paused.text
+    get_run = runs.get_run
+    paused_reads = 0
+    resume_responses: list[dict[str, Any]] = []
+
+    def resume_after_pause_snapshot(
+        requested: str,
+        db_path: str | None = None,
+        conn: Any | None = None,
+    ) -> Any:
+        nonlocal paused_reads
+        run = get_run(requested, db_path=db_path, conn=conn)
+        if requested == run_id and run is not None and run.status == "paused":
+            paused_reads += 1
+            if paused_reads == 2:
+                response = owner.post(
+                    f"/api/runs/{run_id}/resume", headers=_OWNER
+                )
+                assert response.status_code == 200, response.text
+                resume_responses.append(response.json())
+        return run
+
+    monkeypatch.setattr(runs, "get_run", resume_after_pause_snapshot)
+    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    assert paused_reads >= 2
+    assert resume_responses == [{"id": run_id, "status": "queued"}]
+    assert result["status"] == RunStatus.COMPLETED.value
+    completed = runs.get_run(run_id, db_path=isolated_db)
+    assert completed is not None
+    assert completed.status == RunStatus.COMPLETED.value
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert checkpoint is not None
+    assert checkpoint["stage"] == f"engine_task:{task.id}"
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
+    assert lifecycle.complete_task(
+        task.id,
+        str(task.lease_owner),
+        result,
+        db_path=isolated_db,
+    )
