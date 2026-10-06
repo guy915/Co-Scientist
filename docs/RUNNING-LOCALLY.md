@@ -35,7 +35,7 @@ It stops existing listeners on those ports; reserve them for this checkout.
 | Service | Address | Notes |
 | --- | --- | --- |
 | Workbench | http://localhost:5173 | Vite proxies API requests to port 8008 |
-| API | http://localhost:8008 | Local operator docs at `/docs` |
+| API | http://localhost:8008 | Health at `/health` |
 | MCP | http://localhost:8888 | Literature/database tools; Python 3.12 required |
 
 Use `make stop` to stop the development services. Run individual services

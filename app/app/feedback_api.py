@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from app.auth import require_client_scope
-from app.config import settings
 from app.store import feedback
 
 router = APIRouter(tags=["feedback"])
@@ -42,18 +40,3 @@ async def submit_feedback(body: FeedbackRequest, request: Request) -> dict[str, 
             status_code=429, detail=str(exc), headers={"Retry-After": "60"}
         ) from exc
     return {"id": identity, "status": "submitted"}
-
-
-@router.get("/api/feedback/admin")
-async def read_feedback(
-    request: Request,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-) -> dict[str, list[feedback.FeedbackRow]]:
-    # Unlike local diagnostics, this endpoint always requires the configured
-    # maintainer token. Host/forwarding headers cannot grant access.
-    supplied = request.headers.get("X-Logs-Token", "")
-    token = settings.logs_admin_token
-    if not token or not supplied or not hmac.compare_digest(supplied, token):
-        raise HTTPException(status_code=403, detail="maintainer access required")
-    return {"feedback": feedback.list_feedback(limit=limit, offset=offset)}
