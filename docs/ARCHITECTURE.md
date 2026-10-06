@@ -127,7 +127,9 @@ An offline-backed run still executes the real durable engine; `co_scientist.offl
 
 ## Curated example chats
 
-The three seeded examples include fixed scope conversations, completed plan
+The three examples are exported once as `app/app/data/demo_runs.json.gz` and
+inserted at startup by `seed/`, which replaces a demo run whose version stamp is
+older. They include fixed scope conversations, completed plan
 cards, illustrative Q&A and their scientific results. Titles begin `Example: `.
 Desktop Recents and a mobile example strip open `/examples/:id`, which requests
 `POST /api/runs/{id}/example-chat` and navigates to the visitor's owned chat.
@@ -138,8 +140,8 @@ owner and source on later opens, preserving continued chat. No engine tasks,
 credentials, logs, share tokens or free-generation allowance are copied or
 consumed; the copy makes no provider or retrieval call. Existing researcher
 authentication still applies. Shared examples allow reads and this copy endpoint;
-other mutations return 403. Seed version 15 backfills the full conversations,
-with a readiness marker committed only after the curated bundle is complete.
+other mutations return 403. Each run loads in one transaction, so the version
+markers in its config are visible only once the whole bundle is present.
 
 ## Run chat context
 
