@@ -30,8 +30,7 @@ around the clock.
 and no one watches the sessions overnight, so a session that hits it can sit
 idle for days. Aim to use most of each window without reaching it:
 
-- Run fewer subagents, and prefer the cheaper model for mechanical work, when
-  a window is filling faster than it resets.
+- Run fewer subagents when a window is filling faster than it resets.
 - Keep a recurring check-in in your own session (every two hours) that
   resumes the campaign from the board and the merged PR history, so a stall
   ends at the next reset. Remove it when your campaign is done.
@@ -146,9 +145,10 @@ or park the ones they have open.
 ## Sessions and usage
 
 - Each lead runs at high effort; it plans, reviews and merges.
-- Subagents implement, each on its own branch with disjoint files. Mechanical
-  work runs on the faster, cheaper model; risky levers and model-usage changes
-  run on the strongest model or in the lead itself. Each subagent gets these
+- Subagents implement, each on its own branch with disjoint files. Every
+  subagent runs on Sonnet, never another model; for risky levers and
+  model-usage changes the lead gives small, precise tasks or does the work
+  itself. Each subagent gets these
   rules and confirms its files are on disk before it reports.
 - Pick the number of subagents from the independent work ready and the
   account's remaining usage, so the campaign never stalls on the usage limit.
