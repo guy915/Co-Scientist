@@ -26,6 +26,7 @@ Sources referenced throughout:
 | Presubmit (blocking, fast, reliable) | `ci.yml` on `pull_request`: path-filtered jobs, superseded runs cancelled |
 | Postsubmit (comprehensive) | `ci.yml` on `push` to `main`: every job runs, no path filters, runs never cancelled |
 | Continuous build (scheduled full pass) | `nightly.yml` (cron, 06:17 UTC) calls `ci.yml` via `workflow_call`; also `workflow_dispatch` for on-demand full passes |
+| Not CI | `benchmark.yml`: manual (`workflow_dispatch`) live quality benchmark for `docs/OPTIMIZATION.md`. It calls the free default model with the `OPENROUTER_API_KEY` repository secret, so it never gates a PR or `main` |
 
 SWE book ch. 23 defines presubmit as "fast and reliable" checks gating merge,
 with "slower or less deterministic" comprehensive testing moved to
@@ -145,8 +146,7 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
 - **Path filtering is a crude approximation of affected-target selection.**
   Google computes the affected set from the Bazel build graph; we declare
   the dependency edges by hand as path globs (`app` depends on `engine`;
-  `evaluations` depends on nearly everything because the production size ratchet counts
-  source files across the repository). Filtering happens at the
+  `evaluations` runs on any source or docs change). Filtering happens at the
   job level rather than `on.paths` so skipped jobs still report a `skipped`
   conclusion, which branch protection counts as passing — workflow-level
   `paths:` would leave required checks pending forever. Every path in the

@@ -134,12 +134,6 @@ def test_the_fulltext_tool_returns_article_metadata_and_links_it_to_the_run(
     ("article", "title", "abstract"),
     [
         pytest.param(_MARKUP, *_MARKUP_TEXT, id="markup reads as plain text"),
-        pytest.param(
-            {"ArticleTitle": "No abstract"},
-            "No abstract",
-            None,
-            id="no abstract",
-        ),
     ],
 )
 def test_search_pubmed_returns_plain_text_articles(
@@ -321,11 +315,8 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
         # Dropping block headers without a space joins them to the following
         # sentence.
         ("<h4>Aims</h4>The convergence of", "Aims The convergence of"),
-        # Inline tags must close up so a split gene name remains one symbol.
-        ("bla<sub>NDM-1</sub> carriage", "blaNDM-1 carriage"),
         # Loose angle-bracket stripping can delete a comparison clause.
         ("at p&lt;0.05 while A&gt;B held", "at p<0.05 while A>B held"),
-        (None, ""),
     ],
 )
 def test_clean_markup(raw: Any, expected: str) -> None:

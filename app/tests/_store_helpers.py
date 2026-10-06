@@ -6,7 +6,7 @@ from typing import Any, TypedDict
 
 from typing_extensions import Unpack
 
-from app.store import checkpoints, reports, runs, tasks
+from app.store import checkpoints, runs, tasks
 from app.store import db as store_db
 from app.store import hypotheses as store
 from app.store.checkpoints import NewCheckpoint
@@ -14,18 +14,6 @@ from app.store.hypotheses import NewHypothesis
 from app.store.models import RunRow, ScientificTask
 from app.store.runs import RunCreateOptions
 from app.store.tasks import NewTask
-
-
-def _existing_run(run_id: str) -> RunRow:
-    run = runs.get_run(run_id)
-    assert run is not None, f"run {run_id} not found"
-    return run
-
-
-def _existing_report(run_id: str) -> dict[str, Any]:
-    report = reports.get_latest_report(run_id)
-    assert report is not None, f"no report for run {run_id}"
-    return report
 
 
 def _add(

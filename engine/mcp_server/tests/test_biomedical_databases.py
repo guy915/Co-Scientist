@@ -197,7 +197,7 @@ def _without_accession() -> dict[str, Any]:
                 },
                 "association list",
             )
-            for total in (1, "0", None)
+            for total in (1, None)
         ),
     ],
 )

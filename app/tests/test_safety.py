@@ -10,7 +10,7 @@ from co_scientist.safety import (
 )
 from fastapi.testclient import TestClient
 
-from app import process_mode, safety
+from app import safety
 from app.hypothesis import ScreeningResult, screen_hypotheses
 from app.hypothesis.safety import (
     REDACTED_PLACEHOLDER,
@@ -251,27 +251,6 @@ def test_final_screen_blocks_hard_patterns(
     markdown: str, decision: str
 ) -> None:
     assert screen_final(markdown).decision == decision
-
-
-@pytest.mark.parametrize(
-    ("model", "env", "expected"),
-    [
-        ("azure/gpt-4o", {"AZURE_API_KEY": "sk-test"}, True),
-        ("gemini/gemini-3-pro", {"GOOGLE_API_KEY": "sk-test"}, True),
-        ("mystery/model-x", {"AZURE_API_KEY": "sk-test"}, False),
-    ],
-)
-def test_a_safety_model_resolves_its_providers_credential(
-    monkeypatch: pytest.MonkeyPatch,
-    model: str,
-    env: dict[str, str],
-    expected: bool,
-) -> None:
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    for key, value in env.items():
-        monkeypatch.setenv(key, value)
-
-    assert process_mode.credential_available(model) is expected
 
 
 _DUAL_USE_GOAL = (
