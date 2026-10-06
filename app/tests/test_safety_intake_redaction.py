@@ -13,7 +13,6 @@ from app.config import settings
 from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
 from app.store import db, records, reports, runs, tasks
-from app.store import events as store_events
 from app.store.runs import RunCreateOptions
 from app.task_worker.outcomes import _LeaseLostError
 from tests._client import create_run as _create_run
@@ -41,41 +40,6 @@ def _persist_run(db_path: str) -> Any:
             db_path=db_path,
         ),
     )
-
-
-async def test_intake_redaction_scrubs_the_persisted_goal(
-    isolated_db: str,
-) -> None:
-    run = _persist_run(isolated_db)
-    assert safety.screen_intake(_STRICT_GOAL).decision == "redact"
-
-    task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
-    task = tasks.claim_task(
-        "intake-redaction-worker", db_path=isolated_db, run_id=run.id
-    )
-    assert task is not None
-    await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
-
-    stored = runs.get_run(run.id, db_path=isolated_db)
-    assert stored is not None
-    assert "select agent" not in stored.research_goal.lower()
-    assert REDACTED_PLACEHOLDER in stored.research_goal
-    assert "select agent" not in (stored.title or "").lower()
-    decisions = [
-        item
-        for item in records.list_safety_decisions(run.id, db_path=isolated_db)
-        if item["stage"] == "intake"
-    ]
-    assert len(decisions) == 1
-    assert decisions[0]["decision"] == "redact"
-    assert decisions[0]["matches"] == ["select agent"]
-    safety_events = [
-        event
-        for event in store_events.list_events(run.id, db_path=isolated_db)
-        if event["type"] == "safety.intake"
-    ]
-    assert len(safety_events) == 1
-    assert safety_events[0]["payload"]["decision"] == "redact"
 
 
 @pytest.mark.asyncio
@@ -194,6 +158,11 @@ def test_intake_redaction_survives_into_the_report(isolated_db: str) -> None:
         )
     )
 
+    stored = runs.get_run(run.id, db_path=isolated_db)
+    assert stored is not None
+    assert "select agent" not in stored.research_goal.lower()
+    assert REDACTED_PLACEHOLDER in stored.research_goal
+    assert "select agent" not in (stored.title or "").lower()
     report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert "select agent" not in report["markdown_text"].lower()

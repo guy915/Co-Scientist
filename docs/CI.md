@@ -232,9 +232,11 @@ models and dotenv loading disabled. Install MCP dev extras in `.venv-mcp`
 before running it. It prints production line coverage for every module,
 including modules tests never import, and writes raw reports plus `report.json`
 under `.cache/test-campaign/coverage/`. The committed
-`docs/test-campaign/coverage-baseline.json` records the fixed campaign baseline:
-each suite may lose at most 0.5 percentage points; listed protected modules may
-lose none. Deleted protected source files no longer need module coverage.
+`docs/test-campaign/coverage-baseline.json` records the fixed campaign baseline
+and its protected modules. Each suite and each listed protected module must
+keep at least 80% line coverage; a protected module that started below 80% may
+not fall below its baseline. Deleted protected source files no longer need
+module coverage.
 
 After the opening measurement, record its fixed baseline with
 `.venv/bin/python evaluations/tests/_coverage.py --report-only --record-baseline

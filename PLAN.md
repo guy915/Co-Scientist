@@ -5,10 +5,12 @@ keeping every behavior they protect. Every decision below was settled with the
 owner on 4 October 2026, so the campaign runs unattended: the agent decides by
 these rules and reports at the end.
 
-**Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is in progress,
-starting with generation and literature node outcomes in the engine. The fixed
-coverage baseline and shared scaffolding remain the campaign guards. Phase
-counts and verification are recorded in
+**Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is complete for
+the engine and the MCP server and in progress for the app and the frontend.
+The coverage floor (80% per suite and protected module, or a protected
+module's lower baseline, with each suite aimed at 80–85%) and shared
+scaffolding remain the campaign guards.
+Phase counts and verification are recorded in
 `docs/test-campaign/progress.json`.
 The improvements campaign is preserved in merged history; PR #184 deliberately
 retired `IMPROVEMENTS.md` when it opened this campaign.
@@ -80,11 +82,18 @@ all frontend production modules are protected. The selection is recorded in
   serialized, and prints production line coverage per suite and per module.
   Add `pytest-cov` to the MCP server's dev dependencies.
 - Record the baseline per suite and per module in the opening PR.
-- Every PR keeps each suite's coverage within 0.5 points of its baseline, and
-  keeps every module behind a "What stays tested" behavior at or above its
-  baseline. Put the before and after numbers in the PR body.
-- Coverage that drops because production code was deleted is fine; say so in
-  the PR.
+- Every PR keeps each suite's line coverage at or above 80%, and every
+  protected module at or above 80%, or at its fixed baseline when it started
+  below 80%. The owner set this floor on 6 October 2026, replacing the earlier
+  rule (each suite within 0.5 points of its baseline, protected modules at or
+  above baseline), because test lines cannot shrink by half while coverage
+  stays fixed.
+- Aim each suite at 80–85% line coverage; coverage above that costs more to
+  maintain than it protects. Cut tests whose only value is lines past that
+  band, and keep the behaviors under "What stays tested" with their best tests
+  whatever the coverage number says.
+- Put each suite's before and after coverage in the PR body, and name any
+  protected module that fell below its fixed baseline.
 
 ## What goes
 
@@ -141,7 +150,8 @@ Finish each phase's exit test before starting the next.
 
 - Organize test files by behavior. Merge files that test one behavior from
   several angles, and split files over 800 lines by behavior.
-- A final sweep over each suite against What goes.
+- A final sweep over each suite against What goes, bringing each suite into
+  the 80–85% coverage band.
 - **Exit:** the last two themed PRs each removed under 1,000 test lines.
 
 ## Rules
@@ -179,9 +189,12 @@ Finish each phase's exit test before starting the next.
 - **Delegation:** the orchestrating session runs Claude Opus 5.5 at high
   effort and plans, reviews and merges. Implementation goes to subagents on
   Claude Sonnet 5.5 at medium effort (`model: "sonnet"`), and no other model.
-  Run independent suites in parallel when it saves time; each works on its own
-  suite and branch. Give each these rules, the ratchet and the coverage guard,
-  and have it confirm its files are on disk before reporting.
+  Run 1–5 subagents at once, usually 2–4: pick the count from the independent
+  work ready and the owner's remaining usage, not the maximum. Plan so the
+  campaign never stalls on the owner's 5-hour usage limit; with little budget
+  left, run fewer. Each takes one theme on its own branch, and parallel themes
+  in one suite touch disjoint files. Give each these rules, the ratchet and the
+  coverage guard, and have it confirm its files are on disk before reporting.
 - **Progress:** keep each PR body current with phase, suite, theme, test lines
   removed, tests and files removed, coverage before and after, and the new
   totals. After any context compaction, re-read this file and the merged PR

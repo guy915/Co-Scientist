@@ -141,30 +141,6 @@ async def test_campaign_free_requests_keep_streams_and_zero_caps(
     )
 
 
-@pytest.mark.parametrize("kind", KINDS)
-async def test_user_byok_stays_separate_outside_campaign(
-    monkeypatch: pytest.MonkeyPatch,
-    captured: list[dict[str, Any]],
-    kind: str,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    credential = credentials.ByokCredential(
-        "openrouter", "test-user-key", "openrouter/campaign/paid"
-    )
-    with credentials.scoped_byok(credential):
-        await _invoke(kind, credential.model)
-    assert captured[0]["api_key"] == credential.api_key
-    assert captured[0]["model"] == credential.model
-    captured.clear()
-    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-    with (
-        credentials.scoped_byok(credential),
-        pytest.raises(Exception, match="zero-cost"),
-    ):
-        await _invoke(kind, credential.model)
-    assert captured == []
-
-
 async def test_concurrent_campaign_and_standard_byok_stay_isolated(
     monkeypatch: pytest.MonkeyPatch,
     captured: list[dict[str, Any]],

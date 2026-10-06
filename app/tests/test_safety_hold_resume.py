@@ -119,41 +119,29 @@ def held_run(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     return make_client()
 
 
-def test_intake_hold_keeps_claimable_work_and_resumes(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
+@pytest.mark.parametrize(
+    ("stage", "boundary"),
+    [("intake", "engine.bootstrap"), ("final", "engine.finalize")],
+)
+def test_a_hold_keeps_its_boundary_claimable_and_resumes_on_approval(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    held_run: TestClient,
+    stage: str,
+    boundary: str,
 ) -> None:
-    _install_runtime(monkeypatch).screen = hold_until_approved("intake")
-    run = start_offline_run(isolated_db)
-    drain(run.id, isolated_db)
-
-    paused = runs.get_run(run.id, db_path=isolated_db)
-    assert paused is not None and paused.status == RunStatus.PAUSED.value
-    # A hold is waiting work; its boundary must remain queued for reviewer
-    # release.
-    assert claimable_engine_tasks(run.id, isolated_db) == ["engine.bootstrap"]
-
-    approve(held_run, run.id, held_decision_id(run.id, "intake", isolated_db))
-    drain(run.id, isolated_db, worker="hold-e2e-resume")
-
-    final = runs.get_run(run.id, db_path=isolated_db)
-    assert final is not None
-    assert final.status == RunStatus.COMPLETED.value
-    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
-
-
-def test_final_hold_keeps_claimable_work_and_resumes(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
-) -> None:
-    _install_runtime(monkeypatch).screen = hold_until_approved("final")
+    _install_runtime(monkeypatch).screen = hold_until_approved(stage)
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)
 
     paused = runs.get_run(run.id, db_path=isolated_db)
     assert paused is not None and paused.status == RunStatus.PAUSED.value
     assert reports.get_latest_report(run.id, db_path=isolated_db) is None
-    assert claimable_engine_tasks(run.id, isolated_db) == ["engine.finalize"]
+    # A hold is waiting work; its boundary must remain queued for reviewer
+    # release.
+    assert claimable_engine_tasks(run.id, isolated_db) == [boundary]
 
-    approve(held_run, run.id, held_decision_id(run.id, "final", isolated_db))
+    approve(held_run, run.id, held_decision_id(run.id, stage, isolated_db))
     drain(run.id, isolated_db, worker="hold-e2e-resume")
 
     final = runs.get_run(run.id, db_path=isolated_db)
