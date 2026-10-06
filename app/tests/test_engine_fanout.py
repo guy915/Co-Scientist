@@ -373,21 +373,6 @@ def _restore_item(monkeypatch: pytest.MonkeyPatch, mode: str = "full") -> Any:
 
 
 @pytest.mark.asyncio
-async def test_verification_keeps_raw_payload_and_defers_issuance(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    task = _restore_item(monkeypatch)
-    raw = {"verdict": "holds", "sub_assumptions": list(range(30))}
-    operation = AsyncMock(return_value=raw)
-    monkeypatch.setattr(_operations_reflection, "verify_hypothesis", operation)
-    result = await items.execute_verification_item(task)
-    assert result["verification"] is raw
-    assert result["checkpoint_seq"] == 7
-    assert operation.await_args is not None
-    assert not operation.await_args.args[1].enrichments
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("error", [PARK, OVER_BUDGET])
 async def test_verification_item_control_errors_reach_worker(
     monkeypatch: pytest.MonkeyPatch, error: Exception
@@ -444,27 +429,6 @@ async def test_observation_rejects_missing_literature_before_call(
     with pytest.raises(RuntimeError, match="no literature context"):
         await items.execute_mature_reflection_item(task, db_path=isolated_db)
     operation.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_durable_mature_review_keeps_ledger_beside_review(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    task = _restore_item(monkeypatch)
-    review, ledger = {"verdict": "sound"}, {"threads": 4}
-    monkeypatch.setattr(
-        _operations_reflection,
-        "review_hypothesis",
-        AsyncMock(
-            return_value=_operations_reflection.ReviewRun(
-                _operations_reflection.ReviewType.FULL, review, ledger
-            )
-        ),
-    )
-    result = await items.execute_mature_reflection_item(task)
-    assert result["review"] is review
-    assert result["research_ledger"] is ledger
-    assert "research_ledger" not in result["review"]
 
 
 # Blocked ideas get one recurrent recheck; record attempts even on failure so

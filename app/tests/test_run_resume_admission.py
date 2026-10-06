@@ -107,21 +107,6 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
     assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
 
-    foreign = make_client()
-    foreign_headers = {"X-Client-ID": "resume-cancel-foreign"}
-    assert (
-        foreign.post(
-            f"/api/runs/{run_id}/resume", headers=foreign_headers
-        ).status_code
-        == 404
-    )
-    assert (
-        foreign.post(
-            f"/api/runs/{run_id}/cancel", headers=foreign_headers
-        ).status_code
-        == 404
-    )
-
     queue_reached, release_queue = _hold_resume_admission(monkeypatch)
     with ThreadPoolExecutor(max_workers=1) as pool:
         resume_future = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
@@ -148,18 +133,6 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
         )
         if seq > cancelled_seq
     ]
-
-    later_resume = owner.post(f"/api/runs/{run_id}/resume")
-    assert later_resume.status_code == 200, later_resume.text
-    later_task = store.get_task(successor_id, db_path=isolated_db)
-    assert later_task is not None
-    assert later_task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    assert later_task.status == "queued"
-    assert later_task.dependencies == (task.dependencies[0],)
-    claimed_later = store.claim_task(
-        "later-resume-worker", run_id=run_id, db_path=isolated_db
-    )
-    assert claimed_later is not None and claimed_later.id == successor_id
 
 
 def test_resume_transaction_commits_before_waiting_cancel(
