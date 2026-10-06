@@ -17,7 +17,7 @@ vi.mock('../lib/ui_logging', () => ({logUiError: vi.fn()}));
 
 vi.mock('./pages/run_detail', () => {
   imports.run += 1;
-  return {RunDetail: () => <p>Run details</p>};
+  throw new Error('The run page chunk could not be downloaded');
 });
 vi.mock('./pages/researcher_access', async () => {
   imports.access += 1;
@@ -32,6 +32,7 @@ vi.mock('./layout', () => ({
     <>
       <p>Persistent shell</p>
       <Link to="/access">Open access</Link>
+      <Link to="/runs/test-run/details">Open run</Link>
       {children}
     </>
   ),
@@ -75,5 +76,10 @@ it('opens home without importing report/access pages, then loads the selected ro
   expect(await screen.findByText('Researcher access')).toBeVisible();
   expect(imports).toEqual({run: 0, access: 1});
   expect(screen.getByText('Persistent shell')).toBe(accessShell);
+
+  fireEvent.click(screen.getByRole('link', {name: 'Open run'}));
+  expect(await screen.findByText('Something went wrong')).toBeVisible();
+  expect(screen.getByRole('button', {name: 'Reload Page'})).toBeEnabled();
+  expect(imports).toEqual({run: 1, access: 1});
   vi.restoreAllMocks();
 });
