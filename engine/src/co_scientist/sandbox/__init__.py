@@ -4,7 +4,6 @@ command.
 
 from co_scientist.sandbox.argv import (
     UnsupportedSandboxError,
-    bwrap_is_usable,
     sandbox_backend,
     wrap_argv,
 )
@@ -37,7 +36,6 @@ __all__ = [
     "SandboxPolicy",
     "UnsupportedSandboxError",
     "build_env",
-    "bwrap_is_usable",
     "is_known_safe",
     "read_only",
     "run_sandboxed",
