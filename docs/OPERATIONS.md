@@ -92,7 +92,7 @@ matches cannot clear themselves: only a contextual assessor can clear a held
 verdict or strengthen it to a block. Operational hard blocks bypass that assessor;
 unavailable or ambiguous review remains held.
 
-Redact both report payload and Markdown: reports, events and public shares
+Redact both report payload and Markdown: reports and events
 expose them independently. Final-report redaction leaves the separately served
 claim-evidence facts unchanged.
 

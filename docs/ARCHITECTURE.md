@@ -13,7 +13,6 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   /runs/:id/:tab     -> RunDetail (active tab persisted in URL)    |
 |   /chats/:id         -> ChatWorkspace   (one saved conversation)   |
 |   /access            -> researcher access-code exchange            |
-|   /shared/:token     -> public read-only Goal Report               |
 |   *                  -> NotFoundPage                               |
 |                                                                    |
 | useChatSession (chat timeline, steering + Q&A)                     |
@@ -137,7 +136,7 @@ Desktop Recents and a mobile example strip open `/examples/:id`, which requests
 `store/examples.py` copies the curated scientific records and transcript in one
 SQLite transaction, remapping identities and lineage. It reuses one copy per
 owner and source on later opens, preserving continued chat. No engine tasks,
-credentials, logs, share tokens or free-generation allowance are copied or
+credentials, logs or free-generation allowance are copied or
 consumed; the copy makes no provider or retrieval call. Existing researcher
 authentication still applies. Shared examples allow reads and this copy endpoint;
 other mutations return 403. Each run loads in one transaction, so the version
