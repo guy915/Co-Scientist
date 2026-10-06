@@ -1,0 +1,66 @@
+# Not CI: a manual, live quality benchmark for docs/OPTIMIZATION.md. It calls
+# the free default model with a repository secret, so it never runs on PRs.
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: Run size
+        type: choice
+        options: [express, standard]
+        default: express
+      label:
+        description: Name for this run, e.g. baseline-1
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Benchmark (${{ inputs.tier }}, ${{ inputs.label }})
+    runs-on: ubuntu-latest
+    # GitHub-hosted jobs stop at six hours.
+    timeout-minutes: 350
+    env:
+      MODEL_NAME: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      TIER: ${{ inputs.tier }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up backend
+        uses: ./.github/actions/setup-backend
+      - name: Install MCP server
+        run: |
+          python -m venv .venv-mcp
+          .venv-mcp/bin/python -m pip install -q -e engine/mcp_server
+      - name: Start MCP server
+        # The server resolves as a directory package from engine/.
+        working-directory: engine
+        run: |
+          nohup ../.venv-mcp/bin/python -m uvicorn mcp_server.server:app \
+            --host 127.0.0.1 --port 8888 > ../mcp.log 2>&1 &
+          for _ in $(seq 60); do
+            curl -fsS http://127.0.0.1:8888/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat ../mcp.log
+          exit 1
+      - name: Run benchmark
+        run: python -m evaluations.claim_support_eval --live --tier "$TIER"
+      - name: Report
+        if: always()
+        run: |
+          for f in evaluations/results/claim-support-live-*.json; do
+            [ -e "$f" ] || continue
+            {
+              echo '```json'
+              cat "$f"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            cat "$f"
+          done
+          tail -n 200 mcp.log || true
