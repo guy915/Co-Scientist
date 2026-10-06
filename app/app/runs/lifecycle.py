@@ -305,15 +305,11 @@ def _enqueue_workflow_and_maybe_launch_worker(
             {"event": "queued"},
             conn=conn,
         )
-    if settings.coscientist_embedded_worker:
-        # Embedded compatibility mode consumes the same durable lease as a
-        # separate
-        # production worker.
-        background.add_task(
-            task_worker.run_run_worker_pool_sync,
-            run.id,
-            f"embedded-api:{os.getpid()}",
-        )
+    background.add_task(
+        task_worker.run_run_worker_pool_sync,
+        run.id,
+        f"embedded-api:{os.getpid()}",
+    )
     return task
 
 
@@ -426,8 +422,7 @@ async def _launch_resume(
         expected_status=expected_status,
         expected_lifecycle_revision=expected_lifecycle_revision,
     )
-    if settings.coscientist_embedded_worker:
-        _launch_embedded_resume_worker(run_id)
+    _launch_embedded_resume_worker(run_id)
 
 
 async def _resume_interrupted_run(run_id: str) -> None:

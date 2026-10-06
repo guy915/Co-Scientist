@@ -2,7 +2,6 @@ from typing import Any
 
 import httpx
 import pytest
-from mcp_server.campaign import PUBLIC_TOOLS
 from mcp_server.tests._httpx import (
     StubResponse,
     registered_tools,
@@ -260,7 +259,6 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
         result = await client.call_tool(tool_name, {"doi": _DOI})
 
     assert tool_name in {tool.name for tool in tools}
-    assert tool_name in PUBLIC_TOOLS
     assert result.data["citations"]["edges"][0]["cited"] == [
         f"doi:{_DOI}",
         "omid:br/2",

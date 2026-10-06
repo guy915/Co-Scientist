@@ -15,7 +15,6 @@ from co_scientist.safety import (
 
 import app.process_mode as process_mode
 from app.config import settings
-from app.execution_policy import effective_execution_model
 from app.safety.semantic import (
     run_semantic_safety_model,
     semantic_credential_missing_decision,
@@ -331,9 +330,7 @@ async def screen_contextual(
     baseline = deterministic or (screen_intake(text) if stage == "intake" else screen_final(text))
     if baseline.decision == "block":
         return baseline
-    model = effective_execution_model(
-        settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
-    )
+    model = settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
     assert model is not None
     if not settings.semantic_safety_enabled or process_mode.offline_mode():
         return baseline
@@ -373,9 +370,7 @@ async def assess_hold_contextually(
     """
     if not _should_escalate_to_semantic(run_id, stage, "engine", db_path=db_path):
         return None
-    model = effective_execution_model(
-        settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
-    )
+    model = settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
     assert model is not None
     if not settings.semantic_safety_enabled or process_mode.offline_mode():
         return None

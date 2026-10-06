@@ -119,7 +119,7 @@ Tables (SQLite, WAL):
 
 What varies per run is the **LLM backend**, not the provider. `engine_adapter.offline_mode()` returns `True` when:
 
-1. `COSCIENTIST_FORCE_OFFLINE=1` is set (or its deprecated alias `COSCIENTIST_FORCE_MOCK=1`), OR
+1. `COSCIENTIST_FORCE_OFFLINE=1` is set, OR
 2. no supported provider key is configured.
 
 An offline-backed run still executes the real durable engine; `co_scientist.offline.llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
@@ -190,7 +190,7 @@ client id and (when a researcher session is active) its bearer token
 the light/dark theme (`workbench/theme_context.tsx` —
 `cosci-theme`), a scientist's own BYOK provider key when set
 (`lib/api_key.ts` — `cosci-api-key`, `cosci-api-provider`), and the Logs
-popover's per-session baseline row id (`workbench/layout_diagnostics_state.ts`
+button's per-session baseline row id (`workbench/layout_diagnostics.tsx`
 — `cosci-logs-session-baseline`). These are identity, preference, and UI
 bookkeeping, not a cache of server content, which is why point 1-4 above
 still holds: nothing here lets a view render without hitting the API.

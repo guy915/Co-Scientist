@@ -64,13 +64,7 @@ that is what makes them deterministic and trustworthy as merge gates.
   Bun 1.3.14; frontend scripts do not inherit the runner image's Node version.
 - Evaluations: `evaluations.smoke` is by construction the *offline* (no-LLM,
   no-network) subset; the expensive provider-backed suites stay opt-in and
-  are not in CI. Two more live, opt-in exceptions exist purely for by-hand
-  release verification and are never invoked by any CI job:
-  `evaluations.prod_smoke` (non-mutating checks against a deployed API) and
-  `evaluations.mcp_live_smoke` (a live PubMed/OpenAlex/INDRA contract +
-  rate-limit check, since `engine/mcp_server`'s own suite fakes every HTTP
-  client). Both have their own hermetic unit tests, in CI, that exercise the
-  check *logic* against a mocked transport rather than the network.
+  are not in CI.
 - Verified locally by running the app suite with a scrubbed environment
   (`env -i`, no `.env` file present): 1179 passed.
 

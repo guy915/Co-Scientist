@@ -2,18 +2,13 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any, cast
+from typing import Any
 
 from app.config import any_provider_credential, byok_enabled, settings
 from app.engine_adapter.tools import (
     connectors_report as connectors_report,
 )
-from app.engine_adapter.tools import (
-    tools_config_report,
-)
-from app.engine_adapter.tools import (
-    validate_tools_config as validate_tools_config,
-)
+from app.engine_adapter.tools import enabled_tools
 from app.process_mode import offline_mode as offline_mode
 from app.store import runs
 
@@ -86,7 +81,7 @@ def system_status() -> dict[str, Any]:
         # Diagnostics mirror the generator's actual supervisor-model fallback.
         "supervisor_model_name": settings.effective_supervisor_model,
         "mcp_server_url": settings.mcp_server_url,
-        **tools_config_report(settings.tools_config),
+        "enabled_tools": enabled_tools(),
     }
 
 
@@ -98,24 +93,3 @@ def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
         return False
     state = checkpoint.get("state")
     return isinstance(state, dict) and state.get("provider") == ENGINE_CHECKPOINT_PROVIDER
-
-
-def restore_workflow_state(
-    serialized: dict[str, Any], *, tool_registry: Any = None
-) -> dict[str, Any]:
-    """Campaign routing survives checkpoint restoration and recovery."""
-    from co_scientist.checkpoint import (
-        restore_workflow_state as restore_engine_state,
-    )
-
-    from app.execution_policy import effective_execution_model
-
-    state = cast(
-        dict[str, Any],
-        restore_engine_state(serialized, tool_registry=tool_registry),
-    )
-    campaign_model = effective_execution_model(None)
-    if campaign_model is not None:
-        state["model_name"] = campaign_model
-        state["supervisor_model_name"] = campaign_model
-    return state

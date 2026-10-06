@@ -24,9 +24,7 @@ from tests._client import wait_for_status as _wait_status
 
 
 def _restore_default_logging() -> None:
-    from app.config import settings
-
-    configure_logging(settings.log_format)
+    configure_logging()
 
 
 def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
@@ -34,7 +32,7 @@ def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
     diagnostic = "provider diagnostic preserved"
     credential = ByokCredential(provider="deepseek", api_key=key, model="deepseek/test")
     try:
-        handler = configure_logging("json")
+        handler = configure_logging()
         stream = io.StringIO()
         handler.stream = stream  # type: ignore[attr-defined]
 
@@ -81,7 +79,8 @@ def test_logs_endpoint_returns_rows_and_last_id(isolated_db: str) -> None:
 
     _logs_endpoint_seed(isolated_db, "new line")
     polled = make_operator_client().get("/api/logs", params={"after_id": body["last_id"]}).json()
-    assert [row["message"] for row in polled["logs"]] == ["new line"]
+    assert "new line" in [row["message"] for row in polled["logs"]]
+    assert all(row["id"] > body["last_id"] for row in polled["logs"])
 
 
 # Shared logs contain other tenants and server internals; remote reads need
@@ -162,20 +161,6 @@ def test_admin_token_grants_the_app_wide_view(
     assert len(body["logs"]) == 2
     body = client.get("/api/logs", headers={"X-Logs-Token": "nope"}).json()
     assert body["logs"] == []
-
-
-def test_remote_delete_only_clears_the_callers_records(
-    isolated_db: str,
-) -> None:
-    _security_seed(isolated_db, "alice ui record", client_id="alice")
-    _security_seed(isolated_db, "bob ui record", client_id="bob")
-    _security_seed(isolated_db, "server internals")
-    client = make_client()
-
-    response = client.request("DELETE", "/api/logs", headers={"X-Client-ID": "alice"})
-    assert response.json()["deleted"] == 1
-    remaining = [r["message"] for r in logs.list_logs(db_path=isolated_db)]
-    assert remaining == ["bob ui record", "server internals"]
 
 
 def test_ingestion_is_rate_limited(isolated_db: str) -> None:

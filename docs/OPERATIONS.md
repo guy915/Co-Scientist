@@ -167,8 +167,8 @@ cancels dependent portfolio tasks in one transaction. An unknown provider outcom
 permanently fails a fanout item without replaying it or cancelling siblings;
 aggregates admit failed items and preserve an explicit unreviewed verdict.
 Unknown outcomes on coordinator tasks still stop the run. Lost leases may retry
-only under persisted zero-price admission, without caller keys: campaign policy,
-or the `zero_cost_admission` stamp a free run on all-free routes gets at creation,
+only under persisted zero-price admission, without caller keys: the
+`zero_cost_admission` stamp a free run on all-free routes gets at creation,
 which binds its engine tasks to zero-price-only requests. Unstamped runs fail closed.
 
 Verification issuance markers survive failed attempts and checkpoint restore;
@@ -226,7 +226,7 @@ Capture lexical retrieval scores before stamping hybrid scores. Reusing the
 overwritten score double-weights the semantic term and can collapse rankings.
 
 FastMCP may return an execution error as ordinary result text. Treat its error
-envelope and campaign-policy refusals as permanent query failures. Transient
+envelope as a permanent query failures. Transient
 transport failures use bounded, jittered retries; distinguish failed queries
 from successful zero-hit responses.
 
@@ -310,10 +310,10 @@ hashed for admission checks and is not returned with submissions.
 
 Feedback silently uses the existing tab-session anchor and diagnostic exporter
 (preamble, session details, statistics and records), including operational INFO
-records hidden by the Logs panel's default noise filter. It keeps the newest
+records. It keeps the newest
 loaded records within the attachment limit; a failed log fetch produces an
 explicit diagnostic-unavailable record so the message can still be submitted.
-The Logs pill, panel and default filtering stay unchanged.
+The header Logs button copies the same export; there is no log panel.
 
 New metadata captures chat roles, character counts and response durations, tool
 names and execution durations/outcomes, failed-fetch method/path/status (without

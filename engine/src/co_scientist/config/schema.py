@@ -370,8 +370,6 @@ class ToolsConfig:
         prompts = PromptsConfig.from_dict(data.get("prompts", {}))
         enrichments = [EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])]
 
-        # Raw settings/merge_strategy remain registry-owned rather than parsed
-        # dataclass fields.
         kwargs = _declared_field_kwargs(
             cls,
             data,

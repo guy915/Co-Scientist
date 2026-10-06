@@ -67,7 +67,7 @@ class HypothesisGenerator:
         self.api_key = opts.api_key
         # Keep the provider-neutral bundled registry unless custom configuration
         # replaces it.
-        self._tool_registry = _build_tool_registry(opts.tools_config, opts.disable_tools)
+        self._tool_registry = _build_tool_registry(opts.disable_tools)
         self.invalidate_configuration_caches()
 
     async def prepare_task_state(
@@ -178,12 +178,8 @@ class HypothesisGenerator:
         self._mcp_available = None
         self._pubmed_available = None
 
-    def reload_tool_registry(
-        self,
-        tools_config: str | None = None,
-        disable_tools: list[str] | None = None,
-    ) -> None:
+    def reload_tool_registry(self, disable_tools: list[str] | None = None) -> None:
         from co_scientist.generator.run_setup import _build_tool_registry
 
-        self._tool_registry = _build_tool_registry(tools_config, disable_tools)
+        self._tool_registry = _build_tool_registry(disable_tools)
         self.invalidate_configuration_caches()

@@ -10,8 +10,6 @@ from typing import Any
 
 import httpx
 
-from mcp_server.campaign import campaign_free_mode
-
 logger = logging.getLogger(__name__)
 
 _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
@@ -127,8 +125,7 @@ def _build_search_params(
     if mailto:
         params["mailto"] = mailto
     api_key = os.environ.get("OPENALEX_API_KEY")
-    # Anonymous quota cannot draw down the host account's prepaid balance.
-    if api_key and not campaign_free_mode():
+    if api_key:
         params["api_key"] = api_key
     filters = ["is_retracted:false"]
     if recency_years and recency_years > 0:
@@ -152,7 +149,7 @@ async def _collect_openalex_works(
     params: dict[str, str], per_page: int, max_papers: int
 ) -> dict[str, Any]:
     collected: dict[str, Any] = {}
-    async with httpx.AsyncClient(timeout=30, trust_env=not campaign_free_mode()) as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         while len(collected) < max(max_papers, 0):
             params["per_page"] = str(min(per_page, max_papers - len(collected)))
             resp = await client.get(_OPENALEX_WORKS_URL, params=params)

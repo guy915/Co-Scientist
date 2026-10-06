@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
@@ -65,16 +65,6 @@ class SandboxPolicy:
 
 def read_only() -> SandboxPolicy:
     return SandboxPolicy(kind=SandboxKind.READ_ONLY)
-
-
-def campaign_workspace_policy(policy: SandboxPolicy) -> SandboxPolicy:
-    from co_scientist.llm import campaign_free_mode
-
-    if not campaign_free_mode():
-        return policy
-    if not policy.confines_in_process:
-        raise RuntimeError("campaign workspace requires OS confinement")
-    return replace(policy, network_allowed=False)
 
 
 def workspace_write(*roots: Path, network_allowed: bool = False) -> SandboxPolicy:

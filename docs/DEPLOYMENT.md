@@ -27,7 +27,7 @@ Both Railway services build from `guy915/Co-Scientist` using repo-root Dockerfil
 
 **The science skills are enabled on the api image, and only for hypothesis drafting.** `Dockerfile.api` copies `vendor/science-skills/` and sets `COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills`; the COPY and the ENV must stay together, because the env var is the *entire* gate — the engine's catalogue is empty unless it points somewhere, which is why a checkout, a test and a CI job all behave as if skills never existed. Setting it does not arm every consumer: `WorkspaceSession.skills_enabled` defaults off and only the drafting pass asks for it, which matters because the simulation reviewer was measured *worse* with the same bundle. The scripts run under a purpose-built interpreter at `/app/skills-venv/bin/python` (`COSCIENTIST_SKILLS_PYTHON`), built at image time with `polite-http` and `python-dotenv` — the bundle's `uv run` instruction cannot work here, since `uv`'s cache holds a `.git` directory the sandbox refuses. The heavy AlphaGenome/Predicting-the-Past closure (52 packages, 695 MB) is deliberately not installed; enabling those six scripts is a separate image decision. The catalogue withholds what it cannot run rather than advertising it: two skills for absent dependencies and four that ship no script at all (`pymol`, `uv`, `credentials`, `workflow_skill_creator`), leaving 32 offered. Nothing needs setting on Railway for any of this. Full rationale and the measurements: `engine/AGENTS.md`.
 
-**Decided: production runs the worker embedded in the API process, not a separate worker service.** `COSCIENTIST_EMBEDDED_WORKER=1` is what the api service actually runs on today (see the env list below), and the three-service table above is the complete deployed shape — there is no fourth "worker" service. `python -m app.task_worker` with `COSCIENTIST_EMBEDDED_WORKER=0` on the api remains a supported code path (see `runs/lifecycle.py` / `task_worker/`) for the day the single-writer SQLite ceiling (`worker_pool_size`, see the root AGENTS.md Gotchas and the Notable settings section of `app/AGENTS.md`) actually requires scaling workers independently of the api — it is not a recommendation to run that way today, and nothing in this deployment does.
+**The worker runs embedded in the API process; there is no separate worker service.** The three-service table above is the complete deployed shape. The single-writer SQLite store (`worker_pool_size`, see the Notable settings section of `app/AGENTS.md`) is what bounds worker width.
 
 The Railway **api** service's non-secret routing and storage settings, read back
 on 23 September 2026 **before** the M2 release, are a historical snapshot, not
@@ -40,7 +40,6 @@ CHAT_MODEL_NAME=openrouter/minimax/minimax-m3:free
 SEMANTIC_SAFETY_MODEL=openrouter/minimax/minimax-m3:free
 MCP_SERVER_URL=http://mcp.railway.internal:8888/mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
-COSCIENTIST_EMBEDDED_WORKER=1
 RAILWAY_RUN_UID=0                                 # must stay set -- see the non-root note above
 ALLOWED_ORIGINS=https://ai-co-scientist.com,https://www.ai-co-scientist.com
 PORT=8008
@@ -51,9 +50,8 @@ credentials configured; their values must never enter this document. The **mcp**
 service has `BRAVE_API_KEY`, `TAVILY_API_KEY`, `OPENALEX_API_KEY`,
 `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `WEB_SEARCH_PROVIDER=tavily`, and
 `COSCIENTIST_MCP_PORT=8888`. Pre-release, neither service has
-`COSCIENTIST_MCP_SHARED_SECRET`, and the API has no `CAMPAIGN_RESEARCHER_IDS`.
-The M2 release must set the **same new secret on both services** before enabling
-request-scoped campaign policy, then read back its presence without exposing it.
+`COSCIENTIST_MCP_SHARED_SECRET`. A release that sets it must use the **same
+secret on both services**, then read back its presence without exposing it.
 When set, every MCP call but the plain `/` status route must carry the secret in
 an `X-MCP-Shared-Secret` header or the server returns 401
 (`engine/mcp_server/auth_middleware.py`); the engine client supplies that header
@@ -66,8 +64,7 @@ a checked zero-price ceiling and expiry, with the JSON schema in the prompt. Pro
 reaches production only when those variables change. `CLAIM_VERIFIER_MODEL` should remain unset
 so claim assessment inherits the worker model. Keep the process-global
 `COSCIENTIST_REQUIRE_FREE_MODELS` flag off so ordinary explicit BYOK remains
-available; campaign restrictions stay request-scoped. Record the verified
-post-release values and deployment IDs in the campaign dossier.
+available.
 
 Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set in production environment).
 

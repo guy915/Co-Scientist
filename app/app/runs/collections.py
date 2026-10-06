@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 
 import app.api_contracts as contracts
 from app.api_contracts.reports import Report
-from app.logs_api import RunLogQuery, logs_payload
 from app.report import unverified_hypothesis_ids
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
@@ -73,20 +72,6 @@ async def get_citations(run_id: str) -> dict[str, Any]:
     """Return the run's citation rows with classification states."""
     _require_run(run_id)
     return {"citations": store.list_citations(run_id)}
-
-
-@router.get("/{run_id}/logs")
-async def get_run_logs(
-    run_id: str,
-    query: Annotated[RunLogQuery, Query()],
-) -> dict[str, Any]:
-    """Return the run's persisted application log records, oldest-first.
-
-    Run-scoped view of ``GET /api/logs``: same filters and payload shape,
-    with ``run_id`` fixed to this run.
-    """
-    _require_run(run_id)
-    return logs_payload(query.for_run(run_id))
 
 
 @router.get("/{run_id}/claim-evidence", response_model=contracts.ClaimsResponse)

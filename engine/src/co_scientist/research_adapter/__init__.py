@@ -28,7 +28,7 @@ from co_scientist.evidence.search_support import (
     normalize_search_response,
 )
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
-from co_scientist.mcp_client import MCPToolClient, campaign_serves_tool
+from co_scientist.mcp_client import MCPToolClient
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.research import (
     Document,
@@ -229,12 +229,8 @@ class McpRetrieval:
         self._workflow = workflow
         self._run = run
         self._records: dict[str, tuple[str, dict[str, Any]]] = {}
-        # Refused campaign sources cannot succeed, so do not offer them to the
-        # loop.
         self.sources: tuple[str, ...] = tuple(
-            source.tool
-            for source in workflow.get_enabled_search_sources()
-            if _campaign_admits(registry, source.tool)
+            source.tool for source in workflow.get_enabled_search_sources()
         )
 
     @classmethod
@@ -330,11 +326,6 @@ class McpRetrieval:
                 )
             )
         return hits
-
-
-def _campaign_admits(registry: ToolRegistry, source: str) -> bool:
-    tool = registry.get_tool(source)
-    return tool is None or campaign_serves_tool(tool.mcp_tool_name)
 
 
 def _as_score(value: Any) -> float | None:

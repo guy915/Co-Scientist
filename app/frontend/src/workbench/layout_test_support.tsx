@@ -40,8 +40,6 @@ const systemApiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 const logsApiMock = vi.hoisted(() => ({
   getAppLogs: vi.fn(),
   postAppLogs: vi.fn(),
-  deleteAppLogs: vi.fn(),
-  reportAppLogs: vi.fn(),
 }));
 
 // Keep lifecycle helpers real so network mocks cannot change status semantics.
@@ -151,10 +149,6 @@ export function installLayoutMocks() {
   });
   logsApiMock.postAppLogs.mockReset();
   logsApiMock.postAppLogs.mockResolvedValue({added: 1, last_id: 1});
-  logsApiMock.deleteAppLogs.mockReset();
-  logsApiMock.deleteAppLogs.mockResolvedValue({deleted: 0});
-  logsApiMock.reportAppLogs.mockReset();
-  logsApiMock.reportAppLogs.mockResolvedValue({status: 'sent', chars: 100});
   systemApiMock.getSystemStatus.mockReset();
   systemApiMock.getSystemStatus.mockResolvedValue({
     llm_backend: 'real',

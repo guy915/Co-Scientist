@@ -10,7 +10,6 @@ from typing import Any
 import pytest
 from co_scientist.safety import SafetyOutcome
 
-from app import human_input
 from app import safety as app_safety
 from app.config import settings
 from app.hypothesis.safety import (
@@ -220,32 +219,3 @@ async def test_contextual_review_resolves_a_hold_through_the_free_model(
     assert result.outcome == outcome
     assert result.blocks_tournament is (outcome != SafetyOutcome.ALLOW)
     assert bool(calls) is asked
-
-
-@pytest.mark.parametrize(
-    ("online", "admitted", "outcome"),
-    [
-        (True, False, SafetyOutcome.PROHIBITED),
-        (False, False, SafetyOutcome.UNCERTAIN),
-    ],
-)
-async def test_human_hypothesis_admission_escalates_a_hold(
-    monkeypatch: pytest.MonkeyPatch,
-    fake_process_mode: FakeProcessMode,
-    online: bool,
-    admitted: bool,
-    outcome: SafetyOutcome,
-) -> None:
-    async def completion(**kwargs: Any) -> Any:
-        return semantic_response("prohibited")
-
-    if online:
-        fake_process_mode.online()
-    install_completion_backend(monkeypatch, completion)
-
-    admission = await human_input.admit_human_hypothesis_with_escalation(
-        text=_HELD_TEXT, author="scientist-1", run_id="r1"
-    )
-
-    assert admission.admitted is admitted
-    assert admission.safety_review.outcome == outcome

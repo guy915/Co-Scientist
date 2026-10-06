@@ -246,7 +246,7 @@ the drafting skills are what run inside them.
 
 Shared state flows through `WorkflowState` in `state/__init__.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/templates/` (also bundled via `package-data`), loaded by the `prompts/` package. YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/web-research/etc.).
 
-Key supporting modules: `models/` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`; ID minting beside `Hypothesis`), `schemas/` (JSON-schema package for structured LLM output — prompt families in submodules, name lookup in `__init__.py`), `constants/` (Elo params, token limits, temperatures), `state/` (`WorkflowState` and its reducers), `cache/` (LLM response and node-output caches), `mcp_client/` (MCP connection, availability probes, campaign admission), `offline/` (the deterministic offline backend), `exceptions.py` (domain exception hierarchy), `progress.py` (shared progress-event emission used by all agent nodes), `tools/` (tool registry subpackage for YAML-based tool configuration).
+Key supporting modules: `models/` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`; ID minting beside `Hypothesis`), `schemas/` (JSON-schema package for structured LLM output — prompt families in submodules, name lookup in `__init__.py`), `constants/` (Elo params, token limits, temperatures), `state/` (`WorkflowState` and its reducers), `cache/` (LLM response and node-output caches), `mcp_client/` (MCP connection, availability probes), `offline/` (the deterministic offline backend), `exceptions.py` (domain exception hierarchy), `progress.py` (shared progress-event emission used by all agent nodes), `tools/` (tool registry subpackage for YAML-based tool configuration).
 
 Each of those packages keeps its public names in its `__init__.py` and splits the rest into prefix-free modules (`models/metrics.py`, `offline/llm.py`): import a sibling by its full path and the package by its short one.
 
@@ -384,8 +384,8 @@ additionally declared in the *default* `config/tools.yaml` as
 literature-review enrichment and reflection. They are entity-keyed, not
 free-text, which is why they sit on those paths rather than among the
 literature search sources. Declaring them in the default config is the
-load-bearing part: a tool declared only in an example is unreachable in
-production, which is what the 8 INDRA CoGex tools still are.
+load-bearing part: a tool absent from it is unreachable in production, which
+is what the 8 INDRA CoGex tools are.
 
 **The catalogue withholds what it cannot run** (`_withholding_reason`), for
 the same reason `run_command` is withheld with no sandbox backend: reading a

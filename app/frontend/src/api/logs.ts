@@ -17,7 +17,7 @@ export interface AppLogRecord {
 export interface AppLogsPayload {
   // The window contains the newest matches in oldest-first order.
   logs: AppLogRecord[];
-  // Poll from the table high-water mark, including hidden records.
+  // Table high-water mark; session baselines anchor to it.
   last_id: number;
   total: number;
   // Use the server cursor-window count; subtracting whole-table totals breaks
@@ -28,18 +28,16 @@ export interface AppLogsPayload {
 export function getAppLogs(
   afterId = 0,
   limit = 1000,
-  verbose = false,
+  minLevel?: string,
 ): Promise<AppLogsPayload> {
   return fetchJson(
-    `/api/logs?after_id=${afterId}&limit=${limit}${verbose ? '&verbose=1' : ''}`,
-    {
-      headers: clientHeaders(),
-    },
+    `/api/logs?after_id=${afterId}&limit=${limit}` +
+      (minLevel ? `&min_level=${minLevel}` : ''),
+    {headers: clientHeaders()},
   );
 }
 
-// Notify open panels and badges immediately after writes rather than waiting
-// for their next poll.
+// Lets the Logs indicator refresh right after a write instead of on a timer.
 export const APP_LOGS_CHANGED_EVENT = 'cosci-app-logs-changed';
 
 function announceAppLogsChanged(): void {
@@ -60,27 +58,6 @@ export async function postAppLogs(
     '/api/logs',
     jsonRequest({records}, /*includeClientId=*/ true),
   );
-  announceAppLogsChanged();
-  return result;
-}
-
-// Send the whole session-anchored diagnostic view: a link cannot reproduce the
-// window the scientist chose to report.
-export function reportAppLogs(
-  report: string,
-): Promise<{status: string; chars: number}> {
-  return fetchJson(
-    '/api/logs/report',
-    jsonRequest({report}, /*includeClientId=*/ true),
-  );
-}
-
-// Operators clear globally; other callers clear only owned records.
-export async function deleteAppLogs(): Promise<{deleted: number}> {
-  const result = await fetchJson<{deleted: number}>('/api/logs', {
-    method: 'DELETE',
-    headers: clientHeaders(),
-  });
   announceAppLogsChanged();
   return result;
 }

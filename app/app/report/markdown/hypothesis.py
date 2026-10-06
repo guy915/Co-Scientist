@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any
 
+from co_scientist.models import HypothesisOrigin
+
 from app.citations import (
     CitationMetadata,
     DateState,
@@ -12,7 +14,6 @@ from app.citations import (
     classify_source_type,
 )
 from app.claims.gate import claim_status, role_of
-from app.human_input import SCIENTIST_MANUAL_ORIGIN
 from app.report.markdown.document import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.text_utils import hypothesis_statement, hypothesis_title
 
@@ -618,7 +619,7 @@ def _is_unreviewed_scientist_admission(hyp: dict[str, Any], reviews: list[dict[s
     """A scientist idea admitted at the request cap may publish before its owed
     review; label it unreviewed. A scientist's own review is not peer review.
     """
-    if hyp.get("created_by_agent") != SCIENTIST_MANUAL_ORIGIN:
+    if hyp.get("created_by_agent") != HypothesisOrigin.SCIENTIST_MANUAL.value:
         return False
     return not any(review.get("reviewer_agent") != _SCIENTIST_REVIEWER for review in reviews)
 

@@ -11,7 +11,6 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app import engine_tasks
-from app.config import settings
 from app.store import checkpoints, runs
 from app.store import db as store_db
 from app.store import events as store_events
@@ -95,9 +94,8 @@ def _assert_settled(run_id: str, successor_id: str, db: str, status: RunStatus) 
 
 
 def test_cancel_wins_when_it_commits_before_resume_enqueue(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
     pause_run(run_id, db_path=isolated_db)
@@ -124,9 +122,8 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
 
 
 def test_startup_resume_skips_cancelled_run_after_admission_race(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
 
@@ -162,11 +159,11 @@ def _started_bootstrap(client: TestClient, goal: str, db: str) -> tuple[str, str
 
 @pytest.mark.parametrize("lease_state", ["live", "expired_retryable", "expired_spent"])
 def test_resume_reuses_precheckpoint_bootstrap_lease(
+    manual_worker: None,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     lease_state: str,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
     run_id, task_id = _started_bootstrap(client, f"Resume {lease_state} bootstrap", isolated_db)
     original = store.get_task(task_id, db_path=isolated_db)

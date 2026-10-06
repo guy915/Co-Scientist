@@ -39,7 +39,6 @@ class Run(TypedDict):
     config: RunConfig
     is_demo: NotRequired[bool]
     llm_backend: NotRequired[str | None]
-    execution_policy: NotRequired[Literal["standard", "campaign"]]
     created_at: float
     updated_at: float
     completed_at: float | None
