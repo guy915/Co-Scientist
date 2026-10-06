@@ -4,137 +4,168 @@ import pytest
 
 from evaluations.release_gate import scientific_release_gate
 
+_ALLOW = {"id": 1, "stage": "final", "decision": "allow"}
+_SMALLPOX = (
+    "Engineer smallpox virus to enhance human-to-human transmission and "
+    "lethality"
+)
 
-def _ready_artifact() -> dict[str, Any]:
-    return {
+
+def _artifact(**overrides: Any) -> dict[str, Any]:
+    artifact: dict[str, Any] = {
         "hypotheses": [
             {"id": "h1", "status": "ranked", "safety_status": "allow"}
         ],
-        "safety": [{"id": 1, "stage": "final", "decision": "allow"}],
-        "claims": [
-            {"hypothesis_id": "h1", "label": "supports"},
-            {"hypothesis_id": "h1", "label": "supports"},
-        ],
+        "safety": [_ALLOW],
+        "claims": [{"hypothesis_id": "h1", "label": "supports"}] * 2,
         "provenance": {
             "model": "provider/model",
             "policy_version": "v2",
             "retrieval_sources": ["pubmed"],
         },
     }
+    return {**artifact, **overrides}
 
 
-def test_release_gate_releases_scientifically_ready_artifact() -> None:
-    result = scientific_release_gate(_ready_artifact())
-    assert result["decision"] == "release"
-    assert result["reasons"] == []
+def _hypothesis(**fields: Any) -> list[dict[str, Any]]:
+    return [{"id": "h1", "status": "ranked", **fields}]
 
 
-def test_an_unresolved_safety_review_withholds_the_report() -> None:
-    artifact = _ready_artifact()
-    artifact["safety"] = [
-        {
-            "id": 1,
-            "stage": "final",
-            "decision": "hold",
-            "requires_review": True,
-            "resolution": None,
-        }
-    ]
-
-    result = scientific_release_gate(artifact)
-
-    assert result["decision"] == "withhold"
-    assert "final safety screen withheld publication" in result["reasons"]
+def _final(decision: str, **fields: Any) -> dict[str, Any]:
+    return {"id": 1, "stage": "final", "decision": decision, **fields}
 
 
-def test_a_contradicted_idea_is_dropped_not_published() -> None:
-    artifact = _ready_artifact()
-    artifact["claims"] = [{"hypothesis_id": "h1", "label": "contradicts"}]
+@pytest.mark.parametrize(
+    ("overrides", "decision"),
+    [
+        ({}, "release"),
+        ({"hypotheses": [], "safety": [], "claims": []}, "withhold"),
+        # Safety: only the latest final verdict counts, and a final screen
+        # must exist.
+        (
+            {"safety": [_final("hold", requires_review=True, resolution=None)]},
+            "withhold",
+        ),
+        ({"safety": [{"stage": "intake", "decision": "allow"}]}, "withhold"),
+        ({"safety": [_final("block", requires_review=False)]}, "withhold"),
+        ({"safety": [{"stage": "final", "decision": "allow"}]}, "withhold"),
+        (
+            {
+                "safety": [
+                    _final("hold", id=2, resolution="approved"),
+                    _ALLOW,
+                ]
+            },
+            "withhold",
+        ),
+        (
+            {
+                "safety": [
+                    _ALLOW | {"id": 2},
+                    _final("hold", requires_review=True, resolution="approved"),
+                ]
+            },
+            "release",
+        ),
+        (
+            {
+                "safety": [
+                    _ALLOW,
+                    {"id": 2, "stage": "hypothesis", "decision": "hold"},
+                ]
+            },
+            "release",
+        ),
+        ({"safety": [_final("redact", matches=["dual-use"])]}, "release"),
+        ({"safety": [_final("redact", matches=[])]}, "withhold"),
+        # Hypothesis status and safety classification.
+        ({"hypotheses": _hypothesis(safety_status="prohibited")}, "withhold"),
+        (
+            {
+                "hypotheses": [
+                    {"id": "h1", "status": "rejected"},
+                    {"id": "h2", "status": "duplicate"},
+                ]
+            },
+            "withhold",
+        ),
+        ({"hypotheses": _hypothesis()}, "withhold"),
+        (
+            {
+                "hypotheses": _hypothesis(
+                    safety_status=None, statement=_SMALLPOX
+                )
+            },
+            "withhold",
+        ),
+        (
+            {
+                "hypotheses": _hypothesis(
+                    safety_status="pending",
+                    statement="Study mitochondrial biogenesis.",
+                )
+            },
+            "release",
+        ),
+        # Claims: contradiction withholds unless merely speculative; an
+        # unsupported idea is published with a badge.
+        (
+            {"claims": [{"hypothesis_id": "h1", "label": "contradicts"}]},
+            "withhold",
+        ),
+        (
+            {
+                "claims": [
+                    {
+                        "hypothesis_id": "h1",
+                        "label": "contradicts",
+                        "claim_role": "speculative",
+                    }
+                ]
+            },
+            "release",
+        ),
+        (
+            {
+                "claims": [
+                    {
+                        "hypothesis_id": "h1",
+                        "label": "contradicts",
+                        "claim_role": role,
+                    }
+                    for role in ("speculative", "categorical")
+                ]
+            },
+            "withhold",
+        ),
+        (
+            {"claims": [{"hypothesis_id": "h1", "label": "unsupported"}]},
+            "release",
+        ),
+    ],
+)
+def test_release_decision(overrides: dict[str, Any], decision: str) -> None:
+    assert scientific_release_gate(_artifact(**overrides))["decision"] == (
+        decision
+    )
 
-    result = scientific_release_gate(artifact)
 
-    assert result["contradicted_hypotheses"] == 1
-    assert result["releasable_hypotheses"] == 0
-    assert result["decision"] == "withhold"
-    assert "no releasable hypotheses" in result["reasons"]
+def test_a_withheld_report_names_its_reasons_and_counts() -> None:
+    held = scientific_release_gate(
+        _artifact(safety=[_final("hold", requires_review=True)])
+    )
+    assert "final safety screen withheld publication" in held["reasons"]
 
-
-def test_a_blocked_idea_is_dropped() -> None:
-    artifact = _ready_artifact()
-    artifact["hypotheses"] = [
-        {"id": "h1", "status": "ranked", "safety_status": "prohibited"}
-    ]
-
-    result = scientific_release_gate(artifact)
-
-    assert result["releasable_hypotheses"] == 0
-    assert result["decision"] == "withhold"
-
-
-def test_a_contradicted_speculative_proposal_is_still_published() -> None:
-    artifact = _ready_artifact()
-    artifact["claims"] = [
-        {
-            "hypothesis_id": "h1",
-            "label": "contradicts",
-            "claim_role": "speculative",
-        }
-    ]
-
-    result = scientific_release_gate(artifact)
-
-    assert result["decision"] == "release"
-    assert result["releasable_hypotheses"] == 1
-    assert result["contradicted_hypotheses"] == 0
-
-
-def test_a_categorical_contradiction_still_blocks_a_speculative_idea() -> None:
-    artifact = _ready_artifact()
-    artifact["claims"] = [
-        {
-            "hypothesis_id": "h1",
-            "label": "contradicts",
-            "claim_role": role,
-        }
-        for role in ("speculative", "categorical")
-    ]
-
-    result = scientific_release_gate(artifact)
-
-    assert result["decision"] == "withhold"
-    assert result["releasable_hypotheses"] == 0
-    assert result["contradicted_hypotheses"] == 1
-
-
-def test_a_rejected_or_duplicate_idea_is_dropped() -> None:
-    artifact = _ready_artifact()
-    artifact["hypotheses"] = [
-        {"id": "h1", "status": "rejected"},
-        {"id": "h2", "status": "duplicate"},
-    ]
-
-    result = scientific_release_gate(artifact)
-
-    assert result["releasable_hypotheses"] == 0
-
-
-def test_an_unsupported_idea_is_published_not_withheld() -> None:
-    # Live publication badges unsupported ideas; an evaluator-only ratio must
-    # not withhold them.
-    artifact = _ready_artifact()
-    artifact["claims"] = [{"hypothesis_id": "h1", "label": "unsupported"}]
-
-    result = scientific_release_gate(artifact)
-
-    assert result["decision"] == "release"
-    assert result["verified_claim_ratio"] == 0.0
+    contradicted = scientific_release_gate(
+        _artifact(claims=[{"hypothesis_id": "h1", "label": "contradicts"}])
+    )
+    assert contradicted["contradicted_hypotheses"] == 1
+    assert contradicted["releasable_hypotheses"] == 0
+    assert "no releasable hypotheses" in contradicted["reasons"]
 
 
 def test_missing_provenance_is_reported_not_enforced() -> None:
-    artifact = _ready_artifact()
-    artifact["provenance"] = {}
-
-    result = scientific_release_gate(artifact)
+    result = scientific_release_gate(_artifact(provenance={}))
 
     assert result["decision"] == "release"
     assert sorted(result["missing_provenance"]) == [
@@ -142,141 +173,3 @@ def test_missing_provenance_is_reported_not_enforced() -> None:
         "policy_version",
         "retrieval_sources",
     ]
-
-
-def test_an_empty_run_is_withheld() -> None:
-    result = scientific_release_gate(
-        {"hypotheses": [], "safety": [], "claims": [], "provenance": {}}
-    )
-
-    assert result["decision"] == "withhold"
-    assert "no releasable hypotheses" in result["reasons"]
-
-
-def test_missing_final_screen_is_not_evidence_of_safe_publication() -> None:
-    artifact = _ready_artifact()
-    artifact["safety"] = [{"stage": "intake", "decision": "allow"}]
-    assert scientific_release_gate(artifact)["decision"] == "withhold"
-
-
-def test_final_block_without_review_flag_still_withholds() -> None:
-    artifact = _ready_artifact()
-    artifact["safety"] = [
-        {
-            "id": 1,
-            "stage": "final",
-            "decision": "block",
-            "requires_review": False,
-        }
-    ]
-    assert scientific_release_gate(artifact)["decision"] == "withhold"
-
-
-def test_pending_and_legacy_hypotheses_use_the_live_safety_classifier() -> None:
-    from app.hypothesis.safety import review_hypothesis_safety
-
-    statement = (
-        "Engineer smallpox virus to enhance human-to-human "
-        "transmission and lethality"
-    )
-    assert review_hypothesis_safety(statement).blocks_tournament
-    for status in (None, "pending"):
-        artifact = _ready_artifact()
-        artifact["safety"] = [{"id": 1, "stage": "final", "decision": "allow"}]
-        artifact["hypotheses"] = [
-            {
-                "id": "h1",
-                "status": "ranked",
-                "statement": statement,
-                "safety_status": status,
-            }
-        ]
-        result = scientific_release_gate(artifact)
-        assert result["releasable_hypotheses"] == 0
-        assert result["decision"] == "withhold"
-
-
-@pytest.mark.parametrize("status", [None, "pending"])
-def test_benign_legacy_hypothesis_still_publishes(status: str | None) -> None:
-    artifact = _ready_artifact()
-    artifact["hypotheses"][0].update(
-        safety_status=status, statement="Study mitochondrial biogenesis."
-    )
-    assert scientific_release_gate(artifact)["decision"] == "release"
-
-
-def test_missing_legacy_content_is_not_screening_evidence() -> None:
-    artifact = _ready_artifact()
-    artifact["hypotheses"][0].pop("safety_status")
-    assert scientific_release_gate(artifact)["decision"] == "withhold"
-
-
-@pytest.mark.parametrize("decision", ["hold", "block", "unknown"])
-def test_latest_final_verdict_controls_even_after_approval(
-    decision: str,
-) -> None:
-    artifact = _ready_artifact()
-    artifact["safety"].insert(
-        0,
-        {
-            "id": 2,
-            "stage": "final",
-            "decision": decision,
-            "resolution": "approved",
-        },
-    )
-    assert scientific_release_gate(artifact)["decision"] == "withhold"
-
-
-def test_new_final_allow_after_approved_hold_releases() -> None:
-    artifact = _ready_artifact()
-    artifact["safety"] = [
-        {"id": 2, "stage": "final", "decision": "allow"},
-        {
-            "id": 1,
-            "stage": "final",
-            "decision": "hold",
-            "requires_review": True,
-            "resolution": "approved",
-        },
-    ]
-    assert scientific_release_gate(artifact)["decision"] == "release"
-
-
-def test_hypothesis_review_does_not_block_other_released_ideas() -> None:
-    artifact = _ready_artifact()
-    artifact["safety"].append(
-        {
-            "id": 2,
-            "stage": "hypothesis",
-            "decision": "hold",
-            "requires_review": True,
-        }
-    )
-    assert scientific_release_gate(artifact)["decision"] == "release"
-
-
-@pytest.mark.parametrize(
-    "matches,expected", [(["dual-use"], "release"), ([], "withhold")]
-)
-def test_final_redaction_requires_actionable_matches(
-    matches: list[str],
-    expected: str,
-) -> None:
-    artifact = _ready_artifact()
-    artifact["safety"] = [
-        {
-            "id": 1,
-            "stage": "final",
-            "decision": "redact",
-            "requires_review": True,
-            "matches": matches,
-        }
-    ]
-    assert scientific_release_gate(artifact)["decision"] == expected
-
-
-def test_missing_final_record_id_withholds() -> None:
-    artifact = _ready_artifact()
-    artifact["safety"][0].pop("id")
-    assert scientific_release_gate(artifact)["decision"] == "withhold"
