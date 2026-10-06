@@ -162,7 +162,6 @@ body {
   --cosci-settings-segment-bg: #f8fafd;
   --cosci-settings-card-bg: #f8fafd;
 
-
   /* Syntax palettes measure at least 4.5:1 on each code background; brand
      green is only 1.46:1 in light and is unsafe to reuse. */
   --cosci-code-comment: #5f6368;
@@ -202,7 +201,6 @@ body {
 
   --cosci-settings-segment-bg: #1b1b1b;
   --cosci-settings-card-bg: #1e1f20;
-
 
   --cosci-code-comment: #9aa0a6;
   --cosci-code-string: #7ee787;
