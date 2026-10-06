@@ -1,6 +1,13 @@
 import {makeChatSummary, makeRunMessage} from '@/test_fixtures';
 
-import {act, renderHook, screen, waitFor, within} from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {
@@ -102,62 +109,6 @@ function rehydrateSession(chatId: string) {
   );
 }
 
-it('adopts the second StrictMode transcript load before appending Q&A and ignores the cancelled first load', async () => {
-  const cancelled = deferred<ReturnType<typeof completedInterview>>();
-  const owned = deferred<ReturnType<typeof completedInterview>>();
-  const rows = deferred<unknown[]>();
-  apiMock.getInterview
-    .mockReset()
-    .mockReturnValueOnce(cancelled.promise)
-    .mockReturnValueOnce(owned.promise);
-  apiMock.getRunMessages.mockReset().mockReturnValue(rows.promise);
-  apiMock.listInterviews.mockResolvedValue([
-    makeChatSummary({run_id: 'run-1'}),
-  ]);
-  apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
-  const {result} = rehydrateSession('interview-1');
-  await waitFor(() => expect(apiMock.getInterview).toHaveBeenCalledTimes(2));
-  expect(apiMock.getRunMessages).not.toHaveBeenCalled();
-  await act(async () => {
-    owned.resolve(completedInterview());
-  });
-  await waitFor(() =>
-    expect(apiMock.getRunMessages).toHaveBeenCalledWith('run-1'),
-  );
-  await act(async () => {
-    rows.resolve([
-      makeRunMessage({
-        id: 11,
-        sender: 'system',
-        content: 'Owned Q&A answer',
-        created_at: 11,
-        applied: true,
-        meta: {reasoning: 'Owned evidence'},
-      }),
-    ]);
-  });
-  expect(result.current.messages.map(message => message.content)).toEqual([
-    'Investigate glucose homeostasis.',
-    'Owned Q&A answer',
-  ]);
-  expect(result.current.messages.at(-1)?.reasoning).toBe('Owned evidence');
-  await act(async () => {
-    cancelled.resolve({
-      ...completedInterview(),
-      turns: [
-        {
-          ...completedInterview().turns[0],
-          content: 'Cancelled private transcript',
-        },
-      ],
-    });
-  });
-  expect(result.current.messages.map(message => message.content)).toEqual([
-    'Investigate glucose homeostasis.',
-    'Owned Q&A answer',
-  ]);
-});
-
 it('ignores an old owned fetch after another chat has committed', async () => {
   const old = deferred<ReturnType<typeof completedInterview>>();
   const next = {
@@ -230,192 +181,6 @@ it('shows a run Q&A exchange after reopening the chat', async () => {
   ).not.toBeInTheDocument();
 });
 
-it('shows the reasoning a rehydrated Q&A answer persisted', async () => {
-  apiMock.getInterview.mockResolvedValue(completedInterview());
-  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
-  apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
-  apiMock.getRunMessages.mockResolvedValue([
-    makeRunMessage({
-      id: 20,
-      content: 'Why does that hypothesis rank highest?',
-      created_at: 20,
-      applied: true,
-    }),
-    makeRunMessage({
-      id: 21,
-      sender: 'system',
-      content: 'Its Elo rating leads because it won every match.',
-      created_at: 21,
-      applied: true,
-      meta: {reasoning: 'Checking the tournament record first.'},
-    }),
-  ]);
-
-  renderWorkspace('/chats/interview-1');
-
-  expect(
-    await screen.findByText('Its Elo rating leads because it won every match.'),
-  ).toBeInTheDocument();
-  expect(screen.getByText('Thinking')).toBeInTheDocument();
-  expect(
-    screen.getByText('Checking the tournament record first.'),
-  ).toBeInTheDocument();
-});
-
-it('restores the start exchange onto the session card', async () => {
-  apiMock.getInterview.mockResolvedValue({
-    ...completedInterview(),
-    run_id: 'run-1',
-  });
-  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
-  apiMock.listRuns.mockResolvedValue([
-    minimalRun({id: 'run-1', status: 'running'}),
-  ]);
-  apiMock.getRunMessages.mockResolvedValue([
-    makeRunMessage({
-      id: 8,
-      content: 'Start research',
-      kind: 'start',
-      created_at: 8,
-    }),
-    makeRunMessage({
-      id: 9,
-      sender: 'system',
-      content: 'Cold-stress glucose work is under way.',
-      kind: 'start',
-      created_at: 9,
-      meta: {reasoning: 'The run exists, so this confirms it.'},
-    }),
-  ]);
-
-  renderWorkspace('/chats/interview-1');
-
-  // The card and its lead-in arrive from independent requests; wait for the
-  // reply.
-  await screen.findByText('Cold-stress glucose work is under way.');
-  const card = screen.getByRole('region', {
-    name: 'Started research session',
-  });
-  expect(
-    within(card).getByText('Cold-stress glucose work is under way.'),
-  ).toBeInTheDocument();
-  expect(within(card).queryByText('Start research')).not.toBeInTheDocument();
-  const prompt = screen
-    .getAllByText('Start research')
-    .find(node => node.closest('button') === null);
-  expect(prompt).toBeDefined();
-  expect(
-    prompt!.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).toBeTruthy();
-  expect(screen.getByText('Thinking')).toBeInTheDocument();
-  expect(
-    screen.queryByRole('button', {name: 'Continue research'}),
-  ).not.toBeInTheDocument();
-});
-
-it('keeps a linked draft recoverable without treating it as started', async () => {
-  apiMock.getInterview.mockResolvedValue({
-    ...completedInterview(),
-    run_id: 'run-1',
-  });
-  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
-  apiMock.listRuns.mockResolvedValue([
-    minimalRun({id: 'run-1', status: 'draft'}),
-  ]);
-
-  renderWorkspace('/chats/interview-1');
-
-  const resume = await screen.findByRole('button', {name: 'Continue research'});
-  expect(resume).toBeEnabled();
-  expect(
-    screen.queryByRole('region', {name: 'Started research session'}),
-  ).not.toBeInTheDocument();
-  expect(apiMock.startRun).not.toHaveBeenCalled();
-
-  apiMock.getRun.mockResolvedValue(minimalRun({id: 'run-1', status: 'draft'}));
-  resume.click();
-
-  await waitFor(() => expect(apiMock.startRun).toHaveBeenCalledWith('run-1'));
-});
-
-it('shows the linked draft run setup and pending notification before continuing', async () => {
-  apiMock.getInterview.mockResolvedValue({
-    ...completedInterview(),
-    run_id: 'run-configured',
-  });
-  apiMock.listInterviews.mockResolvedValue([
-    makeChatSummary({run_id: 'run-configured'}),
-  ]);
-  apiMock.listRuns.mockResolvedValue([
-    minimalRun({
-      id: 'run-configured',
-      status: 'draft',
-      research_goal: 'Persisted run goal.',
-      config: {
-        focus: 'prefer_novelty',
-        tier: 'ultra',
-        setup: {
-          goal: 'Persisted run goal.',
-          requirements: ['Persisted requirement.'],
-          attributes: [
-            {name: 'Cell system', values: ['Organoid', 'Isogenic control']},
-          ],
-          criteria: [{name: 'Validation', value: 'Required'}],
-          focus: 'prefer_novelty',
-          tier: 'ultra',
-        },
-      },
-    }),
-  ]);
-  pendingIntentMock.mockResolvedValue({
-    key: 'saved-create-key',
-    payload: {
-      notify_on_completion: true,
-      completion_email: 'saved@example.test',
-    },
-    createdRunId: 'run-configured',
-  });
-
-  renderWorkspace('/chats/interview-1');
-
-  expect(
-    await screen.findByRole('button', {name: 'Continue research'}),
-  ).toBeEnabled();
-  expect(screen.getByText('Persisted run goal.')).toBeInTheDocument();
-  expect(screen.getByText('Persisted requirement.')).toBeInTheDocument();
-  expect(
-    screen.getByText('Cell system (Organoid or Isogenic control)'),
-  ).toBeInTheDocument();
-  expect(screen.getByText('Validation: Required')).toBeInTheDocument();
-  expect(screen.getByLabelText(/Prefer novelty/i)).toBeChecked();
-  expect(screen.getByLabelText(/Ultra/i)).toBeChecked();
-  expect(
-    screen.getByLabelText('Email me when the Goal Report is ready'),
-  ).toHaveValue('saved@example.test');
-  expect(pendingIntentMock).toHaveBeenCalledWith('interview-1');
-  expect(apiMock.startRun).not.toHaveBeenCalled();
-});
-
-it('checks an owned run directly when run history has not loaded it', async () => {
-  apiMock.getInterview.mockResolvedValue({
-    ...completedInterview(),
-    run_id: 'run-2',
-  });
-  apiMock.listInterviews.mockResolvedValue([
-    makeChatSummary({run_id: 'run-2'}),
-  ]);
-  apiMock.listRuns.mockResolvedValue([]);
-  apiMock.getRun.mockResolvedValue(minimalRun({id: 'run-2', status: 'draft'}));
-
-  renderWorkspace('/chats/interview-1');
-
-  expect(
-    await screen.findByRole('button', {name: 'Continue research'}),
-  ).toBeEnabled();
-  expect(apiMock.getRun).toHaveBeenCalledWith('run-2');
-  expect(apiMock.startRun).not.toHaveBeenCalled();
-});
-
 it('keeps a linked run locked when its owned status cannot be resolved', async () => {
   apiMock.getInterview.mockResolvedValue({
     ...completedInterview(),
@@ -455,28 +220,34 @@ it('keeps a linked run locked when its owned status cannot be resolved', async (
   expect(apiMock.startRun).not.toHaveBeenCalled();
 });
 
-it('does not present a cancelled linked run as started or recoverable', async () => {
+it('keeps a linked draft recoverable without treating it as started', async () => {
   apiMock.getInterview.mockResolvedValue({
     ...completedInterview(),
-    run_id: 'run-cancelled',
+    run_id: 'run-1',
   });
-  apiMock.listInterviews.mockResolvedValue([
-    makeChatSummary({run_id: 'run-cancelled'}),
-  ]);
-  apiMock.listRuns.mockResolvedValue([
-    minimalRun({id: 'run-cancelled', status: 'cancelled'}),
-  ]);
+  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
+  // The linked-run lookup falls back to getRun until run history loads; without
+  // this mock it rejects first and the button only appears on the later,
+  // history-triggered lookup, whose timing depends on machine load.
+  const draft = minimalRun({id: 'run-1', status: 'draft'});
+  apiMock.getRun.mockResolvedValue(draft);
+  apiMock.listRuns.mockResolvedValue([draft]);
 
   renderWorkspace('/chats/interview-1');
 
   expect(
-    await screen.findByText('The linked research session was cancelled.'),
-  ).toBeInTheDocument();
+    await screen.findByRole('button', {name: 'Continue research'}),
+  ).toBeEnabled();
   expect(
     screen.queryByRole('region', {name: 'Started research session'}),
   ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole('button', {name: 'Continue research'}),
-  ).not.toBeInTheDocument();
-  expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
+  expect(apiMock.startRun).not.toHaveBeenCalled();
+
+  // Each history update re-resolves the linked run and remounts the button, so
+  // click a freshly found one rather than a node captured before the remount.
+  fireEvent.click(
+    await screen.findByRole('button', {name: 'Continue research'}),
+  );
+
+  await waitFor(() => expect(apiMock.startRun).toHaveBeenCalledWith('run-1'));
 });

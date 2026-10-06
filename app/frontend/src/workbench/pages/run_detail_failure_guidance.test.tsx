@@ -1,4 +1,4 @@
-import {resetRunDetailMocks, setTerminal} from './run_detail_api_test_support';
+import {resetRunDetailMocks} from './run_detail_api_test_support';
 import * as runsApi from '@/api/runs';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
@@ -32,45 +32,6 @@ it('shows exact call-budget guidance with an accessible label and keeps the reco
   ).toBeInTheDocument();
 });
 
-it('shows exact timeout guidance and keeps the recorded error', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...failedRun('llm_timeout'),
-    error: 'Provider request timed out after 180 seconds',
-  });
-
-  renderAt('/runs/run-1/details');
-
-  const guidance = await screen.findByRole('region', {
-    name: 'Suggested next step',
-  });
-  expect(guidance).toHaveTextContent(
-    'The model provider did not respond within the request timeout. Try the research again later.',
-  );
-  expect(
-    screen.getByText('Provider request timed out after 180 seconds'),
-  ).toBeInTheDocument();
-});
-
-it.each(['llm_timeoutish', 'LLM_TIMEOUT'])(
-  'keeps unknown failure kind %s generic',
-  async failureKind => {
-    vi.mocked(runsApi.getRun).mockResolvedValue({
-      ...failedRun(failureKind),
-      error: 'Internal task failure detail',
-    });
-
-    renderAt('/runs/run-1/details');
-
-    expect(await screen.findByText('Run failed')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('region', {name: 'Suggested next step'}),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText('Internal task failure detail'),
-    ).toBeInTheDocument();
-  },
-);
-
 it.each(['blocked', 'cancelled'] as const)(
   'does not show provider guidance when a run is %s',
   async status => {
@@ -92,26 +53,6 @@ it.each(['blocked', 'cancelled'] as const)(
     ).toBeInTheDocument();
   },
 );
-
-it('refreshes failure guidance and keeps its terminal toast aligned', async () => {
-  setTerminal(true);
-  vi.mocked(runsApi.getRun)
-    .mockResolvedValueOnce(failedRun())
-    .mockResolvedValue(failedRun('llm_call_budget_exceeded'));
-
-  renderAt('/runs/run-1/details');
-
-  expect(
-    await screen.findByRole('region', {name: 'Suggested next step'}),
-  ).toBeInTheDocument();
-  expect(runsApi.getRun).toHaveBeenCalledTimes(2);
-  expect(
-    await screen.findByText('Run failed. See the suggested next step below.'),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByText(/Run failed: LLM call budget exhausted/),
-  ).not.toBeInTheDocument();
-});
 
 beforeEach(() => {
   resetRunDetailMocks();

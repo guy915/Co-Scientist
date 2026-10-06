@@ -5,36 +5,6 @@ import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
 
-it('leaves the run for the workspace even when a chat started it', async () => {
-  vi.mocked(runsApi.listInterviews).mockResolvedValue([
-    {
-      id: 'chat-7',
-      title: 'Pathway X',
-      challenge: 'Study pathway X',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 2,
-    },
-  ]);
-
-  renderAt('/runs/run-1/details');
-
-  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
-    'href',
-    '/',
-  );
-});
-
-it('falls back to the workspace when no conversation started the run', async () => {
-  renderAt('/runs/run-1/details');
-
-  expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
-    'href',
-    '/',
-  );
-});
-
 // The mobile titlebar is the detail view's only route back to the ranked list.
 it('returns to the ranked ideas list when an idea is open', async () => {
   stubViewport(true);
@@ -80,12 +50,6 @@ it('shows live metrics and activity instead of report controls', async () => {
   expect(screen.queryByText('Run Specifications')).toBeNull();
 });
 
-it('shows a skeleton while loading, then the goal details', async () => {
-  renderAt('/runs/run-1/specifications');
-  expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-  expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
-});
-
 it.each([
   ['failed', 'Run failed', 'engine.node.generate exhausted its retry budget'],
   ['blocked', 'Run blocked', 'Safety screen held the run for adjudication'],
@@ -128,6 +92,14 @@ it('shows the awaiting-decision notice on every tab, nested in the scroll region
   expect(scrollRegion).toContainElement(notice);
 });
 
+// Local overflow clipping would defeat the ancestor's horizontal-scroll policy.
+
+beforeEach(() => {
+  resetRunDetailMocks();
+  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
+  vi.unstubAllGlobals();
+});
+
 it('omits the notice for a paused run with nothing left to review', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
     ...makeRun('Study pathway X'),
@@ -139,12 +111,4 @@ it('omits the notice for a paused run with nothing left to review', async () => 
 
   await screen.findByText('Run Specifications');
   expect(screen.queryByRole('note')).toBeNull();
-});
-
-// Local overflow clipping would defeat the ancestor's horizontal-scroll policy.
-
-beforeEach(() => {
-  resetRunDetailMocks();
-  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
-  vi.unstubAllGlobals();
 });

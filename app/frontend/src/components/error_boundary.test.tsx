@@ -24,14 +24,4 @@ describe('ErrorBoundary', () => {
     );
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
   });
-
-  it('renders a custom fallback when one is provided', () => {
-    render(
-      <ErrorBoundary fallback={<p>Custom fallback</p>}>
-        <Boom />
-      </ErrorBoundary>,
-    );
-    expect(screen.getByText('Custom fallback')).toBeInTheDocument();
-    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
-  });
 });

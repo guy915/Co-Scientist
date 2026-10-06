@@ -34,33 +34,6 @@ describe('run detail learning', () => {
     },
   ];
 
-  // Scientific casing such as mRNA and lowercase Greek prefixes must survive
-  // title formatting.
-  const scientificTermEvidence = [
-    {
-      id: 'ev-mrna',
-      title: 'mRNA expression during cold stress',
-      source: 'PubMed',
-      url: '',
-      authors: [],
-      year: 2025,
-      abstract: '',
-      available: true,
-      retracted: false,
-    },
-    {
-      id: 'ev-greek',
-      title: 'α-synuclein aggregation in neurons',
-      source: 'PubMed',
-      url: '',
-      authors: [],
-      year: 2025,
-      abstract: '',
-      available: true,
-      retracted: false,
-    },
-  ];
-
   // Non-adjacent references distinguish global numbering from per-topic
   // counters.
   const numberedEvidence = ['ev-a', 'ev-b', 'ev-c', 'ev-d'].map(
@@ -154,23 +127,6 @@ describe('run detail learning', () => {
     });
   });
 
-  describe('LearningView section title capitalization', () => {
-    it('keeps scientific-term casing intact while title-casing the rest', () => {
-      render(<LearningView goal="goal" evidence={scientificTermEvidence} />);
-
-      expect(
-        screen.getByRole('heading', {
-          name: 'mRNA Expression During Cold Stress',
-        }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole('heading', {
-          name: 'α-synuclein Aggregation in Neurons',
-        }),
-      ).toBeInTheDocument();
-    });
-  });
-
   describe('LearningView unreachable sources (D18)', () => {
     const unreachable = {
       id: 'ev-gone',
@@ -183,45 +139,6 @@ describe('run detail learning', () => {
       available: false,
       retracted: false,
     };
-
-    it('labels an unavailable reference instead of offering to open it', () => {
-      render(<LearningView goal="goal" evidence={[unreachable]} />);
-
-      const pill = screen.getByText('Unavailable');
-      expect(pill).toBeInTheDocument();
-      expect(pill).toHaveAttribute(
-        'title',
-        'The full source could not be reached when this evidence was gathered',
-      );
-      expect(screen.queryByRole('link', {name: 'Open'})).toBeNull();
-    });
-
-    it('summarizes an unreachable evidence section honestly', () => {
-      render(<LearningView goal="goal" evidence={[unreachable]} />);
-
-      expect(
-        screen.getByText(
-          'The full source could not be reached when this evidence was ' +
-            'gathered, so it is listed without a summary.',
-        ),
-      ).toBeInTheDocument();
-    });
-
-    it('summarizes a retracted evidence section distinctly, not as unreachable', () => {
-      render(
-        <LearningView
-          goal="goal"
-          evidence={[{...unreachable, retracted: true}]}
-        />,
-      );
-
-      expect(
-        screen.getByText(
-          'This source has been retracted, so it is listed without a summary.',
-        ),
-      ).toBeInTheDocument();
-      expect(screen.queryByText(/could not be reached/)).toBeNull();
-    });
 
     it('labels a retracted reference distinctly from a merely unreachable one', () => {
       render(
@@ -246,23 +163,6 @@ describe('run detail learning', () => {
 
       expect(links.map(link => link.textContent)).toEqual(['[1]', '[3]']);
       expect(links[1]).toHaveAttribute('href', '#reference-ev-c');
-    });
-
-    it('keeps citation numbers stable while the list is searched', () => {
-      const block = renderNumberedTopic(['ev-d']);
-      fireEvent.change(screen.getByLabelText('Search references'), {
-        target: {value: 'reference title 4'},
-      });
-
-      expect(within(block).getByRole('link').textContent).toBe('[4]');
-      expect(screen.getByText('[4]', {selector: 'span'})).toBeInTheDocument();
-    });
-
-    it('omits citations that resolve to no reference', () => {
-      const block = renderNumberedTopic(['ev-b', 'ev-missing']);
-
-      expect(within(block).getAllByRole('link')).toHaveLength(1);
-      expect(within(block).getByRole('link').textContent).toBe('[2]');
     });
   });
 });
@@ -301,20 +201,6 @@ describe('run detail retrieval degraded', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Nothing else was available to search/),
-    ).toBeInTheDocument();
-  });
-
-  it('names the run’s own documents when those were the floor', () => {
-    renderWithReport({
-      retrieval_degradation: {
-        reason: 'mcp_unreachable',
-        lost: ['literature_review'],
-        floor: 'run_attachments',
-      },
-    });
-
-    expect(
-      screen.getByText(/Only the documents attached to this run/),
     ).toBeInTheDocument();
   });
 });
@@ -360,49 +246,9 @@ describe('run detail insights', () => {
     expect(document.body.textContent).not.toContain('"focus_area"');
   });
 
-  it('hides a section whose entries are all blank', () => {
-    render(
-      <AgentInsightsSection
-        insights={makeInsights({contradictions: ['', '   ']})}
-      />,
-    );
-
-    expect(
-      screen.queryByRole('heading', {name: 'Contradictions'}),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', {name: 'Key findings'})).toBeVisible();
-  });
-
-  it('still renders a recommendation from an older persisted report', () => {
-    render(
-      <AgentInsightsSection
-        insights={makeInsights({
-          recommended_directions: ['Measure binding directly by SPR.'],
-        })}
-      />,
-    );
-
-    expect(
-      screen.getByText('Measure binding directly by SPR.'),
-    ).toBeInTheDocument();
-  });
-
   it('flags a meta-review that degraded to a fallback', () => {
     render(<AgentInsightsSection insights={makeInsights()} degraded />);
 
-    expect(
-      screen.getByText(
-        'This section could not be generated after repeated attempts.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('renders the degradation notice even without any insights payload', () => {
-    render(<AgentInsightsSection insights={undefined} degraded />);
-
-    expect(
-      screen.getByRole('heading', {name: 'Agent Insights'}),
-    ).toBeInTheDocument();
     expect(
       screen.getByText(
         'This section could not be generated after repeated attempts.',

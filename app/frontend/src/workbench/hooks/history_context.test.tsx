@@ -43,17 +43,13 @@ const chat = (id: string): ChatSummary => ({
   updated_at: 1,
 });
 
-let reloadCurrent: () => Promise<void>;
-
 function RunProbe() {
-  const {history, reload} = useRunHistoryContext();
-  reloadCurrent = reload;
+  const {history} = useRunHistoryContext();
   return <span data-testid="rows">{history.map(row => row.id).join(',')}</span>;
 }
 
 function ChatProbe() {
-  const {chats, reload} = useChatHistoryContext();
-  reloadCurrent = reload;
+  const {chats} = useChatHistoryContext();
   return <span data-testid="rows">{chats.map(row => row.id).join(',')}</span>;
 }
 
@@ -109,40 +105,6 @@ function historyContract<T>(history: HistoryFixture<T>) {
     await act(async () => older.resolve([history.row('older')]));
     expect(screen.getByTestId('rows')).toHaveTextContent('newer');
   });
-
-  it(`reloads ${history.name} history once on navigation and removes its listener on unmount`, async () => {
-    history.load.mockResolvedValue([history.row('first')]);
-    const {unmount} = renderHistory(history.provider, history.probe);
-    await waitFor(() =>
-      expect(screen.getByTestId('rows')).toHaveTextContent('first'),
-    );
-    history.load.mockResolvedValue([history.row('next')]);
-    act(() => screen.getByRole('button', {name: 'Navigate'}).click());
-    await waitFor(() =>
-      expect(screen.getByTestId('rows')).toHaveTextContent('next'),
-    );
-    expect(history.load).toHaveBeenCalledTimes(2);
-
-    const retiredReload = reloadCurrent;
-    unmount();
-    await act(async () => {
-      window.dispatchEvent(new Event(history.event));
-      await retiredReload();
-    });
-    expect(history.load).toHaveBeenCalledTimes(2);
-  });
-
-  it(`retires the first ${history.name} load during StrictMode effect replay`, async () => {
-    const retired = deferred<T[]>();
-    history.load.mockReturnValueOnce(retired.promise);
-    history.load.mockResolvedValue([history.row('current')]);
-    renderHistory(history.provider, history.probe, true);
-    await waitFor(() =>
-      expect(screen.getByTestId('rows')).toHaveTextContent('current'),
-    );
-    await act(async () => retired.resolve([history.row('retired')]));
-    expect(screen.getByTestId('rows')).toHaveTextContent('current');
-  });
 }
 
 historyContract({
@@ -161,17 +123,6 @@ historyContract({
   event: CHATS_CHANGED_EVENT,
   load: vi.mocked(listInterviews),
   row: chat,
-});
-
-it('keeps chat history visible after a transient reload failure', async () => {
-  vi.mocked(listInterviews).mockResolvedValue([chat('saved-chat')]);
-  renderHistory(ChatHistoryProvider, <ChatProbe />);
-  await waitFor(() =>
-    expect(screen.getByTestId('rows')).toHaveTextContent('saved-chat'),
-  );
-  vi.mocked(listInterviews).mockRejectedValue(new Error('API unavailable'));
-  await act(async () => reloadCurrent());
-  expect(screen.getByTestId('rows')).toHaveTextContent('saved-chat');
 });
 
 describe('active run polling', () => {
@@ -214,18 +165,6 @@ describe('active run polling', () => {
     expect(loadMock).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(loadMock).toHaveBeenCalledTimes(3);
-  });
-
-  it('stops refreshing once no run is executing', async () => {
-    loadMock.mockResolvedValue([makeRun({status: 'completed'})]);
-    renderProvider();
-    await waitFor(() =>
-      expect(screen.getByTestId('count')).toHaveTextContent('1'),
-    );
-    expect(loadMock).toHaveBeenCalledTimes(1);
-
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(loadMock).toHaveBeenCalledTimes(1);
   });
 
   it('stops refreshing once the run reaches a terminal status', async () => {

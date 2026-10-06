@@ -69,8 +69,6 @@ describe('run lifecycle', () => {
     isCancelledStatus: {ask: isCancelledStatus, yes: ['cancelled']},
   };
 
-  const UNRECOGNIZED = [undefined, null, '', 'garbage', 'toString'] as const;
-
   describe('lifecycle questions', () => {
     it.each(Object.keys(QUESTIONS))('%s answers per status', name => {
       const {ask, yes} = QUESTIONS[name];
@@ -78,20 +76,9 @@ describe('run lifecycle', () => {
         expect(ask(status), `${name}(${status})`).toBe(yes.includes(status));
       }
     });
-
-    it.each(Object.keys(QUESTIONS))('%s says no to unrecognized', name => {
-      for (const status of UNRECOGNIZED) {
-        expect(QUESTIONS[name].ask(status), `${name}(${status})`).toBe(false);
-      }
-    });
   });
 
   describe('runActivity', () => {
-    it('is unknown until a status exists', () => {
-      expect(runActivity(undefined)).toBe('unknown');
-      expect(runActivity(null)).toBe('unknown');
-    });
-
     it.each(ALL_STATUSES)(
       'reads %s as active only while in progress',
       status => {

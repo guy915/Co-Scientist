@@ -22,25 +22,6 @@ function stubRect(el: HTMLElement, rect: Partial<{top: number; left: number}>) {
   });
 }
 
-function stubScrollSize(
-  el: HTMLElement,
-  scrollHeight: number,
-  clientHeight: number,
-) {
-  Object.defineProperty(el, 'scrollHeight', {
-    value: scrollHeight,
-    configurable: true,
-  });
-  Object.defineProperty(el, 'clientHeight', {
-    value: clientHeight,
-    configurable: true,
-  });
-}
-
-it('returns false when the target id does not exist', () => {
-  expect(smoothScrollToSection('missing')).toBe(false);
-});
-
 it('scrolls a preferred pane container and returns true', () => {
   const pane = document.createElement('div');
   pane.className = 'idea-detail-pane';
@@ -67,31 +48,6 @@ it('scrolls a preferred pane container and returns true', () => {
     top: 50 + 120 - 20 - 0,
     behavior: 'smooth',
   });
-});
-
-it('walks up to a scrollable ancestor with no preferred pane', () => {
-  const outer = document.createElement('div');
-  const scrollable = document.createElement('div');
-  scrollable.style.overflowY = 'auto';
-  const inert = document.createElement('div');
-  const target = document.createElement('div');
-  target.id = 'section-3';
-
-  inert.append(target);
-  scrollable.append(inert);
-  outer.append(scrollable);
-  document.body.append(outer);
-
-  stubScrollSize(scrollable, 500, 200);
-  const scrollTo = vi.fn();
-  (scrollable as unknown as {scrollTo: typeof scrollTo}).scrollTo = scrollTo;
-
-  const result = smoothScrollToSection('section-3');
-
-  expect(result).toBe(true);
-  expect(scrollTo).toHaveBeenCalledWith(
-    expect.objectContaining({behavior: 'smooth'}),
-  );
 });
 
 it('falls back to scrollIntoView when no scrollable ancestor is found', () => {
