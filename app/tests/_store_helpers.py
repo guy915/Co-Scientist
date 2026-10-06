@@ -160,3 +160,33 @@ def leased_node_task(run_id: str) -> ScientificTask:
         started_at=None,
         completed_at=None,
     )
+
+
+def drive_offline_run(run: RunRow, *, db_path: str, worker: str) -> None:
+    import asyncio
+
+    from app import task_worker
+
+    task_worker.enqueue_run_workflow(run.id, db_path=db_path)
+    asyncio.run(
+        task_worker.run_run_worker_pool(
+            run.id, worker, policy=task_worker.WorkerPolicy(db_path=db_path)
+        )
+    )
+
+
+def event_seqs(
+    run_id: str,
+    event_type: str,
+    *,
+    db_path: str | None = None,
+    **payload: object,
+) -> list[int]:
+    from app.store import events
+
+    return [
+        event["seq"]
+        for event in events.list_events(run_id, db_path=db_path)
+        if event["type"] == event_type
+        and all(event["payload"].get(k) == v for k, v in payload.items())
+    ]
