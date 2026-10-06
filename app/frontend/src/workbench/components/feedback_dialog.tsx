@@ -12,13 +12,23 @@ import {
   useFocusTrap,
   useRestoreFocusOnClose,
 } from '../hooks/dom';
-import {
-  SETUP_PRIMARY_BUTTON_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
-} from '../classes';
+import {joinClasses, SETUP_PRIMARY_BUTTON_CLASSES} from '../classes';
+
 import {sessionDiagnosticExport} from '../layout_diagnostics';
 import {HeaderControlTrigger} from '../layout_primitives';
 import {SettingsSelect} from './settings_dialog';
+
+// The dialog surface shares the page hover tone, so actions need the menu-row
+// tone and the filled button needs elevation to show hover.
+const CANCEL_CLASSES =
+  'min-h-[2.6rem] cursor-pointer rounded-full border ' +
+  'border-cosci-btn-secondary-border bg-transparent px-[1.45rem] font-medium ' +
+  'text-cosci-btn-secondary-fg hover:bg-cosci-menu-row-hover ' +
+  'focus-visible:bg-cosci-menu-row-hover';
+const SUBMIT_CLASSES = joinClasses(
+  SETUP_PRIMARY_BUTTON_CLASSES,
+  'transition-shadow enabled:hover:shadow-md',
+);
 
 export function FeedbackControl({runId}: {runId?: string}) {
   const [open, setOpen] = useState(false);
@@ -150,16 +160,12 @@ export function FeedbackDialog({
         </label>
         {error && <p role="alert">{error}</p>}
         <div className="ucs-feedback-actions">
-          <button
-            type="button"
-            className={SETUP_SECONDARY_BUTTON_CLASSES}
-            onClick={onClose}
-          >
+          <button type="button" className={CANCEL_CLASSES} onClick={onClose}>
             Cancel
           </button>
           <button
             type="submit"
-            className={SETUP_PRIMARY_BUTTON_CLASSES}
+            className={SUBMIT_CLASSES}
             disabled={busy || !message.trim()}
           >
             {busy ? 'Submitting…' : 'Submit'}

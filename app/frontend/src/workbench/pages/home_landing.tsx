@@ -231,6 +231,13 @@ function headerRoom(header: HTMLElement, slot: HTMLElement): number {
   return 2 * Math.min(centre - left, right - centre) - 24;
 }
 
+// A layer offset by a fraction of a device pixel is resampled, which draws a
+// stray hairline over the docked labels.
+function devicePixel(value: number): number {
+  const ratio = window.devicePixelRatio || 1;
+  return Math.round(value * ratio) / ratio;
+}
+
 // Below this the centred tabs would show barely one label; the page copy then
 // sticks under the header instead.
 const MIN_HEADER_ROOM = 320;
@@ -266,9 +273,10 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
       const copy = copyRef.current;
       if (copy) {
         const rest = (h.height - copy.offsetHeight) / 2;
-        copy.style.left = `${a.left - h.left}px`;
+        copy.style.left = `${devicePixel(a.left - h.left)}px`;
         copy.style.width = `${a.width}px`;
-        copy.style.transform = `translateY(${Math.max(rest, a.top - h.top)}px)`;
+        const y = devicePixel(Math.max(rest, a.top - h.top));
+        copy.style.transform = `translateY(${y}px)`;
       }
       setJoined(a.top < pane.getBoundingClientRect().top);
     };

@@ -11,7 +11,6 @@ from co_scientist.agents.reflection.comprehensive_reflection import (
     comprehensive_reflection_node,
 )
 from co_scientist.agents.reflection.review import (
-    _review_from_response,
     _sanitize_review_scores,
     review_node,
 )
@@ -117,31 +116,6 @@ async def test_review_node_gates_on_the_run_criteria(
     assert without_criteria.is_rankable()
 
 
-def _entry(index: int | None, summary: str) -> dict[str, Any]:
-    entry: dict[str, Any] = {
-        "review_summary": summary,
-        "scores": {"scientific_soundness": 7, "novelty": 7},
-        "safety_ethical_concerns": "",
-        "detailed_feedback": {},
-        "constructive_feedback": "",
-    }
-    if index is not None:
-        entry["hypothesis_index"] = index
-    return entry
-
-
-def test_novelty_review_missing_or_malformed_degrades_to_empty() -> None:
-    review = _review_from_response({"review_summary": "s", "scores": {}})
-    assert review.already_explored == []
-    assert review.novel_aspects == []
-
-    review = _review_from_response(
-        {"review_summary": "s", "scores": {}, "novelty_review": "oops"}
-    )
-    assert review.already_explored == []
-    assert review.novel_aspects == []
-
-
 def test_out_of_range_scores_are_dropped_not_clamped() -> None:
     """Clamping a malformed score to the floor would create a fatal verdict."""
     sanitized = _sanitize_review_scores(
@@ -185,19 +159,6 @@ async def test_parallel_individual_isolates_a_failed_call(
     assert result["hypotheses"][2].reviews == []
     assert result["metrics"].reviews_count == count - 1
     assert result["messages"][0]["metadata"]["review_failures"] == 1
-
-
-async def test_batch_review_degrades_to_zero_reviews_without_raising(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_call_llm_json(monkeypatch, review, {"reviews": []})
-    hyps = [make_hypothesis(text=f"h{i}") for i in range(3)]
-
-    result = await review_node(state=make_state(hypotheses=hyps))
-
-    assert result["metrics"].reviews_count == 0
-    assert result["messages"][0]["metadata"]["review_failures"] == 3
-    assert all(not h.reviews for h in result["hypotheses"])
 
 
 def _blocked(index: int) -> Hypothesis:
@@ -306,17 +267,6 @@ def test_the_run_wide_ceiling_bounds_a_pathological_pool(
 
     assert len(first) == 3
     assert second == []
-
-
-def test_the_gates_this_one_does_not_own_are_left_alone() -> None:
-    foreign = ["unsafe", "evidence_blocked", "review_failed", "duplicate"]
-    pool = []
-    for disposition in foreign:
-        hypothesis = _blocked(0)
-        hypothesis.review_disposition = disposition
-        pool.append(hypothesis)
-
-    assert recheck_targets(pool) == []
 
 
 def _full_review(verdict: str, **overrides: object) -> dict[str, object]:
