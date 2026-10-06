@@ -51,6 +51,8 @@ If day 4 slips, typed models move to after v0 instead of delaying the launch.
 ### Early starts
 
 - **Benchmark baseline:** as soon as the `Benchmark` workflow has its secret.
+- **CI speed first:** the optimization lead's first PR makes CI faster,
+  before the rest of its audit, because every campaign waits on CI.
 - **Optimization delivery lane:** as soon as its account is ready. The audit
   is read-only, and CI, the `Makefile`, Dockerfiles and new repository files
   do not touch tests.
