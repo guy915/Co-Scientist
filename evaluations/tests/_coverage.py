@@ -64,14 +64,17 @@ def read_frontend(path: Path, root: Path) -> Suite:
     )
 
 
+COVERAGE_FLOOR = 80.0
+
+
 def guard(report: Report, baseline: Report, root: Path) -> list[str]:
     errors = []
     for name, before in baseline["suites"].items():
         after = report["suites"][name]
-        if after["percent"] + 0.5 + 1e-9 < before["percent"]:
+        if after["percent"] + 1e-9 < COVERAGE_FLOOR:
             errors.append(
-                f"{name}: {after['percent']:.4f}% below baseline "
-                f"{before['percent']:.4f}% minus 0.5 points"
+                f"{name}: {after['percent']:.4f}% below the "
+                f"{COVERAGE_FLOOR:.0f}% floor"
             )
         errors.extend(module_guard(after, before, baseline, root))
     return errors
@@ -88,11 +91,10 @@ def module_guard(
             errors.append(f"{name}: protected module missing from coverage")
             continue
         current = after["modules"][name]
-        original = before["modules"][name]
-        if current["percent"] + 1e-9 < original["percent"]:
+        if current["percent"] + 1e-9 < COVERAGE_FLOOR:
             errors.append(
                 f"{name}: protected coverage {current['percent']:.4f}% "
-                f"below baseline {original['percent']:.4f}%"
+                f"below the {COVERAGE_FLOOR:.0f}% floor"
             )
     return errors
 

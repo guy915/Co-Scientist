@@ -5,27 +5,27 @@ import pytest
 from evaluations.tests._coverage import Report, guard, metric, suite
 
 
-def report(covered: int, total: int = 1000) -> Report:
-    return {
-        "suites": {"app": suite({"module.py": metric(covered, total)})},
-        "protected_modules": [],
-    }
+def report(covered: int, other: int = 0) -> Report:
+    modules = {"module.py": metric(covered, 1000)}
+    if other:
+        modules["other.py"] = metric(other, other)
+    return {"suites": {"app": suite(modules)}, "protected_modules": []}
 
 
-@pytest.mark.parametrize("covered,passed", [(895, True), (894, False)])
-def test_suite_coverage_allows_at_most_half_a_point_loss(
+@pytest.mark.parametrize("covered,passed", [(800, True), (799, False)])
+def test_suite_coverage_must_stay_at_or_above_the_floor(
     tmp_path: Path, covered: int, passed: bool
 ) -> None:
-    assert (not guard(report(covered), report(900), tmp_path)) is passed
+    assert (not guard(report(covered), report(960), tmp_path)) is passed
 
 
-def test_protected_module_rejects_loss_even_within_suite_allowance(
+def test_protected_module_below_the_floor_fails_even_if_the_suite_passes(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "module.py").write_text("pass\n")
-    baseline = report(900)
+    baseline = report(960)
     baseline["protected_modules"] = ["module.py"]
-    errors = guard(report(899), baseline, tmp_path)
+    errors = guard(report(799, other=1000), baseline, tmp_path)
     assert len(errors) == 1
     assert "protected coverage" in errors[0]
 

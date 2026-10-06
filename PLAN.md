@@ -5,10 +5,10 @@ keeping every behavior they protect. Every decision below was settled with the
 owner on 4 October 2026, so the campaign runs unattended: the agent decides by
 these rules and reports at the end.
 
-**Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is in progress,
-starting with generation and literature node outcomes in the engine. The fixed
-coverage baseline and shared scaffolding remain the campaign guards. Phase
-counts and verification are recorded in
+**Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is complete for
+the engine and the MCP server and in progress for the app and the frontend.
+The coverage floor (80% per suite and protected module) and shared scaffolding
+remain the campaign guards. Phase counts and verification are recorded in
 `docs/test-campaign/progress.json`.
 The improvements campaign is preserved in merged history; PR #184 deliberately
 retired `IMPROVEMENTS.md` when it opened this campaign.
@@ -80,11 +80,14 @@ all frontend production modules are protected. The selection is recorded in
   serialized, and prints production line coverage per suite and per module.
   Add `pytest-cov` to the MCP server's dev dependencies.
 - Record the baseline per suite and per module in the opening PR.
-- Every PR keeps each suite's coverage within 0.5 points of its baseline, and
-  keeps every module behind a "What stays tested" behavior at or above its
-  baseline. Put the before and after numbers in the PR body.
-- Coverage that drops because production code was deleted is fine; say so in
-  the PR.
+- Every PR keeps each suite's line coverage at or above 80%, and every
+  protected module at or above 80%. The owner set this floor on 6 October 2026,
+  replacing the earlier rule (each suite within 0.5 points of its baseline,
+  protected modules at or above baseline), because test lines cannot shrink by
+  half while coverage stays fixed. The behaviors under "What stays tested"
+  still keep their best tests, whatever the coverage number says.
+- Put each suite's before and after coverage in the PR body, and name any
+  protected module that fell below its fixed baseline.
 
 ## What goes
 

@@ -174,27 +174,27 @@
       },
       "current": {
         "engine": {
-          "test_lines": 47664,
-          "files": 78,
-          "tests": 3095
+          "test_lines": 31534,
+          "files": 77,
+          "tests": 2084
         },
         "app": {
-          "test_lines": 50533,
+          "test_lines": 46301,
           "files": 92,
-          "tests": 2213
+          "tests": 2046
         },
         "mcp": {
-          "test_lines": 7963,
+          "test_lines": 5668,
           "files": 12,
-          "tests": 386
+          "tests": 317
         },
         "frontend": {
-          "test_lines": 17237,
-          "files": 89,
-          "tests": 829
+          "test_lines": 13416,
+          "files": 83,
+          "tests": 625
         },
         "evaluations": {
-          "test_lines": 3364,
+          "test_lines": 3370,
           "files": 16,
           "tests": 208
         },
@@ -205,8 +205,8 @@
         }
       },
       "production_lines_start": 114507,
-      "production_lines_current": 114977,
-      "production_lines_deleted": -470,
+      "production_lines_current": 114927,
+      "production_lines_deleted": -420,
       "coverage_start": {
         "app": {
           "covered": 13110,
@@ -259,12 +259,114 @@
           "inventory": "pull request body",
           "validation_location": "pull request body",
           "pull_request": 201
+        },
+        {
+          "suite": "frontend",
+          "theme": "workbench-behavior-through-rendered-ui",
+          "test_lines_removed": 3821,
+          "tests_removed": 197,
+          "files_removed": 6,
+          "scope_status": "partial; a second frontend pass follows",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 203
+        },
+        {
+          "suite": "engine",
+          "theme": "research-literature-skills-and-mcp-client",
+          "test_lines_removed": 1886,
+          "tests_removed": 101,
+          "files_removed": 0,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 205
+        },
+        {
+          "suite": "mcp",
+          "theme": "tools-through-tool-calls",
+          "test_lines_removed": 2295,
+          "tests_removed": 69,
+          "files_removed": 0,
+          "scope_status": "complete; finishes the MCP server suite",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 200
+        },
+        {
+          "suite": "app",
+          "theme": "durable-task-execution",
+          "test_lines_removed": 1898,
+          "tests_removed": 57,
+          "files_removed": 0,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 206
+        },
+        {
+          "suite": "engine",
+          "theme": "llm-dispatch-budgets-and-model-profiles",
+          "test_lines_removed": 5110,
+          "tests_removed": 246,
+          "files_removed": 1,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 202
+        },
+        {
+          "suite": "app",
+          "theme": "runs-api-lifecycle-and-resume",
+          "test_lines_removed": 2334,
+          "tests_removed": 110,
+          "files_removed": 0,
+          "scope_status": "complete; deletes 45 production lines only tests reached",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 207
+        },
+        {
+          "suite": "engine",
+          "theme": "runtime-configuration-state-and-orchestration",
+          "test_lines_removed": 4155,
+          "tests_removed": 326,
+          "files_removed": 0,
+          "scope_status": "complete; finishes the engine suite",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 208
+        },
+        {
+          "suite": "engine",
+          "theme": "review-ranking-evolution-and-supervision",
+          "test_lines_removed": 4979,
+          "tests_removed": 338,
+          "files_removed": 0,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 204
         }
       ],
       "pull_requests": [
         188,
-        201
-      ]
+        201,
+        203,
+        205,
+        200,
+        206,
+        202,
+        207,
+        208,
+        204
+      ],
+      "coverage_rule": {
+        "from": "2026-10-06",
+        "floor_percent": 80.0,
+        "applies_to": "each suite and each protected module",
+        "replaces": "suite within 0.5 points of baseline; protected modules at or above baseline"
+      }
     }
   },
   "load_bearing_distinctions": [
