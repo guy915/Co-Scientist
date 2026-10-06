@@ -6,9 +6,8 @@ production shrink (`docs/PROD-SHRINK.md`) and the optimization campaign
 (`docs/OPTIMIZATION.md`). Each plan keeps its own scope and rules. This file
 sets the schedule, who edits what and when, and how the campaigns coordinate.
 
-**Status:** planned 6 October 2026. Day 1 is the day the test campaign in
-`PLAN.md` is done. The benchmark baseline and the optimization delivery lane
-start earlier (see Early starts).
+**Status:** planned 6 October 2026. The test campaign finished on 6 October
+2026; day 1 is the night of 6 October.
 
 ## Accounts
 
@@ -19,8 +18,8 @@ start earlier (see Early starts).
 | Third | Optimization | Two leads: the model lane and the delivery lane |
 
 Each lead plans, reviews and merges. Subagents implement, each on its own
-branch, under the Delegation rule in `PLAN.md`. To finish fast, keep three to
-five subagents busy whenever independent work is ready, and keep working
+branch (see Sessions and usage). To finish fast, keep three to five
+subagents busy whenever independent work is ready, and keep working
 around the clock. When an account reaches its usage limit, its campaign
 pauses until the reset; its open PRs keep their claims.
 
@@ -75,8 +74,6 @@ If day 4 slips, typed models move to after v0 instead of delaying the launch.
   `README.md`, `app/app/config.py`, `app/app/main.py`): anyone may make small
   edits. Do not reorder or reformat them. On a conflict, merge `main` and keep
   both sides.
-- **`docs/test-campaign/coverage-baseline.json`:** one open PR at a time across
-  all campaigns. Note it on your board while you hold it.
 
 ## Windows
 
@@ -107,21 +104,41 @@ or park the ones they have open.
 
 ## Merging, CI and production
 
-- **Merging.** On 6 October 2026 the owner extended the test campaign's
-  merge rule to these campaigns: squash-merge with
+- **Merging.** The owner authorized bypassing `main`'s review requirement for
+  these campaigns on 6 October 2026, which overrides the branch-protection
+  rule in AGENTS.md: squash-merge with
   `gh pr merge --squash --delete-branch --admin` once CI is green on the
   latest commit.
 - **Fresh base.** Before merging, if `main` changed files in the same folders
   since the PR's last CI run, merge `main` and wait for CI again.
 - **Red `main`.** The campaign whose merge broke it fixes or reverts within
   30 minutes. Nobody merges into that folder until `main` is green again.
-- **Deploys.** After each merge that touches deployed code, check production
-  as the Deploys rule in `PLAN.md` says. If it is unhealthy, revert first.
+- **Deploys.** Every merge to `main` that touches deployed code deploys
+  production. After it, confirm the GitHub deployment statuses for the merge
+  commit (`gh api`), `https://api.ai-co-scientist.com/health` and
+  `https://ai-co-scientist.com/`. If one is unhealthy, ship a revert PR first
+  and resume once production is healthy.
+- **Git.** Follow AGENTS.md. Keep every commit additive: make follow-up fixes
+  in new commits. Run the app and engine pytest suites one after the other,
+  and record each gate's exit status on its own line.
 - **CI capacity.** All campaigns share the runners. Run local checks before
   pushing, push when a PR is ready rather than after every commit, and keep at
   most two benchmark runs going at once.
 - **Local checks.** Subagents share the lead's container, its ports and its
   CPU, so only the lead runs `make e2e` and the full suites, one at a time.
+
+## Sessions and usage
+
+- Each lead runs at high effort; it plans, reviews and merges.
+- Subagents implement, each on its own branch with disjoint files. Mechanical
+  work runs on the faster, cheaper model; risky levers and model-usage changes
+  run on the strongest model or in the lead itself. Each subagent gets these
+  rules and confirms its files are on disk before it reports.
+- Pick the number of subagents from the independent work ready and the
+  account's remaining usage, so the campaign never stalls on the usage limit.
+- Keep each PR body current with what changed, numbers before and after, and
+  the checks run. After a context compaction, re-read this file, your plan
+  and the merged PR history before resuming.
 
 ## Owner actions
 
@@ -129,8 +146,11 @@ or park the ones they have open.
   workflow. While benchmark runs are queued, avoid large runs in the app: they
   share the free daily allowance.
 - **Before day 1:** set up the two new accounts with the same cloud
-  environment as the test campaign (see Execution environment in `PLAN.md`),
-  including a GitHub token for `gh`.
+  environment: internet access to GitHub, the production domains and the
+  package registries; Python 3.12, Node.js 22.13+ and Bun 1.3.14 with
+  `make setup`; and a GitHub token with admin rights on the repository and the
+  `repo` and `workflow` scopes, so `gh` can push, open PRs and merge with
+  `--admin`.
 - **During the campaigns:** run the legacy-data migration on production when
   the cuts ask for it. Confirm Railway watch-path changes for the engine move,
   and delete retired variables. Create the monitoring accounts the

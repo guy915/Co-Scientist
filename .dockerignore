@@ -41,7 +41,6 @@
 # Research archives are not runtime inputs; retain vendor sources and package READMEs.
 references
 docs
-PLAN.md
 proposals.html
 e2e
 evaluations

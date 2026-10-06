@@ -15,7 +15,7 @@ This is a research/reference workspace organized around replicating Google's AI 
 - `docs/` — live project docs; `docs/README.md` indexes them (`ARCHITECTURE.md`, `CI.md`, `DEPLOYMENT.md`, `OPERATIONS.md`, `RUNNING-LOCALLY.md`, `LAUNCH.md`); retired guides, audits and screenshots remain in immutable Git history
 - `.github/` — GitHub Actions. `ci.yml` runs as presubmit (on `pull_request`, with `dorny/paths-filter` job-level path filters, superseded runs cancelled) and as postsubmit (on push to `main`: every job, never cancelled); `nightly.yml` re-runs the whole pipeline on cron via `workflow_call`; `benchmark.yml` is not CI but a manual, live quality benchmark that uses the `OPENROUTER_API_KEY` repository secret (see `docs/OPTIMIZATION.md`). Every CI command is hermetic — no network, no API keys, no retries — so a test needing a provider key must be skipped or offline. Rationale in `docs/CI.md`.
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
-- `PLAN.md` — the active test campaign: what stays tested, what goes, the coverage guard, phases and rules; use `docs/LAUNCH.md` for launch work.
+- `docs/CAMPAIGNS.md` — the active cuts, shrink and optimization campaigns: schedule, ownership and merge rules; use `docs/LAUNCH.md` for launch work.
 - `Makefile` — root-level build orchestration (`setup`, `start`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-mcp`, `test-all`, `test-frontend`, `check`, `docker-build`, `e2e`, `test-evaluations`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
 - `README.md` — project overview, features, installation, and usage
 
