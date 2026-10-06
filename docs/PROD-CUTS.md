@@ -4,8 +4,9 @@ Remove the features, modes and dev tooling the owner chose to give up on
 6 October 2026. This plan only deletes. Condensing what stays is a separate,
 later plan that starts from the size this one leaves.
 
-**Status:** started 6 October 2026. It runs alongside the test campaign in
-`PLAN.md`, split by folder as described under Lanes.
+**Status:** planned 6 October 2026. It starts on day 1 of
+`docs/CAMPAIGNS.md`, when the test campaign in `PLAN.md` is done, and runs in
+parallel streams (see Streams).
 
 ## Scope
 
@@ -22,7 +23,7 @@ code and dev-only features go. Nothing outside this list is cut under this plan.
 
 | Cut | Where |
 |---|---|
-| Evaluation experiment scripts. Keep what `make eval-smoke` and `evaluations/tests` need (`smoke.py`, `citation_eval.py`, `safety_eval.py`) and the quality benchmark `docs/OPTIMIZATION.md` uses (`golden_run.py`, `claim_support_eval.py`, `citation_usefulness_eval.py`, `_run_driver.py`, `_artifacts.py`), with their datasets | `evaluations/*.py` (ablation, scaling, Elo concordance, expert review, specific aims, panel, replay, MCP live smoke, prod smoke, release gate, `_identity`, `_live_config`, `_usage_evidence`, `metrics`) |
+| Evaluation experiment scripts. Keep what `make eval-smoke` and `evaluations/tests` need (`smoke.py`, `citation_eval.py`, `safety_eval.py`) and the quality benchmark `docs/OPTIMIZATION.md` uses (`claim_support_eval.py`, `citation_usefulness_eval.py`), with the helpers they import (`_run_driver.py`, `_artifacts.py`, `_identity.py`, `_live_config.py`, `_usage_evidence.py`) and their datasets | `evaluations/*.py` (ablation, scaling, Elo concordance, expert review, specific aims, panel, replay, MCP live smoke, prod smoke, release gate, `metrics`) |
 | Stage-timing scripts. Keep `backup_db.py` and `refresh_retractions.py` | `app/dev/stage_latency.py`, `app/dev/stage_latency_analysis.py` |
 | PubMed study code (pilot trace, Study 4 recovery, metadata batching, `COSCIENTIST_PUBMED_*` flags). Normal PubMed search stays | `engine/mcp_server/pubmed_pilot_trace.py`, `pubmed_metadata_batch.py` and their callers |
 
@@ -45,7 +46,7 @@ code and dev-only features go. Nothing outside this list is cut under this plan.
 | Separate worker process mode. The worker always runs inside the API | `app/app/task_worker/__main__.py`, `coscientist_embedded_worker` |
 | LLM response cache | `engine/src/co_scientist/cache/` and its hooks |
 | bwrap sandbox backend. Landlock (Linux) and Seatbelt (macOS) stay | `engine/src/co_scientist/sandbox/bwrap.py` |
-| Domain tool configs (`TOOLS_CONFIG`, INDRA cancer and HFpEF examples). Drop the docker-compose `TOOLS_CONFIG` default | `engine/src/co_scientist/config/` loader and `examples/`, `tools_config` |
+| Domain tool configs (`TOOLS_CONFIG`, INDRA cancer and HFpEF examples), with `golden_run.py`, the INDRA acceptance run. Drop the docker-compose `TOOLS_CONFIG` default | `engine/src/co_scientist/config/` loader and `examples/`, `tools_config`, `evaluations/golden_run.py` |
 | Strict safety mode. Standard safety is unchanged | `app/app/safety/` |
 | `GEMINI_API_KEY` special case, claim-checker switch, `COSCIENTIST_DEBUG`, `COSCIENTIST_FORCE_MOCK` alias | `app/app/config.py`, `main.py`, `process_mode.py`, `claims/grounding.py` |
 | Text log format and `LOG_FORMAT`. JSON is the only format, local and prod | `app/app/logging_setup.py` |
@@ -71,25 +72,22 @@ search.
 Not in this plan: the "Download report" button and giving Q&A the Markdown
 report instead of structured data. Those are feature changes, done separately.
 
-## Lanes
+## Streams
 
-Two campaigns run at once without editing the same files:
+The cuts run as parallel streams from day 1 of `docs/CAMPAIGNS.md`, which also
+sets who edits what, the windows and the merge rules:
 
-1. **Now.** The test campaign finishes Phase 2 for the app, the frontend and
-   the evaluations. The cuts touch only `engine/` (including
-   `engine/mcp_server/`), `app/dev/` and their tests and docs: PubMed study
-   code, the LLM cache, bwrap, domain tool configs, the MCP side of campaign
-   mode and the `COSCIENTIST_FORCE_MOCK` alias. Edit `app/app/` only to remove
-   the hook of a cut engine feature (a setting, an import, a wiring line), and
-   `app/tests/` only to delete tests of that hook.
-2. **After the test campaign finishes Phase 2** for the app, the frontend and
-   the evaluations, the cuts take `app/`, `app/frontend/` and `evaluations/`
-   in this order: features with no UI; campaign mode, access page and required
-   auth; the remaining modes and switches; the logs panel; the evaluation
-   scripts; the demo snapshot. Meanwhile the test campaign runs Phase 3 on the
-   engine and MCP suites, and on the app and frontend suites after their cuts
-   merge.
-3. **Last:** the legacy-data migration PR, then the deletion PR after the owner
+1. **Engine and MCP server**, first, because the shrink and the model work wait
+   on the engine: PubMed study code, the LLM cache, bwrap, domain tool configs,
+   the MCP side of campaign mode and the `COSCIENTIST_FORCE_MOCK` alias.
+2. **API endpoints and pages:** pause and resume, human-added ideas, unused
+   read endpoints, operator pages, share-by-link and the log-report email.
+3. **Modes and switches:** campaign mode, the access page and required auth,
+   the worker mode, strict safety, the remaining switches and the text log
+   format.
+4. **Logs and tooling:** the logs panel, the evaluation scripts, the
+   stage-timing scripts and the demo snapshot.
+5. **Last:** the legacy-data migration PR, then the deletion PR after the owner
    runs the migration.
 
 One theme per PR. Only one open PR at a time edits
