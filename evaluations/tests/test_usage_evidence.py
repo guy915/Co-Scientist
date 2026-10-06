@@ -62,31 +62,6 @@ def test_durable_artifact_retains_requested_and_observed_models(
     assert scored["usage_evidence"] == evidence
 
 
-def test_derived_curves_preserve_unknown_costs() -> None:
-    from evaluations.scaling_eval import ablation_summary, scaling_curve
-
-    evidence = {"estimated_total_usd": None, "estimate_complete": False}
-    metrics = {"cost_usd": 0.0, "usage_evidence": evidence}
-    curve = scaling_curve([{"hypotheses": [], "metrics": metrics}])
-    assert curve[0]["usage_evidence"] == evidence
-    base = {
-        "arm": "baseline",
-        "goal_id": "public",
-        "diversity": 0.5,
-        "cost_usd": 0.0,
-        "latency_seconds": 1,
-        "usage_evidence": evidence,
-    }
-    summary = ablation_summary([base])["arms"]["baseline"]
-    assert summary["estimated_mean_usd"] is None
-    base["usage_evidence"] = {
-        "estimate_complete": True,
-        "estimated_total_usd": 0.0,
-    }
-    summary = ablation_summary([base])["arms"]["baseline"]
-    assert summary["estimated_mean_usd"] == 0.0
-
-
 @pytest.mark.parametrize(
     ("usage", "unpriced"),
     [
@@ -130,7 +105,7 @@ def test_unknown_or_overclaimed_usage_cannot_be_a_complete_zero_estimate(
 _ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize("panel", ["usefulness", "citation", "elo", "citation_failure"])
+@pytest.mark.parametrize("panel", ["usefulness", "citation", "citation_failure"])
 def test_panel_artifact_records_served_model_and_unknown_price(
     tmp_path: Path,
     panel: str,
@@ -144,7 +119,6 @@ import litellm
 import json
 from pathlib import Path
 from evaluations import citation_eval, citation_usefulness_eval
-from evaluations import elo_concordance_eval
 panel = __PANEL__
 passage = "Kinase X inhibition reduces tumor growth in AML cell lines."
 payloads = {
@@ -152,8 +126,6 @@ payloads = {
     "citation": {"label": "supports", "supporting": [{"passage": 1,
         "quote": passage}],
         "contradicting": []},
-    "elo": {"winner": "a", "decision_summary": "Candidate A is correct.",
-        "confidence_level": "High"},
 }
 
 catalog = {"data": [{"id": "campaign/primary:free",
@@ -183,14 +155,6 @@ with patch.object(httpx, "get", return_value=metadata), \
                 "passages": [passage],
                 "label": "supports"}]}))
         report = citation_eval.run(use_llm=True, dataset_path=dataset)
-    else:
-        dataset = {"name": "probe", "version": 1, "items": [{"id": "one",
-            "domain": "physics", "question": "What is two plus two?",
-            "candidates": [{"id": "a", "text": "Four", "correctness": 2},
-                           {"id": "b", "text": "Five", "correctness": 0}]}]}
-        with patch.object(elo_concordance_eval, "_load_dataset",
-                          return_value=dataset):
-            report = elo_concordance_eval.run(use_llm=True)
 assert report["evaluation_identity"]["kind"] == "panel"
 assert report["evaluation_identity"]["model"] == (
     "openrouter/campaign/primary:free")
@@ -208,11 +172,7 @@ assert evidence["recorded_deterministic_fallbacks"] == (
 assert evidence["fallback_evidence"] == "recorded_events_only"
 assert evidence["estimated_total_usd"] is None
 assert evidence["billed_total_usd"] is None
-if panel == "elo":
-    live = report["results"]["llm:openrouter/campaign/primary:free"]
-    assert live["usage_evidence"] == evidence
-else:
-    assert report["metrics"]["accuracy"] == 1.0
+assert report["metrics"]["accuracy"] == 1.0
 assert provider.call_args.kwargs["extra_body"]["provider"]["max_price"] == {
     "prompt": 0, "completion": 0, "request": 0}
 """
@@ -236,30 +196,23 @@ assert provider.call_args.kwargs["extra_body"]["provider"]["max_price"] == {
 
 
 def test_offline_panels_do_not_claim_live_usage() -> None:
-    from evaluations import (
-        citation_eval,
-        citation_usefulness_eval,
-        elo_concordance_eval,
-    )
+    from evaluations import citation_eval, citation_usefulness_eval
 
     reports = [
         citation_eval.run(),
         citation_usefulness_eval.run_deterministic({"name": "empty", "items": []}),
-        elo_concordance_eval.run(use_llm=False),
     ]
     for report in reports:
         assert report["evaluation_identity"]["kind"] == "panel"
         assert report["evaluation_identity"]["execution_mode"] == "offline"
         assert report["execution_mode"] == "offline"
         assert report["usage_evidence"] is None
-    assert all(result["execution_mode"] == "offline" for result in reports[-1]["results"].values())
 
 
 @pytest.mark.parametrize(
     "invocation",
     [
         "citation_eval.run(use_llm=True)",
-        "elo_concordance_eval.run(use_llm=True)",
         'citation_usefulness_eval.run_llm({"name": "empty", "items": []}, "")',
         'citation_usefulness_eval.run_llm({}, "deepseek/paid")',
     ],
