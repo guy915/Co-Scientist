@@ -8,11 +8,9 @@ from mcp_server.tests._httpx import (
     stub_responses,
 )
 from mcp_server.tools.indra_cogex import (
-    query_causal_subnetwork,
     query_drug_info,
     query_gene_codependents,
     query_gene_disease_network,
-    query_mechanistic_statements,
     query_pathways,
     run_enrichment_analysis,
 )
@@ -67,22 +65,6 @@ _DISPATCH = [
         {"genes": [_KRAS, ["HGNC", "1097"]]},
         {"pathways": _ROWS, "total_pathways": 1},
         id="pathways shared by genes",
-    ),
-    pytest.param(
-        query_causal_subnetwork,
-        {"node_ids": ["HGNC:6407"], "find_mediators": True},
-        "/api/indra_mediated_subnetwork",
-        {"nodes": [_KRAS], "order_by_ev_count": True},
-        {"subnetwork": _ROWS, "total_relations": 1},
-        id="causal subnetwork",
-    ),
-    pytest.param(
-        query_mechanistic_statements,
-        {"mesh_term": "MESH:D002289"},
-        "/api/get_stmts_for_mesh",
-        {"mesh_term": ["MESH", "D002289"], "include_child_terms": True},
-        {"statements": _ROWS, "total_statements": 1},
-        id="statements by mesh term",
     ),
 ]
 

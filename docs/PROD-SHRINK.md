@@ -4,8 +4,9 @@ Bring the code that stays after `docs/PROD-CUTS.md` down to the size its
 features need. Behavior does not change; only how the code is written does.
 The owner approved every lever below on 6 October 2026.
 
-**Status:** not started. Work on a folder starts once that folder's cuts in
-`docs/PROD-CUTS.md` are merged; the whole cuts plan leaves about 96k lines.
+**Status:** not started. It starts on day 1 of `docs/CAMPAIGNS.md` with the
+format change; work on a folder starts once that folder's cuts in
+`docs/PROD-CUTS.md` are merged. The whole cuts plan leaves about 96k lines.
 The expected result is about 80k, plus about 4k from the line-length change,
 reported separately.
 
@@ -49,19 +50,21 @@ Literal copy-paste is small (about 1.5k lines). The size comes from habits:
 
 ## Order
 
-Folder by folder, as the cuts finish each folder, so shrinking never touches
-code that is about to be deleted:
+The format change goes first. Then the shrink works folder by folder as the
+cuts finish each folder, so it never touches code that is about to be
+deleted. Levers that touch nearly every file run in the short windows
+`docs/CAMPAIGNS.md` schedules.
 
-1. **Engine and MCP server**, once their cuts merge: 5, 2, then 6 after the
-   model-usage work in `docs/OPTIMIZATION.md` lands.
-2. **App backend**, once its cuts merge: 4, 3, 5, 2.
-3. **Frontend**, once its cuts merge: 8, 7, 9.
-4. **Last, with no other campaign PR open:** the engine merge (11), then typed
-   models (10) one concept per PR, then the lint and format change (1) alone.
-   These touch nearly every file, so they run when nothing else is in flight.
-
-Because the 80-column limit and complexity rules stay until step 4, inline
-wrappers (2) only where the result still passes the current lint.
+1. **Day 1, first and alone:** the lint and format change (1), as the only
+   open PR that changes Python files. Every later PR in every campaign is
+   written to the new limits, so wrapper inlining (2) can go further.
+2. **Engine and MCP server**, once their cuts merge: 5, 2, then 6 after the
+   model-usage work in `docs/OPTIMIZATION.md` releases the LLM stack.
+3. **App backend**, once its cuts merge: 4, 3, 5, 2.
+4. **Frontend**, once its cuts merge: 8, 7, 9.
+5. **In windows:** the engine move (11), then typed models (10), one PR per
+   concept; concepts whose files do not overlap run at once. If time runs
+   short, typed models move to after v0.
 
 ## Rules
 

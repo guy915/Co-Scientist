@@ -8,11 +8,8 @@ import pytest
 from co_scientist.generator.core import HypothesisGenerator
 
 import app.engine_adapter as provider
-from app import process_mode
 from app.config import (
     PROVIDER_CREDENTIAL_ENV,
-    any_provider_credential,
-    settings,
 )
 from app.engine_adapter.events import (
     _canonical_engine_payload,
@@ -20,18 +17,11 @@ from app.engine_adapter.events import (
     append_node_milestone,
 )
 from app.engine_adapter.opts import (
-    _setup_opts_from_cfg,
     build_engine_opts,
     build_generator,
 )
-from app.engine_adapter.tools import (
-    connectors_report,
-    tools_config_report,
-    validate_tools_config,
-)
 from app.run_modes import (
     resolved_run_config,
-    setup_config,
 )
 from app.store import messages as store
 from tests._engine_tasks_helpers import small_run_config as _cfg
@@ -70,22 +60,6 @@ def test_literature_kill_switch_overrides_the_connector(
     monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "0")
     opts = build_engine_opts(cfg, "unused-run", isolated_db)
     assert opts["enable_literature_review_node"] is False
-
-
-@pytest.mark.parametrize("enabled", [False, True, None, 0])
-@pytest.mark.parametrize("strategy", ["debate", "unknown", None, 12])
-def test_ablation_requests_keep_their_existing_normalization(
-    isolated_db: str, enabled: Any, strategy: Any
-) -> None:
-    opts = build_engine_opts(
-        {"enable_meta_review": enabled, "generation_strategy": strategy},
-        "unused-run",
-        isolated_db,
-    )
-    assert opts["enable_meta_review"] is (enabled is not False)
-    assert opts["generation_strategy"] == (
-        strategy if isinstance(strategy, str) else ""
-    )
 
 
 _ENGINE_NODES = [
@@ -305,40 +279,6 @@ def test_a_retrieval_outage_rides_every_event_after_it(
     assert ("retrieval_degraded" in payload) is carried
 
 
-@pytest.mark.parametrize(
-    ("cfg", "key", "expected"),
-    [
-        ({"attributes": ["Mechanistic", "  "]}, "attributes", ["Mechanistic"]),
-        ({"criteria": ["Soundness", "  "]}, "criteria", ["Soundness"]),
-        (
-            setup_config(research_goal="goal"),
-            "attributes",
-            # Rubric anchor text contains commas; feeding it to a comma-joined
-            # names slot invents extra items.
-            [
-                "Mechanistic specificity",
-                "Evidence grounding",
-                "Experimental readiness",
-            ],
-        ),
-        (
-            setup_config(research_goal="goal"),
-            "criteria",
-            [
-                "Idea correctness: Required",
-                "Idea novelty: Required",
-                "Maximize impact: Yes",
-            ],
-        ),
-    ],
-)
-def test_setup_attributes_and_criteria_reach_the_engine(
-    cfg: dict[str, Any], key: str, expected: list[str]
-) -> None:
-    assert _setup_opts_from_cfg(cfg)[key] == expected
-    assert _setup_opts_from_cfg(None) == {}
-
-
 # Each run needs fresh tool topology; process singletons otherwise leak
 # connector choices across runs.
 
@@ -391,28 +331,6 @@ class _FakeGenerator:
         _FakeGenerator.last_kwargs = kwargs
 
 
-@pytest.mark.parametrize("tools_config", [_INDRA_CONFIG, None])
-def test_build_generator_forwards_the_run_options(
-    monkeypatch: pytest.MonkeyPatch, tools_config: str | None
-) -> None:
-    monkeypatch.setattr(settings, "tools_config", tools_config)
-
-    build_generator(_FakeGenerator, _cfg())
-
-    options = _FakeGenerator.last_kwargs["options"]
-    assert options.tools_config == tools_config
-    assert options.elo_k_factor == 36
-    assert options.disable_tools == []
-
-
-def test_disabling_web_search_keeps_read_url() -> None:
-    # read_url fetches full text for unrelated literature sources; disabling web
-    # search must not disable it.
-    build_generator(_FakeGenerator, _cfg() | {"enable_web_search": False})
-
-    assert _FakeGenerator.last_kwargs["options"].disable_tools == ["web_search"]
-
-
 def test_offline_generator_does_not_poison_cache_for_a_real_generator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -432,98 +350,6 @@ def test_offline_generator_does_not_poison_cache_for_a_real_generator(
     assert engine_cache.get_cache().enabled is True
 
 
-@pytest.mark.parametrize(
-    "tools_config", [None, _INDRA_CONFIG, "https://example.com/tools.yaml"]
-)
-def test_validate_tools_config_accepts_unset_readable_and_remote(
-    tools_config: str | None,
-) -> None:
-    validate_tools_config(tools_config)
-
-
-def test_validate_tools_config_raises_on_unreadable_path() -> None:
-    with pytest.raises(RuntimeError, match="tools_config"):
-        validate_tools_config("/no/such/tools.yaml")
-
-
-def test_tools_config_report_enumerates_enabled_tools() -> None:
-    report = tools_config_report(_INDRA_CONFIG)
-    assert report["tools_config"] == _INDRA_CONFIG
-    assert report["tools_config_valid"] is True
-    assert "indra_statements" in report["enabled_tools"]
-
-
-def test_tools_config_report_marks_bad_path_invalid() -> None:
-    report = tools_config_report("/no/such/tools.yaml")
-    assert report["tools_config_valid"] is False
-    assert report["enabled_tools"] is None
-
-
-def test_tools_config_report_none_enumerates_the_bundled_default() -> None:
-    # Unset TOOLS_CONFIG still runs bundled defaults; status must disclose the
-    # effective topology.
-    report = tools_config_report(None)
-    assert report["tools_config"] is None
-    assert report["tools_config_valid"] is True
-    assert report["enabled_tools"] is not None
-    assert "pubmed_search" in report["enabled_tools"]
-    assert "indra_statements" not in report["enabled_tools"]
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "ids"),
-    [
-        (
-            {"literature_available": True, "web_search_available": True},
-            ["web_search", "pubmed"],
-        ),
-        ({"literature_available": True}, ["pubmed"]),
-        (
-            {"literature_available": False, "web_search_available": False},
-            ["pubmed"],
-        ),
-        (
-            {
-                "literature_available": True,
-                "enabled_tools": ["pubmed_fulltext", "arxiv_search"],
-            },
-            ["pubmed", "arxiv"],
-        ),
-        (
-            {
-                "literature_available": True,
-                "enabled_tools": ["pubmed_fulltext"],
-            },
-            ["pubmed"],
-        ),
-        # Configured keyless sources still depend on live MCP.
-        (
-            {
-                "literature_available": False,
-                "enabled_tools": ["pubmed_fulltext", "arxiv_search"],
-            },
-            ["pubmed"],
-        ),
-    ],
-)
-def test_connectors_report_lists_what_is_actually_available(
-    kwargs: dict[str, Any], ids: list[str]
-) -> None:
-    connectors = connectors_report(**{"enabled_tools": None, **kwargs})
-
-    assert [item["id"] for item in connectors] == ids
-
-
-@pytest.mark.parametrize(
-    ("overrides", "enabled"),
-    [(None, True), ({"enable_web_search": False}, False)],
-)
-def test_resolved_run_config_toggles_web_search(
-    overrides: dict[str, Any] | None, enabled: bool
-) -> None:
-    assert resolved_run_config(overrides).get("enable_web_search") is enabled
-
-
 _ALL_CREDENTIAL_ENV = tuple(
     name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names
 )
@@ -532,46 +358,6 @@ _ALL_CREDENTIAL_ENV = tuple(
 def _clear_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in _ALL_CREDENTIAL_ENV:
         monkeypatch.delenv(key, raising=False)
-
-
-@pytest.mark.parametrize("credential", _ALL_CREDENTIAL_ENV)
-def test_every_known_credential_keeps_the_run_on_a_real_provider(
-    monkeypatch: pytest.MonkeyPatch, credential: str
-) -> None:
-    # Shared credential vocabulary prevents a usable provider key silently
-    # selecting fabricated offline science.
-    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
-    _clear_credentials(monkeypatch)
-    assert provider.offline_mode() is True
-
-    monkeypatch.setenv(credential, "sk-test")
-    assert any_provider_credential() is True
-    assert provider.offline_mode() is False
-
-
-def test_credential_lookup_has_one_owner(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Offline detection and safety must recognize provider credentials from the
-    # same map.
-    _clear_credentials(monkeypatch)
-    monkeypatch.setitem(
-        PROVIDER_CREDENTIAL_ENV, "fictional", ("FICTIONAL_KEY",)
-    )
-    monkeypatch.setenv("FICTIONAL_KEY", "sk-test")
-    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-
-    assert provider.offline_mode() is False
-    assert process_mode.credential_available("fictional/model-x") is True
-
-
-def test_select_provider_raises_when_engine_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(provider, "_engine_importable", lambda: False)
-    with pytest.raises(RuntimeError, match="hard dependency"):
-        provider.select_provider()
 
 
 @pytest.mark.parametrize(

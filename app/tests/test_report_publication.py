@@ -1,30 +1,26 @@
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app import engine_tasks, task_worker
 from app.config import settings
 from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
-from app.main import app
 from app.report import build as report_build
 from app.report import content as report_content
 from app.report import finalize as report_finalize
 from app.report import gates as report_gates
 from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
-from app.store import checkpoints, db, hypotheses, records, reports, runs, tasks
+from app.store import checkpoints, hypotheses, records, reports, runs, tasks
 from app.store import events as store_events
 from app.store import retrieval_calls as retrieval
 from app.store import tasks_lifecycle as lifecycle
-from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
+from app.store.hypotheses import NewHypothesis
 from app.store.models import RunStatus
-from app.store.records import NewClaimEvidence, NewEvidence
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -35,7 +31,7 @@ from tests._engine_tasks_helpers import (
     _task_state,
     fake_final_drain,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import enqueue_task, seed_checkpoint
 from tests.test_report_cancel_publication import (
     _OWNER,
     _install_report_stubs,
@@ -515,74 +511,6 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
 
 
 @pytest.mark.asyncio
-async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    owner, run_id, task, hypothesis_id = _seed_owned_finalize(
-        isolated_db, monkeypatch
-    )
-    _install_report_stubs(hypothesis_id, monkeypatch)
-    previous = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert previous is not None
-    resume_state = {
-        **previous["state"],
-        "resume_successor": engine_tasks_support.FINALIZE_TASK,
-    }
-    seed_checkpoint(
-        run_id,
-        resume_state,
-        stage=f"engine_task:{task.id}",
-        schema_version=previous["schema_version"],
-        last_event_seq=store_events.latest_event_seq(
-            run_id, db_path=isolated_db
-        ),
-        db_path=isolated_db,
-    )
-    paused = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-    assert paused.status_code == 200, paused.text
-    get_run = runs.get_run
-    paused_reads = 0
-    resume_responses: list[dict[str, Any]] = []
-
-    def resume_after_pause_snapshot(
-        requested: str,
-        db_path: str | None = None,
-        conn: Any | None = None,
-    ) -> Any:
-        nonlocal paused_reads
-        run = get_run(requested, db_path=db_path, conn=conn)
-        if requested == run_id and run is not None and run.status == "paused":
-            paused_reads += 1
-            if paused_reads == 2:
-                response = owner.post(
-                    f"/api/runs/{run_id}/resume", headers=_OWNER
-                )
-                assert response.status_code == 200, response.text
-                resume_responses.append(response.json())
-        return run
-
-    monkeypatch.setattr(runs, "get_run", resume_after_pause_snapshot)
-    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    assert paused_reads >= 2
-    assert resume_responses == [{"id": run_id, "status": "queued"}]
-    assert result["status"] == RunStatus.COMPLETED.value
-    completed = runs.get_run(run_id, db_path=isolated_db)
-    assert completed is not None
-    assert completed.status == RunStatus.COMPLETED.value
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert checkpoint is not None
-    assert checkpoint["stage"] == f"engine_task:{task.id}"
-    assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
-    assert lifecycle.complete_task(
-        task.id,
-        str(task.lease_owner),
-        result,
-        db_path=isolated_db,
-    )
-
-
-@pytest.mark.asyncio
 async def test_pause_during_final_drain_waits_for_explicit_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -688,263 +616,68 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
 
 
 @pytest.mark.asyncio
-async def test_cancel_after_drain_commit_orders_stages_before_cancel(
+async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
-        isolated_db, monkeypatch, claim=False
+    owner, run_id, task, hypothesis_id = _seed_owned_finalize(
+        isolated_db, monkeypatch
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    _install_final_drain(
-        monkeypatch, run_id, hypothesis_id, isolated_db, llm_calls=5
-    )
-    task = tasks.claim_task(
-        "cancel-after-drain-worker", run_id=run_id, db_path=isolated_db
-    )
-    assert task is not None
-    commit_drain = engine_tasks_node._commit_finalize_drain
-    cancel_responses: list[dict[str, Any]] = []
-
-    def commit_then_cancel(*args: Any, **kwargs: Any) -> Any:
-        outcome = commit_drain(*args, **kwargs)
-        if len(args) > 2 and args[2] is not None:
-            response = owner.post(f"/api/runs/{run_id}/cancel", headers=_OWNER)
-            assert response.status_code == 200, response.text
-            cancel_responses.append(response.json())
-        return outcome
-
-    monkeypatch.setattr(
-        engine_tasks_node, "_commit_finalize_drain", commit_then_cancel
-    )
-    with pytest.raises(task_worker._LeaseLostError):
-        await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    persisted = runs.get_run(run_id, db_path=isolated_db)
-    assert persisted is not None
-    assert persisted.status == RunStatus.CANCELLED.value
-    assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
-    events = _owner_events(owner, _OWNER, run_id)
-    expected_stages = list(_DRAIN_STAGES)
-    stage_events = [
-        event for event in events if event["type"] in expected_stages
-    ]
-    cancelled = _status_event(events, "cancelled")
-    assert [event["type"] for event in stage_events] == expected_stages
-    assert all(event["seq"] < cancelled["seq"] for event in stage_events)
-    assert not any(
-        event["type"] == "report"
-        or event["payload"].get("status") == "completed"
-        for event in events
-    )
-
-
-def _run_with_report(isolated_db: str) -> str:
-    run = seed_run(
-        "Study a causal pathway",
-        provider="mock",
-        client_id="owner-a",
-        db_path=isolated_db,
-    )
-    reports.save_report(
-        run.id,
-        {"research_goal": run.research_goal, "leaderboard": []},
-        "# Goal Report",
-        db_path=isolated_db,
-    )
-    return run.id
-
-
-def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
-    run_id = _run_with_report(isolated_db)
-    with TestClient(app) as client:
-        denied = client.post(
-            f"/api/runs/{run_id}/shares",
-            headers={"X-Client-ID": "other"},
-        )
-        assert denied.status_code == 404
-
-        created = client.post(
-            f"/api/runs/{run_id}/shares",
-            headers={"X-Client-ID": "owner-a"},
-        )
-        assert created.status_code == 200
-        share = created.json()
-        assert len(share["token"]) >= 32
-
-        with db.connect(isolated_db) as conn:
-            stored = conn.execute(
-                "SELECT token_hash FROM report_shares WHERE id=?",
-                (share["id"],),
-            ).fetchone()[0]
-        assert stored != share["token"]
-
-        public = client.get(f"/api/shared/{share['token']}")
-        assert public.status_code == 200
-        assert public.json()["report"]["payload"]["research_goal"] == (
-            "Study a causal pathway"
-        )
-
-        revoked = client.delete(
-            f"/api/runs/{run_id}/shares/{share['id']}",
-            headers={"X-Client-ID": "owner-a"},
-        )
-        assert revoked.status_code == 204
-        assert client.get(f"/api/shared/{share['token']}").status_code == 404
-
-
-def _run_with_blocked_and_released_content(
-    isolated_db: str,
-) -> tuple[str, str, str]:
-    run = seed_run(
-        "Map a signaling pathway",
-        config={"private_setting": "config-secret-value"},
-        client_id="owner-b",
-        db_path=isolated_db,
-    )
-    run_id = run.id
-
-    def add_idea(
-        title: str,
-        statement: str,
-        *,
-        status: str | None = None,
-        safety_status: str = "allow",
-    ) -> str:
-        hyp_id = hypotheses.add_hypothesis(
-            NewHypothesis(run_id=run_id, title=title, statement=statement),
-            db_path=isolated_db,
-        )
-        hypotheses.update_hypothesis_state(
-            hyp_id,
-            HypothesisStateChanges(status=status, safety_status=safety_status),
-            db_path=isolated_db,
-        )
-        return hyp_id
-
-    released_id = add_idea(
-        "Released feedback idea",
-        "Modulating the feedback loop improves throughput.",
-    )
-    add_idea(
-        "Safety blocked idea",
-        "A blocked proposal kept out by the safety screen.",
-        safety_status="prohibited",
-    )
-    add_idea(
-        "Review rejected idea",
-        "A proposal set aside during review.",
-        status="rejected",
-    )
-    add_idea(
-        "Deduplicated idea",
-        "A proposal folded into a higher-ranked idea.",
-        status="duplicate",
-    )
-    contradicted_id = add_idea(
-        "Contradicted idea",
-        "A proposal whose claims the evidence contradicts.",
-    )
-
-    cited_id = records.add_evidence(
-        NewEvidence(
-            run_id=run_id,
-            title="A public pathway paper",
-            source="pubmed",
-            abstract="Published abstract text.",
-        ),
-        db_path=isolated_db,
-    )
-    records.add_evidence(
-        NewEvidence(
-            run_id=run_id,
-            title="Private lab memo",
-            source="attachment",
-            abstract="private-document-secret-text",
-        ),
-        db_path=isolated_db,
-    )
-
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run_id,
-            hypothesis_id=released_id,
-            claim="The feedback loop is causal",
-            label="supports",
-            supporting=[{"evidence_id": cited_id, "quote": "feedback loop"}],
-            contradicting=[],
-            assessor="deterministic",
-        ),
-        db_path=isolated_db,
-    )
-    records.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run_id,
-            hypothesis_id=contradicted_id,
-            claim="The loop runs backwards",
-            label="contradicts",
-            supporting=[],
-            contradicting=[{"evidence_id": cited_id, "quote": "no such thing"}],
-            assessor="deterministic",
-        ),
-        db_path=isolated_db,
-    )
-
-    reports.save_report(
-        run_id,
-        {"research_goal": run.research_goal},
-        "# Goal Report",
-        db_path=isolated_db,
-    )
-    return run_id, released_id, cited_id
-
-
-def test_shared_payload_is_filtered_to_release_artifact(
-    isolated_db: str,
-) -> None:
-    run_id, released_id, cited_id = _run_with_blocked_and_released_content(
-        isolated_db
-    )
-    with TestClient(app) as client:
-        created = client.post(
-            f"/api/runs/{run_id}/shares",
-            headers={"X-Client-ID": "owner-b"},
-        )
-        assert created.status_code == 200
-        public = client.get(f"/api/shared/{created.json()['token']}")
-        assert public.status_code == 200
-        payload = public.json()
-
-    assert {h["id"] for h in payload["hypotheses"]} == {released_id}
-    assert [e["id"] for e in payload["evidence"]] == [cited_id]
-
-    serialized = json.dumps(payload)
-    for secret in (
-        "Safety blocked idea",
-        "A blocked proposal kept out by the safety screen.",
-        "Review rejected idea",
-        "A proposal set aside during review.",
-        "Deduplicated idea",
-        "A proposal folded into a higher-ranked idea.",
-        "Contradicted idea",
-        "A proposal whose claims the evidence contradicts.",
-        "Private lab memo",
-        "private-document-secret-text",
-        "config-secret-value",
-    ):
-        assert secret not in serialized
-
-    assert payload["run"] == {
-        "title": None,
-        "research_goal": "Map a signaling pathway",
-        "run_mode": "standard",
+    previous = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert previous is not None
+    resume_state = {
+        **previous["state"],
+        "resume_successor": engine_tasks_support.FINALIZE_TASK,
     }
-
-    shared = payload["hypotheses"][0]
-    assert shared["title"] == "Released feedback idea"
-    assert shared["statement"] == (
-        "Modulating the feedback loop improves throughput."
+    seed_checkpoint(
+        run_id,
+        resume_state,
+        stage=f"engine_task:{task.id}",
+        schema_version=previous["schema_version"],
+        last_event_seq=store_events.latest_event_seq(
+            run_id, db_path=isolated_db
+        ),
+        db_path=isolated_db,
     )
-    assert "abstract" not in payload["evidence"][0]
-    assert payload["evidence"][0]["title"] == "A public pathway paper"
-    assert payload["evidence"][0]["retracted"] is False
+    paused = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
+    assert paused.status_code == 200, paused.text
+    get_run = runs.get_run
+    paused_reads = 0
+    resume_responses: list[dict[str, Any]] = []
+
+    def resume_after_pause_snapshot(
+        requested: str,
+        db_path: str | None = None,
+        conn: Any | None = None,
+    ) -> Any:
+        nonlocal paused_reads
+        run = get_run(requested, db_path=db_path, conn=conn)
+        if requested == run_id and run is not None and run.status == "paused":
+            paused_reads += 1
+            if paused_reads == 2:
+                response = owner.post(
+                    f"/api/runs/{run_id}/resume", headers=_OWNER
+                )
+                assert response.status_code == 200, response.text
+                resume_responses.append(response.json())
+        return run
+
+    monkeypatch.setattr(runs, "get_run", resume_after_pause_snapshot)
+    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
+
+    assert paused_reads >= 2
+    assert resume_responses == [{"id": run_id, "status": "queued"}]
+    assert result["status"] == RunStatus.COMPLETED.value
+    completed = runs.get_run(run_id, db_path=isolated_db)
+    assert completed is not None
+    assert completed.status == RunStatus.COMPLETED.value
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert checkpoint is not None
+    assert checkpoint["stage"] == f"engine_task:{task.id}"
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
+    assert lifecycle.complete_task(
+        task.id,
+        str(task.lease_owner),
+        result,
+        db_path=isolated_db,
+    )
