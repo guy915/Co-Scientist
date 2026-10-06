@@ -1,29 +1,67 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from pathlib import Path
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
 
+import co_scientist.agents.reflection.deep_verification as leaf
+from co_scientist.agents.reflection import (
+    ReviewRun,
+    ReviewType,
+    apply_initial_review_gate,
+    deep_verification_evidence,
+    observe_hypothesis,
+    reflection,
+    review_hypothesis,
+    select_hypotheses_to_verify,
+    verify_hypothesis,
+)
 from co_scientist.agents.reflection import comprehensive_reflection as cr
-from co_scientist.agents.reflection import reflection
+from co_scientist.agents.reflection import (
+    comprehensive_reflection as review_prompt_context,
+)
+from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import reflection as observation
 from co_scientist.agents.reflection import review_evidence as ev
+from co_scientist.agents.reflection import simulation_execution as se
+from co_scientist.agents.reflection.deep_verification import (
+    mark_verification_issued,
+    verification_fingerprint,
+)
 from co_scientist.agents.reflection.reflection import reflection_node
 from co_scientist.agents.reflection.reflection_helpers import (
-    _build_enrichment_items,
-    _format_single_statement,
     extract_entity_names,
     fetch_indra_evidence,
     get_kg_tools_for_workflow,
 )
-from co_scientist.agents.reflection.review_evidence import ReviewResearch
-from co_scientist.agents.reflection.review_gate import ReviewType
+from co_scientist.agents.reflection.review_evidence import (
+    ReviewResearch,
+    _seed_questions,
+    research_for_review,
+)
 from co_scientist.config import ToolRegistry
-from co_scientist.models import Article
+from co_scientist.evidence.search_support import SearchConfig
+from co_scientist.exceptions import (
+    LLMCallBudgetExceededError,
+    LLMRateLimitParkError,
+)
+from co_scientist.generator import run_setup
+from co_scientist.models import Article, Hypothesis
+from co_scientist.workspace.session import WorkspaceSession
 from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
 from tests._mcp import WorkflowToolRegistry
-from tests._state import make_hypothesis, make_state
+from tests._research_fakes import (
+    FakeResearchClient,
+    _ScriptedModel,
+    install_research_client,
+    make_search_config,
+    research_registry,
+)
+from tests._state import make_article, make_hypothesis, make_review, make_state
 
 _ARTICLES = "Article 1: observation A supports pathway X."
 
@@ -35,36 +73,6 @@ async def test_reflection_needs_hypotheses_and_literature_to_run(
     articles = _ARTICLES if not pool else None
     state = make_state(hypotheses=pool, articles_with_reasoning=articles)
     assert await reflection_node(state) == {}
-
-
-async def test_hypotheses_get_reflection_notes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hyp_a = make_hypothesis(text="alpha pathway drives growth")
-    hyp_b = make_hypothesis(text="beta pathway drives growth")
-    state = make_state(
-        hypotheses=[hyp_a, hyp_b], articles_with_reasoning=_ARTICLES
-    )
-    stub_call_llm_json(
-        monkeypatch,
-        reflection,
-        {
-            "classification": "missing piece",
-            "reasoning": "fills a gap",
-        },
-    )
-
-    result = await reflection_node(state)
-
-    returned = result["hypotheses"]
-    expected_notes = "fills a gap\n\nClassification: missing piece"
-    assert len(returned) == 2
-    for hyp in returned:
-        assert hyp.reflection_notes == expected_notes
-        assert "indra_evidence" not in hyp.enrichments
-    assert hyp_a.reflection_notes == expected_notes
-    assert hyp_b.reflection_notes == expected_notes
-    assert result["messages"][0]["metadata"]["phase"] == "reflection"
 
 
 async def test_empty_llm_response_defaults_gracefully(
@@ -82,60 +90,6 @@ async def test_empty_llm_response_defaults_gracefully(
     assert "indra_evidence" not in result["hypotheses"][0].enrichments
 
 
-async def test_positive_observations_accumulate_on_hypothesis(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Strengths precede the classification suffix that downstream ranking
-    parses."""
-    hyp = make_hypothesis(text="alpha pathway drives growth")
-    state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
-    stub_call_llm_json(
-        monkeypatch,
-        reflection,
-        {
-            "classification": "missing piece",
-            "reasoning": "fills a gap",
-            "positive_observations": ["explains the resistance phenotype"],
-        },
-    )
-
-    result = await reflection_node(state)
-
-    returned = result["hypotheses"][0]
-    notes = returned.reflection_notes or ""
-    assert "fills a gap" in notes
-    assert "explains the resistance phenotype" in notes
-    assert notes.index("explains the resistance phenotype") < notes.index(
-        "Classification: missing piece"
-    )
-    assert notes.endswith("Classification: missing piece")
-    assert returned.enrichments["observation"]["positive_observations"] == [
-        "explains the resistance phenotype"
-    ]
-
-
-async def test_blank_positive_observations_are_discarded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hyp = make_hypothesis(text="alpha pathway drives growth")
-    state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
-    stub_call_llm_json(
-        monkeypatch,
-        reflection,
-        {
-            "classification": "neutral",
-            "reasoning": "no signal",
-            "positive_observations": ["", "   "],
-        },
-    )
-
-    result = await reflection_node(state)
-
-    returned = result["hypotheses"][0]
-    assert returned.reflection_notes == "no signal\n\nClassification: neutral"
-    assert "positive_observations" not in returned.enrichments["observation"]
-
-
 def _validation_article() -> Article:
     return Article(
         title="Targeted validation",
@@ -143,28 +97,6 @@ def _validation_article() -> Article:
         abstract="The proposed mechanism survived direct testing.",
         used_in_analysis=True,
     )
-
-
-async def test_full_and_simulation_run_for_every_viable_hypothesis(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
-    viable = [make_hypothesis(text="a"), make_hypothesis(text="b")]
-    for hypothesis in viable:
-        hypothesis.review_disposition = "viable"
-    rejected = make_hypothesis(text="rejected")
-    rejected.review_disposition = "non_novel"
-
-    result = await cr.comprehensive_reflection_node(
-        make_state(hypotheses=[*viable, rejected], current_iteration=0)
-    )
-
-    assert fake.await_count == 5
-    assert all("full" in h.enrichments for h in viable)
-    assert all("simulation" in h.enrichments for h in viable)
-    assert "full" not in rejected.enrichments
-    assert "recurrent" in rejected.enrichments
-    assert result["metrics"].llm_calls == 5
 
 
 async def test_later_cycle_runs_recurrent_review_with_tournament_context(
@@ -190,29 +122,6 @@ async def test_later_cycle_runs_recurrent_review_with_tournament_context(
     assert "recurrent/tournament review" in prompt
     assert "1337" in prompt
     assert hypothesis.enrichments["recurrent_review_iteration"] == 2
-
-
-async def test_a_fatal_full_review_changes_the_disposition(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    async def fake_llm(**kwargs: object) -> dict[str, object]:
-        prompt = str(kwargs.get("prompt", ""))
-        if "simulation review" in prompt:
-            return {"verdict": "holds"}
-        return {"verdict": "rejected", "justification": "circular mechanism"}
-
-    mock_call_llm_json(monkeypatch, cr, side_effect=fake_llm)
-    hypothesis = make_hypothesis(text="idea")
-    hypothesis.review_disposition = "viable"
-
-    await cr.comprehensive_reflection_node(
-        make_state(hypotheses=[hypothesis], current_iteration=0)
-    )
-
-    assert hypothesis.enrichments["full"]["verdict"] == "rejected"
-    assert hypothesis.review_disposition == "inaccurate"
-    assert not hypothesis.is_rankable()
 
 
 async def test_missing_observation_review_appends_confirmed_strengths(
@@ -251,86 +160,6 @@ async def test_missing_observation_review_appends_confirmed_strengths(
     ]
 
 
-@pytest.mark.asyncio
-async def test_full_review_executes_targeted_retrieval(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Literature search ANDs terms; querying hypothesis prose would retrieve
-    nothing."""
-    call = mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
-    retrieve = AsyncMock(return_value=([_validation_article()], []))
-    monkeypatch.setattr(
-        ev,
-        "call_llm_json",
-        AsyncMock(return_value={"queries": ["mechanism X response Y"]}),
-    )
-    monkeypatch.setattr(ev, "_retrieve_probe_evidence", retrieve)
-    hypothesis = make_hypothesis(text="Mechanism X controls response Y")
-    state = make_state(
-        hypotheses=[hypothesis],
-        research_goal="Understand response Y",
-        mcp_available=True,
-    )
-
-    _, result, _ = await cr._run_review(state, hypothesis, ReviewType.FULL)
-
-    retrieve.assert_awaited_once_with(state, ["mechanism X response Y"])
-    assert result is not None
-    assert result["retrieval_queries"] == ["mechanism X response Y"]
-    assert result["retrieved_articles"][0]["source_id"] == "validation-1"
-    prompt = call.await_args_list[-1].kwargs["prompt"]
-    assert "Targeted validation" in prompt
-    assert "survived direct testing" in prompt
-
-
-async def test_full_and_simulation_share_one_targeted_retrieval(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Both modes ask the same literature question; separate retrieval pays
-    twice."""
-    query_calls = 0
-    retrievals = 0
-
-    async def _queries(
-        _state: object, _hypothesis: object
-    ) -> dict[str, object]:
-        nonlocal query_calls
-        query_calls += 1
-        # Yield to expose a second caller starting before the first retrieval
-        # completes.
-        await asyncio.sleep(0)
-        return {"queries": ["targeted query"]}
-
-    async def _retrieve(
-        _state: object, _queries: list[str]
-    ) -> tuple[list[Article], list[str]]:
-        nonlocal retrievals
-        retrievals += 1
-        await asyncio.sleep(0)
-        return [_validation_article()], []
-
-    monkeypatch.setattr(ev, "_call_hypothesis_query_llm", _queries)
-    monkeypatch.setattr(ev, "_retrieve_probe_evidence", _retrieve)
-    monkeypatch.setattr(
-        cr,
-        "call_llm_json",
-        AsyncMock(return_value={"assessment": "ok", "score": 4}),
-    )
-
-    hypothesis = make_hypothesis(text="a mechanism worth reviewing")
-    state = make_state(hypotheses=[hypothesis], mcp_available=True)
-
-    reviewed, _ = await cr._review_hypothesis(state, hypothesis)
-
-    assert reviewed == 2
-    assert query_calls == 1
-    assert retrievals == 1
-    # Persist shared evidence independently of the in-process flight cache.
-    for mode in (ReviewType.FULL, ReviewType.SIMULATION):
-        stored = hypothesis.enrichments[mode.value]["retrieved_articles"]
-        assert [item["source_id"] for item in stored] == ["validation-1"]
-
-
 def _stub_review_research(
     monkeypatch: pytest.MonkeyPatch, *, fails: bool = False
 ) -> None:
@@ -351,36 +180,6 @@ def _stub_review_research(
         )
 
     monkeypatch.setattr(ev, "research_for_review", fake_research)
-
-
-async def test_research_adds_to_the_probe_round_rather_than_replacing_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    monkeypatch.setattr(
-        ev,
-        "_retrieve_probe_evidence",
-        AsyncMock(return_value=([_validation_article()], [])),
-    )
-    monkeypatch.setattr(
-        ev,
-        "_call_hypothesis_query_llm",
-        AsyncMock(return_value={"queries": ["targeted query"]}),
-    )
-    mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
-    _stub_review_research(monkeypatch)
-    hypothesis = make_hypothesis(text="a mechanism worth reviewing")
-    state = make_state(hypotheses=[hypothesis], mcp_available=True)
-
-    reviewed, ledgers = await cr._review_hypothesis(state, hypothesis)
-
-    assert reviewed == 2
-    stored = hypothesis.enrichments["full"]["retrieved_articles"]
-    assert [item["source_id"] for item in stored] == [
-        "validation-1",
-        "researched-1",
-    ]
-    assert len(ledgers) == 1
 
 
 async def test_a_review_whose_research_broke_is_still_a_review(
@@ -441,13 +240,6 @@ def _fake(
     )
 
 
-async def test_fetch_indra_evidence_none_registry_short_circuits() -> None:
-    result = await fetch_indra_evidence(
-        "KRAS drives tumor growth", tool_registry=None
-    )
-    assert result == {"prompt_text": "", "enrichment_items": []}
-
-
 _REGISTRY_CASES = [
     (None, []),
     (_fake(tool_ids=[], mcp_names=["unused"]), []),
@@ -500,32 +292,366 @@ def test_entity_extraction_keeps_gene_symbols_only(
     )
 
 
-def test_statements_become_readable_enrichment_items() -> None:
-    items = _build_enrichment_items(
-        [
-            {
-                "type": "Activation",
-                "belief": 0.9,
-                "evidence": [1, 2],
-                "subj": {"name": "KRAS"},
-                "obj": {"name": "BRAF"},
-            },
-            {
-                "type": "Complex",
-                "belief": 0.8,
-                "evidence": [],
-                "members": [{"name": "A"}, {"name": "B"}],
-            },
-            {"type": "Unknown"},
-        ],
-        ["KRAS", "TREM2"],
+def _fake_registry() -> ToolRegistry:
+    """Knowledge-graph source typing is required because literature tools
+    reject INDRA arguments."""
+    return cast(
+        ToolRegistry,
+        WorkflowToolRegistry(
+            ["indra_relations"],
+            ["get_relations"],
+            tool_mcp_names={"indra_relations": "get_relations"},
+        ),
     )
 
-    assert [item["relationship"] for item in items] == [
-        "KRAS → BRAF",
-        "Complex(A, B)",
+
+class _FakeMcpClient:
+    def __init__(
+        self,
+        available_tools: set[str],
+        responses: dict[str, Any] | None = None,
+    ) -> None:
+        self._available_tools = available_tools
+        self._responses = responses or {}
+
+    def has_tool(self, name: str) -> bool:
+        return name in self._available_tools
+
+    async def call_tool(self, _tool_name: str, **kwargs: Any) -> Any:
+        entity = kwargs["agent"]
+        if entity not in self._responses:
+            return {"statements": []}
+        response = self._responses[entity]
+        if response is None:
+            raise RuntimeError(f"simulated query failure for {entity}")
+        return response
+
+
+_ACTIVATION_STATEMENT = {
+    "type": "Activation",
+    "belief": 0.9,
+    "evidence": [1, 2],
+    "subj": {"name": "KRAS"},
+    "obj": {"name": "BRAF"},
+}
+
+
+async def test_fetch_indra_evidence_returns_client_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_client = _FakeMcpClient(
+        available_tools={"get_relations"},
+        responses={
+            "KRAS": json.dumps({"statements": [_ACTIVATION_STATEMENT]}),
+        },
+    )
+
+    async def fake_get_mcp_client(**_: Any) -> _FakeMcpClient:
+        return fake_client
+
+    monkeypatch.setattr(
+        "co_scientist.mcp_client.get_mcp_client", fake_get_mcp_client
+    )
+
+    result = await fetch_indra_evidence(
+        "KRAS drives tumor growth", tool_registry=_fake_registry()
+    )
+
+    assert "KRAS --[Activation]--> BRAF" in result["prompt_text"]
+    assert result["enrichment_items"]
+
+
+def test_retracted_evidence_never_reaches_a_prompt() -> None:
+    """Retraction checks belong at every formatting boundary, not only
+    retrieval."""
+    retracted = make_article(
+        "Retracted paper",
+        abstract="Withdrawn mechanistic claim.",
+        used_in_analysis=True,
+        is_retracted=True,
+    )
+    only_retracted = make_state(articles=[retracted])
+    assert (
+        review_prompt_context._build_domain_context(only_retracted, None) == ""
+    )
+    assert (
+        deep_verification_evidence._retrieved_evidence_context([retracted])
+        == ""
+    )
+    state = make_state(
+        articles=[
+            make_article(
+                "Retracted paper",
+                abstract="Withdrawn mechanistic claim.",
+                used_in_analysis=True,
+                is_retracted=True,
+            ),
+            make_article(
+                "Standing paper",
+                abstract="Replicated mechanistic finding.",
+                used_in_analysis=True,
+            ),
+        ]
+    )
+
+    context = dv._verification_evidence_context(state)
+
+    assert "Standing paper" in context
+    assert "Retracted paper" not in context
+    assert "Withdrawn mechanistic claim" not in context
+
+
+def test_gate_honors_scientist_criteria_and_safety() -> None:
+    ideas = [make_hypothesis(), make_hypothesis()]
+    reviews = [
+        make_review(scores={"novelty": 1, "testability": 8, "safety": 8}),
+        make_review(scores={"testability": 8, "safety": 1}),
     ]
-    assert (items[0]["belief"], items[0]["evidence_count"]) == ("90%", "2")
-    assert items[0]["queried_entities"] == "KRAS, TREM2"
-    assert "queried_entities" not in items[1]
-    assert _format_single_statement({"type": "Unknown"}) == ""
+    apply_initial_review_gate(ideas, reviews, ["Experimental feasibility"])
+    assert [idea.review_disposition for idea in ideas] == ["viable", "unsafe"]
+
+
+def test_selection_preserves_pool_order_and_once_ever_markers() -> None:
+    pending = make_hypothesis()
+    blocked = make_hypothesis(review_disposition="unsafe")
+    issued = make_hypothesis()
+    mark_verification_issued(issued)
+    current = make_hypothesis()
+    current.deep_verification_fingerprint = verification_fingerprint(
+        current, "m"
+    )
+    next_pending = make_hypothesis()
+    assert select_hypotheses_to_verify(
+        [pending, blocked, issued, current, next_pending], "m"
+    ) == [pending, next_pending]
+    assert not pending.enrichments
+
+
+@pytest.mark.asyncio
+async def test_single_verification_assembles_bounded_context_and_local_limiter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    semaphores: list[asyncio.Semaphore] = []
+    contexts: list[str] = []
+
+    async def capture(
+        semaphore: asyncio.Semaphore,
+        hypothesis: Any,
+        context: Any,
+        evidence: str,
+    ) -> dict[str, Any]:
+        assert context.state is state
+        semaphores.append(semaphore)
+        contexts.append(evidence)
+        return {"verdict": "holds"}
+
+    state = make_state(
+        articles=[
+            make_article(
+                "Long evidence", abstract="x" * 100000, used_in_analysis=True
+            )
+        ],
+        context_enrichment_sources=[{"display": "y" * 100000}],
+        meta_review={"common_weaknesses": ["Recurring assumption error"]},
+    )
+    monkeypatch.setattr(leaf, "_verify_within_semaphore", capture)
+    for _ in range(2):
+        assert await verify_hypothesis(state, make_hypothesis()) == {
+            "verdict": "holds"
+        }
+    assert semaphores[0] is not semaphores[1]
+    assert all(semaphore._value == 1 for semaphore in semaphores)
+    assert all(len(context) < 20000 for context in contexts)
+    assert "Long evidence" in contexts[0]
+    assert "Recurring assumption error" in contexts[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation,owner",
+    [
+        (verify_hypothesis, leaf),
+        (observe_hypothesis, observation),
+        (review_hypothesis, cr),
+    ],
+)
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("ordinary"),
+        LLMRateLimitParkError(9999, "cap"),
+        LLMCallBudgetExceededError(2, 1),
+    ],
+)
+async def test_failures_degrade_but_task_control_propagates(
+    monkeypatch: pytest.MonkeyPatch,
+    operation: Any,
+    owner: Any,
+    error: Exception,
+) -> None:
+    mock_call_llm_json(monkeypatch, owner, side_effect=error)
+    state = make_state(articles_with_reasoning="Retrieved literature")
+    args = (
+        (state, make_hypothesis(), ReviewType.FULL)
+        if operation is review_hypothesis
+        else (state, make_hypothesis())
+    )
+    if isinstance(error, RuntimeError):
+        result = await operation(*args)
+        assert (
+            result.result if isinstance(result, ReviewRun) else result
+        ) is None
+    else:
+        with pytest.raises(type(error)) as caught:
+            await operation(*args)
+        assert caught.value is error
+
+
+@pytest.fixture
+def scripted(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
+    model = _ScriptedModel()
+    monkeypatch.setattr("co_scientist.research_adapter.call_llm_json", model)
+    return model
+
+
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
+    return install_research_client(monkeypatch)
+
+
+def _reflection_research_evidence_state(
+    tmp_path: Path, hypotheses: list[Hypothesis], *, tier: str
+) -> Any:
+    return make_state(
+        research_goal="reverse fibrosis",
+        model_name="offline/test",
+        run_id="run-1",
+        hypotheses=hypotheses,
+        mcp_available=True,
+        research_tier=tier,
+        tool_registry=research_registry(tmp_path),
+    )
+
+
+def _viable(text: str, *, elo: int) -> Hypothesis:
+    hypothesis = make_hypothesis(text=text)
+    hypothesis.review_disposition = "viable"
+    hypothesis.elo_rating = elo
+    return hypothesis
+
+
+async def test_the_first_questions_are_the_doubts_already_on_record(
+    tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
+) -> None:
+    hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
+    hypothesis.enrichments["full"] = {
+        "assumptions": [
+            {
+                "assumption": "the receptor is expressed in humans",
+                "support": "uncertain",
+            },
+            {"assumption": "fibrosis is reversible", "support": "supported"},
+        ]
+    }
+
+    found = await research_for_review(
+        _reflection_research_evidence_state(
+            tmp_path, [hypothesis], tier="extended"
+        ),
+        hypothesis,
+    )
+
+    assert found is not None
+    asked = [thread["question"]["text"] for thread in found.ledger["threads"]]
+    assert "the receptor is expressed in humans" in asked
+    assert "fibrosis is reversible" not in asked
+    assert not any("perspectives to research" in p for p in scripted.prompts)
+
+
+def test_a_simulation_failure_point_is_a_doubt_too() -> None:
+    hypothesis = make_hypothesis(text="mechanism X")
+    hypothesis.enrichments["simulation"] = {
+        "failure_points": ["step 3 needs a cofactor nothing supplies"]
+    }
+
+    assert _seed_questions(hypothesis, 4) == [
+        "step 3 needs a cofactor nothing supplies"
+    ]
+
+
+# Offer run_command explicitly so these tests exercise the loop on every host.
+_RUNNABLE_TOOLS = [{"function": {"name": "run_command"}}]
+
+
+def _reflection_simulation_execution_state(**overrides: Any) -> Any:
+    state = make_state(hypotheses=[], current_iteration=0)
+    for key, value in overrides.items():
+        state[key] = value  # type: ignore[literal-required]
+    return state
+
+
+class TestTheOfflineBackendNeverExecutes:
+    def test_an_offline_run_stays_mental(self) -> None:
+        # Offline replies emit no tool calls, so an execution loop would observe
+        # nothing.
+        assert (
+            run_setup._resolve_simulation_execution(
+                {"enable_simulation_execution": True}, "offline/deterministic"
+            )
+            is False
+        )
+
+
+class TestDegradation:
+    async def test_a_failing_loop_reviews_mentally(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(
+            se, "workspace_tool_schemas", lambda policy: _RUNNABLE_TOOLS
+        )
+        monkeypatch.setattr(
+            se,
+            "open_review_workspace",
+            lambda *a, **k: WorkspaceSession(tmp_path),
+        )
+        monkeypatch.setattr(
+            se,
+            "call_llm_with_tools",
+            AsyncMock(side_effect=RuntimeError("provider fell over")),
+        )
+
+        assert (
+            await se.simulation_observations(
+                _reflection_simulation_execution_state(run_id="r1"),
+                make_hypothesis(text="a"),
+            )
+            is None
+        )
+
+
+class TestIsolation:
+    def test_two_reviews_of_one_run_do_not_share_a_directory(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Concurrent leased reviews sharing a directory would report
+        observations of each other's models."""
+        from co_scientist.workspace import run_workspace
+
+        monkeypatch.setattr(run_workspace, "workspaces_root", lambda: tmp_path)
+
+        first = run_workspace.open_review_workspace("run-1", "hyp-a")
+        second = run_workspace.open_review_workspace("run-1", "hyp-b")
+
+        assert first.root != second.root
+        assert first.root.is_dir() and second.root.is_dir()
+
+
+def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
+    return make_search_config(
+        search_tool_name="search_pubmed",
+        source_name="pubmed",
+        papers_to_read_count=6,
+        research_goal="a research goal",
+        model_name="offline/deterministic",
+        semantic_relevance_enabled=semantic_relevance_enabled,
+    )

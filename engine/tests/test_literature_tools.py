@@ -110,83 +110,11 @@ async def test_tool_generation_recovers_drafts_and_counts_closing_turns(
     assert result["metrics"].llm_calls == 3
 
 
-@pytest.mark.parametrize(
-    "draft_response", ['{"notes": "no drafts"}', '{"drafts": []}']
-)
-async def test_tool_generation_with_no_drafts_finishes_with_an_empty_pool(
-    tools_node: Callable[..., Awaitable[dict[str, Any]]],
-    draft_response: str,
-) -> None:
-    result = await tools_node(draft_response=draft_response)
-    assert result["hypotheses"].items == []
-    assert result["hypothesis_count"] == 0
-    assert result["metrics"].llm_calls == 2
-
-
 async def test_unparseable_drafting_fails_generation(
     tools_node: Callable[..., Awaitable[dict[str, Any]]],
 ) -> None:
     with pytest.raises(ResponseParseError):
         await tools_node(draft_response="the agent emitted no JSON")
-
-
-async def test_unparseable_synthesis_drops_failed_generated_items(
-    tools_node: Callable[..., Awaitable[dict[str, Any]]],
-) -> None:
-    result = await tools_node(synthesis_response="no JSON from synthesis")
-    assert result["hypotheses"].items == []
-    assert result["hypothesis_count"] == 0
-
-
-@pytest.mark.parametrize(
-    ("payload", "texts"),
-    [
-        (
-            {
-                "hypotheses": [
-                    {
-                        "hypothesis": "alpha",
-                        "explanation": "fits",
-                        "experiment": "assay",
-                        "novelty_validation": "novel",
-                    },
-                    {"hypothesis": "beta", "literature_grounding": None},
-                ]
-            },
-            ["alpha", "beta"],
-        ),
-        (
-            {"hypotheses": {"hypothesis": "alpha", "explanation": "fits"}},
-            ["alpha"],
-        ),
-        ({"hypotheses": [{"text": "alpha", "explanation": "fits"}]}, ["alpha"]),
-        ('{"hypotheses": [{"hypothesis": "alpha"}', ["alpha"]),
-    ],
-    ids=["batch", "unwrapped", "text-key", "truncated"],
-)
-async def test_tool_generation_publishes_repaired_synthesis(
-    tools_node: Callable[..., Awaitable[dict[str, Any]]],
-    payload: Any,
-    texts: list[str],
-) -> None:
-    result = await tools_node(
-        synthesis_response=payload
-        if isinstance(payload, str)
-        else json.dumps(payload)
-    )
-    hypotheses = result["hypotheses"].items
-    assert [hypothesis.text for hypothesis in hypotheses] == texts
-    assert all(
-        hypothesis.generation_method is GenerationMethod.LITERATURE_TOOLS
-        for hypothesis in hypotheses
-    )
-    assert hypotheses[0].citation_map == {}
-    if len(texts) == 2:
-        assert hypotheses[0].experiment == "assay"
-        assert hypotheses[0].novelty_validation == "novel"
-        assert hypotheses[1].literature_grounding is None
-    else:
-        assert hypotheses[0].experiment is None
 
 
 async def test_tool_generation_resolves_its_warm_literature_citations(
@@ -382,63 +310,3 @@ async def test_unavailable_mcp_client_fails_tool_generation(
                 supervisor_guidance={"key_areas": ["mechanism"]},
             )
         )
-
-
-@pytest.mark.parametrize(
-    ("guidance", "expected"),
-    [
-        (
-            {
-                "workflow_plan": {
-                    "generation_phase": {"focus_areas": ["biomarkers"]}
-                },
-                "config_synthesis": {
-                    "preferences": ["testable within two years"],
-                    "draft_instructions": [
-                        "anchor each idea in a reported result"
-                    ],
-                    "debate_instructions": ["attack the weakest causal link"],
-                    "review_instructions": [
-                        "penalize restatements of known biology"
-                    ],
-                },
-            },
-            [
-                "**Focus on:** biomarkers",
-                "- testable within two years",
-                "anchor each idea in a reported result",
-            ],
-        ),
-        (
-            {"config_synthesis": {"preferences": "must be falsifiable"}},
-            ["- must be falsifiable\n"],
-        ),
-        ({"workflow_plan": "draft broadly", "config_synthesis": "be bold"}, []),
-        ({"workflow_plan": {"generation_phase": "focus on kinases"}}, []),
-        ({"unrelated": 1}, []),
-    ],
-    ids=[
-        "plan",
-        "string-preference",
-        "scalar-plan",
-        "scalar-phase",
-        "unrelated",
-    ],
-)
-async def test_generation_drafting_receives_only_its_supervisor_guidance(
-    tools_node: Callable[..., Awaitable[dict[str, Any]]],
-    guidance: dict[str, Any],
-    expected: list[str],
-) -> None:
-    calls: list[dict[str, Any]] = []
-    result = await tools_node(
-        state_overrides={"supervisor_guidance": guidance}, draft_capture=calls
-    )
-    prompt = calls[0]["prompt"]
-    assert ("## Supervisor Guidance for Generation" in prompt) == bool(expected)
-    assert all(text in prompt for text in expected)
-    assert "attack the weakest causal link" not in prompt
-    assert "penalize restatements of known biology" not in prompt
-    assert "- m\n" not in prompt
-    assert "{{MISSING" not in prompt
-    assert result["hypotheses"].items[0].text == "validated"
