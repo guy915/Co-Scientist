@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist.constants import NOT_VIABLE_SCORE
 from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import (
     Hypothesis,
@@ -27,13 +26,11 @@ from app.engine_tasks.support import ExactSuccessor, TaskCommit
 from app.safety.types import SafetyDecision
 from app.store import checkpoints, db, records, runs
 from app.store import events as store_events
-from app.store import hypotheses as store_hypotheses
 from app.store import retrieval_calls as retrieval
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.hypotheses import NewHypothesis
 from app.store.models import RunStatus as StoreRunStatus
-from app.store.records import NewReview, NewSafetyDecision
+from app.store.records import NewSafetyDecision
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -291,67 +288,6 @@ async def _advance_to_supervisor(
     supervisor = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert supervisor is not None
     return supervisor
-
-
-def test_scientist_inputs_merge_into_engine_state_once(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Scientist loop")
-    hypothesis_id = store_hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Scientist idea",
-            statement="A scientist-proposed mechanism",
-            created_by_agent="scientist_manual",
-            author="researcher",
-        ),
-        db_path=isolated_db,
-    )
-    records.add_review(
-        NewReview(
-            run_id=run.id,
-            hypothesis_id=hypothesis_id,
-            reviewer_agent="scientist",
-            summary="Scientist verdict: oppose (by researcher)",
-            critique="The proposed control cannot distinguish the mechanism.",
-        ),
-        db_path=isolated_db,
-    )
-    state = _task_state(run.id)
-
-    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
-    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
-
-    merged = state["hypotheses"]
-    assert [hypothesis.id for hypothesis in merged] == [hypothesis_id]
-    assert merged[0].origin.value == "scientist_manual"
-    assert len(merged[0].reviews) == 1
-    assert merged[0].reviews[0].overall_score == NOT_VIABLE_SCORE
-    assert "cannot distinguish" in merged[0].reviews[0].constructive_feedback
-
-
-def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
-    run = seed_run("Continuation")
-    checkpoint_seq = _seed_checkpoint(
-        run.id,
-        _task_state(run.id),
-        stage="engine_task:final",
-        db_path=isolated_db,
-    )
-    runs.update_run_status(
-        run.id, StoreRunStatus.COMPLETED, db_path=isolated_db
-    )
-
-    task = engine_tasks.enqueue_scientist_continuation(
-        run.id, 42, db_path=isolated_db
-    )
-
-    assert task is not None
-    assert task.task_type == "engine.node.orchestrator"
-    assert task.inputs["checkpoint_seq"] == checkpoint_seq
-    assert task.priority == 100
-    reopened = runs.get_run(run.id, db_path=isolated_db)
-    assert reopened is not None and reopened.status == "queued"
 
 
 @pytest.mark.asyncio

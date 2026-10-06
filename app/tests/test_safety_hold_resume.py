@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from typing import Any
 
 import pytest
@@ -12,15 +14,21 @@ from fastapi.testclient import TestClient
 from app import task_worker
 from app.config import settings
 from app.safety import POLICY_VERSION, SafetyDecision, ScreenSubject
-from app.store import records, reports, runs, tasks
-from app.store import records as store
+from app.store import (
+    records,
+    reports,
+    runs,
+    tasks,
+)
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus
-from app.store.models import RunStatus as StoreRunStatus
+from app.store.records import NewSafetyDecision
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._client import make_client as _client
-from tests._engine_tasks_helpers import _install_runtime
+from tests._engine_tasks_helpers import (
+    _install_runtime,
+)
 from tests._store_helpers import (
     enqueue_task,
     seed_run,
@@ -228,7 +236,7 @@ def test_only_a_paused_run_with_an_unresolved_review_awaits_a_decision(
             json={"resolution": "approved"},
         )
     if paused:
-        runs.update_run_status(run_id, StoreRunStatus.PAUSED)
+        runs.update_run_status(run_id, RunStatus.PAUSED)
 
     detail = client.get(f"/api/runs/{run_id}", headers=headers).json()
 
@@ -238,13 +246,12 @@ def test_only_a_paused_run_with_an_unresolved_review_awaits_a_decision(
 def _run_with_held_decision(
     client: TestClient, headers: dict[str, str]
 ) -> tuple[str, str]:
-    from app.store.records import NewSafetyDecision as StoreNewSafetyDecision
 
     created = _create_run(
         client, "Review a sensitive research protocol", headers=headers
     ).json()
-    store.add_safety_decision(
-        StoreNewSafetyDecision(
+    records.add_safety_decision(
+        NewSafetyDecision(
             run_id=created["id"],
             stage="intake",
             decision="hold",
@@ -255,7 +262,7 @@ def _run_with_held_decision(
             requires_review=True,
         )
     )
-    decision_id = store.list_safety_decisions(created["id"])[0]["id"]
+    decision_id = records.list_safety_decisions(created["id"])[0]["id"]
     return created["id"], decision_id
 
 
@@ -279,7 +286,7 @@ def test_safety_adjudication_is_identified_and_single_use(
         json={"resolution": "approved"},
     )
     assert approved.status_code == 200
-    assert store.safety_stage_is_approved(
+    assert records.safety_stage_is_approved(
         run_id, "intake", "coscientist-safety-v2"
     )
 
@@ -345,3 +352,59 @@ def test_held_hypothesis_adjudication_records_without_blocking(
         client.get(f"/api/runs/{run_id}", headers=headers).json()["status"]
         == "draft"
     )
+
+
+def test_adjudication_rejection_does_not_overwrite_cancel(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    owner = make_client()
+    created = _create_run(
+        owner, "Safety rejection cancellation", tier="express"
+    )
+    assert created.status_code == 200
+    run_id = str(created.json()["id"])
+    runs.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)
+    records.add_safety_decision(
+        NewSafetyDecision(
+            run_id=run_id,
+            stage="intake",
+            decision="hold",
+            reason="Needs review",
+            matches=[],
+            category="uncertain",
+            policy_version="coscientist-safety-v2",
+            requires_review=True,
+        ),
+        db_path=isolated_db,
+    )
+    [decision] = records.list_safety_decisions(run_id, db_path=isolated_db)
+    decision_id = int(decision["id"])
+
+    resolved = Event()
+    release_adjudication = Event()
+    original_resolve = records.resolve_safety_decision
+
+    def resolve_then_wait(*args: Any, **kwargs: Any) -> bool:
+        result = original_resolve(*args, **kwargs)
+        resolved.set()
+        assert release_adjudication.wait(timeout=5)
+        return result
+
+    monkeypatch.setattr(records, "resolve_safety_decision", resolve_then_wait)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        adjudication = pool.submit(
+            owner.post,
+            f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
+            json={"resolution": "rejected"},
+        )
+        assert resolved.wait(timeout=5)
+        assert owner.post(f"/api/runs/{run_id}/cancel").status_code == 200
+        release_adjudication.set()
+        response = adjudication.result(timeout=5)
+
+    assert response.status_code == 409, response.text
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == RunStatus.CANCELLED.value
+    [decision] = records.list_safety_decisions(run_id, db_path=isolated_db)
+    assert decision["resolution"] == "rejected"
