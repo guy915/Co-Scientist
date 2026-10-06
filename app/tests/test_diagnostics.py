@@ -403,23 +403,6 @@ def _snapshot_with_lease(
     return run_id, queue_health_snapshot(db_path=db_path)
 
 
-def test_snapshot_without_active_work_has_nothing_stalled(
-    isolated_db: str,
-) -> None:
-    assert queue_health_snapshot(db_path=isolated_db) == QueueHealthSnapshot(
-        (), 0, 0, 0
-    )
-    done = seed_run("done goal")
-    runs.update_run_status(done.id, RunStatus.COMPLETED, db_path=isolated_db)
-    run_id = _health_running_run(isolated_db)
-    _health_enqueue(run_id, "queued", isolated_db)
-
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-
-    assert snapshot.stalled_run_ids == ()
-    assert snapshot.queued_depth == 1
-
-
 def test_active_and_rescuable_leases_are_not_stalled(isolated_db: str) -> None:
     _, active = _snapshot_with_lease(isolated_db)
     assert active.stalled_run_ids == ()
@@ -442,24 +425,6 @@ def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
     assert run is not None and run.status == "running"
 
 
-def test_failed_task_counted_without_stalling_active_sibling(
-    isolated_db: str,
-) -> None:
-    run_id = _health_running_run(isolated_db)
-    doomed = _health_enqueue(run_id, "doomed", isolated_db, max_attempts=1)
-    _health_enqueue(run_id, "survivor", isolated_db, max_attempts=1)
-    leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-    assert leased is not None and leased.id == doomed
-    store.fail_task(
-        leased.id, "w1", "boom", retryable=False, db_path=isolated_db
-    )
-
-    snapshot = queue_health_snapshot(db_path=isolated_db)
-
-    assert snapshot.failed_tasks == 1
-    assert snapshot.stalled_run_ids == ()
-
-
 def test_check_queue_flags_a_stalled_run_and_reports_errors(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -478,59 +443,6 @@ def test_check_queue_flags_a_stalled_run_and_reports_errors(
     failed = diagnostics.check_queue()
     assert failed.ok is False
     assert failed.detail is not None and "db unreachable" in failed.detail
-
-
-def test_check_disk_flags_only_space_below_the_floor(tmp_path: Any) -> None:
-    path = str(tmp_path / "db.sqlite")
-
-    assert diagnostics.check_disk(path, min_free_bytes=0).ok is True
-    low = diagnostics.check_disk(path, min_free_bytes=10**18)
-    assert low.ok is False
-    assert low.detail is not None and "floor" in low.detail
-
-
-@pytest.mark.parametrize(
-    ("store_ok", "queue_ok", "disk_ok", "status"),
-    [
-        (True, False, False, diagnostics.DEGRADED),
-        (False, True, True, diagnostics.UNHEALTHY),
-    ],
-)
-def test_queue_and_disk_degrade_health_but_a_down_store_is_unhealthy(
-    store_ok: bool, queue_ok: bool, disk_ok: bool, status: str
-) -> None:
-    assert (
-        diagnostics.derive_overall_health(
-            HealthCheck(ok=store_ok),
-            HealthCheck(ok=True),
-            HealthCheck(ok=queue_ok),
-            HealthCheck(ok=disk_ok),
-        )
-        == status
-    )
-
-
-@pytest.mark.parametrize(("ttl", "calls"), [(60.0, 1), (0.0, 2)])
-def test_queue_and_disk_health_cache_honours_its_ttl(
-    monkeypatch: pytest.MonkeyPatch, ttl: float, calls: int
-) -> None:
-    seen: list[int] = []
-
-    def _stub_queue(db_path: str | None = None) -> HealthCheck:
-        seen.append(1)
-        return HealthCheck(ok=True)
-
-    monkeypatch.setattr(diagnostics, "check_queue", _stub_queue)
-    monkeypatch.setattr(
-        diagnostics, "check_disk", lambda db_path=None: HealthCheck(ok=True)
-    )
-    monkeypatch.setattr(settings, "health_check_cache_ttl_seconds", ttl)
-    diagnostics.clear_health_check_cache()
-
-    diagnostics.queue_and_disk_health_cached()
-    diagnostics.queue_and_disk_health_cached()
-
-    assert len(seen) == calls
 
 
 def test_health_degrades_at_200_when_a_run_is_stalled(

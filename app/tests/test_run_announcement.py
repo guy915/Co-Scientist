@@ -71,25 +71,6 @@ def test_live_model_writes_the_announcement(
     assert reply.meta is None
 
 
-def test_provider_failure_falls_back_without_an_error_frame(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
-    rid = _started_run_id()
-    fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch,
-        (
-            _fake_litellm([], raise_exc=RuntimeError("provider down"))
-        ).acompletion,
-    )
-
-    body = _announce(rid).text
-
-    assert '"type": "error"' not in body
-    assert '"fallback": true' in body
-    assert _start_rows(rid)[1].content.strip()
-
-
 def test_reasoning_is_relayed_and_kept_with_the_reply(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:

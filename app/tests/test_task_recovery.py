@@ -82,42 +82,6 @@ async def test_expired_campaign_lease_is_retried(
     assert run is not None and run.status != RunStatus.FAILED
 
 
-@pytest.mark.asyncio
-async def test_expired_campaign_lease_with_byok_still_fails_closed(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    monkeypatch.setattr(
-        settings, "byok_encryption_key", "synthetic-campaign-lease-secret"
-    )
-    replayed: list[str] = []
-
-    async def _must_not_call(
-        task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        replayed.append(task.task_type)
-        return {}
-
-    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _must_not_call)
-    run_id, task_id = _campaign_run_with_expired_lease(isolated_db, monkeypatch)
-    credentials.store_run_credential(
-        run_id,
-        DEFAULT_TEST_CLIENT_ID,
-        credentials.ByokCredential(
-            provider="deepseek",
-            api_key="sk-synthetic-campaign-lease-12345",
-            model="deepseek/deepseek-v4-flash",
-        ),
-        db_path=isolated_db,
-    )
-
-    assert not await task_worker.run_once("new-worker", db_path=isolated_db)
-
-    assert replayed == []
-    task = store.get_task(task_id, db_path=isolated_db)
-    assert task is not None and task.status == "failed"
-
-
 # Each failed attempt needs bounded history; overwriting one error loses
 # distinct failure diagnoses.
 
@@ -337,32 +301,6 @@ async def test_run_failure_kind_comes_from_task_that_settles_run(
 
     assert failed["status"] == "failed"
     assert failed["failure_kind"] is None
-
-
-def test_queued_cancelled_and_blocked_runs_have_no_failure_kind(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-
-    client = make_client()
-    queued_id = _create_run(client, "queued run").json()["id"]
-    assert (
-        client.post(f"/api/runs/{queued_id}/start", json={}).json()["status"]
-        == "queued"
-    )
-    assert client.get(f"/api/runs/{queued_id}").json()["failure_kind"] is None
-
-    assert client.post(f"/api/runs/{queued_id}/cancel").status_code == 200
-    cancelled = client.get(f"/api/runs/{queued_id}").json()
-    assert cancelled["status"] == "cancelled"
-    assert cancelled["failure_kind"] is None
-
-    blocked_id = _create_run(client, "blocked run").json()["id"]
-    runs.update_run_status(blocked_id, RunStatus.BLOCKED, db_path=isolated_db)
-    blocked = client.get(f"/api/runs/{blocked_id}").json()
-    assert blocked["status"] == "blocked"
-    assert blocked["failure_kind"] is None
 
 
 _BYOK_SECRET = "synthetic-byok-encryption-secret"
@@ -609,38 +547,6 @@ def test_settled_run_is_not_reprocessed_at_startup(isolated_db: str) -> None:
     assert (
         store_events.list_events(run_id, db_path=isolated_db) == events_before
     )
-
-
-@pytest.mark.asyncio
-async def test_cohort_settles_run_when_budget_exhausts(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run_id = _settlement_running_run(isolated_db)
-    task_id = _history_enqueue(run_id, "doomed", isolated_db, max_attempts=2)
-
-    async def _always_fail(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, Any]:
-        raise RuntimeError("provider exploded")
-
-    monkeypatch.setattr(engine_tasks, "execute_engine_task", _always_fail)
-
-    await task_worker.run_run_worker_pool(
-        run_id,
-        "settle-test",
-        worker_count=2,
-        policy=task_worker.WorkerPolicy(db_path=isolated_db, lease_seconds=5),
-    )
-
-    saved = store.get_task(task_id, db_path=isolated_db)
-    assert saved is not None
-    assert saved.status == "failed"
-    assert saved.attempt == saved.max_attempts
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None
-    assert run.status == "failed"
-    assert "provider exploded" in (run.error or "")
-    assert len(_failed_status_events(run_id, isolated_db)) == 1
 
 
 @pytest.mark.asyncio

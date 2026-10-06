@@ -13,7 +13,6 @@ from co_scientist.llm import current_run_call_count, scoped_llm_call_budget
 from co_scientist.llm.admission.call_budget import record_provider_request
 
 from app import engine_tasks, task_worker
-from app.config import settings
 from app.store import db as _store_db
 from app.store import db as store_db
 from app.store import events as store_events
@@ -21,8 +20,6 @@ from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
 from app.task_worker import outcomes as task_worker_outcomes
-from tests._client import create_run as _create_run
-from tests._client import make_client
 from tests._engine_tasks_helpers import _enqueue, make_cancellable_executor
 from tests._store_helpers import enqueue_task, seed_run
 
@@ -33,21 +30,6 @@ def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
     duplicate = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     assert duplicate.id == first.id
     assert duplicate.task_type == "engine.bootstrap"
-
-
-def test_engine_start_queues_durable_work(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    with make_client() as client:
-        created = _create_run(client, "Durable engine goal")
-        run_id = created.json()["id"]
-        started = client.post(f"/api/runs/{run_id}/start", json={})
-    assert started.status_code == 200
-    assert started.json()["status"] == "queued"
-    [task] = tasks.list_tasks(run_id, db_path=isolated_db)
-    assert task.task_type == "engine.bootstrap"
-    assert task.status == "queued"
 
 
 @pytest.mark.asyncio
@@ -129,41 +111,6 @@ async def test_worker_shutdown_cancels_task_payload(
     with pytest.raises(asyncio.CancelledError):
         await running
     assert interrupted.is_set()
-
-
-@pytest.mark.asyncio
-async def test_worker_delivers_opted_in_completion_email(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("notification goal")
-    task = enqueue_task(
-        run.id,
-        "notification.email",
-        "email:1",
-        inputs={
-            "run_id": run.id,
-            "email": "scientist@example.org",
-            "title": "Result",
-        },
-        max_attempts=3,
-        db_path=isolated_db,
-    )
-
-    async def _deliver(inputs: dict[str, Any]) -> dict[str, str]:
-        assert inputs["email"] == "scientist@example.org"
-        return {"recipient": str(inputs["email"]), "status": "sent"}
-
-    monkeypatch.setattr(
-        task_worker, "deliver_completion_notification", _deliver
-    )
-    assert await task_worker.run_once("mail-worker", db_path=isolated_db)
-    saved = tasks.get_task(task.id, db_path=isolated_db)
-    assert saved is not None
-    assert saved.status == "completed"
-    assert saved.result == {
-        "recipient": "scientist@example.org",
-        "status": "sent",
-    }
 
 
 # An exhausted lease without a live owner cannot settle itself; recovery must

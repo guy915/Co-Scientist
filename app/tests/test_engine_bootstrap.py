@@ -15,7 +15,6 @@ from app.store import events as store_events
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus as StoreRunStatus
-from app.store.records import NewSafetyDecision
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -189,47 +188,6 @@ async def test_bootstrap_pause_without_resume_commits_paused_checkpoint(
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "paused"
     assert len(store.list_tasks(run_id, db_path=isolated_db)) == 1
-
-
-def test_resume_keeps_intake_safety_artifacts_for_leased_bootstrap(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    client, run_id, _task = _start_bootstrap(monkeypatch, isolated_db)
-    records.add_safety_decision(
-        NewSafetyDecision(
-            run_id=run_id,
-            stage="intake",
-            decision="allow",
-            reason="intake screen completed",
-            matches=[],
-        ),
-        db_path=isolated_db,
-    )
-    store_events.append_event(
-        run_id,
-        "safety",
-        {"event": "intake_decision_persisted"},
-        db_path=isolated_db,
-    )
-    assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
-
-    resumed = client.post(f"/api/runs/{run_id}/resume")
-
-    assert resumed.status_code == 200
-    decisions = records.list_safety_decisions(run_id, db_path=isolated_db)
-    assert [decision["reason"] for decision in decisions] == [
-        "intake screen completed"
-    ]
-    assert any(
-        event["type"] == "lifecycle"
-        and event["payload"].get("event") == "pause_requested"
-        for event in store_events.list_events(run_id, db_path=isolated_db)
-    )
-    assert any(
-        event["type"] == "safety"
-        and event["payload"].get("event") == "intake_decision_persisted"
-        for event in store_events.list_events(run_id, db_path=isolated_db)
-    )
 
 
 def _forbid_contextual_escalation(

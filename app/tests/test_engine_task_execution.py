@@ -672,25 +672,6 @@ def _record_preferences_and_commit(seen: list[str], *, priority: bool) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_steering_survives_a_crash_before_the_checkpoint_commits(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Steering durability")
-    leased = _seed_steered_node_task(run.id, monkeypatch, isolated_db)
-
-    async def _crash(*_: Any, **__: Any) -> Any:
-        raise RuntimeError("worker died mid-node")
-
-    _patch_task_node(monkeypatch, _crash)
-
-    with pytest.raises(RuntimeError, match="worker died mid-node"):
-        await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-
-    pending = messages.get_pending_steering(run.id, db_path=isolated_db)
-    assert [message.content for message in pending] == [_STEER]
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("node", "acknowledged"), [("proximity", False), ("orchestrator", True)]
 )

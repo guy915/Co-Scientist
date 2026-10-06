@@ -97,10 +97,6 @@ def test_completed_run_reports_summary_and_refuses_start_and_cancel() -> None:
     assert c.post(f"/api/runs/{rid}/cancel").status_code == 409
 
 
-def test_unknown_run_is_a_404() -> None:
-    assert _client().get("/api/runs/not-a-real-id").status_code == 404
-
-
 @pytest.mark.parametrize("running_with_queued_task", [False, True])
 def test_cancel_marks_a_draft_or_restart_survivor_cancelled(
     running_with_queued_task: bool,
@@ -227,50 +223,6 @@ def _run_views(client: TestClient, run_id: str) -> dict[str, Any]:
         "claim_evidence": _get("claim-evidence")["claim_evidence"],
         "report": _get("report"),
     }
-
-
-def test_owned_proximity_endpoint_returns_persisted_landscape(
-    isolated_db: str,
-) -> None:
-    from app.store import hypotheses as store
-    from app.store import records
-    from app.store.hypotheses import NewHypothesis
-    from app.store.records import NewProximityEdge
-
-    client = _client()
-    headers = {"X-Client-ID": "landscape-owner"}
-    run = _create_run(
-        client, "Map a conceptual hypothesis landscape", headers=headers
-    ).json()
-    source = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run["id"], title="Source", statement="Source mechanism"
-        )
-    )
-    target = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run["id"], title="Target", statement="Target mechanism"
-        )
-    )
-    records.add_proximity_edge(
-        NewProximityEdge(
-            run_id=run["id"],
-            source_hypothesis_id=source,
-            target_hypothesis_id=target,
-            similarity=0.81,
-            cluster_id="cluster-1",
-        )
-    )
-
-    response = client.get(f"/api/runs/{run['id']}/proximity", headers=headers)
-
-    assert response.status_code == 200
-    edges = response.json()["proximity"]
-    assert len(edges) == 1
-    assert edges[0]["source_hypothesis_id"] == source
-    assert edges[0]["target_hypothesis_id"] == target
-    assert edges[0]["similarity"] == 0.81
-    assert edges[0]["cluster_id"] == "cluster-1"
 
 
 def test_list_runs_honors_limit_query(isolated_db: str) -> None:

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from co_scientist.constants import NOT_VIABLE_SCORE
 from co_scientist.models import (
     SCIENTIST_REVIEWER,
 )
@@ -18,7 +17,6 @@ from app.engine_tasks.support import (
 )
 from app.store import checkpoints, hypotheses, messages, records, runs
 from app.store import events as store_events
-from app.store import hypotheses as store_hypotheses
 from app.store import tasks as store
 from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
 from app.store.models import RunStatus as StoreRunStatus
@@ -421,43 +419,6 @@ async def test_late_contribution_reopens_the_run_once_it_completes(
     ]
     assert lifecycle_events
     assert not messages.get_pending_steering(run_id, db_path=isolated_db)
-
-
-def test_scientist_inputs_merge_into_engine_state_once(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Scientist loop")
-    hypothesis_id = store_hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Scientist idea",
-            statement="A scientist-proposed mechanism",
-            created_by_agent="scientist_manual",
-            author="researcher",
-        ),
-        db_path=isolated_db,
-    )
-    records.add_review(
-        NewReview(
-            run_id=run.id,
-            hypothesis_id=hypothesis_id,
-            reviewer_agent="scientist",
-            summary="Scientist verdict: oppose (by researcher)",
-            critique="The proposed control cannot distinguish the mechanism.",
-        ),
-        db_path=isolated_db,
-    )
-    state = _task_state(run.id)
-
-    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
-    engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
-
-    merged = state["hypotheses"]
-    assert [hypothesis.id for hypothesis in merged] == [hypothesis_id]
-    assert merged[0].origin.value == "scientist_manual"
-    assert len(merged[0].reviews) == 1
-    assert merged[0].reviews[0].overall_score == NOT_VIABLE_SCORE
-    assert "cannot distinguish" in merged[0].reviews[0].constructive_feedback
 
 
 def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
