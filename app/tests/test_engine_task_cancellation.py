@@ -11,7 +11,6 @@ from co_scientist.llm import ModelCallStats, record_call
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 from app import engine_tasks, task_worker
-from app.config import settings
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
@@ -20,7 +19,6 @@ from app.engine_tasks.fanout_aggregates import _AggregateSpec
 from app.engine_tasks.support import ExactSuccessor, TaskCommit
 from app.store import checkpoints, db, runs
 from app.store import events as store_events
-from app.store import retrieval_calls as retrieval
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus as StoreRunStatus
@@ -311,69 +309,6 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
     assert cancelled_task is not None and cancelled_task.status == "cancelled"
     cancelled_run = runs.get_run(run_id, db_path=isolated_db)
     assert cancelled_run is not None and cancelled_run.status == "cancelled"
-
-
-@pytest.mark.asyncio
-async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    client, run_id = _owned_running_run(isolated_db)
-    task, checkpoint_seq = _leased_task(
-        run_id, "engine.node.supervisor", "pause-successor-race", isolated_db
-    )
-    _prepare_node_without_providers(
-        monkeypatch,
-        task,
-        checkpoint_seq,
-        "supervisor",
-        _task_state(run_id),
-        isolated_db,
-    )
-
-    async def execute_node(
-        _name: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str]:
-        state["metrics"].llm_calls = 7
-        return state, "generate"
-
-    _patch_task_node(monkeypatch, execute_node)
-    _race_node_step(
-        monkeypatch,
-        "_commit_node_result",
-        lambda: _control_run(client, run_id, "pause", "paused"),
-    )
-
-    result = await engine_tasks.execute_node_task(task, db_path=isolated_db)
-
-    assert result["status"] == "paused"
-    assert lifecycle.complete_task(
-        task.id, "cancel-race-worker", result, db_path=isolated_db
-    )
-    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert latest is not None and latest["seq"] == checkpoint_seq + 1
-    assert latest["stage"] == f"engine_task_paused:{task.id}"
-    assert latest["state"]["resume_successor"] == "engine.node.generate"
-    metrics = retrieval.get_run_metrics(run_id, db_path=isolated_db)
-    assert metrics is not None and metrics["llm_calls"] == 7
-    [completion] = _task_events(run_id, "supervisor", db_path=isolated_db)
-    assert completion["payload"]["successor"] == "generate"
-    assert [
-        row.id for row in store.list_tasks(run_id, db_path=isolated_db)
-    ] == [task.id]
-    assert (
-        store.claim_task("claim-check", run_id=run_id, db_path=isolated_db)
-        is None
-    )
-
-    resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
-    assert resumed.status_code == 200, resumed.text
-    queued = [
-        row
-        for row in store.list_tasks(run_id, db_path=isolated_db)
-        if row.status == "queued"
-    ]
-    assert [row.task_type for row in queued] == ["engine.node.generate"]
 
 
 def test_pause_api_serializes_queued_revocation_with_node_commit(

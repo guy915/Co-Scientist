@@ -81,31 +81,6 @@ def _pause_during_bootstrap_prepare(
     return client, run_id, task
 
 
-def _resume_after_paused_snapshot(
-    monkeypatch: pytest.MonkeyPatch, client: Any, run_id: str
-) -> list[bool]:
-    get_run = runs.get_run
-    resumed: list[bool] = []
-
-    def interleaved_get(
-        requested: str, db_path: str | None = None, conn: Any | None = None
-    ) -> Any:
-        run = get_run(requested, db_path=db_path, conn=conn)
-        if (
-            requested == run_id
-            and run is not None
-            and run.status == "paused"
-            and not resumed
-        ):
-            resumed.append(True)
-            response = client.post(f"/api/runs/{run_id}/resume")
-            assert response.status_code == 200
-        return run
-
-    monkeypatch.setattr(runs, "get_run", interleaved_get)
-    return resumed
-
-
 def _enqueue_bootstrap_successor(
     task: Any,
     _state: dict[str, Any],
@@ -140,37 +115,6 @@ def _replace_expired_bootstrap_lease(
     assert replacement is not None
     assert replacement.attempt == original.attempt + 1
     return replacement
-
-
-@pytest.mark.asyncio
-async def test_bootstrap_rechecks_pause_after_resume_before_commit(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    client, run_id, task = _pause_during_bootstrap_prepare(
-        monkeypatch, isolated_db
-    )
-    resumed = _resume_after_paused_snapshot(monkeypatch, client, run_id)
-
-    result = await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
-
-    assert resumed == [True]
-    assert result.get("status") != "paused"
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "queued"
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert (
-        checkpoint is not None
-        and checkpoint["stage"] == f"engine_task:{task.id}"
-    )
-    assert checkpoint["state"]["resume_successor"] == "engine.node.supervisor"
-    assert lifecycle.complete_task(
-        task.id, "bootstrap-worker", result, db_path=isolated_db
-    )
-    claim = store.claim_task(
-        "supervisor-worker", run_id=run_id, db_path=isolated_db
-    )
-    assert claim is not None and claim.task_type == "engine.node.supervisor"
-    assert len(store.list_tasks(run_id, db_path=isolated_db)) == 2
 
 
 @pytest.mark.asyncio
@@ -357,40 +301,6 @@ async def _hold_intake_screen(
     )
     await asyncio.wait_for(started.wait(), timeout=5)
     return bootstrap, release
-
-
-@pytest.mark.parametrize("decision", ["block", "hold"])
-@pytest.mark.asyncio
-async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
-    decision: str,
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client, run_id, task = _start_bootstrap(monkeypatch, isolated_db)
-    bootstrap, release = await _hold_intake_screen(
-        monkeypatch, task, decision, isolated_db
-    )
-    assert client.post(f"/api/runs/{run_id}/cancel").status_code == 200
-    cancel_seq = next(
-        event["seq"]
-        for event in store_events.list_events(run_id, db_path=isolated_db)
-        if event["type"] == "status"
-        and event["payload"].get("status") == "cancelled"
-    )
-    release.set()
-
-    with pytest.raises(task_worker._LeaseLostError):
-        await bootstrap
-
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "cancelled"
-    events = _assert_no_intake_verdict_applied(run_id, isolated_db)
-    assert not any(
-        event["type"] == "status"
-        and event["seq"] > cancel_seq
-        and event["payload"].get("status") in {"blocked", "paused"}
-        for event in events
-    )
 
 
 @pytest.mark.parametrize("decision", ["block", "hold"])

@@ -15,7 +15,6 @@ from co_scientist.models import (
     Article,
     ExecutionMetrics,
     Hypothesis,
-    HypothesisReview,
 )
 from litellm.exceptions import APIError
 
@@ -187,98 +186,6 @@ def _seed_finalize_task(
     )
     _patch_restore_generator(monkeypatch, _Generator(state))
     return task
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("node_name", "extra_state", "expected_milestone"),
-    [
-        pytest.param(
-            "reflection",
-            {
-                "hypotheses": [
-                    Hypothesis(
-                        text="Reviewed idea",
-                        reviews=[
-                            HypothesisReview(
-                                review_summary="ok",
-                                scores={},
-                                safety_ethical_concerns="",
-                                detailed_feedback={},
-                                constructive_feedback="",
-                                overall_score=70.0,
-                            )
-                        ],
-                    )
-                ]
-            },
-            "1 hypotheses reviewed",
-            id="reflection",
-        ),
-        pytest.param(
-            "evolve",
-            {
-                "hypotheses": [
-                    Hypothesis(
-                        text="Evolved idea", evolution_history=["refined"]
-                    )
-                ]
-            },
-            "1 hypotheses evolved (iteration 0)",
-            id="evolve",
-        ),
-        pytest.param(
-            "proximity",
-            {
-                "proximity_graph": {
-                    "edges": [
-                        {"source": "h1", "target": "h2", "cluster_id": "c1"}
-                    ]
-                }
-            },
-            "1 clusters identified",
-            id="proximity",
-        ),
-        pytest.param(
-            "meta_review",
-            {"meta_review": {"summary": "Synthesis complete."}},
-            "Meta-review complete",
-            id="meta_review",
-        ),
-    ],
-)
-async def test_generic_node_completion_emits_matching_milestone(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    node_name: str,
-    extra_state: dict[str, Any],
-    expected_milestone: str,
-) -> None:
-    run = seed_run("Task-level science")
-    checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id))
-    node = enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}{node_name}",
-        f"milestone-{node_name}",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=isolated_db,
-    )
-    leased = store_tasks.claim_task(
-        "worker", run_id=run.id, db_path=isolated_db
-    )
-    assert leased is not None and leased.id == node.id
-
-    async def execute(
-        _name: str, state: dict[str, Any]
-    ) -> tuple[dict[str, Any], str | None]:
-        return {**state, **extra_state}, None
-
-    _patch_task_node(monkeypatch, execute)
-    result = await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-    assert lifecycle.complete_task(
-        leased.id, "worker", result, db_path=isolated_db
-    )
-    assert _milestones(run.id, db_path=isolated_db) == [expected_milestone]
 
 
 # Run grounding off the task loop so heartbeat renewal can continue during

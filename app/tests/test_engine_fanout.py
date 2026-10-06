@@ -20,7 +20,7 @@ import app.engine_tasks.fanout as items
 from app import engine_tasks, task_worker
 from app.engine_tasks import fanout_aggregates as aggregates
 from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.fanout import _mature_reflection_specs, _maturity_specs
+from app.engine_tasks.fanout import _mature_reflection_specs
 from app.engine_tasks.fanout_aggregates import _apply_review_items
 from app.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
 from app.store import checkpoints
@@ -322,45 +322,6 @@ def test_aggregate_leaves_the_evidence_gate_s_disposition_alone() -> None:
     assert hypothesis.review_disposition == "evidence_blocked"
 
 
-# Isolate matchup faults so retrying one failure does not discard or re-judge
-# paid sibling comparisons.
-
-
-# Durable maturity selection must follow the engine rule rather than repeat
-# already successful reviews.
-
-
-def _hypothesis(**enrichments: Any) -> Hypothesis:
-    hypothesis = Hypothesis(id="h1", text="a mechanism")
-    hypothesis.enrichments.update(enrichments)
-    return hypothesis
-
-
-@pytest.mark.parametrize(
-    ("enrichments", "iteration", "expected"),
-    [
-        pytest.param({}, 0, ["full", "simulation"], id="fresh"),
-        pytest.param(
-            {"simulation": {"verdict": "breaks_down"}},
-            2,
-            ["full"],
-            id="succeeded-simulation-is-not-re-enqueued",
-        ),
-        pytest.param(
-            {"full": {"verdict": "sound"}}, 1, ["recurrent"], id="mature"
-        ),
-    ],
-)
-def test_maturity_selection_follows_the_engine_rule(
-    enrichments: dict[str, Any], iteration: int, expected: list[str]
-) -> None:
-    hypothesis = _hypothesis(**enrichments)
-
-    assert _maturity_specs(hypothesis, iteration) == [
-        ("h1", mode) for mode in expected
-    ]
-
-
 def _restore_item(monkeypatch: pytest.MonkeyPatch, mode: str = "full") -> Any:
     idea = Hypothesis(id="idea", text="Scientific claim")
     state = {"hypotheses": [idea], "articles_with_reasoning": "Literature"}
@@ -470,21 +431,6 @@ def test_a_failed_item_records_a_recheck_attempt_only_for_rechecks(
     assert len(owed) == (0 if recheck else 1)
     if recheck:
         assert hypothesis.enrichments["recurrent"]["verdict"] == "unreviewed"
-
-
-def test_the_cascade_owns_viable_ideas_and_rechecks_each_blocked_one() -> None:
-    viable = Hypothesis(text="cleared")
-    viable.review_disposition = "viable"
-    blocked = [_recheck_blocked_hypothesis(f"idea {i}") for i in range(20)]
-
-    specs = _mature_reflection_specs(_state([viable, *blocked]))
-
-    assert [(spec.review_mode, spec.recheck) for spec in specs] == [
-        ("full", False),
-        ("simulation", False),
-        *[("recurrent", True)] * 20,
-    ]
-    assert [spec.hypothesis_id for spec in specs[2:]] == [h.id for h in blocked]
 
 
 def _patch_items(

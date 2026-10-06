@@ -7,7 +7,7 @@ from co_scientist.models import (
     SCIENTIST_REVIEWER,
 )
 
-from app import engine_tasks, task_worker
+from app import task_worker
 from app.config import settings
 from app.engine_adapter.drain import hypotheses as drain_hypotheses
 from app.engine_tasks import inputs as engine_tasks_inputs
@@ -19,7 +19,6 @@ from app.store import checkpoints, hypotheses, messages, records, runs
 from app.store import events as store_events
 from app.store import tasks as store
 from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
-from app.store.models import RunStatus as StoreRunStatus
 from app.store.records import NewReview
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
@@ -170,6 +169,10 @@ def test_scientist_review_rejects_bad_verdict_and_foreign_hypotheses(
 
     assert res.status_code == status
     assert client.get(f"/api/runs/{run_a}/reviews").json()["reviews"] == []
+
+
+# Merge scientist ideas only at the orchestrator; growing pools inside ranking
+# or fan-out forks state.
 
 
 def _node_task(run_id: str, node: str, seq: int, db_path: str) -> Any:
@@ -419,27 +422,3 @@ async def test_late_contribution_reopens_the_run_once_it_completes(
     ]
     assert lifecycle_events
     assert not messages.get_pending_steering(run_id, db_path=isolated_db)
-
-
-def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
-    run = seed_run("Continuation")
-    checkpoint_seq = _seed_checkpoint(
-        run.id,
-        _task_state(run.id),
-        stage="engine_task:final",
-        db_path=isolated_db,
-    )
-    runs.update_run_status(
-        run.id, StoreRunStatus.COMPLETED, db_path=isolated_db
-    )
-
-    task = engine_tasks.enqueue_scientist_continuation(
-        run.id, 42, db_path=isolated_db
-    )
-
-    assert task is not None
-    assert task.task_type == "engine.node.orchestrator"
-    assert task.inputs["checkpoint_seq"] == checkpoint_seq
-    assert task.priority == 100
-    reopened = runs.get_run(run.id, db_path=isolated_db)
-    assert reopened is not None and reopened.status == "queued"

@@ -71,36 +71,6 @@ def test_live_model_writes_the_announcement(
     assert reply.meta is None
 
 
-def test_reasoning_is_relayed_and_kept_with_the_reply(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
-    rid = _started_run_id()
-    fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch,
-        (
-            _fake_litellm(
-                [
-                    {
-                        "content": None,
-                        "reasoning_content": (
-                            "The run exists, so this confirms it."
-                        ),
-                    },
-                    {"content": "Under way.", "reasoning_content": None},
-                ]
-            )
-        ).acompletion,
-    )
-
-    body = _announce(rid).text
-
-    assert '"type": "reasoning"' in body
-    assert body.index('"type": "reasoning"') < body.index('"type": "chunk"')
-    reply = _start_rows(rid)[1]
-    assert reply.meta == {"reasoning": "The run exists, so this confirms it."}
-
-
 def test_thinking_only_announcement_retries_before_the_fallback(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:

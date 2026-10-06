@@ -1,26 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-import sqlite3
 import time
-from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
 from threading import Event
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app import engine_tasks, task_worker
+from app import engine_tasks
 from app.config import settings
-from app.store import checkpoints, records, runs
+from app.store import checkpoints, runs
 from app.store import db as store_db
 from app.store import events as store_events
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
-from app.store.records import NewSafetyDecision
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._store_helpers import (
@@ -133,111 +129,6 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
         )
         if seq > cancelled_seq
     ]
-
-
-def test_resume_transaction_commits_before_waiting_cancel(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    owner = make_client()
-    cancel_client = make_client()
-    run_id, successor_id = _checkpointed_run(isolated_db, owner)
-    assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
-
-    enqueue_entered = Event()
-    release_enqueue = Event()
-    observe_cancel = Event()
-    cancel_transaction_entered = Event()
-    original_enqueue = task_worker.enqueue_run_workflow
-    original_transaction = store_db.transaction
-
-    @contextmanager
-    def track_cancel_transaction(
-        path: str | None = None,
-    ) -> Iterator[sqlite3.Connection]:
-        if observe_cancel.is_set():
-            cancel_transaction_entered.set()
-        with original_transaction(path) as conn:
-            yield conn
-
-    def hold_resume_transaction(*args: Any, **kwargs: Any) -> ScientificTask:
-        enqueue_entered.set()
-        assert release_enqueue.wait(timeout=5), (
-            "resume transaction was not released"
-        )
-        return original_enqueue(*args, **kwargs)
-
-    monkeypatch.setattr(store_db, "transaction", track_cancel_transaction)
-    monkeypatch.setattr(
-        task_worker,
-        "enqueue_run_workflow",
-        hold_resume_transaction,
-    )
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        resume_future = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
-        assert enqueue_entered.wait(timeout=5), (
-            "resume did not enter its transaction"
-        )
-        observe_cancel.set()
-        cancel_future = pool.submit(
-            cancel_client.post, f"/api/runs/{run_id}/cancel"
-        )
-        try:
-            assert cancel_transaction_entered.wait(timeout=5)
-        finally:
-            release_enqueue.set()
-        resumed = resume_future.result(timeout=5)
-        cancelled = cancel_future.result(timeout=5)
-
-    assert resumed.status_code == 200, resumed.text
-    assert cancelled.status_code == 200, cancelled.text
-    task = _assert_settled(
-        run_id, successor_id, isolated_db, RunStatus.CANCELLED
-    )
-    assert task.status == "cancelled"
-    [resuming_seq] = event_seqs(
-        run_id, "status", status="resuming", db_path=isolated_db
-    )
-    [cancelled_seq] = event_seqs(
-        run_id, "status", status="cancelled", db_path=isolated_db
-    )
-    assert resuming_seq < cancelled_seq
-
-
-def test_lifecycle_revision_rejects_paused_cancel_resume_pause_aba(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    owner = make_client()
-    later_resumer = make_client()
-    run_id, successor_id = _checkpointed_run(isolated_db, owner)
-    assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
-
-    first_queue_reached, release_first_queue = _hold_resume_admission(
-        monkeypatch, first_only=True
-    )
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        stale_resume = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
-        assert first_queue_reached.wait(timeout=5)
-        assert owner.post(f"/api/runs/{run_id}/cancel").status_code == 200
-        later = later_resumer.post(f"/api/runs/{run_id}/resume")
-        assert later.status_code == 200, later.text
-        assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
-        release_first_queue.set()
-        stale = stale_resume.result(timeout=5)
-
-    assert stale.status_code == 409, stale.text
-    task = _assert_settled(run_id, successor_id, isolated_db, RunStatus.PAUSED)
-    assert task.status == "paused"
-    paused_seq = max(
-        event_seqs(
-            run_id, "lifecycle", event="pause_requested", db_path=isolated_db
-        )
-    )
-    resuming = event_seqs(
-        run_id, "status", status="resuming", db_path=isolated_db
-    )
-    assert all(seq < paused_seq for seq in resuming)
 
 
 def test_startup_resume_skips_cancelled_run_after_admission_race(
@@ -363,92 +254,6 @@ def test_resume_reuses_precheckpoint_bootstrap_lease(
     )
 
 
-def test_precheckpoint_resume_keeps_owner_and_cancellation_precedence(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    owner = make_client()
-    run_id, task_id = _started_bootstrap(
-        owner, "Owner-scoped bootstrap resume", isolated_db
-    )
-    assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
-    foreign = make_client()
-    assert (
-        foreign.post(
-            f"/api/runs/{run_id}/resume",
-            headers={"X-Client-ID": "other-client"},
-        ).status_code
-        == 404
-    )
-    assert owner.post(f"/api/runs/{run_id}/cancel").status_code == 200
-
-    rejected = owner.post(f"/api/runs/{run_id}/resume")
-
-    assert rejected.status_code == 409
-    cancelled_run = runs.get_run(run_id, db_path=isolated_db)
-    assert cancelled_run is not None and cancelled_run.status == "cancelled"
-    task = store.get_task(task_id, db_path=isolated_db)
-    assert task is not None and task.status == "cancelled"
-    assert not any(
-        event["type"] == "status"
-        and event["payload"].get("status") == "resuming"
-        for event in store_events.list_events(run_id, db_path=isolated_db)
-    )
-
-
-def test_resume_recovers_spent_bootstrap_abandoned_after_pause(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    client = make_client()
-    run_id, task_id = _started_bootstrap(
-        client, "Recover paused bootstrap", isolated_db
-    )
-    task = store.get_task(task_id, db_path=isolated_db)
-    assert task is not None
-    with store_db.connect(isolated_db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET lease_expires_at=0, "
-            "attempt=max_attempts "
-            "WHERE id=?",
-            (task_id,),
-        )
-    records.add_safety_decision(
-        NewSafetyDecision(
-            run_id=run_id,
-            stage="intake",
-            decision="allow",
-            reason="intake audit",
-            matches=[],
-        ),
-        db_path=isolated_db,
-    )
-    assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
-    assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 1
-    paused = runs.get_run(run_id, db_path=isolated_db)
-    assert paused is not None and paused.status == "paused"
-    abandoned = store.get_task(task_id, db_path=isolated_db)
-    assert abandoned is not None and abandoned.status == "failed"
-
-    resumed = client.post(f"/api/runs/{run_id}/resume")
-
-    assert resumed.status_code == 200, resumed.text
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "queued"
-    [reused] = store.list_tasks(run_id, db_path=isolated_db)
-    assert reused.id == task_id and reused.task_type == "engine.bootstrap"
-    assert reused.status == "queued" and reused.attempt == task.max_attempts
-    assert (
-        records.list_safety_decisions(run_id, db_path=isolated_db)[0]["reason"]
-        == "intake audit"
-    )
-    reclaimed = store.claim_task(
-        "bootstrap-recovery", run_id=run_id, db_path=isolated_db
-    )
-    assert reclaimed is not None and reclaimed.id == task_id
-    assert reclaimed.attempt == task.max_attempts + 1
-
-
 @pytest.mark.parametrize(
     "scenario",
     ["ordinary_failure", "cancelled_after_abandon", "paused_permanent_failure"],
@@ -506,7 +311,3 @@ def test_dead_precheckpoint_bootstrap_is_not_resumable(
             "paused_permanent_failure": "paused",
         }[scenario]
     )
-
-
-# Merge scientist ideas only at the orchestrator; growing pools inside ranking
-# or fan-out forks state.

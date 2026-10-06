@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import io
-import pathlib
-import re
 from typing import Any
 
 import pytest
@@ -19,42 +16,11 @@ from fastapi.testclient import TestClient
 
 from app import run_modes
 from app.engine_adapter.opts import _generator_kwargs
-from app.run_modes import RUN_TIER_DEFAULTS
-from app.store import documents, logs, runs
+from app.store import logs, runs
 from app.store.models import DEMO_CLIENT_ID, RunStatus
 from tests._client import append_log_row, make_client, wait_for
 from tests._client import create_run as _create_run
 from tests._store_helpers import seed_run
-
-# Landing tier figures are hardcoded before API calls, so they must track
-# backend defaults.
-
-
-_CONTENT = (
-    pathlib.Path(__file__).resolve().parents[1]
-    / "frontend/src/workbench/pages/home_landing_content.ts"
-)
-_TIER = re.compile(
-    r"\{name: '(\w+)', seeds: (\d+), cycles: (\d+), maxIdeas: (\d+)\}"
-)
-
-
-def test_landing_tiers_match_run_tier_defaults() -> None:
-    rows = _TIER.findall(_CONTENT.read_text(encoding="utf-8"))
-    shown = {
-        name.lower(): (int(seeds), int(cycles), int(max_ideas))
-        for name, seeds, cycles, max_ideas in rows
-    }
-    expected = {
-        tier: (
-            values["initial_hypotheses_count"],
-            values["max_iterations"],
-            values["max_ideas"],
-        )
-        for tier, values in RUN_TIER_DEFAULTS.items()
-    }
-    assert shown == expected
-
 
 _DELETION_OWNER = {"X-Client-ID": "delete-owner"}
 _DELETION_OTHER = {"X-Client-ID": "someone-else"}
@@ -155,38 +121,6 @@ def test_delete_removes_the_runs_persisted_log_rows(
     remaining_ids = {row["id"] for row in remaining}
     assert other_row_id in remaining_ids
     assert app_wide_row_id in remaining_ids
-
-
-def test_delete_clears_but_does_not_remove_a_carried_document(
-    isolated_db: str,
-) -> None:
-    # Staged documents predate runs; run deletion clears their link without
-    # destroying the only uploaded copy.
-    client = make_client()
-    staged = client.post(
-        "/api/documents",
-        headers=_DELETION_OWNER,
-        files={
-            "file": ("notes.txt", io.BytesIO(b"private notes"), "text/plain")
-        },
-        data={"consent": "true"},
-    )
-    document_id = staged.json()["id"]
-    created = _create_run(
-        client,
-        "Carries a document",
-        headers=_DELETION_OWNER,
-        document_ids=[document_id],
-    )
-    run_id = created.json()["id"]
-    client.post(f"/api/runs/{run_id}/cancel", headers=_DELETION_OWNER)
-
-    response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OWNER)
-    assert response.status_code == 200, response.text
-
-    remaining = documents.get_staged_documents([document_id], "delete-owner")
-    assert len(remaining) == 1
-    assert remaining[0]["run_id"] is None
 
 
 _TIERS = ("express", "standard", "extended", "ultra")

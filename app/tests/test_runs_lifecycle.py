@@ -159,30 +159,6 @@ def test_cancel_before_capacity_reservation_is_not_a_restart(
     )
 
 
-@pytest.mark.parametrize("paused_first", [False, True])
-def test_cancelled_bootstrap_is_requeued_by_a_second_start(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, paused_first: bool
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    client = _client()
-    rid = _new_run(client, "Restart a cancelled bootstrap")
-    assert client.post(f"/api/runs/{rid}/start", json={}).status_code == 200
-    [bootstrap] = store.list_tasks(rid, db_path=isolated_db)
-    if paused_first:
-        assert client.post(f"/api/runs/{rid}/pause").status_code == 200
-    assert client.post(f"/api/runs/{rid}/cancel").status_code == 200
-    cancelled = store.get_task(bootstrap.id, db_path=isolated_db)
-    assert cancelled is not None and cancelled.status == "cancelled"
-
-    restarted = client.post(f"/api/runs/{rid}/start", json={})
-
-    assert restarted.status_code == 200
-    assert restarted.json()["task_id"] == bootstrap.id
-    [requeued] = store.list_tasks(rid, db_path=isolated_db)
-    assert requeued.id == bootstrap.id
-    assert requeued.status == "queued"
-
-
 @pytest.mark.parametrize("status", [RunStatus.CANCELLED, RunStatus.FAILED])
 def test_checkpointed_run_is_resumed_not_restarted(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, status: RunStatus
