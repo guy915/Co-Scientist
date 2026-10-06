@@ -8,9 +8,11 @@ make it a production-ready, professional-grade product.
 This plan sets the goal, the guardrails and the starting evidence. It does not
 list every task. The campaign finds them, ranks them and works through them.
 
-**Status:** started 6 October 2026. The benchmark baseline runs now, the
-delivery lane starts as soon as its account is ready, and model work starts
-after the engine cuts merge (see Lanes and `docs/CAMPAIGNS.md`).
+**Status:** in progress since 6 October 2026. The audit is recorded in
+`docs/optimization/findings.md`; CI speed and launch-readiness PRs are open.
+The first baselines ran without retrieval and are being re-run; model changes
+start after the engine cuts merge. Live progress is on the
+`Campaign board: optimization` issue.
 
 ## Scope
 

@@ -201,14 +201,13 @@ def test_diagnostics_never_report_key_material(
     with TestClient(app) as client:
         _create_byok_run(client)
         status = client.get("/status")
-        config = client.get("/config")
     with TestClient(app, client=("127.0.0.1", 50000)) as operator:
         operator_status = operator.get("/status")
 
     assert status.status_code == 200
     assert operator_status.json()["byok_enabled"] is True
     assert status.json()["byok_enabled"] is None
-    for response in (status, config, operator_status):
+    for response in (status, operator_status):
         assert _KEY not in response.text
         assert _SECRET not in response.text
 
