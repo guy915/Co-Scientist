@@ -39,8 +39,8 @@ Everything that affects speed, cost, reliability or quality of experience:
   `SECURITY.md`, a contributing guide, issue and PR templates, a README a
   newcomer can follow, and a secret scan of the current tree. Git history
   will be reset before publication, so do not scan or rewrite it.
-- **Internal files stay:** `AGENTS.md` guides, `.remember/`, `PLAN.md`, the
-  campaign plans and `docs/test-campaign/` remain in the public repository.
+- **Internal files stay:** `AGENTS.md` guides, `.remember/` and the campaign
+  plans remain in the public repository.
 - **Priorities:** run speed, quality per token, app feel and development
   speed matter equally.
 - **Models:** tune reasoning effort, token budgets, prompts, caching and

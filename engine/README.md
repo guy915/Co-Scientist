@@ -171,7 +171,7 @@ pytest tests/test_coordinator.py tests/test_supervisor.py
 
 ### Code style
 
-- Apply PLAN.md’s hidden-reasons documentation policy.
+- Apply AGENTS.md’s hidden-reasons documentation policy.
 - `logger.debug()` lowercase; `info` / `warning` / `error` capitalized.
 - No emojis or Unicode decoration in library code or logs.
 - Line length: 80. Formatter: `ruff format`. Linter: `ruff check`.

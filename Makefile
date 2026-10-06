@@ -1,4 +1,4 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend coverage check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
 
 ROOT := $(CURDIR)
 ENGINE := $(ROOT)/engine
@@ -33,7 +33,6 @@ help:
 	@echo "  make docker-build Build both production images (never deploys)"
 	@echo "  make audit-deps   Audit dependency locks online (see requirements/README.md)"
 	@echo "  make test-frontend Run frontend unit tests"
-	@echo "  make coverage     Measure all four suites offline and enforce the campaign baseline"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
 	@echo "  make e2e-production Test built frontend assets with required researcher authentication"
 	@echo "  make test-evaluations Run evaluation harness tests"
@@ -226,11 +225,6 @@ test-all:
 	@$(MAKE) test-mcp
 	@$(MAKE) test-evaluations
 	@$(MAKE) test-frontend
-
-coverage: check-tools
-	@"$(PY)" "$(ROOT)/evaluations/tests/_coverage.py" \
-		--root "$(ROOT)" --python "$(PY)" \
-		--mcp-python "$(MCP_VENV)/bin/python" --bun "$(BUN)"
 
 # Use isolated ports and a fresh store so browser tests cannot disturb a developer stack.
 E2E := $(ROOT)/e2e

@@ -5,7 +5,7 @@ Remove the features, modes and dev tooling the owner chose to give up on
 later plan that starts from the size this one leaves.
 
 **Status:** planned 6 October 2026. It starts on day 1 of
-`docs/CAMPAIGNS.md`, when the test campaign in `PLAN.md` is done, and runs in
+`docs/CAMPAIGNS.md`, after the completed test campaign, and runs in
 parallel streams (see Streams).
 
 ## Scope
@@ -90,8 +90,7 @@ sets who edits what, the windows and the merge rules:
 5. **Last:** the legacy-data migration PR, then the deletion PR after the owner
    runs the migration.
 
-One theme per PR. Only one open PR at a time edits
-`docs/test-campaign/coverage-baseline.json`; bring in `main` before merging.
+One theme per PR; bring in `main` before merging.
 Shrink work on a folder starts when its cuts are merged (see
 `docs/PROD-SHRINK.md`).
 
@@ -99,9 +98,7 @@ Shrink work on a folder starts when its cuts are merged (see
 
 - **Kept behavior stays identical.** A cut changes only what its row names.
 - **Tests follow the code.** Delete tests that only cover deleted code; update
-  tests that touched it. When a cut removes a module the coverage guard
-  protects, remove it from the protected list in the same PR and say so in the
-  PR body. The 80% floor holds for everything that stays.
+  tests that touched it. Everything that stays keeps its tests.
 - **Delete, don't move.** No logic moves into JSON, YAML or Markdown
   templates. A data snapshot is data, not logic.
 - **Docs in the same PR.** Update `AGENTS.md`, `app/AGENTS.md`,
