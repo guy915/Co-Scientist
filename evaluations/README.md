@@ -61,7 +61,9 @@ the offline baseline remains local.
   quality** -- the deterministic backend answers every assessment the same
   canned way whatever was retrieved, and offline artifacts say so in an
   `offline_disclaimer`. `--run <id>` scores a persisted run; `--live`
-  drives one against a real provider.
+  drives one against a real provider, at the size `--tier` names
+  (default `express`). The manual `Benchmark` workflow runs it live for
+  the optimization campaign's quality benchmark.
 - `citation_usefulness_eval.py` — does a retrieved span answer *the
   question the search was serving*? Distinct from `citation_eval.py`,
   which asks whether a span entails a claim: the two come apart exactly

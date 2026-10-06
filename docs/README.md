@@ -12,8 +12,9 @@
 | [Dependencies](../requirements/README.md) | Hash-pinned runtime locks and audits |
 | [Contributor guidance](../AGENTS.md) | Repository rules and operating invariants |
 | [Test campaign](../PLAN.md) | Active phases and progress rules |
+| [Parallel campaigns](CAMPAIGNS.md) | Schedule, ownership and merge rules for the three campaigns below |
 | [Production cuts](PROD-CUTS.md) | Agreed feature removals, next after the test campaign |
-| [Production shrink](PROD-SHRINK.md) | Behavior-preserving size reduction, after the cuts |
+| [Production shrink](PROD-SHRINK.md) | Behavior-preserving size reduction, folder by folder after the cuts |
 | [Optimization](OPTIMIZATION.md) | Performance, efficiency and launch readiness |
 
 Retired audits, guides, incident records and screenshots remain in

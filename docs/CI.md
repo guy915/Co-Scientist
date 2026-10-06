@@ -26,6 +26,7 @@ Sources referenced throughout:
 | Presubmit (blocking, fast, reliable) | `ci.yml` on `pull_request`: path-filtered jobs, superseded runs cancelled |
 | Postsubmit (comprehensive) | `ci.yml` on `push` to `main`: every job runs, no path filters, runs never cancelled |
 | Continuous build (scheduled full pass) | `nightly.yml` (cron, 06:17 UTC) calls `ci.yml` via `workflow_call`; also `workflow_dispatch` for on-demand full passes |
+| Not CI | `benchmark.yml`: manual (`workflow_dispatch`) live quality benchmark for `docs/OPTIMIZATION.md`. It calls the free default model with the `OPENROUTER_API_KEY` repository secret, so it never gates a PR or `main` |
 
 SWE book ch. 23 defines presubmit as "fast and reliable" checks gating merge,
 with "slower or less deterministic" comprehensive testing moved to

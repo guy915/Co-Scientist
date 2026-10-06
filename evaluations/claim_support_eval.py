@@ -128,15 +128,20 @@ def drive_and_score(
         )
     return {
         "run_id": arm["run_id"],
+        "tier": tier,
         "completed": arm["completed"],
         "used_real_backend": arm["used_real_backend"],
         "evaluation_identity": arm.get("evaluation_identity"),
+        "llm_calls": arm["metrics"]["llm_calls"],
+        "latency_seconds": arm["metrics"]["latency_seconds"],
         "usage_evidence": arm["metrics"]["usage_evidence"],
         **score_claims(arm["hypotheses"]),
     }
 
 
-def run(run_id: str | None, *, live: bool = False) -> dict[str, Any]:
+def run(
+    run_id: str | None, *, live: bool = False, tier: str = "express"
+) -> dict[str, Any]:
     if run_id:
         return {
             "mode": "persisted_run",
@@ -147,7 +152,7 @@ def run(run_id: str | None, *, live: bool = False) -> dict[str, Any]:
         "mode": "live" if live else "offline",
         "offline_disclaimer": None if live else _OFFLINE_DISCLAIMER,
         "goal": _GOAL,
-        **drive_and_score(live=live),
+        **drive_and_score(tier=tier, live=live),
     }
 
 
@@ -159,9 +164,15 @@ def main() -> int:
         action="store_true",
         help="Drive the run against a real provider (needs a key).",
     )
+    parser.add_argument(
+        "--tier",
+        default="express",
+        choices=("express", "standard", "extended", "ultra"),
+        help="Run size for a driven run.",
+    )
     args = parser.parse_args()
 
-    report = run(args.run, live=args.live)
+    report = run(args.run, live=args.live, tier=args.tier)
     out = write_dated_artifact(report, f"claim-support-{report['mode']}")
     print(
         f"claim support [{report['mode']}]: "
