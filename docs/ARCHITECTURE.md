@@ -202,7 +202,7 @@ still holds: nothing here lets a view render without hitting the API.
     underneath (offline or real) varies with configuration.
 -   The FastAPI app is a single ASGI application composed from routers in
     `main.py` — the run router alongside the diagnostics endpoints
-    (`/health`, `/config`, `/status`, defined in `diagnostics_api.py` and
+    (`/health`, `/status`, defined in `diagnostics_api.py` and
     mounted by `app.main`).
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
     The workbench lives under `src/workbench/`; the earlier public landing

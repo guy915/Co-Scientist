@@ -14,7 +14,6 @@ MCP_VENV := $(ROOT)/.venv-mcp
 
 API_URL := http://localhost:8008
 UI_URL  := http://localhost:5173
-DOCS_URL := http://localhost:8008/docs
 
 help:
 	@echo "Co-Scientist — root commands"
@@ -80,7 +79,6 @@ start: preflight
 	@echo ""
 	@echo "Co-Scientist — dev URLs"
 	@echo "  API   : $(API_URL)"
-	@echo "  Docs  : $(DOCS_URL)"
 	@echo "  UI    : $(UI_URL)"
 	@echo ""
 	@$(MAKE) dev-all
