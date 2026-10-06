@@ -114,7 +114,7 @@ the style guide + autoformatter are the authority (the Python style guide
 itself defers formatting to the formatter). Here:
 
 - `format-lint` runs `ruff format --check` + `ruff check` (Google-ish config
-  already in each `pyproject.toml`: 80 columns, pydocstyle `google`
+  already in each `pyproject.toml`: 100 columns, pydocstyle `google`
   convention).
 - The frontend runs `gts lint` — Google TypeScript Style, literally.
 - ruff is pinned exactly (`ruff==0.15.21`) in CI so a formatter release
