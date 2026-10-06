@@ -154,7 +154,7 @@ def _start_recovery_task(
 load_dotenv()
 
 
-configure_logging(settings.log_format, level=logging.INFO)
+configure_logging(level=logging.INFO)
 
 
 def _install_log_capture() -> None:
@@ -169,14 +169,8 @@ def _install_log_capture() -> None:
 _install_log_capture()
 
 coscientist_logger = logging.getLogger("co_scientist")
-_app_log_level = logging.DEBUG if settings.coscientist_debug else logging.INFO
-logger.setLevel(_app_log_level)
-coscientist_logger.setLevel(_app_log_level)
-
-# Bridge Settings back to environment because LiteLLM and the engine read
-# provider variables directly.
-if settings.gemini_api_key:
-    os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
+logger.setLevel(logging.INFO)
+coscientist_logger.setLevel(logging.INFO)
 
 # The engine MCP client reads its URL from environment rather than a Settings
 # parameter.
@@ -375,7 +369,7 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.coscientist_debug,
+        reload=False,
     )
 
 __all__ = [
