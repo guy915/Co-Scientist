@@ -189,38 +189,6 @@ def _run_prompt_context(state: WorkflowState) -> PromptRunContext:
     )
 
 
-def build_synthesis_prompt(
-    state: WorkflowState,
-    summary: str,
-    contact_candidates: dict[str, dict[str, Any]],
-    evidence_corpus: dict[str, dict[str, Any]],
-) -> tuple[str, dict[str, Any] | None]:
-    """Strategic synthesis uses the supervisor model and the run's shared
-    guidance."""
-    return get_research_overview_prompt(
-        research_goal=state["research_goal"],
-        hypotheses_summary=summary,
-        contact_candidates=_format_contact_candidates(contact_candidates),
-        evidence_corpus=_format_evidence_corpus(evidence_corpus),
-        context=_run_prompt_context(state),
-    )
-
-
-def build_interim_synthesis_prompt(
-    state: WorkflowState,
-    summary: str,
-    evidence_corpus: dict[str, dict[str, Any]],
-) -> tuple[str, dict[str, Any] | None]:
-    """Interim schema asks for no contacts, so candidate context would buy no
-    output."""
-    return get_research_overview_interim_prompt(
-        research_goal=state["research_goal"],
-        hypotheses_summary=summary,
-        evidence_corpus=_format_evidence_corpus(evidence_corpus),
-        context=_run_prompt_context(state),
-    )
-
-
 _UNREVIEWED_OVERVIEW: Final = {"reviewed": False, "rounds": 0}
 
 
@@ -297,7 +265,13 @@ async def _interim_overview_result(
 ) -> dict[str, Any]:
     """The lean periodic call leaves terminal report/UI output untouched and
     buys neither accuracy review nor deep knowledge-base work."""
-    prompt, schema = build_interim_synthesis_prompt(state, summary, evidence_corpus)
+    # The interim schema asks for no contacts, so candidate context would buy no output.
+    prompt, schema = get_research_overview_interim_prompt(
+        research_goal=state["research_goal"],
+        hypotheses_summary=summary,
+        evidence_corpus=_format_evidence_corpus(evidence_corpus),
+        context=_run_prompt_context(state),
+    )
     response = await _call_research_overview_llm(
         state, prompt, schema, max_tokens=RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS
     )
@@ -339,7 +313,13 @@ async def _synthesize_research_overview(
 ) -> tuple[dict[str, Any], int]:
     """Accuracy revision replaces the raw draft; validate grounding once,
     last, on the version that will actually publish."""
-    prompt, schema = build_synthesis_prompt(state, summary, contact_candidates, evidence_corpus)
+    prompt, schema = get_research_overview_prompt(
+        research_goal=state["research_goal"],
+        hypotheses_summary=summary,
+        contact_candidates=_format_contact_candidates(contact_candidates),
+        evidence_corpus=_format_evidence_corpus(evidence_corpus),
+        context=_run_prompt_context(state),
+    )
     response = await _call_research_overview_llm(state, prompt, schema)
     response, review_meta, review_calls = await _maybe_review_overview(
         state, summary, contact_candidates, evidence_corpus, response
