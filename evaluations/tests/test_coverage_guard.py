@@ -5,12 +5,12 @@ import pytest
 from evaluations.tests._coverage import Report, guard, metric, suite
 
 
-def report(covered: int, other: int = 0) -> Report:
-    modules = {"module.py": metric(covered, 1000), "other.py": metric(other, other)}
+def report(covered: int) -> Report:
+    modules = {"module.py": metric(covered, 1000), "b.py": metric(1000, 1000)}
     return {"suites": {"app": suite(modules)}, "protected_modules": []}
 
 
-@pytest.mark.parametrize("covered,passed", [(800, True), (799, False)])
+@pytest.mark.parametrize("covered,passed", [(600, True), (599, False)])
 def test_suite_coverage_must_stay_at_or_above_the_floor(
     tmp_path: Path, covered: int, passed: bool
 ) -> None:
@@ -23,7 +23,7 @@ def test_protected_module_below_the_floor_fails_even_if_the_suite_passes(
     (tmp_path / "module.py").write_text("pass\n")
     baseline = report(960)
     baseline["protected_modules"] = ["module.py"]
-    errors = guard(report(799, other=1000), baseline, tmp_path)
+    errors = guard(report(799), baseline, tmp_path)
     assert len(errors) == 1
     assert "protected coverage" in errors[0]
 
