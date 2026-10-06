@@ -51,6 +51,7 @@ from app.execution_policy import (
     CAMPAIGN,
     campaign_model_for_config,
     scoped_execution_policy,
+    zero_cost_admission_for_config,
 )
 from app.run_modes import resolved_run_config
 from app.store import runs
@@ -93,7 +94,11 @@ async def execute_engine_task(
     """Credential and call-budget scopes cover the whole task, including
     nested retries, without mutating shared process state.
     """
-    from co_scientist.llm import scoped_api_key, scoped_llm_call_budget
+    from co_scientist.llm import (
+        scoped_api_key,
+        scoped_llm_call_budget,
+        scoped_zero_cost_admission,
+    )
 
     from app.credentials import get_run_credential, scoped_byok
 
@@ -122,5 +127,6 @@ async def execute_engine_task(
         scoped_execution_policy(
             run.execution_policy, campaign_model_name=campaign_model
         ),
+        scoped_zero_cost_admission(zero_cost_admission_for_config(run.config)),
     ):
         return await _dispatch_engine_task(task, db_path=db_path)

@@ -29,6 +29,7 @@ from co_scientist.llm import (
     precall,
     scoped_api_key,
     scoped_llm_call_budget,
+    scoped_zero_cost_admission,
 )
 from co_scientist.llm.admission import free_policy as free_catalog
 from tests._llm_fake import (
@@ -162,6 +163,26 @@ class TestFreeAdmission:
         assert len(requests) == 2
         assert requests[0]["extra_body"]["provider"]["max_price"] == _ZERO_CAP
         assert requests[0]["api_base"] == "https://openrouter.ai/api/v1"
+
+    async def test_zero_cost_admission_refuses_a_route_without_free_proof(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _mock_catalog(monkeypatch, _catalog(_ZERO))
+        requests: list[dict[str, Any]] = []
+        patch_acompletion(
+            monkeypatch, [make_completion(make_message("ok"))], requests
+        )
+        paid = CompletionSpec("openrouter/paid/model")
+
+        with (
+            scoped_zero_cost_admission(True),
+            pytest.raises(RuntimeError, match="zero-cost"),
+        ):
+            await call_llm("probe", paid, options=_NO_CACHE)
+        assert requests == []
+
+        assert await call_llm("probe", paid, options=_NO_CACHE) == "ok"
+        assert "max_price" not in str(requests[0].get("extra_body"))
 
     @pytest.mark.parametrize("campaign", [False, True])
     @pytest.mark.parametrize("scoped", [False, True])

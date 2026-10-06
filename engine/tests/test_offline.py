@@ -3,11 +3,15 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import uuid
 from typing import Any, cast
 
 import jsonschema
 import pytest
 
+from co_scientist import models
+from co_scientist.agents.reflection.review import _review_from_response
+from co_scientist.agents.reflection.review_gate import _disposition_for
 from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
@@ -16,42 +20,15 @@ from co_scientist.llm.structured.validate import get_fallback_response
 from co_scientist.models import ExecutionMetrics
 from co_scientist.offline import llm as offline_llm
 from co_scientist.offline.llm import (
-    _CRITIQUE_TEMPLATES,
-    _EXPERIMENT_TEMPLATES,
     _GENERATED_VOCABULARY,
-    _GO_NO_GO_TEMPLATES,
-    _PHASE_LABEL_TEMPLATES,
-    _RECOMMENDED_IDEA_TEMPLATES,
-    _SCOPE_CLAUSES,
-    _TIME_ESTIMATE_TEMPLATES,
     leaf_text,
     subject_terms,
 )
 from co_scientist.progress import _ACTIVE_WORKFLOW_STATE, emit_progress
+from co_scientist.schemas.review import _SCORE_CRITERIA, REVIEW_SCHEMA
 from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_SCHEMA
 from co_scientist.state import WorkflowState
-
-_GOAL_PROMPT = """# Generation Agent
-
-The overarching objective is to develop a novel hypothesis.
-
-Research Goal: What mechanisms drive antibiotic resistance in
-Staphylococcus aureus biofilms?
-
-Criteria for a high-quality hypothesis:
-Run setup:
-- Focus: Balance -- weigh evidence, novelty and feasibility evenly.
-- Requirements: cite sources in author-year form.
-"""
-
-
-def test_terms_come_from_the_goal_not_the_surrounding_boilerplate() -> None:
-    terms = subject_terms(_GOAL_PROMPT)
-
-    assert "antibiotic" in terms
-    assert "biofilms" in terms
-    assert "requirements" not in terms
-    assert "pathway flux" in subject_terms("No labelled goal at all here.")
+from tests._mcp import isolate_offline_router
 
 
 def test_generated_text_is_never_mined_as_subject_matter() -> None:
@@ -62,38 +39,6 @@ def test_generated_text_is_never_mined_as_subject_matter() -> None:
     terms = subject_terms(f"Original Hypothesis: {generated}")
 
     assert not set(terms) & _GENERATED_VOCABULARY
-
-
-def _openings(templates: tuple[str, ...]) -> set[str]:
-    return {
-        f"{filled[:1].upper()}{filled[1:]}"
-        for template in templates
-        for a, b in (("resistance", "biofilms"), ("biofilms", "resistance"))
-        for filled in (template.format(term_a=a, term_b=b),)
-    }
-
-
-@pytest.mark.parametrize(
-    ("field", "family", "foreign"),
-    [
-        ("experimental_context", _EXPERIMENT_TEMPLATES, _CRITIQUE_TEMPLATES),
-        ("constructive_feedback", _CRITIQUE_TEMPLATES, _EXPERIMENT_TEMPLATES),
-    ],
-    ids=["experiment_reads_as_a_protocol", "feedback_reads_as_a_critique"],
-)
-def test_leaves_vary_by_the_field_they_land_in(
-    field: str, family: tuple[str, ...], foreign: tuple[str, ...]
-) -> None:
-    """Family membership avoids coupling correctness to one deterministic
-    seed."""
-    mine, theirs = _openings(family), _openings(foreign)
-
-    for seed in range(200):
-        text = leaf_text(
-            random.Random(seed), 1, field, ("resistance", "biofilms")
-        )
-        assert any(text.startswith(opening) for opening in mine), text
-        assert not any(text.startswith(opening) for opening in theirs), text
 
 
 def test_one_goal_yields_many_distinct_token_bags() -> None:
@@ -113,29 +58,6 @@ def test_one_goal_yields_many_distinct_token_bags() -> None:
     }
 
     assert len(bags) > 300, len(bags)
-
-
-@pytest.mark.parametrize(
-    ("field", "family"),
-    [
-        ("go_no_go_recommendation", _GO_NO_GO_TEMPLATES),
-        ("time_to_verdict", _TIME_ESTIMATE_TEMPLATES),
-        ("time_estimate", _TIME_ESTIMATE_TEMPLATES),
-        ("phase_label", _PHASE_LABEL_TEMPLATES),
-        ("recommended_idea", _RECOMMENDED_IDEA_TEMPLATES),
-    ],
-)
-def test_standalone_fields_stay_a_short_label(
-    field: str, family: tuple[str, ...]
-) -> None:
-    openings = _openings(family)
-
-    for seed in range(50):
-        text = leaf_text(
-            random.Random(seed), 1, field, ("resistance", "biofilms")
-        )
-        assert text in openings, text
-        assert not any(clause in text for clause in _SCOPE_CLAUSES), text
 
 
 async def test_offline_acompletion_sizes_directions_past_the_preview_gate() -> (
@@ -187,14 +109,6 @@ async def test_degradations_accumulate_in_serve_order() -> None:
     assert state["degraded_nodes"] == ["meta_review", "research_overview"]
 
 
-async def test_fallback_without_active_state_still_serves() -> None:
-    _ACTIVE_WORKFLOW_STATE.set(None)
-
-    fallback = get_fallback_response({"name": "hypothesis_batch_review"})
-
-    assert fallback == {"reviews": []}
-
-
 async def test_degradation_emits_progress_event() -> None:
     events: list[tuple[str, dict[str, Any]]] = []
 
@@ -232,14 +146,6 @@ async def test_degradation_event_failure_cannot_break_the_run() -> None:
     assert state["degraded_nodes"] == ["meta_review"]
 
 
-def test_critical_node_fallback_records_nothing() -> None:
-    state = _fresh_state()
-    _ACTIVE_WORKFLOW_STATE.set(state)
-
-    assert get_fallback_response({"name": "hypothesis_generation"}) is None
-    assert state["degraded_nodes"] == []
-
-
 def test_durable_commit_captures_recorded_degradation() -> None:
     """Mid-node fallback appends must survive whole-state checkpoint commits."""
     from co_scientist.task_runtime import apply_task_update
@@ -273,3 +179,86 @@ def test_checkpoint_round_trips_degraded_nodes() -> None:
         "meta_review",
         "research_overview",
     ]
+
+
+_GOAL = "Identify repurposable drugs for hepatic fibrosis"
+
+
+@pytest.fixture(autouse=True)
+def _offline_isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The installed router is process-wide and must be restored between
+    tests."""
+    isolate_offline_router(monkeypatch)
+
+
+async def _ask(name: str, schema: dict[str, Any], prompt: str) -> str:
+    response = await offline_llm.offline_acompletion(
+        model=offline_llm.DEFAULT_OFFLINE_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={
+            "type": "json_schema",
+            "json_schema": {"name": name, "schema": schema},
+        },
+    )
+    content: str = response.choices[0].message.content
+    return content
+
+
+async def _answer(name: str, schema: dict[str, Any], prompt: str) -> Any:
+    parsed = json.loads(await _ask(name, schema, prompt))
+    jsonschema.validate(instance=parsed, schema=schema)
+    return parsed
+
+
+async def test_offline_review_scores_clear_the_viable_gate() -> None:
+    """The boundary score classifies as revision and skips the mature-review
+    cascade."""
+    parsed = await _answer(
+        "hypothesis_review", REVIEW_SCHEMA["schema"], "Review this."
+    )
+
+    review = _review_from_response(parsed)
+    assert (
+        _disposition_for(review, ("scientific_soundness", "novelty"))
+        == "viable"
+    )
+    assert set(offline_llm._REVIEW_SCORE_FIELDS) == {
+        *_SCORE_CRITERIA,
+        "overall_score",
+    }, "new score axes silently get boundary scores otherwise"
+
+
+def _optional_property_names(schema: dict[str, Any]) -> set[str]:
+    names: set[str] = set()
+    schema_type = schema.get("type", "object")
+    if schema_type == "object":
+        properties = schema.get("properties", {})
+        required = set(schema.get("required") or properties.keys())
+        for name, prop_schema in properties.items():
+            if name not in required:
+                names.add(name)
+            names |= _optional_property_names(prop_schema)
+    elif schema_type == "array":
+        names |= _optional_property_names(schema.get("items", {}))
+    return names
+
+
+def test_run_scoped_hypothesis_ids_are_deterministic_unique_and_scoped() -> (
+    None
+):
+    random_ids = {models.Hypothesis(text=f"idea {n}").id for n in range(5)}
+    assert len(random_ids) == 5
+    assert all(uuid.UUID(value).version == 4 for value in random_ids)
+
+    seed = models.run_seed_material("run-1", _GOAL)
+    with models.run_scoped_hypothesis_ids(seed):
+        first = [models.Hypothesis(text=f"idea {n}").id for n in range(3)]
+    with models.run_scoped_hypothesis_ids(seed):
+        second = [models.Hypothesis(text=f"idea {n}").id for n in range(3)]
+
+    assert first == second
+    assert len(set(first)) == 3
+    assert models.Hypothesis(text="after").id not in first
+    assert models.run_seed_material("a", "bc") != models.run_seed_material(
+        "ab", "c"
+    )

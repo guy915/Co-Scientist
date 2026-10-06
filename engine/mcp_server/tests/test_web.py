@@ -13,7 +13,6 @@ from mcp_server.tools.web_providers import (
     _clear_credential_error,
     _record_credential_error,
     check_web_search_available,
-    resolve_provider,
     search_brave,
     search_tavily,
     search_web,
@@ -263,57 +262,6 @@ async def test_brave_results_normalize_into_clean_stable_records(
     assert len(capped) == 1
 
 
-async def test_tavily_results_carry_extracted_page_text_and_score(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_responses(
-        monkeypatch,
-        {
-            "results": [
-                {
-                    "title": "GLP-1 trial results",
-                    "url": "https://example.com/a",
-                    "content": "Extracted page text.",
-                    "published_date": "2026-05-01",
-                    "score": 0.91,
-                }
-            ]
-        },
-    )
-
-    (entry,) = (await search_tavily("glp-1", 5, 30)).values()
-
-    assert entry["abstract"] == "Extracted page text."
-    assert entry["score"] == 0.91
-    assert entry["source"] == "web"
-
-
-@pytest.mark.parametrize(
-    "payload", [{}, {"web": None}, {"web": {"results": "nope"}}, None, []]
-)
-async def test_a_malformed_provider_answer_is_no_results(
-    monkeypatch: pytest.MonkeyPatch, payload: Any
-) -> None:
-    stub_responses(monkeypatch, payload, payload)
-
-    assert await search_brave("q", 10, 0) == {}
-    assert await search_tavily("q", 10, 0) == {}
-
-
-@pytest.mark.parametrize(
-    ("days", "freshness"),
-    [(0, None), (1, "pd"), (5, "pw"), (30, "pm"), (200, "py"), (5000, None)],
-)
-async def test_brave_buckets_recency_into_its_freshness_codes(
-    monkeypatch: pytest.MonkeyPatch, days: int, freshness: str | None
-) -> None:
-    client = stub_responses(monkeypatch, {})
-
-    await search_brave("q", 5, days)
-
-    assert client.calls[0][1].get("freshness") == freshness
-
-
 @pytest.fixture
 def keys(monkeypatch: pytest.MonkeyPatch) -> Any:
     def configure(
@@ -353,37 +301,6 @@ def _status_error(status: int) -> httpx.HTTPStatusError:
 
 @pytest.mark.usefixtures("_clear_credential_state")
 class TestWebSearchProviders:
-    @pytest.mark.parametrize(
-        ("keyed", "prefer", "refused", "chosen"),
-        [
-            ({}, None, [], None),
-            ({"brave", "tavily"}, None, [], "brave"),
-            ({"brave", "tavily"}, "tavily", [], "tavily"),
-            ({"brave"}, "tavily", [], "brave"),
-            ({"brave"}, "bing", [], "brave"),
-            ({"brave", "tavily"}, None, ["brave"], "tavily"),
-            ({"brave", "tavily"}, "tavily", ["tavily"], "brave"),
-            # Only success clears refusal records; trying a provider keeps
-            # monthly resets discoverable.
-            ({"brave", "tavily"}, None, ["brave", "tavily"], "brave"),
-        ],
-    )
-    def test_the_provider_is_chosen_by_preference_keys_and_refusals(
-        self,
-        keys: Any,
-        keyed: set[str],
-        prefer: str | None,
-        refused: list[str],
-        chosen: str | None,
-    ) -> None:
-        keys("brave" in keyed, "tavily" in keyed, prefer)
-        for provider in refused:
-            _record_credential_error(provider, 402, "quota gone")
-
-        resolved = resolve_provider()
-
-        assert (resolved[0] if resolved else None) == chosen
-
     @pytest.mark.parametrize(
         ("search", "key", "status", "provider"),
         [

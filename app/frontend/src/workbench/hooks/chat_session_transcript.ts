@@ -128,6 +128,7 @@ function rowToEntry(row: RunMessage): ChatEntry {
     reasoning: row.meta?.reasoning,
     sources: row.meta?.sources,
     created_at: row.created_at,
+    startRequest: row.kind === 'start' || undefined,
   };
 }
 
@@ -184,6 +185,7 @@ export interface NewChatMessage {
   reasoning?: string;
   createdAt?: number;
   sources?: QaSource[];
+  startRequest?: boolean;
 }
 
 export function appendChatMessage(
@@ -198,6 +200,7 @@ export function appendChatMessage(
     reasoning: message.reasoning,
     sources: message.sources,
     created_at: createdAt,
+    startRequest: message.startRequest,
   };
   update(current => ({messages: [...current.messages, entry]}));
   return createdAt;

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import time
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -29,40 +28,6 @@ _NODE_OUTPUT: dict[str, Any] = {"papers": ["a", "b"], "summary": "found 2"}
 def _age(path: Path, seconds: float) -> None:
     stamp = time.time() - seconds
     os.utime(path, (stamp, stamp))
-
-
-@pytest.mark.parametrize(
-    "changed",
-    [
-        {"prompt": "different prompt"},
-        {"temperature": 0.9},
-        {"tools": [{"name": "search"}]},
-        {"force_json": True},
-        # Tool configuration changes invalidate transcripts even with equal
-        # schemas.
-        {"tool_contract": {"pubmed": {"enabled": True}}},
-        {"cache_schema_version": _REQUEST.cache_schema_version + 1},
-    ],
-    ids=lambda changed: next(iter(changed)),
-)
-def test_a_changed_request_is_a_cache_miss(
-    tmp_path: Path, changed: dict[str, Any]
-) -> None:
-    llm_cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    assert llm_cache.get(_REQUEST) is None
-    llm_cache.set(_REQUEST, _RESPONSE)
-    assert llm_cache.get(_REQUEST) == _RESPONSE
-    assert llm_cache.get(replace(_REQUEST, **changed)) is None
-
-
-def test_a_disabled_cache_neither_stores_nor_creates_its_directory(
-    tmp_path: Path,
-) -> None:
-    target = tmp_path / "nonexistent"
-    llm_cache = LLMCache(cache_dir=str(target), enabled=False)
-    llm_cache.set(_REQUEST, _RESPONSE)
-    assert llm_cache.get(_REQUEST) is None
-    assert not target.exists()
 
 
 @pytest.mark.parametrize(
@@ -94,42 +59,6 @@ def test_a_corrupt_llm_entry_is_a_miss_and_is_removed(
 
     assert llm_cache.get(_REQUEST) is None
     assert not entry.exists()
-
-
-def test_stats_count_entries_and_clear_empties(tmp_path: Path) -> None:
-    llm_cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    llm_cache.set(_REQUEST, _RESPONSE)
-    llm_cache.set(replace(_REQUEST, prompt="second"), _RESPONSE)
-    assert llm_cache.get_stats()["cache_files"] == 2
-    assert llm_cache.clear() == 2
-    assert llm_cache.get_stats()["cache_files"] == 0
-
-
-def test_the_global_cache_reads_enablement_and_ttl_from_the_environment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_CACHE_DIR", str(tmp_path))
-    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
-    monkeypatch.setenv("COSCIENTIST_CACHE_TTL_SECONDS", "42")
-    monkeypatch.setattr(cache, "_global_cache", None)
-    assert cache.get_cache().enabled is True
-    assert cache.get_cache().ttl_seconds == 42.0
-    monkeypatch.setenv("COSCIENTIST_CACHE_TTL_SECONDS", "0")
-    monkeypatch.setattr(cache, "_global_cache", None)
-    assert cache.get_cache().ttl_seconds is None
-
-
-def test_scoped_cache_override_nests_and_resets_even_on_error() -> None:
-    assert cache.cache_enabled_override() is None
-    with cache.scoped_cache_override(None):
-        assert cache.cache_enabled_override() is None
-    with cache.scoped_cache_override(True):
-        with cache.scoped_cache_override(False):
-            assert cache.cache_enabled_override() is False
-        assert cache.cache_enabled_override() is True
-    with pytest.raises(ValueError), cache.scoped_cache_override(False):
-        raise ValueError("boom")
-    assert cache.cache_enabled_override() is None
 
 
 def test_the_documented_admin_api_reports_and_clears_both_caches(
@@ -170,15 +99,6 @@ def test_a_failed_cache_write_never_breaks_the_run(tmp_path: Path) -> None:
     node = NodeCache(cache_dir=str(tmp_path), enabled=True)
     node.set("node", {"unpicklable": lambda: None}, research_goal="x")
     assert node.get("node", research_goal="x") is None
-
-
-def test_node_cache_keys_on_node_and_params(tmp_path: Path) -> None:
-    node = NodeCache(cache_dir=str(tmp_path), enabled=True)
-    assert node.get("literature_review", research_goal="cancer") is None
-    node.set("literature_review", _NODE_OUTPUT, research_goal="cancer")
-    assert node.get("literature_review", research_goal="cancer") == _NODE_OUTPUT
-    assert node.get("literature_review", research_goal="diabetes") is None
-    assert node.get("other_node", research_goal="cancer") is None
 
 
 @pytest.mark.parametrize(

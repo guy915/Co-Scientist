@@ -169,8 +169,10 @@ worker can terminate or park it correctly. Permanent failure or plan divergence
 cancels dependent portfolio tasks in one transaction. An unknown provider outcome
 permanently fails a fanout item without replaying it or cancelling siblings;
 aggregates admit failed items and preserve an explicit unreviewed verdict.
-Unknown outcomes on coordinator tasks still stop the run. Lost campaign leases may
-retry only under the persisted zero-price policy, without caller keys.
+Unknown outcomes on coordinator tasks still stop the run. Lost leases may retry
+only under persisted zero-price admission, without caller keys: campaign policy,
+or the `zero_cost_admission` stamp a free run on all-free routes gets at creation,
+which binds its engine tasks to zero-price-only requests. Unstamped runs fail closed.
 
 Verification issuance markers survive failed attempts and checkpoint restore;
 otherwise recovery funds the same evidence pass again. Periodic companion nodes

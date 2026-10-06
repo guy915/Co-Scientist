@@ -21,7 +21,7 @@ from mcp_server.tests._entrez import (
     trace_path,
 )
 from mcp_server.tests._entrez import install_fake_entrez as _install_fake_entrez
-from mcp_server.tests._httpx import _trace_evidence
+from mcp_server.tests._trace import _trace_evidence
 
 _DEFAULT_ENTREZ_MAX_TRIES = Entrez.max_tries
 _DEFAULT_ENTREZ_SLEEP_BETWEEN_TRIES = Entrez.sleep_between_tries
