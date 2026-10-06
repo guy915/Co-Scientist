@@ -21,8 +21,8 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 
 | Module | Purpose |
 |---|---|
-| `main.py` | App setup, lifespan, ownership middleware; the diagnostics endpoints (`/health`, `/config`, `/status`) live in `diagnostics_api.py` and are mounted by `app.main` |
-| `feedback_api.py` / `store/feedback.py` | Owner-scoped feedback; durable admission budgets and row/byte/age retention; admin reads always require `LOGS_ADMIN_TOKEN`, including localhost |
+| `main.py` | App setup, lifespan, ownership middleware; the diagnostics endpoints (`/health`, `/status`) live in `diagnostics_api.py` and are mounted by `app.main` |
+| `feedback_api.py` / `store/feedback.py` | Owner-scoped feedback; durable admission budgets and row/byte/age retention |
 | `diagnostic_events.py` | Chat role/character-count/response-duration metadata; never transcript text |
 | `config.py` | Pydantic settings (model names, API keys, Elo tuning, safety mode, worker/concurrency caps, auth). The DB path is *not* here — `COSCIENTIST_DB_PATH` is read directly in `store/db.py` |
 | `runs/` (`__init__.py`) | Durable run-lifecycle router (`/api/runs` endpoint group); sibling routers `runs/lifecycle.py` (start/cancel; `runs/lifecycle.py` holds the safety-adjudication handler that relaunches or blocks a held run, registered from `runs/collections.py` to keep the served route order), `runs/collections.py` (read-only getters + report), `runs/contrib.py` (scientist input + attachments), and `runs/support.py` (shared guards) are included into `runs.router`, the names callers use are re-exported from `app.runs` |
@@ -47,7 +47,7 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 | `document_ingest.py`, `run_corpus.py` | Attachment extraction + per-run keyword (BM25-style) retrieval |
 | `documents.py`, `staged_documents.py` | The router serves `/api/documents`; shared ownership resolution and document metadata summaries live in `staged_documents.py`, which run creation and interviews import directly. `/api/documents` — pre-run document staging, owned by client id. An attachment made in the composer is uploaded here *before* any run exists, so the goal interview quotes it and `POST /api/runs` copies it into the new run's corpus as part of creating it |
 | `shares.py` | Revocable public Goal Report share tokens |
-| `account_export.py`, `notifications.py` | `GET /api/account/export` (N11, a client's own runs/documents/interviews); durable completion-email scheduling and SMTP delivery as the `notification.email` task |
+| `notifications.py` | Durable completion-email scheduling and SMTP delivery as the `notification.email` task |
 | `diagnostics.py` | `/health` checks and the cached MCP/PubMed/web-search probes behind `/status` |
 | `elo.py`, `citations/`, `safety/`, `run_modes/`, `seed/` | Elo utilities; citation classification; intake/final screening; run tier/focus normalization; demo loader (inserts the exported example runs from `data/demo_runs.json.gz`, owner copies in `store/examples.py`) |
 | `pdf.py` | PDF heading recovery for uploaded documents, combining bookmark, numbering and font-style signals; imported lazily by `document_ingest.py` |
@@ -86,7 +86,7 @@ come from the engine; the conversational effort override stays app policy.
 
 **Key endpoints**
 
-Diagnostics (in `main.py`): `GET /health`, `/config`, `/status` — `/status` reports MCP/PubMed/web-search availability. The web-search probe calls the MCP server's `check_web_search_available`, **not** `search_web`'s presence in the tool list: the server registers that tool whenever a provider key was set at boot, so presence survives the provider refusing the key, and a refused search returns an empty result set that looks like a quiet week on the web. An older mcp image without the check tool falls back to presence, since api and mcp deploy separately.
+Diagnostics (in `main.py`): `GET /health`, `/status` — `/status` reports MCP/PubMed/web-search availability. The web-search probe calls the MCP server's `check_web_search_available`, **not** `search_web`'s presence in the tool list: the server registers that tool whenever a provider key was set at boot, so presence survives the provider refusing the key, and a refused search returns an empty result set that looks like a quiet week on the web. An older mcp image without the check tool falls back to presence, since api and mcp deploy separately.
 
 Run lifecycle (in `runs/`, mounted at `/api/runs`) — **primary API used by the frontend**:
 - `POST /api/runs` — create a draft run; `GET /api/runs` — list runs; `GET /api/runs/demo`.
@@ -102,9 +102,9 @@ Run lifecycle (in `runs/`, mounted at `/api/runs`) — **primary API used by the
 - `POST /api/runs/{id}/safety/{decision_id}/adjudicate` — human adjudication of a safety decision.
 - `POST|GET /api/runs/{id}/shares`, `DELETE /{id}/shares/{share_id}`, `GET /api/shared/{token}` — revocable public Goal Report links.
 
-Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create); `GET /api/account/export`; `POST /api/auth/exchange`.
+Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create); `POST /api/auth/exchange`.
 
-Additional routers mounted in `main.py`: `interviews`, `documents`, `shares`, `account_export`, `auth`, and `logs` (see each module for its endpoint group).
+Additional routers mounted in `main.py`: `interviews`, `documents`, `shares`, `auth`, and `logs` (see each module for its endpoint group).
 
 **Persisted logs** (`logs_api.py` + `logging_setup.py` + `store/logs.py`) — one app-wide, durable log in the SQLite `app_logs` table:
 

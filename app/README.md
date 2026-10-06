@@ -9,7 +9,7 @@ app/
 ├── app/            FastAPI backend (Python)
 │   ├── main.py     App setup, lifespan, ownership middleware, router mounting
 │   ├── runs/       Durable run-lifecycle router (create / start / stream / cancel); runs.lifecycle/collections/contrib/chat back it
-│   ├── diagnostics_api.py  /health, /config, /status (mounted by app.main)
+│   ├── diagnostics_api.py  /health, /status (mounted by app.main)
 │   ├── engine_tasks/      Durable run execution — the production path — plus task_worker/
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
@@ -157,8 +157,7 @@ Runs can be cancelled mid-flight; interrupted runs resume on restart. The backen
 
 The backend mounts several routers (`runs`, `interviews`, `shares`, `feedback`,
 `auth`, `logs`) plus top-level diagnostics. The core run-lifecycle group is
-below; for the complete, always-current surface use the interactive docs at
-`/docs`.
+below.
 
 ### Run lifecycle (`/api/runs`)
 
@@ -189,14 +188,7 @@ below; for the complete, always-current surface use the interactive docs at
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check |
-| `GET` | `/config` | Server-default config values |
 | `GET` | `/status` | MCP/PubMed/web-search availability, provider, LLM backend |
-
-Interactive docs are available when the server is running, to operator
-callers only — a loopback client, or one sending `X-Logs-Token:
-$LOGS_ADMIN_TOKEN`. Anyone else gets a 404.
-- Swagger UI: http://localhost:8008/docs
-- ReDoc: http://localhost:8008/redoc
 
 ## Development commands
 
