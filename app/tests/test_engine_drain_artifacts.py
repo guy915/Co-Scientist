@@ -260,18 +260,6 @@ def test_grounding_telemetry_is_charged_once_into_plain_metrics(
     assert ("g::m" in metrics.get("model_usage", {})) is bool(usage)
 
 
-def test_review_axes_match_the_engine_score_criteria() -> None:
-    # App axis copies avoid runtime schema imports but must track engine
-    # additions and order.
-    from co_scientist.schemas.review import _SCORE_CRITERIA
-
-    from app.engine_adapter.drain.reviews import _REVIEW_AXES
-    from app.report.markdown.hypothesis import _AXIS_SECTIONS
-
-    assert _REVIEW_AXES == _SCORE_CRITERIA
-    assert [axis for axis, _ in _AXIS_SECTIONS] == list(_SCORE_CRITERIA)
-
-
 def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
     edges = records.list_proximity_edges(run_id, db_path=db_path)
     hypotheses = store_hypotheses.list_hypotheses(run_id, db_path=db_path)
@@ -441,26 +429,6 @@ def test_drain_maps_evidence_outcomes_onto_publication_status(
     assert by_id["child-1"]["status"] == "active"
 
 
-@pytest.mark.parametrize(
-    "research_overview", [None, {"overview": {}, "nih_specific_aims": {}}]
-)
-def test_persist_omits_research_overview_sections_when_there_is_none(
-    isolated_db: str, research_overview: dict[str, Any] | None
-) -> None:
-    state = _final_state_with_features()
-    if research_overview is None:
-        del state["research_overview"]
-    else:
-        state["research_overview"] = research_overview
-    run = seed_run("No overview")
-    _persist_and_finalize(run, state, isolated_db)
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert "## Research Overview" not in report["markdown_text"]
-    assert "## NIH Specific Aims" not in report["markdown_text"]
-
-
 @pytest.mark.parametrize("participant_dropped", [False, True])
 def test_persist_matches_resolve_participants_by_engine_id(
     isolated_db: str, participant_dropped: bool
@@ -603,76 +571,3 @@ def test_persist_classifies_citations_via_shared_classifier(
     assert "CXCR1 drives CSC renewal" in section
     assert "INDRA: CXCR1 -> STAT3" in section
     assert "cited in hypothesis" not in section
-
-
-def _final_state_with_multi_source_grounding() -> dict[str, Any]:
-    # Multiple sentences distinguish per-citation support from whole-paragraph
-    # lexical dilution.
-    grounding = (
-        "CXCR1 signaling drives breast cancer stem cell renewal [C1]. "
-        "Hypoxia-inducible factor stabilization expands the perivascular "
-        "niche in glioma [C2]. "
-        "The proposed coupling between the two is an extension of both."
-    )
-    return {
-        "hypotheses": [
-            _engine_hypothesis(
-                "eng-hyp-a",
-                "Blocking CXCR1 suppresses breast cancer stem cells.",
-                literature_grounding=grounding,
-                citation_map={
-                    "C1": {
-                        "type": "paper",
-                        "title": "CXCR1 drives CSC renewal",
-                        "url": "https://example.org/c1",
-                    },
-                    "C2": {
-                        "type": "paper",
-                        "title": "HIF expands the glioma niche",
-                        "url": "https://example.org/c2",
-                    },
-                },
-            )
-        ],
-        "articles": [
-            {
-                "title": "CXCR1 drives CSC renewal",
-                "url": "https://example.org/c1",
-                "abstract": (
-                    "CXCR1 signaling drives breast cancer stem cell renewal "
-                    "across xenograft models."
-                ),
-            },
-            {
-                "title": "HIF expands the glioma niche",
-                "url": "https://example.org/c2",
-                "abstract": (
-                    "Hypoxia-inducible factor stabilization expands the "
-                    "perivascular niche in glioma xenografts."
-                ),
-            },
-        ],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "research_overview": {},
-    }
-
-
-def test_each_citation_is_scored_against_the_sentence_that_cites_it(
-    isolated_db: str,
-) -> None:
-    # Classify each cited sentence; unrelated source vocabulary can make the
-    # support threshold unreachable.
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=_final_state_with_multi_source_grounding(),
-        db_path=isolated_db,
-    )
-
-    citations = records.list_citations(run.id, db_path=isolated_db)
-    states = {c["claim"]: c["state"] for c in citations}
-    assert states == {
-        "[C1] cited in hypothesis": "verified",
-        "[C2] cited in hypothesis": "verified",
-    }

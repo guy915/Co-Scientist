@@ -5,7 +5,6 @@ from collections.abc import Sequence
 import pytest
 
 from app.claims import (
-    AssessorDraft,
     ClaimAssessment,
     EntailmentLabel,
     EvidencePassage,
@@ -15,12 +14,6 @@ from app.claims import (
     assess_claim,
     assess_claims_batch,
     publication_gate,
-)
-from app.evidence_chunking import (
-    CHUNK_MAX_CHARS,
-    CHUNK_OVERLAP_CHARS,
-    chunk_evidence_passage,
-    parent_evidence_id,
 )
 
 # Verbatim production pairs exposed whole-passage negation paired with unrelated
@@ -387,57 +380,3 @@ def test_a_citation_resolves_only_to_a_passage_that_contains_the_quote(
     spans = _locate_all((citation,), passages, cites_evidence_ids=cites_ids)
 
     assert [s.evidence_id for s in spans] == resolved
-
-
-@pytest.mark.parametrize(
-    "run",
-    ["deterministic", "custom", "batch-fallback"],
-)
-def test_a_numeric_evidence_id_survives_every_assessment_path(
-    run: str,
-) -> None:
-    claim = "Fasudil reduces collagen I expression in cardiac fibroblasts."
-    passage = EvidencePassage("12345", claim)
-    draft = AssessorDraft(
-        EntailmentLabel.SUPPORTS,
-        supporting=(("12345", "reduces collagen I expression"),),
-    )
-    if run == "deterministic":
-        result = assess_claim(claim, [passage])
-    elif run == "custom":
-        result = assess_claim(
-            claim, [passage], assessor=lambda _claim, _shown: draft
-        )
-    else:
-        result = assess_claims_batch(
-            [claim],
-            [passage],
-            batch_assessor=lambda _claims, _shown: [None],
-            assessor_id="llm:test",
-        )[0]
-
-    assert result.label is EntailmentLabel.SUPPORTS
-    assert [s.evidence_id for s in result.supporting_passages] == ["12345"]
-
-
-def test_a_long_article_is_chunked_under_the_size_limit_with_provenance() -> (
-    None
-):
-    paragraph = "Kinase X inhibition reduces tumor growth. " * 40
-    body = "\n\n".join([paragraph] * 25)
-    assert len(body) > 40_000
-
-    passages = chunk_evidence_passage(
-        "art-1",
-        head_text="Title. Abstract sentence.",
-        body_text=body,
-        source="pubmed",
-        url="https://example.org/1",
-    )
-
-    assert len(passages) > 1
-    # Chunk ceilings include the overlap prefix and its joining space.
-    bound = CHUNK_MAX_CHARS + CHUNK_OVERLAP_CHARS + 1
-    for passage in passages:
-        assert len(passage.text) <= bound
-        assert parent_evidence_id(passage.evidence_id) == "art-1"

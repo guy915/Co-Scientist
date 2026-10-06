@@ -433,6 +433,87 @@ async def _schedule_generation(
     return planned, [task for task in tasks if task is not None]
 
 
+async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = seed_run("Partial generation")
+    state = _generation_state(run.id, "lit_and_tools")
+    _install_strategies(monkeypatch)
+
+    async def failed_tools(*_args: Any) -> Any:
+        raise RuntimeError("draft failed")
+
+    monkeypatch.setattr(coordinator, "generate_with_tools", failed_tools)
+    with pytest.raises(RuntimeError, match="draft failed"):
+        await coordinator.generate_hypotheses(state)
+
+    monkeypatch.setattr(literature_tools, "generate_with_tools", failed_tools)
+    planned, tasks = await _schedule_generation(state, isolated_db)
+    for _ in tasks:
+        leased = store.claim_task(
+            "strategy", run_id=run.id, db_path=isolated_db
+        )
+        assert leased is not None
+        if leased.inputs["strategy"] == "tools":
+            with pytest.raises(RuntimeError, match="draft failed"):
+                await fanout.execute_generation_strategy(
+                    leased, db_path=isolated_db
+                )
+            assert store.fail_task(
+                leased.id,
+                "strategy",
+                "draft failed",
+                retryable=False,
+                db_path=isolated_db,
+            )
+        else:
+            result = await fanout.execute_generation_strategy(
+                leased, db_path=isolated_db
+            )
+            result["skills_used"] = {"pubmed": 1}
+            result["model_usage"] = {
+                "generate:fixture": {"calls": 1, "prompt_tokens": 10}
+            }
+            assert lifecycle.complete_task(
+                leased.id, "strategy", result, db_path=isolated_db
+            )
+
+    aggregate = store.claim_task(
+        "aggregate", run_id=run.id, db_path=isolated_db
+    )
+    assert (
+        aggregate is not None and aggregate.id == planned["aggregate_task_id"]
+    )
+    result = await aggregates.execute_generation_aggregate(
+        aggregate, db_path=isolated_db
+    )
+    assert result["failed_strategies"] == 1
+    assert result["hypotheses_generated"] == 5
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
+    assert checkpoint is not None
+    committed = restore_workflow_state(checkpoint["state"])
+    assert [hyp.id for hyp in committed["hypotheses"]] == [
+        "parent",
+        "debate_lit-0",
+        "debate_lit-1",
+        "debate_lit-2",
+        "assumptions-0",
+        "assumptions-1",
+    ]
+    assert committed["metrics"].llm_calls == 9
+    assert committed["metrics"].skills_used == {"pubmed": 4}
+    assert committed["metrics"].model_usage["generate:fixture"]["calls"] == 4
+    assert (
+        committed["metrics"].model_usage["generate:fixture"]["prompt_tokens"]
+        == 40
+    )
+    assert [item["debate_id"] for item in committed["debate_transcripts"]] == [
+        "debate_lit-0",
+        "debate_lit-1",
+        "debate_lit-2",
+    ]
+
+
 @pytest.mark.parametrize("mode", ["lit_and_tools", "lit_only", "no_lit"])
 async def test_graph_and_durable_contracts_keep_the_same_results(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, mode: str
@@ -540,84 +621,3 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
         (call["position"].debate_index, call["position"].total_debates)
         for call in debate_calls
     ) == [(index, len(debate_calls)) for index in range(len(debate_calls))]
-
-
-async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Partial generation")
-    state = _generation_state(run.id, "lit_and_tools")
-    _install_strategies(monkeypatch)
-
-    async def failed_tools(*_args: Any) -> Any:
-        raise RuntimeError("draft failed")
-
-    monkeypatch.setattr(coordinator, "generate_with_tools", failed_tools)
-    with pytest.raises(RuntimeError, match="draft failed"):
-        await coordinator.generate_hypotheses(state)
-
-    monkeypatch.setattr(literature_tools, "generate_with_tools", failed_tools)
-    planned, tasks = await _schedule_generation(state, isolated_db)
-    for _ in tasks:
-        leased = store.claim_task(
-            "strategy", run_id=run.id, db_path=isolated_db
-        )
-        assert leased is not None
-        if leased.inputs["strategy"] == "tools":
-            with pytest.raises(RuntimeError, match="draft failed"):
-                await fanout.execute_generation_strategy(
-                    leased, db_path=isolated_db
-                )
-            assert store.fail_task(
-                leased.id,
-                "strategy",
-                "draft failed",
-                retryable=False,
-                db_path=isolated_db,
-            )
-        else:
-            result = await fanout.execute_generation_strategy(
-                leased, db_path=isolated_db
-            )
-            result["skills_used"] = {"pubmed": 1}
-            result["model_usage"] = {
-                "generate:fixture": {"calls": 1, "prompt_tokens": 10}
-            }
-            assert lifecycle.complete_task(
-                leased.id, "strategy", result, db_path=isolated_db
-            )
-
-    aggregate = store.claim_task(
-        "aggregate", run_id=run.id, db_path=isolated_db
-    )
-    assert (
-        aggregate is not None and aggregate.id == planned["aggregate_task_id"]
-    )
-    result = await aggregates.execute_generation_aggregate(
-        aggregate, db_path=isolated_db
-    )
-    assert result["failed_strategies"] == 1
-    assert result["hypotheses_generated"] == 5
-    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    committed = restore_workflow_state(checkpoint["state"])
-    assert [hyp.id for hyp in committed["hypotheses"]] == [
-        "parent",
-        "debate_lit-0",
-        "debate_lit-1",
-        "debate_lit-2",
-        "assumptions-0",
-        "assumptions-1",
-    ]
-    assert committed["metrics"].llm_calls == 9
-    assert committed["metrics"].skills_used == {"pubmed": 4}
-    assert committed["metrics"].model_usage["generate:fixture"]["calls"] == 4
-    assert (
-        committed["metrics"].model_usage["generate:fixture"]["prompt_tokens"]
-        == 40
-    )
-    assert [item["debate_id"] for item in committed["debate_transcripts"]] == [
-        "debate_lit-0",
-        "debate_lit-1",
-        "debate_lit-2",
-    ]
