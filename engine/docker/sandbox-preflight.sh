@@ -1,5 +1,5 @@
 #!/bin/sh
-# Require a working namespace before escape tests: launch failure would make denials falsely
+# Require a working backend before escape tests: launch failure would make denials falsely
 # pass.
 set -e
 
@@ -8,9 +8,8 @@ BACKEND=$(python -c 'from co_scientist.sandbox import sandbox_backend; print(san
 if [ -z "$BACKEND" ]; then
   echo "PREFLIGHT FAILED: no usable sandbox backend in this container." >&2
   echo "" >&2
-  echo "bubblewrap needs unprivileged user namespaces, which a default" >&2
-  echo "container seccomp profile blocks; landlock needs Linux 5.13+." >&2
-  echo "With neither, the escape tests would pass because nothing ran --" >&2
+  echo "landlock needs Linux 5.13+ with the LSM enabled." >&2
+  echo "Without it, the escape tests would pass because nothing ran --" >&2
   echo "not because anything was confined." >&2
   exit 1
 fi
