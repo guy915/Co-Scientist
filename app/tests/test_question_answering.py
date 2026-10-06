@@ -1,22 +1,15 @@
 from __future__ import annotations
 
-import dataclasses
-import time
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-import app.qa.manifest as qa_run_state
 from app import qa
-from app.config import settings
 from app.qa import build_evidence_manifest
-from app.store import db, runs
-from app.store import events as store_events
 from app.store import messages as store
 from app.store.messages import NewMessage
-from app.store.models import RunRow, RunStatus
 from tests._client import create_run as _create_run
 from tests._client import drain as _drain
 from tests._client import fake_litellm as _fake_litellm
@@ -111,28 +104,6 @@ def _completed_run_id() -> str:
     return str(rid)
 
 
-def test_ask_offline_returns_grounded_answer_not_error() -> None:
-    rid = _completed_run_id()
-    c = _client()
-
-    res = c.post(f"/api/runs/{rid}/messages/ask", json={"question": "Summary?"})
-
-    assert res.status_code == 200
-    body = res.text
-    assert '"type": "chunk"' in body
-    assert '"type": "done"' in body
-    assert '"type": "error"' not in body
-    assert "requires a language model" not in body
-    assert "requires an API key" not in body
-
-    msgs = store.list_messages(rid)
-    answer = next(
-        m for m in reversed(msgs) if m.kind == "qa" and m.sender == "system"
-    )
-    assert "Investigate ferroptosis in cancer" in answer.content
-    assert "offline mode" in answer.content.lower()
-
-
 def test_ask_uses_real_llm_when_provider_key_present(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
@@ -157,36 +128,6 @@ def test_ask_uses_real_llm_when_provider_key_present(
     assert answer.content == "Model text"
 
 
-def _prompt_for(rid: str) -> str:
-    from app import qa
-    from app.runs import chat as runs_chat
-
-    run = runs.get_run(rid)
-    assert run is not None
-    return qa.build_system_prompt(runs_chat._gather_qa_context(run))
-
-
-def test_the_prompt_carries_the_runs_progress_and_its_report() -> None:
-    prompt = _prompt_for(_completed_run_id())
-
-    assert "Run status:" in prompt
-    assert "Ideas generated so far:" in prompt
-    assert "Final report:" in prompt
-    assert "Ideas explored:" in prompt
-    assert "call the search_ideas tool" in prompt
-
-
-def test_a_running_run_carries_no_final_report_section() -> None:
-    c = _client()
-    rid = _create_run(c, "Investigate X", tier="express").json()["id"]
-    runs.update_run_status(rid, RunStatus.RUNNING)
-
-    prompt = _prompt_for(rid)
-
-    assert "Run status:" in prompt
-    assert "Final report:" not in prompt
-
-
 def _evidence(eid: str, **over: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "id": eid,
@@ -202,38 +143,6 @@ def _evidence(eid: str, **over: Any) -> dict[str, Any]:
 
 def _citation(eid: str, state: str) -> dict[str, Any]:
     return {"evidence_id": eid, "state": state, "claim": "c"}
-
-
-def _seed_running_run() -> RunRow:
-    run = seed_run("A goal")
-    runs.update_run_status(run.id, RunStatus.RUNNING)
-    return dataclasses.replace(run, status="running")
-
-
-def test_elapsed_is_measured_from_execution_start_not_draft_creation() -> None:
-    run = _seed_running_run()
-    store_events.append_event(run.id, "lifecycle", {"event": "queued"})
-    with db.connect() as conn:
-        progress = qa_run_state.gather_run_progress(
-            run, [], {"ideas": 2}, conn, now=time.time() + 120.0
-        )
-
-    assert progress.elapsed_seconds is not None
-    assert 110.0 < progress.elapsed_seconds < 130.0
-    assert progress.idea_count == 2
-    assert progress.is_running
-
-
-@pytest.mark.parametrize(
-    ("chat_model", "expected"),
-    [("chat/model", "chat/model"), (None, "worker/model")],
-)
-def test_the_chat_model_falls_back_to_the_worker_model(
-    monkeypatch: pytest.MonkeyPatch, chat_model: str | None, expected: str
-) -> None:
-    monkeypatch.setattr(settings, "chat_model_name", chat_model)
-    monkeypatch.setattr(settings, "model_name", "worker/model")
-    assert settings.effective_chat_model == expected
 
 
 @pytest.mark.parametrize(

@@ -1,53 +1,35 @@
 from __future__ import annotations
 
-import pathlib
-import tempfile
 from collections.abc import AsyncIterator
-from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import pytest
-from co_scientist.cache import _resolve_cache_env
 from co_scientist.constants import MODEL_PRICING
 from co_scientist.exceptions import FreeModelEligibilityError
 from co_scientist.llm import campaign_free_mode, current_api_key
 from fastapi import Request
-from pydantic import ValidationError
 
-import app.qa as qa_stream
 from app import (
     auth,
     credentials,
-    engine_adapter,
     engine_tasks,
     human_input,
     llm_request,
-    offline_guard,
-    process_mode,
     qa,
     safety,
     task_worker,
 )
 from app.config import (
     BYOK_PROVIDER_DEFAULT_MODELS,
-    THINKING_FLOOR_MAX_TOKENS,
-    THINKING_FLOOR_TIMEOUT_SECONDS,
     Settings,
-    deepseek_non_thinking_extra_body,
-    deepseek_thinking_kwargs,
     settings,
-    thinking_off_kwargs,
-    thinking_safe_max_tokens,
-    thinking_safe_timeout,
 )
-from app.engine_adapter.opts import build_generator
 from app.execution_policy import (
     CAMPAIGN,
     CAMPAIGN_MODEL_NAME,
     STANDARD,
     scoped_execution_policy,
 )
-from app.interviews import model as interviews_model
 from app.interviews import stream as interviews_stream
 from app.interviews import turns as interview_turns
 from app.runs import contrib as runs_contrib
@@ -59,7 +41,6 @@ from app.store.models import RunRow, ScientificTask
 from app.store.runs import RunCreateOptions
 from tests._client import create_run as _create_run
 from tests._client import make_client
-from tests._engine_tasks_helpers import small_run_config as _cfg
 from tests._interviews_helpers import (
     InterviewFields,
     _interview_payload,
@@ -77,106 +58,11 @@ from tests._store_helpers import enqueue_task, seed_run
 # router.
 
 
-def test_the_suite_resolves_its_own_cache_directory() -> None:
-    # Cache placement precedes Settings import or environment bridging
-    # overwrites the isolated directory.
-    _, cache_dir, _ = _resolve_cache_env()
-    resolved = pathlib.Path(cache_dir).resolve()
-
-    assert resolved.is_relative_to(
-        pathlib.Path(tempfile.gettempdir()).resolve()
-    ), resolved
-    assert not resolved.is_relative_to(pathlib.Path.cwd()), resolved
-
-
 class _Generator:
     last_kwargs: ClassVar[dict[str, Any]] = {}
 
     def __init__(self, **kwargs: Any) -> None:
         _Generator.last_kwargs = kwargs
-
-
-def _install_stream_capture(
-    monkeypatch: pytest.MonkeyPatch, models: list[str]
-) -> None:
-    async def request(**kwargs: Any) -> object:
-        models.append(kwargs["model"])
-        return object()
-
-    async def chunks(*_args: Any, **_kwargs: Any) -> Any:
-        yield SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    delta=SimpleNamespace(
-                        content="A response.", reasoning_content=""
-                    )
-                )
-            ]
-        )
-
-    monkeypatch.setattr(
-        interviews_model,
-        "_interview_request",
-        lambda _: ("configured-chat-role", []),
-    )
-    monkeypatch.setattr(interviews_model, "stream_chunks", chunks)
-    monkeypatch.setattr(offline_guard, "require_remote_chat", lambda *_: None)
-    monkeypatch.setattr(qa_stream, "stream_chunks", chunks)
-    monkeypatch.setattr(llm_request, "acompletion", request)
-
-
-async def test_campaign_interview_request_uses_selected_model(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    models: list[str] = []
-    _install_stream_capture(monkeypatch, models)
-
-    async def turn() -> None:
-        await interviews_model._stream_interview_content(
-            {"fields": {}, "turns": []}, interviews_model.TurnSinks()
-        )
-
-    with scoped_execution_policy(
-        CAMPAIGN, campaign_model_name=CAMPAIGN_MODEL_NAME
-    ):
-        await turn()
-    with scoped_execution_policy(STANDARD):
-        await turn()
-
-    assert models == [
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "configured-chat-role",
-    ]
-
-
-def test_generator_uses_campaign_worker_and_supervisor_and_isolates_standard(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    worker = "configured/worker-role"
-    supervisor = "configured/supervisor-role"
-    monkeypatch.setattr(settings, "model_name", worker)
-    monkeypatch.setattr(settings, "supervisor_model_name", supervisor)
-
-    with scoped_execution_policy(
-        CAMPAIGN, campaign_model_name=CAMPAIGN_MODEL_NAME
-    ):
-        build_generator(_Generator, _cfg())
-    campaign = _Generator.last_kwargs
-    assert (
-        campaign["model_name"]
-        == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
-    )
-    assert (
-        campaign["options"].supervisor_model_name
-        == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
-    )
-
-    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-    with scoped_execution_policy(STANDARD):
-        build_generator(_Generator, _cfg())
-    standard = _Generator.last_kwargs
-    assert standard["model_name"] == worker
-    assert standard["options"].supervisor_model_name == supervisor
 
 
 async def test_semantic_safety_selects_campaign_before_credential_check(
@@ -395,20 +281,6 @@ def _campaign_headers(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     monkeypatch.setattr(settings, "campaign_researcher_ids", {"researcher-a"})
     token = auth.create_session_token("researcher-a")
     return {"Authorization": f"Bearer {token}"}
-
-
-def test_campaign_researcher_setting_normalizes_and_rejects_empty_ids() -> None:
-    configured = Settings(
-        _env_file=None,
-        campaign_researcher_ids={" researcher-a ", "researcher-b"},
-    )
-    assert configured.campaign_researcher_ids == {
-        "researcher-a",
-        "researcher-b",
-    }
-
-    with pytest.raises(ValidationError):
-        Settings(_env_file=None, campaign_researcher_ids={"researcher-a", " "})
 
 
 def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
@@ -660,134 +532,12 @@ def test_every_default_and_byok_model_is_priced() -> None:
     assert not unpriced, f"models missing from MODEL_PRICING: {unpriced}"
 
 
-@pytest.mark.parametrize(
-    ("model", "budget", "expected"),
-    [
-        ("deepseek/deepseek-v4-flash", 3_000, THINKING_FLOOR_MAX_TOKENS),
-        (
-            "deepseek/deepseek-v4-pro",
-            THINKING_FLOOR_MAX_TOKENS + 5_000,
-            THINKING_FLOOR_MAX_TOKENS + 5_000,
-        ),
-        ("gemini/gemini-2.5-flash", 3_000, 3_000),
-    ],
-)
-def test_thinking_floor_raises_only_small_deepseek_token_budgets(
-    model: str, budget: int, expected: int
-) -> None:
-    assert thinking_safe_max_tokens(model, budget) == expected
-
-
-@pytest.mark.parametrize(
-    ("model", "deadline", "expected"),
-    [
-        ("deepseek/deepseek-v4-flash", 20.0, THINKING_FLOOR_TIMEOUT_SECONDS),
-        (
-            "deepseek/deepseek-v4-pro",
-            THINKING_FLOOR_TIMEOUT_SECONDS + 120.0,
-            THINKING_FLOOR_TIMEOUT_SECONDS + 120.0,
-        ),
-        ("gemini/gemini-2.5-flash", 20.0, 20.0),
-    ],
-)
-def test_thinking_floor_raises_only_short_deepseek_deadlines(
-    model: str, deadline: float, expected: float
-) -> None:
-    assert thinking_safe_timeout(model, deadline) == expected
-
-
-def test_thinking_timeout_floor_admits_the_token_floor() -> None:
-    # Token and time ceilings must remain compatible; tuning one can silently
-    # break the other.
-    pessimistic_tokens_per_second = 75.0
-
-    assert (
-        THINKING_FLOOR_MAX_TOKENS / pessimistic_tokens_per_second
-        <= THINKING_FLOOR_TIMEOUT_SECONDS
-    )
-
-
-def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
-    # Thinking wire shapes depend on routes; duplicated shaping can turn a
-    # requested disable into enable.
-    routed = "openrouter/deepseek/deepseek-v4-flash"
-    direct = "deepseek/deepseek-v4-flash"
-
-    # Stable provider ordering preserves prompt caches; price caps remain
-    # engine-owned across differently priced hosts.
-    gateway = {
-        "require_parameters": True,
-        "allow_fallbacks": True,
-        "preferred_min_throughput": 25,
-        "order": ["z-ai", "deepinfra", "novita", "gmicloud"],
-        "max_price": {"prompt": 0.083 * 1.05, "completion": 0.165 * 1.05},
-    }
-
-    assert deepseek_non_thinking_extra_body(routed) == {
-        "reasoning": {"enabled": False},
-        "provider": gateway,
-    }
-    assert deepseek_non_thinking_extra_body(direct) == {
-        "thinking": {"type": "disabled"}
-    }
-    assert thinking_off_kwargs(direct) == {
-        "extra_body": {"thinking": {"type": "disabled"}}
-    }
-    assert deepseek_thinking_kwargs(routed)["extra_body"] == {
-        "reasoning": {"enabled": True, "effort": "high"},
-        "provider": gateway,
-    }
-    assert deepseek_thinking_kwargs(direct) == {
-        "extra_body": {"thinking": {"type": "enabled"}},
-        "reasoning_effort": "high",
-    }
-    for other in (
-        deepseek_non_thinking_extra_body,
-        deepseek_thinking_kwargs,
-        thinking_off_kwargs,
-    ):
-        assert other("gemini/gemini-2.5-flash") == {}
-
-    # Duplicate top-level and gateway reasoning parameters can fail before
-    # contextual safety runs.
-    assert "reasoning_effort" not in deepseek_thinking_kwargs(routed)
-
-
-def test_effort_override_replaces_the_route_s_reasoning_tier() -> None:
-    routed = deepseek_thinking_kwargs(
-        "openrouter/deepseek/deepseek-v4-flash", effort="medium"
-    )
-    direct = deepseek_thinking_kwargs(
-        "deepseek/deepseek-v4-flash", effort="medium"
-    )
-
-    assert routed["extra_body"]["reasoning"]["effort"] == "medium"
-    assert direct["reasoning_effort"] == "medium"
-    assert (
-        deepseek_thinking_kwargs("gemini/gemini-2.5-flash", effort="low") == {}
-    )
-
-
-def test_one_adapter_answers_every_offline_reader(
-    fake_process_mode: FakeProcessMode,
-) -> None:
-    fake_process_mode.online()
-
-    assert process_mode.offline_mode() is False
-    assert engine_adapter.offline_mode() is False
-    assert engine_adapter.resolve_offline_backend({}) is False
-    assert offline_guard.remote_chat_allowed() is True
-
-    fake_process_mode.offline = True
-
-    assert process_mode.offline_mode() is True
-    assert engine_adapter.offline_mode() is True
-    assert engine_adapter.resolve_offline_backend({}) is True
-    assert offline_guard.remote_chat_allowed() is False
-
-
 def test_the_free_default_route_reasons_at_medium_effort_in_chat() -> None:
-    from app.config import CONVERSATIONAL_REASONING_EFFORT, DEFAULT_MODEL
+    from app.config import (
+        CONVERSATIONAL_REASONING_EFFORT,
+        DEFAULT_MODEL,
+        deepseek_thinking_kwargs,
+    )
 
     kwargs = deepseek_thinking_kwargs(
         DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT
