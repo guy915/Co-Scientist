@@ -217,9 +217,7 @@ DEFAULT_COMMAND_TIMEOUT_SECONDS = 300.0
 
 
 def _ensure_metadata_directory(root: Path) -> None:
-    """Bubblewrap skips absent ro-bind-try paths; create metadata before
-    commands can symlink it.
-    """
+    """Create metadata before commands can symlink it."""
     try:
         (root / SPILL_DIRECTORY).mkdir(parents=True, exist_ok=True)
     except OSError as exc:  # pragma: no cover - filesystem-dependent

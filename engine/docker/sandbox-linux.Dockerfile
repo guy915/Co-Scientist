@@ -1,10 +1,10 @@
-# Production bubblewrap differs from macOS seatbelt and needs Linux escape coverage.
-# Privileged namespace preflight avoids false-green denials when no sandbox can launch.
+# Production Landlock differs from macOS seatbelt and needs Linux escape coverage.
+# Backend preflight avoids false-green denials when no sandbox can launch.
 FROM python:3.12-slim
 
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends \
-      bubblewrap git curl coreutils \
+      git curl coreutils \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /engine
@@ -15,7 +15,7 @@ COPY tests/ ./tests/
 COPY docker/sandbox-preflight.sh /usr/local/bin/preflight
 RUN chmod +x /usr/local/bin/preflight
 
-# Abort before escape tests when bubblewrap cannot create a namespace.
+# Abort before escape tests when no sandbox backend is available.
 ENTRYPOINT ["/usr/local/bin/preflight"]
 
 CMD ["python", "-m", "pytest", "-q", \
