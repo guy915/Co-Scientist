@@ -7,13 +7,11 @@ import pytest
 
 from co_scientist.llm import (
     CompletionSpec,
-    LLMCallOptions,
     call_llm,
     call_llm_json,
     scoped_telemetry,
 )
 from tests._llm_fake import (
-    disable_llm_cache,
     make_completion,
     make_message,
     make_usage,
@@ -51,7 +49,6 @@ async def test_a_recovered_call_logs_one_failure_naming_what_was_sent(
     """Layered duplicate records made a recovered run look like dozens of
     errors; the thinking floor can exceed the caller budget, and many call
     sites share a budget, so the record names both."""
-    disable_llm_cache(monkeypatch)
     scripted_backend(
         monkeypatch,
         [_answerless(), make_completion(make_message('{"a":1}'))],
@@ -84,7 +81,6 @@ async def test_a_recovered_call_logs_one_failure_naming_what_was_sent(
 async def test_a_provider_error_is_logged_at_a_bounded_length(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    disable_llm_cache(monkeypatch)
     scripted_backend(monkeypatch, [RuntimeError(_HUGE_PROVIDER_ERROR)], repeat_last=True)
 
     with (
@@ -111,7 +107,6 @@ async def test_known_zero_estimate_is_distinct_from_missing_cost_evidence(
         await call_llm(
             "probe",
             CompletionSpec("openrouter/campaign-probe"),
-            options=LLMCallOptions(use_cache=False),
         )
     entry = telemetry.snapshot()["probe::openrouter/minimax/minimax-m3:free"]
     assert entry["cost_usd"] == 0

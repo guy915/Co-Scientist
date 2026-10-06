@@ -8,9 +8,7 @@ from co_scientist.constants import DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE
 
 @dataclass(frozen=True)
 class CompletionSpec:
-    """Provider credentials must never enter cache keys or persisted request
-    state.
-    """
+    """Provider credentials must never enter persisted request state."""
 
     model_name: str
     max_tokens: int = DEFAULT_MAX_TOKENS
@@ -24,11 +22,26 @@ class CompletionSpec:
 class LLMCallOptions:
     """Attempt loops own the failure log because they know retry context."""
 
-    use_cache: bool = True
     run_id: str | None = None
     prompt_name: str | None = None
     enable_thinking: bool = True
     log_failures: bool = True
+
+
+@dataclass(frozen=True)
+class LLMRequest:
+    """Advertised tool schemas do not identify external tool behavior;
+    optional tool_contract does.
+    """
+
+    prompt: str
+    model_name: str
+    temperature: float
+    max_tokens: int
+    tools: list[dict[str, Any]] | None = None
+    json_schema: dict[str, Any] | None = None
+    force_json: bool | None = None
+    tool_contract: dict[str, Any] | None = None
 
 
 def indexed_prompt_name(stem: str, index: int | None) -> str:

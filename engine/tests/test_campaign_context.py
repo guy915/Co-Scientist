@@ -25,7 +25,7 @@ from tests._llm_fake import make_completion, make_message, patch_acompletion
 from tests._mcp import make_tool_call, string_tool
 
 PAID_MODEL = "openrouter/campaign/paid"
-OPTIONS = LLMCallOptions(use_cache=False)
+OPTIONS = LLMCallOptions()
 
 
 def test_campaign_scope_enables_free_mode_and_cannot_be_relaxed_or_leaked(

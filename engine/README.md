@@ -12,7 +12,6 @@ Demo: [AI Co-Scientist — early detection of Alzheimer's disease](https://youtu
 - **Rich hypothesis output**: Each hypothesis includes `text`, `explanation` (layman summary), `literature_grounding` with structured `[C*]` citations, and `experiment` (suggested validation design)
 - **Literature review integration**: Optional MCP server provides access to real published research; structured citations resolve to full source metadata
 - **Domain-agnostic customization**: YAML-based configuration to bring your own MCP servers, literature sources, and domain-specific prompt guidance — no code changes needed
-- **Intelligent caching**: Faster development iteration with LLM response caching
 - **Elo-based tournament**: Pairwise hypothesis comparison with Elo ratings
 - **Iterative refinement**: Evolves top hypotheses while preserving diversity
 - **Post-generation enrichments**: Attach domain-specific data (e.g., related CVEs, knowledge graph statements) to each hypothesis via configurable tool calls
@@ -110,23 +109,6 @@ TOOLS_CONFIG=/absolute/path/to/indra_cancer.yaml
 See `src/co_scientist/config/schema.py` for the schema and
 `src/co_scientist/config/tools.yaml` for the shipped configuration.
 
-## Caching
-
-LLM responses are cached to disk by default, keyed by prompt content. This makes iterative development much faster.
-
-```bash
-COSCIENTIST_CACHE_ENABLED=false   # disable caching
-COSCIENTIST_CACHE_DIR=.my_cache   # change cache directory (default: .coscientist_cache)
-```
-
-Cache utilities:
-
-```python
-from co_scientist.cache import clear_cache, get_cache_stats
-print(get_cache_stats())
-clear_cache()
-```
-
 ## LLM providers
 
 Model strings follow the LiteLLM convention (`provider/model-name`). Any provider supported by LiteLLM works — set the corresponding API key:
@@ -187,7 +169,7 @@ pytest tests/test_coordinator.py tests/test_supervisor.py
 
 ```python
 # Debug - lowercase, internal details
-logger.debug("cache hit for prompt")
+logger.debug("building prompt for hypothesis")
 logger.debug(f"analyzing hypothesis {i+1}/{len(hypotheses)}")
 
 # Info/warning/error - capitalize
@@ -215,7 +197,6 @@ src/co_scientist/
 ├── models/             # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
 ├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools
 ├── mcp_client/         # MCP server connection (langchain-mcp-adapters)
-├── cache/              # Disk-based LLM response cache
 ├── constants/          # Elo params, token limits, workflow defaults
 ├── progress.py         # Shared progress-event emission used by agent nodes
 ├── schemas/            # JSON schemas for structured LLM output

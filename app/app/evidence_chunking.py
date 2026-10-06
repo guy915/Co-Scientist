@@ -23,7 +23,7 @@ _CHUNK_SUFFIX = re.compile(r"#(\d+)$")
 
 def parent_evidence_id(evidence_id: str) -> str:
     """Located chunk spans must resolve to their parent article before
-    reports or shares join them to stored evidence.
+    reports join them to stored evidence.
     """
     match = _CHUNK_SUFFIX.search(evidence_id)
     return evidence_id[: match.start()] if match else evidence_id

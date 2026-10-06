@@ -49,7 +49,7 @@ changing a service. Confirm these settings on the intended release:
 | Browser access | Exact frontend origins in `ALLOWED_ORIGINS`; correct `VITE_API_BASE_URL` |
 | BYOK | Separate random `BYOK_ENCRYPTION_KEY` if enabled; keys stay encrypted at rest |
 | Literature tools | MCP stays private; matching `COSCIENTIST_MCP_SHARED_SECRET` on both services |
-| SQLite | One API replica; persistent volume for `COSCIENTIST_DB_PATH`; cache outside the volume |
+| SQLite | One API replica; persistent volume for `COSCIENTIST_DB_PATH` |
 | Railway volume | Preserve `RAILWAY_RUN_UID=0` until volume ownership is deliberately handled by an entrypoint |
 | Models | Matching provider credentials and explicit role settings; confirm `/status`; retain free-route spend bounds |
 | Notifications | Correct SMTP settings and `PUBLIC_APP_URL` if enabled |

@@ -81,14 +81,10 @@ class Settings(BaseSettings):
     # than Settings.
     mcp_server_url: str = "http://localhost:8888/mcp"
 
-    coscientist_cache_enabled: bool = True  # bridged to env for the engine
-    coscientist_cache_dir: str = "./cache"
-
     # K-factor stays deployment-tunable while the engine owns tournament math
     # and initial ratings.
     elo_k_factor: int = 24
 
-    safety_mode: str = "standard"
     # Deterministic safety hard blocks run first and cannot be overridden by
     # semantic assessment.
     semantic_safety_enabled: bool = True
@@ -127,10 +123,6 @@ class Settings(BaseSettings):
     # Low disk degrades rather than fails liveness: killing the container frees
     # no space.
     health_check_min_free_disk_bytes: int = 100 * 1024 * 1024
-
-    # Cache exposition briefly so scrape storms do not multiply store query
-    # passes.
-    metrics_cache_ttl_seconds: float = 5.0
 
     smtp_host: str = ""
     smtp_port: int = 587

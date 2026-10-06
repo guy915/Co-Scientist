@@ -35,5 +35,3 @@ pypdf>=5.0.0,<7.0.0
 # (app/credentials.py). Was already present transitively; pinned explicitly
 # because the app now imports it directly.
 cryptography>=43.0.0
-# Renders the /metrics Prometheus exposition text (app/ops_metrics.py).
-prometheus-client>=0.20.0

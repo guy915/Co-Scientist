@@ -4,9 +4,9 @@ Remove the features, modes and dev tooling the owner chose to give up on
 6 October 2026. This plan only deletes. Condensing what stays is a separate,
 later plan that starts from the size this one leaves.
 
-**Status:** planned 6 October 2026. It starts on day 1 of
-`docs/CAMPAIGNS.md`, after the completed test campaign, and runs in
-parallel streams (see Streams).
+**Status:** in progress since 6 October 2026 (day 1 of `docs/CAMPAIGNS.md`),
+in parallel streams (see Streams). Progress, open PRs and blockers are on the
+`Campaign board: cuts` issue.
 
 ## Scope
 

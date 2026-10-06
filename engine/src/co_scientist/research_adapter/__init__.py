@@ -59,7 +59,6 @@ class LlmResearchModel:
         *,
         run_id: str | None = None,
         temperature: float = 0.4,
-        use_cache: bool = True,
     ) -> None:
         """Reading and rendering use lower temperature because variety is
         noise.
@@ -67,7 +66,6 @@ class LlmResearchModel:
         self._model = model_name
         self._run_id = run_id
         self._temperature = temperature
-        self._use_cache = use_cache
 
     async def plan_stances(self, *, goal: str, limit: int) -> Sequence[str]:
         data = await self._ask(
@@ -140,7 +138,6 @@ class LlmResearchModel:
                 json_schema=schema,
             ),
             options=LLMCallOptions(
-                use_cache=self._use_cache,
                 run_id=self._run_id,
                 prompt_name=prompt_name,
             ),

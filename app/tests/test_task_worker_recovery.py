@@ -22,7 +22,12 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import (
+    enqueue_task,
+    resume_run_async,
+    seed_checkpoint,
+    seed_run,
+)
 from tests._store_helpers import mark_task_leased as _mark_leased
 
 
@@ -303,12 +308,11 @@ def _assert_unknown_outcome_failed_closed(
     client: Any, run_id: str, target: ScientificTask, sibling: ScientificTask
 ) -> None:
     body = client.get(f"/api/runs/{run_id}").json()
-    task_rows = client.get(f"/api/runs/{run_id}/tasks").json()["tasks"]
-    task_by_id = {row["id"]: row for row in task_rows}
+    task_by_id = {t.id: t for t in tasks.list_tasks(run_id)}
     assert body["status"] == "failed"
     assert body["failure_kind"] == "llm_timeout_unknown"
-    assert task_by_id[target.id]["status"] == "failed"
-    assert task_by_id[sibling.id]["status"] == "cancelled"
+    assert task_by_id[target.id].status == "failed"
+    assert task_by_id[sibling.id].status == "cancelled"
     failed_events = [
         event["payload"]
         for event in store_events.list_events(run_id)
@@ -366,7 +370,7 @@ async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
         assert not await task_worker.run_once("unacknowledged-worker", db_path=isolated_db)
         assert dispatches == []
 
-        assert restarted.post(f"/api/runs/{run_id}/resume").status_code == 200
+        await resume_run_async(run_id)
         assert await task_worker.run_once("owner-resume", db_path=isolated_db)
 
     assert dispatches == ["engine.node.generate"]
