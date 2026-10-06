@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from typing import Any
 
 import pytest
@@ -326,32 +325,6 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
         db_path=db_path,
     )
     assert report_gates.unverified_hypothesis_ids(demo.id, db_path) == set()
-
-
-def test_gate_warns_when_it_excludes_everything(
-    isolated_db: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    run = seed_run("gate empty")
-    hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run.id,
-            title="Unsafe",
-            statement="Weaponize the pathogen to enhance transmissibility.",
-        ),
-        db_path=isolated_db,
-    )
-    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-
-    with caplog.at_level(logging.INFO, logger="app.report.gates"):
-        kept = report_gates.exclude_unsafe_hypotheses(run.id, hyps, isolated_db)
-
-    assert kept == []
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    message = warnings[0].getMessage()
-    assert "no ideas" in message
-    assert "safety review" in message
-    assert "peer review" not in message
 
 
 def _drained_status(

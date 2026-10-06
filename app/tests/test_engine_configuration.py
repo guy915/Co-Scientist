@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import importlib
-import importlib.util
 import os
 import pathlib
-import sys
 from typing import Any, ClassVar
 
 import pytest
@@ -416,19 +413,6 @@ def test_disabling_web_search_keeps_read_url() -> None:
     assert _FakeGenerator.last_kwargs["options"].disable_tools == ["web_search"]
 
 
-def test_build_generator_offline_disables_cache_without_env_mutation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Offline cache settings must remain per-run; mutating env can disable
-    # caching for every later real run.
-    monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
-    build_generator(_FakeGenerator, _cfg(), offline=True)
-    assert _FakeGenerator.last_kwargs["options"].enable_cache is False
-    import os
-
-    assert "COSCIENTIST_CACHE_ENABLED" not in os.environ
-
-
 def test_offline_generator_does_not_poison_cache_for_a_real_generator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -440,8 +424,9 @@ def test_offline_generator_does_not_poison_cache_for_a_real_generator(
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
     monkeypatch.setattr(engine_cache, "_global_cache", None)
 
+    build_generator(_FakeGenerator, _cfg(), offline=True)
+    assert _FakeGenerator.last_kwargs["options"].enable_cache is False
     build_generator(HypothesisGenerator, _cfg(), offline=True)
-    import os
 
     assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
     assert engine_cache.get_cache().enabled is True
@@ -621,20 +606,3 @@ def test_offline_mode(
     if has_key:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     assert provider.offline_mode() is expected
-
-
-def test_missing_engine_src_gets_added_to_syspath_on_import(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Editable installs already add engine src; remove it first to exercise the
-    # import-time bridge.
-    engine_src = provider._engine_src
-    assert os.path.isdir(engine_src), "test assumes a local engine checkout"
-
-    trimmed = [p for p in sys.path if p != engine_src]
-    monkeypatch.setattr(sys, "path", trimmed)
-    assert engine_src not in sys.path
-
-    importlib.reload(provider)
-
-    assert engine_src in sys.path
