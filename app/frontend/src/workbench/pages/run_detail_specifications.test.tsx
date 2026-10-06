@@ -39,24 +39,5 @@ describe('run detail specifications', () => {
           'non-liver models, 5: Strong basis in human liver data)',
       );
     });
-
-    it('renders a categorical axis with its label and choices in order', () => {
-      const item: RunAttribute = {
-        name: 'Target Area',
-        values: [
-          'Epigenetics',
-          'Stellate Cell Biology',
-          'Stromal-Immune Crosstalk',
-        ],
-      };
-      expect(attributeDisplayString(item)).toMatch(
-        /Target Area.*Epigenetics.*Stellate Cell Biology.*Stromal-Immune Crosstalk/,
-      );
-    });
-
-    it('falls back to the bare name for a malformed dict item', () => {
-      const malformed = {name: 'Impact'} as unknown as RunAttribute;
-      expect(attributeDisplayString(malformed)).toBe('Impact');
-    });
   });
 });

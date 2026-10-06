@@ -1,12 +1,47 @@
-import {render, screen, waitFor} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
+import {type ByokProvider, getStoredModel} from '@/lib/client_id';
 import {ThemeProvider} from '../theme_context';
-import {SettingsDialog} from './settings_dialog';
+import {ModelSection, SettingsDialog} from './settings_dialog';
 
-beforeEach(() => window.localStorage.clear());
-afterEach(() => window.localStorage.clear());
+const CATALOG = {
+  deepseek: ['deepseek/deepseek-flash', 'deepseek/deepseek-v4-pro'],
+  gemini: ['gemini/gemini-3.8-flash', 'gemini/gemini-3.1-pro-preview'],
+  openai: ['openai/gpt-6.1-sol', 'openai/gpt-6-luna'],
+};
+
+const FREE_USAGE = {
+  enforced: true,
+  tier: 'express',
+  limit: 3,
+  used: 1,
+  remaining: 2,
+  resets_at: 0,
+};
+
+function respond(body: unknown): Response {
+  return {ok: true, status: 200, json: async () => body} as Response;
+}
+
+beforeEach(() => {
+  window.localStorage.clear();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      respond(
+        url.endsWith('/api/byok-models') ? {providers: CATALOG} : FREE_USAGE,
+      ),
+    ),
+  );
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  window.localStorage.clear();
+});
 
 function DialogHarness() {
   const [open, setOpen] = useState(false);
@@ -37,31 +72,42 @@ it('returns focus to the control that opened it once it closes', async () => {
   await waitFor(() => expect(opener).toHaveFocus());
 });
 
-function renderOpenDialog() {
+function renderSection(
+  apiKey: string,
+  provider: ByokProvider,
+  savedProviders: ByokProvider[] = apiKey ? [provider] : [],
+) {
   return render(
-    <ThemeProvider>
-      <button>Outside leading</button>
-      <SettingsDialog
-        section="appearance"
-        onSectionChange={vi.fn()}
-        onClose={vi.fn()}
-      />
-      <button>Outside trailing</button>
-    </ThemeProvider>,
+    <ModelSection
+      apiKey={apiKey}
+      onApiKeyChange={vi.fn()}
+      provider={provider}
+      onProviderChange={vi.fn()}
+      onSave={vi.fn()}
+      savedProviders={savedProviders}
+    />,
   );
 }
 
-it('traps forward Tab, wrapping past the last focusable element', async () => {
+function trigger(name: RegExp | string) {
+  return screen.getByRole('button', {name});
+}
+
+it('stores a chosen supervisor model with its provider', async () => {
   const user = userEvent.setup();
-  renderOpenDialog();
-
-  const closeButton = await screen.findByRole('button', {
-    name: 'Close settings',
+  renderSection('sk-key', 'deepseek');
+  await screen.findAllByText('deepseek-flash');
+  await user.click(trigger(/Supervisor model/));
+  const menu = screen.getByRole('menu', {name: 'Supervisor model'});
+  await user.click(
+    within(menu).getByRole('menuitemradio', {name: 'deepseek-v4-pro'}),
+  );
+  expect(getStoredModel('supervisor')).toEqual({
+    provider: 'deepseek',
+    model: 'deepseek/deepseek-v4-pro',
   });
-  const lastThemeButton = screen.getByRole('button', {name: 'Dark'});
-
-  lastThemeButton.focus();
-  await user.tab();
-
-  expect(closeButton).toHaveFocus();
+  expect(getStoredModel('worker')).toEqual({
+    provider: 'deepseek',
+    model: 'deepseek/deepseek-flash',
+  });
 });

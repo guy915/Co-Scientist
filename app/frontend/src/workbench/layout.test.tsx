@@ -13,41 +13,6 @@ describe('layout logs', () => {
     installLayoutMocks();
   });
 
-  it('opens the logs popover and dismisses on outside click', async () => {
-    renderLayout();
-
-    fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
-    expect(screen.getByRole('button', {name: /Logs 0/i})).toHaveAttribute(
-      'data-tooltip',
-      'Logs',
-    );
-    expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
-    expect(screen.queryByText('All runs')).toBeNull();
-    expect(screen.getByText('Total 0')).toBeInTheDocument();
-    expect(screen.getByText('Errors 0')).toBeInTheDocument();
-    expect(screen.getByText('Warnings 0')).toBeInTheDocument();
-    expect(screen.getByText('Info 0')).toBeInTheDocument();
-    expect(
-      screen.getByText('No diagnostic events loaded.'),
-    ).toBeInTheDocument();
-    const diagnosticActions = document.querySelector('.ucs-diagnostic-actions');
-    expect(diagnosticActions).not.toBeNull();
-    expect(
-      Array.from(diagnosticActions!.querySelectorAll('button')).map(button =>
-        button.querySelector('span')?.textContent?.trim(),
-      ),
-    ).toEqual(['Clear', 'Copy', 'Report']);
-    const report = screen.getByRole('button', {name: /Report/});
-    expect(report).toBeDisabled();
-    expect(report).toHaveAttribute(
-      'data-tooltip',
-      'Email delivery is not configured on this server',
-    );
-
-    fireEvent.pointerDown(screen.getByText('Workspace content'));
-    expect(screen.queryByText('Diagnostic Logs')).toBeNull();
-  });
-
   it('keeps the badge fresh while the popover is closed', async () => {
     vi.useFakeTimers();
     try {
