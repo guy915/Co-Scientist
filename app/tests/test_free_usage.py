@@ -65,6 +65,7 @@ def test_free_runs_are_capped_per_day(real_backend: None) -> None:
     ("worker_model", "stamped"),
     [
         ("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", True),
+        ("openrouter/inclusionai/ling-3.1-flash", True),
         ("openrouter/z-ai/glm-5.3-flash", False),
     ],
 )

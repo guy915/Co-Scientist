@@ -16,6 +16,7 @@ import litellm
 
 from co_scientist._context import _bind_contextvar
 from co_scientist.exceptions import FreeModelEligibilityError
+from co_scientist.llm.profile import is_free_route
 
 _byok_api_key: ContextVar[str | None] = ContextVar("byok_api_key", default=None)
 _byok_keys_by_model: ContextVar[Mapping[str, str]] = ContextVar(
@@ -210,7 +211,8 @@ def _verify_expiration(row: dict[str, Any]) -> None:
 def _verify_pricing(model: str, pricing: Any) -> None:
     if not isinstance(pricing, dict):
         raise FreeModelEligibilityError("zero-cost pricing is missing")
-    # Absent ancillary rates prove no zero price except on ":free" variants.
+    # Absent ancillary rates prove no zero price except on ":free" variants
+    # and profile-declared free trials; max_price still caps the request.
     ancillary = {
         "request",
         "internal_reasoning",
@@ -218,7 +220,7 @@ def _verify_pricing(model: str, pricing: Any) -> None:
         "input_cache_write",
     }
     required = {"prompt", "completion"} | (
-        set() if model.endswith(":free") else ancillary
+        set() if is_free_route(f"openrouter/{model}") else ancillary
     )
     if not required <= pricing.keys():
         raise FreeModelEligibilityError("zero-cost pricing is incomplete")
@@ -262,7 +264,7 @@ def _requires_free(args: dict[str, Any], byok: bool) -> bool:
     return (
         campaign_free_mode()
         or _zero_cost_only.get()
-        or (not byok and ":free" in model)
+        or (not byok and is_free_route(model))
     )
 
 

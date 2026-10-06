@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from typing import Any
 
 from co_scientist.llm import scoped_campaign_mode
+from co_scientist.llm.profile import is_free_route
 from fastapi import Request
 
 from app.auth import principal_for_request
@@ -45,7 +46,7 @@ def deployment_routes_are_free() -> bool:
         settings.claim_verifier_model,
         settings.semantic_safety_model,
     )
-    return all(":free" in model for model in models if model)
+    return all(is_free_route(model) for model in models if model)
 
 
 def effective_execution_model(configured_model: str | None) -> str | None:

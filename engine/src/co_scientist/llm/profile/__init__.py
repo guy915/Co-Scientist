@@ -143,6 +143,20 @@ ROUTES: Final[dict[str, Facts]] = {
     "openrouter/minimax/minimax-m2.7:free": _gateway(_FREE),
     "openrouter/dots-studio/dots-3-note-preview:free": _gateway(_FREE),
     "openrouter/nvidia/nemotron-3.5-lightning:free": _gateway(_FREE),
+    # A zero-priced trial without a ":free" id; zero-cost admission still
+    # checks the live catalog price and expiry. Medium keeps most of high's
+    # quality at far fewer reasoning tokens.
+    "openrouter/inclusionai/ling-3.1-flash": {
+        **_gateway(
+            _FREE,
+            fallbacks=(
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "nvidia/nemotron-3-super-120b-a12b:free",
+            ),
+        ),
+        "json_object": False,
+        "pinned_effort": "medium",
+    },
     # Its only host, Nvidia, rejects every response_format. High effort
     # overthinks and exhausts the answer budget; medium is its working tier.
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
@@ -263,6 +277,10 @@ def model_profile(model_name: str) -> ModelProfile:
     return ModelProfile(**facts)
 
 
+def is_free_route(model_name: str) -> bool:
+    return ":free" in model_name or model_profile(model_name).price == _FREE
+
+
 def gateway_routes() -> tuple[str, ...]:
     return tuple(name for name, facts in ROUTES.items() if facts.get("gateway"))
 
@@ -280,6 +298,7 @@ __all__ = [
     "ModelProfile",
     "Thinking",
     "gateway_routes",
+    "is_free_route",
     "model_profile",
     "priced_routes",
 ]

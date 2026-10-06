@@ -13,7 +13,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONVERSATIONAL_REASONING_EFFORT = "medium"
-DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+DEFAULT_MODEL = "openrouter/inclusionai/ling-3.1-flash"
 THINKING_FLOOR_TIMEOUT_SECONDS = float(THINKING_FLOOR_MAX_TOKENS) / 75.0
 
 
