@@ -117,10 +117,6 @@ class Settings(BaseSettings):
     # no space.
     health_check_min_free_disk_bytes: int = 100 * 1024 * 1024
 
-    # Cache exposition briefly so scrape storms do not multiply store query
-    # passes.
-    metrics_cache_ttl_seconds: float = 5.0
-
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_username: str = ""
