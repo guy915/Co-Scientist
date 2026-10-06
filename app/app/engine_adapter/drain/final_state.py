@@ -30,7 +30,6 @@ from app.engine_adapter.drain.matches import (
     _persist_retrieval_calls,
 )
 from app.engine_adapter.drain.reviews import _CitationSink
-from app.execution_policy import effective_execution_model
 from app.hypothesis import (
     persist_escalated_verdicts,
     screen_hypotheses,
@@ -154,7 +153,7 @@ async def _assess_claims(
 
     from app.async_bridge import run_off_loop
 
-    model = effective_execution_model(settings.claim_verifier_model or settings.model_name)
+    model = settings.claim_verifier_model or settings.model_name
     assert model is not None
     assessor, assessor_id = build_assessor(settings.claim_assessor, model)
     batch_assessor = build_batch_assessor(settings.claim_assessor, model)

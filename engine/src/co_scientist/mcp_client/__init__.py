@@ -1,14 +1,11 @@
 import asyncio
-import copy
 import json
 import logging
 import os
 import threading
 import weakref
 from typing import TYPE_CHECKING, Any, Optional, cast
-from urllib.parse import urlsplit, urlunsplit
 
-import httpx
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
@@ -16,7 +13,6 @@ from langchain_mcp_adapters.sessions import Connection
 from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.constants import truncate
 from co_scientist.exceptions import MCPToolTimeoutError
-from co_scientist.llm import campaign_free_mode
 
 logger = logging.getLogger(__name__)
 
@@ -150,8 +146,6 @@ MCP_SHARED_SECRET_ENV = "COSCIENTIST_MCP_SHARED_SECRET"
 
 MCP_AUTH_HEADER = "X-MCP-Shared-Secret"
 
-MCP_CAMPAIGN_HEADER = "X-CoScientist-Campaign"
-
 
 def _resolve_server_url() -> str:
     return os.environ.get("MCP_SERVER_URL", DEFAULT_MCP_SERVER_URL)
@@ -161,12 +155,7 @@ def _mcp_auth_headers() -> dict[str, Any] | None:
     secret = os.environ.get(MCP_SHARED_SECRET_ENV)
     if not secret:
         return None
-    headers = {MCP_AUTH_HEADER: secret}
-    from co_scientist.llm import campaign_free_mode
-
-    if campaign_free_mode():
-        headers[MCP_CAMPAIGN_HEADER] = "1"
-    return headers
+    return {MCP_AUTH_HEADER: secret}
 
 
 def _with_shared_secret(
@@ -252,171 +241,6 @@ def _filter_tools_by_whitelist(
     return filtered_tools_dict, filtered_openai_tools
 
 
-POLICY = "coscientist-public-retrieval-v1"
-# Protocol surface implemented by the independently packaged reference server.
-PUBLIC_TOOLS = frozenset(
-    {
-        "check_pubmed_available",
-        "search_pubmed",
-        "pubmed_search_with_fulltext",
-        "search_openalex",
-        "get_opencitations_citation_edges",
-        "search_chembl",
-        "search_uniprot",
-        "search_string_interactions",
-        "search_reactome_pathways",
-        "search_open_targets",
-        "search_europepmc",
-        "search_preprints",
-        "search_arxiv",
-        "search_biorxiv",
-        "search_ensembl_gene",
-        "search_gnomad_constraint",
-        "search_clinical_trials",
-        "search_gwas_catalog_associations",
-    }
-)
-_M10_PUBLIC_TOOLS = PUBLIC_TOOLS - {"search_gwas_catalog_associations"}
-_PRE_CITATION_ROLLBACK_TOOLS = _M10_PUBLIC_TOOLS - {"get_opencitations_citation_edges"}
-
-
-class CampaignToolUnavailableError(RuntimeError):
-    """Campaign policy is fixed for the run, so retrying cannot admit a
-    refused tool.
-    """
-
-
-def campaign_serves_tool(name: str) -> bool:
-    return not campaign_free_mode() or name in PUBLIC_TOOLS
-
-
-def _qualified_url(configs: dict[str, dict[str, Any]]) -> str:
-    expected = os.getenv("COSCIENTIST_CAMPAIGN_MCP_URL", "")
-    if not expected or len(configs) != 1:
-        raise RuntimeError("campaign MCP requires one explicitly qualified endpoint")
-    config = next(iter(configs.values()))
-    secret = os.getenv(MCP_SHARED_SECRET_ENV)
-    if not secret:
-        raise RuntimeError("campaign MCP requires shared-secret authentication")
-    headers = {
-        MCP_AUTH_HEADER: secret,
-        MCP_CAMPAIGN_HEADER: "1",
-    }
-    if (
-        set(config) - {"transport", "url", "headers"}
-        or config.get("transport") != "streamable_http"
-        or config.get("url") != expected
-        or (config.get("headers") or {}) != headers
-    ):
-        raise RuntimeError("campaign MCP configuration is not qualified")
-    url = urlsplit(expected)
-    if (
-        url.scheme not in {"http", "https"}
-        or not url.hostname
-        or url.username
-        or url.password
-        or url.query
-        or url.fragment
-        or url.path != "/mcp"
-    ):
-        raise RuntimeError("campaign MCP endpoint must be a plain /mcp URL")
-    return expected
-
-
-def campaign_http_client(
-    headers: dict[str, str] | None = None,
-    timeout: httpx.Timeout | None = None,
-    auth: httpx.Auth | None = None,
-    follow_redirects: bool = False,
-) -> httpx.AsyncClient:
-    """Prevent redirects and proxies from changing the qualified route."""
-    del follow_redirects
-    if auth is not None:
-        raise RuntimeError("campaign MCP custom authentication is unavailable")
-    return httpx.AsyncClient(
-        headers=headers,
-        timeout=timeout or httpx.Timeout(30),
-        follow_redirects=False,
-        trust_env=False,
-    )
-
-
-class CampaignAdmission:
-    """Bind tools to one configuration and recheck its serving policy."""
-
-    def __init__(self, configs: dict[str, dict[str, Any]]) -> None:
-        """Snapshot the qualified configuration before discovery."""
-        self.configs = copy.deepcopy(configs)
-        self.url = _qualified_url(configs)
-
-    async def verify(self, configs: dict[str, dict[str, Any]]) -> None:
-        """Require the bound route and a current reference-server policy."""
-        if configs != self.configs or _qualified_url(configs) != self.url:
-            raise RuntimeError("campaign MCP binding changed; initialize a new client")
-        url = urlsplit(self.url)
-        root = urlunsplit((url.scheme, url.netloc, "/", "", ""))
-        headers = next(iter(self.configs.values())).get("headers")
-        async with campaign_http_client(headers=headers) as client:
-            response = await client.get(root)
-            response.raise_for_status()
-            data = response.json()
-        expected_policy = {
-            "version": POLICY,
-            "enabled": True,
-            "anonymous_openalex": True,
-        }
-        # Accept reviewed rollout/rollback tool sets; reject hybrids and
-        # unreviewed additions.
-        accepted_policies = [
-            {**expected_policy, "tools": sorted(tools)}
-            for tools in (
-                PUBLIC_TOOLS,
-                _M10_PUBLIC_TOOLS,
-                _PRE_CITATION_ROLLBACK_TOOLS,
-            )
-        ]
-        if (
-            not isinstance(data, dict)
-            or data.get("campaign_policy") not in accepted_policies
-            or data.get("service") != "coscientist-lit-review"
-        ):
-            raise RuntimeError("campaign MCP server policy is unavailable or unqualified")
-
-    async def require_tool(self, name: str, configs: dict[str, dict[str, Any]]) -> None:
-        """Admit only reviewed tools on the qualified serving deployment."""
-        if name not in PUBLIC_TOOLS:
-            raise CampaignToolUnavailableError("tool is unavailable under campaign MCP policy")
-        await self.verify(configs)
-
-    def transport_configs(self) -> dict[str, dict[str, Any]]:
-        """Use the fixed transport factory for the captured configuration."""
-        return {
-            name: {**config, "httpx_client_factory": campaign_http_client}
-            for name, config in copy.deepcopy(self.configs).items()
-        }
-
-
-def require_bound_mode(admission: CampaignAdmission | None) -> None:
-    """Reject clients discovered before campaign qualification."""
-    if campaign_free_mode() and admission is None:
-        raise RuntimeError("campaign MCP client was not qualified at initialization")
-
-
-async def prepare_admission(
-    configs: dict[str, dict[str, Any]],
-) -> CampaignAdmission | None:
-    """Qualify campaign transport before the MCP SDK opens a connection."""
-    if not campaign_free_mode():
-        return None
-    admission = CampaignAdmission(configs)
-    await admission.verify(configs)
-    return admission
-
-
-if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
-
-
 MCP_TOOL_TIMEOUT_ENV = "COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS"
 # A broken MCP stream can leave the await pending forever.
 DEFAULT_MCP_TOOL_TIMEOUT_SECONDS = 300.0
@@ -449,7 +273,6 @@ class MCPToolClient:
         server_configs: dict[str, dict[str, Any]] | None = None,
         tool_registry: Optional["ToolRegistry"] = None,
     ):
-        self._campaign_admission: CampaignAdmission | None = None
         self._tool_registry = tool_registry
         self._client: MultiServerMCPClient | None = None
         self._tools_dict: dict[str, Any] | None = None
@@ -467,13 +290,11 @@ class MCPToolClient:
         # Tool indexes define readiness; concurrent callers must never see a
         # half-initialized transport.
         if self._tools_dict is not None:
-            require_bound_mode(self._campaign_admission)
             logger.debug("MCP client already initialized")
             return
 
         async with self._initialize_lock:
             if self._tools_dict is not None:
-                require_bound_mode(self._campaign_admission)
                 logger.debug("MCP client initialized by concurrent caller")
                 return
             await self._initialize_locked()
@@ -489,14 +310,9 @@ class MCPToolClient:
             server_names,
         )
 
-        admission = await prepare_admission(self._server_configs)
-        configs = admission.transport_configs() if admission is not None else self._server_configs
-        client = MultiServerMCPClient(cast(dict[str, Connection], configs))
+        client = MultiServerMCPClient(cast(dict[str, Connection], self._server_configs))
         # Publish only after every server has yielded complete tool indexes.
         tools = await client.get_tools()
-        if admission is not None:
-            tools = [tool for tool in tools if tool.name in PUBLIC_TOOLS]
-        self._campaign_admission = admission
         self._client = client
         self._index_tools(tools)
 
@@ -522,11 +338,6 @@ class MCPToolClient:
 
         self._openai_tools = [convert_to_openai_tool(tool) for tool in tools]
 
-    async def _admit_campaign_tool(self, name: str) -> None:
-        require_bound_mode(self._campaign_admission)
-        if self._campaign_admission is not None:
-            await self._campaign_admission.require_tool(name, self._server_configs)
-
     @staticmethod
     def _require_tool(tools_dict: dict[str, Any], tool_name: str) -> Any:
         if tool_name not in tools_dict:
@@ -536,7 +347,6 @@ class MCPToolClient:
         return tools_dict[tool_name]
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> str:
-        await self._admit_campaign_tool(tool_name)
         tools_dict = _ensure_tools_initialized(self._tools_dict)
         tool = self._require_tool(tools_dict, tool_name)
 
@@ -576,7 +386,6 @@ class MCPToolClient:
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         tools_dict = self._require_initialized_tools()
         tool_name = tool_call.function.name
-        await self._admit_campaign_tool(tool_name)
         tool_args = json.loads(tool_call.function.arguments)
 
         logger.debug("executing mcp tool: %s with args: %s", tool_name, tool_args)
@@ -599,7 +408,6 @@ class MCPToolClient:
     def get_tools(
         self, whitelist: list[str] | None = None
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        require_bound_mode(self._campaign_admission)
         tools_dict = _ensure_tools_initialized(self._tools_dict)
         # The converted schema list independently guards against half-
         # initialized state.
@@ -612,7 +420,6 @@ class MCPToolClient:
         return _filter_tools_by_whitelist(tools_dict, whitelist)
 
     def has_tool(self, tool_name: str) -> bool:
-        require_bound_mode(self._campaign_admission)
         if self._tools_dict is None:
             return False
         return tool_name in self._tools_dict
@@ -625,9 +432,9 @@ if TYPE_CHECKING:
 # Separate worker loops own separate asyncio locks/sessions and captured
 # headers.
 # Weak keys release clients with their loop.
-_global_clients: weakref.WeakKeyDictionary[
-    asyncio.AbstractEventLoop, dict[tuple[Any, bool], MCPToolClient]
-] = weakref.WeakKeyDictionary()
+_global_clients: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, dict[Any, MCPToolClient]] = (
+    weakref.WeakKeyDictionary()
+)
 _global_clients_lock = threading.Lock()
 
 
@@ -763,7 +570,7 @@ async def get_mcp_client(
     force_new: bool = False,
 ) -> MCPToolClient:
     configs = _resolve_server_configs(tool_registry, None, server_url)
-    key = (_freeze_config(configs), campaign_free_mode())
+    key = _freeze_config(configs)
     loop = asyncio.get_running_loop()
     with _global_clients_lock:
         for cached_loop in list(_global_clients):

@@ -37,7 +37,6 @@ export interface Run {
   config: RunConfig;
   is_demo?: boolean;
   llm_backend?: string | null;
-  execution_policy?: 'standard' | 'campaign';
   created_at: number;
   updated_at: number;
   completed_at: number | null;
@@ -91,7 +90,6 @@ export interface RunWithSummary {
   config: RunConfig;
   is_demo?: boolean;
   llm_backend?: string | null;
-  execution_policy?: 'standard' | 'campaign';
   created_at: number;
   updated_at: number;
   completed_at: number | null;

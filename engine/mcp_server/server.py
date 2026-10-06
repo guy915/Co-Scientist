@@ -23,12 +23,6 @@ if env_path.exists():
 else:
     logger.warning(".env file not found at %s - using system environment only", env_path)
 
-from mcp_server.campaign import (
-    PUBLIC_TOOLS,
-    campaign_free_mode,
-    campaign_policy,
-)
-
 configured_log_level = (
     os.environ.get("COSCIENTIST_MCP_LOG_LEVEL") or os.environ.get("LOG_LEVEL", "INFO")
 ).upper()
@@ -148,9 +142,6 @@ _MCP_TOOLS = (
     (run_enrichment_analysis, "run_enrichment_analysis"),
 )
 
-if campaign_free_mode():
-    _MCP_TOOLS = tuple(entry for entry in _MCP_TOOLS if entry[1] in PUBLIC_TOOLS)
-
 for _tool_fn, _tool_name in _MCP_TOOLS:
     mcp.tool(with_call_logging(_tool_fn, _tool_name), name=_tool_name)
 
@@ -203,7 +194,6 @@ async def root() -> JSONResponse:
         {
             "status": "running",
             "service": "coscientist-lit-review",
-            "campaign_policy": campaign_policy(),
             "version": "0.1.0",
             "mcp_tools": [name for _, name in _MCP_TOOLS],
             "api_keys_configured": {

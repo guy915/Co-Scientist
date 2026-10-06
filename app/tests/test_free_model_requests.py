@@ -4,11 +4,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.llm import scoped_zero_cost_admission
 
 import app.qa as qa_stream
 from app import credentials, goal_text, run_start_announcement
 from app.config import settings
-from app.execution_policy import scoped_execution_policy
 from app.interviews import model as interviews_model
 from tests._llm_fake_backend import (
     completion_response,
@@ -16,7 +16,7 @@ from tests._llm_fake_backend import (
 )
 from tests._store_helpers import seed_run
 
-MODEL = "openrouter/campaign/chat:free"
+MODEL = "openrouter/free/chat:free"
 KINDS = ["interview", "qa", "announcement", "title", "restatement", "probe"]
 
 
@@ -54,7 +54,7 @@ def captured(monkeypatch: pytest.MonkeyPatch, reachable_provider: None) -> list[
     free_catalog.install_catalog_reader(
         free_catalog.CatalogReader(
             lambda: {
-                "campaign/chat:free": {
+                "free/chat:free": {
                     "pricing": {"prompt": "0", "completion": "0"},
                     "architecture": {
                         "input_modalities": ["text"],
@@ -87,20 +87,20 @@ def captured(monkeypatch: pytest.MonkeyPatch, reachable_provider: None) -> list[
 
 
 @pytest.mark.parametrize("kind", KINDS)
-async def test_campaign_blocks_paid_app_calls(
+async def test_free_only_mode_blocks_paid_app_calls(
     monkeypatch: pytest.MonkeyPatch,
     captured: list[dict[str, Any]],
     kind: str,
 ) -> None:
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-    monkeypatch.setattr(settings, "chat_model_name", "openrouter/campaign/paid")
+    monkeypatch.setattr(settings, "chat_model_name", "openrouter/free/paid")
     with pytest.raises(Exception, match="zero-cost"):
-        await _invoke(kind, "openrouter/campaign/paid")
+        await _invoke(kind, "openrouter/free/paid")
     assert captured == []
 
 
 @pytest.mark.parametrize("kind", KINDS)
-async def test_campaign_free_requests_keep_streams_and_zero_caps(
+async def test_free_only_mode_free_requests_keep_streams_and_zero_caps(
     monkeypatch: pytest.MonkeyPatch,
     captured: list[dict[str, Any]],
     kind: str,
@@ -123,18 +123,16 @@ async def test_campaign_free_requests_keep_streams_and_zero_caps(
     assert request.get("stream", False) == (kind in {"interview", "qa", "announcement"})
 
 
-async def test_concurrent_campaign_and_standard_byok_stay_isolated(
+async def test_concurrent_zero_cost_scope_and_standard_byok_stay_isolated(
     monkeypatch: pytest.MonkeyPatch,
     captured: list[dict[str, Any]],
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    credential = credentials.ByokCredential(
-        "openrouter", "test-user-key", "openrouter/campaign/paid"
-    )
+    credential = credentials.ByokCredential("openrouter", "test-user-key", "openrouter/free/paid")
 
-    async def campaign_call() -> None:
+    async def zero_cost_call() -> None:
         with (
-            scoped_execution_policy("campaign"),
+            scoped_zero_cost_admission(True),
             credentials.scoped_byok(credential),
             pytest.raises(Exception, match="zero-cost"),
         ):
@@ -142,12 +140,11 @@ async def test_concurrent_campaign_and_standard_byok_stay_isolated(
 
     async def standard_call() -> None:
         with (
-            scoped_execution_policy("standard"),
             credentials.scoped_byok(credential),
         ):
             await _invoke("title", credential.model)
 
-    await asyncio.gather(campaign_call(), standard_call())
+    await asyncio.gather(zero_cost_call(), standard_call())
 
     assert len(captured) == 1
     assert captured[0]["api_key"] == credential.api_key

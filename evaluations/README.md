@@ -194,7 +194,7 @@ python -m evaluations.ablation_driver                     # offline; writes resu
 python -m evaluations.ablation_driver --live               # explicit MODEL_NAME + OPENROUTER_API_KEY + qualified MCP
 python -m evaluations.elo_concordance_eval                 # offline stub; writes results/elo-concordance-<date>.json
 python -m evaluations.elo_concordance_eval --llm            # explicit MODEL_NAME + OPENROUTER_API_KEY
-python -m evaluations.golden_run            # Non-campaign INDRA acceptance only
+python -m evaluations.golden_run            # INDRA acceptance
 python -m evaluations.prod_smoke            # LIVE, non-mutating; not in CI
 python -m evaluations.prod_smoke --base-url https://api.ai-co-scientist.com
 python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
@@ -324,17 +324,13 @@ labs and are recorded honestly rather than fabricated:
 
 Each runner records its own `external_gap` in its result artifact.
 
-### Golden run and campaign acceptance
+### Golden run
 
 The INDRA golden runner requires explicit `MODEL_NAME` and its matching provider
 credential in the environment; it does not read `.env` or choose a model default.
-It remains a separate non-campaign acceptance check and may incur charges.
-Campaign mode rejects it before execution because INDRA is not qualified by the
-campaign MCP policy. Do not turn off campaign mode to run it during the campaign.
-Use the [public-evidence procedure](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/references/external/campaign.md#public-evidence-acceptance-workflow)
-for campaign acceptance. Passing that procedure does not establish INDRA acceptance.
+It is a separate acceptance check and may incur charges.
 
-Live citation entailment, citation usefulness and Elo panels use campaign
+Live citation entailment, citation usefulness and Elo panels use free-model
 configuration before importing model code. Set an explicit OpenRouter `MODEL_NAME`
 and `OPENROUTER_API_KEY`; citation usefulness also accepts `--model` explicitly.
 Every model role is pinned and transport admission checks current zero prices.

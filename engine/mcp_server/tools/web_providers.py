@@ -8,11 +8,6 @@ from typing import Any
 
 import httpx
 
-from mcp_server.campaign import (
-    campaign_free_mode,
-    require_metered_search_allowed,
-)
-
 logger = logging.getLogger(__name__)
 
 # Clean snippets like fetched pages so source markup never reaches the agent.
@@ -178,7 +173,6 @@ def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
 
 
 async def search_brave(query: str, max_results: int, recency_days: int) -> dict[str, Any]:
-    require_metered_search_allowed()
     params: dict[str, str] = {
         "q": query,
         "count": str(max_results),
@@ -202,7 +196,6 @@ async def search_brave(query: str, max_results: int, recency_days: int) -> dict[
 
 
 async def search_tavily(query: str, max_results: int, recency_days: int) -> dict[str, Any]:
-    require_metered_search_allowed()
     payload: dict[str, Any] = {
         "query": query,
         "max_results": max_results,
@@ -254,8 +247,6 @@ def configured_providers() -> list[tuple[str, SearchFn]]:
     """Provider preference orders keys; additional keys are fallbacks rather
     than mutually exclusive choices.
     """
-    if campaign_free_mode():
-        return []
     ordered: list[str] = []
     requested = os.environ.get("WEB_SEARCH_PROVIDER", "").strip().lower()
     if requested and _resolve_requested_provider(requested) is not None:

@@ -15,11 +15,9 @@ if TYPE_CHECKING:
     )
     from co_scientist.llm.admission.free_policy import (
         api_key_for_model,
-        campaign_free_mode,
         current_api_key,
         enforce_free_request,
         scoped_api_key,
-        scoped_campaign_mode,
         scoped_zero_cost_admission,
     )
     from co_scientist.llm.attempts.retry import (
@@ -65,7 +63,6 @@ __all__ = [
     "call_llm",
     "call_llm_json",
     "call_llm_with_tools",
-    "campaign_free_mode",
     "coerce_json_list",
     "complete_request",
     "current_api_key",
@@ -84,7 +81,6 @@ __all__ = [
     "record_deterministic_fallback",
     "release_run_call_budget",
     "scoped_api_key",
-    "scoped_campaign_mode",
     "scoped_completion_budget",
     "scoped_llm_call_budget",
     "scoped_telemetry",
@@ -106,7 +102,6 @@ _EXPORTS: dict[str, str] = {
     "call_llm": "co_scientist.llm.call",
     "call_llm_json": "co_scientist.llm.call",
     "call_llm_with_tools": "co_scientist.llm.tools.loop",
-    "campaign_free_mode": "co_scientist.llm.admission.free_policy",
     "coerce_json_list": "co_scientist.llm.structured.validate",
     "current_api_key": "co_scientist.llm.admission.free_policy",
     "current_run_call_count": "co_scientist.llm.admission.call_budget",
@@ -123,7 +118,6 @@ _EXPORTS: dict[str, str] = {
     "record_deterministic_fallback": "co_scientist.llm.telemetry",
     "release_run_call_budget": "co_scientist.llm.admission.call_budget",
     "scoped_api_key": "co_scientist.llm.admission.free_policy",
-    "scoped_campaign_mode": "co_scientist.llm.admission.free_policy",
     "scoped_llm_call_budget": "co_scientist.llm.admission.call_budget",
     "scoped_telemetry": "co_scientist.llm.telemetry",
     "scoped_telemetry_phase": "co_scientist.llm.telemetry",

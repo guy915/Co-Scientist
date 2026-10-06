@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import app.engine_tasks.runtime as engine_tasks_runtime
 from app.engine_adapter.opts import (
@@ -572,10 +572,13 @@ def restore_checkpoint_state(
     """Restore builds and drops its registry-compatible generator within the
     cohort's own event loop, without consuming steering.
     """
-    from app.engine_adapter import restore_workflow_state
+    from co_scientist.checkpoint import restore_workflow_state
 
     generator = engine_tasks_runtime.active().generator_for_restore(task, db_path)
-    return restore_workflow_state(checkpoint["state"], tool_registry=generator.tool_registry)
+    return cast(
+        dict[str, Any],
+        restore_workflow_state(checkpoint["state"], tool_registry=generator.tool_registry),
+    )
 
 
 def leased_state(

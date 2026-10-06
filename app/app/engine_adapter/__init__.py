@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any, cast
+from typing import Any
 
 from app.config import any_provider_credential, byok_enabled, settings
 from app.engine_adapter.tools import (
@@ -98,24 +98,3 @@ def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
         return False
     state = checkpoint.get("state")
     return isinstance(state, dict) and state.get("provider") == ENGINE_CHECKPOINT_PROVIDER
-
-
-def restore_workflow_state(
-    serialized: dict[str, Any], *, tool_registry: Any = None
-) -> dict[str, Any]:
-    """Campaign routing survives checkpoint restoration and recovery."""
-    from co_scientist.checkpoint import (
-        restore_workflow_state as restore_engine_state,
-    )
-
-    from app.execution_policy import effective_execution_model
-
-    state = cast(
-        dict[str, Any],
-        restore_engine_state(serialized, tool_registry=tool_registry),
-    )
-    campaign_model = effective_execution_model(None)
-    if campaign_model is not None:
-        state["model_name"] = campaign_model
-        state["supervisor_model_name"] = campaign_model
-    return state

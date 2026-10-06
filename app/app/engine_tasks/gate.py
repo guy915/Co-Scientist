@@ -8,7 +8,6 @@ from typing import Any
 
 from app.claims.gate import ClaimRole, is_speculative
 from app.config import settings
-from app.execution_policy import effective_execution_model
 
 logger = logging.getLogger(__name__)
 
@@ -296,7 +295,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     )
 
     passages = _build_evidence_passages(state)
-    model = effective_execution_model(settings.claim_verifier_model or settings.model_name)
+    model = settings.claim_verifier_model or settings.model_name
     assert model is not None
     assessor, assessor_id = build_assessor(settings.claim_assessor, model)
     entailment_calls = [0]

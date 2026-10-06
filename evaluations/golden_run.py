@@ -1,6 +1,4 @@
-"""Live acceptance is local-only and requires a real backend; campaign mode
-cannot authorize INDRA.
-"""
+"""Live acceptance is local-only and requires a real backend."""
 
 from __future__ import annotations
 
@@ -264,14 +262,6 @@ def _build_report(
 def run() -> dict[str, Any]:
     # LiteLLM may load dotenv during the engine import itself.
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
-    from co_scientist.llm import campaign_free_mode
-
-    if campaign_free_mode():
-        raise RuntimeError(
-            "INDRA golden acceptance is unavailable under campaign "
-            "tool policy; "
-            "use the campaign public-evidence workflow"
-        )
     tmp_db = tempfile.mkdtemp(prefix="golden-run-")
     db_path = str(pathlib.Path(tmp_db) / "golden.db")
     _configure_env(db_path)

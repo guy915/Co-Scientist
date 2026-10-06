@@ -12,7 +12,6 @@ import app.interviews.model as model
 import app.interviews.questions as question_repair
 import app.staged_documents as staged_documents
 from app.auth import client_id
-from app.execution_policy import CAMPAIGN, STANDARD
 from app.interviews.model import (
     ProseSink,
     ReasoningSink,
@@ -40,9 +39,7 @@ def owned_interview(interview_id: str, request: Request) -> dict[str, Any]:
     return _with_documents(interview)
 
 
-def request_byok(
-    request: Request, execution_policy: str = STANDARD
-) -> credentials.ByokCredential | None:
+def request_byok(request: Request) -> credentials.ByokCredential | None:
     """Per-request interview credentials override run defaults and are never
     persisted.
     """
@@ -50,11 +47,6 @@ def request_byok(
         credential = credentials.credential_from_headers(request.headers)
     except credentials.ByokRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if execution_policy == CAMPAIGN and credential is not None:
-        raise HTTPException(
-            status_code=400,
-            detail=("campaign interviews cannot use bring-your-own-key credentials"),
-        )
     return credential
 
 

@@ -17,7 +17,6 @@ from app.config import (
     thinking_safe_max_tokens,
 )
 from app.diagnostic_events import log_chat_turn
-from app.execution_policy import scoped_execution_policy
 from app.llm_scope import budgeted_stream, stream_chunks
 from app.logging_setup import run_log_context
 from app.qa import artifacts as qa_artifacts
@@ -394,25 +393,15 @@ async def stream_answer(
     question: QaQuestion,
     inputs: QaAnswerInputs,
     byok: credentials.ByokCredential | None = None,
-    *,
-    execution_policy: str | None = None,
-    campaign_model_name: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Scope BYOK through the whole stream so generation and billing use the
     run's authorized credential.
     """
-    if execution_policy is None:
-        run = runs.get_run(run_id)
-        if run is None:
-            yield sse_frame({"type": "error", "message": "run not found"})
-            return
-        execution_policy = run.execution_policy
+    if runs.get_run(run_id) is None:
+        yield sse_frame({"type": "error", "message": "run not found"})
+        return
     try:
-        with (
-            scoped_execution_policy(execution_policy, campaign_model_name=campaign_model_name),
-            credentials.scoped_byok(byok),
-            run_log_context(run_id),
-        ):
+        with credentials.scoped_byok(byok), run_log_context(run_id):
             deltas = stream_llm_deltas(
                 settings.effective_chat_model,
                 inputs.system_prompt,
