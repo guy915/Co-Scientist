@@ -111,7 +111,6 @@ def mark_bootstrap_running(
 # deletion can be verified.
 _RUN_ID_TABLES: tuple[str, ...] = (
     "run_credentials",
-    "report_shares",
     "run_events",
     "scientific_tasks",
     "hypotheses",

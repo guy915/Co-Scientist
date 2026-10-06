@@ -164,20 +164,6 @@ def interview_document_excerpts(
     return excerpts
 
 
-def list_staged_documents_for_client(
-    client_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    with _use_conn(conn, db_path) as active:
-        rows = active.execute(
-            "SELECT * FROM staged_documents WHERE client_id=? ORDER BY created_at DESC",
-            (client_id,),
-        ).fetchall()
-    return _rows_to_documents(rows)
-
-
 def delete_staged_document(document_id: str, client_id: str, *, db_path: str | None = None) -> bool:
     with connect(db_path) as conn:
         cur = conn.execute(

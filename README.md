@@ -44,13 +44,18 @@ Generated hypotheses need researcher review and experimental validation.
 
 ## Quick start
 
-Install Python **3.12**, Node.js **22.13+**, and Bun **1.3.14**. The internal
-engine package retains Python 3.10+ compatibility. From a checkout:
+Install Python **3.12**, Node.js **22.13+**, and Bun **1.3.14**
+(`curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`). The internal
+engine package retains Python 3.10+ compatibility. The Makefile needs `bash`
+and `lsof`, so use macOS or Linux; on Windows, use WSL2.
 
 ```bash
+git clone https://github.com/guy915/Co-Scientist.git && cd Co-Scientist
 make setup          # Python venv + locked frontend dependencies
 make start          # API :8008, UI :5173, MCP :8888
 ```
+
+`make start` stops whatever is listening on ports 8008, 5173 and 8888.
 
 Open [localhost:5173](http://localhost:5173). Leave provider keys empty to use
 all hypothesis-generation stages with deterministic offline responses.
@@ -64,7 +69,6 @@ and matching key. See [`.env.example`](.env.example) and
 ```dotenv
 OPENROUTER_API_KEY=
 MODEL_NAME=openrouter/inclusionai/ling-3.1-flash
-SAFETY_MODE=standard
 ```
 
 `make setup` creates `app/.env` as a link to the root `.env`. The MCP server
@@ -124,9 +128,17 @@ remain explicit opt-in operations.
 
 Start with [architecture](docs/ARCHITECTURE.md),
 [launch readiness](docs/LAUNCH.md), and [contributor guidance](AGENTS.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
 Report vulnerabilities privately through
-[GitHub security advisories](https://github.com/guy915/Co-Scientist/security/advisories/new)
-or [the maintainer](https://github.com/guy915), excluding credentials and researcher data.
+[GitHub security advisories](https://github.com/guy915/Co-Scientist/security/advisories/new),
+excluding credentials and researcher data. See [SECURITY.md](SECURITY.md).
 
 ## License
 

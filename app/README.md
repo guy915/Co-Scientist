@@ -9,7 +9,7 @@ app/
 ├── app/            FastAPI backend (Python)
 │   ├── main.py     App setup, lifespan, ownership middleware, router mounting
 │   ├── runs/       Durable run-lifecycle router (create / start / stream / cancel); runs.lifecycle/collections/contrib/chat back it
-│   ├── diagnostics_api.py  /health, /config, /status (mounted by app.main)
+│   ├── diagnostics_api.py  /health, /status (mounted by app.main)
 │   ├── engine_tasks/      Durable run execution — the production path — plus task_worker/
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
@@ -151,14 +151,13 @@ The frontend reads a single variable:
    - **Research Overview** — synthesized Markdown report, downloadable.
    - **All Ideas** — ranked hypothesis list with Elo scores and lineage.
 
-Runs can be paused, resumed, or cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
+Runs can be cancelled mid-flight; interrupted runs resume on restart. The backend stores the full event log so completed runs can be re-explored after the fact.
 
 ## API reference
 
-The backend mounts several routers (`runs`, `interviews`, `shares`, `feedback`,
+The backend mounts several routers (`runs`, `interviews`, `feedback`,
 `auth`, `logs`) plus top-level diagnostics. The core run-lifecycle group is
-below; for the complete, always-current surface use the interactive docs at
-`/docs`.
+below.
 
 ### Run lifecycle (`/api/runs`)
 
@@ -169,8 +168,6 @@ below; for the complete, always-current surface use the interactive docs at
 | `GET` | `/api/runs/demo` | Get the seeded public demo run |
 | `GET` | `/api/runs/{id}` | Get run + summary counts |
 | `POST` | `/api/runs/{id}/start` | Start the workflow in the background |
-| `POST` | `/api/runs/{id}/pause` | Pause a running workflow |
-| `POST` | `/api/runs/{id}/resume` | Resume a paused workflow |
 | `POST` | `/api/runs/{id}/cancel` | Cancel a running workflow |
 | `GET` | `/api/runs/{id}/events` | SSE stream (live + replay via `?after=`) |
 | `GET` | `/api/runs/{id}/events?stream=false` | Persisted event log as a one-shot JSON snapshot |
@@ -191,14 +188,7 @@ below; for the complete, always-current surface use the interactive docs at
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check |
-| `GET` | `/config` | Server-default config values |
 | `GET` | `/status` | MCP/PubMed/web-search availability, provider, LLM backend |
-
-Interactive docs are available when the server is running, to operator
-callers only — a loopback client, or one sending `X-Logs-Token:
-$LOGS_ADMIN_TOKEN`. Anyone else gets a 404.
-- Swagger UI: http://localhost:8008/docs
-- ReDoc: http://localhost:8008/redoc
 
 ## Development commands
 

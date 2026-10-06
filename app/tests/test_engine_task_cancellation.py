@@ -273,12 +273,12 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
     assert cancelled_run is not None and cancelled_run.status == "cancelled"
 
 
-def test_pause_api_serializes_queued_revocation_with_node_commit(
+def test_pause_transaction_serializes_queued_revocation_with_node_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client, run_id = _owned_running_run(isolated_db)
+    _client, run_id = _owned_running_run(isolated_db)
     task, checkpoint_seq = _leased_task(
-        run_id, "engine.node.supervisor", "pause-api-transaction", isolated_db
+        run_id, "engine.node.supervisor", "pause-transaction", isolated_db
     )
     commit_finished = Event()
     commit_attempted = Event()
@@ -300,7 +300,6 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
         finally:
             commit_finished.set()
 
-    original_pause_tasks = lifecycle.pause_run_tasks
     original_transaction = db.transaction
     commit_thread: Thread | None = None
 
@@ -312,23 +311,17 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
         with original_transaction(db_path) as conn:
             yield conn
 
-    def pause_tasks_then_race(
-        target_run_id: str, *, db_path: str | None = None, conn: Any = None
-    ) -> int:
-        nonlocal commit_thread
-        changed = original_pause_tasks(target_run_id, db_path=db_path, conn=conn)
-        commit_attempted.clear()
+    monkeypatch.setattr(db, "transaction", signal_commit_transaction)
+    with original_transaction(isolated_db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='paused' WHERE run_id=? AND status='queued'",
+            (run_id,),
+        )
+        runs.update_run_status(run_id, StoreRunStatus.PAUSED, conn=conn)
         commit_thread = Thread(target=commit_successor)
         commit_thread.start()
         assert commit_attempted.wait(2), "commit did not reach its transaction"
         assert not commit_finished.wait(0.2), "commit escaped pause transaction"
-        return changed
-
-    monkeypatch.setattr(lifecycle, "pause_run_tasks", pause_tasks_then_race)
-    monkeypatch.setattr(db, "transaction", signal_commit_transaction)
-    response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-    assert response.status_code == 200, response.text
-    assert response.json()["status"] == "paused"
     assert commit_thread is not None
     commit_thread.join(timeout=5)
     assert not commit_thread.is_alive()
