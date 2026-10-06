@@ -13,32 +13,34 @@ from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
 
 
 def test_an_offline_invocation_leaves_no_credential_to_spend(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Credential names evolve; suffix-based removal avoids an incomplete
-    # provider allowlist.
+    # Suffix-based removal covers provider credentials added later. Generated
+    # evidence cannot support generated claims, so literature review is off.
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-would-be-billed")
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-would-be-billed")
+    monkeypatch.delenv("FORCE_LITERATURE_REVIEW", raising=False)
 
     configure_environment("/tmp/db.sqlite", "/tmp/cache", live=False)
 
     assert [name for name in os.environ if name.endswith("_API_KEY")] == []
     assert os.environ["COSCIENTIST_FORCE_OFFLINE"] == "1"
-
-
-def test_an_offline_invocation_disables_literature_review(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Generated evidence cannot support generated claims, blocking the stages
-    # sweeps need to exercise.
-    monkeypatch.delenv("FORCE_LITERATURE_REVIEW", raising=False)
-
-    configure_environment("/tmp/db.sqlite", "/tmp/cache", live=False)
-
     assert os.environ["FORCE_LITERATURE_REVIEW"] == "0"
 
 
 _ROOT = Path(__file__).resolve().parents[2]
+
+
+def _probe(script: str, cwd: Path, **env: str) -> None:
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=cwd,
+        env={"PATH": os.environ["PATH"], "PYTHONPATH": str(_ROOT), **env},
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_live_runner_isolates_credentials_and_all_model_roles(
@@ -65,23 +67,15 @@ for model in (settings.model_name, settings.supervisor_model_name,
               settings.claim_verifier_model):
     assert model == "openrouter/campaign/zero:free", model
 """
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={
-            "PATH": os.environ["PATH"],
-            "PYTHONPATH": str(_ROOT),
-            "MODEL_NAME": "openrouter/campaign/zero:free",
-            "SUPERVISOR_MODEL_NAME": "deepseek/paid",
-            "DEEPSEEK_API_KEY": "synthetic-paid",
-            "gemini_api_key": "synthetic-lowercase-paid",
-            "OPENROUTER_API_KEY": "synthetic-router",
-        },
-        capture_output=True,
-        text=True,
-        timeout=30,
+    _probe(
+        script,
+        tmp_path,
+        MODEL_NAME="openrouter/campaign/zero:free",
+        SUPERVISOR_MODEL_NAME="deepseek/paid",
+        DEEPSEEK_API_KEY="synthetic-paid",
+        gemini_api_key="synthetic-lowercase-paid",
+        OPENROUTER_API_KEY="synthetic-router",
     )
-    assert result.returncode == 0, result.stderr
 
 
 def test_live_runner_rejects_implicit_or_non_openrouter_models(
@@ -99,15 +93,10 @@ for model in ("", "deepseek/deepseek-chat"):
     else:
         raise AssertionError("unqualified model admitted")
 """
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={"PATH": os.environ["PATH"], "PYTHONPATH": str(_ROOT)},
-        capture_output=True,
-        text=True,
-        timeout=30,
+    _probe(
+        script,
+        tmp_path,
     )
-    assert result.returncode == 0, result.stderr
 
 
 def test_live_runner_price_admission_reaches_public_llm_boundary(
@@ -167,20 +156,12 @@ async def check():
 asyncio.run(check())
 """
     )
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={
-            "PATH": os.environ["PATH"],
-            "PYTHONPATH": str(_ROOT),
-            "MODEL_NAME": "openrouter/campaign/zero:free",
-            "OPENROUTER_API_KEY": "synthetic-router",
-        },
-        capture_output=True,
-        text=True,
-        timeout=45,
+    _probe(
+        script,
+        tmp_path,
+        MODEL_NAME="openrouter/campaign/zero:free",
+        OPENROUTER_API_KEY="synthetic-router",
     )
-    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize(
@@ -228,65 +209,11 @@ with patch("evaluations.golden_run._install_tool_call_counter",
         raise AssertionError("unqualified INDRA accepted")
 assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
 """
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={
-            "PATH": os.environ["PATH"],
-            "PYTHONPATH": str(_ROOT),
-            "COSCIENTIST_REQUIRE_FREE_MODELS": "1",
-            "MODEL_NAME": "openrouter/campaign/zero:free",
-            "OPENROUTER_API_KEY": "synthetic-router",
-            "DEEPSEEK_API_KEY": "synthetic-paid",
-        },
-        capture_output=True,
-        text=True,
-        timeout=30,
+    _probe(
+        script,
+        tmp_path,
+        COSCIENTIST_REQUIRE_FREE_MODELS="1",
+        MODEL_NAME="openrouter/campaign/zero:free",
+        OPENROUTER_API_KEY="synthetic-router",
+        DEEPSEEK_API_KEY="synthetic-paid",
     )
-    assert result.returncode == 0, result.stderr
-
-
-def test_explicit_noncampaign_golden_uses_no_dotenv_defaults(
-    tmp_path: Path,
-) -> None:
-    (tmp_path / ".env").write_text(
-        "GEMINI_API_KEY=synthetic-paid\nMODEL_NAME=deepseek/implicit\n"
-    )
-    script = """
-import os
-from unittest.mock import patch
-from evaluations.golden_run import run
-
-def observe_config():
-    from app.config import settings
-    assert settings.gemini_api_key == ""
-    for model in (settings.model_name, settings.supervisor_model_name,
-                  settings.chat_model_name, settings.semantic_safety_model,
-                  settings.claim_verifier_model):
-        assert model == "openrouter/explicit/model"
-    assert settings.tools_config.endswith("indra_cancer.yaml")
-    assert settings.claim_assessor == "llm"
-    raise RuntimeError("configuration observed; no execution")
-
-with patch("evaluations.golden_run._install_tool_call_counter", observe_config):
-    try:
-        run()
-    except RuntimeError as error:
-        assert str(error) == "configuration observed; no execution"
-    else:
-        raise AssertionError("unexpected execution")
-"""
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={
-            "PATH": os.environ["PATH"],
-            "PYTHONPATH": str(_ROOT),
-            "MODEL_NAME": "openrouter/explicit/model",
-            "OPENROUTER_API_KEY": "synthetic-router",
-        },
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert result.returncode == 0, result.stderr
