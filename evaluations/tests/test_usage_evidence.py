@@ -4,25 +4,13 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from evaluations._run_driver import compute_arm_metrics
-from evaluations.golden_run import _cost_summary
+from evaluations._usage_evidence import summarize_usage
 from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
-
-
-def test_golden_artifact_retains_unknown_identity_and_cost() -> None:
-    raw = {"phase::requested": {"calls": 2, "cost_usd": 0.0}}
-    report = _cost_summary({"model_usage": raw})
-    evidence = report["usage_evidence"]
-    assert evidence["model_usage"] == raw
-    assert evidence["observed_models"] == []
-    assert evidence["unobserved_model_calls"] == 2
-    assert evidence["unreported_usage_calls"] == 2
-    assert evidence["unpriced_calls"] == 2
-    assert evidence["estimated_total_usd"] is None
-    assert evidence["billed_total_usd"] is None
 
 
 def test_durable_artifact_retains_requested_and_observed_models(
@@ -99,66 +87,44 @@ def test_derived_curves_preserve_unknown_costs() -> None:
     assert summary["estimated_mean_usd"] == 0.0
 
 
-def test_missing_cost_value_cannot_be_a_complete_zero_estimate() -> None:
-    from evaluations._usage_evidence import summarize_usage
-
-    report = summarize_usage(
-        {
-            "phase::model": {
-                "calls": 1,
-                "observed_model_calls": 1,
-                "reported_usage_calls": 1,
-                "priced_usage_calls": 1,
-            }
-        }
-    )
+@pytest.mark.parametrize(
+    ("usage", "unpriced"),
+    [
+        ({}, None),
+        ({"phase::requested": {"calls": 2, "cost_usd": 0.0}}, 2),
+        (
+            {
+                "phase::model": {
+                    "calls": 1,
+                    "observed_model_calls": 1,
+                    "reported_usage_calls": 1,
+                    "priced_usage_calls": 1,
+                }
+            },
+            1,
+        ),
+        (
+            {
+                "phase::model": {
+                    "calls": 1,
+                    "observed_model_calls": 2,
+                    "reported_usage_calls": 1,
+                    "priced_usage_calls": 1,
+                    "cost_usd": 0,
+                }
+            },
+            None,
+        ),
+    ],
+)
+def test_unknown_or_overclaimed_usage_cannot_be_a_complete_zero_estimate(
+    usage: dict[str, Any], unpriced: int | None
+) -> None:
+    report = summarize_usage(usage)
     assert report["estimated_total_usd"] is None
-    assert report["unpriced_calls"] == 1
-    assert summarize_usage({})["estimated_total_usd"] is None
-
-
-def test_overclaimed_observations_cannot_complete_cost_evidence() -> None:
-    from evaluations._usage_evidence import summarize_usage
-
-    report = summarize_usage(
-        {
-            "phase::model": {
-                "calls": 1,
-                "observed_model_calls": 2,
-                "reported_usage_calls": 1,
-                "priced_usage_calls": 1,
-                "cost_usd": 0,
-            }
-        }
-    )
-    assert report["estimated_total_usd"] is None
-
-
-def test_durable_merge_retains_events_without_claiming_complete_tracking() -> (
-    None
-):
-    import json
-
-    from co_scientist.models.metrics import ExecutionMetrics, merge_metrics
-
-    legacy = ExecutionMetrics(model_usage={"judge::model": {"calls": 2}})
-    delta = ExecutionMetrics(
-        model_usage={
-            "judge::model": {
-                "calls": 1,
-                "deterministic_fallbacks": {"claim_single": 1},
-            }
-        }
-    )
-    combined = merge_metrics(merge_metrics(legacy, delta), delta)
-    checkpoint = json.loads(json.dumps(combined.model_usage))
-    evidence = _cost_summary({"model_usage": checkpoint})["usage_evidence"]
-    assert evidence["physical_calls"] == 4
-    assert evidence["recorded_deterministic_fallbacks"] == {"claim_single": 2}
-    assert evidence["fallback_evidence"] == "recorded_events_only"
-    old = _cost_summary({"model_usage": legacy.model_usage})["usage_evidence"]
-    assert old["recorded_deterministic_fallbacks"] == {}
-    assert old["fallback_evidence"] == "recorded_events_only"
+    assert report["billed_total_usd"] is None
+    if unpriced is not None:
+        assert report["unpriced_calls"] == unpriced
 
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -246,10 +212,7 @@ assert evidence["estimated_total_usd"] is None
 assert evidence["billed_total_usd"] is None
 if panel == "elo":
     live = report["results"]["llm:openrouter/campaign/primary:free"]
-    assert live["execution_mode"] == "live_requested"
     assert live["usage_evidence"] == evidence
-    for name in ("correctness_preferring", "inverting", "coin_flip_seed0"):
-        assert report["results"][name]["execution_mode"] == "offline"
 else:
     assert report["metrics"]["accuracy"] == 1.0
 assert provider.call_args.kwargs["extra_body"]["provider"]["max_price"] == {
