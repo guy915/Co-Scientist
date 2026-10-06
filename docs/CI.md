@@ -49,7 +49,9 @@ that is what makes them deterministic and trustworthy as merge gates.
 - Engine tests: pure unit/graph tests, LLM calls mocked (1773 tests, ~18 s).
 - App tests: the suite's autouse `isolated_db` fixture forces the real
   engine's deterministic offline LLM backend (`COSCIENTIST_FORCE_OFFLINE=1`);
-  no model API keys exist in CI.
+  no model API keys exist in CI. Because every test owns its store, CI runs
+  the suite as three shards (`.github/ci_shard.py`, round-robin over sorted
+  node IDs), each on four `pytest-xdist` workers.
 - MCP server tests: fake `httpx` clients, no network (see
   `engine/mcp_server/tests/test_literature.py` docstring).
 - Browser tests: the existing development flows plus a built-asset launch
@@ -77,8 +79,8 @@ The only network CI uses is fetching the repo, actions, and packages
 the Docker base image inside `docker-build`) — infrastructure, not test
 traffic. `docker-build` builds both root Dockerfiles and the frontend dev image; it never pushes or
 runs them (deploys stay manual);
-`root-config` runs `make setup`/`lint`/`typecheck` against the checkout
-itself, so it is exactly as hermetic as the jobs it exercises.
+`root-config` runs `make setup`/`lint` against the checkout
+itself (the `typecheck` job runs `make typecheck`), so it is exactly as hermetic as the jobs it exercises.
 
 Migrating a *populated* legacy-schema database is also covered, without a
 dedicated job: `app/tests/test_persistence_records.py` builds an
@@ -161,7 +163,7 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
   slower tier yet — the split here is filters/cancellation vs. full/kept.
   If a genuinely slow suite appears (e.g. provider-backed evaluations), it
   belongs in `nightly.yml`, not presubmit.
-- **`bun install` and `pip install` fetch from registries.** Google builds
+- **`bun install` and `uv pip install` fetch from registries.** Google builds
   are hermetic down to vendored/pinned toolchains. We pin the lockfile
   (`--frozen-lockfile`), the interpreter versions, bun (`1.3.14`), and ruff,
   and cache on `bun.lock` — but the registry fetch itself is trusted.
@@ -207,17 +209,22 @@ for repository and deployment prerequisites.
   `make typecheck`, `make test-engine`, `make test-app`, `make test-evaluations`,
   `make eval-smoke`, `bun run lint|test|build`); the test/lint jobs encode
   the same commands directly rather than shelling to make, so a Makefile
-  refactor can't silently change those gates. Two jobs deliberately invoke
+  refactor can't silently change those gates. Three jobs deliberately invoke
   `make`: `root-config`, which exists specifically to catch a Makefile edit
-  that breaks a target (nothing else in CI would), and `e2e`, whose
+  that breaks a target (nothing else in CI would); `typecheck`, which runs
+  `make typecheck PY=python` so mypy runs once per pipeline; and `e2e`, whose
   `make setup` + `make e2e` targets already launch the isolated stack the
-  browser suite needs.
+  browser suite needs. CI installs Python packages with uv
+  (`make setup PIP="uv pip"` with `VIRTUAL_ENV` set); its resolution matched
+  pip's package for package when this was introduced.
 - Version pins to bump deliberately: `ruff==0.15.21` (ci.yml), bun `1.3.14`
   (ci.yml), and every action, each pinned to a commit SHA with its version
   in a trailing comment (`actions/checkout` v7.0.1, `actions/setup-python`
   v6.3.0, `actions/cache` v6.1.0, `oven-sh/setup-bun` v2.2.0,
-  `dorny/paths-filter` v4.0.3). The composite
-  `.github/actions/setup-backend` also pins `actions/setup-python` by SHA.
+  `dorny/paths-filter` v4.0.3, `astral-sh/setup-uv` v10.2.0 with uv
+  `0.11.32`). The composite `.github/actions/setup-backend` also pins
+  `actions/setup-python` by SHA, and pins `pytest-xdist==3.8.0`, a CI-only
+  test dependency.
 
 ## Launch validation
 
