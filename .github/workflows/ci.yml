@@ -50,8 +50,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          # App imports the engine; the ratchet also counts first-party sources outside
-          # package trees.
+          # App imports the engine.
           filters: |
             engine:
               - 'engine/**'
@@ -73,8 +72,6 @@ jobs:
               - 'app/frontend/**'
               - '.github/workflows/ci.yml'
             evaluations:
-              # The production-size ratchet counts all tracked source files,
-              # including first-party scripts outside the package trees.
               - '**/*.py'
               - '**/*.ts'
               - '**/*.tsx'

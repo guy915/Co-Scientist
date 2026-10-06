@@ -62,7 +62,7 @@ and the files named here are where they live today:
   `test_persistence_records.py`
 - the MCP study traces: `test_pubmed_pilot_trace.py`,
   `test_pubmed_study4_recovery_trace.py`
-- the repository gates in `evaluations/tests`, including the size ratchet
+- the repository gates in `evaluations/tests`
 - both browser suites (`make e2e`, `make e2e-production`)
 - every behavior the improvements campaign added tests for
 
@@ -129,8 +129,8 @@ Finish each phase's exit test before starting the next.
 
 - **Opening PR:**
   - Re-measure the baseline table.
-  - Add a test-line ceiling to `evaluations/tests/test_code_size_ratchet.py`
-    beside the production ceiling. Both move one way: down.
+  - Add a test-line ceiling to the size ratchet beside the production
+    ceiling. (The ratchet was retired on 6 October 2026.)
   - Add `make coverage` and record the coverage baseline.
 - **Shared builders and fixtures** (What goes 4 and 5), suite by suite, so
   Phase 2's cuts land on short tests.
@@ -157,12 +157,9 @@ Finish each phase's exit test before starting the next.
 ## Rules
 
 - **Shrink genuinely:** delete and rewrite tests. Keep formatting as the
-  formatters produce it, and keep tests in counted files where the ratchet
-  sees them.
+  formatters produce it.
 - **Production behavior stays identical.** Production code changes only to
   delete code that only tests reach (What goes 9).
-- **The ratchet moves one way:** lower the test ceiling, and the production
-  ceiling when it moves, in every PR that shrinks the count.
 - **Flaky tests get fixed,** with the cause named in the PR, rather than deleted
   or retried.
 - **CI stays hermetic:** no network, no API keys, no retries.
@@ -193,7 +190,7 @@ Finish each phase's exit test before starting the next.
   work ready and the owner's remaining usage, not the maximum. Plan so the
   campaign never stalls on the owner's 5-hour usage limit; with little budget
   left, run fewer. Each takes one theme on its own branch, and parallel themes
-  in one suite touch disjoint files. Give each these rules, the ratchet and the
+  in one suite touch disjoint files. Give each these rules and the
   coverage guard, and have it confirm its files are on disk before reporting.
 - **Progress:** keep each PR body current with phase, suite, theme, test lines
   removed, tests and files removed, coverage before and after, and the new

@@ -9,7 +9,7 @@ finishes, and then replaces `PLAN.md`.
 
 ## Scope
 
-Production is about 114.5k lines by `evaluations/tests/test_code_size_ratchet.py`.
+Production is about 115k lines of first-party Python, TypeScript and CSS.
 The cuts below remove an estimated 18–19k, leaving about 96k. Estimates are not
 targets: a cut is done when its feature is gone, not when a number is hit.
 
@@ -91,10 +91,8 @@ unreachable:
   tests that touched it. When a cut removes a module the coverage guard
   protects, remove it from the protected list in the same PR and say so in the
   PR body. The 80% floor holds for everything that stays.
-- **The ratchet moves one way.** Lower the production and test ceilings in
-  `evaluations/tests/test_code_size_ratchet.py` in the same PR. Never raise them.
-- **Delete, don't move.** No logic moves into files the ratchet skips (JSON,
-  YAML, Markdown templates). A data snapshot is data, not logic.
+- **Delete, don't move.** No logic moves into JSON, YAML or Markdown
+  templates. A data snapshot is data, not logic.
 - **Docs in the same PR.** Update `AGENTS.md`, `app/AGENTS.md`,
   `engine/AGENTS.md`, `docs/` and `.env.example` files that name a cut feature.
 - **Railway.** After a merge that retires an env var, list it for the owner to
