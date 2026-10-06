@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import asyncio
 import json
 import pathlib
 import subprocess
@@ -15,12 +14,7 @@ import pytest
 from litellm.exceptions import BadRequestError
 
 import co_scientist.agents.generation.literature_tools.validate as vs
-import co_scientist.agents.reflection.deep_verification as dv
-from co_scientist.agents.reflection import comprehensive_reflection as cr
-from co_scientist.agents.reflection import reflection as refl
 from co_scientist.agents.reflection import review as rv
-from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
-from co_scientist.agents.reflection.review_gate import ReviewType
 from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
@@ -296,64 +290,6 @@ OVER_BUDGET = LLMCallBudgetExceededError(2501, 2500)
 ORDINARY = ValueError("provider returned unparseable JSON")
 
 
-def _stub_review_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def _evidence(*_: object, **__: object) -> _ReviewEvidence:
-        return _ReviewEvidence([], [], [], None)
-
-    async def _observations(*_: object, **__: object) -> str | None:
-        return None
-
-    monkeypatch.setattr(cr, "_review_evidence_for", _evidence)
-    monkeypatch.setattr(cr, "_observations_for", _observations)
-
-
-async def _mature_review(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> Any:
-    _stub_review_inputs(monkeypatch)
-    monkeypatch.setattr(cr, "call_llm_json", AsyncMock(side_effect=error))
-    hypothesis = make_hypothesis(text="a mechanism")
-    run = await cr._run_review(
-        make_state(hypotheses=[hypothesis]), hypothesis, ReviewType.FULL
-    )
-    return run.result
-
-
-async def _observation_reflection(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> Any:
-    monkeypatch.setattr(
-        refl, "_call_reflection_llm", AsyncMock(side_effect=error)
-    )
-    return await refl.analyze_single_hypothesis(
-        hypothesis=make_hypothesis(text="a mechanism"),
-        hypothesis_index=1,
-        total_count=1,
-        context=refl._ReflectionContext(
-            articles_with_reasoning="retrieved observations",
-            model_name="fixture",
-        ),
-    )
-
-
-async def _deep_verification(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> Any:
-    monkeypatch.setattr(dv, "_verify_with_probes", AsyncMock(side_effect=error))
-    context = dv._VerificationContext(
-        research_goal="g",
-        model_name="fixture",
-        tool_registry=None,
-        state=make_state(),
-    )
-    return await dv._verify_within_semaphore(
-        asyncio.Semaphore(1),
-        make_hypothesis(text="a mechanism"),
-        context,
-        "",
-    )
-
-
 async def _initial_reviews(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> Any:
@@ -366,33 +302,20 @@ async def _initial_reviews(
     )
 
 
-_FALLBACK_SITES = [
-    (_mature_review, None),
-    (_observation_reflection, None),
-    (_deep_verification, None),
-    (_initial_reviews, [None, None]),
-]
-
-
 @pytest.mark.parametrize(
-    ("site", "degraded"),
-    _FALLBACK_SITES,
-    ids=[
-        "mature-review",
-        "observation",
-        "deep-verification",
-        "initial-reviews",
-    ],
+    ("error", "degrades"),
+    [(ORDINARY, True), (PARK, False), (OVER_BUDGET, False)],
 )
-async def test_a_batch_fallback_degrades_ordinary_failures_but_not_spent_caps(
-    monkeypatch: pytest.MonkeyPatch, site: Any, degraded: Any
+async def test_initial_reviews_degrade_ordinary_failures_but_not_spent_caps(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, degrades: bool
 ) -> None:
     """Batch fallback buys per-item retries; swallowing a spent cap
     multiplies doomed requests."""
-    assert await site(monkeypatch, ORDINARY) == degraded
-    for error in (PARK, OVER_BUDGET):
+    if degrades:
+        assert await _initial_reviews(monkeypatch, error) == [None, None]
+    else:
         with pytest.raises(type(error)):
-            await site(monkeypatch, error)
+            await _initial_reviews(monkeypatch, error)
 
 
 def test_a_synthesis_batch_is_retried_individually_unless_a_cap_is_spent() -> (

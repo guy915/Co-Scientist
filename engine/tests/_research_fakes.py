@@ -333,68 +333,6 @@ def research_workflow(registry: ToolRegistry) -> WorkflowConfig:
     return workflow
 
 
-_PAPERS = {
-    "doc-a": {
-        "title": "Blockade in humans",
-        "abstract": "TGF-beta blockade reduced fibrosis in a human cohort.",
-        "pdf_url": "u/a",
-    },
-    "doc-b": {"title": "Merely listed", "abstract": "Unrelated."},
-}
-
-
-def install_research_client(
-    monkeypatch: pytest.MonkeyPatch,
-) -> FakeResearchClient:
-    fake = FakeResearchClient(
-        {
-            "search_alpha": _PAPERS,
-            "read_pdf": {
-                "content": (
-                    "TGF-beta blockade reduced fibrosis in a human cohort."
-                )
-            },
-        }
-    )
-
-    async def get_client(**_: Any) -> MCPToolClient:
-        return cast(MCPToolClient, fake)
-
-    monkeypatch.setattr("co_scientist.mcp_client.get_mcp_client", get_client)
-    return fake
-
-
-class _ScriptedModel:
-    def __init__(self) -> None:
-        self.prompts: list[str] = []
-
-    async def __call__(
-        self, prompt: str, spec: Any, *args: Any, **kwargs: Any
-    ) -> dict[str, Any]:
-        self.prompts.append(prompt)
-        if "perspectives to research" in prompt:
-            return {"stances": ["mechanism"]}
-        if "questions this perspective needs" in prompt:
-            return {"questions": ["is the mechanism shown in humans?"]}
-        if "search query" in prompt:
-            return {"query": "TGF-beta blockade human"}
-        if "retrieved documents" in prompt:
-            return {
-                "findings": [
-                    {
-                        "document": 0,
-                        "claim": "Blockade reduced fibrosis in humans",
-                        "quote": (
-                            "TGF-beta blockade reduced fibrosis in a"
-                            " human cohort."
-                        ),
-                    }
-                ],
-                "follow_ups": [],
-            }
-        return {"summary": "Human evidence exists but is thin."}
-
-
 def make_tool_config(
     mcp_tool_name: str = "search_x", **overrides: Any
 ) -> ToolConfig:
