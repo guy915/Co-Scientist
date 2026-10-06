@@ -42,7 +42,7 @@ from tests._engine_tasks_helpers import (
     _task_events,
     _task_state,
 )
-from tests._store_helpers import enqueue_task, seed_run
+from tests._store_helpers import enqueue_task, pause_run, resume_run_async, seed_run
 
 _debate_calls: list[dict[str, Any]] = []
 
@@ -220,9 +220,7 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
             db_path: str | None,
         ) -> dict[str, Any] | None:
             if node_name == "generate":
-                paused = client.post(f"/api/runs/{run_id}/pause")
-                assert paused.status_code == 200, paused.text
-                assert paused.json()["status"] == "paused"
+                pause_run(run_id, db_path=db_path)
             return await original_dispatch(task, state, node_name, checkpoint_seq, db_path)
 
         monkeypatch.setattr(engine_tasks_node, "_dispatch_node_fanout", pause_during_dispatch)
@@ -239,9 +237,7 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
         assert saved_run is not None and saved_run.status == "paused"
         assert store.claim_task("before-resume", run_id=run_id, db_path=isolated_db) is None
 
-        resumed = client.post(f"/api/runs/{run_id}/resume")
-        assert resumed.status_code == 200, resumed.text
-        assert resumed.json()["status"] == "queued"
+        await resume_run_async(run_id)
         aggregate = next(
             task
             for task in store.list_tasks(run_id, db_path=isolated_db)
