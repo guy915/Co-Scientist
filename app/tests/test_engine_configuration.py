@@ -316,33 +316,27 @@ def _clear_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.parametrize(
-    ("force_offline", "force_mock", "has_key", "expected"),
+    ("force_offline", "has_key", "expected"),
     [
-        (None, None, True, False),
-        (None, None, False, True),
-        ("1", None, True, True),
-        (None, "1", True, True),
+        (None, True, False),
+        (None, False, True),
+        ("1", True, True),
     ],
     ids=[
         "real_when_key_present",
         "offline_when_no_provider_key",
         "offline_when_force_offline",
-        "offline_when_force_mock_deprecated_alias",
     ],
 )
 def test_offline_mode(
     monkeypatch: pytest.MonkeyPatch,
     force_offline: str | None,
-    force_mock: str | None,
     has_key: bool,
     expected: bool,
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     if force_offline is not None:
         monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", force_offline)
-    if force_mock is not None:
-        monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", force_mock)
     _clear_credentials(monkeypatch)
     if has_key:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
