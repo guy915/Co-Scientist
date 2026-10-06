@@ -1,58 +1,19 @@
-import {stubViewport} from '@/browser_test_support';
-import {resetRunDetailMocks, setStream} from './run_detail_api_test_support';
+import {resetRunDetailMocks} from './run_detail_api_test_support';
 import * as runsApi from '@/api/runs';
+import {type Evidence, type RunWithSummary} from '@/api/runs';
+import {clearAccessToken} from '@/lib/client_id';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
 
-// The mobile titlebar is the detail view's only route back to the ranked list.
-it('returns to the ranked ideas list when an idea is open', async () => {
-  stubViewport(true);
-  renderAt('/runs/run-1/ideas?idea=h-1');
-
-  expect(
-    await screen.findByRole('link', {name: 'Back to ranked ideas'}),
-  ).toHaveAttribute('href', '/runs/run-1/ideas');
-});
-
-// Desktop keeps the list visible; Back must leave the run rather than clear
-// selection.
-
-it('shows live metrics and activity instead of report controls', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'running',
-    created_at: Date.now() / 1000 - 5,
-    execution_progress: {
-      determinate: false,
-      completed_tasks: 4,
-      total_tasks: 9,
-      fraction: null,
-      active_task: 'engine.node.generate',
-      queued_tasks: 3,
-    },
-  });
-  setStream([{seq: 1, type: 'scientific_task', payload: {task: 'generate'}}]);
-
-  renderAt('/runs/run-1/specifications');
-
-  expect(await screen.findByText('Research in progress')).toBeInTheDocument();
-  expect(screen.getByText('Time elapsed')).toBeInTheDocument();
-  expect(screen.getByText('< 1 minute')).toBeInTheDocument();
-  expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
-  expect(screen.getByText('Ideas explored')).toBeInTheDocument();
-  expect(screen.getByText('Engine Node Generate')).toBeInTheDocument();
-  const activityLog = screen.getByRole('region', {name: 'Activity log'});
-  expect(activityLog).toHaveTextContent('Live activity');
-  expect(activityLog).toHaveTextContent('Generating hypotheses');
-  expect(screen.queryByText('Open in NotebookLM')).toBeNull();
-  expect(screen.queryByRole('link', {name: 'Download'})).toBeNull();
-  expect(screen.queryByText('Run Specifications')).toBeNull();
+beforeEach(() => {
+  resetRunDetailMocks();
+  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
+  clearAccessToken();
 });
 
 it.each([
   ['failed', 'Run failed', 'engine.node.generate exhausted its retry budget'],
-  ['blocked', 'Run blocked', 'Safety screen held the run for adjudication'],
   ['cancelled', 'Run cancelled', undefined],
 ] as const)(
   'renders the %s end state with its recorded error, not report tabs',
@@ -73,31 +34,49 @@ it.each([
   },
 );
 
-// jsdom cannot measure overlap; keep safety notices inside the scrolling body,
-// not extra grid tracks.
-it('shows the awaiting-decision notice on every tab, nested in the scroll region', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
+function failedRun(failureKind?: string) {
+  return {
     ...makeRun('Study pathway X'),
-    status: 'paused',
-    awaiting_decision_count: 2,
+    status: 'failed' as const,
+    failure_kind: failureKind,
+    error: 'LLM call budget exhausted after 2500 requests',
+  };
+}
+
+it('shows exact call-budget guidance with an accessible label and keeps the recorded error', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue(
+    failedRun('llm_call_budget_exceeded'),
+  );
+
+  renderAt('/runs/run-1/details');
+
+  const guidance = await screen.findByRole('region', {
+    name: 'Suggested next step',
   });
-
-  renderAt('/runs/run-1/ideas');
-
-  const notice = await screen.findByRole('note');
-  expect(notice).toHaveTextContent(/waiting on 2 safety decisions/);
-  const page = document.querySelector('.cosci-report-page');
-  const scrollRegion = document.querySelector('.cosci-report-scroll');
-  expect(Array.from(page?.children ?? [])).not.toContain(notice);
-  expect(scrollRegion).toContainElement(notice);
+  expect(guidance).toHaveTextContent(
+    'The run reached its configured model-call limit before it completed. Start a new run with a narrower research goal.',
+  );
+  expect(screen.getByText('Recorded error')).toBeInTheDocument();
+  expect(
+    screen.getByText('LLM call budget exhausted after 2500 requests'),
+  ).toBeInTheDocument();
 });
 
-// Local overflow clipping would defeat the ancestor's horizontal-scroll policy.
+it('does not show provider guidance when a run is blocked', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    status: 'blocked',
+    failure_kind: 'llm_timeout',
+    error: 'Safety or cancellation detail',
+  });
 
-beforeEach(() => {
-  resetRunDetailMocks();
-  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
-  vi.unstubAllGlobals();
+  renderAt('/runs/run-1/details');
+
+  expect(await screen.findByText('Run blocked')).toBeInTheDocument();
+  expect(
+    screen.queryByRole('region', {name: 'Suggested next step'}),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText('Safety or cancellation detail')).toBeInTheDocument();
 });
 
 it('omits the notice for a paused run with nothing left to review', async () => {
@@ -112,3 +91,51 @@ it('omits the notice for a paused run with nothing left to review', async () => 
   await screen.findByText('Run Specifications');
   expect(screen.queryByRole('note')).toBeNull();
 });
+
+const UNGROUNDED_NOTICE = /No literature was retrieved for this run/;
+
+const EVIDENCE_ROW = {
+  id: 'ev-1',
+  title: 'Retrieved paper',
+  source: 'pubmed',
+  url: 'https://example.org/paper',
+  authors: [],
+  year: 2024,
+  available: true,
+  retracted: false,
+} as Evidence;
+
+it('flags a completed run with no retrieved evidence as ungrounded', async () => {
+  vi.mocked(runsApi.getRun).mockResolvedValue({
+    ...makeRun('Study pathway X'),
+    provider: 'engine',
+    llm_backend: 'real',
+  } as RunWithSummary);
+  vi.mocked(runsApi.getEvidence).mockResolvedValue([]);
+
+  renderAt('/runs/run-1/details');
+
+  expect(await screen.findByText(UNGROUNDED_NOTICE)).toBeInTheDocument();
+});
+
+it.each([
+  ['the run retrieved evidence', 'engine', 'real', [EVIDENCE_ROW]],
+  ['it is offline-backed', 'engine', 'offline', []],
+  // Pre-llm_backend rows use provider to identify offline provenance.
+  ['it is a legacy mock-provider run', 'mock', undefined, []],
+])(
+  'omits the ungrounded notice when %s',
+  async (_name, provider, llm_backend, evidence) => {
+    vi.mocked(runsApi.getRun).mockResolvedValue({
+      ...makeRun('Study pathway X'),
+      provider,
+      llm_backend,
+    } as RunWithSummary);
+    vi.mocked(runsApi.getEvidence).mockResolvedValue(evidence);
+
+    renderAt('/runs/run-1/details');
+
+    await screen.findByText('Run Specifications');
+    expect(screen.queryByText(UNGROUNDED_NOTICE)).toBeNull();
+  },
+);

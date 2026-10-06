@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
 from tests._process_mode_helpers import FakeProcessMode
 
@@ -58,3 +59,26 @@ def test_free_runs_are_capped_per_day(real_backend: None) -> None:
         assert len(runs) == 3
         other = _create(client, headers={"X-Client-ID": "another-device"})
         assert other.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("worker_model", "stamped"),
+    [
+        ("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", True),
+        ("openrouter/z-ai/glm-5.3-flash", False),
+    ],
+)
+def test_only_a_free_run_on_free_routes_is_stamped_zero_cost(
+    real_backend: None,
+    monkeypatch: pytest.MonkeyPatch,
+    worker_model: str,
+    stamped: bool,
+) -> None:
+    from app.store import runs
+
+    monkeypatch.setattr(settings, "model_name", worker_model)
+    with TestClient(app) as client:
+        run_id = _create(client).json()["id"]
+    run = runs.get_run(run_id)
+    assert run is not None
+    assert (run.config.get("zero_cost_admission") is True) is stamped

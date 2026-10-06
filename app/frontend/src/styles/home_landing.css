@@ -420,7 +420,6 @@ html:has(.ucs-landing) body {
   background: transparent;
   /* Parked above the clip until the first scroll measurement places it. */
   transform: translateY(-200%);
-  will-change: transform;
 }
 
 .ucs-landing-header-tabs:not([inert]) .ucs-landing-rail nav {

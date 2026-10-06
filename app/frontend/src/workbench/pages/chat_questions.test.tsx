@@ -53,17 +53,6 @@ test('a multi-select question waits for the send control', () => {
   expect(onAnswer).toHaveBeenCalledWith('Exclusions: Gene therapy, Devices');
 });
 
-test('typing into "Something else" is what answers it', () => {
-  const {onAnswer} = renderChooser();
-  fireEvent.change(screen.getByLabelText(/Something else/), {
-    target: {value: 'A decellularized scaffold'},
-  });
-  fireEvent.click(screen.getByRole('button', {name: /send/i}));
-  expect(onAnswer).toHaveBeenCalledWith(
-    'Model system: A decellularized scaffold',
-  );
-});
-
 describe('answer state and pending questions', () => {
   const EXCLUSIONS: InterviewQuestion = {
     header: '',

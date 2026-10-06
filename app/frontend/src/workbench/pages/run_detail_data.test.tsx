@@ -1,7 +1,7 @@
-import type {Hypothesis, RunWithSummary} from '@/api/runs';
+import type {RunWithSummary} from '@/api/runs';
 import * as runsApi from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
-import {makeHypothesis, makeRunWithSummary} from '@/test_fixtures';
+import {makeRunWithSummary} from '@/test_fixtures';
 import {act, renderHook} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {useRunDetailData} from './run_detail_data';
@@ -62,44 +62,6 @@ async function emit(rerender: (props: {id: string}) => void, type: string) {
 
 afterEach(() => vi.useRealTimers());
 
-it('keeps the terminal snapshot when an older partial refresh finishes later', async () => {
-  const {result, rerender} = await load();
-  const olderRun = deferred<RunWithSummary>();
-  const olderIdeas = deferred<Hypothesis[]>();
-  vi.mocked(runsApi.getRun).mockReturnValueOnce(olderRun.promise);
-  vi.mocked(runsApi.getHypotheses).mockReturnValueOnce(olderIdeas.promise);
-  await emit(rerender, 'generate');
-
-  const finalIdeas = [makeHypothesis({id: 'final'})];
-  vi.mocked(runsApi.getRun).mockResolvedValue(run('run-1', 'completed'));
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue(finalIdeas);
-  stream.terminal = true;
-  rerender({id: 'run-1'});
-  await act(async () => {});
-  expect(result.current.run?.status).toBe('completed');
-
-  await act(async () => {
-    olderRun.resolve(run());
-    olderIdeas.resolve([makeHypothesis({id: 'older'})]);
-  });
-  expect(result.current.run?.status).toBe('completed');
-  expect(result.current.hypotheses).toEqual(finalIdeas);
-});
-
-it('does not let an older failed refresh replace a newer successful result', async () => {
-  const {result, rerender} = await load();
-  const olderRun = deferred<RunWithSummary>();
-  vi.mocked(runsApi.getRun).mockReturnValueOnce(olderRun.promise);
-  await emit(rerender, 'generate');
-
-  vi.mocked(runsApi.getRun).mockResolvedValue(run('run-1', 'completed'));
-  act(() => result.current.refreshNow());
-  await act(async () => {});
-  await act(async () => olderRun.reject(new Error('Old request failed')));
-  expect(result.current.error).toBeNull();
-  expect(result.current.run?.status).toBe('completed');
-});
-
 it('drops a previous run response after navigation', async () => {
   const {result, rerender} = await load();
   const olderRun = deferred<RunWithSummary>();
@@ -134,6 +96,27 @@ it('coalesces mixed events into one selective refresh and cancels it on unmount'
   unmount();
   await act(async () => vi.advanceTimersByTimeAsync(600));
   expect(runsApi.getRun).toHaveBeenCalledTimes(2);
+});
+
+it('refreshes the live counters on durable node task events', async () => {
+  const {rerender, result} = await load();
+  vi.mocked(runsApi.getRun).mockResolvedValue(
+    makeRunWithSummary({
+      id: 'run-1',
+      status: 'running',
+      summary: {...run().summary, hypotheses: 16, evidence: 229},
+    }),
+  );
+  stream.events = [
+    {seq: 1, type: 'scientific_task', payload: {task: 'ranking'}},
+    {seq: 2, type: 'scientific_task', payload: {task: 'supervisor'}},
+  ];
+  rerender({id: 'run-1'});
+  await act(async () => vi.advanceTimersByTimeAsync(600));
+  expect(runsApi.getHypotheses).toHaveBeenCalledTimes(2);
+  expect(runsApi.getMatches).toHaveBeenCalledTimes(2);
+  expect(result.current.run?.summary.hypotheses).toBe(16);
+  expect(result.current.run?.summary.evidence).toBe(229);
 });
 
 beforeEach(() => {

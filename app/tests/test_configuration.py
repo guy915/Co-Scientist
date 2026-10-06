@@ -530,3 +530,17 @@ def test_every_default_and_byok_model_is_priced() -> None:
     )
 
     assert not unpriced, f"models missing from MODEL_PRICING: {unpriced}"
+
+
+def test_the_free_default_route_reasons_at_medium_effort_in_chat() -> None:
+    from app.config import (
+        CONVERSATIONAL_REASONING_EFFORT,
+        DEFAULT_MODEL,
+        deepseek_thinking_kwargs,
+    )
+
+    kwargs = deepseek_thinking_kwargs(
+        DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT
+    )
+
+    assert kwargs["extra_body"]["reasoning"]["effort"] == "medium"

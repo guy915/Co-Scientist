@@ -49,8 +49,9 @@ function useRunEventStream(
     processedEventCount.current = events.length;
     const data = fresh.filter(event => event.type !== 'status');
     if (data.length === 0) return;
-    const keys = dataKeysFromEvents(data);
-    if (keys.size > 0) onDataEvents(keys);
+    // An empty key set still re-reads the run, whose summary carries the live
+    // counters.
+    onDataEvents(dataKeysFromEvents(data));
   }, [events, onDataEvents]);
 
   // Refresh immediately on stream end so a pending debounce cannot leave
@@ -176,7 +177,12 @@ export function dataKeysFromEvents(
 ): Set<RunDataKey> {
   const keys = new Set<RunDataKey>();
   for (const event of events) {
-    for (const key of EVENT_DATA_KEYS[event.type] ?? []) keys.add(key);
+    // Durable node tasks report as `scientific_task` and name the node in
+    // their payload.
+    const task = event.payload.task;
+    for (const name of [event.type, typeof task === 'string' ? task : '']) {
+      for (const key of EVENT_DATA_KEYS[name] ?? []) keys.add(key);
+    }
   }
   return keys;
 }

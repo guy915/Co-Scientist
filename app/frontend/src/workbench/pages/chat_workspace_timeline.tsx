@@ -53,6 +53,21 @@ export interface BuildTimelineItemsArgs {
   focusComposer: () => void;
 }
 
+// Bubbles mix server and client clocks; array order is authoritative, so
+// times are clamped to never run backwards.
+function monotonicMessageTimes(messages: ChatEntry[]): number[] {
+  let latest = -Infinity;
+  return messages.map(message => {
+    latest = Math.max(latest, message.created_at);
+    return latest;
+  });
+}
+
+function latestMessageTime(messages: ChatEntry[]): number {
+  const ats = monotonicMessageTimes(messages);
+  return ats.length ? ats[ats.length - 1] : -Infinity;
+}
+
 // Setup turns lock after start; durable Q&A turns rewind their own transcript.
 function messageTimelineItems({
   messages,
@@ -71,9 +86,10 @@ function messageTimelineItems({
   | 'startedSession'
 >): TimelineItem[] {
   const revisable = !isAwaitingAgent;
+  const ats = monotonicMessageTimes(messages);
   return messages.map((message, index) => ({
     id: `local-message-${message.id}`,
-    at: message.created_at,
+    at: ats[index],
     order: index,
     node: (
       <ChatBubble
@@ -95,19 +111,24 @@ function messageTimelineItems({
 // Keep reasoning and prose in the same row so settlement cannot change spacing
 // or their relative position.
 function thinkingTimelineItems({
+  messages,
   startedSession,
   isAwaitingAgent,
   agentReasoning,
   agentDraft,
 }: Pick<
   BuildTimelineItemsArgs,
-  'startedSession' | 'isAwaitingAgent' | 'agentReasoning' | 'agentDraft'
+  | 'messages'
+  | 'startedSession'
+  | 'isAwaitingAgent'
+  | 'agentReasoning'
+  | 'agentDraft'
 >): TimelineItem[] {
   if (startedSession || !isAwaitingAgent) return [];
   return [
     {
       id: 'agent-turn-in-flight',
-      at: Date.now() / 1000,
+      at: Math.max(Date.now() / 1000, latestMessageTime(messages)),
       order: 45,
       revision: agentDraft.length + agentReasoning.length,
       node: (
@@ -123,20 +144,25 @@ function thinkingTimelineItems({
 }
 
 function qaAnswerTimelineItems({
+  messages,
   startedSession,
   isAwaitingAgent,
   agentReasoning,
   agentDraft,
 }: Pick<
   BuildTimelineItemsArgs,
-  'startedSession' | 'isAwaitingAgent' | 'agentReasoning' | 'agentDraft'
+  | 'messages'
+  | 'startedSession'
+  | 'isAwaitingAgent'
+  | 'agentReasoning'
+  | 'agentDraft'
 >): TimelineItem[] {
   if (!startedSession || !isAwaitingAgent) return [];
   if (!agentDraft && !agentReasoning) return [];
   return [
     {
       id: 'qa-answer-draft',
-      at: Date.now() / 1000,
+      at: Math.max(Date.now() / 1000, latestMessageTime(messages)),
       order: 46,
       revision: agentDraft.length + agentReasoning.length,
       node: (
@@ -301,21 +327,36 @@ function startedCardRevision(session: StartedSession): string {
   return `${intro}:${reasoning}:${Boolean(session.announcing)}`;
 }
 
+// The card's own time comes from a different clock than the bubbles, so it
+// sits directly after the start request whenever one is present.
+function startedCardPosition(
+  messages: ChatEntry[],
+  session: StartedSession,
+): {at: number; order: number} {
+  const index = messages.findIndex(message => message.startRequest);
+  if (index < 0) return {at: session.at, order: 60};
+  return {at: monotonicMessageTimes(messages)[index], order: index + 0.5};
+}
+
 function startedTimelineItems({
+  messages,
   startedSession,
   navigate,
   resetWorkspace,
   focusComposer,
 }: Pick<
   BuildTimelineItemsArgs,
-  'startedSession' | 'navigate' | 'resetWorkspace' | 'focusComposer'
+  | 'messages'
+  | 'startedSession'
+  | 'navigate'
+  | 'resetWorkspace'
+  | 'focusComposer'
 >): TimelineItem[] {
   if (!startedSession) return [];
   return [
     {
       id: `started-session-${startedSession.id}`,
-      at: startedSession.at,
-      order: 60,
+      ...startedCardPosition(messages, startedSession),
       revision: startedCardRevision(startedSession),
       node: (
         <StartedSessionCard

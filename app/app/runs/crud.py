@@ -20,7 +20,9 @@ from app.execution_policy import (
     CAMPAIGN,
     CAMPAIGN_MODEL_CONFIG_KEY,
     CAMPAIGN_MODEL_NAME,
+    ZERO_COST_CONFIG_KEY,
     campaign_model_for_config,
+    deployment_routes_are_free,
     resolve_execution_policy,
     scoped_execution_policy,
 )
@@ -357,6 +359,10 @@ async def _resolve_setup(
         )
     if free:
         free_usage.check_request(resolved_request, settings.run_mode)
+        if deployment_routes_are_free():
+            settings = settings._replace(
+                config={**settings.config, ZERO_COST_CONFIG_KEY: True}
+            )
     return _ResolvedSetup(
         resolved_request, interview, policy, byok, staged, settings, free
     )

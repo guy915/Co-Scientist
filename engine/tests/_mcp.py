@@ -23,21 +23,6 @@ def string_tool(name: str, result: Any) -> StructuredTool:
     )
 
 
-class FakeCallToolClient:
-    def __init__(
-        self, response: Any = None, error: Exception | None = None
-    ) -> None:
-        self._response = response
-        self._error = error
-        self.calls: list[tuple[str, dict[str, Any]]] = []
-
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        self.calls.append((tool_name, kwargs))
-        if self._error is not None:
-            raise self._error
-        return self._response
-
-
 class FakeToolResultsClient:
     def __init__(
         self,
@@ -130,54 +115,6 @@ class WorkflowToolRegistry:
         return [names[tool_id] for tool_id in tool_ids if tool_id in names]
 
 
-class FakeToolRegistry:
-    def __init__(
-        self,
-        *,
-        availability_check: str | None = "check_avail",
-        availability_check_present: bool = True,
-        check_mcp_tool_name: str = "check_pubmed_available",
-        mcp_name_to_server: dict[str, str] | None = None,
-    ) -> None:
-        self._availability_check = availability_check
-        self._availability_check_present = availability_check_present
-        self._check_mcp_tool_name = check_mcp_tool_name
-        self._mcp_name_to_server = mcp_name_to_server or {}
-
-    def get_server_configs_for_langchain(self) -> dict[str, dict[str, str]]:
-        return {
-            "default": {
-                "transport": "streamable_http",
-                "url": "http://registry.test/mcp",
-            }
-        }
-
-    def get_enabled_servers(self) -> dict[str, Any]:
-        return {"default": object()}
-
-    def get_workflow(self, name: str) -> Any:
-        if name != "literature_review":
-            return None
-        return types.SimpleNamespace(
-            availability_check=self._availability_check
-        )
-
-    def get_tool(self, tool_id: str) -> Any:
-        if tool_id == self._availability_check and (
-            self._availability_check_present
-        ):
-            return types.SimpleNamespace(
-                mcp_tool_name=self._check_mcp_tool_name
-            )
-        return None
-
-    def get_tool_by_mcp_name(self, mcp_tool_name: str) -> Any:
-        server = self._mcp_name_to_server.get(mcp_tool_name)
-        if server is None:
-            return None
-        return types.SimpleNamespace(server=server)
-
-
 class FakeMultiServerMCPClient:
     instances_created = 0
     tools: ClassVar[list[StructuredTool]] = []
@@ -199,10 +136,6 @@ def make_tool_call(name: str, arguments: str, call_id: str = "call-1") -> Any:
         id=call_id,
         function=types.SimpleNamespace(name=name, arguments=arguments),
     )
-
-
-def make_registry(**kwargs: Any) -> Any:
-    return cast(Any, FakeToolRegistry(**kwargs))
 
 
 def isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:

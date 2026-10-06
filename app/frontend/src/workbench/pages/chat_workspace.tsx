@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useState,
   Fragment,
   type RefObject,
@@ -15,6 +16,7 @@ import {
   useParams,
   type NavigateFunction,
 } from 'react-router-dom';
+import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useIsMobile} from '../hooks/dom';
@@ -94,10 +96,17 @@ export function ChatWorkspace() {
     linkedDraftRecovery,
   );
 
+  // A reopened chat shows nothing until its transcript lands, not the home
+  // page underneath it.
+  const awaitingTranscript =
+    Boolean(chatId) &&
+    !session.hasConversation &&
+    linkedDraftRecovery.unavailableChatId !== chatId;
+
   return (
     <div className="reference-workspace">
       <main className="reference-workspace-main">
-        {session.hasConversation ? (
+        {session.hasConversation || awaitingTranscript ? (
           <ConversationView
             scrollRef={scrollRef}
             timelineItems={timelineItems}
@@ -299,6 +308,7 @@ export function ConversationView(props: ConversationViewProps) {
       />
       <ComposerSection
         composerRef={props.composerRef}
+        scrollRef={props.scrollRef}
         session={props.session}
         setupDraftMode={props.setupDraftMode}
         connectors={props.connectors}
@@ -344,6 +354,7 @@ function TimelineSection({
 
 interface ComposerSectionProps {
   composerRef: RefObject<HTMLDivElement | null>;
+  scrollRef: RefObject<HTMLDivElement | null>;
   session: Pick<
     ReturnType<typeof useChatSession>,
     | 'input'
@@ -378,6 +389,7 @@ function ComposerSection(props: ComposerSectionProps) {
       ref={props.composerRef}
       className="reference-chat-composer px-4 pb-8 max-[700px]:pb-[max(0.75rem,env(safe-area-inset-bottom))]"
     >
+      <JumpToBottomButton scrollRef={props.scrollRef} />
       <div className={CHAT_COLUMN_CLASSES}>
         <Composer
           input={input}
@@ -394,6 +406,51 @@ function ComposerSection(props: ComposerSectionProps) {
         />
       </div>
     </div>
+  );
+}
+
+function useScrolledAwayFromBottom(
+  scrollRef: RefObject<HTMLDivElement | null>,
+): boolean {
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const update = () => setAway(!isFollowingBottom(scroller));
+    update();
+    scroller.addEventListener('scroll', update, {passive: true});
+    return () => scroller.removeEventListener('scroll', update);
+  }, [scrollRef]);
+  return away;
+}
+
+const JUMP_TO_BOTTOM_CLASSES =
+  'reference-jump-to-bottom absolute top-0 left-1/2 flex size-9 ' +
+  '-translate-x-1/2 items-center justify-center rounded-full border ' +
+  'border-cosci-border bg-cosci-bg text-cosci-fg shadow-md ' +
+  'hover:bg-cosci-hover focus-visible:outline focus-visible:outline-2 ' +
+  'focus-visible:outline-offset-2 focus-visible:outline-th-primary';
+
+function JumpToBottomButton({
+  scrollRef,
+}: {
+  scrollRef: RefObject<HTMLDivElement | null>;
+}) {
+  const away = useScrolledAwayFromBottom(scrollRef);
+  if (!away) return null;
+  return (
+    <button
+      type="button"
+      aria-label="Jump to latest message"
+      title="Jump to latest message"
+      className={JUMP_TO_BOTTOM_CLASSES}
+      onClick={() => {
+        const scroller = scrollRef.current;
+        scroller?.scrollTo({top: scroller.scrollHeight, behavior: 'smooth'});
+      }}
+    >
+      <Icon aria-hidden="true" className="text-xl" name="arrow_downward" />
+    </button>
   );
 }
 
@@ -531,8 +588,8 @@ function applyTimelineScroll(
   scrollToBottom(refs, scroller);
 }
 
-// Defer until layout settles so heights and anchor rectangles describe the new
-// DOM.
+// Bottom landing runs before paint, or a reopened chat flashes its top first;
+// plan anchors defer until layout settles so their rectangles are current.
 function syncTimelineScroll(
   refs: TimelineScrollRefs,
   timelineSignature: string,
@@ -549,17 +606,29 @@ function syncTimelineScroll(
   ) {
     return;
   }
-  const timeout = window.setTimeout(
-    () =>
-      applyTimelineScroll(
-        refs,
-        scroller,
-        forceInitialBottom,
-        timelineAnchorMode,
-      ),
-    0,
-  );
+  const apply = () =>
+    applyTimelineScroll(refs, scroller, forceInitialBottom, timelineAnchorMode);
+  if (forceInitialBottom || timelineAnchorMode === 'bottom') {
+    apply();
+    return;
+  }
+  const timeout = window.setTimeout(apply, 0);
   return () => window.clearTimeout(timeout);
+}
+
+// Lazy Markdown and late attachments grow rows without a signature change;
+// keep a pinned reader at the bottom through that growth.
+function followContentGrowth(refs: TimelineScrollRefs) {
+  const scroller = refs.scroller.current;
+  const column = scroller?.firstElementChild;
+  if (!scroller || !column || typeof ResizeObserver === 'undefined') return;
+  const observer = new ResizeObserver(() => {
+    if (scroller.scrollTop === refs.lastAppliedTop.current) {
+      scrollToBottom(refs, scroller);
+    }
+  });
+  observer.observe(column);
+  return () => observer.disconnect();
 }
 
 // Conversation switches do not remount the workspace or pass through empty;
@@ -614,12 +683,16 @@ export function useChatTimelineScroll(
 
   // Rearm before the signature effect when navigation and loaded content land
   // in the same commit.
-  useEffect(() => armInitialScroll(refs), [conversationId]);
+  useLayoutEffect(() => armInitialScroll(refs), [conversationId]);
 
-  useEffect(
+  useLayoutEffect(
     () => syncTimelineScroll(refs, timelineSignature, timelineAnchorMode),
     [timelineAnchorMode, timelineSignature],
   );
+
+  // The scroller mounts with the first conversation content.
+  const hasContent = timelineItems.length > 0;
+  useEffect(() => followContentGrowth(refs), [conversationId, hasContent]);
 
   useEffect(() => syncSentTurnScroll(refs, isAwaitingAgent), [isAwaitingAgent]);
 
