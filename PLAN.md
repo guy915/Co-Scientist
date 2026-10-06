@@ -7,8 +7,9 @@ these rules and reports at the end.
 
 **Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is complete for
 the engine and the MCP server and in progress for the app and the frontend.
-The coverage floor (80% per suite and protected module) and shared scaffolding
-remain the campaign guards. Phase counts and verification are recorded in
+The coverage floor (80% per suite and protected module, or a protected
+module's lower baseline) and shared scaffolding remain the campaign guards.
+Phase counts and verification are recorded in
 `docs/test-campaign/progress.json`.
 The improvements campaign is preserved in merged history; PR #184 deliberately
 retired `IMPROVEMENTS.md` when it opened this campaign.
@@ -81,7 +82,8 @@ all frontend production modules are protected. The selection is recorded in
   Add `pytest-cov` to the MCP server's dev dependencies.
 - Record the baseline per suite and per module in the opening PR.
 - Every PR keeps each suite's line coverage at or above 80%, and every
-  protected module at or above 80%. The owner set this floor on 6 October 2026,
+  protected module at or above 80%, or at its fixed baseline when it started
+  below 80%. The owner set this floor on 6 October 2026,
   replacing the earlier rule (each suite within 0.5 points of its baseline,
   protected modules at or above baseline), because test lines cannot shrink by
   half while coverage stays fixed. The behaviors under "What stays tested"
