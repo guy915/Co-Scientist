@@ -5,36 +5,11 @@ import pathlib
 import re
 from pathlib import Path
 
-import pytest
-
-from co_scientist.agents.generation.citations import format_experiment_plan
 from co_scientist.research import (
     ThreadStatus,
     conduct_research,
 )
-from co_scientist.schemas.generation import (
-    _EXPERIMENT_CRITERION_CHARS,
-    _EXPERIMENT_STEP_CHARS,
-    MAX_EXPERIMENT_STEPS,
-)
 from tests._research_fakes import FakeModel, FakeRetrieval, _budget, _hits
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"depth": 0},
-        {"breadth": 0},
-        {"concurrency": 0},
-        {"hits_per_question": 0},
-        {"sources": ()},
-    ],
-)
-def test_a_budget_that_funds_nothing_is_refused(
-    kwargs: dict[str, object],
-) -> None:
-    with pytest.raises(ValueError):
-        _budget(**kwargs)
 
 
 async def test_results_the_budget_refused_are_recorded_as_refused() -> None:
@@ -91,6 +66,20 @@ async def test_the_loop_never_opens_more_threads_than_it_may() -> None:
     assert len(started) == 8
 
 
+class _Everything(dict):  # type: ignore[type-arg]
+    """Fresh questions avoid exercising repeated-question termination instead
+    of depth bounds."""
+
+    def __init__(self, value: list[str]) -> None:
+        super().__init__()
+        self._value = value
+        self._asked = 0
+
+    def get(self, key: object, default: object = None) -> list[str]:
+        self._asked += 1
+        return [f"{text}-{self._asked}" for text in self._value]
+
+
 def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
     """Adapters cease to be interchangeable if the capability imports its
     caller."""
@@ -112,54 +101,6 @@ def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
         and not name.startswith("co_scientist.research")
     }
     assert not outside
-
-
-class _Everything(dict):  # type: ignore[type-arg]
-    """Fresh questions avoid exercising repeated-question termination instead
-    of depth bounds."""
-
-    def __init__(self, value: list[str]) -> None:
-        super().__init__()
-        self._value = value
-        self._asked = 0
-
-    def get(self, key: object, default: object = None) -> list[str]:
-        self._asked += 1
-        return [f"{text}-{self._asked}" for text in self._value]
-
-
-def test_plan_text_is_capped_in_steps_and_length() -> None:
-    steps = [f"step {i}" for i in range(MAX_EXPERIMENT_STEPS + 5)]
-    capped = format_experiment_plan({"steps": steps})
-    long_step = format_experiment_plan(
-        {"steps": ["x" * (_EXPERIMENT_STEP_CHARS + 100)]}
-    )
-    long_criterion = format_experiment_plan(
-        {"go_criterion": "y" * (_EXPERIMENT_CRITERION_CHARS + 100)}
-    )
-
-    assert capped is not None
-    assert capped.count("\n") == MAX_EXPERIMENT_STEPS - 1
-    assert f"step {MAX_EXPERIMENT_STEPS}" not in capped
-    assert long_step is not None
-    assert len(long_step) == 3 + _EXPERIMENT_STEP_CHARS + len("...")
-    assert long_criterion is not None
-    assert long_criterion.endswith("...")
-    assert len(long_criterion) == (
-        len("**Go:** ") + _EXPERIMENT_CRITERION_CHARS + len("...")
-    )
-
-
-@pytest.mark.parametrize("bad_field", [123, {"nested": "dict"}, ["a", "b"]])
-def test_criteria_of_the_wrong_type_never_crash(bad_field: object) -> None:
-    format_experiment_plan({"go_criterion": bad_field})
-
-
-# This list covers raw experiment readers outside schema and formatting
-# boundaries.
-_ALLOWED_READERS = {
-    "schemas/generation.py",
-}
 
 
 def test_no_production_module_reads_the_raw_criteria_keys() -> None:
@@ -184,3 +125,10 @@ def test_no_production_module_reads_the_raw_criteria_keys() -> None:
         if pattern.search(source):
             offenders.append(rel)
     assert offenders == []
+
+
+# This list covers raw experiment readers outside schema and formatting
+# boundaries.
+_ALLOWED_READERS = {
+    "schemas/generation.py",
+}

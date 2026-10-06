@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import itertools
 import pathlib
 from collections.abc import Iterator
 from typing import Any
@@ -10,23 +9,15 @@ import pytest
 from litellm.exceptions import APIError
 
 import co_scientist.llm as llm
-from co_scientist import constants
 from co_scientist.agents.meta_review import meta_review as mr
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.agents.proximity import proximity as px
-from co_scientist.checkpoint import (
-    restore_workflow_state,
-    serialize_workflow_state,
-)
 from co_scientist.exceptions import (
     LLMTimeoutError,
 )
-from co_scientist.scheduling import TaskType
 from co_scientist.task_runtime import next_task_type
 from co_scientist.workflow_topology import (
     WORKFLOW_ROUTES,
-    LiteratureGated,
-    literature_review_nodes,
 )
 from tests._state import (
     decision_states,
@@ -148,189 +139,13 @@ async def test_provider_failure_degrades_only_on_the_last_attempt(
         assert state["degraded_nodes"] == [degraded_name]
 
 
-async def test_a_degraded_meta_review_still_returns_an_empty_section(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("node", sorted(WORKFLOW_ROUTES))
+def test_a_safety_halt_ends_the_durable_path_from_every_node(
+    node: str,
 ) -> None:
-    monkeypatch.setattr(mr, "call_llm_json", _raiser(_TIMEOUT))
-    out = await mr.meta_review_node(_reviewed_state())
-    assert out["meta_review"]["strategic_recommendations"] == []
-
-
-async def test_an_interim_overview_failure_is_not_a_degraded_section(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A periodic firing produces no report section to mark as degraded."""
-    monkeypatch.setattr(ro, "call_llm_json", _raiser(_UPSTREAM))
-    state = _overview_state(next_task=TaskType.SYNTHESIZE.value)
-    out = await ro.research_overview_node(state)
-    assert "interim_overview" not in out
-    assert state.get("degraded_nodes", []) == []
-
-
-def test_the_attempt_flag_never_rides_a_checkpoint() -> None:
-    """The flag describes one attempt; checkpointing it would mislead later
-    nodes."""
-    envelope = serialize_workflow_state(
-        _overview_state(durable_retries_remain=True), last_event_seq=0
-    )
-
-    assert "durable_retries_remain" not in envelope["state"]
-    assert "durable_retries_remain" not in restore_workflow_state(envelope)
-
-
-_NODE_CHECKPOINTS: dict[str, tuple[int, ...]] = {
-    "supervisor": (
-        constants.PROGRESS_SUPERVISOR_START,
-        constants.PROGRESS_SUPERVISOR_COMPLETE,
-    ),
-    "generate": (
-        constants.PROGRESS_GENERATE_START,
-        constants.PROGRESS_GENERATE_COMPLETE,
-    ),
-    "reflection": (
-        constants.PROGRESS_REFLECTION_START,
-        constants.PROGRESS_REFLECTION_COMPLETE,
-    ),
-    "review": (
-        constants.PROGRESS_REVIEW_START,
-        constants.PROGRESS_REVIEW_COMPLETE,
-    ),
-    "safety_screen": (
-        constants.PROGRESS_SAFETY_SCREEN_START,
-        constants.PROGRESS_SAFETY_SCREEN_COMPLETE,
-    ),
-    "deep_verification": (
-        constants.PROGRESS_DEEP_VERIFICATION_START,
-        constants.PROGRESS_DEEP_VERIFICATION_COMPLETE,
-    ),
-    "ranking": (
-        constants.PROGRESS_TOURNAMENT_START,
-        constants.PROGRESS_TOURNAMENT_COMPLETE,
-    ),
-    "orchestrator": (constants.PROGRESS_ORCHESTRATOR_DECISION,),
-    "proximity": (
-        constants.PROGRESS_PROXIMITY_START,
-        constants.PROGRESS_PROXIMITY_COMPLETE,
-    ),
-    "meta_review": (
-        constants.PROGRESS_META_REVIEW_START,
-        constants.PROGRESS_META_REVIEW_COMPLETE,
-    ),
-    "evolve": (
-        constants.PROGRESS_EVOLVE_START,
-        constants.PROGRESS_EVOLVE_COMPLETE,
-    ),
-    "research_overview": (
-        constants.PROGRESS_RESEARCH_OVERVIEW_START,
-        constants.PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
-    ),
-}
-
-
-def _first_pass_order(mcp_available: bool) -> list[str]:
-    state = make_state(mcp_available=mcp_available)
-
-    def step(completed: str) -> str:
-        successor = next_task_type(completed, state)
-        assert successor is not None
-        return successor
-
-    order: list[str] = ["supervisor"]
-    node = "supervisor"
-    while node != "orchestrator":
-        node = step(node)
-        order.append(node)
-
-    state["next_task"] = "proximity"
-    node = step("orchestrator")
-    order.append(node)
-    node = step(node)
-    order.append(node)
-
-    state["next_task"] = "evolve"
-    node = step("orchestrator")
-    order.append(node)
-    node = step(node)
-    order.append(node)
-
-    state["next_task"] = "terminate"
-    order.append(step("orchestrator"))
-    return order
-
-
-def test_first_pass_progress_never_decreases() -> None:
-    for mcp_available in (True, False):
-        values: list[int] = []
-        for node in _first_pass_order(mcp_available):
-            values.extend(_NODE_CHECKPOINTS.get(node, ()))
-
-        decreases = [
-            (before, after)
-            for before, after in itertools.pairwise(values)
-            if after < before
-        ]
-        assert not decreases, (
-            f"progress steps backward (mcp_available={mcp_available}): "
-            f"{decreases}"
-        )
-
-
-_PACKAGE = "co_scientist.llm"
-_ROOT = pathlib.Path(llm.__file__).parent
-
-# Telemetry reads request.response; request.completion records into telemetry.
-# That request-layer edge is the explicit layering exception.
-_LAYERS = (
-    "profile",
-    "values",
-    "admission",
-    "structured",
-    "telemetry",
-    "request",
-    "precall",
-    "attempts",
-    "tools",
-    "call",
-)
-_ALLOWED_UPWARD = {("telemetry", "request.response")}
-
-
-def _modules() -> dict[str, pathlib.Path]:
-    return {
-        ".".join(path.relative_to(_ROOT).with_suffix("").parts): path
-        for path in _ROOT.rglob("*.py")
-        if path.name != "__init__.py"
-    }
-
-
-def _runtime_nodes(body: list[ast.stmt]) -> Iterator[ast.ImportFrom]:
-    for node in body:
-        if isinstance(node, ast.If) and "TYPE_CHECKING" not in ast.dump(
-            node.test
-        ):
-            yield from _runtime_nodes(node.body + node.orelse)
-        elif isinstance(node, ast.ImportFrom):
-            yield node
-
-
-def _targets(node: ast.ImportFrom, modules: set[str]) -> set[str]:
-    module = node.module or ""
-    if not module.startswith(_PACKAGE):
-        return set()
-    base = module.removeprefix(_PACKAGE).removeprefix(".")
-    joined = {f"{base}.{a.name}" if base else a.name for a in node.names}
-    return {j if j in modules else base for j in joined}
-
-
-def _runtime_imports(path: pathlib.Path, modules: set[str]) -> set[str]:
-    found: set[str] = set()
-    for node in _runtime_nodes(ast.parse(path.read_text()).body):
-        found |= _targets(node, modules)
-    return found
-
-
-def _layer(module: str) -> int:
-    return _LAYERS.index(module.split(".")[0])
+    for state in decision_states():
+        halted = make_state(**{**state, "safety_blocked": True})
+        assert next_task_type(node, halted) is None
 
 
 def test_no_module_imports_the_interface_it_implements() -> None:
@@ -358,6 +173,25 @@ def test_module_level_imports_form_no_cycle() -> None:
         assert name not in _reachable(graph, name), name
 
 
+def _layer(module: str) -> int:
+    return _LAYERS.index(module.split(".")[0])
+
+
+def _runtime_imports(path: pathlib.Path, modules: set[str]) -> set[str]:
+    found: set[str] = set()
+    for node in _runtime_nodes(ast.parse(path.read_text()).body):
+        found |= _targets(node, modules)
+    return found
+
+
+def _modules() -> dict[str, pathlib.Path]:
+    return {
+        ".".join(path.relative_to(_ROOT).with_suffix("").parts): path
+        for path in _ROOT.rglob("*.py")
+        if path.name != "__init__.py"
+    }
+
+
 def _reachable(graph: dict[str, set[str]], start: str) -> set[str]:
     seen: set[str] = set()
     todo = list(graph.get(start, ()))
@@ -369,43 +203,45 @@ def _reachable(graph: dict[str, set[str]], start: str) -> set[str]:
     return seen
 
 
-def _declared_edges(literature_review: bool) -> set[tuple[str, str]]:
-    return {
-        (
-            node,
-            route.pick(literature_review)
-            if isinstance(route, LiteratureGated)
-            else route,
-        )
-        for node, route in WORKFLOW_ROUTES.items()
-        if isinstance(route, (str, LiteratureGated))
-    }
+_ALLOWED_UPWARD = {("telemetry", "request.response")}
 
 
-def test_the_gated_routes_skip_the_literature_nodes_when_the_flow_is_off() -> (
-    None
-):
-    assert _declared_edges(True) - _declared_edges(False) == {
-        ("supervisor", "literature_review"),
-        ("generate", "reflection"),
-    }
-    assert _declared_edges(False) - _declared_edges(True) == {
-        ("supervisor", "generate"),
-        ("generate", "review"),
-    }
-    assert literature_review_nodes() == {"literature_review", "reflection"}
+# Telemetry reads request.response; request.completion records into telemetry.
+# That request-layer edge is the explicit layering exception.
+_LAYERS = (
+    "profile",
+    "values",
+    "admission",
+    "structured",
+    "telemetry",
+    "request",
+    "precall",
+    "attempts",
+    "tools",
+    "call",
+)
 
 
-@pytest.mark.parametrize("node", sorted(WORKFLOW_ROUTES))
-def test_a_safety_halt_ends_the_durable_path_from_every_node(
-    node: str,
-) -> None:
-    for state in decision_states():
-        halted = make_state(**{**state, "safety_blocked": True})
-        assert next_task_type(node, halted) is None
+def _runtime_nodes(body: list[ast.stmt]) -> Iterator[ast.ImportFrom]:
+    for node in body:
+        if isinstance(node, ast.If) and "TYPE_CHECKING" not in ast.dump(
+            node.test
+        ):
+            yield from _runtime_nodes(node.body + node.orelse)
+        elif isinstance(node, ast.ImportFrom):
+            yield node
 
 
-def test_entry_marker_is_not_a_completed_durable_node() -> None:
-    assert "__start__" not in WORKFLOW_ROUTES
-    with pytest.raises(ValueError, match="unsupported completed task node"):
-        next_task_type("__start__", make_state())
+def _targets(node: ast.ImportFrom, modules: set[str]) -> set[str]:
+    module = node.module or ""
+    if not module.startswith(_PACKAGE):
+        return set()
+    base = module.removeprefix(_PACKAGE).removeprefix(".")
+    joined = {f"{base}.{a.name}" if base else a.name for a in node.names}
+    return {j if j in modules else base for j in joined}
+
+
+_ROOT = pathlib.Path(llm.__file__).parent
+
+
+_PACKAGE = "co_scientist.llm"

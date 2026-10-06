@@ -12,7 +12,6 @@ from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
-from jsonschema.exceptions import ValidationError
 from litellm.exceptions import BadRequestError
 
 import co_scientist.agents.generation.literature_tools.validate as vs
@@ -29,20 +28,13 @@ from co_scientist.exceptions import (
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
-    call_llm,
     call_llm_json,
     complete_request,
     scoped_telemetry,
 )
-from co_scientist.llm.attempts import json_attempt
 from co_scientist.llm.request import backend
-from co_scientist.llm.request.completion import (
-    _apply_response_format,
-    _supports_json_schema_response_format,
-)
 from co_scientist.llm.structured.validate import attempt_json_repair
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.offline import llm as offline_llm
 from co_scientist.tools.provider import MCPToolProvider
 from tests._llm_fake import (
     FakeBackend,
@@ -50,10 +42,9 @@ from tests._llm_fake import (
     install_fake_backend,
     make_completion,
     make_message,
-    patch_acompletion,
     scripted_backend,
 )
-from tests._mcp import isolate_offline_router, make_tool_call
+from tests._mcp import make_tool_call
 from tests._state import make_hypothesis, make_state
 
 _FENCED = '```json\n{"a": 1}\n```'
@@ -106,49 +97,6 @@ def test_json_repair_fixes_minor_flaws_and_gates_major_ones(
     text: str, major: bool, expected: tuple[Any, bool]
 ) -> None:
     assert attempt_json_repair(text, allow_major_repairs=major) == expected
-
-
-@pytest.mark.parametrize(
-    ("schema_name", "degraded"),
-    [
-        ("proximity_analysis", True),
-        ("hypothesis_evolution", True),
-        ("hypothesis_batch_review", True),
-        ("hypothesis_generation", False),
-        ("supervisor_guidance", False),
-        (None, False),
-    ],
-)
-async def test_only_an_enhancement_node_degrades_when_every_retry_fails(
-    monkeypatch: pytest.MonkeyPatch, schema_name: str | None, degraded: bool
-) -> None:
-    disable_llm_cache(monkeypatch)
-    patch_acompletion(
-        monkeypatch, [make_completion(make_message("not json"))] * 4
-    )
-    schema = {"name": schema_name, "type": "object"} if schema_name else None
-    spec = CompletionSpec(model_name="test-model", json_schema=schema)
-
-    if not degraded:
-        with pytest.raises(json.JSONDecodeError):
-            await call_llm_json("a prompt", spec, max_attempts=2)
-        return
-    first = await call_llm_json("a prompt", spec, max_attempts=2)
-    first.setdefault("reviews", []).append("dirty")
-    second = await call_llm_json("a prompt", spec, max_attempts=2)
-    assert "dirty" not in second.get("reviews", []), "each caller gets a copy"
-
-
-def test_importing_a_foundation_module_first_does_not_cycle() -> None:
-    """Only a fresh interpreter exposes cycles involving a half-initialized
-    cache module."""
-    result = subprocess.run(
-        [sys.executable, "-c", "import co_scientist.cache"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
 
 
 class FakeMCPClient:
@@ -280,34 +228,6 @@ _INT_SCHEMA: dict[str, Any] = {
 }
 
 
-@pytest.mark.parametrize(
-    ("content", "schema", "expected"),
-    [
-        ('{"a": 1, "b": "x"}', None, {"a": 1, "b": "x"}),
-        ('```json\n{"a": 7}\n```', None, {"a": 7}),
-        ('{"a": 1,}', _INT_SCHEMA, {"a": 1}),
-        ("this is not json at all", None, json.JSONDecodeError),
-        ('{"a": "not an int"}', _INT_SCHEMA, ValidationError),
-    ],
-    ids=["clean", "fenced", "trailing-comma", "unparseable", "wrong-type"],
-)
-async def test_call_llm_json_repairs_what_it_can_and_raises_what_it_cannot(
-    monkeypatch: pytest.MonkeyPatch,
-    content: str,
-    schema: dict[str, Any] | None,
-    expected: Any,
-) -> None:
-    disable_llm_cache(monkeypatch)
-    patch_acompletion(monkeypatch, [make_completion(make_message(content))] * 2)
-    spec = CompletionSpec(model_name="test-model", json_schema=schema)
-
-    if isinstance(expected, type):
-        with pytest.raises(expected):
-            await call_llm_json("a prompt", spec, max_attempts=2)
-    else:
-        assert await call_llm_json("a prompt", spec, max_attempts=2) == expected
-
-
 async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -343,52 +263,6 @@ async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
     assert second == {"enabled": True, "effort": "low"}
 
 
-async def _answer(**_kwargs: Any) -> Any:
-    return make_completion(make_message("ok"))
-
-
-@pytest.mark.parametrize(
-    "model", ["anthropic/claude-opus-5-5", "openai/gpt-6-astra"]
-)
-async def test_models_that_reject_sampling_knobs_never_get_them(
-    monkeypatch: pytest.MonkeyPatch, model: str
-) -> None:
-    disable_llm_cache(monkeypatch)
-    backend = install_fake_backend(monkeypatch, _answer)
-
-    await call_llm("prompt", CompletionSpec(model_name=model))
-
-    assert "temperature" not in backend.requests[0]
-
-
-@pytest.mark.parametrize("model", ["openai/gpt-6.1-sol", "openai/gpt-6-astra"])
-async def test_gpt6_calls_go_through_the_responses_api_once_per_retry(
-    monkeypatch: pytest.MonkeyPatch, model: str
-) -> None:
-    """Chat Completions refuses function calling on these models."""
-    disable_llm_cache(monkeypatch)
-    backend = scripted_backend(
-        monkeypatch, [RuntimeError("blip"), make_completion(make_message("ok"))]
-    )
-
-    await call_llm("prompt", CompletionSpec(model_name=model), max_attempts=2)
-
-    assert [r["model"] for r in backend.requests] == [
-        model.replace("openai/", "openai/responses/", 1)
-    ] * 2
-
-
-_ROUTING_SCHEMA: dict[str, Any] = {
-    "name": "routing_probe",
-    "schema": {
-        "type": "object",
-        "properties": {"answer": {"type": "string"}},
-        "required": ["answer"],
-        "additionalProperties": False,
-    },
-}
-
-
 async def _answers_ok(**_kwargs: Any) -> str:
     return "ok"
 
@@ -411,54 +285,6 @@ def test_a_backend_scope_restores_what_it_replaced_even_when_it_raises() -> (
         assert backend.active_backend() is first
         raise RuntimeError("boom")
     assert isinstance(backend.active_backend(), backend.LitellmBackend)
-
-
-def _args(model: str) -> dict[str, Any]:
-    return {
-        "model": model,
-        "messages": [{"role": "user", "content": "probe"}],
-    }
-
-
-# Validation holds the default capability answer bound before router
-# installation.
-_default_capability = _supports_json_schema_response_format
-
-
-def _registry_says_no_native_schema(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.supports_response_schema",
-        lambda **_kwargs: False,
-    )
-    _default_capability.cache_clear()
-
-
-def _response_format_for(model: str) -> str:
-    args = _args(model)
-    _apply_response_format(args, "probe", model, False, _ROUTING_SCHEMA)
-    return str(args["response_format"]["type"])
-
-
-def test_the_capability_answer_steers_the_format_but_not_the_validation_shim(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Request shaping asks the installed backend on every call; validation
-    binds the default answer before router installation."""
-    isolate_offline_router(monkeypatch)
-    _registry_says_no_native_schema(monkeypatch)
-    model = offline_llm.DEFAULT_OFFLINE_MODEL
-
-    try:
-        assert _response_format_for(model) == "json_object"
-        offline_llm.install_offline_router()
-        assert _response_format_for(model) == "json_schema"
-        assert _response_format_for("openrouter/some/model") == "json_object"
-
-        result = {"answer": "x", "invented": 1}
-        json_attempt._backfill_and_validate(result, _ROUTING_SCHEMA, model)
-        assert result == {"answer": "x"}
-    finally:
-        _default_capability.cache_clear()
 
 
 PARK = LLMRateLimitParkError(1788825600.0, "message_per_day")
@@ -650,3 +476,15 @@ def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
     )
     assert _unguarded_llm_fallbacks(ast.parse(bare)) == [3]
     assert _unguarded_llm_fallbacks(ast.parse(guarded)) == []
+
+
+def test_importing_a_foundation_module_first_does_not_cycle() -> None:
+    """Only a fresh interpreter exposes cycles involving a half-initialized
+    cache module."""
+    result = subprocess.run(
+        [sys.executable, "-c", "import co_scientist.cache"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr

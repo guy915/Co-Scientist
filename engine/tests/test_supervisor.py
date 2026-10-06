@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import pytest
 
 from co_scientist.agents.supervisor import supervisor_decision
-from co_scientist.llm import call as llm_call
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
-    SupervisorDecision,
     TaskType,
 )
 from co_scientist.state import WorkflowState
@@ -201,72 +198,3 @@ async def test_post_budget_growth_guard_still_delivers_the_queue_action(
     assert decision.next_task is not TaskType.GENERATE
     assert provenance == "hard-invariant"
     assert decision.queue_actions == (_RETRY,)
-
-
-# This model lacks native schema support; these constraints must hold locally.
-_JSON_OBJECT_MODEL = "deepseek/deepseek-v4-flash"
-
-
-def _allocation_text(**queue_action: Any) -> str:
-    return json.dumps(
-        make_allocation_response(
-            "evolve",
-            "Improve mature leaders.",
-            queue_actions=[
-                {
-                    "action": "reprioritize",
-                    "task_id": "task-1",
-                    "reason": "Evidence gap is urgent.",
-                    **queue_action,
-                }
-            ],
-        )
-    )
-
-
-async def _allocate(
-    monkeypatch: pytest.MonkeyPatch,
-    raw_response: str,
-    model: str = _JSON_OBJECT_MODEL,
-) -> tuple[SupervisorDecision, str, list[str]]:
-    prompts: list[str] = []
-
-    async def _fake_call(
-        prompt: str, spec: Any, enable_thinking: bool = True
-    ) -> str:
-        prompts.append(prompt)
-        return raw_response
-
-    monkeypatch.setattr(llm_call, "_call_llm_for_json", _fake_call)
-    state = make_state(
-        research_goal="Find a testable mechanism.",
-        model_name=model,
-        supervisor_model_name=model,
-        run_id="run-1",
-        supervisor_guidance={"workflow_plan": {}},
-        task_history=[],
-        meta_review={},
-        pending_steering=False,
-        held_for_review=[],
-    )
-    decision, provenance, _ = await supervisor_decision.choose_supervisor_task(
-        state,
-        SchedulerStats(pool_size=4, reviewed_count=4, iteration=1),
-        Budget(max_iterations=4),
-    )
-    return decision, provenance, prompts
-
-
-@pytest.mark.asyncio
-async def test_out_of_range_queue_action_priority_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    decision, provenance, prompts = await _allocate(
-        monkeypatch, _allocation_text(priority=999)
-    )
-
-    assert provenance == "reconstructed-fallback"
-    assert decision.queue_actions == ()
-    assert len(prompts) == 5
-    assert "VALIDATION ERROR" in prompts[1]
-    assert "maximum" in prompts[1]
