@@ -46,18 +46,10 @@ def replace_knowledge_facts(
 def list_knowledge_facts(
     run_id: str,
     *,
-    kind: str | None = None,
-    entity: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    rows = _list_by_run("knowledge_facts", run_id, db_path, conn, json_fields=("entities",))
-    if kind is not None:
-        rows = [r for r in rows if r["kind"] == kind]
-    if entity is not None:
-        needle = entity.strip().upper()
-        rows = [r for r in rows if needle in {e.upper() for e in r["entities"]}]
-    return rows
+    return _list_by_run("knowledge_facts", run_id, db_path, conn, json_fields=("entities",))
 
 
 def save_report(

@@ -93,7 +93,7 @@ Run lifecycle (in `runs/`, mounted at `/api/runs`) — **primary API used by the
 - `GET /api/runs/{id}` — details; `PATCH /api/runs/{id}` — rename (title only; the research goal is deliberately not editable, and shared example mutations are 403); `POST /{id}/start`, `/cancel`.
 - `GET /api/runs/{id}/events` — SSE stream (live + replay).
 - `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
-- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/proximity`, `/metrics`, `/claim-evidence`.
+- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/claim-evidence`.
 - `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown).
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list. `POST /{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name`). `POST /{id}/messages/{message_id}/revise` edits a user Q&A question or retries an answer; it atomically rewinds only subsequent Q&A and preserves consumed setup and steering.
 - `POST /api/runs/{id}/messages/started` — the Agent's spoken confirmation that the run has started, streamed (`reasoning`/`chunk`/`done`, no error frame). The chat's session card renders it as its lead-in, the way the plan card renders the completing interview turn.

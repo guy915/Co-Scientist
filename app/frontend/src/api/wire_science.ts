@@ -72,20 +72,6 @@ export interface MatchRow {
   created_at: number;
 }
 
-export interface ProximityEdge {
-  id: number;
-  run_id: string;
-  source_hypothesis_id: string;
-  target_hypothesis_id: string;
-  similarity: number;
-  degree: string | null;
-  cluster_id: string | null;
-  method: string | null;
-  version: string | null;
-  model: string | null;
-  updated_at: number | null;
-}
-
 export interface ReferencedEvidence {
   id: string;
   title: string;
