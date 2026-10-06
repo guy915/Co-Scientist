@@ -500,10 +500,8 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
         (_ULTRA,),
         _row(
             _FREE_REASONING,
-            routing=_chain(
-                "dots-studio/dots-3-note-preview:free",
-                "nvidia/nemotron-3-super-120b-a12b:free",
-            ),
+            routing=_chain("nvidia/nemotron-3-super-120b-a12b:free"),
+            knobs=[{"enabled": True, "effort": "medium"}, *_KNOBS_1[1:]],
             requests=[
                 [None, True, 18000, True],
                 [None, False, 18000, True],

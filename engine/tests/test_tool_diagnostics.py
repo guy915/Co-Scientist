@@ -14,7 +14,9 @@ from tests._llm_fake import make_tool_call
 async def test_tool_diagnostics_preserve_outcome_without_arguments_or_output(
     caplog: pytest.LogCaptureFixture, outcome: str
 ) -> None:
-    call = make_tool_call("call-id", "search_literature", "private request")
+    call = make_tool_call(
+        "call-id", "search_literature", '{"query": "private request"}'
+    )
     calls: list[Any] = []
 
     async def execute(value: Any) -> dict[str, Any]:

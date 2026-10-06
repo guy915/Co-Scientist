@@ -43,8 +43,7 @@ class ModelProfile:
     # False when no host accepts response_format; the schema then rides in the
     # prompt alone.
     json_object: bool = True
-    # A free route spends no money, so it reasons at its highest effort even
-    # where a caller asks for less.
+    # Overrides every caller's tier, chat included.
     pinned_effort: str | None = None
     # Reasoning APIs reject sampling knobs and want the reasoning-aware cap.
     fixed_sampling: bool = False
@@ -144,17 +143,16 @@ ROUTES: Final[dict[str, Facts]] = {
     "openrouter/minimax/minimax-m2.7:free": _gateway(_FREE),
     "openrouter/dots-studio/dots-3-note-preview:free": _gateway(_FREE),
     "openrouter/nvidia/nemotron-3.5-lightning:free": _gateway(_FREE),
-    # Its only host, Nvidia, rejects every response_format.
+    # Its only host, Nvidia, rejects every response_format. High effort
+    # overthinks and exhausts the answer budget; medium is its working tier.
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
         **_gateway(
             _FREE,
-            fallbacks=(
-                "dots-studio/dots-3-note-preview:free",
-                "nvidia/nemotron-3-super-120b-a12b:free",
-            ),
+            # Dots answers tool and JSON turns with raw function-call tokens.
+            fallbacks=("nvidia/nemotron-3-super-120b-a12b:free",),
         ),
         "json_object": False,
-        "pinned_effort": "high",
+        "pinned_effort": "medium",
     },
     # Historical promotional rates need revalidation before selecting this paid
     # route.

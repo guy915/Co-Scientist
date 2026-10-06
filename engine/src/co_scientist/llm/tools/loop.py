@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -37,11 +38,13 @@ from co_scientist.llm.tools.policy import (
     transcript_tokens,
 )
 from co_scientist.llm.tools.transcript import (
+    INVALID_ARGUMENTS_ERROR,
     _message_to_history_dict,
     elide_aged_evidence,
     elide_repeated_papers,
     elide_superseded_writes,
     normalize_tool_transcript,
+    object_arguments,
 )
 from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 from co_scientist.tool_effects import batch_by_effects
@@ -55,6 +58,15 @@ async def _execute_logged_tool(
     started = time.perf_counter()
     name = str(getattr(getattr(call, "function", None), "name", "unknown"))[:80]
     outcome = "returned"
+    raw = getattr(getattr(call, "function", None), "arguments", None)
+    if object_arguments(raw) is None:
+        logger.info("tool_call name=%s outcome=invalid_arguments", name)
+        return {
+            "role": "tool",
+            "name": name,
+            "tool_call_id": call.id,
+            "content": json.dumps({"error": INVALID_ARGUMENTS_ERROR}),
+        }
     try:
         return await executor(call)
     except asyncio.CancelledError:

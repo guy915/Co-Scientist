@@ -9,6 +9,7 @@ import pytest
 from co_scientist.config.schema import ResponseFormat, ToolConfig
 from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
+    LLMContentFilteredError,
     LLMThinkingOnlyError,
 )
 from co_scientist.llm import coerce_json_list, parse_tool_loop_json
@@ -127,6 +128,7 @@ def _empty_response(
         ("error", 519, ValueError),
         ("stop", 1149, LLMThinkingOnlyError),
         ("length", 18000, LLMBudgetExhaustedError),
+        ("content_filter", 1149, LLMContentFilteredError),
     ],
 )
 def test_empty_completion_is_classified_by_finish_reason(
@@ -136,6 +138,41 @@ def test_empty_completion_is_classified_by_finish_reason(
     with pytest.raises(raised) as caught:
         _extract_completion_content(response, "openrouter/z-ai/glm-5.3-flash")
     assert type(caught.value) is raised
+
+
+def test_an_empty_answer_names_the_model_that_served_it() -> None:
+    response = _empty_response("stop", 0)
+    response.model = "dots-studio/dots-3-note-preview:free"
+    requested = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+
+    with pytest.raises(ValueError, match="served dots-studio") as caught:
+        _extract_completion_content(response, requested)
+
+    assert requested in str(caught.value)
+
+
+def test_an_answer_from_a_declared_fallback_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    served = SimpleNamespace(
+        model="nvidia/nemotron-3-super-120b-a12b:free",
+        choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))],
+    )
+    primary = SimpleNamespace(
+        model="nvidia/nemotron-3-ultra-550b-a55b:free",
+        choices=[SimpleNamespace(message=SimpleNamespace(content="{}"))],
+    )
+    requested = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+
+    with caplog.at_level(logging.INFO):
+        _extract_completion_content(primary, requested)
+        assert "fallback" not in caplog.text
+        _extract_completion_content(served, requested)
+
+    assert (
+        f"LLM call to {requested} was answered by fallback "
+        "nvidia/nemotron-3-super-120b-a12b:free"
+    ) in caplog.text
 
 
 @pytest.mark.parametrize(

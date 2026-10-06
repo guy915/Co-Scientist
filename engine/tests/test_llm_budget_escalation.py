@@ -187,6 +187,23 @@ async def test_a_call_already_sized_at_the_constant_still_gets_more_room(
     assert budgets[2] == budgets[1]
 
 
+async def test_a_content_filtered_reply_retries_without_changing_reasoning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    filtered = _completion(
+        _message(None),
+        usage=_usage(3136, 1149, reasoning_tokens=1149),
+        finish_reason="content_filter",
+    )
+    calls = _requests(monkeypatch, [filtered, _completion(_message('{"a":2}'))])
+
+    result = await call_llm_json("a prompt", _JSON_SPEC, max_attempts=5)
+
+    assert result == {"a": 2}
+    assert _thinking(calls) == ["enabled", "enabled"]
+    assert calls[0]["max_tokens"] == calls[1]["max_tokens"]
+
+
 async def test_a_thinking_only_reply_skips_the_budget_rung_and_recovers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -25,6 +25,28 @@ ABORTED_RESULT = {
 }
 
 
+# A truncated call is answered with this instead of being executed.
+INVALID_ARGUMENTS_ERROR = (
+    "The arguments of this call were not a complete JSON object (likely"
+    " truncated), so it was not run. Re-issue the call with complete"
+    " arguments."
+)
+
+
+def object_arguments(raw: Any) -> str | None:
+    if raw is None or raw == "":
+        return "{}"
+    if isinstance(raw, dict):
+        return json.dumps(raw)
+    if not isinstance(raw, str):
+        return None
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return None
+    return raw if isinstance(parsed, dict) else None
+
+
 def _message_to_history_dict(message: Any) -> dict[str, Any]:
     """LiteLLM messages are Pydantic models; history/cache entries need plain
     dictionaries.
@@ -45,9 +67,12 @@ def _message_to_history_dict(message: Any) -> dict[str, Any]:
             {
                 "id": tc.id,
                 "type": "function",
+                # Providers reject every later turn that echoes malformed
+                # arguments.
                 "function": {
                     "name": tc.function.name,
-                    "arguments": tc.function.arguments,
+                    "arguments": object_arguments(tc.function.arguments)
+                    or "{}",
                 },
             }
             for tc in message.tool_calls
