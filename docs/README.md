@@ -14,6 +14,7 @@
 | [Test campaign](../PLAN.md) | Active phases and progress rules |
 | [Production cuts](PROD-CUTS.md) | Agreed feature removals, next after the test campaign |
 | [Production shrink](PROD-SHRINK.md) | Behavior-preserving size reduction, after the cuts |
+| [Optimization](OPTIMIZATION.md) | Performance, efficiency and launch readiness |
 
 Retired audits, guides, incident records and screenshots remain in
 [immutable history at 33ec8984](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688/docs).

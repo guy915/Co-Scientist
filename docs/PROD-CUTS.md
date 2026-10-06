@@ -22,7 +22,7 @@ code and dev-only features go. Nothing outside this list is cut under this plan.
 
 | Cut | Where |
 |---|---|
-| Evaluation experiment scripts. Keep only what `make eval-smoke` and `evaluations/tests` need: `smoke.py`, `citation_eval.py`, `safety_eval.py` and their datasets | `evaluations/*.py` (ablation, scaling, golden run, Elo concordance, expert review, specific aims, panel, replay, citation usefulness, claim support, MCP live smoke, prod smoke, release gate, `_run_driver`, `_artifacts`, `_identity`, `_live_config`, `_usage_evidence`, `metrics`) |
+| Evaluation experiment scripts. Keep what `make eval-smoke` and `evaluations/tests` need (`smoke.py`, `citation_eval.py`, `safety_eval.py`) and the quality benchmark `docs/OPTIMIZATION.md` uses (`golden_run.py`, `claim_support_eval.py`, `citation_usefulness_eval.py`, `_run_driver.py`, `_artifacts.py`), with their datasets | `evaluations/*.py` (ablation, scaling, Elo concordance, expert review, specific aims, panel, replay, MCP live smoke, prod smoke, release gate, `_identity`, `_live_config`, `_usage_evidence`, `metrics`) |
 | Stage-timing scripts. Keep `backup_db.py` and `refresh_retractions.py` | `app/dev/stage_latency.py`, `app/dev/stage_latency_analysis.py` |
 | PubMed study code (pilot trace, Study 4 recovery, metadata batching, `COSCIENTIST_PUBMED_*` flags). Normal PubMed search stays | `engine/mcp_server/pubmed_pilot_trace.py`, `pubmed_metadata_batch.py` and their callers |
 

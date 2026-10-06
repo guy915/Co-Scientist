@@ -52,7 +52,8 @@ Literal copy-paste is small (about 1.5k lines). The size comes from habits:
 Folder by folder, as the cuts finish each folder, so shrinking never touches
 code that is about to be deleted:
 
-1. **Engine and MCP server**, once their cuts merge: 5, 2, 6.
+1. **Engine and MCP server**, once their cuts merge: 5, 2, then 6 after the
+   model-usage work in `docs/OPTIMIZATION.md` lands.
 2. **App backend**, once its cuts merge: 4, 3, 5, 2.
 3. **Frontend**, once its cuts merge: 8, 7, 9.
 4. **Last, with no other campaign PR open:** the engine merge (11), then typed
