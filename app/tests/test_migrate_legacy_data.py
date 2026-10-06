@@ -530,7 +530,7 @@ def test_tier_converter_matches_the_live_normalizer(value: str | None) -> None:
 
 
 def test_frozen_vocabularies_match_the_live_ones() -> None:
-    from app.human_input import VERDICT_REVIEW_SCORES
+    from app.engine_tasks.inputs import VERDICT_REVIEW_SCORES
     from app.run_modes import RUN_TIER_DEFAULTS
 
     assert set(RUN_TIER_DEFAULTS) | {"standard"} == mig.TIERS

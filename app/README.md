@@ -17,7 +17,7 @@ app/
 │   ├── run_events.py      Run-event emission (make_emitter) for engine tasks and the adapter
 │   ├── claims/ (gate, grounding, verifier), citations/   Citation-grounding pipeline
 │   ├── safety/, hypothesis/safety.py, hypothesis/screening.py   Intake/final gates + per-hypothesis policy
-│   ├── qa/, human_input.py    Q&A and scientist-in-the-loop steering
+│   ├── qa/                    Q&A
 │   ├── elo.py      Elo rating utilities
 │   └── config.py   Pydantic-settings config (loads .env)
 ├── dev/            Offline maintenance scripts (corpus_ingest.py, build_catalog.py) — not shipped code
