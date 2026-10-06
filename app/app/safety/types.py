@@ -1,16 +1,10 @@
 from __future__ import annotations
 
-import enum
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.safety import POLICY_VERSION, REDACTED_PLACEHOLDER
-
-
-class SafetyMode(str, enum.Enum):
-    STANDARD = "standard"
-    STRICT = "strict"
 
 
 @dataclass
@@ -69,7 +63,6 @@ def redact_payload_text(value: Any, matches: list[str]) -> Any:
 __all__ = [
     "REDACTED_PLACEHOLDER",
     "SafetyDecision",
-    "SafetyMode",
     "redact_matched_spans",
     "redact_payload_text",
 ]

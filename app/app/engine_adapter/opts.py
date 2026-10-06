@@ -160,9 +160,6 @@ def _generator_kwargs(
             # Translate the sole literature-budget knob here rather than
             # persisting another synchronized key.
             literature_review_papers_count=int(cfg["evidence_count"]),
-            # Configured domain tools must reach the generator; unset paths
-            # select the bundled multi-source registry.
-            tools_config=settings.tools_config,
             disable_tools=[] if cfg.get("enable_web_search", True) else ["web_search"],
             api_key=api_key,
         ),

@@ -9,7 +9,7 @@ app/
 ├── app/            FastAPI backend (Python)
 │   ├── main.py     App setup, lifespan, ownership middleware, router mounting
 │   ├── runs/       Durable run-lifecycle router (create / start / stream / cancel); runs.lifecycle/collections/contrib/chat back it
-│   ├── diagnostics_api.py  /health, /config, /status (mounted by app.main)
+│   ├── diagnostics_api.py  /health, /status (mounted by app.main)
 │   ├── engine_tasks/      Durable run execution — the production path — plus task_worker/
 │   ├── store/      SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
@@ -114,15 +114,13 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | Variable | Default | Description |
 |---|---|---|
 | `OPENROUTER_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | — | Optional provider keys. If none are set, the app uses the offline LLM backend. The default models need the OpenRouter one. |
-| `COSCIENTIST_FORCE_OFFLINE` | `0` | Force the offline LLM backend even when a provider key is set (deprecated alias: `COSCIENTIST_FORCE_MOCK`) |
+| `COSCIENTIST_FORCE_OFFLINE` | `0` | Force the offline LLM backend even when a provider key is set |
 | `MODEL_NAME` | `openrouter/inclusionai/ling-3.1-flash` | LiteLLM worker model ID |
 | `SUPERVISOR_MODEL_NAME` | `openrouter/inclusionai/ling-3.1-flash` | Model for supervisor and meta-review |
 | `CHAT_MODEL_NAME` | `openrouter/inclusionai/ling-3.1-flash` | Model for chat-workspace Q&A; falls back to `MODEL_NAME` |
 | `SEMANTIC_SAFETY_MODEL` | `openrouter/inclusionai/ling-3.1-flash` | Model for contextual safety screening |
 | `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
-| `TOOLS_CONFIG` | — | Path or URL to a YAML tools config (optional) |
 | `ENTREZ_EMAIL` | — | Email for NCBI Entrez / PubMed access (optional) |
-| `COSCIENTIST_DEBUG` | `false` | Enable debug-level logging |
 | `AUTH_MODE` | `compatibility` | Local development identity; set `required` before exposing the API |
 | `AUTH_SECRET` | — | Random signing secret; required when authentication is required |
 | `RESEARCHER_ACCESS_CODES` | `{}` | JSON mapping of researcher IDs to unique high-entropy invite codes |
@@ -151,14 +149,13 @@ The frontend reads a single variable:
    - **Research Overview** — synthesized Markdown report, downloadable.
    - **All Ideas** — ranked hypothesis list with Elo scores and lineage.
 
-Runs can be paused, resumed, or cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
+Runs can be cancelled mid-flight; interrupted runs resume on restart. The backend stores the full event log so completed runs can be re-explored after the fact.
 
 ## API reference
 
-The backend mounts several routers (`runs`, `interviews`, `shares`, `feedback`,
+The backend mounts several routers (`runs`, `interviews`, `feedback`,
 `auth`, `logs`) plus top-level diagnostics. The core run-lifecycle group is
-below; for the complete, always-current surface use the interactive docs at
-`/docs`.
+below.
 
 ### Run lifecycle (`/api/runs`)
 
@@ -169,8 +166,6 @@ below; for the complete, always-current surface use the interactive docs at
 | `GET` | `/api/runs/demo` | Get the seeded public demo run |
 | `GET` | `/api/runs/{id}` | Get run + summary counts |
 | `POST` | `/api/runs/{id}/start` | Start the workflow in the background |
-| `POST` | `/api/runs/{id}/pause` | Pause a running workflow |
-| `POST` | `/api/runs/{id}/resume` | Resume a paused workflow |
 | `POST` | `/api/runs/{id}/cancel` | Cancel a running workflow |
 | `GET` | `/api/runs/{id}/events` | SSE stream (live + replay via `?after=`) |
 | `GET` | `/api/runs/{id}/events?stream=false` | Persisted event log as a one-shot JSON snapshot |
@@ -191,14 +186,7 @@ below; for the complete, always-current surface use the interactive docs at
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check |
-| `GET` | `/config` | Server-default config values |
 | `GET` | `/status` | MCP/PubMed/web-search availability, provider, LLM backend |
-
-Interactive docs are available when the server is running, to operator
-callers only — a loopback client, or one sending `X-Logs-Token:
-$LOGS_ADMIN_TOKEN`. Anyone else gets a 404.
-- Swagger UI: http://localhost:8008/docs
-- ReDoc: http://localhost:8008/redoc
 
 ## Development commands
 
@@ -236,7 +224,7 @@ bun run fix      # gts fix (format + autofix)
 
 ## Offline mode
 
-Every run executes on the real engine; the engine is a hard runtime dependency. If no LLM API key is set (or `COSCIENTIST_FORCE_OFFLINE=1` is set — the deprecated alias `COSCIENTIST_FORCE_MOCK=1` is still honored), the server pins the engine's `offline/` model backend instead of a real provider, producing deterministic, schema-valid hypotheses and evidence with no API spend. The `/status` endpoint reports `llm_backend: "offline"`. This is useful for frontend development and CI.
+Every run executes on the real engine; the engine is a hard runtime dependency. If no LLM API key is set (or `COSCIENTIST_FORCE_OFFLINE=1` is set), the server pins the engine's `offline/` model backend instead of a real provider, producing deterministic, schema-valid hypotheses and evidence with no API spend. The `/status` endpoint reports `llm_backend: "offline"`. This is useful for frontend development and CI.
 
 ## Literature review (MCP)
 

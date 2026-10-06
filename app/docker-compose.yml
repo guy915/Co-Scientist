@@ -18,9 +18,6 @@ services:
       # Clone refs resolve again on recreation; pin a SHA for reproducibility.
       - COSCIENTIST_ENGINE_REPO=
       - COSCIENTIST_ENGINE_REF=main
-      # Compose interpolation uses the root .env; unset or empty TOOLS_CONFIG selects this
-      # fallback.
-      - TOOLS_CONFIG=${TOOLS_CONFIG:-/workspace/co-scientist-engine/src/co_scientist/config/examples/indra_cancer.yaml}
     volumes:
       - ./data:/app/data
       - ./app:/app/app

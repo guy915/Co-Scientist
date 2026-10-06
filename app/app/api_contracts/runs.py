@@ -70,25 +70,6 @@ class RunWithSummary(Run):
 
 
 @with_config(ConfigDict(extra="allow"))
-class ReportShare(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    id: str
-    run_id: str
-    token: NotRequired[str]
-    created_at: float
-
-
-@with_config(ConfigDict(extra="allow"))
-class SharedRun(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    research_goal: str
-    title: NotRequired[str | None]
-    run_mode: NotRequired[RunMode]
-
-
-@with_config(ConfigDict(extra="allow"))
 class QaSource(TypedDict):
     """JSON contract; omitted fields stay omitted."""
 

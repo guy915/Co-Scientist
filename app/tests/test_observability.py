@@ -15,6 +15,7 @@ from app.logging_setup import (
     configure_logging,
 )
 from app.store import logs
+from app.store import retrieval_calls as retrieval
 from app.store.logs import LogFilters
 from tests._client import append_log_row, make_client, make_operator_client
 from tests._client import create_run as _create_run
@@ -23,9 +24,7 @@ from tests._client import wait_for_status as _wait_status
 
 
 def _restore_default_logging() -> None:
-    from app.config import settings
-
-    configure_logging(settings.log_format)
+    configure_logging()
 
 
 def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
@@ -33,7 +32,7 @@ def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
     diagnostic = "provider diagnostic preserved"
     credential = ByokCredential(provider="deepseek", api_key=key, model="deepseek/test")
     try:
-        handler = configure_logging("json")
+        handler = configure_logging()
         stream = io.StringIO()
         handler.stream = stream  # type: ignore[attr-defined]
 
@@ -210,7 +209,7 @@ def _run_to_completion(client: TestClient, goal: str) -> dict[str, Any]:
     assert started.status_code == 200
     assert _wait_status(client, run_id, "completed", timeout=30.0)
 
-    metrics = client.get(f"/api/runs/{run_id}/metrics").json()["metrics"]
+    metrics = retrieval.get_run_metrics(run_id)
     assert metrics is not None
     return dict(metrics)
 

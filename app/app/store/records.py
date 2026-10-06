@@ -281,14 +281,6 @@ def add_proximity_edge(
     _insert_record("proximity_edges", _record_columns(edge), db_path, conn)
 
 
-def list_proximity_edges(
-    run_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    return _list_by_run("proximity_edges", run_id, db_path, conn)
-
-
 @dataclass(frozen=True)
 class NewSafetyDecision:
     run_id: str

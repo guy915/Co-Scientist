@@ -155,8 +155,8 @@ async def _assess_claims(
 
     model = settings.claim_verifier_model or settings.model_name
     assert model is not None
-    assessor, assessor_id = build_assessor(settings.claim_assessor, model)
-    batch_assessor = build_batch_assessor(settings.claim_assessor, model)
+    assessor, assessor_id = build_assessor(model)
+    batch_assessor = build_batch_assessor(model)
     spec = AssessorSpec(assessor, assessor_id, batch_assessor)
     call = functools.partial(
         assess_hypothesis_claims,

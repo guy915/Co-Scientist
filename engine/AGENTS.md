@@ -384,8 +384,8 @@ additionally declared in the *default* `config/tools.yaml` as
 literature-review enrichment and reflection. They are entity-keyed, not
 free-text, which is why they sit on those paths rather than among the
 literature search sources. Declaring them in the default config is the
-load-bearing part: a tool declared only in an example is unreachable in
-production, which is what the 8 INDRA CoGex tools still are.
+load-bearing part: a tool absent from it is unreachable in production, which
+is what the 8 INDRA CoGex tools are.
 
 **The catalogue withholds what it cannot run** (`_withholding_reason`), for
 the same reason `run_command` is withheld with no sandbox backend: reading a

@@ -12,12 +12,10 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 
 import app.engine_adapter as engine_adapter
 from app import API_VERSION
-from app.account_export import router as account_export_router
 from app.auth import Principal, auth_required, principal_for_request
 from app.auth import router as auth_router
 from app.byok_models import router as byok_models_router
@@ -34,10 +32,8 @@ from app.logging_setup import (
     shutdown_log_capture,
 )
 from app.logs_api import router as logs_router
-from app.operator_access import is_operator
 from app.runs import router as runs_router
 from app.seed import seed_demo_runs
-from app.shares import router as shares_router
 from app.store import checkpoints as store
 from app.store import db, runs, tasks
 from app.store import runs_views as views
@@ -63,20 +59,13 @@ def _reclaim_disk_space() -> None:
 
 
 def _startup_engine_setup() -> None:
-    """The offline router is a harmless passthrough for real models;
-    configured unreadable tools fail loudly at startup.
-    """
+    """The offline router is a harmless passthrough for real models."""
     from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
     logger.info("Model: %s", settings.model_name)
-    if settings.tools_config:
-        logger.info("Tools config: %s", settings.tools_config)
-    else:
-        logger.info("Tools config: not set (generator defaults)")
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
-    engine_adapter.validate_tools_config(settings.tools_config)
 
 
 def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
@@ -110,8 +99,6 @@ def _launch_embedded_recovery_workers(
     """Recover off the API loop so synchronous checkpoint writes and
     serialization cannot starve request handling or lease renewal.
     """
-    if not settings.coscientist_embedded_worker:
-        return
     import app.task_worker as task_worker
 
     for run_id in tasks.list_active_engine_task_run_ids():
@@ -161,7 +148,7 @@ def _start_recovery_task(
 load_dotenv()
 
 
-configure_logging(settings.log_format, level=logging.INFO)
+configure_logging(level=logging.INFO)
 
 
 def _install_log_capture() -> None:
@@ -176,14 +163,8 @@ def _install_log_capture() -> None:
 _install_log_capture()
 
 coscientist_logger = logging.getLogger("co_scientist")
-_app_log_level = logging.DEBUG if settings.coscientist_debug else logging.INFO
-logger.setLevel(_app_log_level)
-coscientist_logger.setLevel(_app_log_level)
-
-# Bridge Settings back to environment because LiteLLM and the engine read
-# provider variables directly.
-if settings.gemini_api_key:
-    os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
+logger.setLevel(logging.INFO)
+coscientist_logger.setLevel(logging.INFO)
 
 # The engine MCP client reads its URL from environment rather than a Settings
 # parameter.
@@ -295,11 +276,7 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     # Authorize routed ASGI paths, not URLs reconstructed from caller-controlled
     # Host headers.
     path = request.scope["path"]
-    public_api = (
-        path.startswith("/api/auth/")
-        or path.startswith("/api/shared/")
-        or (path == "/api/feedback/admin" and request.method == "GET")
-    )
+    public_api = path.startswith("/api/auth/")
     try:
         principal = principal_for_request(request)
     except HTTPException as exc:
@@ -331,8 +308,6 @@ app.add_middleware(
 app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(documents_router)
-app.include_router(shares_router)
-app.include_router(account_export_router)
 app.include_router(free_usage_router)
 app.include_router(byok_models_router)
 app.include_router(auth_router)
@@ -341,48 +316,12 @@ app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
 
 
-def _not_found_for_non_operator(request: Request) -> Response | None:
-    """A 404 hides the existence of operator documentation rather than
-    advertising it through an authorization challenge.
-    """
-    if is_operator(request):
-        return None
-    return JSONResponse({"detail": "not found"}, status_code=404)
-
-
-@app.get("/docs", include_in_schema=False)
-async def _operator_swagger_ui(request: Request) -> Response:
-    """Swagger UI, visible only to an operator caller."""
-    gate = _not_found_for_non_operator(request)
-    if gate is not None:
-        return gate
-    return get_swagger_ui_html(openapi_url="/openapi.json", title=f"{app.title} - Swagger UI")
-
-
-@app.get("/redoc", include_in_schema=False)
-async def _operator_redoc(request: Request) -> Response:
-    """ReDoc UI, visible only to an operator caller."""
-    gate = _not_found_for_non_operator(request)
-    if gate is not None:
-        return gate
-    return get_redoc_html(openapi_url="/openapi.json", title=f"{app.title} - ReDoc")
-
-
-@app.get("/openapi.json", include_in_schema=False)
-async def _operator_openapi_schema(request: Request) -> Response:
-    """The full OpenAPI schema, visible only to an operator caller."""
-    gate = _not_found_for_non_operator(request)
-    if gate is not None:
-        return gate
-    return JSONResponse(app.openapi())
-
-
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.coscientist_debug,
+        reload=False,
     )
 
 __all__ = [

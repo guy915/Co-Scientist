@@ -161,7 +161,7 @@ def test_worker_drift_cannot_produce_an_arm_result(
             config["max_llm_calls"] += 1
         else:
             identity = config["evaluation_identity"]
-            identity["claim_assessor"] = "altered"
+            identity["request_policy_sha256"] = "altered"
             del identity["digest"]
             identity["digest"] = identity_digest(identity)
         runs.set_run_config(run_id, config, db_path=db)

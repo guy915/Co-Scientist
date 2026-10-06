@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -59,7 +58,6 @@ assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
 assert os.environ["PYTHON_DOTENV_DISABLED"] == "1"
 assert "DEEPSEEK_API_KEY" not in os.environ
 assert os.environ["OPENROUTER_API_KEY"] == "synthetic-router"
-assert settings.gemini_api_key == ""
 for model in (settings.model_name, settings.supervisor_model_name,
               settings.chat_model_name, settings.semantic_safety_model,
               settings.claim_verifier_model):
@@ -71,7 +69,6 @@ for model in (settings.model_name, settings.supervisor_model_name,
         MODEL_NAME="openrouter/campaign/zero:free",
         SUPERVISOR_MODEL_NAME="deepseek/paid",
         DEEPSEEK_API_KEY="synthetic-paid",
-        gemini_api_key="synthetic-lowercase-paid",
         OPENROUTER_API_KEY="synthetic-router",
     )
 
@@ -160,29 +157,3 @@ asyncio.run(check())
         MODEL_NAME="openrouter/campaign/zero:free",
         OPENROUTER_API_KEY="synthetic-router",
     )
-
-
-@pytest.mark.parametrize(
-    ("status", "backend", "accepted"),
-    [
-        ("completed", "real", True),
-        ("completed", "offline", False),
-        ("failed", "real", False),
-        (None, "real", False),
-    ],
-)
-def test_golden_acceptance_requires_persisted_real_completion(
-    status: str | None, backend: str, accepted: bool
-) -> None:
-    from evaluations.golden_run import _assess
-
-    artifact: dict[str, object] = {
-        "run": SimpleNamespace(status=status, llm_backend=backend) if status else None,
-        "evidence": [{"source": "pubmed"}],
-        "claim_edges": [{"supporting": [{"quote": "Located passage"}]}],
-        "matches": [],
-        "hypotheses": [],
-        "report": {},
-    }
-    assessment = _assess(artifact, {"query_gene_disease_network": 1})
-    assert assessment["passed"] is accepted

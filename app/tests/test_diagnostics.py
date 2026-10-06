@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import pathlib
 import threading
 import time
 from typing import Any
@@ -64,17 +63,6 @@ def test_health_is_unhealthy_when_the_store_is_unreachable_and_hides_detail(
         assert data["model_name"] is None
 
 
-_INDRA_CONFIG = str(
-    pathlib.Path(__file__).resolve().parents[2]
-    / "engine"
-    / "src"
-    / "co_scientist"
-    / "config"
-    / "examples"
-    / "indra_cancer.yaml"
-)
-
-
 def test_status_reports_the_offline_backend_and_probes_only_to_operators() -> None:
     data = _client().get("/status").json()
     assert data["provider"] == "engine"
@@ -85,14 +73,12 @@ def test_status_reports_the_offline_backend_and_probes_only_to_operators() -> No
 
 
 @pytest.mark.parametrize("operator", [True, False])
-def test_docs_and_the_docs_pointer_are_operator_only(operator: bool) -> None:
-    # Private API docs 404 so anonymous probes cannot distinguish hidden routes
-    # from absent ones.
+def test_api_docs_are_not_served(operator: bool) -> None:
     client = make_operator_client() if operator else _client()
 
-    assert client.get("/").json()["docs"] == ("/docs" if operator else None)
-    for path in ("/docs", "/redoc", "/openapi.json"):
-        assert client.get(path).status_code == (200 if operator else 404), path
+    assert "docs" not in client.get("/").json()
+    for path in ("/docs", "/redoc", "/openapi.json", "/metrics", "/config"):
+        assert client.get(path).status_code == 404, path
 
 
 def _seed_interrupted_engine_run(isolated_db: str) -> str:
@@ -135,29 +121,11 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
     assert len(demo_runs) == 3
 
 
-def test_lifespan_fails_on_unreadable_tools_config(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Bad tool configuration must fail startup rather than silently selecting
-    # different tools.
-    import app.main as main_module
-
-    monkeypatch.setattr(settings, "tools_config", "/no/such/tools.yaml")
-
-    with (
-        pytest.raises(RuntimeError, match="tools_config"),
-        TestClient(main_module.app),
-    ):
-        pass
-
-
 def test_status_redacts_operator_fields_from_non_operators(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # MCP hostnames and credential state are operator internals; public
     # availability remains usable.
-
-    monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
 
     body = _client().get("/status").json()
 
@@ -166,8 +134,6 @@ def test_status_redacts_operator_fields_from_non_operators(
     assert body["byok_enabled"] is None
     assert body["engine_importable"] is None
     assert body["supervisor_model_name"] is None
-    assert body["tools_config"] is None
-    assert body["tools_config_valid"] is None
     assert body["enabled_tools"] is None
     assert body["probes"] is None
     assert isinstance(body["connectors"], list)

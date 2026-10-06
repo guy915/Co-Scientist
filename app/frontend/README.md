@@ -72,7 +72,6 @@ and prerendering default to `dist/`.
 | `/runs/:id` | Redirect to the details tab |
 | `/runs/:id/:tab` | Run detail tab |
 | `/access` | Researcher access |
-| `/shared/:token` | Shared goal report |
 | `*` | 404 |
 
 ## API Integration

@@ -8,7 +8,6 @@ from co_scientist.models import (
 )
 
 from app import task_worker
-from app.config import settings
 from app.engine_adapter.drain import hypotheses as drain_hypotheses
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_restore
@@ -233,11 +232,10 @@ async def _drain_until_finalize_enqueued(run_id: str, isolated_db: str) -> None:
 
 @pytest.mark.asyncio
 async def test_late_contribution_reopens_the_run_once_it_completes(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Contributions arriving after the last orchestrator need a continuation
     # once finalization settles.
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     created = _create_run(client, "Late contribution reopen", tier="express")
     run_id = created.json()["id"]

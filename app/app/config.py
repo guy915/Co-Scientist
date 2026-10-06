@@ -69,13 +69,11 @@ class Settings(BaseSettings):
     chat_model_name: str | None = DEFAULT_MODEL
     # LiteLLM and the engine consume provider environment variables, not this
     # Settings object.
-    gemini_api_key: str = ""
 
     # The module entrypoint uses this port; Makefile, Docker and browser
     # harnesses pass their own explicit ports.
     host: str = "0.0.0.0"  # bind address; 0.0.0.0 for container/dev use
     port: int = 8008
-    coscientist_debug: bool = False
 
     # The engine MCP client reads MCP_SERVER_URL from the environment rather
     # than Settings.
@@ -85,14 +83,11 @@ class Settings(BaseSettings):
     # and initial ratings.
     elo_k_factor: int = 24
 
-    safety_mode: str = "standard"
     # Deterministic safety hard blocks run first and cannot be overridden by
     # semantic assessment.
     semantic_safety_enabled: bool = True
     # Safety stays on the worker tier rather than the strategic supervisor tier.
     semantic_safety_model: str | None = DEFAULT_MODEL
-
-    log_format: str = "text"
 
     log_capture_enabled: bool = True
     log_capture_level: str = "INFO"
@@ -111,10 +106,6 @@ class Settings(BaseSettings):
     # leave writer headroom for ordinary API requests.
     worker_pool_size: int = 8
 
-    # Disable embedded cohorts when a separate durable worker service consumes
-    # the same queue.
-    coscientist_embedded_worker: bool = True
-
     status_probe_timeout_seconds: float = 3.0
     status_probe_cache_ttl_seconds: float = 30.0
 
@@ -124,10 +115,6 @@ class Settings(BaseSettings):
     # Low disk degrades rather than fails liveness: killing the container frees
     # no space.
     health_check_min_free_disk_bytes: int = 100 * 1024 * 1024
-
-    # Cache exposition briefly so scrape storms do not multiply store query
-    # passes.
-    metrics_cache_ttl_seconds: float = 5.0
 
     smtp_host: str = ""
     smtp_port: int = 587
@@ -151,11 +138,8 @@ class Settings(BaseSettings):
     # Removing the daily cap does not remove the free express-only envelope.
     free_runs_per_day: int = 3
 
-    tools_config: str | None = None
-
     # Hermetic tests select deterministic entailment; production defaults to
     # semantic assessment.
-    claim_assessor: str = "llm"
     claim_verifier_model: str | None = None
 
     # Hermetic tests select metadata resolution; production defaults to live

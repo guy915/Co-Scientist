@@ -63,17 +63,7 @@ def _configured_models() -> dict[str, str | None]:
 
 
 def _tools_identity() -> dict[str, str | None]:
-    from app.config import settings
-
-    config = settings.tools_config
-    local = Path(config) if config and "://" not in config else None
-    return {
-        "configuration_sha256": identity_digest(config),
-        "local_contents_sha256": (
-            hashlib.sha256(local.read_bytes()).hexdigest() if local else None
-        ),
-        "mcp_endpoint_sha256": identity_digest(os.getenv("MCP_SERVER_URL")),
-    }
+    return {"mcp_endpoint_sha256": identity_digest(os.getenv("MCP_SERVER_URL"))}
 
 
 def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
@@ -86,7 +76,6 @@ def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
 
 
 def _model_policy() -> dict[str, Any]:
-    from app.config import settings
     from co_scientist.llm import deepseek_thinking_extra_body
 
     models = _configured_models()
@@ -100,7 +89,6 @@ def _model_policy() -> dict[str, Any]:
             }
             for model in sorted({m for m in models.values() if m})
         },
-        "claim_assessor": settings.claim_assessor,
         "request_policy_files": policy,
         "request_policy_sha256": identity_digest(policy),
     }

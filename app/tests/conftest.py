@@ -54,7 +54,6 @@ def _apply_offline_env(monkeypatch: pytest.MonkeyPatch, db_path: str) -> None:
     monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "0")
     from app.config import settings
 
-    monkeypatch.setattr(settings, "claim_assessor", "deterministic")
     monkeypatch.setattr(settings, "evidence_resolver", "offline")
 
 
@@ -80,7 +79,6 @@ def reachable_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     # The offline guard runs before transport; request-shape tests must declare
     # a reachable fake provider.
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-placeholder-for-shape-tests")
 
 
@@ -108,3 +106,13 @@ def _fresh_health_check_cache() -> None:
     from app.diagnostics import clear_health_check_cache
 
     clear_health_check_cache()
+
+
+@pytest.fixture
+def manual_worker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests that step tasks by hand must not race the embedded per-run cohort that start,
+    resume and startup recovery launch.
+    """
+    from app import task_worker
+
+    monkeypatch.setattr(task_worker, "run_run_worker_pool_sync", lambda *_: None)

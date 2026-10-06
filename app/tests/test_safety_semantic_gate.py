@@ -28,7 +28,6 @@ def _screen_configured(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _env(monkeypatch: pytest.MonkeyPatch, *keys: str, offline: bool = False) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     if offline:
         monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     else:

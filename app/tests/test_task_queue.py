@@ -268,7 +268,12 @@ def test_cancel_run_tasks_revokes_queued_leased_and_paused_work(
     enqueue_task(run_id, "engine.node.ranking", "cancel:second", db_path=isolated_db)
     enqueue_task(run_id, "engine.node.review", "cancel:paused", db_path=isolated_db)
     assert tasks.claim_task("worker", run_id=run_id, db_path=isolated_db)
-    assert lifecycle.pause_run_tasks(run_id, db_path=isolated_db) == 2
+    with db.transaction(isolated_db) as conn:
+        parked = conn.execute(
+            "UPDATE scientific_tasks SET status='paused' WHERE run_id=? AND status='queued'",
+            (run_id,),
+        ).rowcount
+    assert parked == 2
     assert lifecycle.cancel_run_tasks(run_id, db_path=isolated_db) == 3
     assert not lifecycle.complete_task(first.id, "worker", {"late": True}, db_path=isolated_db)
     statuses = {task.status for task in tasks.list_tasks(run_id, db_path=isolated_db)}
@@ -303,7 +308,10 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
     assert leased is not None and leased.id == active.id
 
     with db.transaction(isolated_db) as conn:
-        lifecycle.pause_run_tasks(run_id, conn=conn)
+        conn.execute(
+            "UPDATE scientific_tasks SET status='paused' WHERE run_id=? AND status='queued'",
+            (run_id,),
+        )
         runs.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
 
     enqueue_task(

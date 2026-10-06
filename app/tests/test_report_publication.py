@@ -6,7 +6,6 @@ from typing import Any, cast
 import pytest
 
 from app import engine_tasks, task_worker
-from app.config import settings
 from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
@@ -31,7 +30,13 @@ from tests._engine_tasks_helpers import (
     _task_state,
     fake_final_drain,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint
+from tests._store_helpers import (
+    enqueue_task,
+    pause_run,
+    resume_run,
+    resume_run_async,
+    seed_checkpoint,
+)
 from tests.test_report_cancel_publication import (
     _OWNER,
     _install_report_stubs,
@@ -116,7 +121,6 @@ def _seed_leased_finalize(
     *,
     monitor_halt: bool = False,
 ) -> tuple[Any, dict[str, str], str, Any]:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     headers = {"X-Client-ID": client_id}
     created = _create_run(
@@ -224,6 +228,7 @@ def _owner_events(owner: Any, headers: dict[str, str], run_id: str) -> list[dict
 )
 @pytest.mark.asyncio
 async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
+    manual_worker: None,
     gate: tuple[Any, str],
     monitor_halt: bool,
     stage: str,
@@ -267,7 +272,7 @@ async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
 
 @pytest.mark.asyncio
 async def test_empty_leaderboard_block_remains_auditable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, "readiness-block-owner"
@@ -299,7 +304,7 @@ async def test_empty_leaderboard_block_remains_auditable(
 
 @pytest.mark.asyncio
 async def test_leased_finalize_redaction_audits_and_scrubs_report(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, "final-redaction-owner"
@@ -340,7 +345,7 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
 
 @pytest.mark.asyncio
 async def test_leased_monitor_halt_remains_auditable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db,
@@ -370,6 +375,7 @@ async def test_leased_monitor_halt_remains_auditable(
 @pytest.mark.parametrize("decision", ["allow", "redact"])
 @pytest.mark.asyncio
 async def test_cancel_during_final_screen_has_no_final_safety_audit(
+    manual_worker: None,
     decision: str,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -441,7 +447,7 @@ def _install_final_drain(
 
 @pytest.mark.asyncio
 async def test_cancel_during_final_drain_keeps_cancelled_state(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
@@ -479,19 +485,18 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
 
 @pytest.mark.asyncio
 async def test_pause_during_final_drain_waits_for_explicit_resume(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, original_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    pause_responses: list[dict[str, Any]] = []
+    pause_calls: list[str] = []
 
     def pause_once() -> None:
-        if not pause_responses:
-            response = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-            assert response.status_code == 200, response.text
-            pause_responses.append(response.json())
+        if not pause_calls:
+            pause_run(run_id, db_path=isolated_db)
+            pause_calls.append(run_id)
 
     _install_final_drain(
         monkeypatch,
@@ -506,7 +511,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         "pause-during-drain-worker", run_id=run_id, db_path=isolated_db
     )
     paused = runs.get_run(run_id, db_path=isolated_db)
-    assert pause_responses == [{"id": run_id, "status": "paused"}]
+    assert pause_calls == [run_id]
     assert paused is not None and paused.status == RunStatus.PAUSED.value
     assert hypotheses.get_hypothesis(hypothesis_id, db_path=isolated_db) is None
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
@@ -528,8 +533,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     assert run_id not in tasks.list_active_engine_task_run_ids(db_path=isolated_db)
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
 
-    resumed = owner.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
-    assert resumed.status_code == 200, resumed.text
+    await resume_run_async(run_id)
     assert await task_worker.run_once("resumed-finalize-worker", run_id=run_id, db_path=isolated_db)
     completed = runs.get_run(run_id, db_path=isolated_db)
     assert completed is not None
@@ -562,9 +566,9 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
 
 @pytest.mark.asyncio
 async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    owner, run_id, task, hypothesis_id = _seed_owned_finalize(isolated_db, monkeypatch)
+    _owner, run_id, task, hypothesis_id = _seed_owned_finalize(isolated_db, monkeypatch)
     _install_report_stubs(hypothesis_id, monkeypatch)
     previous = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert previous is not None
@@ -580,11 +584,10 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
         last_event_seq=store_events.latest_event_seq(run_id, db_path=isolated_db),
         db_path=isolated_db,
     )
-    paused = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-    assert paused.status_code == 200, paused.text
+    pause_run(run_id, db_path=isolated_db)
     get_run = runs.get_run
     paused_reads = 0
-    resume_responses: list[dict[str, Any]] = []
+    resume_calls: list[str] = []
 
     def resume_after_pause_snapshot(
         requested: str,
@@ -596,16 +599,15 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
         if requested == run_id and run is not None and run.status == "paused":
             paused_reads += 1
             if paused_reads == 2:
-                response = owner.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
-                assert response.status_code == 200, response.text
-                resume_responses.append(response.json())
+                resume_run(run_id)
+                resume_calls.append(run_id)
         return run
 
     monkeypatch.setattr(runs, "get_run", resume_after_pause_snapshot)
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert paused_reads >= 2
-    assert resume_responses == [{"id": run_id, "status": "queued"}]
+    assert resume_calls == [run_id]
     assert result["status"] == RunStatus.COMPLETED.value
     completed = runs.get_run(run_id, db_path=isolated_db)
     assert completed is not None
