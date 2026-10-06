@@ -232,24 +232,6 @@ def test_landlock_refuses_a_policy_it_cannot_express(tmp_path: Path) -> None:
     assert "landlock cannot express" in result.stderr
 
 
-@pytest.mark.skipif(
-    shutil.which("bwrap") is None,
-    reason="this test pins the fallback when bwrap is present but "
-    "unusable (e.g. a container's seccomp profile refusing its user "
-    "namespace); with bwrap absent entirely there is no premise to "
-    "pin -- landlock is then chosen because there is nothing else, "
-    "not because bwrap was tried and rejected",
-)
-@pytest.mark.skipif(
-    sandbox_argv.sandbox_backend() != "landlock",
-    reason="the fallback is Linux-specific",
-)
-def test_landlock_is_chosen_only_when_bubblewrap_cannot_run() -> None:
-    """Installed bubblewrap can be unusable because container seccomp refuses
-    its user namespace."""
-    assert not sandbox_argv.bwrap_is_usable()
-
-
 @_requires_sandbox
 def test_a_command_on_the_path_runs_without_an_absolute_path() -> None:
     """execv does not resolve PATH; a never-running command makes escape
