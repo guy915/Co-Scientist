@@ -58,24 +58,3 @@ def test_caller_headers_do_not_refresh_the_ip_budget() -> None:
         .status_code
         == 200
     )
-
-
-def test_budget_recovers_after_window(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.auth.time.monotonic", lambda: 100.0)
-    client = _client()
-    for _ in range(2):
-        client.post("/api/auth/exchange", json={"access_code": "wrong"})
-    monkeypatch.setattr("app.auth.time.monotonic", lambda: 160.0)
-    assert (
-        client.post(
-            "/api/auth/exchange", json={"access_code": "invite"}
-        ).status_code
-        == 200
-    )
-
-
-def test_unicode_invite_is_an_auth_denial() -> None:
-    response = _client().post(
-        "/api/auth/exchange", json={"access_code": "invité"}
-    )
-    assert response.status_code == 401

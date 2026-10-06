@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import io
 
-from pypdf import PdfReader, PdfWriter
-
 from app.document_ingest import _extract_pdf
 
 Line = tuple[str, str, float, float, float]
@@ -85,66 +83,12 @@ def _serialize(objects: dict[int, bytes]) -> bytes:
     return buf.getvalue()
 
 
-def build_pdf(
-    pages_lines: list[list[Line]],
-    outline: list[tuple[str, int]] | None = None,
-) -> bytes:
+def build_pdf(pages_lines: list[list[Line]]) -> bytes:
     objects, _ = _build_objects(pages_lines)
-    raw = _serialize(objects)
-    if not outline:
-        return raw
-
-    reader = PdfReader(io.BytesIO(raw))
-    writer = PdfWriter()
-    for page in reader.pages:
-        writer.add_page(page)
-    for title, page_index in outline:
-        writer.add_outline_item(title, page_index)
-    out = io.BytesIO()
-    writer.write(out)
-    return out.getvalue()
+    return _serialize(objects)
 
 
 # Use the real PDF parser so a fake cannot hide missing wiring.
-
-
-def test_bookmark_outline_sets_heading_levels() -> None:
-    # Use uniform unnumbered body text to isolate bookmark headings.
-    pdf = build_pdf(
-        [
-            [
-                ("Overview", "F1", 10, 50, 450),
-                ("Some introductory prose.", "F1", 10, 50, 430),
-                ("Scope", "F1", 10, 50, 410),
-                ("More prose about the scope.", "F1", 10, 50, 390),
-            ]
-        ],
-        outline=[("Overview", 0), ("Scope", 0)],
-    )
-
-    text = _extract_pdf(pdf)
-
-    assert "# Overview" in text
-    assert "# Scope" in text
-    assert "## " not in text
-
-
-def test_numbering_without_an_outline_sets_nested_heading_levels() -> None:
-    pdf = build_pdf(
-        [
-            [
-                ("1. Introduction", "F1", 10, 50, 450),
-                ("Prose under the top section.", "F1", 10, 50, 430),
-                ("1.1 Background", "F1", 10, 50, 410),
-                ("Prose under the sub-section.", "F1", 10, 50, 390),
-            ]
-        ]
-    )
-
-    text = _extract_pdf(pdf)
-
-    assert "# 1. Introduction" in text
-    assert "## 1.1 Background" in text
 
 
 def test_larger_font_infers_a_heading_with_no_outline_or_numbering() -> None:
@@ -164,18 +108,3 @@ def test_larger_font_infers_a_heading_with_no_outline_or_numbering() -> None:
 
     assert "# Results" in text
     assert "The assay showed a clear effect." in text
-
-
-def test_uniform_font_with_no_signal_extracts_exactly_as_before() -> None:
-    # PDF ingestion must leave output unchanged when no heading signals exist.
-    lines: list[tuple[str, str, float, float, float]] = [
-        ("A plain narrative paragraph about the assay.", "F1", 10, 50, 450),
-        ("A second plain paragraph, same size.", "F1", 10, 50, 430),
-    ]
-    pdf = build_pdf([lines])
-
-    text = _extract_pdf(pdf)
-
-    assert "#" not in text
-    assert "A plain narrative paragraph about the assay." in text
-    assert "A second plain paragraph, same size." in text

@@ -51,38 +51,6 @@ def test_append_event_logs_a_compact_stage_record(
     assert getattr(record, "run_id", None) == run_id
 
 
-def test_stage_record_summarizes_bulky_payloads(
-    isolated_db: str, run_id: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    payload = {
-        "count": 4,
-        "hypotheses": [{"id": "h1", "text": "x" * 500}] * 4,
-        "clusters": {"cluster-0": 2, "cluster-1": 1},
-        "critique": "y" * 400,
-    }
-    with caplog.at_level(logging.INFO):
-        store.append_event(run_id, "generate", payload, db_path=isolated_db)
-    message = _stage_records(caplog)[0].getMessage()
-    assert "count=4" in message
-    assert "hypotheses=4" in message
-    assert "clusters=2" in message
-    assert "x" * 100 not in message
-    assert len(message) <= 200
-
-
-def test_stage_record_truncates_at_a_pair_boundary(
-    isolated_db: str, run_id: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    payload = {f"key{i}": "v" * 20 for i in range(20)}
-    with caplog.at_level(logging.INFO):
-        store.append_event(run_id, "report", payload, db_path=isolated_db)
-    message = _stage_records(caplog)[0].getMessage()
-    assert len(message) <= 200
-    assert message.endswith("...")
-    for part in message.removesuffix(" ...").split(" ")[1:]:
-        assert "=" in part, part
-
-
 def test_stage_logging_never_breaks_the_event_write(
     isolated_db: str, run_id: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

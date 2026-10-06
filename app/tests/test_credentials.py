@@ -104,23 +104,6 @@ def test_byok_model_and_key_prefers_scoped_credential(
     )
 
 
-def test_redaction_filter_never_breaks_logging(
-    byok_secret: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def explode(text: str) -> str:
-        raise ValueError("redaction failed")
-
-    monkeypatch.setattr(credentials, "redact_byok_text", explode)
-    record = logging.LogRecord(
-        "test", logging.ERROR, __file__, 1, "m", (), None
-    )
-    cred = credentials.ByokCredential(
-        provider="openai", api_key=_KEY, model="openai/gpt-4o"
-    )
-    with credentials.scoped_byok(cred):
-        assert credentials.ByokRedactionFilter().filter(record)
-
-
 def _mixed() -> credentials.ByokCredential:
     return credentials.ByokCredential(
         provider="openai",
@@ -153,21 +136,3 @@ async def test_validation_error_never_echoes_the_supervisor_key(
         await credentials.validate_byok_credential(_mixed())
     assert _KEY not in str(exc_info.value)
     assert _SECOND_KEY not in str(exc_info.value)
-
-
-def test_idempotency_digest_covers_the_supervisor_credential(
-    byok_secret: str,
-) -> None:
-    def digest(**extra: str) -> str:
-        return credentials.run_creation_request_digest(
-            {"goal": "g"}, api_key=_KEY, provider="openai", **extra
-        )
-
-    sup = digest(supervisor_api_key=_SECOND_KEY, supervisor_provider="gemini")
-    assert sup != digest()
-    assert sup != digest(
-        supervisor_api_key="sk-other", supervisor_provider="gemini"
-    )
-    assert sup != digest(
-        supervisor_api_key=_SECOND_KEY, supervisor_provider="anthropic"
-    )

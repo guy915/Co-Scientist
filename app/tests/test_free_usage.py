@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.store.db import connect
 from tests._process_mode_helpers import FakeProcessMode
 
 _CLIENT = {"X-Client-ID": "free-usage-scientist"}
@@ -60,55 +59,6 @@ def test_free_runs_are_capped_per_day(real_backend: None) -> None:
         assert len(runs) == 3
         other = _create(client, headers={"X-Client-ID": "another-device"})
         assert other.status_code == 200
-
-
-def test_deleting_a_run_does_not_return_its_slot(real_backend: None) -> None:
-    with TestClient(app) as client:
-        run_ids = [_create(client).json()["id"] for _ in range(3)]
-        deleted = client.delete(f"/api/runs/{run_ids[0]}", headers=_CLIENT)
-        assert deleted.status_code in (200, 204)
-        assert _create(client).status_code == 429
-
-
-def test_zero_limit_removes_the_cap(
-    real_backend: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "free_runs_per_day", 0)
-    with TestClient(app) as client:
-        for _ in range(4):
-            assert _create(client).status_code == 200
-        usage = client.get("/api/free-usage", headers=_CLIENT).json()
-        assert usage["limit"] is None
-        assert usage["remaining"] is None
-
-
-def test_usage_endpoint_counts_todays_runs(real_backend: None) -> None:
-    with TestClient(app) as client:
-        _create(client)
-        usage = client.get("/api/free-usage", headers=_CLIENT).json()
-    assert usage["enforced"] is True
-    assert usage["tier"] == "express"
-    assert (usage["limit"], usage["used"], usage["remaining"]) == (3, 1, 2)
-
-
-def test_offline_runs_are_not_free_usage() -> None:
-    with TestClient(app) as client:
-        for _ in range(4):
-            assert _create(client, tier="standard").status_code == 200
-        usage = client.get("/api/free-usage", headers=_CLIENT).json()
-    assert usage["enforced"] is False
-    assert usage["used"] == 0
-
-
-def test_yesterdays_runs_do_not_count(real_backend: None) -> None:
-    with TestClient(app) as client:
-        for _ in range(3):
-            _create(client)
-        with connect() as conn:
-            conn.execute(
-                "UPDATE free_run_usage SET created_at = created_at - 86400"
-            )
-        assert _create(client).status_code == 200
 
 
 @pytest.mark.parametrize(

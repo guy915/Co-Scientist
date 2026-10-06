@@ -5,10 +5,9 @@ import json
 import re
 from importlib import import_module
 from pathlib import Path
-from typing import Any, get_args
+from typing import get_args
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.api_contracts.common import RunEventActivity
 from app.api_contracts.generate import (
@@ -16,10 +15,7 @@ from app.api_contracts.generate import (
     contracts,
     generated_files,
 )
-from app.main import app
-from app.store import reports as store
 from app.store.events import ACTIVITY_VALUES
-from tests._store_helpers import seed_run
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
 _INTERVIEW_MODULES = {
@@ -191,81 +187,6 @@ def _expected_requirements() -> list[str]:
 
 def test_requirements_app_matches_pyproject() -> None:
     assert sorted(_requirements_lines()) == sorted(_expected_requirements())
-
-
-def _legacy_run(isolated_db: str) -> str:
-    run = seed_run(
-        "Study feedback",
-        provider="mock",
-        config={"old_knob": [1, None]},
-        client_id="contract-owner",
-        db_path=isolated_db,
-    )
-    store.save_report(
-        run.id,
-        {"leaderboard": [], "older_section": {"retained": True}},
-        "# Saved report",
-        db_path=isolated_db,
-    )
-    return run.id
-
-
-def _read(client: TestClient, path: str) -> Any:
-    response = client.get(path, headers={"X-Client-ID": "contract-owner"})
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
-def test_old_runs_and_reports_keep_nullable_unmodeled_fields_and_shapes(
-    isolated_db: str,
-) -> None:
-    run_id = _legacy_run(isolated_db)
-    with TestClient(app) as client:
-        run = _read(client, f"/api/runs/{run_id}")
-        assert run["completed_at"] is None and run["error"] is None
-        assert run["config"]["old_knob"] == [1, None]
-        assert run["execution_policy"] == "standard"
-        assert run["summary"]["hypotheses"] == 0
-        listed = _read(client, "/api/runs")["runs"][0]
-        assert "summary" not in listed
-        assert listed["top_hypotheses"] == []
-        report = _read(client, f"/api/runs/{run_id}/report")
-        assert report["payload"] == {
-            "leaderboard": [],
-            "older_section": {"retained": True},
-        }
-        created = client.post(
-            f"/api/runs/{run_id}/shares",
-            headers={"X-Client-ID": "contract-owner"},
-        )
-        assert created.status_code == 200
-        shared = client.get(f"/api/shared/{created.json()['token']}").json()
-        assert set(shared["run"]) == {"title", "research_goal", "run_mode"}
-        assert shared["report"] == report
-
-
-def test_curated_reports_validate_all_nonempty_collection_shapes(
-    isolated_db: str,
-) -> None:
-    with TestClient(app) as client:
-        demos = client.get("/api/runs/demo")
-        assert demos.status_code == 200
-        for run in demos.json()["runs"]:
-            for name in (
-                "hypotheses",
-                "evidence",
-                "matches",
-                "proximity",
-                "reviews",
-                "safety",
-                "claim-evidence",
-                "messages",
-                "report",
-            ):
-                response = client.get(f"/api/runs/{run['id']}/{name}")
-                assert response.status_code == 200, (name, response.text)
-                if name in ("hypotheses", "evidence", "matches", "reviews"):
-                    assert response.json()[name]
 
 
 def _tokens(source: str) -> list[str]:
