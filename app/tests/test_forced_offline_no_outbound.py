@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import sys
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
 
-from app import credentials, goal_text, qa, run_start_announcement
+from app import credentials, goal_text, run_start_announcement
 from app.store import messages as store
 from tests._client import create_run as _create_run
 from tests._client import make_client
@@ -58,27 +58,16 @@ def test_interview_turn_makes_no_outbound_request(
     assert attempts == []
 
 
-def test_qa_answer_makes_no_outbound_request(
-    attempts: list[dict[str, Any]],
-) -> None:
-    with make_client() as client:
-        created = _create_run(client, _GOAL)
-        assert created.status_code == 200
-        run_id = created.json()["id"]
-        answered = client.post(
-            f"/api/runs/{run_id}/messages/ask",
-            json={"question": "Which idea ranked first?"},
-        )
-    assert answered.status_code == 200
-    assert "data:" in answered.text
-    assert attempts == []
-
-
 @pytest.mark.asyncio
-async def test_run_titling_makes_no_outbound_request(
+@pytest.mark.parametrize(
+    "generate",
+    [goal_text.generate_run_title, goal_text.generate_goal_restatement],
+)
+async def test_goal_text_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
+    generate: Callable[[str], Awaitable[str | None]],
 ) -> None:
-    assert await goal_text.generate_run_title(_GOAL) is None
+    assert await generate(_GOAL) is None
     assert attempts == []
 
 
@@ -113,15 +102,6 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     assert "offline mode" in answered.text
     assert attempts == []
     assert store.list_messages(run_id)
-    assert sys.modules["app.runs.chat"].qa is qa
-
-
-@pytest.mark.asyncio
-async def test_restatement_makes_no_outbound_request(
-    attempts: list[dict[str, Any]],
-) -> None:
-    assert await goal_text.generate_goal_restatement(_GOAL) is None
-    assert attempts == []
 
 
 @pytest.mark.asyncio

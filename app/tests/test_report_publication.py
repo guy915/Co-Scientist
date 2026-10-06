@@ -16,7 +16,7 @@ from app.report import build as report_build
 from app.report import content as report_content
 from app.report import finalize as report_finalize
 from app.report import gates as report_gates
-from app.safety import SafetyDecision, apply_safety_gate
+from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
 from app.store import checkpoints, db, hypotheses, records, reports, runs, tasks
 from app.store import events as store_events
@@ -43,6 +43,31 @@ from tests.test_report_cancel_publication import (
 )
 
 
+def _status_event(events: list[dict[str, Any]], status: str) -> dict[str, Any]:
+    return next(
+        event
+        for event in events
+        if event["type"] == "status"
+        and event["payload"].get("status") == status
+    )
+
+
+def _statuses(events: list[dict[str, Any]]) -> list[Any]:
+    return [
+        event["payload"].get("status")
+        for event in events
+        if event["type"] == "status"
+    ]
+
+
+def _decisions(run_id: str, stage: str, db_path: str) -> list[dict[str, Any]]:
+    return [
+        item
+        for item in records.list_safety_decisions(run_id, db_path=db_path)
+        if item["stage"] == stage
+    ]
+
+
 def _hypothesis(identifier: str, status: str) -> dict[str, object]:
     return {
         "id": identifier,
@@ -65,43 +90,31 @@ def _contradicting_edge(hypothesis_id: str) -> dict[str, object]:
     }
 
 
-def test_rejected_and_contradicted_idea_agrees_across_both_surfaces() -> None:
+@pytest.mark.parametrize(
+    ("status", "per_idea", "blocked"),
+    [
+        ("rejected", "review", "review"),
+        ("duplicate", "higher-ranked", "folded into a higher-ranked idea"),
+    ],
+)
+def test_a_contradicted_idea_is_withheld_for_its_status_on_both_surfaces(
+    status: str, per_idea: str, blocked: str
+) -> None:
     # Status exclusions precede contradiction exclusions across shared report
     # surfaces.
-    hyp = _hypothesis("h1", "rejected")
+    hyp = _hypothesis("h1", status)
     edges = [_contradicting_edge("h1")]
 
     contradicted = report_gates.contradicted_hypothesis_ids("run1", None, edges)
     assert "h1" in contradicted
-
     buckets = report_content._idea_buckets([], [hyp], edges)
     per_idea_reason = buckets["non_viable"][0]["reason"].lower()
-
     tally = report_gates._exclusion_tally([hyp], [], contradicted)
     blocked_reason = report_gates._empty_leaderboard_reason(1, tally).lower()
 
-    assert "review" in per_idea_reason
+    assert per_idea in per_idea_reason
+    assert blocked in blocked_reason
     assert "contradicted" not in per_idea_reason
-    assert "review" in blocked_reason
-    assert "contradicted" not in blocked_reason
-
-
-def test_duplicate_and_contradicted_idea_agrees_across_both_surfaces() -> None:
-    hyp = _hypothesis("h2", "duplicate")
-    edges = [_contradicting_edge("h2")]
-
-    contradicted = report_gates.contradicted_hypothesis_ids("run1", None, edges)
-    assert "h2" in contradicted
-
-    buckets = report_content._idea_buckets([], [hyp], edges)
-    per_idea_reason = buckets["non_viable"][0]["reason"].lower()
-
-    tally = report_gates._exclusion_tally([hyp], [], contradicted)
-    blocked_reason = report_gates._empty_leaderboard_reason(1, tally).lower()
-
-    assert "higher-ranked" in per_idea_reason
-    assert "contradicted" not in per_idea_reason
-    assert "folded into a higher-ranked idea" in blocked_reason
     assert "contradicted" not in blocked_reason
 
 
@@ -195,7 +208,9 @@ def _assert_cancelled_task(
     assert persisted.status == RunStatus.CANCELLED.value
     task = tasks.get_task(task_id, db_path=db_path)
     assert task is not None and task.status == "cancelled"
-    return _owner_events(owner, headers, run_id)
+    events = _owner_events(owner, headers, run_id)
+    assert _statuses(events) == ["cancelled"]
+    return events
 
 
 def _owner_events(
@@ -208,12 +223,38 @@ def _owner_events(
     return cast(list[dict[str, Any]], response.json()["events"])
 
 
+@pytest.mark.parametrize(
+    ("gate", "monitor_halt", "stage", "event_type"),
+    [
+        (
+            (report_finalize, "_block_for_empty_leaderboard"),
+            False,
+            "scientific_readiness",
+            None,
+        ),
+        (
+            (engine_tasks_node, "apply_safety_gate"),
+            True,
+            "research_direction",
+            "safety.research_direction",
+        ),
+    ],
+    ids=["readiness-block", "monitor-halt"],
+)
 @pytest.mark.asyncio
-async def test_cancel_race_does_not_block_run(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
+    gate: tuple[Any, str],
+    monitor_halt: bool,
+    stage: str,
+    event_type: str | None,
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
-        isolated_db, monkeypatch, "readiness-cancel-owner"
+        isolated_db,
+        monkeypatch,
+        f"cancel-before-{stage}",
+        monitor_halt=monitor_halt,
     )
     _install_report(monkeypatch)
 
@@ -221,21 +262,18 @@ async def test_cancel_race_does_not_block_run(
         return SafetyDecision(stage="final", decision="allow")
 
     _install_runtime(monkeypatch).screen = allow_final_screen
+    module, name = gate
+    real_gate = getattr(module, name)
     cancel_responses: list[dict[str, Any]] = []
-    block_for_empty_leaderboard = report_finalize._block_for_empty_leaderboard
 
-    async def cancel_before_readiness_write(*args: Any, **kwargs: Any) -> Any:
+    async def cancel_first(*args: Any, **kwargs: Any) -> Any:
         response = owner.post(f"/api/runs/{run_id}/cancel", headers=headers)
         assert response.status_code == 200, response.text
         cancel_responses.append(response.json())
-        async for event in block_for_empty_leaderboard(*args, **kwargs):
+        async for event in real_gate(*args, **kwargs):
             yield event
 
-    monkeypatch.setattr(
-        report_finalize,
-        "_block_for_empty_leaderboard",
-        cancel_before_readiness_write,
-    )
+    monkeypatch.setattr(module, name, cancel_first)
 
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
@@ -244,18 +282,8 @@ async def test_cancel_race_does_not_block_run(
     events = _assert_cancelled_task(
         owner, headers, run_id, task.id, isolated_db
     )
-    readiness = [
-        item
-        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
-        if item["stage"] == "scientific_readiness"
-    ]
-    statuses = [
-        event["payload"].get("status")
-        for event in events
-        if event["type"] == "status"
-    ]
-    assert readiness == []
-    assert statuses == ["cancelled"]
+    assert _decisions(run_id, stage, isolated_db) == []
+    assert not any(event["type"] == event_type for event in events)
 
 
 @pytest.mark.asyncio
@@ -278,11 +306,7 @@ async def test_empty_leaderboard_block_remains_auditable(
     assert result["status"] == RunStatus.BLOCKED.value
     assert persisted is not None
     assert persisted.status == RunStatus.BLOCKED.value
-    readiness = [
-        item
-        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
-        if item["stage"] == "scientific_readiness"
-    ]
+    readiness = _decisions(run_id, "scientific_readiness", isolated_db)
     assert len(readiness) == 1
     assert readiness[0]["decision"] == "block"
 
@@ -290,12 +314,7 @@ async def test_empty_leaderboard_block_remains_auditable(
     final_event = next(
         event for event in events if event["type"] == "safety.final"
     )
-    blocked_event = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "blocked"
-    )
+    blocked_event = _status_event(events, "blocked")
     assert final_event["seq"] < blocked_event["seq"]
     assert not any(event["type"] == "report" for event in events)
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
@@ -322,11 +341,7 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert result["status"] == RunStatus.COMPLETED.value
-    final_decisions = [
-        item
-        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
-        if item["stage"] == "final"
-    ]
+    final_decisions = _decisions(run_id, "final", isolated_db)
     assert len(final_decisions) == 1
     assert final_decisions[0]["decision"] == "redact"
     assert final_decisions[0]["matches"] == ["sensitive span"]
@@ -343,64 +358,9 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
         event for event in events if event["type"] == "safety.final"
     )
     report_event = next(event for event in events if event["type"] == "report")
-    completed_event = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "completed"
-    )
+    completed_event = _status_event(events, "completed")
     assert final_event["seq"] < report_event["seq"] < completed_event["seq"]
     assert "sensitive span" not in repr(report_event["payload"]).lower()
-
-
-@pytest.mark.asyncio
-async def test_cancel_before_monitor_halt_gate_leaves_no_halt_audit(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    owner, headers, run_id, task = _seed_leased_finalize(
-        isolated_db,
-        monkeypatch,
-        "monitor-halt-cancel-owner",
-        monitor_halt=True,
-    )
-    cancel_responses: list[dict[str, Any]] = []
-
-    async def cancel_before_monitor_gate(
-        gated_run_id: str, decision: SafetyDecision, emit: Any, **kwargs: Any
-    ) -> Any:
-        response = owner.post(f"/api/runs/{run_id}/cancel", headers=headers)
-        assert response.status_code == 200, response.text
-        cancel_responses.append(response.json())
-        async for event in apply_safety_gate(
-            gated_run_id, decision, emit, **kwargs
-        ):
-            yield event
-
-    monkeypatch.setattr(
-        engine_tasks_node, "apply_safety_gate", cancel_before_monitor_gate
-    )
-
-    with pytest.raises(task_worker._LeaseLostError):
-        await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    events = _assert_cancelled_task(
-        owner, headers, run_id, task.id, isolated_db
-    )
-    monitor = [
-        item
-        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
-        if item["stage"] == "research_direction"
-    ]
-    assert monitor == []
-    assert not any(
-        event["type"] == "safety.research_direction" for event in events
-    )
-    assert [
-        event["payload"].get("status")
-        for event in events
-        if event["type"] == "status"
-    ] == ["cancelled"]
 
 
 @pytest.mark.asyncio
@@ -420,11 +380,7 @@ async def test_leased_monitor_halt_remains_auditable(
     assert result["status"] == RunStatus.BLOCKED.value
     assert persisted is not None
     assert persisted.status == RunStatus.BLOCKED.value
-    monitor = [
-        item
-        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
-        if item["stage"] == "research_direction"
-    ]
+    monitor = _decisions(run_id, "research_direction", isolated_db)
     assert len(monitor) == 1
     assert monitor[0]["decision"] == "block"
     assert monitor[0]["matches"] == ["engineer smallpox for greater transmiss"]
@@ -435,12 +391,7 @@ async def test_leased_monitor_halt_remains_auditable(
         for event in events
         if event["type"] == "safety.research_direction"
     )
-    blocked_event = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "blocked"
-    )
+    blocked_event = _status_event(events, "blocked")
     assert halt_event["seq"] < blocked_event["seq"]
     assert not any(event["type"] == "report" for event in events)
 
@@ -474,60 +425,42 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
     events = _assert_cancelled_task(
         owner, headers, run_id, task.id, isolated_db
     )
-    final_decisions = [
-        item
-        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
-        if item["stage"] == "final"
-    ]
+    final_decisions = _decisions(run_id, "final", isolated_db)
     assert final_decisions == []
     assert not any(event["type"] == "safety.final" for event in events)
     assert not any(event["type"] == "report" for event in events)
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
 
 
-@pytest.mark.asyncio
-async def test_early_finalize_pause_skips_final_drain(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+_DRAIN_STAGES = ("safety.hypothesis", "citation.grounding", "citation_audit")
+
+
+def _install_final_drain(
+    monkeypatch: pytest.MonkeyPatch,
+    run_id: str,
+    hypothesis_id: str,
+    isolated_db: str,
+    *,
+    llm_calls: int,
+    during: Any = None,
 ) -> None:
-    owner, run_id, task, _hypothesis_id = _seed_owned_finalize(
-        isolated_db, monkeypatch
-    )
-    paused = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
-    assert paused.status_code == 200, paused.text
-    drain_calls: list[bool] = []
+    _install_runtime(
+        monkeypatch
+    ).drain_final_state = engine_tasks_node._drain_and_persist_final_state
 
-    async def unexpected_drain(*_: Any, **__: Any) -> Any:
-        drain_calls.append(True)
-        raise AssertionError("paused finalize called the final drain")
-
-    _install_runtime(monkeypatch).drain_final_state = unexpected_drain
-    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    assert result["status"] == "paused"
-    assert drain_calls == []
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert checkpoint is not None
-    assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == RunStatus.PAUSED.value
-
-
-@pytest.mark.asyncio
-async def test_cancel_during_final_drain_keeps_cancelled_state(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    real_drain = engine_tasks_node._drain_and_persist_final_state
-    owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
-        isolated_db, monkeypatch, claim=False
-    )
-    _install_report_stubs(hypothesis_id, monkeypatch)
-    _install_runtime(monkeypatch).drain_final_state = real_drain
-    cancel_responses: list[dict[str, Any]] = []
-
-    async def cancel_inside_drain(*_: Any, **__: Any) -> Any:
-        response = owner.post(f"/api/runs/{run_id}/cancel", headers=_OWNER)
-        assert response.status_code == 200, response.text
-        cancel_responses.append(response.json())
+    async def persist_final_state(*_: Any, **kwargs: Any) -> Any:
+        if during is not None:
+            during()
+        hypotheses.add_hypothesis(
+            NewHypothesis(
+                run_id=run_id,
+                hypothesis_id=hypothesis_id,
+                title="IL-6 feedback",
+                statement="IL-6 increases inflammation via STAT3 signaling.",
+            ),
+            db_path=isolated_db,
+        )
+        kwargs["final_state"]["metrics"] = {"llm_calls": llm_calls}
         return SimpleNamespace(
             safety_counts={},
             grounding_counts={},
@@ -535,7 +468,32 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
         )
 
     monkeypatch.setattr(
-        engine_tasks_node, "persist_final_state", cancel_inside_drain
+        engine_tasks_node, "persist_final_state", persist_final_state
+    )
+
+
+@pytest.mark.asyncio
+async def test_cancel_during_final_drain_keeps_cancelled_state(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
+        isolated_db, monkeypatch, claim=False
+    )
+    _install_report_stubs(hypothesis_id, monkeypatch)
+    cancel_responses: list[dict[str, Any]] = []
+
+    def cancel() -> None:
+        response = owner.post(f"/api/runs/{run_id}/cancel", headers=_OWNER)
+        assert response.status_code == 200, response.text
+        cancel_responses.append(response.json())
+
+    _install_final_drain(
+        monkeypatch,
+        run_id,
+        hypothesis_id,
+        isolated_db,
+        llm_calls=1,
+        during=cancel,
     )
     task = tasks.claim_task(
         "cancel-during-drain-worker", run_id=run_id, db_path=isolated_db
@@ -550,18 +508,9 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
     checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["stage"] == "fixture"
-    events = owner.get(
-        f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
-    ).json()["events"]
+    events = _owner_events(owner, _OWNER, run_id)
     assert not any(
-        event["type"]
-        in {
-            "safety.hypothesis",
-            "citation.grounding",
-            "citation_audit",
-            "report",
-        }
-        for event in events
+        event["type"] in {*_DRAIN_STAGES, "report"} for event in events
     )
 
 
@@ -637,37 +586,25 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
 async def test_pause_during_final_drain_waits_for_explicit_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    real_drain = engine_tasks_node._drain_and_persist_final_state
     owner, run_id, original_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    _install_runtime(monkeypatch).drain_final_state = real_drain
     pause_responses: list[dict[str, Any]] = []
 
-    async def pause_inside_drain(*_: Any, **kwargs: Any) -> Any:
+    def pause_once() -> None:
         if not pause_responses:
             response = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
             assert response.status_code == 200, response.text
             pause_responses.append(response.json())
-        hypotheses.add_hypothesis(
-            NewHypothesis(
-                run_id=run_id,
-                hypothesis_id=hypothesis_id,
-                title="IL-6 feedback",
-                statement="IL-6 increases inflammation via STAT3 signaling.",
-            ),
-            db_path=isolated_db,
-        )
-        kwargs["final_state"]["metrics"] = {"llm_calls": 3}
-        return SimpleNamespace(
-            safety_counts={},
-            grounding_counts={},
-            report_inputs={"citation_summary": {}},
-        )
 
-    monkeypatch.setattr(
-        engine_tasks_node, "persist_final_state", pause_inside_drain
+    _install_final_drain(
+        monkeypatch,
+        run_id,
+        hypothesis_id,
+        isolated_db,
+        llm_calls=3,
+        during=pause_once,
     )
 
     assert await task_worker.run_once(
@@ -678,17 +615,9 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     assert paused is not None and paused.status == RunStatus.PAUSED.value
     assert hypotheses.get_hypothesis(hypothesis_id, db_path=isolated_db) is None
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
-    pre_resume_events = owner.get(
-        f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
-    ).json()["events"]
+    pre_resume_events = _owner_events(owner, _OWNER, run_id)
     assert not any(
-        event["type"]
-        in {
-            "safety.hypothesis",
-            "citation.grounding",
-            "citation_audit",
-            "report",
-        }
+        event["type"] in {*_DRAIN_STAGES, "report"}
         for event in pre_resume_events
     )
     assert (
@@ -732,28 +661,16 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     assert completed.status == RunStatus.COMPLETED.value
     assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
 
-    events = owner.get(
-        f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
-    ).json()["events"]
+    events = _owner_events(owner, _OWNER, run_id)
     pause_event = next(
         event
         for event in events
         if event["type"] == "lifecycle"
         and event["payload"].get("event") == "pause_requested"
     )
-    resume_event = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "resuming"
-    )
+    resume_event = _status_event(events, "resuming")
     report_event = next(event for event in events if event["type"] == "report")
-    completion_event = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "completed"
-    )
+    completion_event = _status_event(events, "completed")
     assert pause_event["seq"] < resume_event["seq"]
     stages = [
         event
@@ -774,32 +691,12 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
 async def test_cancel_after_drain_commit_orders_stages_before_cancel(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    real_drain = engine_tasks_node._drain_and_persist_final_state
     owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    _install_runtime(monkeypatch).drain_final_state = real_drain
-
-    async def fake_persist_final_state(*_: Any, **kwargs: Any) -> Any:
-        hypotheses.add_hypothesis(
-            NewHypothesis(
-                run_id=run_id,
-                hypothesis_id=hypothesis_id,
-                title="IL-6 feedback",
-                statement="IL-6 increases inflammation via STAT3 signaling.",
-            ),
-            db_path=isolated_db,
-        )
-        kwargs["final_state"]["metrics"] = {"llm_calls": 5}
-        return SimpleNamespace(
-            safety_counts={},
-            grounding_counts={},
-            report_inputs={"citation_summary": {}},
-        )
-
-    monkeypatch.setattr(
-        engine_tasks_node, "persist_final_state", fake_persist_final_state
+    _install_final_drain(
+        monkeypatch, run_id, hypothesis_id, isolated_db, llm_calls=5
     )
     task = tasks.claim_task(
         "cancel-after-drain-worker", run_id=run_id, db_path=isolated_db
@@ -827,23 +724,12 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
     assert persisted.status == RunStatus.CANCELLED.value
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
     assert reports.get_latest_report(run_id, db_path=isolated_db) is None
-    events = owner.get(
-        f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
-    ).json()["events"]
-    expected_stages = [
-        "safety.hypothesis",
-        "citation.grounding",
-        "citation_audit",
-    ]
+    events = _owner_events(owner, _OWNER, run_id)
+    expected_stages = list(_DRAIN_STAGES)
     stage_events = [
         event for event in events if event["type"] in expected_stages
     ]
-    cancelled = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "cancelled"
-    )
+    cancelled = _status_event(events, "cancelled")
     assert [event["type"] for event in stage_events] == expected_stages
     assert all(event["seq"] < cancelled["seq"] for event in stage_events)
     assert not any(
@@ -918,74 +804,46 @@ def _run_with_blocked_and_released_content(
     )
     run_id = run.id
 
-    released_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id,
-            title="Released feedback idea",
-            statement="Modulating the feedback loop improves throughput.",
-        ),
-        db_path=isolated_db,
-    )
-    hypotheses.update_hypothesis_state(
-        released_id,
-        HypothesisStateChanges(safety_status="allow"),
-        db_path=isolated_db,
-    )
+    def add_idea(
+        title: str,
+        statement: str,
+        *,
+        status: str | None = None,
+        safety_status: str = "allow",
+    ) -> str:
+        hyp_id = hypotheses.add_hypothesis(
+            NewHypothesis(run_id=run_id, title=title, statement=statement),
+            db_path=isolated_db,
+        )
+        hypotheses.update_hypothesis_state(
+            hyp_id,
+            HypothesisStateChanges(status=status, safety_status=safety_status),
+            db_path=isolated_db,
+        )
+        return hyp_id
 
-    blocked_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id,
-            title="Safety blocked idea",
-            statement="A blocked proposal kept out by the safety screen.",
-        ),
-        db_path=isolated_db,
+    released_id = add_idea(
+        "Released feedback idea",
+        "Modulating the feedback loop improves throughput.",
     )
-    hypotheses.update_hypothesis_state(
-        blocked_id,
-        HypothesisStateChanges(safety_status="prohibited"),
-        db_path=isolated_db,
+    add_idea(
+        "Safety blocked idea",
+        "A blocked proposal kept out by the safety screen.",
+        safety_status="prohibited",
     )
-
-    rejected_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id,
-            title="Review rejected idea",
-            statement="A proposal set aside during review.",
-        ),
-        db_path=isolated_db,
+    add_idea(
+        "Review rejected idea",
+        "A proposal set aside during review.",
+        status="rejected",
     )
-    hypotheses.update_hypothesis_state(
-        rejected_id,
-        HypothesisStateChanges(status="rejected", safety_status="allow"),
-        db_path=isolated_db,
+    add_idea(
+        "Deduplicated idea",
+        "A proposal folded into a higher-ranked idea.",
+        status="duplicate",
     )
-
-    duplicate_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id,
-            title="Deduplicated idea",
-            statement="A proposal folded into a higher-ranked idea.",
-        ),
-        db_path=isolated_db,
-    )
-    hypotheses.update_hypothesis_state(
-        duplicate_id,
-        HypothesisStateChanges(status="duplicate", safety_status="allow"),
-        db_path=isolated_db,
-    )
-
-    contradicted_id = hypotheses.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id,
-            title="Contradicted idea",
-            statement="A proposal whose claims the evidence contradicts.",
-        ),
-        db_path=isolated_db,
-    )
-    hypotheses.update_hypothesis_state(
-        contradicted_id,
-        HypothesisStateChanges(safety_status="allow"),
-        db_path=isolated_db,
+    contradicted_id = add_idea(
+        "Contradicted idea",
+        "A proposal whose claims the evidence contradicts.",
     )
 
     cited_id = records.add_evidence(
