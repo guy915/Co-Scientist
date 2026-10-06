@@ -22,8 +22,7 @@ in the advisory if you want to be named.
 
 In scope:
 
-- The API (`app/`), including authentication, session and ownership checks, and
-  report sharing.
+- The API (`app/`), including session and ownership checks.
 - The reference MCP server (`engine/mcp_server/`), including its URL guards.
 - The sandbox that confines model-written programs, and the rule that
   execution tools are absent when confinement is unavailable.
@@ -39,8 +38,6 @@ Out of scope:
   upstream (see [NOTICE](NOTICE)).
 - Denial of service through volume alone, and automated scanner output without
   a demonstrated impact.
-- Local development mode (`AUTH_MODE` compatibility), which uses
-  caller-selected IDs by design and is not meant to be exposed.
 
 ## Supported versions
 
