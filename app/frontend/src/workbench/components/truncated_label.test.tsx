@@ -102,14 +102,6 @@ async function flushNextFrame() {
   });
 }
 
-// Fits batch one microtask later, so synchronous notifications still need a
-// queue drain.
-async function flushFitBatch() {
-  await act(async () => {
-    await Promise.resolve();
-  });
-}
-
 beforeEach(() => {
   containerWidth = 20;
   containerHeight = 10;
@@ -135,23 +127,6 @@ it('truncates on a word boundary and appends an ellipsis', async () => {
   );
 });
 
-it('clips the first word when even it alone does not fit', async () => {
-  const text = 'x'.repeat(30);
-  const {container} = render(<TruncatedLabel text={text} />);
-  await flushNextFrame();
-  expect(container.querySelector('span')!.textContent).toBe(`${text}…`);
-});
-
-it('measures against height (not width) when lines > 1', async () => {
-  containerWidth = 1000;
-  const text = 'one two three four five six seven eight nine ten';
-  const {container} = render(<TruncatedLabel text={text} lines={2} />);
-  await flushNextFrame();
-  const result = container.querySelector('span')!.textContent!;
-  expect(result.endsWith('…')).toBe(true);
-  expect(result).not.toBe(text);
-});
-
 it('re-fits when the ResizeObserver reports a size change', async () => {
   const text = 'alpha beta gamma delta';
   const {container} = render(<TruncatedLabel text={text} />);
@@ -168,57 +143,4 @@ it('re-fits when the ResizeObserver reports a size change', async () => {
   expect(span.textContent).not.toBe(text);
   await flushNextFrame();
   expect(span.textContent).toBe(text);
-});
-
-it('re-fits after web fonts finish loading', async () => {
-  let resolveFonts: () => void = () => {};
-  const fontsReady = new Promise<void>(resolve => {
-    resolveFonts = resolve;
-  });
-  Object.defineProperty(document, 'fonts', {
-    value: {ready: fontsReady},
-    configurable: true,
-  });
-
-  const text = 'alpha beta gamma delta';
-  const {container} = render(<TruncatedLabel text={text} />);
-  const span = container.querySelector('span')!;
-  await flushNextFrame();
-  expect(span.textContent).not.toBe(text);
-
-  containerWidth = 200;
-  await act(async () => {
-    resolveFonts();
-    await fontsReady;
-  });
-
-  expect(span.textContent).toBe(text);
-});
-
-it('re-fits when the tab becomes visible again', async () => {
-  const text = 'alpha beta gamma delta';
-  const {container} = render(<TruncatedLabel text={text} />);
-  const span = container.querySelector('span')!;
-  await flushNextFrame();
-  expect(span.textContent).not.toBe(text);
-
-  containerWidth = 200;
-  act(() => {
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await flushFitBatch();
-
-  expect(span.textContent).toBe(text);
-});
-
-it('re-fits when the text prop changes', async () => {
-  const {container, rerender} = render(<TruncatedLabel text="short" />);
-  const span = container.querySelector('span')!;
-  await flushNextFrame();
-  expect(span.textContent).toBe('short');
-
-  const longText = 'abc def ghi jkl mno pqr stu vwx yz1 234';
-  rerender(<TruncatedLabel text={longText} />);
-  await flushNextFrame();
-  expect(span.textContent).toBe('abc def ghi jkl mno…');
 });

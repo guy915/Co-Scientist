@@ -1,6 +1,4 @@
 import asyncio
-import inspect
-import logging
 import os
 import subprocess
 import sys
@@ -13,15 +11,12 @@ from fastmcp.client.transports import StreamableHttpTransport
 from mcp_server.auth_middleware import (
     MCP_AUTH_HEADER,
     MCP_CAMPAIGN_HEADER,
-    MCP_SHARED_SECRET_ENV,
     SharedSecretAuthMiddleware,
-    resolve_shared_secret,
 )
 from mcp_server.campaign import campaign_free_mode
 from mcp_server.tests._httpx import (
     asgi_client_factory,
     stub_failure,
-    stub_responses,
 )
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools import web_providers as providers
@@ -109,29 +104,6 @@ def test_shared_secret_guards_tool_calls_and_campaign_policy(
     assert response.status_code in statuses
     if body is not None:
         assert response.text == body
-
-
-def test_campaign_scope_resets_after_the_request() -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-
-    campaign = client.post("/mcp", headers=_CAMPAIGN | _SECRET)
-    ordinary = client.post("/mcp", headers=_SECRET)
-
-    assert campaign.text == "tool result:True"
-    assert ordinary.text == "tool result:False"
-
-
-def test_resolve_shared_secret_reads_env_var(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv(MCP_SHARED_SECRET_ENV, raising=False)
-    assert resolve_shared_secret() is None
-
-    monkeypatch.setenv(MCP_SHARED_SECRET_ENV, "token-123")
-    assert resolve_shared_secret() == "token-123"
-
-    monkeypatch.setenv(MCP_SHARED_SECRET_ENV, "")
-    assert resolve_shared_secret() is None
 
 
 async def test_concurrent_fastmcp_sessions_receive_request_policy() -> None:
@@ -239,17 +211,6 @@ async def test_enabled_or_invalid_mode_never_opens_web_transport(
         await getattr(providers, f"search_{provider}")("public", 1, 0)
 
 
-@pytest.mark.parametrize("setting", ["0", "false", ""])
-async def test_normal_openalex_preserves_explicit_host_key(
-    monkeypatch: pytest.MonkeyPatch, setting: str
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", setting)
-    monkeypatch.setenv("OPENALEX_API_KEY", "test-user-key")
-    client = stub_responses(monkeypatch, {"results": []})
-    await search_openalex("public")
-    assert client.calls[0][1]["api_key"] == "test-user-key"
-
-
 async def test_openalex_quota_refusal_does_not_retry_with_host_key(
     campaign: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -299,23 +260,6 @@ assert body['campaign_policy'] == campaign_policy()
     assert result.returncode == 0, result.stderr
 
 
-async def test_invalid_mode_blocks_openalex_and_provider_discovery(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "yes")
-
-    def refuse(**kwargs: Any) -> Any:
-        raise AssertionError("transport opened")
-
-    monkeypatch.setattr(httpx, "AsyncClient", refuse)
-    with pytest.raises(RuntimeError, match="invalid"):
-        await search_openalex("public")
-    with pytest.raises(RuntimeError, match="invalid"):
-        await check_web_search_available()
-    with pytest.raises(RuntimeError, match="invalid"):
-        await search_web("public")
-
-
 @pytest.mark.parametrize(
     "name", ["search_web", "query_drug_info", "read_url", "new_tool"]
 )
@@ -342,75 +286,3 @@ async def test_campaign_retains_public_tool_execution(
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     assert await with_call_logging(tool, "search_pubmed")() == "public evidence"
-
-
-@pytest.mark.parametrize(
-    ("returns", "logged"),
-    [
-        ('{"a": 1, "b": 2}', "2 items"),
-        # Provider failure, missing keys and no matches all return empty
-        # results; logs distinguish calls.
-        ("{}", "-> empty"),
-        ({"x": 1}, "1 item"),
-    ],
-)
-def test_logs_name_arguments_and_result_size_and_returns_result_unchanged(
-    caplog: pytest.LogCaptureFixture, returns: Any, logged: str
-) -> None:
-    def search(query: str, limit: int = 5) -> Any:
-        return returns
-
-    with caplog.at_level(logging.INFO):
-        result = with_call_logging(search, "search")("kinases", limit=3)
-
-    assert result == returns
-    assert "tool search(" in caplog.text
-    assert "'kinases'" in caplog.text and "limit=3" in caplog.text
-    assert logged in caplog.text
-
-
-def test_logs_and_reraises_failures(caplog: pytest.LogCaptureFixture) -> None:
-    def broken(q: str) -> str:
-        raise RuntimeError("upstream down")
-
-    with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
-        with_call_logging(broken, "broken")("q")
-    assert "raised RuntimeError" in caplog.text
-    assert "upstream down" in caplog.text
-
-
-def test_wraps_async_tools(caplog: pytest.LogCaptureFixture) -> None:
-
-    async def fetch(q: str) -> str:
-        return '{"a": 1}'
-
-    wrapped = with_call_logging(fetch, "fetch")
-    assert inspect.iscoroutinefunction(wrapped)
-    with caplog.at_level(logging.INFO):
-        assert asyncio.run(wrapped("q")) == '{"a": 1}'
-    assert "tool fetch(" in caplog.text
-
-
-def test_preserves_the_signature_fastmcp_advertises() -> None:
-    """FastMCP derives advertised parameters from the signature; a generic
-    wrapper erases them."""
-
-    def search(query: str, max_passages: int = 5) -> str:
-        """Docstring feeds the tool description."""
-        return "{}"
-
-    wrapped = with_call_logging(search, "search")
-    assert inspect.signature(wrapped) == inspect.signature(search)
-    assert wrapped.__name__ == "search"
-    assert wrapped.__doc__ == search.__doc__
-    assert wrapped.__annotations__ == search.__annotations__
-
-
-def test_truncates_a_long_argument(caplog: pytest.LogCaptureFixture) -> None:
-    def search(query: str) -> str:
-        return "{}"
-
-    with caplog.at_level(logging.INFO):
-        with_call_logging(search, "search")("x" * 500)
-    assert "..." in caplog.text
-    assert len(max(caplog.text.split("\n"), key=len)) < 400

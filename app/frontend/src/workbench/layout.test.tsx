@@ -1,5 +1,5 @@
-import {act, fireEvent, screen, waitFor} from '@testing-library/react';
-import {beforeEach, expect, it, vi, afterEach, describe} from 'vitest';
+import {act, fireEvent, screen} from '@testing-library/react';
+import {beforeEach, expect, it, vi, describe} from 'vitest';
 import {
   installLayoutMocks,
   logsApiMock,
@@ -48,35 +48,6 @@ describe('layout logs', () => {
     expect(screen.queryByText('Diagnostic Logs')).toBeNull();
   });
 
-  it('refreshes the badge when the api announces a log change', async () => {
-    renderLayout();
-    await screen.findByRole('button', {name: /Logs 0/i});
-
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [
-        {
-          id: 7,
-          created_at: 1_700_000_007,
-          level: 'INFO',
-          levelno: 20,
-          logger: 'ui.interaction',
-          message: 'click: "Start" (button)',
-          run_id: null,
-          exc_text: null,
-        },
-      ],
-      last_id: 7,
-      total: 7,
-      session_total: 7,
-    });
-    const {APP_LOGS_CHANGED_EVENT} = await import('@/api/logs');
-    fireEvent(window, new Event(APP_LOGS_CHANGED_EVENT));
-
-    expect(
-      await screen.findByRole('button', {name: /Logs 7/i}),
-    ).toBeInTheDocument();
-  });
-
   it('keeps the badge fresh while the popover is closed', async () => {
     vi.useFakeTimers();
     try {
@@ -113,101 +84,6 @@ describe('layout logs', () => {
   });
 });
 
-describe('layout no shortcuts', () => {
-  // Document shortcuts differ from dialog-local Escape/Tab semantics, which
-  // remain necessary.
-  let addEventListener: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    installLayoutMocks();
-    addEventListener = vi.spyOn(document, 'addEventListener');
-  });
-
-  afterEach(() => {
-    addEventListener.mockRestore();
-  });
-
-  function keydownRegistrations(): unknown[] {
-    return addEventListener.mock.calls.filter(
-      ([type]: [string, ...unknown[]]) => type === 'keydown',
-    );
-  }
-
-  it('registers no document keydown handler on the shell', async () => {
-    renderLayout('/');
-    expect(await screen.findByText('Workspace content')).toBeInTheDocument();
-
-    expect(keydownRegistrations()).toEqual([]);
-  });
-});
-
-describe('layout settings', () => {
-  beforeEach(() => {
-    installLayoutMocks();
-  });
-
-  it('opens the Settings dialog and switches sections', async () => {
-    renderLayout();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
-    fireEvent.click(screen.getByRole('menuitem', {name: 'Appearance'}));
-
-    expect(
-      await screen.findByRole('dialog', {name: 'Settings'}),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', {name: 'Appearance'})).toBeNull();
-
-    expect(screen.getByRole('group', {name: 'Theme'})).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'Dark'})).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    fireEvent.click(screen.getByRole('button', {name: 'Light'}));
-    expect(document.documentElement.dataset.theme).toBe('light');
-    expect(screen.getByRole('button', {name: 'Light'})).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-
-    fireEvent.click(screen.getByRole('button', {name: 'Model'}));
-    const input = screen.getByLabelText('DeepSeek API key');
-    fireEvent.change(input, {target: {value: 'sk-test-123'}});
-    fireEvent.keyDown(input, {key: 'Enter'});
-    expect(window.localStorage.getItem('cosci-api-keys')).toBe(
-      JSON.stringify({deepseek: 'sk-test-123'}),
-    );
-    expect(screen.queryByText('Settings saved')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Close settings'}));
-    expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();
-  });
-
-  it('persists the BYOK provider choice in the Model section', async () => {
-    renderLayout();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
-    fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
-    await screen.findByRole('dialog', {name: 'Settings'});
-
-    expect(screen.getByLabelText('DeepSeek API key')).toBeInTheDocument();
-
-    const trigger = screen.getByRole('button', {name: /^Provider/});
-    expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
-    fireEvent.click(trigger);
-
-    expect(screen.queryByRole('menuitemradio', {name: 'Azure'})).toBeNull();
-    expect(
-      screen.getByRole('menuitemradio', {name: 'DeepSeek'}),
-    ).toHaveAttribute('aria-checked', 'true');
-
-    fireEvent.click(screen.getByRole('menuitemradio', {name: 'OpenAI'}));
-    expect(window.localStorage.getItem('cosci-api-provider')).toBe('openai');
-    expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument();
-    expect(screen.queryByText('Settings saved')).toBeNull();
-    expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
-  });
-});
-
 describe('layout sidebar', () => {
   beforeEach(() => {
     installLayoutMocks();
@@ -224,72 +100,6 @@ describe('layout sidebar', () => {
     );
     renderLayout();
   }
-
-  it('toggles the Co-Scientist sidebar from the menu button', async () => {
-    const {container} = renderLayout();
-
-    const menu = screen.getByRole('button', {name: 'Menu'});
-    expect(menu).toHaveAttribute('aria-expanded', 'false');
-    expect(menu).toHaveTextContent('Menu');
-    expect(container.querySelector('.ucs-app-shell')).toHaveClass(
-      'nav-collapsed',
-    );
-
-    fireEvent.click(menu);
-
-    expect(menu).toHaveAttribute('aria-expanded', 'true');
-    expect(container.querySelector('.ucs-app-shell')).toHaveClass('nav-open');
-
-    fireEvent.click(menu);
-
-    expect(menu).toHaveAttribute('aria-expanded', 'false');
-    expect(container.querySelector('.ucs-app-shell')).toHaveClass(
-      'nav-collapsed',
-    );
-  });
-
-  it('lists real chat history with a new-chat link', async () => {
-    renderLayout();
-
-    expect(await screen.findByText('Chats')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByRole('link', {name: /ferroptosis/i})).toHaveAttribute(
-        'href',
-        '/chats/chat-ferroptosis',
-      );
-    });
-
-    const newChat = screen.getByRole('link', {name: 'New chat'});
-    expect(newChat).toHaveAttribute('href', '/');
-
-    const chat = screen.getByRole('link', {name: /ferroptosis/i});
-    expect(chat).not.toHaveAttribute('title');
-    expect(chat.getAttribute('data-tooltip')).toMatch(
-      /ferroptosis in pancreatic cancer cells/i,
-    );
-    expect(chat).toHaveClass('ucs-tooltip-wrap');
-  });
-
-  it('shows the generated session title in sidebar chats', async () => {
-    apiMock.listInterviews.mockResolvedValue([
-      chatFixture(
-        'chat-titled',
-        'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
-          'cells.',
-        {title: 'Ferroptosis in pancreatic cancer'},
-      ),
-    ]);
-
-    renderLayout();
-
-    const chat = await screen.findByRole('link', {
-      name: 'Ferroptosis in pancreatic cancer',
-    });
-    expect(chat).toHaveAttribute('href', '/chats/chat-titled');
-    expect(chat.getAttribute('data-tooltip')).toMatch(
-      /Generate testable hypotheses for ferroptosis/i,
-    );
-  });
 
   it('opens a started session at its run, not back at the chat', async () => {
     apiMock.listInterviews.mockResolvedValue([

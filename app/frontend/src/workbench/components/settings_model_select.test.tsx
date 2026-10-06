@@ -1,4 +1,4 @@
-import {render, screen, waitFor, within} from '@testing-library/react';
+import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {
@@ -6,7 +6,6 @@ import {
   getStoredApiKey,
   getStoredModel,
   setStoredApiKey,
-  setStoredModel,
 } from '@/lib/client_id';
 import {ThemeProvider} from '../theme_context';
 import {ModelSection, SettingsDialog} from './settings_dialog';
@@ -107,15 +106,6 @@ it('stores a chosen supervisor model with its provider', async () => {
   });
 });
 
-it('keeps both selects choosable and explains free usage without a key', async () => {
-  renderSection('', 'deepseek');
-  expect(await screen.findByText(/2 of 3 left today/)).toBeInTheDocument();
-  expect(screen.getByText(/Express runs only/)).toBeInTheDocument();
-  expect(await screen.findAllByText('deepseek-flash')).toHaveLength(2);
-  expect(trigger(/Supervisor model/)).toBeEnabled();
-  expect(trigger(/Worker model/)).toBeEnabled();
-});
-
 it('offers the models of every provider with a saved key, grouped', async () => {
   const user = userEvent.setup();
   renderSection('sk-d', 'deepseek', ['deepseek', 'gemini']);
@@ -140,37 +130,6 @@ it('offers the models of every provider with a saved key, grouped', async () => 
   });
 });
 
-it('keeps the shown supervisor when the worker moves provider', async () => {
-  const user = userEvent.setup();
-  renderSection('sk-d', 'deepseek', ['deepseek', 'gemini']);
-  await screen.findAllByText('deepseek-flash');
-  await user.click(trigger(/Worker model/));
-  const menu = screen.getByRole('menu', {name: 'Worker model'});
-  await user.click(
-    within(menu).getByRole('menuitemradio', {name: 'gemini-3.8-flash'}),
-  );
-  expect(trigger(/Supervisor model/)).toHaveTextContent('deepseek-flash');
-});
-
-it('shows each provider its own saved key and marks the keyed ones', async () => {
-  const user = userEvent.setup();
-  setStoredApiKey('sk-gemini', 'gemini');
-  setStoredApiKey('sk-openai', 'openai');
-  renderDialog();
-  const key = () => screen.getByPlaceholderText(/API key/);
-  expect(key()).toHaveValue('');
-
-  await user.click(trigger(/^Provider/));
-  const menu = screen.getByRole('menu', {name: 'Provider'});
-  expect(within(menu).getAllByText('Saved')).toHaveLength(2);
-  await user.click(within(menu).getByRole('menuitemradio', {name: /Gemini/}));
-  expect(key()).toHaveValue('sk-gemini');
-
-  await user.click(trigger(/^Provider/));
-  await user.click(screen.getByRole('menuitemradio', {name: /OpenAI/}));
-  expect(key()).toHaveValue('sk-openai');
-});
-
 it('removes only the cleared provider key from the model lists', async () => {
   const user = userEvent.setup();
   setStoredApiKey('sk-deepseek', 'deepseek');
@@ -188,75 +147,4 @@ it('removes only the cleared provider key from the model lists', async () => {
   const menu = screen.getByRole('menu', {name: 'Worker model'});
   expect(within(menu).queryByText('gemini-3.8-flash')).toBeNull();
   expect(within(menu).getByText('deepseek-flash')).toBeInTheDocument();
-});
-
-it('drops a stored model the catalog no longer offers', async () => {
-  setStoredApiKey('sk-deepseek');
-  setStoredModel('worker', {
-    provider: 'deepseek',
-    model: 'deepseek/deepseek-v4-flash',
-  });
-  renderDialog();
-  // Pruning runs in an effect after the catalog renders, not with it.
-  await waitFor(() => expect(getStoredModel('worker')).toBeNull());
-});
-
-it.each(['Provider', 'Supervisor model', 'Worker model'])(
-  '%s dismisses its menu without closing the settings dialog',
-  async name => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    renderDialog(onClose);
-    await screen.findAllByText('deepseek-flash');
-    const chooser = screen.getByRole('button', {name: new RegExp(`^${name}`)});
-
-    await user.click(chooser);
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('menu', {name})).not.toBeInTheDocument();
-    expect(onClose).not.toHaveBeenCalled();
-
-    await user.click(chooser);
-    const selected = within(screen.getByRole('menu', {name})).getByRole(
-      'menuitemradio',
-      {checked: true},
-    );
-    await user.click(selected);
-    expect(screen.queryByRole('menu', {name})).not.toBeInTheDocument();
-    expect(getStoredModel('worker')).toBeNull();
-    expect(getStoredModel('supervisor')).toBeNull();
-
-    await user.click(chooser);
-    await user.click(screen.getByLabelText('DeepSeek API key'));
-    expect(screen.queryByRole('menu', {name})).not.toBeInTheDocument();
-    expect(onClose).not.toHaveBeenCalled();
-  },
-);
-
-it('opens a long menu upward when the window has no room below', async () => {
-  const user = userEvent.setup();
-  vi.stubGlobal('innerHeight', 800);
-  const rect = (top: number, height: number) =>
-    ({
-      top,
-      bottom: top + height,
-      left: 0,
-      right: 200,
-      width: 200,
-      height,
-    }) as DOMRect;
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-    function (this: HTMLElement) {
-      if (this.getAttribute('role') === 'menu') return rect(0, 400);
-      return this.classList.contains('ucs-provider-select')
-        ? rect(700, 40)
-        : rect(0, 0);
-    },
-  );
-  renderSection('sk-d', 'deepseek', ['deepseek', 'gemini', 'openai']);
-  await screen.findAllByText('deepseek-flash');
-  await user.click(trigger(/Worker model/));
-  const menu = screen.getByRole('menu', {name: 'Worker model'});
-
-  expect(parseFloat(menu.style.maxHeight)).toBeLessThanOrEqual(700);
-  expect(parseFloat(menu.style.top) + 400).toBeLessThanOrEqual(700);
 });

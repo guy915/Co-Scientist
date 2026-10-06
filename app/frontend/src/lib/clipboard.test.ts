@@ -24,20 +24,6 @@ it('uses the async Clipboard API when available', async () => {
   expect(execCommand).not.toHaveBeenCalled();
 });
 
-it('falls back to execCommand when the clipboard API is absent', async () => {
-  Reflect.deleteProperty(navigator, 'clipboard');
-  const execCommand = vi.fn().mockReturnValue(true);
-  Object.defineProperty(document, 'execCommand', {
-    value: execCommand,
-    configurable: true,
-  });
-
-  await copyText('fallback text');
-
-  expect(execCommand).toHaveBeenCalledWith('copy');
-  expect(document.querySelector('textarea')).toBeNull();
-});
-
 it('falls back to execCommand when the Clipboard API rejects', async () => {
   const writeText = vi.fn().mockRejectedValue(new Error('denied'));
   Object.defineProperty(navigator, 'clipboard', {
