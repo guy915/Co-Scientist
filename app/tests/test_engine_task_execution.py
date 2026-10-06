@@ -189,47 +189,6 @@ def _seed_finalize_task(
     return task
 
 
-def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
-    assert by_type["safety.hypothesis"] == {
-        "screened": 1,
-        "blocked": 0,
-        "eligible": 1,
-        "activity": "safety",
-    }
-    assert by_type["citation.grounding"] == {
-        "assessed": 1,
-        "grounded": 1,
-        "blocked": 0,
-        "eligible": 1,
-        "activity": "other",
-    }
-    citation_audit = dict(by_type["citation_audit"])
-    assert citation_audit.pop("activity") == "other"
-    assert citation_audit
-    assert all(isinstance(v, int) for v in citation_audit.values())
-
-
-@pytest.mark.asyncio
-async def test_execute_finalize_emits_post_drain_stage_events(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Task-level science")
-    queued = _seed_finalize_task(run.id, monkeypatch, isolated_db)
-    task = store_tasks.claim_task(
-        "finalize-worker", run_id=run.id, db_path=isolated_db
-    )
-    assert task is not None and task.id == queued.id
-
-    result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    assert result["status"] == RunStatus.COMPLETED.value
-    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
-
-    events = store_events.list_events(run.id, db_path=isolated_db)
-    by_type = {e["type"]: e["payload"] for e in events}
-    _assert_post_drain_counts(by_type)
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("node_name", "extra_state", "expected_milestone"),

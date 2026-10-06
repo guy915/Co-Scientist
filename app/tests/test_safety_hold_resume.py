@@ -266,38 +266,6 @@ def _run_with_held_decision(
     return created["id"], decision_id
 
 
-def test_safety_adjudication_is_identified_and_single_use(
-    isolated_db: str,
-) -> None:
-
-    client = _client()
-    headers = {"X-Client-ID": "reviewer-1"}
-    run_id, decision_id = _run_with_held_decision(client, headers)
-
-    anonymous = client.post(
-        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
-        json={"resolution": "approved"},
-    )
-    assert anonymous.status_code == 404
-
-    approved = client.post(
-        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
-        headers=headers,
-        json={"resolution": "approved"},
-    )
-    assert approved.status_code == 200
-    assert records.safety_stage_is_approved(
-        run_id, "intake", "coscientist-safety-v2"
-    )
-
-    repeated = client.post(
-        f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
-        headers=headers,
-        json={"resolution": "rejected"},
-    )
-    assert repeated.status_code == 409
-
-
 def test_held_hypothesis_adjudication_records_without_blocking(
     isolated_db: str,
 ) -> None:

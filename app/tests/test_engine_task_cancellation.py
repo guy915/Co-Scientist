@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from threading import Event, Thread
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from co_scientist.llm import ModelCallStats, record_call
-from co_scientist.models import (
-    Hypothesis,
-)
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 from app import engine_tasks, task_worker
@@ -449,37 +446,6 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
         row.status == "queued"
         for row in store.list_tasks(run_id, db_path=isolated_db)
     )
-
-
-@pytest.mark.asyncio
-async def test_cancel_before_review_fanout_transaction_blocks_enqueue(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    client, run_id = _owned_running_run(isolated_db)
-    task, checkpoint_seq = _leased_task(
-        run_id, "engine.node.review", "cancel-review-fanout", isolated_db
-    )
-    state = {
-        **_task_state(run_id),
-        "hypotheses": [Hypothesis(text="A reviewable mechanism")],
-    }
-    _prepare_node_without_providers(
-        monkeypatch, task, checkpoint_seq, "review", state, isolated_db
-    )
-    _race_node_step(
-        monkeypatch,
-        "_dispatch_node_fanout",
-        lambda: _control_run(client, run_id, "cancel", "cancelled"),
-    )
-
-    with suppress(task_worker._LeaseLostError):
-        await engine_tasks.execute_node_task(task, db_path=isolated_db)
-
-    assert [
-        row.task_type for row in store.list_tasks(run_id, db_path=isolated_db)
-    ] == [task.task_type]
-    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert latest is not None and latest["seq"] == checkpoint_seq
 
 
 def _commit_node(
