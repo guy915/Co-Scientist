@@ -6,9 +6,7 @@ from evaluations.tests._coverage import Report, guard, metric, suite
 
 
 def report(covered: int, other: int = 0) -> Report:
-    modules = {"module.py": metric(covered, 1000)}
-    if other:
-        modules["other.py"] = metric(other, other)
+    modules = {"module.py": metric(covered, 1000), "other.py": metric(other, other)}
     return {"suites": {"app": suite(modules)}, "protected_modules": []}
 
 
