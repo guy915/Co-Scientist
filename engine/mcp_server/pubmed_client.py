@@ -7,17 +7,10 @@ from typing import Any
 
 from Bio import Entrez
 
-from mcp_server.entrez import (
-    entrez_call,
-    initialize_entrez,
-    read_entrez,
-    record_pilot_fetch_error,
-)
+from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.text_extraction import clean_markup
 
 logger = logging.getLogger(__name__)
-
-_MAX_TRACE_IDS = 9
 
 # Clamp the sufficiency threshold to retmax so tiny requests cannot force
 # impossible relaxation.
@@ -90,114 +83,27 @@ def relaxation_ladder(query: str, recency_years: int = 0) -> list[tuple[str, int
     return ladder
 
 
-def _relaxation_rung_type(rung_index: int, query: str, term: str, recency_years: int) -> str:
-    if rung_index == 1:
-        return "exact"
-    if term == query and recency_years == 0:
-        return "recency_dropped"
-    return "anchored" if " AND (" in term else "or"
-
-
-def _record_attempt(trace: dict[str, Any] | None, attempt: dict[str, Any] | None) -> None:
-    """Application ESearch rungs exclude hidden Biopython transport retries."""
-    if trace is not None and attempt is not None:
-        trace.setdefault("attempts", []).append(attempt)
-
-
-def _new_attempt(
-    trace: dict[str, Any] | None,
-    rung_index: int,
-    rung_type: str,
-    recency_years: int,
-    retmax: int,
-) -> dict[str, Any]:
-    return {
-        "rung_index": rung_index,
-        "rung_type": rung_type,
-        "operation": "esearch",
-        "recency_years": recency_years,
-        "retmax": retmax,
-        "sort": trace["sort"] if trace is not None else None,
-    }
-
-
-def _record_failed_attempt(
-    trace: dict[str, Any] | None,
-    attempt: dict[str, Any],
-    exc: Exception,
-) -> None:
-    attempt.update({"count": 0, "first_ids": [], "error_type": type(exc).__name__})
-    _record_attempt(trace, attempt)
-    if trace is None:
-        return
-    trace["selected"] = None
-    trace["threshold_met"] = False
-    trace["error"] = {"stage": "esearch", "type": type(exc).__name__}
-
-
-def _record_selected_rung(
-    trace: dict[str, Any] | None,
-    selected: tuple[int, str, str, list[str]] | None,
-    threshold_met: bool,
-) -> None:
-    if trace is None:
-        return
-    trace["selected"] = (
-        {
-            "rung_index": selected[0],
-            "rung_type": selected[1],
-            "count": len(selected[3]),
-            "ids": selected[3][:_MAX_TRACE_IDS],
-            "sort": trace["sort"],
-        }
-        if selected
-        else None
-    )
-    trace["threshold_met"] = threshold_met
-
-
 def search_with_relaxation(
     query: str,
     retmax: int,
     recency_years: int,
     esearch: EsearchFn,
-    trace: dict[str, Any] | None = None,
 ) -> list[str]:
     """Keep precise-rung hits when broader searches supply enough results;
     some evidence beats none.
     """
     threshold = min(MIN_RESULTS_BEFORE_RELAX, retmax)
     merged: list[str] = []
-    fallback: tuple[int, str, str] | None = None
-    for rung_index, (term, recency) in enumerate(relaxation_ladder(query, recency_years), start=1):
-        rung_type = _relaxation_rung_type(rung_index, query, term, recency)
-        attempt = _new_attempt(trace, rung_index, rung_type, recency, retmax)
-        try:
-            ids = esearch(term, retmax, recency)
-        except Exception as exc:
-            _record_failed_attempt(trace, attempt, exc)
-            raise
-        attempt.update({"count": len(ids), "first_ids": ids[:_MAX_TRACE_IDS]})
-        _record_attempt(trace, attempt)
+    for term, recency in relaxation_ladder(query, recency_years):
+        ids = esearch(term, retmax, recency)
         merged.extend(i for i in dict.fromkeys(ids) if i not in merged)
         del merged[retmax:]
         if len(ids) >= threshold:
-            _record_selected_rung(
-                trace,
-                (rung_index, rung_type, term, merged),
-                threshold_met=True,
-            )
             return merged
-        if ids and fallback is None:
-            fallback = (rung_index, rung_type, term)
-    _record_selected_rung(trace, (*fallback, merged) if fallback else None, threshold_met=False)
     return merged
 
 
-# One source of truth for the sort sent to Entrez and recorded in pilot traces.
 PUBMED_SEARCH_SORT = "pub_date"
-PUBMED_METADATA_BATCH_ENV = "COSCIENTIST_PUBMED_METADATA_BATCH"
-PUBMED_METADATA_BATCH_SIZE = 9
 
 
 initialize_entrez()
@@ -300,8 +206,7 @@ class _EntrezClient:
             related = self.entrez_read(
                 entrez_call(Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id)
             )
-        except Exception as exc:
-            record_pilot_fetch_error("elink", exc)
+        except Exception:
             logger.debug("%s -- fulltext not available in pmc", doi)
             return None
         try:
@@ -309,8 +214,7 @@ class _EntrezClient:
             if not link_sets or not link_sets[0].get("Link"):
                 return None
             return str(link_sets[0]["Link"][0]["Id"])
-        except (IndexError, KeyError, TypeError) as exc:
-            record_pilot_fetch_error("elink_parse", exc)
+        except (IndexError, KeyError, TypeError):
             logger.debug("%s -- fulltext not available in pmc", doi)
             return None
 
@@ -344,9 +248,8 @@ class _EntrezClient:
         query: str,
         retmax: int = 10,
         recency_years: int = 0,
-        trace: dict[str, Any] | None = None,
     ) -> list[str]:
-        ids = search_with_relaxation(query, retmax, recency_years, self._esearch_ids, trace)
+        ids = search_with_relaxation(query, retmax, recency_years, self._esearch_ids)
         if not ids:
             logger.warning("No results found for query: %s", query)
         return ids

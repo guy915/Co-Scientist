@@ -1,22 +1,16 @@
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app import (
     API_VERSION,
     diagnostics,
     engine_adapter,
-    ops_metrics,
 )
 from app.config import settings
 from app.notifications import email_notifications_configured
 from app.operator_access import is_operator
-from app.run_modes import (
-    DEFAULT_RUN_TIER,
-    RUN_TIER_DEFAULTS,
-)
 
 router = APIRouter()
 
@@ -44,14 +38,6 @@ class HealthResponse(BaseModel):
             "store can drive an unhealthy status (503); the rest degrade"
         ),
     )
-
-
-class ConfigResponse(BaseModel):
-    """Configuration defaults response."""
-
-    max_iterations: int
-    initial_hypotheses_count: int
-    evolution_max_count: int
 
 
 class ProbeStatus(BaseModel):
@@ -165,19 +151,8 @@ class SystemStatusResponse(BaseModel):
 
 
 @router.get("/", tags=["root"])
-async def root(request: Request) -> dict[str, str | None]:
-    """Root endpoint.
-
-    ``docs`` only points anywhere for an operator: the Swagger UI and the
-    full OpenAPI schema it links to are themselves operator-gated (see
-    ``app.main``), so advertising the path to every caller would just be a
-    dead end that also confirms this is a FastAPI service.
-    """
-    return {
-        "message": "Co-Scientist API",
-        "version": API_VERSION,
-        "docs": "/docs" if is_operator(request) else None,
-    }
+async def root() -> dict[str, str]:
+    return {"message": "Co-Scientist API", "version": API_VERSION}
 
 
 def _redact_health_check(check: HealthCheckResult, operator: bool) -> HealthCheckResult:
@@ -223,40 +198,6 @@ async def health(request: Request, response: Response) -> HealthResponse:
         model_name=settings.model_name if operator else None,
         provider=engine_adapter.select_provider(),
         checks={name: _redact_health_check(check, operator) for name, check in checks.items()},
-    )
-
-
-@router.get("/metrics", tags=["metrics"])
-async def metrics_endpoint(request: Request) -> Response:
-    """Prometheus exposition-format metrics for aggregate operator queries.
-
-    Answers "how many runs failed today", "is p95 node latency drifting",
-    "are tasks piling up" without querying SQLite by hand -- runs by
-    status, tasks by status, failed-task retry-budget exhaustion, and
-    per-task-type latency, all derived read-only from the store rather
-    than an in-process counter (see ``app.ops_metrics``). Cached for
-    ``settings.metrics_cache_ttl_seconds`` so a scrape storm costs one
-    query pass.
-
-    Operator-gated like ``/docs``: this has no product-UI consumer and
-    exposes cross-tenant aggregate counts, so a non-operator caller gets
-    a 404 rather than a 401/403, which would confirm the route exists.
-    See ``is_operator``.
-    """
-    if not is_operator(request):
-        return JSONResponse({"detail": "not found"}, status_code=404)
-    text = ops_metrics.metrics_text_cached()
-    return Response(content=text, media_type=ops_metrics.CONTENT_TYPE_LATEST)
-
-
-@router.get("/config", response_model=ConfigResponse, tags=["config"])
-async def get_config() -> ConfigResponse:
-    """Get default run configuration values (standard tier)."""
-    defaults = RUN_TIER_DEFAULTS[DEFAULT_RUN_TIER]
-    return ConfigResponse(
-        max_iterations=defaults["max_iterations"],
-        initial_hypotheses_count=defaults["initial_hypotheses_count"],
-        evolution_max_count=defaults["evolution_max_count"],
     )
 
 

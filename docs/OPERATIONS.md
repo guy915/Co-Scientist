@@ -196,7 +196,7 @@ Interrupted commands may already have side effects, so aborted output must not
 claim the command never ran.
 
 Workspace spill writes run outside confinement and must resist symlinked or
-missing metadata paths; bubblewrap skips absent `--ro-bind-try` paths. Redact
+missing metadata paths. Redact
 stdout before model transcripts and drop the output if a secret still survives.
 
 ## Settlement and structured answers
@@ -299,17 +299,13 @@ report survives and no ordinary work is pending.
 session in required auth mode). It accepts the five fixed categories, a trimmed
 message (8,000 characters), session diagnostic export (100,000 characters), URL
 (2,048 characters) and optional reported run ID (128 characters). The run ID is
-context only: it never grants access to that run or fetches its artifacts. Owned
-feedback is included in the caller's account export.
+context only: it never grants access to that run or fetches its artifacts.
 
-Maintainers read `GET /api/feedback/admin?limit=50&offset=0` with
-`X-Logs-Token: <LOGS_ADMIN_TOKEN>`. Set the existing token on the API deployment.
-An unset or incorrect token always denies access, including localhost and
-forwarded requests; this route does not require a separate researcher session.
-This implementation uses the admin store rather than SMTP delivery.
+Maintainers read submissions from the `feedback` table in the SQLite store; there
+is no HTTP read route and no SMTP delivery.
 
 The SQLite store keeps the newest 200 submissions within a 10 MiB UTF-8 payload
-budget. Reads hide records older than 30 days; submissions prune them physically.
+budget. Submissions prune records older than 30 days.
 Admission limits are 5 per owner, 20 per connecting host and 100 globally per
 rolling minute, retained independently of row eviction and process restarts.
 Excess requests receive HTTP 429 with `Retry-After: 60`. The connecting host is

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from typing import Literal, TypedDict, cast
+from typing import Literal
 
 from app.store import db
 
@@ -28,20 +28,6 @@ class Submission:
     diagnostics: str
     url: str
     run_id: str | None = None
-
-
-class FeedbackRow(TypedDict):
-    id: str
-    client_id: str
-    category: Category
-    message: str
-    diagnostics: str
-    url: str
-    run_id: str | None
-    created_at: float
-
-
-_COLUMNS = "id,client_id,category,message,diagnostics,url,run_id,created_at"
 
 
 def submit(owner: str, host_key: str, submission: Submission) -> str:
@@ -106,20 +92,3 @@ def submit(owner: str, host_key: str, submission: Submission) -> str:
             (MAX_ROWS, MAX_BYTES),
         )
     return identity
-
-
-def list_feedback(
-    *, owner: str | None = None, limit: int = 50, offset: int = 0
-) -> list[FeedbackRow]:
-    predicate = "created_at>=?"
-    params: list[str | int | float] = [db._now() - RETENTION_SECONDS]
-    if owner is not None:
-        predicate += " AND client_id=?"
-        params.append(owner)
-    with db.connect() as conn:
-        rows = conn.execute(
-            f"SELECT {_COLUMNS} FROM feedback WHERE {predicate} "
-            "ORDER BY created_at DESC,rowid DESC LIMIT ? OFFSET ?",
-            (*params, limit, offset),
-        ).fetchall()
-    return [cast(FeedbackRow, dict(row)) for row in rows]
