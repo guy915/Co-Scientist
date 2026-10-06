@@ -123,8 +123,8 @@ measure again, not a finished diagnosis.
 
 ## Lanes
 
-Two sessions on one account; `docs/CAMPAIGNS.md` sets the schedule, who edits
-what and the merge rules:
+One lead session runs both lanes as parallel subagent streams;
+`docs/CAMPAIGNS.md` sets the schedule, who edits what and the merge rules:
 
 1. **Delivery lane,** as soon as its account is ready: the audit, which is
    read-only; CI and delivery (`.github/`, `Makefile`, Dockerfiles, Railway and

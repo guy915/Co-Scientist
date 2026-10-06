@@ -1,6 +1,6 @@
 # Parallel campaigns
 
-Three campaigns run at the same time, one per Claude account, so v0 finishes
+Three campaigns run at the same time from two Claude accounts, so v0 finishes
 in days rather than weeks: the production cuts (`docs/PROD-CUTS.md`), the
 production shrink (`docs/PROD-SHRINK.md`) and the optimization campaign
 (`docs/OPTIMIZATION.md`). Each plan keeps its own scope and rules. This file
@@ -11,17 +11,30 @@ sets the schedule, who edits what and when, and how the campaigns coordinate.
 
 ## Accounts
 
-| Account | Campaign | Sessions |
-|---|---|---|
-| Main | Production cuts | One lead |
-| Second | Production shrink | One lead |
-| Third | Optimization | Two leads: the model lane and the delivery lane |
+| Account | Campaign | Session | Usage share |
+|---|---|---|---|
+| Main | Production shrink | One lead | About 40% |
+| Second | Production cuts | One lead | About 60%, with optimization |
+| Second | Optimization | One lead, running the delivery and model lanes as parallel subagent streams | |
+
+The cuts gate the other two campaigns, so they come first on the second
+account: when it nears its usage limit, the optimization lead runs fewer
+subagents before the cuts lead does.
 
 Each lead plans, reviews and merges. Subagents implement, each on its own
 branch (see Sessions and usage). To finish fast, keep three to five
 subagents busy whenever independent work is ready, and keep working
-around the clock. When an account reaches its usage limit, its campaign
-pauses until the reset; its open PRs keep their claims.
+around the clock.
+
+**Pace to the usage limit.** Each account has a rolling 5-hour usage limit,
+and no one watches the sessions overnight, so a session that hits it can sit
+idle for days. Aim to use most of each window without reaching it:
+
+- Run fewer subagents when a window is filling faster than it resets.
+- Keep a recurring check-in in your own session (every two hours) that
+  resumes the campaign from the board and the merged PR history, so a stall
+  ends at the next reset. Remove it when your campaign is done.
+- Open PRs keep their claims while a session waits.
 
 ## Schedule
 
@@ -38,6 +51,8 @@ If day 4 slips, typed models move to after v0 instead of delaying the launch.
 ### Early starts
 
 - **Benchmark baseline:** as soon as the `Benchmark` workflow has its secret.
+- **CI speed first among the fixes:** after its audit, the optimization
+  lead's first fix makes CI faster, because every campaign waits on CI.
 - **Optimization delivery lane:** as soon as its account is ready. The audit
   is read-only, and CI, the `Makefile`, Dockerfiles and new repository files
   do not touch tests.
@@ -95,9 +110,11 @@ or park the ones they have open.
   on its first day and keeps its body current: open PRs, claims outside the
   ownership above, next PRs, windows and blockers. The owner follows progress
   there.
-- **Before each new PR,** read every board and the open PRs with their files
-  (`gh pr list`, `gh pr diff --name-only`). Do not edit a file that another
-  campaign's open PR changes.
+- **Before each new PR,** read every board and the open PRs with their
+  changed files. Do not edit a file that another campaign's open PR changes.
+- **Tools.** Sessions reach GitHub through the built-in GitHub tools (pull
+  requests, merges, issues, workflow runs), not the `gh` CLI, which has no
+  token in the cloud environment.
 - **Claims.** An open PR claims its files. Open the PR as soon as the branch
   has its first commit; a draft is fine.
 - Never edit another campaign's PR, branch or board.
@@ -106,18 +123,18 @@ or park the ones they have open.
 
 - **Merging.** The owner authorized bypassing `main`'s review requirement for
   these campaigns on 6 October 2026, which overrides the branch-protection
-  rule in AGENTS.md: squash-merge with
-  `gh pr merge --squash --delete-branch --admin` once CI is green on the
-  latest commit.
+  rule in AGENTS.md: squash-merge with the GitHub merge tool once CI is green
+  on the latest commit. Merged branches are cleaned up by the manual
+  `Prune branches` workflow.
 - **Fresh base.** Before merging, if `main` changed files in the same folders
   since the PR's last CI run, merge `main` and wait for CI again.
 - **Red `main`.** The campaign whose merge broke it fixes or reverts within
   30 minutes. Nobody merges into that folder until `main` is green again.
 - **Deploys.** Every merge to `main` that touches deployed code deploys
-  production. After it, confirm the GitHub deployment statuses for the merge
-  commit (`gh api`), `https://api.ai-co-scientist.com/health` and
-  `https://ai-co-scientist.com/`. If one is unhealthy, ship a revert PR first
-  and resume once production is healthy.
+  production. After it, confirm the GitHub deployment statuses and check runs
+  for the merge commit; the cloud environment cannot reach the production
+  domains. If a deployment failed, ship a revert PR first and resume once
+  production is healthy.
 - **Git.** Follow AGENTS.md. Keep every commit additive: make follow-up fixes
   in new commits. Run the app and engine pytest suites one after the other,
   and record each gate's exit status on its own line.
@@ -130,9 +147,10 @@ or park the ones they have open.
 ## Sessions and usage
 
 - Each lead runs at high effort; it plans, reviews and merges.
-- Subagents implement, each on its own branch with disjoint files. Mechanical
-  work runs on the faster, cheaper model; risky levers and model-usage changes
-  run on the strongest model or in the lead itself. Each subagent gets these
+- Subagents implement, each on its own branch with disjoint files. Every
+  subagent runs on Sonnet, never another model; for risky levers and
+  model-usage changes the lead gives small, precise tasks or does the work
+  itself. Each subagent gets these
   rules and confirms its files are on disk before it reports.
 - Pick the number of subagents from the independent work ready and the
   account's remaining usage, so the campaign never stalls on the usage limit.
@@ -145,12 +163,10 @@ or park the ones they have open.
 - **Now:** add the `OPENROUTER_API_KEY` repository secret for the `Benchmark`
   workflow. While benchmark runs are queued, avoid large runs in the app: they
   share the free daily allowance.
-- **Before day 1:** set up the two new accounts with the same cloud
-  environment: internet access to GitHub, the production domains and the
-  package registries; Python 3.12, Node.js 22.13+ and Bun 1.3.14 with
-  `make setup`; and a GitHub token with admin rights on the repository and the
-  `repo` and `workflow` scopes, so `gh` can push, open PRs and merge with
-  `--admin`.
+- **Before day 1:** connect the second account to GitHub with access to the
+  repository, and give it a cloud environment with the default network access
+  (GitHub and the package registries). Each session runs `make setup` itself.
+  No skills, connectors or plugins are needed.
 - **During the campaigns:** run the legacy-data migration on production when
   the cuts ask for it. Confirm Railway watch-path changes for the engine move,
   and delete retired variables. Create the monitoring accounts the
