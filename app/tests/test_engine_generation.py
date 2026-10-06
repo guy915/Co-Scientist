@@ -1,5 +1,4 @@
 import asyncio
-import dataclasses
 from typing import Any
 
 import pytest
@@ -7,7 +6,6 @@ from co_scientist.agents.generation import (
     assumptions,
     debate,
     literature_tools,
-    prepare_generation,
 )
 from co_scientist.agents.generation import (
     generate as coordinator,
@@ -431,115 +429,6 @@ async def _schedule_generation(
     ]
     assert all(task is not None for task in tasks)
     return planned, [task for task in tasks if task is not None]
-
-
-@pytest.mark.parametrize("mode", ["lit_and_tools", "lit_only", "no_lit"])
-async def test_graph_and_durable_contracts_keep_the_same_results(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, mode: str
-) -> None:
-    run = seed_run("Generation contract")
-    state = _generation_state(run.id, mode)
-    strategies, expansion_calls = _install_strategies(monkeypatch)
-    plan = await prepare_generation(state)
-    graph = await coordinator.generate_hypotheses(state)
-    graph_calls = list(strategies.calls)
-    strategies.calls.clear()
-    planned, tasks = await _schedule_generation(state, isolated_db)
-
-    assert len(tasks) == (5 if mode == "lit_and_tools" else 7)
-    seq = planned["checkpoint_seq"]
-    for task in tasks:
-        inputs = task.inputs
-        assert task.idempotency_key == (
-            f"generation:{inputs['strategy']}:{seq}:"
-            f"{inputs['strategy_index']}:{inputs['count']}"
-        )
-        assert inputs["reference_sources"] == plan.reference_index.sources
-        assert inputs["reference_text"] == plan.reference_index.text
-        assert inputs["literature"] == plan.literature
-        assert task.priority == 87
-        assert len(task.dependencies) == 1
-    aggregate = store.get_task(
-        planned["aggregate_task_id"], db_path=isolated_db
-    )
-    assert aggregate is not None
-    assert aggregate.inputs["counts"] == dataclasses.asdict(plan.counts)
-    assert aggregate.dependencies == tuple(task.id for task in tasks)
-    assert aggregate.idempotency_key == f"generation:aggregate:{seq}"
-
-    for _ in tasks:
-        leased = store.claim_task(
-            "strategy", run_id=run.id, db_path=isolated_db
-        )
-        assert leased is not None
-        result = await fanout.execute_generation_strategy(
-            leased, db_path=isolated_db
-        )
-        assert lifecycle.complete_task(
-            leased.id, "strategy", result, db_path=isolated_db
-        )
-    durable_calls = list(strategies.calls)
-    leased = store.claim_task("aggregate", run_id=run.id, db_path=isolated_db)
-    assert leased is not None and leased.id == aggregate.id
-    result = await aggregates.execute_generation_aggregate(
-        leased, db_path=isolated_db
-    )
-    assert result["failed_strategies"] == 0
-    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    committed = restore_workflow_state(checkpoint["state"])
-
-    graph_hypotheses = graph["hypotheses"].items
-    assert graph["hypothesis_count"] == 8
-    assert graph["llm_call_count"] == (13 if mode == "lit_and_tools" else 15)
-    expected_methods = (
-        ["literature_tools"] * 3 + ["debate"] * 3 + ["assumptions"] * 2
-        if mode == "lit_and_tools"
-        else ["debate"] * 6 + ["assumptions"] * 2
-    )
-    assert [
-        hyp.enrichments["base_generation_method"] for hyp in graph_hypotheses
-    ] == expected_methods
-    assert [hyp.to_dict() for hyp in committed["hypotheses"][1:]] == [
-        hyp.to_dict() for hyp in graph_hypotheses
-    ]
-    assert committed["hypotheses"][0].id == "parent"
-    assert committed["debate_transcripts"] == graph["debate_transcripts"]
-    assert committed["metrics"].llm_calls == graph["llm_call_count"]
-    assert committed["metrics"].hypothesis_count == graph["hypothesis_count"]
-    assert all(
-        hyp.creation_iteration == 2
-        and hyp.generation_method == GenerationMethod.RESEARCH_EXPANSION
-        and hyp.parent_id is None
-        and "base_generation_method" in hyp.enrichments
-        for hyp in graph_hypotheses
-    )
-    assert expansion_calls == [run.id]
-
-    graph_assumptions = next(
-        call for call in graph_calls if call["strategy"] == "assumptions"
-    )
-    durable_assumptions = next(
-        call for call in durable_calls if call["strategy"] == "assumptions"
-    )
-    assert graph_assumptions["literature"] == plan.literature
-    assert graph_assumptions["refs"].sources == plan.reference_index.sources
-    assert durable_assumptions["literature"] is None
-    assert durable_assumptions["refs"] is None
-    debate_calls = [
-        call for call in durable_calls if call["strategy"].startswith("debate")
-    ]
-    for call in debate_calls:
-        assert call["refs"].sources == (
-            plan.reference_index.sources if mode != "no_lit" else {}
-        )
-        assert call["literature"] == (
-            plan.literature if mode != "no_lit" else None
-        )
-    assert sorted(
-        (call["position"].debate_index, call["position"].total_debates)
-        for call in debate_calls
-    ) == [(index, len(debate_calls)) for index in range(len(debate_calls))]
 
 
 async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(

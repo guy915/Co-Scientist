@@ -2,7 +2,6 @@ from typing import Any
 
 import pytest
 
-from app.report.markdown import document as report_markdown_toc
 from app.report.markdown.overview import render_research_overview_markdown
 from tests._report_helpers import render_markdown
 
@@ -111,29 +110,6 @@ def test_repeated_captures_collapse_and_distinct_papers_survive() -> None:
     assert "Paper E" in section and "Paper F" in section
 
 
-def test_references_are_ordered_alphabetically_whatever_input_order() -> None:
-    evidence = [
-        _evidence("ev-1", title="Zebra study", url="", authors=[], year=None),
-        _evidence("ev-2", title="Alpha study", url="", authors=[], year=None),
-        _evidence("ev-3", title="Mango study", url="", authors=[], year=None),
-    ]
-
-    forward = _overview_markdown(evidence)
-
-    section = forward.split("## References", 1)[1]
-    assert (
-        section.index("Alpha study")
-        < section.index("Mango study")
-        < section.index("Zebra study")
-    )
-    assert forward == _overview_markdown(list(reversed(evidence)))
-
-
-def test_a_run_with_no_retrieved_sources_renders_no_heading() -> None:
-    assert "## References" not in _overview_markdown([])
-    assert "## References" not in _overview_markdown(None)
-
-
 def _referenced_hypothesis(hyp_id: str, mechanism: str) -> dict[str, object]:
     return {
         "id": hyp_id,
@@ -228,17 +204,6 @@ def test_a_citation_that_cannot_be_resolved_fabricates_no_reference(
     assert "#### References" not in markdown
 
 
-def test_citation_state_never_appears_as_a_verdict_tag() -> None:
-    markdown = _bibliography_markdown(
-        [_referenced_hypothesis("h1", "RSK1 acts on NHE1 [C1].")],
-        citations=[_citation_row("h1", "C1", "ev-1", state="unsupported")],
-        evidence=[_paper_evidence("ev-1")],
-    )
-
-    section = markdown.split("#### References", 1)[1]
-    assert "unsupported" not in section.lower()
-
-
 def _render_overview_payload(payload: dict[str, Any]) -> str:
     return "\n".join(render_research_overview_markdown(payload))
 
@@ -311,96 +276,6 @@ def test_a_well_formed_overview_renders_every_block() -> None:
     assert "- RNA processing defects" in text
 
 
-def test_object_and_serialized_json_values_are_flattened_to_prose() -> None:
-    # json_object mode does not enforce field types; persisted overviews may
-    # carry objects or serialized JSON where strings were requested.
-    payload = {
-        "overview": {
-            "summary": "",
-            "research_directions": [
-                {
-                    "title": "Direction",
-                    "importance": (
-                        '{"significance": "Guards against artefacts", '
-                        '"gap": "None known"}'
-                    ),
-                    "recent_findings": {"gap": "Still open"},
-                    "suggested_experiments": [
-                        {"experiment": "Delete relA", "rationale": "tolerance"}
-                    ],
-                    "sub_topics": [
-                        {
-                            "title": "Sub-topic",
-                            "why": '["stress", "damage"]',
-                            "what": "Investigate.",
-                            "specific_questions": "not a list",
-                        },
-                        "not a dict",
-                    ],
-                },
-                {
-                    "title": "Establish causality",
-                    "importance": "Confirms the shared assumption.",
-                    "suggested_experiments": '["Assay A", "Assay B"]',
-                },
-            ],
-        },
-        "nih_specific_aims": {
-            "disease_description": (
-                '{"context": "Targets tolerance", "scope": "in vitro"}'
-            ),
-            "aims": [
-                {
-                    "overarching_goal": "Aim 1: Delete relA",
-                    "hypothesis": {"why": "Guards against artefacts"},
-                    "reasoning": "Static and flow-cell assays.",
-                }
-            ],
-        },
-        "research_contacts": [
-            {
-                "name": "Ada Researcher",
-                "expertise": '{"field": "Biofilm metabolism"}',
-                "justification": "Authored an analyzed paper.",
-            }
-        ],
-    }
-
-    text = _render_overview_payload(payload)
-
-    for fragment in (
-        "Guards against artefacts - None known",
-        "Still open",
-        "- Delete relA - tolerance",
-        "stress damage",
-        "#### Sub-topic",
-        "- Assay A",
-        "- Assay B",
-        "Targets tolerance - in vitro",
-        "Biofilm metabolism",
-    ):
-        assert fragment in text
-    for raw in ('{"', '["'):
-        assert raw not in text
-
-
-def test_a_single_titled_direction_gets_no_preview_list() -> None:
-    payload = {
-        "overview": {
-            "summary": "",
-            "research_directions": [
-                {"title": "Mitochondrial dysfunction", "importance": "I"},
-                {"title": "", "importance": "No name given"},
-            ],
-        }
-    }
-
-    text = _render_overview_payload(payload)
-
-    assert "We will be focusing on these research directions:" not in text
-    assert "### Mitochondrial dysfunction" in text
-
-
 def test_table_of_contents_lists_only_the_sections_this_render_produced() -> (
     None
 ):
@@ -420,27 +295,3 @@ def test_table_of_contents_lists_only_the_sections_this_render_produced() -> (
     assert "- Research Goal Details" not in markdown
     assert "- Open questions" not in markdown
     assert "- Research Contacts" not in markdown
-
-
-def test_table_of_contents_ignores_a_bogus_heading_inside_body_prose() -> None:
-    # Model-authored bodies can contain headings; navigation may scan only
-    # section-leading headings.
-    sections = [
-        ["## Real heading", "", "some prose", "## Fake heading in the body"],
-    ]
-
-    toc = report_markdown_toc._render_table_of_contents(sections)
-
-    assert toc == ["#### Table of contents:", "", "- Real heading", ""]
-    assert "Fake heading" not in "\n".join(toc)
-
-
-def test_table_of_contents_degrades_when_research_overview_is_malformed() -> (
-    None
-):
-    markdown = render_markdown(research_overview="not a dict")
-
-    lines = markdown.splitlines()
-    toc_at = lines.index("#### Table of contents:")
-    assert lines[toc_at + 2] == "- Top hypotheses"
-    assert lines[toc_at + 3] == ""

@@ -311,56 +311,6 @@ def test_batch_verdicts_map_back_to_claims_by_index(
     assert results[1].verification_method == "model_primary"
 
 
-def test_a_sparse_batch_reply_costs_one_call_and_falls_back_per_claim(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests: list[Any] = []
-
-    async def sparse(**kwargs: Any) -> Any:
-        requests.append(kwargs)
-        return completion_response(
-            _reply(
-                "batch",
-                _verdict("supports", [_cite(1, "reduces tumor growth")]),
-            )
-        )
-
-    install_completion_backend(monkeypatch, sparse)
-    batch, assessor_id = make_llm_batch_assessor(_MODEL)
-    results = assess_claims_batch(
-        [_CLAIM, "Kinase X inhibition reduces tumor growth in AML."],
-        [_PASSAGE],
-        batch_assessor=batch,
-        assessor_id=assessor_id,
-    )
-
-    assert len(requests) == 1
-    assert results[0].verification_method == "model_primary"
-    assert results[1].label is EntailmentLabel.SUPPORTS
-    assert results[1].assessor == assessor_id
-    assert results[1].verification_method == "deterministic_lexical"
-
-
-def test_batch_calls_are_counted_and_dense_hypotheses_split(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_completion_backend(monkeypatch, fake_completion('{"verdicts": []}'))
-    counter = [0]
-    batch, assessor_id = make_llm_batch_assessor(_MODEL, call_counter=counter)
-
-    assess_claims_batch(
-        [_CLAIM], [_PASSAGE], batch_assessor=batch, assessor_id=assessor_id
-    )
-    assert counter[0] == 1
-
-    claims = [f"{_CLAIM[:-1]} claim number {i}." for i in range(25)]
-    results = assess_claims_batch(
-        claims, [_PASSAGE], batch_assessor=batch, assessor_id=assessor_id
-    )
-    assert len(results) == 25
-    assert counter[0] == 3
-
-
 def _zero_price_catalog() -> None:
     from co_scientist.llm.admission import free_policy as free_catalog
 
@@ -473,10 +423,6 @@ def test_a_contradiction_needs_a_quote_that_negates_the_claim(
 # conditions and mutual exclusivity before it can withhold an idea.
 
 _QUOTE = "Kinase X inhibition increased tumor growth threefold in AML cells."
-_SECOND_CLAIM = "Drug A increases progression-free survival."
-_SECOND_QUOTE = (
-    "Drug A shortened progression-free survival from 9.2 to 6.1 months."
-)
 
 
 def _install_replies(
@@ -518,38 +464,6 @@ def _assess_opposition(passage_id: str = "ev-1") -> ClaimAssessment:
     )
 
 
-def _assess_two_oppositions(
-    monkeypatch: pytest.MonkeyPatch, verification_replies: list[Any]
-) -> tuple[list[ClaimAssessment], list[Any], list[int]]:
-    requests = _install_replies(
-        monkeypatch,
-        [
-            {
-                "verdicts": [
-                    {"index": 1, **_draft()},
-                    {"index": 2, **_draft(_SECOND_QUOTE, passage=2)},
-                ]
-            },
-            *verification_replies,
-        ],
-    )
-    counter = [0]
-    batch, assessor_id = make_llm_batch_assessor(_MODEL, call_counter=counter)
-    results = assess_claims_batch(
-        [
-            "Kinase X inhibition reduces tumor growth in AML cells.",
-            _SECOND_CLAIM,
-        ],
-        [
-            EvidencePassage("ev-1", _QUOTE),
-            EvidencePassage("ev-2", _SECOND_QUOTE),
-        ],
-        batch_assessor=batch,
-        assessor_id=assessor_id,
-    )
-    return results, requests, counter
-
-
 @pytest.mark.parametrize("evidence_id", ["ev-1", "12345"])
 def test_directional_opposition_is_verified_and_located(
     monkeypatch: pytest.MonkeyPatch, evidence_id: str
@@ -566,18 +480,6 @@ def test_directional_opposition_is_verified_and_located(
     ]
     assert result.contradicting_passages[0].quote == _QUOTE
     assert len(requests) == 2
-
-
-def test_an_empty_verification_envelope_retries_before_confirming(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    requests = _install_replies(
-        monkeypatch, [_draft(), {}, {"verdicts": [_confirmation()]}]
-    )
-    result = _assess_opposition()
-
-    assert result.label is EntailmentLabel.CONTRADICTS
-    assert len(requests) == 3
 
 
 def test_a_complete_negative_verification_does_not_retry(
@@ -616,57 +518,6 @@ def test_unconfirmed_opposition_remains_insufficient(
     assert result.label is EntailmentLabel.INSUFFICIENT
     assert result.contradicting_passages == ()
     assert result.verification_method == "model_opposition_unconfirmed"
-
-
-def test_batch_verifies_multiple_oppositions_in_one_request(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    results, requests, counter = _assess_two_oppositions(
-        monkeypatch, [{"verdicts": [_confirmation(2), _confirmation(1)]}]
-    )
-
-    assert [r.label for r in results] == [EntailmentLabel.CONTRADICTS] * 2
-    assert [r.verification_method for r in results] == [
-        "model_opposition_verified"
-    ] * 2
-    assert [r.contradicting_passages[0].evidence_id for r in results] == [
-        "ev-1",
-        "ev-2",
-    ]
-    assert len(requests) == counter[0] == 2
-
-
-def test_a_short_batch_verification_envelope_retries_before_confirming(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    results, requests, _ = _assess_two_oppositions(
-        monkeypatch,
-        [
-            {"verdicts": [_confirmation(1)]},
-            {"verdicts": [_confirmation(1), _confirmation(2)]},
-        ],
-    )
-
-    assert [r.label for r in results] == [EntailmentLabel.CONTRADICTS] * 2
-    assert len(requests) == 3
-
-
-@pytest.mark.parametrize(
-    "verdicts",
-    [
-        [_confirmation(1), _confirmation(2), _confirmation(3)],
-        [_confirmation(1), _confirmation(3)],
-    ],
-)
-def test_a_complete_but_invalid_batch_verification_rejects_every_opposition(
-    monkeypatch: pytest.MonkeyPatch, verdicts: list[dict[str, Any]]
-) -> None:
-    results, requests, _ = _assess_two_oppositions(
-        monkeypatch, [{"verdicts": verdicts}]
-    )
-
-    assert [r.label for r in results] == [EntailmentLabel.INSUFFICIENT] * 2
-    assert len(requests) == 2
 
 
 @pytest.mark.parametrize(

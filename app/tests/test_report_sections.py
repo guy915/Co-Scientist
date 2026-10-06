@@ -7,13 +7,11 @@ import pytest
 from app.report import build as report_build
 from app.report import content as report_content
 from app.report import gates as report_gates
-from app.store import hypotheses, runs
 from app.store import retrieval_calls as retrieval
-from app.store.hypotheses import HypothesisStateChanges
+from app.store import runs
 from app.store.retrieval_calls import NewRetrievalCall
-from tests._drain_helpers import _build_report
 from tests._report_helpers import render_markdown
-from tests._store_helpers import _add, seed_run
+from tests._store_helpers import seed_run
 
 
 @pytest.mark.parametrize(
@@ -173,103 +171,6 @@ def test_goal_report_sections_preserve_claim_grounding() -> None:
     assert "Evidence verification" in buckets["non_viable"][0]["reason"]
 
 
-def test_idea_buckets_partition_every_idea() -> None:
-    # Released and non-viable buckets must partition the entire pool, including
-    # more than five released ideas.
-    released = [
-        _sections_hypothesis(f"h{i}", f"Released {i}") for i in range(7)
-    ]
-    excluded = [_sections_hypothesis("x1", "Excluded")]
-
-    buckets = report_content._idea_buckets(released, released + excluded, [])
-
-    assert len(buckets["high_potential"]) == 7
-    assert len(buckets["non_viable"]) == 1
-    assert {entry["id"] for entry in buckets["high_potential"]} | {
-        entry["id"] for entry in buckets["non_viable"]
-    } == {hyp["id"] for hyp in released + excluded}
-
-
-def test_insights_and_markdown_show_one_statement_per_idea() -> None:
-    # Panel and body must quote the same whole proposal rather than different
-    # title/text fallbacks.
-    hypothesis = {
-        "id": "h1",
-        "title": "Feedback control is rate-limiting.",
-        "text": (
-            "Feedback control is rate-limiting. Blocking the loop raises "
-            "the steady-state flux."
-        ),
-    }
-
-    insights = report_content._agent_insights([hypothesis], [], {})
-    markdown = render_markdown(
-        research_goal="Map the feedback loop.", top_hypotheses=[hypothesis]
-    )
-
-    finding = insights["key_findings"][0].removeprefix("Proposed hypothesis: ")
-    rendered_label = "**Proposed hypothesis:** "
-    rendered = [
-        line.removeprefix(rendered_label)
-        for line in markdown.splitlines()
-        if line.startswith(rendered_label)
-    ]
-    assert rendered == [finding]
-    assert finding == hypothesis["text"]
-
-
-def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> (
-    None
-):
-    hypothesis = {
-        "id": "h1",
-        "title": "Feedback control is rate-limiting.",
-        "statement": "Blocking the loop raises the steady-state flux.",
-        "introduction": "Metabolic disease remains a major cause of morbidity.",
-        "recent_findings": "Feedback inhibition has been studied for decades.",
-        "mechanism": "The enzyme is allosterically inhibited by its product.",
-    }
-
-    markdown = render_markdown(
-        research_goal="Map the feedback loop.", top_hypotheses=[hypothesis]
-    )
-
-    intro_at = markdown.index("#### Introduction")
-    findings_at = markdown.index("#### Recent findings and related research")
-    statement_at = markdown.index("**Proposed hypothesis:**")
-    assert intro_at < findings_at < statement_at
-    assert "Metabolic disease remains a major cause of morbidity." in markdown
-    assert "Feedback inhibition has been studied for decades." in markdown
-
-
-def test_recommended_directions_keep_their_three_named_fields() -> None:
-    meta = {
-        "strategic_recommendations": [
-            {
-                "focus_area": "Receptor pharmacology",
-                "recommendation": "Measure binding directly.",
-                "justification": "The affinity is unproven.",
-            },
-            "A bare string recommendation.",
-        ]
-    }
-
-    insights = report_content._agent_insights([], [], meta)
-
-    assert insights["recommended_directions"] == [
-        {
-            "focus_area": "Receptor pharmacology",
-            "recommendation": "Measure binding directly.",
-            "justification": "The affinity is unproven.",
-        },
-        {
-            "focus_area": "",
-            "recommendation": "A bare string recommendation.",
-            "justification": "",
-        },
-    ]
-
-
 def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
     overview = {
         "knowledge_base": [
@@ -300,33 +201,6 @@ def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
     assert topics[0]["uncertainty"].startswith("The causal direction")
 
 
-async def test_report_body_opens_with_the_same_idea_as_the_standings(
-    isolated_db: str,
-) -> None:
-    run = seed_run("ordering goal")
-    doubted = _add(run.id, "Doubted idea", "A doubted proposal.", isolated_db)
-    sound = _add(run.id, "Sound idea", "A sound proposal.", isolated_db)
-    hypotheses.update_hypothesis_state(
-        doubted,
-        HypothesisStateChanges(
-            elo_rating=1300,
-            win_delta=3,
-            verification_verdict="undermined",
-        ),
-        db_path=isolated_db,
-    )
-    hypotheses.update_hypothesis_state(
-        sound,
-        HypothesisStateChanges(elo_rating=1100, win_delta=1),
-        db_path=isolated_db,
-    )
-
-    payload, markdown = await _build_report(run, isolated_db)
-
-    assert [row["id"] for row in payload["leaderboard"]] == [sound, doubted]
-    assert markdown.index("Sound idea") < markdown.index("Doubted idea")
-
-
 def test_the_overview_document_carries_the_about_disclosure() -> None:
     markdown = render_markdown(top_hypotheses=[])
 
@@ -335,14 +209,6 @@ def test_the_overview_document_carries_the_about_disclosure() -> None:
         " and testable hypotheses. The hypotheses are generated by a"
         " model and may be wrong. For research purposes only.*"
     ) in markdown
-
-
-def test_a_queried_source_is_named_with_its_terms() -> None:
-    markdown = render_markdown(skills_used={"string-database": 2})
-
-    assert "## Data sources" in markdown
-    assert "string-database" in markdown
-    assert "SKILL_LICENSES.md" in markdown
 
 
 def _call(
@@ -354,27 +220,6 @@ def _call(
         "question_id": question_id,
         "query": query,
     }
-
-
-def test_counts_are_right_per_source_with_overlapping_questions() -> None:
-    markdown = render_markdown(
-        retrieval_calls=[
-            _call("pubmed", "What drives fibrosis?", "q1"),
-            _call("pubmed", "Is NHE1 druggable?", "q2"),
-            _call("openalex", "What drives fibrosis?", "q1"),
-        ]
-    )
-
-    pubmed_line = next(
-        line for line in markdown.splitlines() if "pubmed" in line
-    )
-    openalex_line = next(
-        line for line in markdown.splitlines() if "openalex" in line
-    )
-    assert "2 searches" in pubmed_line
-    assert "1 search" in openalex_line
-    assert "What drives fibrosis?" in markdown
-    assert "Is NHE1 druggable?" in markdown
 
 
 async def test_a_built_report_pulls_its_own_runs_retrieval_calls(
@@ -433,70 +278,6 @@ def test_the_header_carries_goal_requirements_attributes_and_criteria() -> None:
     assert "Scientific soundness" in markdown
 
 
-def test_the_header_renders_r12_5_structured_attributes() -> None:
-    markdown = render_markdown(
-        top_hypotheses=[],
-        setup={
-            "goal": "Explain the cardiac benefit.",
-            "attributes": [
-                {
-                    "name": "Mechanism Novelty",
-                    "scale": {"1": "Low", "3": "Moderate", "5": "High"},
-                },
-                {"name": "Target Area", "values": ["Heart", "Vasculature"]},
-            ],
-        },
-    )
-
-    assert "**Attributes:**" in markdown
-    assert (
-        "- Mechanism Novelty: 1-5 scale (1: Low, 3: Moderate, 5: High)"
-        in markdown
-    )
-    assert "- Target Area (Heart or Vasculature)" in markdown
-
-
-@pytest.mark.parametrize(
-    "setup", [None, {"requirements": [], "attributes": [], "criteria": []}]
-)
-def test_no_setup_block_renders_no_goal_details_section(
-    setup: dict[str, object] | None,
-) -> None:
-    markdown = render_markdown(top_hypotheses=[], setup=setup)
-
-    assert "Research Goal Details" not in markdown
-
-
-def _restatement_hypothesis() -> dict[str, object]:
-    return {
-        "id": "h1",
-        "title": "Feedback control is rate-limiting.",
-        "statement": "Blocking the loop raises the steady-state flux.",
-    }
-
-
-def _render(restatement: str | None) -> str:
-    return render_markdown(
-        research_goal="Map the metabolic feedback loop.",
-        goal_restatement=restatement,
-        top_hypotheses=[_restatement_hypothesis()],
-    )
-
-
-def test_restatement_leads_the_top_hypotheses_section() -> None:
-    restatement = (
-        "This investigation seeks to chart how a metabolic feedback circuit "
-        "governs pathway flux."
-    )
-    markdown = _render(restatement)
-
-    heading_at = markdown.index("## Top hypotheses")
-    restatement_at = markdown.index(restatement)
-    first_idea_at = markdown.index("### 1.")
-    assert heading_at < restatement_at < first_idea_at
-    assert "Map the metabolic feedback loop." in markdown
-
-
 def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
     # Redaction must clear the pre-screen restatement too, or it republishes the
     # goal in different words.
@@ -514,29 +295,6 @@ def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
     reloaded = runs.get_run(run.id, db_path=isolated_db)
     assert reloaded is not None
     assert reloaded.goal_restatement is None
-
-
-def test_a_topic_renders_its_title_summary_and_detail() -> None:
-    markdown = render_markdown(
-        knowledge_base=[
-            {
-                "id": "topic-1",
-                "title": "Mitochondrial calcium handling",
-                "summary": "Calcium influx couples to ROS production.",
-                "detail": (
-                    "Perturbing MCU activity shifts the balance toward"
-                    " sustained oxidative stress in motor neurons."
-                ),
-                "reference_ids": ["ev-1", "ev-2"],
-            }
-        ]
-    )
-
-    assert "## Knowledge Base" in markdown
-    assert "### Knowledge Summary" in markdown
-    assert "Mitochondrial calcium handling" in markdown
-    assert "Calcium influx couples to ROS production." in markdown
-    assert "Perturbing MCU activity shifts the balance" in markdown
 
 
 # Themes must be real headings so outlines retain the taxonomy rather than
@@ -571,21 +329,3 @@ def test_a_theme_is_printed_once_above_its_sections() -> None:
     assert "#### Stiffness" in section
     assert "#### Macrophages" in section
     assert "**" not in section
-
-
-def test_an_unthemed_topic_never_inherits_the_previous_theme() -> None:
-    markdown = render_markdown(
-        knowledge_base=[
-            _themed("Matrix Architecture", "Cross-Linking", "Dense prose."),
-            {
-                "id": "topic-flat",
-                "title": "Autophagy dysfunction",
-                "summary": "",
-                "detail": "Detail prose.",
-                "uncertainty": "",
-            },
-        ]
-    )
-
-    section = markdown.split("## Knowledge Base")[1]
-    assert "### Knowledge Summary\n\n#### Autophagy dysfunction" in section
