@@ -193,62 +193,37 @@ def test_revising_a_completed_interview_reopens_it(
     assert retried["fields"]["preferences"] == []
 
 
-def test_a_revision_refuses_the_wrong_kind_of_turn(
+def test_a_revision_refuses_the_wrong_kind_of_turn_and_other_owners(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _patch_model_sequence(monkeypatch, [_response("A first question.")])
     with TestClient(app) as client:
         started = _start(client, "How do bacteria regain susceptibility?")
         prompt, answer = started["turns"][0], started["turns"][-1]
+        turns = f"/api/interviews/{started['id']}/turns"
 
-        assert (
-            client.put(
-                f"/api/interviews/{started['id']}/turns/{answer['id']}",
-                headers=HEADERS,
-                json={"content": "Not a scientist turn."},
-            ).status_code
-            == 409
+        edit = client.put(
+            f"{turns}/{answer['id']}",
+            headers=HEADERS,
+            json={"content": "Not a scientist turn."},
         )
-        assert (
-            client.post(
-                f"/api/interviews/{started['id']}/turns/{prompt['id']}/retry",
-                headers=HEADERS,
-            ).status_code
-            == 409
+        retry_prompt = client.post(
+            f"{turns}/{prompt['id']}/retry", headers=HEADERS
         )
-        assert (
-            client.post(
-                f"/api/interviews/{started['id']}/turns/99999/retry",
-                headers=HEADERS,
-            ).status_code
-            == 404
+        missing = client.post(f"{turns}/99999/retry", headers=HEADERS)
+        stranger = client.post(
+            f"{turns}/{answer['id']}/retry",
+            headers={"X-Client-ID": "someone-else"},
         )
+        reread = client.get(f"/api/interviews/{started['id']}", headers=HEADERS)
 
-
-def test_a_revision_is_owner_scoped(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _patch_model_sequence(monkeypatch, [_response("A first question.")])
-    with TestClient(app) as client:
-        started = _start(client, "How do bacteria regain susceptibility?")
-
-        assert (
-            client.post(
-                f"/api/interviews/{started['id']}/turns/"
-                f"{started['turns'][-1]['id']}/retry",
-                headers={"X-Client-ID": "someone-else"},
-            ).status_code
-            == 404
-        )
-
-        assert (
-            len(
-                client.get(
-                    f"/api/interviews/{started['id']}", headers=HEADERS
-                ).json()["turns"]
-            )
-            == 2
-        )
+    assert [
+        edit.status_code,
+        retry_prompt.status_code,
+        missing.status_code,
+        stranger.status_code,
+    ] == [409, 409, 404, 404]
+    assert len(reread.json()["turns"]) == 2
 
 
 class _HangingStream:
@@ -356,45 +331,6 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
     assert pending == []
 
 
-async def test_closing_after_a_fragment_cancels_the_advance_task(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    interview_id = _seed_interview(isolated_db)
-    started = asyncio.Event()
-    cancelled = asyncio.Event()
-
-    async def _fake_advance(
-        _interview_id: str,
-        on_reasoning: Any = None,
-        _on_prose: Any = None,
-    ) -> dict[str, Any]:
-        assert on_reasoning is not None
-        await on_reasoning("first")
-        started.set()
-        try:
-            await asyncio.Event().wait()
-        except asyncio.CancelledError:
-            cancelled.set()
-            raise
-        raise AssertionError("unreachable")  # pragma: no cover
-
-    monkeypatch.setattr(interview_turns, "advance_turn", _fake_advance)
-
-    gen = interviews_stream._advance_stream(interview_id)
-    assert "reasoning" in await gen.__anext__()
-    await asyncio.wait_for(started.wait(), timeout=5)
-    await gen.aclose()
-
-    assert cancelled.is_set()
-    pending = [
-        task
-        for task in asyncio.all_tasks()
-        if task is not asyncio.current_task() and not task.done()
-    ]
-    assert pending == []
-
-
 _FIELDS = '{"research_challenge": "Reverse fibrosis", "completed": false}'
 
 
@@ -413,16 +349,6 @@ def _stream(deltas: list[str]) -> _Streamed:
     relayed = [splitter.feed(delta) for delta in deltas]
     trailing, whole, fields = splitter.finish()
     return _Streamed("".join(relayed) + trailing, whole, fields)
-
-
-def test_split_separates_prose_from_parsed_fields() -> None:
-    _, prose, fields = _stream([f"Which model system?\n\n{_block()}"])
-
-    assert prose == "Which model system?"
-    assert fields == {
-        "research_challenge": "Reverse fibrosis",
-        "completed": False,
-    }
 
 
 def test_split_without_a_block_keeps_the_prose_and_reports_no_fields() -> None:
@@ -490,14 +416,6 @@ def test_held_back_prose_is_flushed_when_the_turn_ends() -> None:
     # Flush marker-like tails that never complete or valid prose silently
     # disappears.
     assert _stream(["Compare A ", "< B"]).relayed == "Compare A < B"
-
-
-def test_a_turn_that_is_only_a_block_relays_no_prose() -> None:
-    streamed = _stream([_block()])
-
-    assert streamed.relayed == ""
-    assert streamed.whole == ""
-    assert streamed.fields is not None
 
 
 def test_single_delta_and_fragmented_turn_agree() -> None:

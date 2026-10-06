@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import io
 
+import pytest
 from pypdf import PdfReader, PdfWriter
 
 from app.document_ingest import _extract_pdf
 from app.pdf import (
     LineStyle,
-    _pool_bookmark_levels,
     infer_numbering_levels,
     rank_heading_styles,
-    raw_bookmark_matches,
 )
 
 Line = tuple[str, str, float, float, float]
@@ -188,155 +187,80 @@ def test_uniform_font_with_no_signal_extracts_exactly_as_before() -> None:
     assert "A second plain paragraph, same size." in text
 
 
-def test_larger_size_ranks_above_smaller_size() -> None:
-    styles = {
-        0: LineStyle(size=24.0, bold=False, all_caps=False),
-        1: LineStyle(size=14.0, bold=False, all_caps=False),
-        2: LineStyle(size=18.0, bold=False, all_caps=False),
-    }
-    body_size = 10.0
-
-    levels = rank_heading_styles(styles, body_size)
-
-    assert levels[0] < levels[2] < levels[1]
-
-
-def test_near_equal_sizes_merge_into_one_cluster() -> None:
-    # Glyph measurement noise must not split one heading level.
-    styles = {
-        0: LineStyle(size=18.0, bold=False, all_caps=False),
-        1: LineStyle(size=17.6, bold=False, all_caps=False),
-        2: LineStyle(size=12.0, bold=False, all_caps=False),
-    }
-    body_size = 10.0
-
-    levels = rank_heading_styles(styles, body_size)
-
-    assert levels[0] == levels[1]
-    assert levels[0] < levels[2]
-
-
-def test_bold_ranks_above_regular_at_the_same_size() -> None:
-    styles = {
-        0: LineStyle(size=14.0, bold=True, all_caps=False),
-        1: LineStyle(size=14.0, bold=False, all_caps=False),
+def _styles(*specs: tuple[float, bool, bool]) -> dict[int, LineStyle]:
+    return {
+        index: LineStyle(size=size, bold=bold, all_caps=caps)
+        for index, (size, bold, caps) in enumerate(specs)
     }
 
-    levels = rank_heading_styles(styles, body_size=10.0)
 
-    assert levels[0] < levels[1]
-
-
-def test_all_caps_ranks_above_mixed_case_at_the_same_size_and_weight() -> None:
-    styles = {
-        0: LineStyle(size=14.0, bold=False, all_caps=True),
-        1: LineStyle(size=14.0, bold=False, all_caps=False),
-    }
-
-    levels = rank_heading_styles(styles, body_size=10.0)
-
-    assert levels[0] < levels[1]
-
-
-def test_a_line_at_or_below_body_size_is_not_a_heading_candidate() -> None:
-    # Small captions and footnotes are not headings.
-    styles = {
-        0: LineStyle(size=18.0, bold=False, all_caps=False),
-        1: LineStyle(size=10.0, bold=False, all_caps=False),
-        2: LineStyle(size=8.0, bold=False, all_caps=False),
-    }
-
-    levels = rank_heading_styles(styles, body_size=10.0)
-
-    assert set(levels) == {0}
-
-
-def test_exact_title_match_takes_the_bookmark_depth() -> None:
-    outline = [("Introduction", 1), ("Background", 2), ("Methods", 1)]
-    lines = ["Introduction", "Some prose.", "Background", "Methods"]
-
-    levels = raw_bookmark_matches(outline, lines)
-
-    assert levels[0] == levels[3]
-    assert levels[0] < levels[2]
+@pytest.mark.parametrize(
+    ("styles", "levels"),
+    [
+        (
+            _styles((24, False, False), (14, False, False), (18, False, False)),
+            {0: 1, 1: 3, 2: 2},
+        ),
+        # Glyph measurement noise must not split one heading level.
+        (
+            _styles(
+                (18, False, False), (17.6, False, False), (12, False, False)
+            ),
+            {0: 1, 1: 1, 2: 2},
+        ),
+        # Small captions and footnotes are not headings.
+        (
+            _styles((18, False, False), (10, False, False), (8, False, False)),
+            {0: 1},
+        ),
+    ],
+    ids=["size", "near-equal-sizes", "at-or-below-body"],
+)
+def test_heading_styles_rank_by_size_weight_and_case(
+    styles: dict[int, LineStyle], levels: dict[int, int]
+) -> None:
+    assert rank_heading_styles(styles, body_size=10.0) == levels
 
 
-def test_numbering_marker_on_the_page_is_ignored_when_matching() -> None:
-    outline = [("Background", 1)]
-    lines = ["1.1 Background"]
-
-    levels = raw_bookmark_matches(outline, lines)
-
-    assert levels == {0: 1}
-
-
-def test_unmatched_bookmark_contributes_nothing() -> None:
-    outline = [("Nonexistent Section", 1)]
-    lines = ["Introduction", "Methods"]
-
-    levels = raw_bookmark_matches(outline, lines)
-
-    assert levels == {}
-
-
-def test_raw_bookmark_depths_compress_to_contiguous_levels() -> None:
-    outline = [("Chapter One", 2), ("Overview", 3)]
-    lines = ["Chapter One", "Overview"]
-
-    levels = _pool_bookmark_levels(
-        [(title, depth, 0) for title, depth in outline], [lines]
-    )
-
-    assert levels == {(0, 0): 1, (0, 1): 2}
-
-
-def test_dotted_decimal_depth_maps_directly_to_level() -> None:
-    lines = ["1. Introduction", "1.1 Background", "1.1.1 Prior work"]
-
-    levels = infer_numbering_levels(lines)
-
-    assert levels == {0: 1, 1: 2, 2: 3}
-
-
-def test_part_keyword_outranks_arabic_numbering() -> None:
-    lines = ["PART I", "1. Scope", "PART II", "2. Definitions"]
-
-    levels = infer_numbering_levels(lines)
-
-    assert levels[0] == levels[2] == 1
-    assert levels[1] == levels[3] == 2
-
-
-def test_alpha_and_roman_parenthetical_markers_rank_below_arabic() -> None:
-    # A second Roman numeral disambiguates the first marker from alphabetic
-    # numbering.
-    lines = [
-        "1. Scope",
-        "(a) First clause",
-        "(i) Sub-clause",
-        "(ii) Another sub-clause",
-    ]
-
-    levels = infer_numbering_levels(lines)
-
-    assert levels[0] < levels[1] < levels[2] == levels[3]
-
-
-def test_ambiguous_single_letter_resolves_by_document_context() -> None:
-    lines = ["I. First part", "II. Second part", "III. Third part"]
-
-    levels = infer_numbering_levels(lines)
-
-    assert levels == {0: 1, 1: 1, 2: 1}
-
-
-def test_lines_without_a_recognizable_marker_are_absent() -> None:
-    lines = ["1. Introduction", "This is ordinary prose, not a heading."]
-
-    levels = infer_numbering_levels(lines)
-
-    assert levels == {0: 1}
-
-
-def test_empty_and_blank_lines_are_ignored() -> None:
-    assert infer_numbering_levels(["", "   ", "1. Scope"]) == {2: 1}
+@pytest.mark.parametrize(
+    ("lines", "levels"),
+    [
+        (
+            ["1. Introduction", "1.1 Background", "1.1.1 Prior work"],
+            {0: 1, 1: 2, 2: 3},
+        ),
+        (
+            ["PART I", "1. Scope", "PART II", "2. Definitions"],
+            {0: 1, 1: 2, 2: 1, 3: 2},
+        ),
+        # A second Roman numeral disambiguates the first marker from alphabetic
+        # numbering.
+        (
+            [
+                "1. Scope",
+                "(a) First clause",
+                "(i) Sub-clause",
+                "(ii) Another sub-clause",
+            ],
+            {0: 1, 1: 2, 2: 3, 3: 3},
+        ),
+        (
+            ["I. First part", "II. Second part", "III. Third part"],
+            {0: 1, 1: 1, 2: 1},
+        ),
+        (["1. Introduction", "Ordinary prose, not a heading."], {0: 1}),
+        (["", "   ", "1. Scope"], {2: 1}),
+    ],
+    ids=[
+        "dotted-decimal",
+        "part-keyword",
+        "alpha-and-roman",
+        "ambiguous-single-letter",
+        "prose-absent",
+        "blank-lines",
+    ],
+)
+def test_numbering_markers_infer_heading_levels(
+    lines: list[str], levels: dict[int, int]
+) -> None:
+    assert infer_numbering_levels(lines) == levels

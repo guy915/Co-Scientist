@@ -83,77 +83,51 @@ def test_gaps_between_tasks_are_idle_not_attributed() -> None:
     assert profile.idle_s == 20.0
 
 
-def test_fanout_width_counts_items_per_wave() -> None:
+def test_stage_width_counts_items_per_invocation() -> None:
     spans = [TaskSpan("engine.fanout.review.item", 0.0, 1.0) for _ in range(6)]
     spans += [
         TaskSpan("engine.fanout.review.aggregate", 1.0, 2.0),
         TaskSpan("engine.fanout.review.aggregate", 2.0, 3.0),
     ]
+    spans += [TaskSpan("engine.ranking.match", 0.0, 1.0) for _ in range(12)]
+    spans.append(TaskSpan("engine.ranking.finalize", 1.0, 2.0))
+
     profile = profile_run("r", "standard", "completed", spans)
 
     assert profile is not None
     assert profile.items_per_invocation["engine.fanout.review"] == 3.0
-
-
-def test_ranking_width_counts_matches_per_finalize() -> None:
-    spans = [TaskSpan("engine.ranking.match", 0.0, 1.0) for _ in range(12)]
-    spans.append(TaskSpan("engine.ranking.finalize", 1.0, 2.0))
-    profile = profile_run("r", "standard", "completed", spans)
-
-    assert profile is not None
     assert profile.items_per_invocation["engine.ranking"] == 12.0
-
-
-def test_headroom_reports_the_slots_a_stage_left_unused() -> None:
-    spans = [
-        TaskSpan("engine.fanout.verification.item", 0.0, 10.0) for _ in range(3)
-    ]
-
-    stage = _occupancy_stages(spans, 8)["engine.fanout.verification.item"]
-
-    assert stage.mean_concurrency == 3.0
-    assert stage.peak_concurrency == 3
-    assert stage.headroom == 5.0
-    assert stage.saturated_s == 0.0
-
-
-def test_a_stage_at_the_ceiling_reports_no_headroom() -> None:
-    # A saturated cohort cannot overlap another stage.
-    spans = [TaskSpan("engine.fanout.review.item", 0.0, 10.0) for _ in range(8)]
-
-    stage = _occupancy_stages(spans, 8)["engine.fanout.review.item"]
-
-    assert stage.mean_concurrency == 8.0
-    assert stage.headroom == 0.0
-    assert stage.saturated_s == 10.0
-
-
-def test_occupancy_counts_every_task_in_flight_not_just_the_stage_s() -> None:
-    # Occupancy includes every stage rather than only the measured stage.
-    spans = [TaskSpan("engine.node.orchestrator", 0.0, 10.0)]
-    spans += [
-        TaskSpan("engine.fanout.review.item", 0.0, 10.0) for _ in range(7)
-    ]
-
-    stages = _occupancy_stages(spans, 8)
-
-    assert stages["engine.node.orchestrator"].mean_concurrency == 8.0
-    assert stages["engine.node.orchestrator"].headroom == 0.0
-
-
-def test_occupancy_is_time_weighted_across_changing_width() -> None:
-    spans = [
-        TaskSpan("engine.fanout.review.item", 0.0, 90.0),
-        TaskSpan("engine.fanout.review.item", 0.0, 10.0),
-    ]
-
-    stage = _occupancy_stages(spans, 8)["engine.fanout.review.item"]
-
-    assert round(stage.mean_concurrency, 3) == round(100.0 / 90.0, 3)
-
-
-def test_profile_run_rejects_an_unmeasurable_run() -> None:
     assert profile_run("r", "standard", "completed", []) is None
+
+
+def test_occupancy_counts_every_task_in_flight_and_weights_by_time() -> None:
+    spare = _occupancy_stages(
+        [TaskSpan("engine.fanout.verification.item", 0.0, 10.0)] * 3, 8
+    )["engine.fanout.verification.item"]
+    assert spare.mean_concurrency == 3.0
+    assert spare.peak_concurrency == 3
+    assert spare.headroom == 5.0
+    assert spare.saturated_s == 0.0
+
+    # A saturated cohort cannot overlap another stage, and occupancy includes
+    # every stage rather than only the measured one.
+    full = _occupancy_stages(
+        [TaskSpan("engine.node.orchestrator", 0.0, 10.0)]
+        + [TaskSpan("engine.fanout.review.item", 0.0, 10.0)] * 7,
+        8,
+    )
+    assert full["engine.node.orchestrator"].mean_concurrency == 8.0
+    assert full["engine.fanout.review.item"].headroom == 0.0
+    assert full["engine.fanout.review.item"].saturated_s == 10.0
+
+    changing = _occupancy_stages(
+        [
+            TaskSpan("engine.fanout.review.item", 0.0, 90.0),
+            TaskSpan("engine.fanout.review.item", 0.0, 10.0),
+        ],
+        8,
+    )["engine.fanout.review.item"]
+    assert round(changing.mean_concurrency, 3) == round(100.0 / 90.0, 3)
 
 
 def test_percentile_uses_nearest_rank() -> None:

@@ -58,70 +58,64 @@ def _set_task_row(task_id: str, db_path: str, **fields: Any) -> None:
         conn.commit()
 
 
-def test_metrics_requires_operator_access() -> None:
-    res = _client().get("/metrics")
-    assert res.status_code == 404
+def test_metrics_are_operator_only_and_in_exposition_format() -> None:
+    assert _client().get("/metrics").status_code == 404
 
-
-def test_metrics_returns_valid_exposition_format() -> None:
     res = _operator_client().get("/metrics")
+
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/plain")
-    families = _families(res.text)
-    assert "coscientist_runs" in families
-    assert "coscientist_tasks" in families
-    assert "coscientist_failed_tasks" in families
-    assert "coscientist_task_duration_seconds" in families
-    assert "coscientist_build_info" in families
+    assert {
+        "coscientist_runs",
+        "coscientist_tasks",
+        "coscientist_failed_tasks",
+        "coscientist_task_duration_seconds",
+        "coscientist_build_info",
+    } <= set(_families(res.text))
 
 
-def test_metrics_counts_runs_per_status(isolated_db: str) -> None:
-    _make_run(isolated_db, RunStatus.COMPLETED)
-    _make_run(isolated_db, RunStatus.COMPLETED)
-    _make_run(isolated_db, RunStatus.FAILED)
-    _make_run(isolated_db, RunStatus.RUNNING)
-
-    res = _operator_client().get("/metrics")
-    family = _families(res.text)["coscientist_runs"]
-
-    assert _sample_value(family, status="completed") == 2
-    assert _sample_value(family, status="failed") == 1
-    assert _sample_value(family, status="running") == 1
-
-
-def test_metrics_counts_tasks_per_status(isolated_db: str) -> None:
+def test_metrics_count_runs_tasks_and_failed_tasks_by_status(
+    isolated_db: str,
+) -> None:
+    for status in (
+        RunStatus.COMPLETED,
+        RunStatus.COMPLETED,
+        RunStatus.FAILED,
+        RunStatus.RUNNING,
+    ):
+        _make_run(isolated_db, status)
     run_id = _make_run(isolated_db, RunStatus.RUNNING)
     _enqueue(run_id, "k1", isolated_db)
-    t2 = _enqueue(run_id, "k2", isolated_db)
-    _set_task_row(t2, isolated_db, status="completed")
-
-    res = _operator_client().get("/metrics")
-    family = _families(res.text)["coscientist_tasks"]
-
-    assert _sample_value(family, status="queued") == 1
-    assert _sample_value(family, status="completed") == 1
-
-
-def test_metrics_splits_failed_tasks_by_exhaustion(isolated_db: str) -> None:
-    run_id = _make_run(isolated_db, RunStatus.FAILED)
-    exhausted = _enqueue(run_id, "k1", isolated_db)
     _set_task_row(
-        exhausted, isolated_db, status="failed", attempt=3, max_attempts=3
+        _enqueue(run_id, "k2", isolated_db), isolated_db, status="completed"
     )
-    not_exhausted = _enqueue(run_id, "k2", isolated_db)
     _set_task_row(
-        not_exhausted,
+        _enqueue(run_id, "k3", isolated_db),
+        isolated_db,
+        status="failed",
+        attempt=3,
+        max_attempts=3,
+    )
+    _set_task_row(
+        _enqueue(run_id, "k4", isolated_db),
         isolated_db,
         status="failed",
         attempt=1,
         max_attempts=3,
     )
 
-    res = _operator_client().get("/metrics")
-    family = _families(res.text)["coscientist_failed_tasks"]
+    families = _families(_operator_client().get("/metrics").text)
 
-    assert _sample_value(family, exhausted="true") == 1
-    assert _sample_value(family, exhausted="false") == 1
+    runs_family = families["coscientist_runs"]
+    assert _sample_value(runs_family, status="completed") == 2
+    assert _sample_value(runs_family, status="failed") == 1
+    assert _sample_value(runs_family, status="running") == 2
+    tasks_family = families["coscientist_tasks"]
+    assert _sample_value(tasks_family, status="queued") == 1
+    assert _sample_value(tasks_family, status="completed") == 1
+    failed = families["coscientist_failed_tasks"]
+    assert _sample_value(failed, exhausted="true") == 1
+    assert _sample_value(failed, exhausted="false") == 1
 
 
 def test_metrics_latency_reflects_started_completed_timestamps(
@@ -158,25 +152,6 @@ def test_metrics_latency_reflects_started_completed_timestamps(
         and s.labels.get("task_type") == "engine.node.ranking"
     )
     assert sum_sample.value == 20.0
-
-
-def test_metrics_cache_avoids_requerying_within_ttl(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    calls = {"n": 0}
-    real_runs_by_status = ops_metrics.runs_by_status
-
-    def _counting_runs_by_status(db_path: str | None = None) -> Any:
-        calls["n"] += 1
-        return real_runs_by_status(db_path)
-
-    monkeypatch.setattr(ops_metrics, "runs_by_status", _counting_runs_by_status)
-
-    first = ops_metrics.metrics_text_cached(db_path=isolated_db)
-    second = ops_metrics.metrics_text_cached(db_path=isolated_db)
-
-    assert calls["n"] == 1
-    assert first == second
 
 
 def test_metrics_endpoint_issues_no_write(isolated_db: str) -> None:

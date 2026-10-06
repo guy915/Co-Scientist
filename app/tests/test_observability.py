@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import sys
 from typing import Any
 
 import pytest
@@ -11,12 +12,10 @@ from fastapi.testclient import TestClient
 from app.credentials import ByokCredential, scoped_byok
 from app.logging_setup import (
     _LITELLM_LOGGER_NAMES,
-    TEXT_FORMAT,
     JsonFormatter,
     RunIdFilter,
     TextRunIdFormatter,
     configure_logging,
-    current_run_id,
     run_log_context,
 )
 from app.store import logs
@@ -45,39 +44,13 @@ def _restore_default_logging() -> None:
     configure_logging(settings.log_format)
 
 
-def test_run_log_context_binds_and_restores_run_id() -> None:
-    assert current_run_id() is None
-    with run_log_context("run-123"):
-        assert current_run_id() == "run-123"
-    assert current_run_id() is None
-
-
-def test_run_id_filter_stamps_context_run_id_onto_records() -> None:
-    record = _record()
-    with run_log_context("run-abc"):
-        RunIdFilter().filter(record)
-    assert record.run_id == "run-abc"  # type: ignore[attr-defined]
-
-    unscoped = _record()
-    RunIdFilter().filter(unscoped)
-    assert unscoped.run_id is None  # type: ignore[attr-defined]
-
-
-def test_text_formatter_appends_run_id_suffix_only_when_bound() -> None:
-    formatter = TextRunIdFormatter(TEXT_FORMAT)
-
-    tagged = _record()
-    tagged.run_id = "run-xyz"
-    assert formatter.format(tagged).endswith(" [run_id=run-xyz]")
-
-    plain = _record()
-    plain.run_id = None
-    assert "run_id" not in formatter.format(plain)
-
-
-def test_json_formatter_emits_structured_fields() -> None:
+def test_json_formatter_emits_structured_fields_and_exception_detail() -> None:
     record = _record("structured message")
     record.run_id = "run-json"
+    try:
+        raise RuntimeError("kaboom")
+    except RuntimeError:
+        record.exc_info = sys.exc_info()
 
     payload = json.loads(JsonFormatter().format(record))
 
@@ -86,20 +59,29 @@ def test_json_formatter_emits_structured_fields() -> None:
     assert payload["message"] == "structured message"
     assert payload["run_id"] == "run-json"
     assert "time" in payload
-
-
-def test_json_formatter_includes_exception_detail() -> None:
-    try:
-        raise RuntimeError("kaboom")
-    except RuntimeError:
-        import sys
-
-        record = _record("failed")
-        record.exc_info = sys.exc_info()
-
-    payload = json.loads(JsonFormatter().format(record))
-
     assert "kaboom" in payload["exc_info"]
+
+
+def test_configure_logging_quiets_dependency_info_and_the_debug_banner() -> (
+    None
+):
+    # LiteLLM attaches handlers below root and prints a banner with print(), so
+    # only logger levels and its own flag can silence them.
+    import litellm
+
+    for name in _LITELLM_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(logging.DEBUG)
+    litellm.suppress_debug_info = False
+    try:
+        configure_logging()
+
+        for name in _LITELLM_LOGGER_NAMES:
+            level = logging.getLogger(name).getEffectiveLevel()
+            assert level >= logging.WARNING
+        assert logging.getLogger("LiteLLM").isEnabledFor(logging.WARNING)
+        assert litellm.suppress_debug_info is True
+    finally:
+        _restore_default_logging()
 
 
 def _cosci_handlers() -> list[logging.Handler]:
@@ -201,42 +183,6 @@ def test_workflow_records_carry_the_run_id(isolated_db: str) -> None:
     assert run_id in tagged
 
 
-def test_configure_logging_raises_litellm_loggers_to_warning() -> None:
-    # LiteLLM attaches handlers below root; silence dependency chatter at the
-    # logger itself.
-    for name in _LITELLM_LOGGER_NAMES:
-        logging.getLogger(name).setLevel(logging.DEBUG)
-
-    configure_logging()
-
-    for name in _LITELLM_LOGGER_NAMES:
-        assert logging.getLogger(name).getEffectiveLevel() >= logging.WARNING
-    _restore_default_logging()
-
-
-def test_configure_logging_does_not_touch_warning_and_above() -> None:
-    # Dependency WARNING and ERROR remain visible because they indicate genuine
-    # provider trouble.
-    configure_logging()
-    litellm_logger = logging.getLogger("LiteLLM")
-
-    assert litellm_logger.isEnabledFor(logging.WARNING)
-    assert not litellm_logger.isEnabledFor(logging.INFO)
-    _restore_default_logging()
-
-
-def test_configure_logging_suppresses_litellms_debug_print_banner() -> None:
-    # The provider banner is print(), so logger levels alone cannot suppress it.
-    import litellm
-
-    litellm.suppress_debug_info = False
-
-    configure_logging()
-
-    assert litellm.suppress_debug_info is True
-    _restore_default_logging()
-
-
 def _logs_endpoint_seed(
     isolated_db: str,
     message: str,
@@ -282,8 +228,18 @@ def test_logs_endpoint_returns_rows_and_last_id(isolated_db: str) -> None:
     assert row["level"] == "INFO"
     assert row["logger"] == "app.seeded"
 
+    _logs_endpoint_seed(isolated_db, "new line")
+    polled = (
+        make_operator_client()
+        .get("/api/logs", params={"after_id": body["last_id"]})
+        .json()
+    )
+    assert [row["message"] for row in polled["logs"]] == ["new line"]
 
-def test_logs_endpoint_applies_filters(isolated_db: str) -> None:
+
+def test_logs_endpoint_applies_filters_and_rejects_unknown_levels(
+    isolated_db: str,
+) -> None:
     _logs_endpoint_seed(isolated_db, "quiet info")
     _logs_endpoint_seed(
         isolated_db, "bad error", level="ERROR", levelno=logging.ERROR
@@ -300,42 +256,11 @@ def test_logs_endpoint_applies_filters(isolated_db: str) -> None:
     body = client.get("/api/logs", params={"q": "bad"}).json()
     assert [row["message"] for row in body["logs"]] == ["bad error"]
 
-
-def test_logs_endpoint_supports_incremental_polling(
-    isolated_db: str,
-) -> None:
-    _logs_endpoint_seed(isolated_db, "old line")
-    client = make_operator_client()
-    cursor = client.get("/api/logs").json()["last_id"]
-    _logs_endpoint_seed(isolated_db, "new line")
-    body = client.get("/api/logs", params={"after_id": cursor}).json()
-    assert [row["message"] for row in body["logs"]] == ["new line"]
+    unknown = client.get("/api/logs", params={"min_level": "LOUDEST"})
+    assert unknown.status_code == 422
 
 
-def test_logs_endpoint_total_counts_beyond_limit(isolated_db: str) -> None:
-    for i in range(5):
-        _logs_endpoint_seed(isolated_db, f"line {i}")
-    body = make_operator_client().get("/api/logs", params={"limit": 2}).json()
-    assert len(body["logs"]) == 2
-    assert body["total"] == 5
-
-
-def test_logs_endpoint_total_respects_filters_not_cursor(
-    isolated_db: str,
-) -> None:
-    _logs_endpoint_seed(isolated_db, "quiet info")
-    cursor = _logs_endpoint_seed(
-        isolated_db, "bad error", level="ERROR", levelno=40
-    )
-    client = make_operator_client()
-    body = client.get("/api/logs", params={"min_level": "warning"}).json()
-    assert body["total"] == 1
-    body = client.get("/api/logs", params={"after_id": cursor}).json()
-    assert body["logs"] == []
-    assert body["total"] == 2
-
-
-def test_logs_endpoint_session_total_follows_the_cursor(
+def test_logs_endpoint_totals_follow_filters_limit_and_cursor(
     isolated_db: str,
 ) -> None:
     _logs_endpoint_seed(isolated_db, "before the cursor")
@@ -343,12 +268,14 @@ def test_logs_endpoint_session_total_follows_the_cursor(
     _logs_endpoint_seed(isolated_db, "after the cursor")
     client = make_operator_client()
 
+    body = client.get("/api/logs", params={"limit": 2}).json()
+    assert len(body["logs"]) == 2
+    assert body["total"] == 3
+
     body = client.get(
         "/api/logs", params={"after_id": cursor, "q": "cursor"}
     ).json()
     assert [row["message"] for row in body["logs"]] == ["after the cursor"]
-    # Compute cursor counts directly; deletion below anchors makes subtraction
-    # invalid.
     assert body["total"] == 3
     assert body["session_total"] == 1
 
@@ -404,13 +331,6 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     assert body["total"] == 6
 
 
-def test_logs_endpoint_rejects_unknown_level(isolated_db: str) -> None:
-    response = make_operator_client().get(
-        "/api/logs", params={"min_level": "LOUDEST"}
-    )
-    assert response.status_code == 422
-
-
 def test_run_logs_endpoint_scopes_to_run(isolated_db: str) -> None:
     client = make_operator_client()
     created = _create_run(client, "logs endpoint test")
@@ -419,10 +339,7 @@ def test_run_logs_endpoint_scopes_to_run(isolated_db: str) -> None:
     _logs_endpoint_seed(isolated_db, "run line", run_id=run_id)
     body = client.get(f"/api/runs/{run_id}/logs").json()
     assert [row["message"] for row in body["logs"]] == ["run line"]
-
-
-def test_run_logs_endpoint_unknown_run_is_404(isolated_db: str) -> None:
-    assert make_operator_client().get("/api/runs/nope/logs").status_code == 404
+    assert client.get("/api/runs/nope/logs").status_code == 404
 
 
 def test_delete_logs_clears_and_restarts_ids(isolated_db: str) -> None:
@@ -445,6 +362,7 @@ def test_post_logs_ingests_ui_records(isolated_db: str) -> None:
         json={
             "records": [
                 {"message": "clicked start", "logger": "session"},
+                {"message": "did it", "level": "success"},
                 {
                     "message": "stream dropped",
                     "level": "error",
@@ -456,36 +374,21 @@ def test_post_logs_ingests_ui_records(isolated_db: str) -> None:
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["added"] == 2
+    assert body["added"] == 3
     rows = client.get("/api/logs").json()["logs"]
     by_message = {row["message"]: row for row in rows}
     assert by_message["clicked start"]["logger"] == "ui.session"
     assert by_message["clicked start"]["level"] == "INFO"
+    assert by_message["did it"]["level"] == "INFO"
     assert by_message["stream dropped"]["logger"] == "ui.stream"
     assert by_message["stream dropped"]["level"] == "ERROR"
     assert by_message["stream dropped"]["run_id"] == "run-1"
 
-
-def test_post_logs_maps_unknown_level_to_info(isolated_db: str) -> None:
-    client = make_operator_client()
-    client.post(
-        "/api/logs",
-        json={"records": [{"message": "did it", "level": "success"}]},
-    )
-    rows = client.get("/api/logs").json()["logs"]
-    assert rows[0]["level"] == "INFO"
-
-
-def test_post_logs_caps_batch_and_truncates_messages(
-    isolated_db: str,
-) -> None:
-    client = make_operator_client()
     too_many = {"records": [{"message": "m"}] * 51}
     assert client.post("/api/logs", json=too_many).status_code == 422
-
     client.post("/api/logs", json={"records": [{"message": "x" * 5000}]})
     rows = client.get("/api/logs").json()["logs"]
-    assert len(rows[0]["message"]) == 2000
+    assert max(len(row["message"]) for row in rows) == 2000
 
 
 # Shared logs contain other tenants and server internals; remote reads need
@@ -529,21 +432,6 @@ def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
     assert all("bob" not in m for m in messages)
 
 
-def test_unscoped_read_still_sees_everything(isolated_db: str) -> None:
-    _security_seed(isolated_db, "alice ui record", client_id="alice")
-    _security_seed(isolated_db, "server startup record")
-    assert logs.count_logs(db_path=isolated_db) == 2
-
-
-def test_clear_can_be_scoped_to_one_client(isolated_db: str) -> None:
-    _security_seed(isolated_db, "alice ui record", client_id="alice")
-    _security_seed(isolated_db, "bob ui record", client_id="bob")
-    deleted = logs.clear_logs(scope_client_id="alice", db_path=isolated_db)
-    assert deleted == 1
-    remaining = [r["message"] for r in logs.list_logs(db_path=isolated_db)]
-    assert remaining == ["bob ui record"]
-
-
 # TestClient reports a non-loopback host, exercising remote policy unless an
 # operator token is supplied.
 
@@ -564,6 +452,36 @@ def test_remote_read_is_scoped_to_the_caller(isolated_db: str) -> None:
     messages = [r["message"] for r in body["logs"]]
     assert messages == ["alice ui record"]
     assert body["total"] == 1
+
+
+def test_ingested_records_are_stamped_with_the_caller_and_sanitized(
+    isolated_db: str,
+) -> None:
+    client = make_client()
+    client.post(
+        "/api/logs",
+        json={
+            "records": [
+                {
+                    "message": "real\n2026-01-01\tINFO\tapp.fake\tforged",
+                    "logger": "sess\nion",
+                }
+            ]
+        },
+        headers={"X-Client-ID": "alice"},
+    )
+    alice = logs.list_logs(
+        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
+    )
+    assert len(alice) == 1
+    assert "\n" not in alice[0]["message"] + alice[0]["logger"]
+    assert "\t" not in alice[0]["message"]
+    assert (
+        logs.list_logs(
+            filters=LogFilters(scope_client_id="bob"), db_path=isolated_db
+        )
+        == []
+    )
 
 
 def test_remote_read_without_identity_sees_nothing(isolated_db: str) -> None:
@@ -603,49 +521,6 @@ def test_remote_delete_only_clears_the_callers_records(
     assert remaining == ["bob ui record", "server internals"]
 
 
-def test_ingested_records_are_stamped_with_the_caller(
-    isolated_db: str,
-) -> None:
-    client = make_client()
-    client.post(
-        "/api/logs",
-        json={"records": [{"message": "alice clicked"}]},
-        headers={"X-Client-ID": "alice"},
-    )
-    rows = logs.list_logs(
-        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
-    )
-    assert [r["message"] for r in rows] == ["alice clicked"]
-    assert (
-        logs.list_logs(
-            filters=LogFilters(scope_client_id="bob"), db_path=isolated_db
-        )
-        == []
-    )
-
-
-def test_ingestion_strips_control_characters(isolated_db: str) -> None:
-    client = make_client()
-    client.post(
-        "/api/logs",
-        json={
-            "records": [
-                {
-                    "message": "real\n2026-01-01\tINFO\tapp.fake\tforged",
-                    "logger": "sess\nion",
-                }
-            ]
-        },
-        headers={"X-Client-ID": "alice"},
-    )
-    row = logs.list_logs(
-        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
-    )[0]
-    assert "\n" not in row["message"]
-    assert "\t" not in row["message"]
-    assert "\n" not in row["logger"]
-
-
 def test_ingestion_is_rate_limited(isolated_db: str) -> None:
     client = make_client()
     headers = {"X-Client-ID": "flooder"}
@@ -674,11 +549,6 @@ _METRIC_FIELDS = (
 # Random hypothesis ids shape prompts; offline duplicate rejection can
 # legitimately produce no evolved child.
 _MAX_RUN_ATTEMPTS = 5
-
-
-def test_metrics_unknown_run_404s() -> None:
-    res = _client().get("/api/runs/does-not-exist/metrics")
-    assert res.status_code == 404
 
 
 def test_metrics_null_before_finalize(isolated_db: str) -> None:

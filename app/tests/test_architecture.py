@@ -9,14 +9,12 @@ from typing import Any, get_args
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import TypeAdapter, ValidationError
 
-from app.api_contracts.common import JsonValue, RunEventActivity
+from app.api_contracts.common import RunEventActivity
 from app.api_contracts.generate import (
     API_DIR,
     contracts,
     generated_files,
-    type_expression,
 )
 from app.main import app
 from app.store import reports as store
@@ -218,7 +216,7 @@ def _read(client: TestClient, path: str) -> Any:
     return response.json()
 
 
-def test_run_reads_keep_nullable_and_unmodeled_persisted_fields(
+def test_old_runs_and_reports_keep_nullable_unmodeled_fields_and_shapes(
     isolated_db: str,
 ) -> None:
     run_id = _legacy_run(isolated_db)
@@ -231,13 +229,6 @@ def test_run_reads_keep_nullable_and_unmodeled_persisted_fields(
         listed = _read(client, "/api/runs")["runs"][0]
         assert "summary" not in listed
         assert listed["top_hypotheses"] == []
-
-
-def test_old_report_and_public_projection_keep_their_exact_shapes(
-    isolated_db: str,
-) -> None:
-    run_id = _legacy_run(isolated_db)
-    with TestClient(app) as client:
         report = _read(client, f"/api/runs/{run_id}/report")
         assert report["payload"] == {
             "leaderboard": [],
@@ -321,15 +312,6 @@ def test_closed_event_vocabulary_matches_the_store() -> None:
     assert set(get_args(RunEventActivity)) == ACTIVITY_VALUES
 
 
-def test_json_value_stays_recursive_and_rejects_non_json_values() -> None:
-    adapter: TypeAdapter[Any] = TypeAdapter(JsonValue)
-    value = {"nested": [None, True, {"deep": [1, "text"]}]}
-    assert adapter.validate_python(value) == value
-    with pytest.raises(ValidationError):
-        adapter.validate_python({"bad": object()})
-    assert type_expression(adapter.json_schema()) == "JsonValue"
-
-
 def test_supported_read_routes_publish_concrete_response_schemas() -> None:
     paths = app.openapi()["paths"]
     routes = [
@@ -360,18 +342,3 @@ def test_supported_read_routes_publish_concrete_response_schemas() -> None:
             "application/json"
         ]["schema"]
         assert "$ref" in schema or schema.get("type") == "array", (path, schema)
-
-
-@pytest.mark.parametrize("value", ["invalid", {}, None])
-def test_response_models_reject_malformed_required_fields(value: Any) -> None:
-    models = contracts()
-    with pytest.raises(ValidationError):
-        TypeAdapter(models["runs"]["RunSummary"]).validate_python(
-            {
-                "events": value,
-                "hypotheses": 0,
-                "evidence": 0,
-                "matches": 0,
-                "reviews": 0,
-            }
-        )

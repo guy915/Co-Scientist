@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.interviews import model as interviews_model
@@ -57,6 +59,28 @@ def _interview_payload(response: Any) -> dict[str, Any]:
     raise AssertionError(f"no interview frame in stream: {response.text!r}")
 
 
+def _start_interview(
+    client: TestClient,
+    headers: dict[str, str],
+    challenge: str = "Study resistance",
+) -> Any:
+    return client.post(
+        "/api/interviews",
+        headers=headers,
+        json={"research_challenge": challenge},
+    )
+
+
+def _send_turn(
+    client: TestClient, headers: dict[str, str], interview_id: str, content: str
+) -> Any:
+    return client.post(
+        f"/api/interviews/{interview_id}/turns",
+        headers=headers,
+        json={"content": content},
+    )
+
+
 def _patch_model_sequence(
     monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
 ) -> None:
@@ -70,6 +94,28 @@ def _patch_model_sequence(
         _on_prose: Any = None,
     ) -> dict[str, Any]:
         return next(replies)
+
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
+
+
+def _patch_model_raising(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_model_failing_after(monkeypatch, [])
+
+
+def _patch_model_failing_after(
+    monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
+) -> None:
+    replies: Iterator[dict[str, Any]] = iter(responses)
+
+    async def _model(
+        _interview: dict[str, Any],
+        _on_reasoning: Any = None,
+        _on_prose: Any = None,
+    ) -> dict[str, Any]:
+        try:
+            return next(replies)
+        except StopIteration:
+            raise HTTPException(status_code=503, detail="unavailable") from None
 
     monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
 
