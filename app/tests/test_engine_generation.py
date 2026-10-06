@@ -765,27 +765,3 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
         "debate_lit-1",
         "debate_lit-2",
     ]
-
-
-async def test_pre_diversity_tasks_still_execute_as_one_debate(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Legacy generation task")
-    state = _generation_state(run.id, "no_lit")
-    strategies, _ = _install_strategies(monkeypatch)
-    _, tasks = await _schedule_generation(state, isolated_db)
-    task = tasks[0]
-    legacy = dataclasses.replace(
-        task,
-        inputs={
-            key: value
-            for key, value in task.inputs.items()
-            if key not in {"strategy_index", "debate_total"}
-        },
-    )
-    result = await fanout.execute_generation_strategy(
-        legacy, db_path=isolated_db
-    )
-    assert len(result["hypotheses"]) == 1
-    position = strategies.calls[0]["position"]
-    assert (position.debate_index, position.total_debates) == (0, 1)

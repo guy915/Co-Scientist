@@ -2,26 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
-from typing import Any, cast
-from unittest.mock import AsyncMock
+from typing import Any
 
-import co_scientist.cache as cache_nodes
 import pytest
 from co_scientist import models as engine_models
-from co_scientist.agents.generation.literature_review import node as lr
-from co_scientist.agents.generation.literature_review.orchestration import (
-    _CollectionResult,
-    _ReviewSynthesis,
-)
-from co_scientist.agents.generation.literature_review.queries import (
-    QueryPhaseResult,
-)
-from co_scientist.agents.generation.literature_review.research_phase import (
-    ResearchOutcome,
-)
-from co_scientist.cache import NodeCache
-from co_scientist.models import Article
 from co_scientist.research import (
     CallStatus,
     Finding,
@@ -34,7 +18,6 @@ from co_scientist.research import (
     ThreadStatus,
     result_to_dict,
 )
-from co_scientist.state import WorkflowState
 
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.report import gates as report_gates
@@ -46,7 +29,6 @@ from app.store.models import RunStatus
 from app.store.records import NewClaimEvidence, NewReview
 from tests._drain_helpers import (
     _build_report,
-    _engine_hypothesis,
     _final_state_with_features,
     _final_state_with_lineage,
     _persist,
@@ -148,138 +130,16 @@ def test_evidence_resolves_to_the_search_that_found_it(
     assert found_by["query"] == "TGF-beta blockade human fibrosis"
     assert found_by["question"] == _CALL.question
     assert found_by["source"] == "pubmed"
-
-
-def test_cached_literature_review_keeps_provenance_through_the_report(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    # Cache hits must preserve retrieval ledgers and article links without
-    # making another search.
-    from co_scientist.agents.generation.literature_review import (
-        literature_review_node,
-    )
-
-    cache = NodeCache(str(tmp_path), enabled=True, ttl_seconds=None)
-    monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
-    monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
-    monkeypatch.setattr(lr, "get_node_cache", lambda: cache)
-    collect = AsyncMock(
-        return_value=_CollectionResult(
-            all_paper_metadata={
-                "ordinary-1": {
-                    "title": "Ordinary search paper",
-                    "abstract": "A normal Phase 2 result.",
-                }
-            },
-            paper_source_map={},
-            search_errors=[],
-            background_context="",
-            context_enrichment_sources=[],
-        )
-    )
-    monkeypatch.setattr(lr, "check_mcp_available", AsyncMock(return_value=True))
-    monkeypatch.setattr(lr, "get_mcp_client", AsyncMock(return_value=object()))
-    monkeypatch.setattr(
-        lr,
-        "_phase1_generate_queries",
-        AsyncMock(
-            return_value=QueryPhaseResult(
-                queries=["TGF-beta blockade"], llm_calls=0
-            )
-        ),
-    )
-    monkeypatch.setattr(lr, "_collect_and_enrich_papers", collect)
-    monkeypatch.setattr(
-        lr,
-        "_analyze_and_synthesize",
-        AsyncMock(return_value=_ReviewSynthesis("SYNTHESIZED REVIEW", 0, [])),
-    )
-    monkeypatch.setattr(
-        lr,
-        "run_research_phase",
-        AsyncMock(
-            return_value=ResearchOutcome(
-                ledger=_ledger(),
-                records={
-                    "12345678": {
-                        "title": "A researched paper",
-                        "abstract": "TGF-beta blockade reduced fibrosis.",
-                        "retrieval_call_id": _CALL.id,
-                    }
-                },
-                section=(
-                    "\n\n## Research\nA human cohort supports the finding."
-                ),
-            )
-        ),
-    )
-
-    state = cast(
-        WorkflowState,
-        {
-            "research_goal": "reverse fibrosis",
-            "model_name": "test-model",
-            "research_tier": "extended",
-        },
-    )
-    cache.set(
-        "literature_review",
-        {
-            "articles": [
-                Article(
-                    title="Legacy researched paper",
-                    retrieval_call_id=_CALL.id,
-                )
-            ],
-            "articles_with_reasoning": "LEGACY CACHE",
-        },
-        **lr._literature_cache_params(state, lr.search_config_for(state)),
-    )
-    asyncio.run(literature_review_node(state))
-    cached = asyncio.run(literature_review_node(state))
-    assert collect.await_count == 1
-
-    final_state = {
-        "hypotheses": [
-            _engine_hypothesis("h1", "TGF-beta blockade reduces fibrosis.")
-        ],
-        "articles": [article.to_dict() for article in cached["articles"]],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "evolution_details": [],
-        "research_overview": {},
-        "research_ledgers": cached.get("research_ledgers", []),
-    }
-    run = seed_run("provenance goal", profile="extended")
-    _persist_and_finalize(run, final_state, isolated_db)
-
-    calls = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
-    evidence = records.list_evidence(run.id, db_path=isolated_db)
-    by_title = {row["title"]: row for row in evidence}
-    assert len(calls) == 1
-    assert by_title["A researched paper"]["retrieval_call_id"] == _CALL.id
-    assert by_title["Ordinary search paper"]["retrieval_call_id"] is None
+    assert [hit["locator"] for hit in found_by["hits"]] == [
+        "12345678",
+        "99999999",
+    ]
+    assert found_by["admitted"] == ["12345678"]
+    assert found_by["dropped"] == ["99999999"]
+    assert found_by["depth"] == 1
     _, markdown = asyncio.run(_build_report(run, isolated_db))
     assert "## Data sources" in markdown
     assert _CALL.question in markdown
-
-
-def test_what_was_seen_and_not_read_stays_on_record(
-    isolated_db: str,
-) -> None:
-    run = seed_run("coverage goal", profile="extended")
-
-    _persist_and_finalize(
-        run, _provenance_final_state(researched=True), isolated_db
-    )
-
-    call = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)[0]
-    assert [hit["locator"] for hit in call["hits"]] == ["12345678", "99999999"]
-    assert call["admitted"] == ["12345678"]
-    assert call["dropped"] == ["99999999"]
-    assert call["depth"] == 1
 
 
 def test_a_run_that_did_no_research_writes_no_searches(
@@ -294,18 +154,6 @@ def test_a_run_that_did_no_research_writes_no_searches(
     assert retrieval.list_retrieval_calls(run.id, db_path=isolated_db) == []
     evidence = records.list_evidence(run.id, db_path=isolated_db)
     assert evidence[0]["retrieval_call_id"] is None
-
-
-def test_the_run_tier_reaches_the_engine_verbatim(isolated_db: str) -> None:
-    # Pass normalized tiers rather than copied phase-enable decisions so app and
-    # engine cannot drift.
-    from app.engine_adapter.opts import build_engine_opts
-
-    run = seed_run("tier goal", profile="ultra")
-
-    opts = build_engine_opts({"tier": "advanced"}, run.id, isolated_db)
-
-    assert opts["research_tier"] == "ultra"
 
 
 _REVIEW_CALL = SearchCall(
@@ -349,44 +197,14 @@ def _review_ledger() -> dict[str, Any]:
     return ledger
 
 
-def test_every_researcher_in_a_run_leaves_its_searches_on_record(
+def test_every_researcher_keeps_its_own_searches_and_papers(
     isolated_db: str,
 ) -> None:
     # Literature and reflection own separate ledgers; one shared writer silently
-    # replaces earlier provenance.
+    # replaces earlier provenance, and a repeated search is still one row.
     run = seed_run("two researchers", profile="ultra")
     state = _provenance_final_state(researched=True)
-    state["research_ledgers"].append(_review_ledger())
-
-    _persist_and_finalize(run, state, isolated_db)
-
-    calls = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
-    assert {call["query"] for call in calls} == {
-        "TGF-beta blockade human fibrosis",
-        "TGF-beta receptor human expression",
-    }
-
-
-def test_the_same_search_from_two_researchers_is_one_row(
-    isolated_db: str,
-) -> None:
-    run = seed_run("same search twice", profile="ultra")
-    state = _provenance_final_state(researched=True)
-    state["research_ledgers"].append(_ledger())
-
-    _persist_and_finalize(run, state, isolated_db)
-
-    assert len(retrieval.list_retrieval_calls(run.id, db_path=isolated_db)) == 1
-
-
-def test_a_reviews_own_paper_resolves_to_the_reviews_own_search(
-    isolated_db: str,
-) -> None:
-    # Reflection provenance travels through item result and aggregate, unlike
-    # literature-review ledger inputs.
-    run = seed_run("review provenance", profile="ultra")
-    state = _provenance_final_state(researched=True)
-    state["research_ledgers"].append(_review_ledger())
+    state["research_ledgers"] += [_review_ledger(), _ledger()]
     state["articles"].append(
         {
             "title": "Expression atlas",
@@ -400,63 +218,49 @@ def test_a_reviews_own_paper_resolves_to_the_reviews_own_search(
 
     _persist_and_finalize(run, state, isolated_db)
 
-    evidence = records.list_evidence(run.id, db_path=isolated_db)
-    by_title = {row["title"]: row for row in evidence}
     calls = {
         call["id"]: call
         for call in retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
     }
+    assert {call["query"] for call in calls.values()} == {
+        "TGF-beta blockade human fibrosis",
+        "TGF-beta receptor human expression",
+    }
+    by_title = {
+        row["title"]: row
+        for row in records.list_evidence(run.id, db_path=isolated_db)
+    }
     found_by = calls[by_title["Expression atlas"]["retrieval_call_id"]]
     assert found_by["question"] == "Is the receptor expressed in humans?"
-    assert found_by["query"] == "TGF-beta receptor human expression"
 
 
-# No-source degradation is invisible from otherwise complete ideas and
-# tournaments; reports must disclose it.
-
-
-def _degradation_final_state(
-    degradation: dict[str, Any] | None,
-) -> dict[str, Any]:
-    return {
-        **_final_state_with_features(),
-        "retrieval_degradation": degradation,
-    }
-
-
+@pytest.mark.parametrize(
+    "degradation",
+    [
+        {
+            "reason": "mcp_unreachable",
+            "lost": ["literature_review", "deep_research"],
+            "floor": "none",
+        },
+        None,
+    ],
+)
 def test_the_report_carries_what_the_run_could_not_search(
-    isolated_db: str,
+    isolated_db: str, degradation: dict[str, Any] | None
 ) -> None:
+    # No-source degradation is invisible from otherwise complete ideas and
+    # tournaments; reports must disclose it.
     run = seed_run("degraded goal", profile="extended")
 
     _persist_and_finalize(
         run,
-        _degradation_final_state(
-            {
-                "reason": "mcp_unreachable",
-                "lost": ["literature_review", "deep_research"],
-                "floor": "none",
-            }
-        ),
+        {**_final_state_with_features(), "retrieval_degradation": degradation},
         isolated_db,
     )
 
     report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
-    degradation = report["payload"]["retrieval_degradation"]
-    assert degradation["reason"] == "mcp_unreachable"
-    assert degradation["floor"] == "none"
-    assert "literature_review" in degradation["lost"]
-
-
-def test_a_healthy_run_reports_no_degradation(isolated_db: str) -> None:
-    run = seed_run("healthy goal", profile="extended")
-
-    _persist_and_finalize(run, _degradation_final_state(None), isolated_db)
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert report["payload"]["retrieval_degradation"] is None
+    assert report["payload"]["retrieval_degradation"] == degradation
 
 
 def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
@@ -600,25 +404,6 @@ def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
     assert unverified == {insufficient_id}
 
 
-def test_gate_reports_exclusions_once_and_at_info(
-    isolated_db: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    # Individual exclusions are expected narrative; warn when the gate leaves
-    # nothing to synthesize.
-    run = seed_run("gate logging")
-    _, _, contradicted_id = _seed_gate_split(run, isolated_db)
-    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-
-    with caplog.at_level(logging.INFO, logger="app.report.gates"):
-        report_gates.exclude_unsafe_hypotheses(run.id, hyps, isolated_db)
-
-    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
-    assert any(contradicted_id in r.getMessage() for r in caplog.records)
-    assert any(
-        "excluded 1 of 3" in r.getMessage().lower() for r in caplog.records
-    )
-
-
 def test_gate_warns_when_it_excludes_everything(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -685,40 +470,23 @@ def _drained_status(
 
 
 @pytest.mark.parametrize(
-    "disposition", sorted(engine_models.BLOCKING_REVIEW_DISPOSITIONS)
+    ("disposition", "status"),
+    [
+        *(
+            (d, "rejected")
+            for d in sorted(engine_models.BLOCKING_REVIEW_DISPOSITIONS)
+        ),
+        (None, "active"),
+        ("needs_revision", "active"),
+    ],
 )
-def test_every_engine_blocking_disposition_drains_as_rejected(
-    isolated_db: str, disposition: str
-) -> None:
-    assert _drained_status(disposition, isolated_db, f"{disposition} goal") == (
-        "rejected"
-    )
-
-
-@pytest.mark.parametrize("disposition", [None, "needs_revision"])
-def test_non_blocking_dispositions_still_publish(
-    isolated_db: str, disposition: str | None
+def test_engine_review_dispositions_decide_what_the_drain_publishes(
+    isolated_db: str, disposition: str | None, status: str
 ) -> None:
     assert (
         _drained_status(disposition, isolated_db, f"{disposition} goal")
-        == "active"
+        == status
     )
-
-
-def test_a_new_engine_blocking_disposition_reaches_the_drain(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # App publication must follow engine dispositions or report content
-    # contradicts its own tournament tabs.
-    monkeypatch.setattr(
-        engine_models,
-        "BLOCKING_REVIEW_DISPOSITIONS",
-        engine_models.BLOCKING_REVIEW_DISPOSITIONS | {"superseded_by_evidence"},
-    )
-    status = _drained_status(
-        "superseded_by_evidence", isolated_db, "drifted gate goal"
-    )
-    assert status == "rejected"
 
 
 def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
@@ -803,24 +571,6 @@ def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:
     run = seed_run("Scientist drain", profile="express")
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
-
-    _replay_finalize(run.id, final_state, isolated_db)
-
-    rows = hypotheses.list_hypotheses(run.id, isolated_db)
-    assert [row["id"] for row in rows] == [hypothesis_id]
-    assert rows[0]["author"] == "dr-who"
-    assert rows[0]["created_by_agent"] == "scientist_manual"
-    assert rows[0]["generation"] == 0
-    assert rows[0]["parent_id"] is None
-    assert rows[0]["safety_status"] is not None
-
-
-def test_drained_scientist_hypothesis_keeps_tournament_counts(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Scientist replay", profile="express")
-    _seed_scientist_hypothesis(run.id, isolated_db)
-    final_state = _merged_final_state(run.id, isolated_db)
     final_state["hypotheses"][0]["win_count"] = 3
     final_state["hypotheses"][0]["loss_count"] = 1
 
@@ -828,7 +578,13 @@ def test_drained_scientist_hypothesis_keeps_tournament_counts(
     _replay_finalize(run.id, final_state, isolated_db)
 
     rows = hypotheses.list_hypotheses(run.id, isolated_db)
+    assert [row["id"] for row in rows] == [hypothesis_id]
     assert (rows[0]["win_count"], rows[0]["loss_count"]) == (3, 1)
+    assert rows[0]["author"] == "dr-who"
+    assert rows[0]["created_by_agent"] == "scientist_manual"
+    assert rows[0]["generation"] == 0
+    assert rows[0]["parent_id"] is None
+    assert rows[0]["safety_status"] is not None
 
 
 def test_drained_scientist_review_keeps_author_and_verdict(

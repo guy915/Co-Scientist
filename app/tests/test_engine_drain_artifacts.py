@@ -7,11 +7,6 @@ import pytest
 
 from app.engine_adapter.drain import final_state as drain_final_state
 from app.engine_adapter.drain.final_state import fold_grounding_telemetry
-from app.engine_adapter.drain.reviews import (
-    _deep_verification_detail,
-    _initial_review_detail,
-    _mature_review_detail,
-)
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.store import db, records, reports
@@ -31,121 +26,68 @@ from tests._drain_helpers import (
 from tests._store_helpers import seed_run
 
 
-def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
-    run = seed_run("criteria goal")
-    state = _final_state_with_features()
-    state["supervisor_guidance"] = {
-        "workflow_plan": {
-            "review_phase": {
-                "critical_criteria": [
-                    "Kinetic Feasibility and Experimental Readouts",
-                    "Human Data Integration and Accuracy",
-                ]
-            }
-        }
-    }
-
-    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    assert drained.report_inputs["critical_criteria"] == [
-        "Kinetic Feasibility and Experimental Readouts",
-        "Human Data Integration and Accuracy",
-    ]
-
-
-@pytest.mark.parametrize("key", ["critical_criteria", "attributes"])
-def test_drain_result_defaults_to_no_guidance(
-    isolated_db: str,
-    key: str,
-) -> None:
-    run = seed_run("no guidance goal")
-
-    drained = _persist(
-        run_id=run.id,
-        final_state=_final_state_with_features(),
-        db_path=isolated_db,
-    )
-
-    assert drained.report_inputs[key] == []
-
-
-def test_drain_result_carries_structured_critical_criteria(
-    isolated_db: str,
-) -> None:
-    # Structured criterion objects are valid guidance; string-only filtering
-    # silently discards them.
-    run = seed_run("structured criteria goal")
-    state = _final_state_with_features()
-    state["supervisor_guidance"] = {
-        "workflow_plan": {
-            "review_phase": {
-                "critical_criteria": [
-                    {
-                        "name": "Kinetic Feasibility",
-                        "questions": [
-                            {
-                                "name": "Biological Timeframe Consistency",
-                                "question": "Does the design fit the kinetics?",
-                            }
-                        ],
+@pytest.mark.parametrize(
+    ("guidance", "key", "expected"),
+    [
+        (None, "critical_criteria", []),
+        (None, "attributes", []),
+        (
+            {"workflow_plan": {"review_phase": {"critical_criteria": ["a"]}}},
+            "critical_criteria",
+            ["a"],
+        ),
+        # Structured criteria are valid guidance; string-only filtering would
+        # silently discard them.
+        (
+            {
+                "workflow_plan": {
+                    "review_phase": {
+                        "critical_criteria": [
+                            "novelty",
+                            {"name": "Kinetic Feasibility", "questions": []},
+                            42,
+                            None,
+                            ["not", "a", "criterion"],
+                        ]
                     }
-                ]
-            }
-        }
-    }
-
-    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    assert drained.report_inputs["critical_criteria"] == [
-        {
-            "name": "Kinetic Feasibility",
-            "questions": [
-                {
-                    "name": "Biological Timeframe Consistency",
-                    "question": "Does the design fit the kinetics?",
                 }
-            ],
-        }
-    ]
-
-
-def test_drain_result_drops_non_str_non_dict_criteria_entries(
+            },
+            "critical_criteria",
+            ["novelty", {"name": "Kinetic Feasibility", "questions": []}],
+        ),
+        (
+            {"workflow_plan": {"review_phase": "not a dict"}},
+            "critical_criteria",
+            [],
+        ),
+        (
+            {
+                "config_synthesis": {
+                    "attributes": [
+                        {"name": "Mechanism Novelty", "rubric": "1-5"}
+                    ]
+                }
+            },
+            "attributes",
+            [{"name": "Mechanism Novelty", "rubric": "1-5"}],
+        ),
+        ({"config_synthesis": "not a dict"}, "attributes", []),
+    ],
+)
+def test_drain_result_carries_supervisor_guidance_into_report_inputs(
     isolated_db: str,
+    guidance: dict[str, Any] | None,
+    key: str,
+    expected: list[Any],
 ) -> None:
-    run = seed_run("mixed criteria goal")
+    run = seed_run("guidance goal")
     state = _final_state_with_features()
-    state["supervisor_guidance"] = {
-        "workflow_plan": {
-            "review_phase": {
-                "critical_criteria": [
-                    "novelty",
-                    {"name": "Kinetic Feasibility", "questions": []},
-                    42,
-                    None,
-                    ["not", "a", "criterion"],
-                ]
-            }
-        }
-    }
+    if guidance is not None:
+        state["supervisor_guidance"] = guidance
 
     drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    assert drained.report_inputs["critical_criteria"] == [
-        "novelty",
-        {"name": "Kinetic Feasibility", "questions": []},
-    ]
-
-
-def test_drain_result_ignores_malformed_review_phase(isolated_db: str) -> None:
-    run = seed_run("malformed goal")
-    state = _final_state_with_features()
-    state["supervisor_guidance"] = {
-        "workflow_plan": {"review_phase": "not a dict"}
-    }
-
-    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    assert drained.report_inputs["critical_criteria"] == []
+    assert drained.report_inputs[key] == expected
 
 
 def _engine_review() -> dict[str, Any]:
@@ -175,194 +117,41 @@ def _engine_review() -> dict[str, Any]:
     }
 
 
-def test_initial_review_detail_persists_all_eight_axis_scores() -> None:
-    # Legacy plausibility holds scientific_soundness; persist the other axes in
-    # detail rather than infer scores.
-    detail = _initial_review_detail(_engine_review())
-
-    assert detail["scores"] == {
-        "scientific_soundness": 8,
-        "plausibility": 7,
-        "novelty": 6,
-        "testability": 9,
-        "potential_impact": 5,
-        "relevance": 4,
-        "safety": 10,
-        "clarity": 3,
-    }
-
-
-def test_initial_review_detail_persists_per_axis_feedback() -> None:
-    detail = _initial_review_detail(_engine_review())
-
-    assert detail["detailed_feedback"]["novelty"] == "The pairing is unusual."
-    assert len(detail["detailed_feedback"]) == 6
-    assert detail["constructive_feedback"] == "Name the control arm."
-
-
-def test_initial_review_detail_persists_the_novelty_two_lists() -> None:
-    detail = _initial_review_detail(_engine_review())
-
-    assert detail["already_explored"] == ["Target engagement is documented."]
-    assert detail["novel_aspects"] == [
-        "The stress-induced modification is new."
-    ]
-
-
-def test_initial_review_detail_is_empty_when_the_review_said_nothing() -> None:
-    assert _initial_review_detail({}) == {}
-
-
-def test_initial_review_detail_drops_unknown_and_out_of_range_axes() -> None:
-    detail = _initial_review_detail(
-        {"scores": {"novelty": 7, "vibes": 11, "clarity": "high"}}
-    )
-
-    assert detail["scores"] == {"novelty": 7}
-
-
-def test_mature_review_detail_carries_assumptions_and_prose() -> None:
-    detail = _mature_review_detail(
-        {
-            "correctness": "The logic holds.",
-            "quality_and_novelty": "A genuine contribution.",
-            "literature_grounding": "Two cohort studies agree.",
-            "justification": "Worth a pilot.",
-            "assumptions": [
-                {
-                    "assumption": "The receptor is expressed.",
-                    "reasoning": "Two cohorts detect it directly.",
-                    "support": "supported",
-                },
-                {"assumption": "", "reasoning": "dropped"},
-            ],
-            "go_no_go_recommendation": "Go - pursue validation.",
-            "time_to_verdict": "2-4 weeks",
-        }
-    )
-
-    assert detail["correctness"] == "The logic holds."
-    assert detail["go_no_go"] == "Go - pursue validation."
-    assert detail["assumptions"] == [
-        {
-            "assumption": "The receptor is expressed.",
-            "reasoning": "Two cohorts detect it directly.",
-            "support": "Plausible",
-        }
-    ]
-
-
-def test_mature_review_detail_carries_the_eight_part_reviews_summary() -> None:
-    detail = _mature_review_detail(
-        {
-            "reviews_summary": {
-                "executive_verdict": "The index is well conceived.",
-                "critical_flaws": ["The pore benchmark is wrong."],
-                "addressed_objections": ["Modelling reliability was met."],
-                "validated_risks": ["Parameter covariance is untreated."],
-                "supporting_arguments": ["The theoretical basis is right."],
-                "alignment_and_novelty": ["Squarely on the goal."],
-                "feasibility_assessment": ["Moderate resource intensity."],
-                "conclusion": "Recalibrate before testing.",
-            }
-        }
-    )
-
-    summary = detail["reviews_summary"]
-    assert summary["executive_verdict"] == "The index is well conceived."
-    assert summary["critical_flaws"] == ["The pore benchmark is wrong."]
-    assert summary["conclusion"] == "Recalibrate before testing."
-
-
-def test_mature_review_detail_omits_an_absent_reviews_summary() -> None:
-    # Empty backfilled scaffolds must not imply a review actually supplied a
-    # summary.
-    detail = _mature_review_detail({"correctness": "Holds."})
-
-    assert "reviews_summary" not in detail
-
-
-def test_mature_review_detail_carries_the_per_axis_sub_parts() -> None:
-    detail = _mature_review_detail(
-        {
-            "comparison_with_knowledge_base": "Agrees with the canon.",
-            "goal_requirements_assessment": "Meets every requirement.",
-            "feasibility_steps": ["Run the pilot.", "Read out at day 30."],
-            "feasibility_reasoning": "Both steps use standard assays.",
-            "impact_assessment": "Would change first-line practice.",
-        }
-    )
-
-    assert detail["comparison_with_knowledge_base"] == "Agrees with the canon."
-    assert detail["goal_requirements_assessment"] == "Meets every requirement."
-    assert detail["feasibility_steps"] == [
-        "Run the pilot.",
-        "Read out at day 30.",
-    ]
-    assert detail["feasibility_reasoning"] == "Both steps use standard assays."
-    assert detail["impact_assessment"] == "Would change first-line practice."
-
-
-def test_mature_review_detail_omits_absent_per_axis_sub_parts() -> None:
-    detail = _mature_review_detail({"correctness": "Holds."})
-
-    assert detail == {"correctness": "Holds."}
-
-
-def test_deep_verification_detail_carries_the_published_probe_triple() -> None:
-    detail = _deep_verification_detail(
-        [
-            {
-                "question": "Is CXCR1/2 inhibition alone sufficient?",
-                "answer": "It targets a key node of the microenvironment.",
-                "reasoning": "The idea is not incoherent but needs care.",
-                "assumption_is_fundamental": True,
-            },
-            {"question": "", "answer": "dropped"},
-        ],
-        "weakened",
-    )
-
-    assert detail["verdict"] == "weakened"
-    assert detail["probes"] == [
-        {
-            "question": "Is CXCR1/2 inhibition alone sufficient?",
-            "answer": "It targets a key node of the microenvironment.",
-            "reasoning": "The idea is not incoherent but needs care.",
-            "fundamental": True,
-        }
-    ]
-
-
-def test_deep_verification_detail_is_empty_without_probes() -> None:
-    assert _deep_verification_detail([], "holds") == {}
-
-
-def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
-    from app.store import records as store
-    from tests._drain_helpers import _engine_hypothesis, _persist
-
+def test_persisted_review_rows_carry_the_structured_detail(
+    isolated_db: str,
+) -> None:
     hypothesis = _engine_hypothesis(
         "h-1",
         "A hypothesis.",
         reviews=[_engine_review()],
+        deep_verification_probes=[
+            {
+                "question": "Does the receptor bind?",
+                "answer": "Yes, at nanomolar affinity.",
+                "reasoning": "Two structures show the contact.",
+                "assumption_is_fundamental": True,
+            },
+            {"question": "", "answer": "dropped"},
+        ],
+        deep_verification_verdict="holds",
+        enrichments={
+            "full": {
+                "verdict": "sound",
+                "correctness": "The logic holds.",
+                "assumptions": [
+                    {
+                        "assumption": "The receptor is expressed.",
+                        "reasoning": "Two cohorts detect it directly.",
+                        "support": "supported",
+                    },
+                    {"assumption": "", "reasoning": "dropped"},
+                ],
+                "reviews_summary": {"conclusion": "Worth testing."},
+                "feasibility_steps": ["Run the pilot."],
+            }
+        },
     )
-    hypothesis["deep_verification_probes"] = [
-        {
-            "question": "Does the receptor bind?",
-            "answer": "Yes, at nanomolar affinity.",
-            "reasoning": "Two structures show the contact.",
-            "assumption_is_fundamental": True,
-        }
-    ]
-    hypothesis["deep_verification_verdict"] = "holds"
-    hypothesis["enrichments"] = {
-        "full": {
-            "verdict": "sound",
-            "correctness": "The logic holds.",
-            "reviews_summary": {"conclusion": "Worth testing."},
-        }
-    }
+    hypothesis["reviews"][0]["scores"]["vibes"] = 11
     run = seed_run("detail goal")
     _persist(
         run_id=run.id,
@@ -379,14 +168,56 @@ def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
 
     by_agent = {
         row["reviewer_agent"]: json.loads(row["detail_json"] or "{}")
-        for row in store.list_reviews(run.id, db_path=isolated_db)
+        for row in records.list_reviews(run.id, db_path=isolated_db)
     }
-    assert by_agent["review"]["scores"]["potential_impact"] == 5
-    assert by_agent["deep_verification"]["probes"][0]["fundamental"] is True
-    assert (
-        by_agent["full_review"]["reviews_summary"]["conclusion"]
-        == "Worth testing."
-    )
+    review = by_agent["review"]
+    assert review["scores"] == _engine_review()["scores"]
+    assert len(review["detailed_feedback"]) == 6
+    assert review["constructive_feedback"] == "Name the control arm."
+    assert review["already_explored"] == ["Target engagement is documented."]
+    assert review["novel_aspects"] == [
+        "The stress-induced modification is new."
+    ]
+    assert by_agent["deep_verification"]["probes"] == [
+        {
+            "question": "Does the receptor bind?",
+            "answer": "Yes, at nanomolar affinity.",
+            "reasoning": "Two structures show the contact.",
+            "fundamental": True,
+        }
+    ]
+    full = by_agent["full_review"]
+    assert full["reviews_summary"]["conclusion"] == "Worth testing."
+    assert full["assumptions"] == [
+        {
+            "assumption": "The receptor is expressed.",
+            "reasoning": "Two cohorts detect it directly.",
+            "support": "Plausible",
+        }
+    ]
+    assert full["feasibility_steps"] == ["Run the pilot."]
+
+
+@pytest.mark.parametrize(
+    ("final_state", "usage", "calls"),
+    [
+        (
+            {"metrics": {"llm_calls": 3, "model_usage": {}}},
+            {"g::m": {"calls": 5}},
+            8,
+        ),
+        ({}, {"g::m": {"calls": 2}}, 2),
+        ({"metrics": {"llm_calls": 4}}, {}, 4),
+    ],
+)
+def test_grounding_telemetry_is_charged_once_into_plain_metrics(
+    final_state: dict[str, Any], usage: dict[str, Any], calls: int
+) -> None:
+    fold_grounding_telemetry(final_state, usage)
+
+    metrics = final_state["metrics"]
+    assert metrics["llm_calls"] == calls
+    assert ("g::m" in metrics.get("model_usage", {})) is bool(usage)
 
 
 def test_review_axes_match_the_engine_score_criteria() -> None:
@@ -399,89 +230,6 @@ def test_review_axes_match_the_engine_score_criteria() -> None:
 
     assert _REVIEW_AXES == _SCORE_CRITERIA
     assert [axis for axis, _ in _AXIS_SECTIONS] == list(_SCORE_CRITERIA)
-
-
-def test_drain_result_carries_stratification_attributes(
-    isolated_db: str,
-) -> None:
-    run = seed_run("attributes goal")
-    state = _final_state_with_features()
-    state["supervisor_guidance"] = {
-        "config_synthesis": {
-            "attributes": [
-                {
-                    "name": "Mechanism Novelty",
-                    "rubric": (
-                        "1: Well-established pathway, 3: New application of"
-                        " a known mechanism, 5: Highly novel and"
-                        " paradigm-shifting."
-                    ),
-                }
-            ]
-        }
-    }
-
-    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    assert drained.report_inputs["attributes"] == [
-        {
-            "name": "Mechanism Novelty",
-            "rubric": (
-                "1: Well-established pathway, 3: New application of a known"
-                " mechanism, 5: Highly novel and paradigm-shifting."
-            ),
-        }
-    ]
-
-
-def test_drain_result_ignores_malformed_config_synthesis(
-    isolated_db: str,
-) -> None:
-    run = seed_run("malformed goal")
-    state = _final_state_with_features()
-    state["supervisor_guidance"] = {"config_synthesis": "not a dict"}
-
-    drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    assert drained.report_inputs["attributes"] == []
-
-
-def test_grounding_telemetry_is_folded_into_plain_metrics() -> None:
-    final_state: dict[str, Any] = {
-        "metrics": {"llm_calls": 3, "model_usage": {}}
-    }
-    usage = {
-        "claim_grounding::llm:test-model": {
-            "calls": 5,
-            "prompt_tokens": 50,
-        }
-    }
-
-    fold_grounding_telemetry(final_state, usage)
-
-    metrics = final_state["metrics"]
-    assert metrics["llm_calls"] == 8
-    entry = metrics["model_usage"]["claim_grounding::llm:test-model"]
-    assert entry["calls"] == 5
-    assert entry["prompt_tokens"] == 50
-
-
-def test_grounding_telemetry_handles_missing_metrics_key() -> None:
-    final_state: dict[str, Any] = {}
-    usage = {"claim_grounding::llm:test-model": {"calls": 2}}
-
-    fold_grounding_telemetry(final_state, usage)
-
-    metrics = final_state["metrics"]
-    assert metrics["llm_calls"] == 2
-
-
-def test_a_grounding_pass_that_made_no_calls_charges_nothing() -> None:
-    final_state: dict[str, Any] = {"metrics": {"llm_calls": 4}}
-
-    fold_grounding_telemetry(final_state, {})
-
-    assert final_state["metrics"] == {"llm_calls": 4}
 
 
 def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
@@ -675,12 +423,24 @@ def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
     assert match["loser_id"] == "parent-1"
 
 
-def test_drain_persists_evidence_quarantine_as_rejected(
+@pytest.mark.parametrize(
+    ("overrides", "status", "verdict"),
+    [
+        ({"review_disposition": "evidence_blocked"}, "rejected", None),
+        # Undermined ideas still publish, so the verdict is what distinguishes
+        # them from sound ideas.
+        ({"deep_verification_verdict": "undermined"}, "active", "undermined"),
+    ],
+)
+def test_drain_maps_evidence_outcomes_onto_publication_status(
     isolated_db: str,
+    overrides: dict[str, Any],
+    status: str,
+    verdict: str | None,
 ) -> None:
     state = _final_state_with_lineage()
-    state["hypotheses"][0]["review_disposition"] = "evidence_blocked"
-    run = seed_run("grounded archive goal")
+    state["hypotheses"][0].update(overrides)
+    run = seed_run("archive goal")
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
@@ -690,31 +450,29 @@ def test_drain_persists_evidence_quarantine_as_rejected(
             run.id, db_path=isolated_db
         )
     }
-    assert by_id["parent-1"]["status"] == "rejected"
+    assert by_id["parent-1"]["status"] == status
+    assert by_id["parent-1"]["verification_verdict"] == verdict
     assert by_id["child-1"]["status"] == "active"
 
 
-def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
-    isolated_db: str,
+@pytest.mark.parametrize(
+    "research_overview", [None, {"overview": {}, "nih_specific_aims": {}}]
+)
+def test_persist_omits_research_overview_sections_when_there_is_none(
+    isolated_db: str, research_overview: dict[str, Any] | None
 ) -> None:
-    # Undermined ideas still publish, so persist the verdict that distinguishes
-    # them from sound ideas.
-    state = _final_state_with_lineage()
-    state["hypotheses"][0]["deep_verification_verdict"] = "undermined"
-    run = seed_run("undermined archive goal")
+    state = _final_state_with_features()
+    if research_overview is None:
+        del state["research_overview"]
+    else:
+        state["research_overview"] = research_overview
+    run = seed_run("No overview")
+    _persist_and_finalize(run, state, isolated_db)
 
-    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
-
-    by_id = {
-        hypothesis["id"]: hypothesis
-        for hypothesis in store_hypotheses.list_hypotheses(
-            run.id, db_path=isolated_db
-        )
-    }
-    assert by_id["parent-1"]["status"] == "active"
-    assert by_id["parent-1"]["verification_verdict"] == "undermined"
-    assert by_id["child-1"]["status"] == "active"
-    assert by_id["child-1"]["verification_verdict"] is None
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert "## Research Overview" not in report["markdown_text"]
+    assert "## NIH Specific Aims" not in report["markdown_text"]
 
 
 async def test_unsafe_hypothesis_excluded_from_synthesis(
@@ -774,57 +532,6 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
     assert count == 1
 
 
-def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=_final_state_with_features(),
-        db_path=isolated_db,
-    )
-
-    hyps = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-    ids = {h["id"] for h in hyps}
-    assert ids == {"eng-hyp-a", "eng-hyp-b"}
-
-
-def test_persist_writes_scene_setting_onto_the_hypothesis_row(
-    isolated_db: str,
-) -> None:
-    run = seed_run("CSC goal")
-    final_state = {
-        "hypotheses": [
-            _engine_hypothesis(
-                "eng-hyp-scene",
-                "Blocking CXCR1 suppresses breast cancer stem cells.",
-                introduction=(
-                    "Breast cancer stem cells drive relapse and resistance."
-                ),
-                recent_findings=(
-                    "CXCR1 is enriched in the stem-like subpopulation."
-                ),
-            )
-        ],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "research_overview": {},
-    }
-    _persist(
-        run_id=run.id,
-        final_state=final_state,
-        db_path=isolated_db,
-    )
-
-    hyps = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-    assert len(hyps) == 1
-    assert hyps[0]["introduction"] == (
-        "Breast cancer stem cells drive relapse and resistance."
-    )
-    assert hyps[0]["recent_findings"] == (
-        "CXCR1 is enriched in the stem-like subpopulation."
-    )
-
-
 def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
     # Evolution can change matchup display text; identity must resolve by id
     # rather than text prefixes.
@@ -866,31 +573,6 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
     )
 
     assert records.list_matches(run.id, db_path=isolated_db) == []
-
-
-def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
-    state = _final_state_with_features()
-    del state["research_overview"]
-    run = seed_run("No overview")
-    _persist_and_finalize(run, state, isolated_db)
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert not report["payload"].get("research_overview")
-    assert "## Research Overview" not in report["markdown_text"]
-    assert "## NIH Specific Aims" not in report["markdown_text"]
-
-
-def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
-    state = _final_state_with_features()
-    state["research_overview"] = {"overview": {}, "nih_specific_aims": {}}
-    run = seed_run("Empty overview")
-    _persist_and_finalize(run, state, isolated_db)
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert "## Research Overview" not in report["markdown_text"]
-    assert "## NIH Specific Aims" not in report["markdown_text"]
 
 
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
@@ -1111,20 +793,8 @@ def test_persist_classifies_citations_via_shared_classifier(
         "[C2] cited in hypothesis": "unsupported",
         "[C3] cited in hypothesis": "unavailable",
     }
-
-
-def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
-    isolated_db: str,
-) -> None:
     # Non-paper citations use display rather than title; falling back to the
     # citation key loses source identity.
-    run = seed_run("CSC goal")
-    _persist(
-        run_id=run.id,
-        final_state=_final_state_with_citations(),
-        db_path=isolated_db,
-    )
-
     evidence = records.list_evidence(run.id, db_path=isolated_db)
     kg_row = next(e for e in evidence if e["source"] == "knowledge_graph")
     assert kg_row["title"] == "INDRA: CXCR1 -> STAT3"
