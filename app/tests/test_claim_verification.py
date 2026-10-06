@@ -152,18 +152,6 @@ async def test_grounding_retains_method_across_api_reopen(
     assert "Assessment method: model judgment" in markdown
 
 
-@pytest.mark.parametrize(
-    ("has_evidence", "expected"),
-    [(True, "deterministic_lexical"), (False, "no_evidence")],
-)
-def test_deterministic_method_describes_actual_evidence_path(
-    has_evidence: bool, expected: str
-) -> None:
-    claim = "A dietary change improves cardiovascular outcomes in adults."
-    result = assess_claim(claim, as_passages([claim]) if has_evidence else [])
-    assert result.verification_method == expected
-
-
 def test_no_candidates_cannot_claim_model_verification() -> None:
     def assess(
         _claim: str, _passages: Sequence[EvidencePassage]

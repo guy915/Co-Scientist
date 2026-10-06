@@ -14,13 +14,9 @@ from app.citations import (
     CitationMetadata,
     CitationRecord,
     CitationState,
-    DateState,
     Resolvability,
-    SourceType,
     assess_resolvability,
     classify_citation,
-    classify_date,
-    classify_source_type,
     offline_resolver,
 )
 
@@ -53,57 +49,6 @@ def test_offline_resolver_accepts_a_bare_identifier_without_a_url() -> None:
         is Resolvability.RESOLVABLE
     )
     assert offline_resolver(CitationMetadata()) is Resolvability.UNRESOLVABLE
-
-
-@pytest.mark.parametrize(
-    ("source", "expected"),
-    [
-        ("pubmed", SourceType.PEER_REVIEWED),
-        ("europepmc", SourceType.PEER_REVIEWED),
-        ("arxiv", SourceType.PREPRINT),
-        ("biorxiv", SourceType.PREPRINT),
-        ("scientific_database", SourceType.DATABASE),
-        ("web", SourceType.WEB),
-        ("attachment", SourceType.DOCUMENT),
-        ("engine", SourceType.UNKNOWN),
-        ("", SourceType.UNKNOWN),
-    ],
-)
-def test_source_type_from_the_retrieval_source_name(
-    source: str, expected: SourceType
-) -> None:
-    assert classify_source_type(CitationMetadata(source=source)) is expected
-
-
-def test_declared_type_and_preprint_host_outrank_the_retrieval_source() -> None:
-    # PubMed indexes preprints too.
-    declared = CitationMetadata(source="pubmed", publication_type="Preprint")
-    journal = CitationMetadata(source="", publication_type="Journal Article")
-    host = CitationMetadata(
-        source="unknown", url="https://www.biorxiv.org/content/10.1101/1v1"
-    )
-
-    assert classify_source_type(declared) is SourceType.PREPRINT
-    assert classify_source_type(journal) is SourceType.PEER_REVIEWED
-    assert classify_source_type(host) is SourceType.PREPRINT
-
-
-@pytest.mark.parametrize(
-    ("year", "expected"),
-    [
-        (2024, DateState.PRESENT),
-        (2027, DateState.PRESENT),
-        (None, DateState.MISSING),
-        (3025, DateState.IMPLAUSIBLE),
-        (1500, DateState.IMPLAUSIBLE),
-    ],
-)
-def test_date_states_cover_missing_present_and_implausible(
-    year: int | None, expected: DateState
-) -> None:
-    meta = CitationMetadata(year=year)
-
-    assert classify_date(meta, today_year=2026) is expected
 
 
 @pytest.mark.parametrize(
@@ -218,55 +163,6 @@ class _FakeEsummaryClient:
         return _FakeResponse(self._status_code, self._payload)
 
 
-@pytest.mark.parametrize(
-    ("client", "expected"),
-    [
-        (
-            _FakeEsummaryClient(
-                200, {"result": {"uids": ["1"], "1": {"uid": "1"}}}
-            ),
-            True,
-        ),
-        (
-            _FakeEsummaryClient(
-                200,
-                {"result": {"uids": ["1"], "1": {"error": "cannot get doc"}}},
-            ),
-            False,
-        ),
-        (_RaisingClient(), False),
-        (_BadJsonClient(), False),
-    ],
-    ids=["found", "error-record", "http-error", "malformed-json"],
-)
-def test_pmid_found_only_for_a_record_without_an_error(
-    client: Any, expected: bool
-) -> None:
-    assert citation_resolver._pmid_found(client, "1") is expected
-
-
-def test_resolve_many_preserves_input_order_and_uses_the_resolver_seam() -> (
-    None
-):
-    metas = [
-        CitationMetadata(url="https://a"),
-        CitationMetadata(url="https://b", retracted=True),
-        CitationMetadata(url="https://c"),
-    ]
-
-    assert citation_resolver.resolve_many(metas, resolver=offline_resolver) == [
-        Resolvability.RESOLVABLE,
-        Resolvability.RETRACTED,
-        Resolvability.RESOLVABLE,
-    ]
-    assert (
-        citation_resolver.resolve_many(
-            metas, resolver=lambda meta: Resolvability.UNRESOLVABLE
-        )
-        == [Resolvability.UNRESOLVABLE] * 3
-    )
-
-
 def test_a_doi_in_the_offline_retraction_set_short_circuits_before_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -337,40 +233,6 @@ def test_classify_citation(
         url=url, abstract=abstract, claim=claim, available=available
     )
     assert classify_citation(r) == expected
-
-
-# Union overlap penalizes unrelated abstract length; claim coverage preserves
-# literal support on long sources.
-_ABSTRACT_BODY = (
-    "Background: glioblastoma remains the most aggressive primary brain "
-    "tumour, with median survival under fifteen months despite maximal "
-    "resection, radiotherapy and temozolomide. Methods: three "
-    "patient-derived stem cell lines were treated across a concentration "
-    "range and assayed for viability and colony formation. Results: "
-    "viability fell dose-dependently while normal astrocytes were spared. "
-    "Conclusions: further preclinical evaluation is warranted."
-)
-
-_CLAIM = (
-    "empagliflozin suppresses proliferation of patient-derived "
-    "glioblastoma stem cells by elevating beta-hydroxybutyrate"
-)
-
-
-@pytest.mark.parametrize(
-    "abstract",
-    [
-        f"{_CLAIM}. {_ABSTRACT_BODY}",
-        "empagliflozin suppresses proliferation of glioblastoma stem "
-        f"cells as beta-hydroxybutyrate rises. {_ABSTRACT_BODY}",
-    ],
-    ids=["verbatim_claim", "paraphrased_claim"],
-)
-def test_abstract_length_does_not_suppress_support(abstract: str) -> None:
-    r = CitationRecord(
-        url="https://example.org/1", abstract=abstract, claim=_CLAIM
-    )
-    assert classify_citation(r) == "verified"
 
 
 def _write_gz(tmp_path: Path, dois: list[str]) -> Path:

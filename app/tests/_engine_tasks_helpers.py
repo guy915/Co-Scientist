@@ -24,8 +24,6 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.models import ScientificTask
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
-from ._llm_fake_backend import load_engine_fake
-
 
 def _task_state(run_id: str) -> dict[str, Any]:
     return {
@@ -241,30 +239,6 @@ def _install_plain_fake_judge(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
 
 
-def _install_concurrency_tracking_judge(
-    monkeypatch: pytest.MonkeyPatch,
-) -> dict[str, int]:
-    import co_scientist.agents.ranking.operations as ranking_module
-
-    box = {"in_flight": 0, "peak": 0}
-
-    async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
-        box["in_flight"] += 1
-        box["peak"] = max(box["peak"], box["in_flight"])
-        await asyncio.sleep(0)
-        box["in_flight"] -= 1
-        return "a", {
-            "decision_summary": "A is stronger",
-            "confidence_level": "high",
-            "debate_turns": int(kwargs["debate_turns"]),
-            "debate_transcript": [],
-            "judge_model": "fixture",
-        }
-
-    monkeypatch.setattr(ranking_module, "judge_matchup", fake_judge)
-    return box
-
-
 async def _run_ranking_node(run_id: str, db_path: str) -> dict[str, Any]:
     leased = tasks.claim_task("ranking", run_id=run_id, db_path=db_path)
     assert leased is not None
@@ -292,15 +266,6 @@ async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
         )
         matches += 1
     return matches
-
-
-def _running_ranking_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
-    return [
-        e
-        for e in events.list_events(run_id, db_path=db_path)
-        if e["payload"].get("task") == "ranking"
-        and e["payload"].get("status") == "running"
-    ]
 
 
 def _run() -> str:
@@ -356,14 +321,6 @@ def make_cancellable_executor(
         return {"completed": True}
 
     return _execute
-
-
-def _install_fake_engine_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    load_engine_fake().install_fake_llm(monkeypatch)
-    monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "0")
-    from app.config import settings
-
-    monkeypatch.setattr(settings, "semantic_safety_enabled", False)
 
 
 def small_run_config() -> dict[str, Any]:
