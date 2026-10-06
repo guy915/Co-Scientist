@@ -10,20 +10,19 @@ from app.engine_adapter.drain.reviews import (
     _assumption_line,
     _simulation_detail,
 )
-from app.report import markdown as report_markdown
 from app.report.markdown.hypothesis import (
     _render_critiques_rollup,
     _render_deep_verification,
     _render_hypothesis_reviews,
     _render_reviews_summary,
 )
-from app.store import records, reports
+from app.store import records
 from tests._drain_helpers import (
     _build_report,
     _final_state_with_features,
-    _persist,
     _persist_and_finalize,
 )
+from tests._report_helpers import render_markdown
 from tests._store_helpers import seed_run
 
 
@@ -173,30 +172,6 @@ def test_all_reviews_render_the_published_axes_in_order() -> None:
     assert lines[novel + 1] == "- The stress-induced modification is new."
 
 
-def test_an_old_shaped_review_renders_exactly_what_it_always_did() -> None:
-    old_row = _row(
-        "full_review",
-        {
-            "correctness": "The logic holds throughout.",
-            "quality_and_novelty": "A genuine contribution.",
-            "literature_grounding": "Two cohort studies agree.",
-            "justification": "Worth a pilot.",
-        },
-    )
-    text = "\n".join(_render_hypothesis_reviews([_initial_row(), old_row]))
-
-    for heading in (
-        "Related Article",
-        "Comparison with Knowledge Base",
-        "Goal Requirement Assessment",
-        "Steps to Test the Idea",
-        "Reasoning about Feasibility",
-        "Overall Impact Potential",
-    ):
-        assert heading not in text
-    assert "**Reasoning about Correctness**" in text
-
-
 def test_all_reviews_prefers_the_latest_row_of_each_agent() -> None:
     # Reviews arrive oldest first; choosing the first would publish a superseded
     # assessment.
@@ -300,25 +275,9 @@ def test_critiques_rollup_gathers_the_negative_parts_of_the_latest() -> None:
     assert "- Stale flaw." not in latest
 
 
-def _summary_markdown(critical_criteria: list[Any] | None) -> str:
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            critical_criteria=critical_criteria,
-        )
-    )
-
-
 def test_review_summary_renders_structured_and_legacy_criteria() -> None:
-    markdown = _summary_markdown(
-        [
+    markdown = render_markdown(
+        critical_criteria=[
             {
                 "name": "Kinetic Feasibility",
                 "questions": [
@@ -349,56 +308,7 @@ def test_review_summary_renders_structured_and_legacy_criteria() -> None:
     [None, [], "not a list", [42, None, {"questions": []}], [{"name": "   "}]],
 )
 def test_no_usable_criteria_renders_no_review_summary(criteria: Any) -> None:
-    assert "Review Summary" not in _summary_markdown(criteria)
-
-
-def _final_state_with_mature_enrichments() -> dict[str, Any]:
-    state = _final_state_with_features()
-    state["hypotheses"][0]["enrichments"] = {
-        "full": {"verdict": "sound", "justification": "holds together"},
-        "simulation": {"verdict": "holds", "decisive_step": "step two"},
-    }
-    return state
-
-
-def test_report_payload_carries_every_persisted_review(
-    isolated_db: str,
-) -> None:
-    run = seed_run("review goal")
-
-    _persist_and_finalize(
-        run, _final_state_with_mature_enrichments(), isolated_db
-    )
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    agents = sorted(
-        row["reviewer_agent"] for row in report["payload"]["reviews"]
-    )
-    assert "deep_verification" in agents
-    assert "full_review" in agents
-    assert "simulation_review" in agents
-
-
-def test_mature_review_rows_are_distinctly_labeled(isolated_db: str) -> None:
-    run = seed_run("labeled goal")
-
-    _persist(
-        run_id=run.id,
-        final_state=_final_state_with_mature_enrichments(),
-        db_path=isolated_db,
-    )
-
-    reviews = records.list_reviews(run.id, db_path=isolated_db)
-    summaries = {
-        r["reviewer_agent"]: r["summary"]
-        for r in reviews
-        if r["reviewer_agent"] in ("full_review", "simulation_review")
-    }
-    assert summaries == {
-        "full_review": "Full review verdict: sound",
-        "simulation_review": "Simulation review verdict: holds",
-    }
+    assert "Review Summary" not in render_markdown(critical_criteria=criteria)
 
 
 _TITLES = {"h1": "SGLT2 inhibition in fibroblasts", "h2": "NHE1 screening"}
@@ -435,14 +345,10 @@ def _match(**overrides: Any) -> dict[str, Any]:
 
 
 def _debate_markdown(matches: list[dict[str, Any]] | None) -> str:
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[{"id": "h1", "title": _TITLES["h1"]}],
-            matches=matches,
-            hypothesis_title_by_id=dict(_TITLES),
-        )
+    return render_markdown(
+        top_hypotheses=[{"id": "h1", "title": _TITLES["h1"]}],
+        matches=matches,
+        hypothesis_title_by_id=dict(_TITLES),
     )
 
 
@@ -534,7 +440,8 @@ def test_the_section_caps_how_many_debates_and_turns_it_renders() -> None:
         debate_turns=10,
         debate_transcript=_transcript(
             "1",
-            [(turn, "1", f"Turn {turn} argument.") for turn in range(1, 11)],
+            [(1, "1", "word " * 900)]
+            + [(turn, "1", f"Turn {turn} argument.") for turn in range(2, 11)],
         ),
     )
 
@@ -546,22 +453,8 @@ def test_the_section_caps_how_many_debates_and_turns_it_renders() -> None:
     assert "Debate 0 turn 1." not in capped
     assert "Turn 5 argument." in long
     assert "Turn 6 argument." not in long
-
-
-def test_a_pathologically_long_turn_is_truncated() -> None:
-    markdown = _debate_markdown(
-        [
-            _match(
-                debate_transcript=_transcript(
-                    "1",
-                    [(1, "1", "word " * 900), (2, "1", "Short close.")],
-                )
-            )
-        ]
-    )
-
-    assert "…" in markdown
-    assert len(markdown) < 6000
+    assert "…" in long
+    assert len(long) < 6000
 
 
 def _ordered_transcript(

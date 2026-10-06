@@ -16,7 +16,7 @@ from app.report import build as report_build
 from app.report import content as report_content
 from app.report import finalize as report_finalize
 from app.report import gates as report_gates
-from app.safety import SafetyDecision, apply_safety_gate
+from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
 from app.store import checkpoints, db, hypotheses, records, reports, runs, tasks
 from app.store import events as store_events
@@ -223,12 +223,38 @@ def _owner_events(
     return cast(list[dict[str, Any]], response.json()["events"])
 
 
+@pytest.mark.parametrize(
+    ("gate", "monitor_halt", "stage", "event_type"),
+    [
+        (
+            (report_finalize, "_block_for_empty_leaderboard"),
+            False,
+            "scientific_readiness",
+            None,
+        ),
+        (
+            (engine_tasks_node, "apply_safety_gate"),
+            True,
+            "research_direction",
+            "safety.research_direction",
+        ),
+    ],
+    ids=["readiness-block", "monitor-halt"],
+)
 @pytest.mark.asyncio
-async def test_cancel_race_does_not_block_run(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
+    gate: tuple[Any, str],
+    monitor_halt: bool,
+    stage: str,
+    event_type: str | None,
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
-        isolated_db, monkeypatch, "readiness-cancel-owner"
+        isolated_db,
+        monkeypatch,
+        f"cancel-before-{stage}",
+        monitor_halt=monitor_halt,
     )
     _install_report(monkeypatch)
 
@@ -236,28 +262,28 @@ async def test_cancel_race_does_not_block_run(
         return SafetyDecision(stage="final", decision="allow")
 
     _install_runtime(monkeypatch).screen = allow_final_screen
+    module, name = gate
+    real_gate = getattr(module, name)
     cancel_responses: list[dict[str, Any]] = []
-    block_for_empty_leaderboard = report_finalize._block_for_empty_leaderboard
 
-    async def cancel_before_readiness_write(*args: Any, **kwargs: Any) -> Any:
+    async def cancel_first(*args: Any, **kwargs: Any) -> Any:
         response = owner.post(f"/api/runs/{run_id}/cancel", headers=headers)
         assert response.status_code == 200, response.text
         cancel_responses.append(response.json())
-        async for event in block_for_empty_leaderboard(*args, **kwargs):
+        async for event in real_gate(*args, **kwargs):
             yield event
 
-    monkeypatch.setattr(
-        report_finalize,
-        "_block_for_empty_leaderboard",
-        cancel_before_readiness_write,
-    )
+    monkeypatch.setattr(module, name, cancel_first)
 
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    _assert_cancelled_task(owner, headers, run_id, task.id, isolated_db)
-    assert _decisions(run_id, "scientific_readiness", isolated_db) == []
+    events = _assert_cancelled_task(
+        owner, headers, run_id, task.id, isolated_db
+    )
+    assert _decisions(run_id, stage, isolated_db) == []
+    assert not any(event["type"] == event_type for event in events)
 
 
 @pytest.mark.asyncio
@@ -335,46 +361,6 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
     completed_event = _status_event(events, "completed")
     assert final_event["seq"] < report_event["seq"] < completed_event["seq"]
     assert "sensitive span" not in repr(report_event["payload"]).lower()
-
-
-@pytest.mark.asyncio
-async def test_cancel_before_monitor_halt_gate_leaves_no_halt_audit(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    owner, headers, run_id, task = _seed_leased_finalize(
-        isolated_db,
-        monkeypatch,
-        "monitor-halt-cancel-owner",
-        monitor_halt=True,
-    )
-    cancel_responses: list[dict[str, Any]] = []
-
-    async def cancel_before_monitor_gate(
-        gated_run_id: str, decision: SafetyDecision, emit: Any, **kwargs: Any
-    ) -> Any:
-        response = owner.post(f"/api/runs/{run_id}/cancel", headers=headers)
-        assert response.status_code == 200, response.text
-        cancel_responses.append(response.json())
-        async for event in apply_safety_gate(
-            gated_run_id, decision, emit, **kwargs
-        ):
-            yield event
-
-    monkeypatch.setattr(
-        engine_tasks_node, "apply_safety_gate", cancel_before_monitor_gate
-    )
-
-    with pytest.raises(task_worker._LeaseLostError):
-        await engine_tasks.execute_finalize(task, db_path=isolated_db)
-
-    assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    events = _assert_cancelled_task(
-        owner, headers, run_id, task.id, isolated_db
-    )
-    assert _decisions(run_id, "research_direction", isolated_db) == []
-    assert not any(
-        event["type"] == "safety.research_direction" for event in events
-    )
 
 
 @pytest.mark.asyncio

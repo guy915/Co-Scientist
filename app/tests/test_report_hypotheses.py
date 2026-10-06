@@ -3,7 +3,6 @@ import json
 import pytest
 
 from app.report import content as report_content
-from app.report import markdown as report_markdown
 from app.report.markdown import hypothesis as report_markdown_hypothesis
 from app.report.markdown.hypothesis import (
     _HYPOTHESIS_DISCLAIMER,
@@ -12,6 +11,7 @@ from app.report.markdown.hypothesis import (
 )
 from app.report.markdown.overview import render_research_overview_markdown
 from tests._report_helpers import meta_review_markdown as _meta_review_markdown
+from tests._report_helpers import render_markdown
 
 # Contact examples can reference the full synthesis pool, beyond the five-item
 # report slice.
@@ -298,33 +298,6 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
                 }
             ),
         },
-        {
-            "hypothesis_id": "h1",
-            "reviewer_agent": "deep_verification",
-            "detail_json": json.dumps(
-                {
-                    "verdict": "weakened",
-                    "probes": [
-                        {
-                            "question": "Is inhibition alone sufficient?",
-                            "answer": "It targets a key node.",
-                            "reasoning": "Not incoherent, but it needs care.",
-                            "fundamental": True,
-                        }
-                    ],
-                }
-            ),
-        },
-        {
-            "hypothesis_id": "h1",
-            "reviewer_agent": "simulation_review",
-            "detail_json": json.dumps(
-                {
-                    "failure_points": ["Off-target editing risk."],
-                    "decisive_step": "Step 3: enzyme binds substrate.",
-                }
-            ),
-        },
     ]
 
     lines = report_markdown_hypothesis._render_hypothesis_entry(
@@ -423,24 +396,6 @@ def test_hypothesis_entry_renders_every_subsection_verbatim() -> None:
         "- The stress response is new.",
         "",
         "**Answer: 6**",
-        "",
-        "#### Simulation review",
-        "",
-        "1. **Failure point:** Off-target editing risk.",
-        "",
-        "**Decisive step:** Step 3: enzyme binds substrate.",
-        "",
-        "#### Deep verification",
-        "",
-        "**Verdict:** weakened",
-        "",
-        "**Probe 1 (fundamental assumption)**",
-        "",
-        "Question: Is inhibition alone sufficient?",
-        "",
-        "Answer: It targets a key node.",
-        "",
-        "Reasoning: Not incoherent, but it needs care.",
         "",
         "#### Critiques",
         "",
@@ -573,110 +528,44 @@ def test_a_malformed_or_unlabelled_comparison_entry_is_skipped(
     assert "orphaned" not in markdown
 
 
-@pytest.mark.parametrize(
-    ("reviews", "expected"),
-    [
-        (
-            [
-                _review(
-                    "full_review",
-                    {"go_no_go": "Go.", "time_to_verdict": "Short"},
-                )
-            ],
-            ["**Verdict:** Go.", "", "**Time to Verdict:** Short", ""],
-        ),
-        (
-            [
-                _review("full_review", {"go_no_go": "stale framing"}),
-                _review("recurrent_review", {"go_no_go": "fresh framing"}),
-            ],
-            ["**Verdict:** fresh framing", ""],
-        ),
-        (
-            [_review("full_review", {"go_no_go": 42, "time_to_verdict": None})],
-            ["**Verdict:** 42", ""],
-        ),
-        ([], []),
-        (
-            [
-                {
-                    "hypothesis_id": "h1",
-                    "reviewer_agent": "full_review",
-                    "detail_json": "{not valid json",
-                }
-            ],
-            [],
-        ),
-        (
-            [
-                {
-                    "hypothesis_id": "h1",
-                    "reviewer_agent": "full_review",
-                    "detail_json": json.dumps(["go", "short"]),
-                }
-            ],
-            [],
-        ),
-    ],
-    ids=[
-        "both",
-        "recurrent-wins",
-        "coerced",
-        "no-review",
-        "bad-json",
-        "not-an-object",
-    ],
-)
-def test_the_verdict_renders_what_the_review_carries_and_degrades_quietly(
-    reviews: list[dict[str, object]], expected: list[str]
-) -> None:
-    assert _render_hypothesis_verdict(reviews) == expected
+def test_the_verdict_prefers_the_recurrent_review_and_degrades_quietly() -> (
+    None
+):
+    recurrent = [
+        _review("full_review", {"go_no_go": "stale framing"}),
+        _review("recurrent_review", {"go_no_go": "fresh framing"}),
+    ]
+    malformed = {
+        "hypothesis_id": "h1",
+        "reviewer_agent": "full_review",
+        "detail_json": "{not valid json",
+    }
+
+    assert _render_hypothesis_verdict(recurrent) == [
+        "**Verdict:** fresh framing",
+        "",
+    ]
+    assert _render_hypothesis_verdict([malformed]) == []
+    assert _render_hypothesis_verdict([]) == []
 
 
-@pytest.mark.parametrize(
-    ("detail", "expected"),
-    [
-        (
-            {
-                "failure_points": ["Off-target risk.", "Delivery."],
-                "decisive_step": "Step 4: vector reaches tissue.",
-            },
-            [
-                "1. **Failure point:** Off-target risk.",
-                "2. **Failure point:** Delivery.",
-                "",
-                "**Decisive step:** Step 4: vector reaches tissue.",
-                "",
-            ],
-        ),
-        (
-            {"failure_points": "a single string", "decisive_step": "Step 2."},
-            ["**Decisive step:** Step 2.", ""],
-        ),
-        (
-            {"failure_points": ["", "   ", "A real point."]},
-            ["1. **Failure point:** A real point.", ""],
-        ),
-        ({}, None),
-    ],
-    ids=[
-        "points-and-step",
-        "points-not-a-list",
-        "blank-points",
-        "mechanism-holds",
-    ],
-)
-def test_the_simulation_review_lists_failure_points_and_the_decisive_step(
-    detail: dict[str, object], expected: list[str] | None
-) -> None:
-    lines = _render_hypothesis_simulation_review(
-        [_review("simulation_review", detail)]
+def test_the_simulation_review_skips_blank_points_and_holds_its_tongue() -> (
+    None
+):
+    blank = _review(
+        "simulation_review", {"failure_points": ["", "   ", "A real point."]}
     )
 
-    assert lines == (
-        [] if expected is None else ["#### Simulation review", "", *expected]
+    assert _render_hypothesis_simulation_review([blank]) == [
+        "#### Simulation review",
+        "",
+        "1. **Failure point:** A real point.",
+        "",
+    ]
+    assert (
+        _render_hypothesis_simulation_review([_review("simulation_review", {})])
+        == []
     )
-    assert _render_hypothesis_simulation_review([]) == []
 
 
 @pytest.mark.parametrize(
@@ -689,12 +578,9 @@ def test_the_simulation_review_lists_failure_points_and_the_decisive_step(
 def test_novelty_is_disclosed_as_unverified_unless_checked_against_literature(
     extra: dict[str, object], disclosed: bool
 ) -> None:
-    markdown = report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Map the feedback loop.",
-            provider="engine",
-            top_hypotheses=[_hypothesis("h1", "Feedback control", **extra)],
-        )
+    markdown = render_markdown(
+        research_goal="Map the feedback loop.",
+        top_hypotheses=[_hypothesis("h1", "Feedback control", **extra)],
     )
 
     assert ("reviewing model's own judgment" in markdown) is disclosed

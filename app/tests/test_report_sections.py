@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import datetime
-from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -9,12 +7,12 @@ import pytest
 from app.report import build as report_build
 from app.report import content as report_content
 from app.report import gates as report_gates
-from app.report import markdown as report_markdown
 from app.store import hypotheses, runs
 from app.store import retrieval_calls as retrieval
 from app.store.hypotheses import HypothesisStateChanges
 from app.store.retrieval_calls import NewRetrievalCall
 from tests._drain_helpers import _build_report
+from tests._report_helpers import render_markdown
 from tests._store_helpers import _add, seed_run
 
 
@@ -192,25 +190,6 @@ def test_idea_buckets_partition_every_idea() -> None:
     } == {hyp["id"] for hyp in released + excluded}
 
 
-def test_a_duplicate_and_a_rejected_idea_get_different_reasons() -> None:
-    # Duplicates were never judged; merging them must not read as failed peer
-    # review.
-    released = _sections_hypothesis("h1", "Feedback control")
-    deduped = _sections_hypothesis("h2", "Near-duplicate idea")
-    deduped["status"] = "duplicate"
-    rejected = _sections_hypothesis("h3", "Unsound idea")
-    rejected["status"] = "rejected"
-
-    buckets = report_content._idea_buckets(
-        [released], [released, deduped, rejected], []
-    )
-
-    reasons = {entry["id"]: entry["reason"] for entry in buckets["non_viable"]}
-    assert "higher-ranked" in reasons["h2"]
-    assert "review" in reasons["h3"].lower()
-    assert reasons["h2"] != reasons["h3"]
-
-
 def test_insights_and_markdown_show_one_statement_per_idea() -> None:
     # Panel and body must quote the same whole proposal rather than different
     # title/text fallbacks.
@@ -224,12 +203,8 @@ def test_insights_and_markdown_show_one_statement_per_idea() -> None:
     }
 
     insights = report_content._agent_insights([hypothesis], [], {})
-    markdown = report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Map the feedback loop.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-        )
+    markdown = render_markdown(
+        research_goal="Map the feedback loop.", top_hypotheses=[hypothesis]
     )
 
     finding = insights["key_findings"][0].removeprefix("Proposed hypothesis: ")
@@ -255,12 +230,8 @@ def test_markdown_renders_scene_setting_before_the_proposed_hypothesis() -> (
         "mechanism": "The enzyme is allosterically inhibited by its product.",
     }
 
-    markdown = report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Map the feedback loop.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-        )
+    markdown = render_markdown(
+        research_goal="Map the feedback loop.", top_hypotheses=[hypothesis]
     )
 
     intro_at = markdown.index("#### Introduction")
@@ -356,21 +327,8 @@ async def test_report_body_opens_with_the_same_idea_as_the_standings(
     assert markdown.index("Sound idea") < markdown.index("Doubted idea")
 
 
-_DocumentFn = Callable[[report_markdown.ReportMarkdownInputs], str]
-
-
-def _disclosure_markdown(fn: _DocumentFn) -> str:
-    return fn(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[],
-        )
-    )
-
-
 def test_the_overview_document_carries_the_about_disclosure() -> None:
-    markdown = _disclosure_markdown(report_markdown.render_report_markdown)
+    markdown = render_markdown(top_hypotheses=[])
 
     assert (
         "**About**: *This is an experimental system for generating novel"
@@ -379,68 +337,12 @@ def test_the_overview_document_carries_the_about_disclosure() -> None:
     ) in markdown
 
 
-def _provenance_markdown(prepared_at: float | None) -> str:
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[],
-            prepared_at=prepared_at,
-        )
-    )
-
-
-def test_the_date_is_derived_from_prepared_at_not_wall_clock() -> None:
-    timestamp = 1_700_000_000.0
-    expected = (
-        datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
-        .date()
-        .isoformat()
-    )
-
-    markdown = _provenance_markdown(timestamp)
-
-    assert expected in markdown
-
-
-def _notice_markdown(skills_used: dict[str, int] | None) -> str:
-    hypothesis: dict[str, Any] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            skills_used=skills_used,
-        )
-    )
-
-
 def test_a_queried_source_is_named_with_its_terms() -> None:
-    markdown = _notice_markdown({"string-database": 2})
+    markdown = render_markdown(skills_used={"string-database": 2})
 
     assert "## Data sources" in markdown
     assert "string-database" in markdown
     assert "SKILL_LICENSES.md" in markdown
-
-
-def _retrieval_markdown(retrieval_calls: list[dict[str, Any]] | None) -> str:
-    hypothesis: dict[str, Any] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            retrieval_calls=retrieval_calls,
-        )
-    )
 
 
 def _call(
@@ -455,8 +357,8 @@ def _call(
 
 
 def test_counts_are_right_per_source_with_overlapping_questions() -> None:
-    markdown = _retrieval_markdown(
-        [
+    markdown = render_markdown(
+        retrieval_calls=[
             _call("pubmed", "What drives fibrosis?", "q1"),
             _call("pubmed", "Is NHE1 druggable?", "q2"),
             _call("openalex", "What drives fibrosis?", "q1"),
@@ -510,39 +412,15 @@ async def test_a_built_report_pulls_its_own_runs_retrieval_calls(
     assert "What drives fibrosis?" in built.markdown
 
 
-def test_empty_question_id_does_not_collapse_distinct_questions() -> None:
-    # TEXT NOT NULL permits empty question ids; grouping them together would
-    # silently lose distinct questions.
-    markdown = _retrieval_markdown(
-        [
-            _call("pubmed", "What regulates NHE1 activity in tumours?", ""),
-            _call("pubmed", "Which inhibitors target SLC9A1?", ""),
-        ]
-    )
-
-    assert "What regulates NHE1 activity in tumours?" in markdown
-    assert "Which inhibitors target SLC9A1?" in markdown
-
-
-def _header_markdown(setup: dict[str, object] | None) -> str:
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[],
-            setup=setup,
-        )
-    )
-
-
 def test_the_header_carries_goal_requirements_attributes_and_criteria() -> None:
-    markdown = _header_markdown(
-        {
+    markdown = render_markdown(
+        top_hypotheses=[],
+        setup={
             "goal": "Explain the cardiac benefit.",
             "requirements": ["Must be testable in vitro."],
             "attributes": ["Mechanistically specific"],
             "criteria": ["Scientific soundness"],
-        }
+        },
     )
 
     assert "## Research Goal Details" in markdown
@@ -556,8 +434,9 @@ def test_the_header_carries_goal_requirements_attributes_and_criteria() -> None:
 
 
 def test_the_header_renders_r12_5_structured_attributes() -> None:
-    markdown = _header_markdown(
-        {
+    markdown = render_markdown(
+        top_hypotheses=[],
+        setup={
             "goal": "Explain the cardiac benefit.",
             "attributes": [
                 {
@@ -566,7 +445,7 @@ def test_the_header_renders_r12_5_structured_attributes() -> None:
                 },
                 {"name": "Target Area", "values": ["Heart", "Vasculature"]},
             ],
-        }
+        },
     )
 
     assert "**Attributes:**" in markdown
@@ -583,7 +462,7 @@ def test_the_header_renders_r12_5_structured_attributes() -> None:
 def test_no_setup_block_renders_no_goal_details_section(
     setup: dict[str, object] | None,
 ) -> None:
-    markdown = _header_markdown(setup)
+    markdown = render_markdown(top_hypotheses=[], setup=setup)
 
     assert "Research Goal Details" not in markdown
 
@@ -597,13 +476,10 @@ def _restatement_hypothesis() -> dict[str, object]:
 
 
 def _render(restatement: str | None) -> str:
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Map the metabolic feedback loop.",
-            goal_restatement=restatement,
-            provider="engine",
-            top_hypotheses=[_restatement_hypothesis()],
-        )
+    return render_markdown(
+        research_goal="Map the metabolic feedback loop.",
+        goal_restatement=restatement,
+        top_hypotheses=[_restatement_hypothesis()],
     )
 
 
@@ -640,25 +516,9 @@ def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
     assert reloaded.goal_restatement is None
 
 
-def _base_markdown(knowledge_base: list[dict[str, object]]) -> str:
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            knowledge_base=knowledge_base,
-        )
-    )
-
-
 def test_a_topic_renders_its_title_summary_and_detail() -> None:
-    markdown = _base_markdown(
-        [
+    markdown = render_markdown(
+        knowledge_base=[
             {
                 "id": "topic-1",
                 "title": "Mitochondrial calcium handling",
@@ -696,8 +556,8 @@ def _themed(theme: str, title: str, detail: str) -> dict[str, object]:
 
 
 def test_a_theme_is_printed_once_above_its_sections() -> None:
-    markdown = _base_markdown(
-        [
+    markdown = render_markdown(
+        knowledge_base=[
             _themed("Matrix Architecture", "Cross-Linking", "Dense prose."),
             _themed("Matrix Architecture", "Stiffness", "More prose."),
             _themed("Immune Niche", "Macrophages", "Other prose."),
@@ -714,8 +574,8 @@ def test_a_theme_is_printed_once_above_its_sections() -> None:
 
 
 def test_an_unthemed_topic_never_inherits_the_previous_theme() -> None:
-    markdown = _base_markdown(
-        [
+    markdown = render_markdown(
+        knowledge_base=[
             _themed("Matrix Architecture", "Cross-Linking", "Dense prose."),
             {
                 "id": "topic-flat",

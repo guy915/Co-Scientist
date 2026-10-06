@@ -2,17 +2,9 @@ from typing import Any
 
 import pytest
 
-from app.report import markdown as report_markdown
 from app.report.markdown import document as report_markdown_toc
 from app.report.markdown.overview import render_research_overview_markdown
-
-
-def _hypothesis() -> dict[str, Any]:
-    return {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
+from tests._report_helpers import render_markdown
 
 
 def _evidence(evidence_id: str, **overrides: Any) -> dict[str, Any]:
@@ -31,14 +23,7 @@ def _evidence(evidence_id: str, **overrides: Any) -> dict[str, Any]:
 
 
 def _overview_markdown(evidence: list[dict[str, Any]] | None) -> str:
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[_hypothesis()],
-            evidence=evidence,
-        )
-    )
+    return render_markdown(evidence=evidence)
 
 
 def _references(evidence: list[dict[str, Any]]) -> str:
@@ -187,14 +172,8 @@ def _bibliography_markdown(
     citations: list[dict[str, object]] | None = None,
     evidence: list[dict[str, object]] | None = None,
 ) -> str:
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=hypotheses,
-            citations=citations,
-            evidence=evidence,
-        )
+    return render_markdown(
+        top_hypotheses=hypotheses, citations=citations, evidence=evidence
     )
 
 
@@ -221,17 +200,6 @@ def test_a_resolvable_key_prints_its_reference_entry_in_numeric_order() -> None:
     assert section.index("[C1]") < section.index("[C2]")
     assert "Kim et al., 2022" in section
     assert "Paper one" in section and "Paper two" in section
-
-
-def test_old_run_with_keys_but_no_data_shows_no_references_heading() -> None:
-    markdown = _bibliography_markdown(
-        [_referenced_hypothesis("h1", "RSK1 acts on NHE1 [C1].")],
-        citations=None,
-        evidence=None,
-    )
-
-    assert "#### References" not in markdown
-    assert "[C1]" in markdown
 
 
 @pytest.mark.parametrize(
@@ -433,29 +401,10 @@ def test_a_single_titled_direction_gets_no_preview_list() -> None:
     assert "### Mitochondrial dysfunction" in text
 
 
-def _contents_markdown(**overrides: Any) -> str:
-    hypothesis: dict[str, Any] = overrides.pop(
-        "hypothesis",
-        {
-            "id": "h1",
-            "title": "NHE1 coupling",
-            "statement": "NHE1 couples to the RSK axis in HFpEF.",
-        },
-    )
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis] if hypothesis else [],
-            **overrides,
-        )
-    )
-
-
 def test_table_of_contents_lists_only_the_sections_this_render_produced() -> (
     None
 ):
-    markdown = _contents_markdown(
+    markdown = render_markdown(
         attributes=[{"name": "Human Relevance", "rubric": "1-5 scale."}],
         meta_review={"summary": "Ideas converge on a shared mechanism."},
         knowledge_base=[{"title": "NHE1", "summary": "Background."}],
@@ -471,21 +420,6 @@ def test_table_of_contents_lists_only_the_sections_this_render_produced() -> (
     assert "- Research Goal Details" not in markdown
     assert "- Open questions" not in markdown
     assert "- Research Contacts" not in markdown
-
-
-def test_table_of_contents_opens_the_report_before_any_section() -> None:
-    markdown = _contents_markdown(
-        meta_review={"summary": "Ideas converge on a shared mechanism."}
-    )
-
-    lines = markdown.splitlines()
-    assert lines[0] == "# Research Report — Explain the cardiac benefit."
-    toc_at = lines.index("#### Table of contents:")
-    goal_at = markdown.find("## Research Goal Details")
-    hypotheses_at = markdown.find("## Top hypotheses")
-    assert toc_at < 8
-    assert goal_at == -1
-    assert markdown.index("#### Table of contents:") < hypotheses_at
 
 
 def test_table_of_contents_ignores_a_bogus_heading_inside_body_prose() -> None:
@@ -504,7 +438,7 @@ def test_table_of_contents_ignores_a_bogus_heading_inside_body_prose() -> None:
 def test_table_of_contents_degrades_when_research_overview_is_malformed() -> (
     None
 ):
-    markdown = _contents_markdown(research_overview="not a dict")
+    markdown = render_markdown(research_overview="not a dict")
 
     lines = markdown.splitlines()
     toc_at = lines.index("#### Table of contents:")

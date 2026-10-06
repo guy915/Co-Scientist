@@ -2,25 +2,9 @@ from typing import Any
 
 import pytest
 
-from app.report import markdown as report_markdown
 from app.report.markdown.overview import render_research_overview_markdown
 from tests._report_helpers import meta_review_markdown as _meta_review_markdown
-
-
-def _report_markdown(**fields: Any) -> str:
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            **fields,
-        )
-    )
+from tests._report_helpers import render_markdown
 
 
 def _overview_markdown(payload: dict[str, object]) -> str:
@@ -28,7 +12,7 @@ def _overview_markdown(payload: dict[str, object]) -> str:
 
 
 def test_criteria_render_in_each_shape_beside_the_scientists_own() -> None:
-    markdown = _report_markdown(
+    markdown = render_markdown(
         critical_criteria=[
             {
                 "name": "Kinetic Feasibility",
@@ -63,7 +47,7 @@ def test_criteria_render_in_each_shape_beside_the_scientists_own() -> None:
 
 @pytest.mark.parametrize("criteria", [None, [], ["", "   "], "not a list"])
 def test_no_usable_criteria_renders_no_section(criteria: Any) -> None:
-    assert "Evaluation Criteria" not in _report_markdown(
+    assert "Evaluation Criteria" not in render_markdown(
         critical_criteria=criteria
     )
 
@@ -71,7 +55,7 @@ def test_no_usable_criteria_renders_no_section(criteria: Any) -> None:
 def test_main_research_directions_sit_immediately_before_top_hypotheses() -> (
     None
 ):
-    markdown = _report_markdown(
+    markdown = render_markdown(
         meta_review={
             "main_research_directions": (
                 "One direction is **Metabolic State**, which matters.\n\n"
@@ -95,7 +79,7 @@ def test_main_research_directions_sit_immediately_before_top_hypotheses() -> (
 def test_no_bare_main_research_directions_heading(
     meta_review: dict[str, object] | None,
 ) -> None:
-    assert "Main Research Directions" not in _report_markdown(
+    assert "Main Research Directions" not in render_markdown(
         meta_review=meta_review
     )
 
@@ -230,7 +214,7 @@ def test_a_single_recommendation_has_no_roadmap_and_none_has_no_section() -> (
 
 
 def test_attributes_render_as_named_scales_beside_the_scientists_own() -> None:
-    markdown = _report_markdown(
+    markdown = render_markdown(
         attributes=[
             {
                 "name": "Mechanism Novelty",
@@ -254,7 +238,7 @@ def test_attributes_render_as_named_scales_beside_the_scientists_own() -> None:
 def test_no_usable_attributes_renders_no_section(
     attributes: list[dict[str, object]] | None,
 ) -> None:
-    assert "Stratification Attributes" not in _report_markdown(
+    assert "Stratification Attributes" not in render_markdown(
         attributes=attributes
     )
 
