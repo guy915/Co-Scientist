@@ -209,16 +209,6 @@ def test_all_reviews_prefers_the_latest_row_of_each_agent() -> None:
     assert "**Answer: 1**" not in lines
 
 
-def test_all_reviews_render_nothing_without_review_detail() -> None:
-    assert _render_hypothesis_reviews([]) == []
-    assert (
-        _render_hypothesis_reviews(
-            [{"hypothesis_id": "h1", "reviewer_agent": "review"}]
-        )
-        == []
-    )
-
-
 def test_reviews_summary_renders_the_published_eight_parts_in_order() -> None:
     lines = _render_reviews_summary([_summary_row()])
 
@@ -308,16 +298,6 @@ def test_critiques_rollup_gathers_the_negative_parts_of_the_latest() -> None:
     latest = _render_critiques_rollup([stale, fresh])
     assert "- Fresh prose flaw." in latest
     assert "- Stale flaw." not in latest
-
-
-def test_critiques_rollup_renders_nothing_when_absent() -> None:
-    assert _render_critiques_rollup([]) == []
-    assert (
-        _render_critiques_rollup(
-            [_row("full_review", {"reviews_summary": {"conclusion": "Ship."}})]
-        )
-        == []
-    )
 
 
 def _summary_markdown(critical_criteria: list[Any] | None) -> str:

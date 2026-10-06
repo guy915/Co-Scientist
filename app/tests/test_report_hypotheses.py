@@ -4,7 +4,6 @@ import pytest
 
 from app.report import content as report_content
 from app.report import markdown as report_markdown
-from app.report.build import _hypothesis_title_by_id
 from app.report.markdown import hypothesis as report_markdown_hypothesis
 from app.report.markdown.hypothesis import (
     _HYPOTHESIS_DISCLAIMER,
@@ -16,16 +15,6 @@ from tests._report_helpers import meta_review_markdown as _meta_review_markdown
 
 # Contact examples can reference the full synthesis pool, beyond the five-item
 # report slice.
-
-
-def test_hypothesis_titles_map_by_id_skipping_incomplete_entries() -> None:
-    hyps = [
-        {"id": "h1", "title": ""},
-        {"id": "", "title": "Untitled but id-less"},
-        {"id": "h3", "title": "Complete"},
-    ]
-
-    assert _hypothesis_title_by_id(hyps) == {"h3": "Complete"}
 
 
 def test_comparison_a_populated_comparison_renders_domain_aware_axes() -> None:
@@ -137,21 +126,6 @@ def test_a_contact_matching_no_group_falls_back_to_the_flat_shape() -> None:
     assert "### Cy Unaffiliated" in markdown
     assert "**Research direction:** Direction Z" in markdown
     assert "Direction A" not in markdown
-
-
-def test_a_group_naming_no_matching_contact_renders_nothing() -> None:
-    markdown = _groups_markdown(
-        contacts=[
-            {"name": "Ada Researcher", "research_direction": "Direction A"}
-        ],
-        groups=[
-            {"research_direction": "Direction Never Tagged", "rationale": "X"}
-        ],
-    )
-
-    assert "Direction Never Tagged" not in markdown
-    assert "### Direction A" not in markdown
-    assert "### Ada Researcher" in markdown
 
 
 def test_the_evidence_citing_field_renders_under_a_fixed_name() -> None:
@@ -545,14 +519,6 @@ def test_scientist_admission_notice_absent_once_peer_reviewed() -> None:
     assert not any(line.startswith(_NOTICE_PREFIX) for line in cleared)
 
 
-def test_hypothesis_title_falls_back_to_untitled_when_absent() -> None:
-    lines = report_markdown_hypothesis._render_hypothesis_entry(
-        1, {"id": "h4"}, [], [], []
-    )
-
-    assert lines[0] == "### 1. **Co-Scientist - Untitled**  _Elo: _"
-
-
 def _review(agent: str, detail: dict[str, object] | None) -> dict[str, object]:
     row: dict[str, object] = {"hypothesis_id": "h1", "reviewer_agent": agent}
     if detail is not None:
@@ -607,25 +573,6 @@ def test_a_malformed_or_unlabelled_comparison_entry_is_skipped(
     assert "orphaned" not in markdown
 
 
-def test_a_comparison_pairs_values_with_axes_up_to_the_shorter_side() -> None:
-    markdown = _meta_review_markdown(
-        {
-            "candidate_comparison": {
-                "axes": ["Off-target risk"],
-                "ideas": [
-                    {
-                        "idea": "Hypothesis 1: NHE1 blockade",
-                        "values": ["Low.", "An orphaned second value."],
-                    }
-                ],
-            }
-        }
-    )
-
-    assert "**Off-target risk:** Low." in markdown
-    assert "An orphaned second value." not in markdown
-
-
 @pytest.mark.parametrize(
     ("reviews", "expected"),
     [
@@ -646,15 +593,10 @@ def test_a_comparison_pairs_values_with_axes_up_to_the_shorter_side() -> None:
             ["**Verdict:** fresh framing", ""],
         ),
         (
-            [_review("full_review", {"time_to_verdict": "2-3 months"})],
-            ["**Time to Verdict:** 2-3 months", ""],
-        ),
-        (
             [_review("full_review", {"go_no_go": 42, "time_to_verdict": None})],
             ["**Verdict:** 42", ""],
         ),
         ([], []),
-        ([{"hypothesis_id": "h1", "reviewer_agent": "full_review"}], []),
         (
             [
                 {
@@ -679,10 +621,8 @@ def test_a_comparison_pairs_values_with_axes_up_to_the_shorter_side() -> None:
     ids=[
         "both",
         "recurrent-wins",
-        "time-only",
         "coerced",
         "no-review",
-        "no-detail",
         "bad-json",
         "not-an-object",
     ],

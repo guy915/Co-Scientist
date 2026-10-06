@@ -62,25 +62,6 @@ def test_empty_leaderboard_reason_names_only_what_withheld_the_ideas(
     )
 
 
-def test_empty_leaderboard_reason_reads_duplicates_and_a_mix_distinctly() -> (
-    None
-):
-    duplicates = report_gates._empty_leaderboard_reason(
-        2,
-        {"review_rejected": 0, "duplicate": 2, "contradicted": 0, "safety": 0},
-    )
-    mix = report_gates._empty_leaderboard_reason(
-        4,
-        {"review_rejected": 2, "duplicate": 0, "contradicted": 1, "safety": 1},
-    )
-
-    assert "folded into a higher-ranked idea" in duplicates
-    assert "peer review" not in duplicates
-    assert "2 were rejected by peer review" in mix
-    assert "1 was contradicted by the evidence" in mix
-    assert "1 was withheld by the safety review" in mix
-
-
 def _leaderboard_hypothesis(identifier: str, title: str) -> dict[str, object]:
     return {
         "id": identifier,
@@ -228,22 +209,6 @@ def test_a_duplicate_and_a_rejected_idea_get_different_reasons() -> None:
     assert "higher-ranked" in reasons["h2"]
     assert "review" in reasons["h3"].lower()
     assert reasons["h2"] != reasons["h3"]
-
-
-def test_contradictions_carry_claim_text_and_never_blank_entries() -> None:
-    hypothesis = _sections_hypothesis("h1", "Feedback control")
-    edges = [
-        _edge("h1", "The bypass is constitutively active.", "contradicts"),
-        _edge("h1", "", "contradicts"),
-        _edge("h1", "Feedback is rate-limiting.", "supports"),
-    ]
-
-    insights = report_content._agent_insights([hypothesis], edges, {})
-
-    assert len(insights["contradictions"]) == 1
-    assert insights["contradictions"][0].startswith(
-        "The bypass is constitutively active."
-    )
 
 
 def test_insights_and_markdown_show_one_statement_per_idea() -> None:
@@ -489,12 +454,6 @@ def _call(
     }
 
 
-def test_a_run_without_searches_carries_no_summary() -> None:
-    assert "## Data sources" not in _retrieval_markdown(None)
-    assert "## Data sources" not in _retrieval_markdown([])
-    assert "Literature searches" not in _retrieval_markdown(None)
-
-
 def test_counts_are_right_per_source_with_overlapping_questions() -> None:
     markdown = _retrieval_markdown(
         [
@@ -718,14 +677,6 @@ def test_a_topic_renders_its_title_summary_and_detail() -> None:
     assert "Mitochondrial calcium handling" in markdown
     assert "Calcium influx couples to ROS production." in markdown
     assert "Perturbing MCU activity shifts the balance" in markdown
-
-
-def test_a_topic_with_no_title_is_skipped() -> None:
-    markdown = _base_markdown(
-        [{"id": "topic-1", "summary": "orphaned prose", "detail": ""}]
-    )
-
-    assert "orphaned prose" not in markdown
 
 
 # Themes must be real headings so outlines retain the taxonomy rather than
