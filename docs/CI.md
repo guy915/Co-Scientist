@@ -145,8 +145,7 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
 - **Path filtering is a crude approximation of affected-target selection.**
   Google computes the affected set from the Bazel build graph; we declare
   the dependency edges by hand as path globs (`app` depends on `engine`;
-  `evaluations` depends on nearly everything because the production size ratchet counts
-  source files across the repository). Filtering happens at the
+  `evaluations` runs on any source or docs change). Filtering happens at the
   job level rather than `on.paths` so skipped jobs still report a `skipped`
   conclusion, which branch protection counts as passing — workflow-level
   `paths:` would leave required checks pending forever. Every path in the
