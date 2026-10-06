@@ -1,6 +1,6 @@
 # Parallel campaigns
 
-Three campaigns run at the same time, one per Claude account, so v0 finishes
+Three campaigns run at the same time from two Claude accounts, so v0 finishes
 in days rather than weeks: the production cuts (`docs/PROD-CUTS.md`), the
 production shrink (`docs/PROD-SHRINK.md`) and the optimization campaign
 (`docs/OPTIMIZATION.md`). Each plan keeps its own scope and rules. This file
@@ -11,11 +11,15 @@ sets the schedule, who edits what and when, and how the campaigns coordinate.
 
 ## Accounts
 
-| Account | Campaign | Sessions |
-|---|---|---|
-| Main | Production cuts | One lead |
-| Second | Production shrink | One lead |
-| Third | Optimization | Two leads: the model lane and the delivery lane |
+| Account | Campaign | Session | Usage share |
+|---|---|---|---|
+| Main | Production shrink | One lead | About 40% |
+| Second | Production cuts | One lead | About 60%, with optimization |
+| Second | Optimization | One lead, running the delivery and model lanes as parallel subagent streams | |
+
+The cuts gate the other two campaigns, so they come first on the second
+account: when it nears its usage limit, the optimization lead runs fewer
+subagents before the cuts lead does.
 
 Each lead plans, reviews and merges. Subagents implement, each on its own
 branch (see Sessions and usage). To finish fast, keep three to five
@@ -145,7 +149,7 @@ or park the ones they have open.
 - **Now:** add the `OPENROUTER_API_KEY` repository secret for the `Benchmark`
   workflow. While benchmark runs are queued, avoid large runs in the app: they
   share the free daily allowance.
-- **Before day 1:** set up the two new accounts with the same cloud
+- **Before day 1:** set up the second account with the same cloud
   environment: internet access to GitHub, the production domains and the
   package registries; Python 3.12, Node.js 22.13+ and Bun 1.3.14 with
   `make setup`; and a GitHub token with admin rights on the repository and the
