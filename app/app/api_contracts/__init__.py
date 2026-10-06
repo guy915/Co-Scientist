@@ -1,6 +1,6 @@
 from typing_extensions import TypedDict
 
-from app.api_contracts.runs import ReportShare, Run, RunMessage
+from app.api_contracts.runs import Run, RunMessage
 from app.api_contracts.science import (
     ClaimEvidenceRow,
     Evidence,
@@ -57,9 +57,3 @@ class MessagesResponse(TypedDict):
     """Named collection envelope returned by the HTTP API."""
 
     messages: list[RunMessage]
-
-
-class SharesResponse(TypedDict):
-    """Named collection envelope returned by the HTTP API."""
-
-    shares: list[ReportShare]

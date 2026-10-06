@@ -4,7 +4,7 @@ import {Link, MemoryRouter} from 'react-router-dom';
 import {expect, it, vi} from 'vitest';
 import {WorkbenchApp} from './workbench_app';
 
-const imports = vi.hoisted(() => ({run: 0, shared: 0, access: 0}));
+const imports = vi.hoisted(() => ({run: 0, access: 0}));
 const accessDownload = vi.hoisted(() => {
   let release!: () => void;
   const ready = new Promise<void>(resolve => {
@@ -19,10 +19,6 @@ vi.mock('./pages/run_detail', () => {
   imports.run += 1;
   return {RunDetail: () => <p>Run details</p>};
 });
-vi.mock('./pages/shared_goal_report', () => {
-  imports.shared += 1;
-  throw new Error('The shared page chunk could not be downloaded');
-});
 vi.mock('./pages/researcher_access', async () => {
   imports.access += 1;
   await accessDownload.ready;
@@ -36,7 +32,6 @@ vi.mock('./layout', () => ({
     <>
       <p>Persistent shell</p>
       <Link to="/access">Open access</Link>
-      <Link to="/shared/test-token">Open shared report</Link>
       {children}
     </>
   ),
@@ -61,7 +56,7 @@ it('opens home without importing report/access pages, then loads the selected ro
   );
   const shell = screen.getByText('Persistent shell');
   expect(screen.getByText('Chat home')).toBeVisible();
-  expect(imports).toEqual({run: 0, shared: 0, access: 0});
+  expect(imports).toEqual({run: 0, access: 0});
 
   fireEvent.click(screen.getByRole('link', {name: 'Open access'}));
   await waitFor(() => expect(imports.access).toBe(1));
@@ -78,12 +73,7 @@ it('opens home without importing report/access pages, then loads the selected ro
   expect(screen.getByRole('status')).toHaveTextContent('Loading page…');
   await act(async () => accessDownload.release());
   expect(await screen.findByText('Researcher access')).toBeVisible();
-  expect(imports).toEqual({run: 0, shared: 0, access: 1});
+  expect(imports).toEqual({run: 0, access: 1});
   expect(screen.getByText('Persistent shell')).toBe(accessShell);
-
-  fireEvent.click(screen.getByRole('link', {name: 'Open shared report'}));
-  expect(await screen.findByText('Something went wrong')).toBeVisible();
-  expect(screen.getByRole('button', {name: 'Reload Page'})).toBeEnabled();
-  expect(imports).toEqual({run: 0, shared: 1, access: 1});
   vi.restoreAllMocks();
 });

@@ -11,7 +11,7 @@ from app.store import db, interviews, runs
 from app.store.models import DEMO_CLIENT_ID
 from app.store.runs import RunCreateOptions
 
-# Copy scientific artifacts only. No credentials, tasks, logs or share tokens.
+# Copy scientific artifacts only. No credentials, tasks or logs.
 _TABLES = (
     "hypotheses",
     "hypothesis_state",

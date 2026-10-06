@@ -6,7 +6,7 @@ import {
 } from '@/lib/client_id';
 import type {RunFocus, RunStatus, RunTier} from './wire_common';
 import type {ChatSummary, Interview} from './wire_interviews';
-import type {Report, SharedGoalReport} from './wire_reports';
+import type {Report} from './wire_reports';
 import type {QaSource, Run, RunMessage, RunWithSummary} from './wire_runs';
 import type {
   ClaimEvidenceRow,
@@ -251,11 +251,6 @@ export async function getReport(id: string): Promise<Report | null> {
   });
   if (res.status === 404) return null;
   return parseJson<Report>(res);
-}
-
-// Public shared reports omit ownership headers.
-export function getSharedGoalReport(token: string): Promise<SharedGoalReport> {
-  return fetchJson(`/api/shared/${token}`);
 }
 
 type InterviewFrame =

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import hashlib
 import json
-import secrets
 import sqlite3
 import uuid
 from typing import Any
@@ -102,79 +100,3 @@ def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     latest = get_latest_report(run_id, db_path=db_path)
     text = latest["markdown_text"] if latest else None
     return text if isinstance(text, str) else None
-
-
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def create_report_share(
-    run_id: str,
-    client_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> dict[str, Any]:
-    token = secrets.token_urlsafe(32)
-    share_id = str(uuid.uuid4())
-    created_at = _now()
-    with _use_conn(conn, db_path) as active:
-        active.execute(
-            "INSERT INTO report_shares (id, run_id, token_hash, "
-            "created_by_client, created_at) VALUES (?,?,?,?,?)",
-            (share_id, run_id, _hash_token(token), client_id, created_at),
-        )
-    return {
-        "id": share_id,
-        "run_id": run_id,
-        "token": token,
-        "created_at": created_at,
-    }
-
-
-def resolve_report_share(
-    token: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> dict[str, Any] | None:
-    with _use_conn(conn, db_path) as active:
-        row = active.execute(
-            "SELECT id, run_id, created_by_client, created_at FROM "
-            "report_shares WHERE token_hash=? AND revoked_at IS NULL",
-            (_hash_token(token),),
-        ).fetchone()
-    return dict(row) if row else None
-
-
-def list_report_shares(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    with _use_conn(conn, db_path) as active:
-        rows = active.execute(
-            "SELECT id, run_id, created_by_client, created_at FROM "
-            "report_shares WHERE run_id=? AND revoked_at IS NULL "
-            "ORDER BY created_at DESC",
-            (run_id,),
-        ).fetchall()
-    return [dict(row) for row in rows]
-
-
-def revoke_report_share(
-    share_id: str,
-    run_id: str,
-    client_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> bool:
-    with _use_conn(conn, db_path) as active:
-        changed = active.execute(
-            "UPDATE report_shares SET revoked_at=? WHERE id=? AND run_id=? "
-            "AND created_by_client=? AND revoked_at IS NULL",
-            (_now(), share_id, run_id, client_id),
-        ).rowcount
-    return bool(changed)
