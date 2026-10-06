@@ -69,7 +69,6 @@ and matching key. See [`.env.example`](.env.example) and
 ```dotenv
 OPENROUTER_API_KEY=
 MODEL_NAME=openrouter/inclusionai/ling-3.1-flash
-SAFETY_MODE=standard
 ```
 
 `make setup` creates `app/.env` as a link to the root `.env`. The MCP server
