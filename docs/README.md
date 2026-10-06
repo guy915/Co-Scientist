@@ -8,6 +8,7 @@
 | [CI](CI.md) | Hermetic gates and local equivalents |
 | [Deployment](DEPLOYMENT.md) | Hosting, networking and configuration |
 | [Operations](OPERATIONS.md) | Persistence, provider and scientific safeguards |
+| [Monitoring](MONITORING.md) | Uptime checks and error tracking to set up |
 | [Launch](LAUNCH.md) | Release validation, backups and security settings |
 | [Dependencies](../requirements/README.md) | Hash-pinned runtime locks and audits |
 | [Contributor guidance](../AGENTS.md) | Repository rules and operating invariants |

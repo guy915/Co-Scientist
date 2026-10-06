@@ -7,7 +7,8 @@ Folder ownership and timing follow `docs/CAMPAIGNS.md`: a finding in a folder
 waits for that folder's cuts.
 
 **Status:** audit done 6 October 2026 (backend, frontend, infrastructure, CI,
-launch readiness). The model-lane measurement waits on the baseline runs.
+launch readiness). Model usage measured from the two Express baselines; their
+claim scores are invalid (M1) and are being re-run.
 
 ## Order of work
 
@@ -87,10 +88,10 @@ unmeasured.
 
 | # | Finding | Evidence | Impact | Effort | Risk | Owner action |
 |---|---|---|---|---|---|---|
-| I1 | Every push redeploys api and mcp | No watch paths; each api deploy interrupts runs because the volume blocks overlap | H | S | low | Railway watch paths |
+| I1 | ~~Every push redeploys api and mcp~~ | Not reproduced: Railway marked the api and mcp deployments for docs- and workflow-only merges (#241, #242, #243) `SKIPPED`, so watch paths already exist | — | — | — | — |
 | I2 | No error tracking or uptime check | No Sentry/GlitchTip/uptime config; `/health` returns 200 when degraded | H | M | low | Accounts, DSNs, monitors |
 | I3 | `Dockerfile.api` layer order | Skills venv, `chown -R` and smoke test rebuild after any source change | M | S | low-med (non-root image path) | — |
-| I4 | `build-essential` in the mcp image | `Dockerfile.mcp:86`, after the wheel install it cannot help | M | S | low | — |
+| I4 | `build-essential` in the mcp image | `Dockerfile.mcp:12`, after the only wheel install, so it cannot help | M | S | low | — |
 | I5 | No cache or security headers on Vercel | `vercel.json` has no `headers` | M | S (CSP M) | low (CSP report-only first) | — |
 | I6 | No graceful shutdown | uvicorn without `--timeout-graceful-shutdown`; Railway draining 0 s | M | S | low | `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` |
 | I7 | Text logs in production | `log_format` defaults to text (the cuts make JSON the only format) | M | S | low | — (after the cut) |
@@ -121,12 +122,37 @@ Tracked files only; git history is out of scope (it will be reset).
 
 ## Model usage
 
-Pending: the two Express baseline runs (on Ling 3.1 Flash) and one Standard
-run, then the read-only measurement of tokens per call type, re-sent
-transcripts, cached tokens, reasoning exhaustion and retries. The starting
-evidence in `docs/OPTIMIZATION.md` was measured on Nemotron and is re-checked
-here.
+Two Express baselines on `main` at `df08134` (Ling 3.1 Flash default):
+[37532257388](https://github.com/guy915/Co-Scientist/actions/runs/37532257388) and
+[37532261948](https://github.com/guy915/Co-Scientist/actions/runs/37532261948).
+
+| | Express 1 | Express 2 |
+|---|---|---|
+| Wall time | 39.6 min | 44.2 min |
+| Physical calls | 95 | 98 |
+| Prompt / completion tokens | 377k / 438k | 411k / 498k |
+| Reasoning share of completion | 72% | 70% |
+| Cached prompt tokens | 5.1k (1.4%) | 5.5k (1.3%) |
+| Calls served by Ling | 39 (41%) | 35 (36%) |
+| Retries / errors | 1 / 0 | 1 / 0 |
+| Claims supported | 0 of 49 | 0 of 40 |
+
+| # | Finding | Evidence | Impact | Effort | Risk |
+|---|---|---|---|---|---|
+| M1 | The benchmark ran without literature retrieval | Free runs execute in campaign mode, which requires `COSCIENTIST_CAMPAIGN_MCP_URL` and a shared secret; the workflow set neither. Log: "campaign MCP requires one explicitly qualified endpoint … generating hypotheses from model latent knowledge only". No literature, reflection or claim-verifier calls; 49/49 claims unsupported (rate 1.0), so the metric could not move. Fixed in #243; both Express baselines are re-run | H (benchmark validity) | S | none |
+| M2 | About 60% of calls are served by the Nemotron fallbacks, not Ling | The same call type lands on either model across runs (deep_verification: 0/7 on Ling in run 1, 4/8 in run 2), and parallel fan-outs fall back most (comprehensive_reflection 1/31 on Ling). Ling has one free endpoint (Novita); the pattern fits rate limiting or errors there, not a parameter mismatch. Per-call reasoning differs by model (Ling medium 5–9k, Nemotron 1–4k), so the mix adds run-to-run variance. Measure the fallback reason before changing anything; the model choice itself is the owner's | H (variance, quality) | M | med |
+| M3 | Reasoning dominates output | 72% of completion tokens are reasoning; Ling medium spends 5.6k (review), 6.1k (ranking), 9.4k (evolve) and 13.7k (overview) reasoning tokens per call | H (time) | S-M | med (answer-changing) |
+| M4 | Almost no prompt caching | 5.1k of 377k prompt tokens cached (1.4%), all on ranking | M | M | low |
+| M5 | Ling is slow per call | Ranking: Ling 61 s/call (6.4k completion), Nemotron Super 13 s/call (1.4k), Ultra 87 s/call; per-token rate about 105 tok/s on both Ling and Super, so time follows tokens | M | — | — |
+| M6 | Ling's output cap is 32,768 tokens | Endpoint `max_completion_tokens` 32,768; the largest engine budget is 24k (`BUDGET_ESCALATION_MAX_TOKENS`), so escalation stays within it | — | — | — |
+
+Starting evidence re-check (measured on Nemotron): the tool-loop and
+reasoning-exhaustion findings need a run with retrieval on (M1) before they
+can be confirmed on Ling; each run had one retry. Caching remains near
+zero (M4).
 
 ## Not worth the risk
 
-None recorded yet.
+| # | Change | Why not |
+|---|---|---|
+| B11/I8 | `LITELLM_LOCAL_MODEL_COST_MAP=True` (0.9 s faster import, no boot fetch) | litellm's bundled map has 2,426 entries against 4,481 remote; six newer BYOK models (Gemini 3.x, GPT-6) lose `json_schema` support under it, changing their structured-output path |
