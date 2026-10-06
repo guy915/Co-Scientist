@@ -16,6 +16,7 @@ const ICONS = {
   account_tree: 'account_tree',
   add: 'add',
   arrow_back: 'arrow_back',
+  arrow_downward: 'arrow_downward',
   article: 'article',
   assignment: 'assignment',
   check: 'check',

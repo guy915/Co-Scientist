@@ -184,7 +184,8 @@ export function SystemStatusIndicator() {
       role="status"
       className={tooltipClassNames({
         className: `${STATUS_CHIP_BASE_CLASSES} ${tone}`,
-        placement: 'left',
+        placement: 'bottom',
+        wrap: true,
       })}
       data-tooltip={chip.detail}
     >

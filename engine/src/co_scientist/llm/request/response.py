@@ -5,8 +5,10 @@ from typing import Any, cast
 
 from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
+    LLMContentFilteredError,
     LLMThinkingOnlyError,
 )
+from co_scientist.llm.profile import model_profile
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,38 @@ def _finish_reason(response: Any) -> str | None:
     return None
 
 
+def _served_model(response: Any) -> str | None:
+    served = getattr(response, "model", None)
+    if not isinstance(served, str) or not served.strip():
+        return None
+    return served.strip()
+
+
+def _model_label(response: Any, model_name: str) -> str:
+    served = _served_model(response)
+    return f"{model_name}, served {served}" if served else model_name
+
+
+def _base_route(name: str) -> str:
+    return name.removeprefix("openrouter/").partition(":")[0]
+
+
+def _log_fallback_answer(response: Any, model_name: str) -> None:
+    """Later parse failures carry only text; this names the fallback that
+    produced it.
+    """
+    served = _served_model(response)
+    if served is None:
+        return
+    fallbacks = {_base_route(f) for f in model_profile(model_name).fallbacks}
+    if _base_route(served) in fallbacks:
+        logger.info(
+            "LLM call to %s was answered by fallback %s", model_name, served
+        )
+
+
 def _extract_completion_content(response: Any, model_name: str) -> str:
+    _log_fallback_answer(response, model_name)
     content = response.choices[0].message.content
 
     if content is None or not content.strip():
@@ -95,21 +128,27 @@ def _empty_content_error(
     Only normal thinking-only stops skip the larger-budget rung.
     """
     finish_reason = _finish_reason(response)
+    model = _model_label(response, model_name)
     if finish_reason == "length":
         return LLMBudgetExhaustedError(
             "LLM spent its entire token budget without answering. "
-            f"Model: {model_name} ({diagnosis})"
+            f"Model: {model} ({diagnosis})"
         )
     if finish_reason == "error":
         return ValueError(
             "LLM provider reported an error mid-stream and wrote no "
-            f"answer. Model: {model_name} ({diagnosis})"
+            f"answer. Model: {model} ({diagnosis})"
+        )
+    # A filter verdict is not a reasoning-budget failure; shrinking reasoning
+    # cannot answer it.
+    if finish_reason == "content_filter":
+        return LLMContentFilteredError(
+            "LLM provider content filter withheld the answer. "
+            f"Model: {model} ({diagnosis})"
         )
     if extract_token_usage(response).reasoning_tokens > 0:
         return LLMThinkingOnlyError(
             "LLM finished its chain of thought and wrote no answer. "
-            f"Model: {model_name} ({diagnosis})"
+            f"Model: {model} ({diagnosis})"
         )
-    return ValueError(
-        f"LLM returned None or empty content. Model: {model_name}"
-    )
+    return ValueError(f"LLM returned None or empty content. Model: {model}")

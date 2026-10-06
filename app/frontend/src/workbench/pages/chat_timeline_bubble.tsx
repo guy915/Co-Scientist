@@ -42,6 +42,8 @@ export interface ChatEntry {
   fallback?: boolean;
   created_at: number;
   sources?: QaSource[];
+  // The started-session card anchors here rather than on its own clock.
+  startRequest?: boolean;
 }
 
 export const FALLBACK_NOTICE_TEXT = 'Guided questions (no model available)';

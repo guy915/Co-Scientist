@@ -1258,17 +1258,3 @@
   gap: 0.75rem;
 }
 
-.ucs-feedback-actions button {
-  width: auto;
-  cursor: pointer;
-}
-
-.ucs-feedback-actions button[type='submit'] {
-  background: var(--cosci-accent);
-  color: var(--cosci-accent-fg);
-}
-
-.ucs-feedback-actions button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}

@@ -11,6 +11,7 @@ from co_scientist.constants import (
 )
 from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
+    LLMContentFilteredError,
     LLMThinkingOnlyError,
 )
 from co_scientist.llm.request.thinking import effective_thinking_enabled
@@ -39,6 +40,13 @@ _ESCALATION_LADDER: dict[BudgetEscalation, BudgetEscalation] = {
         BudgetEscalation.MINIMAL_REASONING_REQUIRED
     ),
 }
+
+
+_ANSWERLESS_ERRORS = (
+    LLMBudgetExhaustedError,
+    LLMThinkingOnlyError,
+    LLMContentFilteredError,
+)
 
 
 # Match exact classes: APIError ancestry includes request failures that need
@@ -75,9 +83,7 @@ def is_transient_provider_error(error: BaseException | None) -> bool:
     """Outages need time; request and answerless failures need correction.
     Rate-limit parking takes precedence.
     """
-    if error is None or isinstance(
-        error, LLMBudgetExhaustedError | LLMThinkingOnlyError
-    ):
+    if error is None or isinstance(error, _ANSWERLESS_ERRORS):
         return False
     name = type(error).__name__
     if name == "NotFoundError":
@@ -122,9 +128,7 @@ def _is_reasoning_cap_rejected(error: BaseException | None) -> bool:
     """An unprobed host may reject the explicit cap; the served tier-name
     shape is the fallback.
     """
-    if error is None or isinstance(
-        error, LLMBudgetExhaustedError | LLMThinkingOnlyError
-    ):
+    if error is None or isinstance(error, _ANSWERLESS_ERRORS):
         return False
     text = str(error).lower()
     return (

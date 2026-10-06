@@ -136,6 +136,27 @@ it('coalesces mixed events into one selective refresh and cancels it on unmount'
   expect(runsApi.getRun).toHaveBeenCalledTimes(2);
 });
 
+it('refreshes the live counters on durable node task events', async () => {
+  const {rerender, result} = await load();
+  vi.mocked(runsApi.getRun).mockResolvedValue(
+    makeRunWithSummary({
+      id: 'run-1',
+      status: 'running',
+      summary: {...run().summary, hypotheses: 16, evidence: 229},
+    }),
+  );
+  stream.events = [
+    {seq: 1, type: 'scientific_task', payload: {task: 'ranking'}},
+    {seq: 2, type: 'scientific_task', payload: {task: 'supervisor'}},
+  ];
+  rerender({id: 'run-1'});
+  await act(async () => vi.advanceTimersByTimeAsync(600));
+  expect(runsApi.getHypotheses).toHaveBeenCalledTimes(2);
+  expect(runsApi.getMatches).toHaveBeenCalledTimes(2);
+  expect(result.current.run?.summary.hypotheses).toBe(16);
+  expect(result.current.run?.summary.evidence).toBe(229);
+});
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.resetAllMocks();
