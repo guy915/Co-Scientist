@@ -565,6 +565,44 @@ def test_claim_assessment_holds_no_database_connection(
     assert all(claims for _, claims in assessed)
 
 
+_ASSESSOR_SUPPORTED = _SUPPORTED
+
+
+def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
+    # Independent assessments can overlap; serial provider calls make
+    # finalization unboundedly slow.
+    import threading
+    import time as _time
+
+    from app.claims.grounding import assess_hypothesis_claims
+
+    active = 0
+    peak = 0
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> Any:
+        nonlocal active, peak
+        with lock:
+            active += 1
+            peak = max(peak, active)
+        _time.sleep(0.05)
+        with lock:
+            active -= 1
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    hyps = [
+        {"id": f"h{i}", "title": f"H{i}", "statement": _ASSESSOR_SUPPORTED}
+        for i in range(8)
+    ]
+    from app.claims.grounding import AssessorSpec
+
+    assess_hypothesis_claims(
+        hyps, as_passages([_ASSESSOR_SUPPORTED]), AssessorSpec(_slow_assessor)
+    )
+
+    assert peak > 1, f"claims were assessed serially (peak concurrency {peak})"
+
+
 @pytest.mark.parametrize(
     ("hypothesis_count", "claims_each", "calls"), [(13, 17, 13), (1, 25, 2)]
 )
