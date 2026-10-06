@@ -98,7 +98,7 @@ Run lifecycle (in `runs/`, mounted at `/api/runs`) — **primary API used by the
 - `POST /api/runs/{id}/attachments`, `/attachments/upload` — per-run private corpus (for a run that already exists; setup-time attachments go through `/api/documents` and ride in on `document_ids` at create).
 - `POST /api/runs/{id}/safety/{decision_id}/adjudicate` — human adjudication of a safety decision.
 
-Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create); `POST /api/auth/exchange`.
+Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create).
 
 Additional routers mounted in `main.py`: `interviews`, `documents`, `auth`, and `logs` (see each module for its endpoint group).
 
