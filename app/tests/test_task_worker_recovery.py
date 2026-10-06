@@ -22,7 +22,12 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import (
+    enqueue_task,
+    resume_run_async,
+    seed_checkpoint,
+    seed_run,
+)
 from tests._store_helpers import mark_task_leased as _mark_leased
 
 
@@ -365,7 +370,7 @@ async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
         assert not await task_worker.run_once("unacknowledged-worker", db_path=isolated_db)
         assert dispatches == []
 
-        assert restarted.post(f"/api/runs/{run_id}/resume").status_code == 200
+        await resume_run_async(run_id)
         assert await task_worker.run_once("owner-resume", db_path=isolated_db)
 
     assert dispatches == ["engine.node.generate"]
