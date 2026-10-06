@@ -4,6 +4,7 @@ import asyncio
 import pathlib
 import threading
 import time
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,12 +15,16 @@ from app.diagnostics import (
     HealthCheck,
     ProbeResult,
 )
-from app.store import checkpoints, runs
+from app.store import checkpoints, db, runs
 from app.store import runs_views as views
+from app.store import tasks as store
 from app.store.models import DEMO_CLIENT_ID, RunStatus
+from app.store.tasks import queue_health_snapshot
+from app.store.tasks_lifecycle import QueueHealthSnapshot
 from tests._client import make_client as _client
 from tests._client import make_operator_client
-from tests._store_helpers import seed_checkpoint, seed_run
+from tests._client import make_operator_client as _operator_client
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
 def test_health_ok() -> None:
@@ -354,3 +359,116 @@ def test_startup_does_not_block_on_run_recovery(
         assert client.get("/health").status_code == 200
     assert resumed.is_set()
     assert startup_seconds < 10
+
+
+# Queue/disk degradation returns HTTP 200 so liveness probes cannot kill
+# productive runs.
+
+
+def _health_running_run(db_path: str, goal: str = "queue health goal") -> str:
+    run = seed_run(goal)
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
+    return run.id
+
+
+def _health_enqueue(run_id: str, key: str, db_path: str, **kwargs: Any) -> str:
+    task = enqueue_task(
+        run_id, "engine.node.ranking", key, **kwargs, db_path=db_path
+    )
+    return task.id
+
+
+def _expire_lease(task_id: str, db_path: str) -> None:
+    # Expire the lease without changing attempts to model a worker that died
+    # without failing its task.
+    with db.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
+            (task_id,),
+        )
+        conn.commit()
+
+
+def _snapshot_with_lease(
+    db_path: str, *, max_attempts: int = 3, expired: bool = False
+) -> tuple[str, QueueHealthSnapshot]:
+    run_id = _health_running_run(db_path)
+    task_id = _health_enqueue(
+        run_id, "leased", db_path, max_attempts=max_attempts
+    )
+    leased = store.claim_task("w1", run_id=run_id, db_path=db_path)
+    assert leased is not None and leased.id == task_id
+    if expired:
+        _expire_lease(task_id, db_path)
+    return run_id, queue_health_snapshot(db_path=db_path)
+
+
+def test_active_and_rescuable_leases_are_not_stalled(isolated_db: str) -> None:
+    _, active = _snapshot_with_lease(isolated_db)
+    assert active.stalled_run_ids == ()
+
+    _, rescuable = _snapshot_with_lease(isolated_db, expired=True)
+    assert rescuable.stalled_run_ids == ()
+    assert rescuable.rescuable_leases == 1
+
+
+def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
+    # A dead exhausted lease has no owner to fail it; health must expose the
+    # stranded running state.
+    run_id, snapshot = _snapshot_with_lease(
+        isolated_db, max_attempts=1, expired=True
+    )
+
+    assert snapshot.stalled_run_ids == (run_id,)
+    assert snapshot.rescuable_leases == 0
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == "running"
+
+
+def test_check_queue_flags_a_stalled_run_and_reports_errors(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert diagnostics.check_queue(isolated_db) == HealthCheck(ok=True)
+    run_id, _ = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
+
+    stalled = diagnostics.check_queue(isolated_db)
+
+    assert stalled.ok is False
+    assert stalled.detail is not None and run_id in stalled.detail
+
+    def _boom(db_path: str | None = None) -> QueueHealthSnapshot:
+        raise RuntimeError("db unreachable")
+
+    monkeypatch.setattr(diagnostics, "queue_health_snapshot", _boom)
+    failed = diagnostics.check_queue()
+    assert failed.ok is False
+    assert failed.detail is not None and "db unreachable" in failed.detail
+
+
+def test_health_degrades_at_200_when_a_run_is_stalled(
+    isolated_db: str,
+) -> None:
+    run_id, _ = _snapshot_with_lease(isolated_db, max_attempts=1, expired=True)
+
+    res = _client().get("/health")
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "degraded"
+    assert data["checks"]["queue"]["ok"] is False
+    operator = _operator_client().get("/health").json()
+    assert run_id in (operator["checks"]["queue"]["detail"] or "")
+    assert data["checks"]["queue"]["detail"] is None
+
+
+def test_health_degrades_at_200_when_disk_is_low(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "health_check_min_free_disk_bytes", 10**18)
+
+    res = _client().get("/health")
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "degraded"
+    assert data["checks"]["disk"]["ok"] is False

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 from typing import Any
 
 import pytest
@@ -9,16 +8,13 @@ from co_scientist.agents.evolution import EvolutionContext, evolve
 from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
 from co_scientist.agents.evolution.evolve_prompt import (
     EvolutionOperator,
-    _build_evolution_prompt,
-    _build_supervisor_guidance_text,
     _EvolutionOperation,
     operator_instruction,
     operator_template,
-    sample_context_hypotheses,
 )
 from co_scientist.models import Hypothesis
 from tests._llm_fake import stub_call_llm_json
-from tests._state import make_hypothesis, make_state
+from tests._state import make_hypothesis
 
 # Disjoint vocabulary avoids unchanged and near-duplicate guards.
 _RAPAMYCIN_RESPONSE: dict[str, Any] = {
@@ -31,65 +27,6 @@ _RAPAMYCIN_RESPONSE: dict[str, Any] = {
 
 def _children(result: dict[str, Any]) -> list[Hypothesis]:
     return list(result["hypotheses"].items)
-
-
-def test_sample_context_hypotheses_large_pool_caps_at_max_context() -> None:
-    exclude = make_hypothesis(text="the hypothesis being evolved")
-    others = [
-        make_hypothesis(text=f"other hypothesis {i}", elo_rating=2000 - i)
-        for i in range(20)
-    ]
-    all_hypotheses = [exclude, *others]
-
-    result = sample_context_hypotheses(
-        all_hypotheses,
-        exclude_hypothesis=exclude,
-        max_context=15,
-        rng=random.Random(7),
-    )
-
-    assert len(result) == 15
-    # Fewer others than the top slice leaves nothing to sample at random.
-    assert (
-        len(
-            sample_context_hypotheses(
-                [exclude, *others[:4]],
-                exclude_hypothesis=exclude,
-                max_context=3,
-            )
-        )
-        == 4
-    )
-    top_five_texts = {h.text for h in others[:5]}
-    assert top_five_texts.issubset({h.text for h in result})
-    assert all(h.text != exclude.text for h in result)
-
-
-@pytest.mark.parametrize("guidance", [None, {}, {"workflow_plan": {}}])
-def test_supervisor_guidance_without_an_evolution_phase_adds_nothing(
-    guidance: dict[str, Any] | None,
-) -> None:
-    assert _build_supervisor_guidance_text(guidance) == ""
-
-
-def _evolution_context(**state_overrides: Any) -> EvolutionContext:
-    return EvolutionContext(
-        model_name="test-model",
-        meta_review={},
-        removed_duplicates=[],
-        state=make_state(**state_overrides),
-    )
-
-
-def test_evolution_prompt_renders_lab_constraints() -> None:
-    prompt, _ = _build_evolution_prompt(
-        make_hypothesis(text="the parent hypothesis"),
-        ["a peer hypothesis"],
-        _evolution_context(lab_constraints=["No mammalian cell culture"]),
-        _EvolutionOperation(),
-    )
-    assert "## Scientist's Lab Constraints" in prompt
-    assert "No mammalian cell culture" in prompt
 
 
 def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:

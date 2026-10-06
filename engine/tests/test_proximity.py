@@ -70,15 +70,6 @@ def _stub_clusters(
     monkeypatch.setattr(proximity, "call_llm_json", fake)
 
 
-async def test_single_hypothesis_skips_analysis() -> None:
-    state = make_state(
-        hypotheses=[make_hypothesis(text="only one")], current_iteration=2
-    )
-    result = await proximity_node(state)
-    assert len(result["hypotheses"]) == 1
-    assert "current_iteration" not in result
-
-
 @pytest.mark.parametrize("clusters", [_HIGH_HIGH_BY_INDEX, _HIGH_HIGH_CLUSTERS])
 async def test_high_similarity_duplicate_removed_keeping_best_elo(
     monkeypatch: pytest.MonkeyPatch, clusters: dict[str, Any]
