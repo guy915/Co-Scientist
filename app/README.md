@@ -153,7 +153,7 @@ The frontend reads a single variable:
    - **Research Overview** — synthesized Markdown report, downloadable.
    - **All Ideas** — ranked hypothesis list with Elo scores and lineage.
 
-Runs can be paused, resumed, or cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
+Runs can be cancelled mid-flight; interrupted runs resume on restart. The backend stores the full event log so completed runs can be re-explored after the fact.
 
 ## API reference
 
@@ -171,8 +171,6 @@ below; for the complete, always-current surface use the interactive docs at
 | `GET` | `/api/runs/demo` | Get the seeded public demo run |
 | `GET` | `/api/runs/{id}` | Get run + summary counts |
 | `POST` | `/api/runs/{id}/start` | Start the workflow in the background |
-| `POST` | `/api/runs/{id}/pause` | Pause a running workflow |
-| `POST` | `/api/runs/{id}/resume` | Resume a paused workflow |
 | `POST` | `/api/runs/{id}/cancel` | Cancel a running workflow |
 | `GET` | `/api/runs/{id}/events` | SSE stream (live + replay via `?after=`) |
 | `GET` | `/api/runs/{id}/events?stream=false` | Persisted event log as a one-shot JSON snapshot |
