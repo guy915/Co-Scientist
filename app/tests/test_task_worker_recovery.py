@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from co_scientist.exceptions import LLMTimeoutError
+from co_scientist.exceptions import (
+    LLMTimeoutError,
+)
 
 from app import credentials, engine_tasks, task_worker
 from app.config import settings
@@ -559,3 +561,231 @@ async def test_unknown_fanout_outcome_preserves_siblings_and_aggregate(
         assert finished is not None and finished.status == "completed"
         assert client.get(f"/api/runs/{run_id}").json()["status"] == "running"
         assert calls.count(item.id) == (0 if expired else 1)
+
+
+@dataclass(frozen=True)
+class _ResumeShape:
+    stage: str = "post_generation"
+    last_event_seq: int = 1
+    provider: str | None = None
+
+
+def _save_resume_checkpoint(
+    run_id: str,
+    successor: str,
+    db: str,
+    shape: _ResumeShape | None = None,
+) -> None:
+    shape = shape or _ResumeShape()
+    state: dict[str, Any] = {"resume_successor": successor}
+    if shape.provider is not None:
+        state["provider"] = shape.provider
+    seed_checkpoint(
+        run_id,
+        state,
+        stage=shape.stage,
+        last_event_seq=shape.last_event_seq,
+        db_path=db,
+    )
+
+
+@pytest.mark.parametrize("recorded", [True, False])
+def test_resume_follows_the_recorded_successor_else_the_orchestrator(
+    isolated_db: str, recorded: bool
+) -> None:
+    # Bootstrap checkpoints precede supervisor guidance, so their recorded
+    # successor must win; unrecorded legacy and fan-out planning checkpoints
+    # already have guidance and re-enter at the orchestrator.
+    supervisor_type = f"{engine_tasks.NODE_TASK_PREFIX}supervisor"
+    run = seed_run("worker goal")
+    enqueued = enqueue_task(
+        run.id,
+        supervisor_type,
+        f"{supervisor_type}:1",
+        inputs={"checkpoint_seq": 1},
+        db_path=isolated_db,
+    )
+    if recorded:
+        _save_resume_checkpoint(
+            run.id,
+            supervisor_type,
+            isolated_db,
+            _ResumeShape(
+                stage="engine_task:bootstrap",
+                last_event_seq=0,
+                provider="engine",
+            ),
+        )
+    else:
+        seed_checkpoint(
+            run.id,
+            {"provider": "engine"},
+            stage="engine_task:orchestrator",
+            db_path=isolated_db,
+        )
+
+    resumed = task_worker.enqueue_run_workflow(
+        run.id, resume=True, db_path=isolated_db
+    )
+
+    if recorded:
+        assert resumed.id == enqueued.id, "must resolve to the queued task"
+        assert resumed.task_type == supervisor_type
+    else:
+        assert (
+            resumed.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+        )
+
+
+def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
+    isolated_db: str,
+) -> None:
+    run = seed_run("paused fanout")
+    parent = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "pause:generate-parent",
+        inputs={"checkpoint_seq": 0},
+        db_path=isolated_db,
+    )
+    leased = tasks.claim_task(
+        "parent-worker", run_id=run.id, db_path=isolated_db
+    )
+    assert leased is not None and leased.id == parent.id
+    assert lifecycle.complete_task(
+        parent.id, "parent-worker", {}, db_path=isolated_db
+    )
+    runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
+    seed_checkpoint(
+        run.id,
+        {"provider": "engine"},
+        stage=f"engine_task:{parent.id}",
+        last_event_seq=1,
+        db_path=isolated_db,
+    )
+
+    stale = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}review",
+        "pause:stale-lookahead",
+        inputs={"checkpoint_seq": 0},
+        provenance={"scheduled_by": "engine.node.old"},
+        db_path=isolated_db,
+    )
+    fanout = enqueue_task(
+        run.id,
+        "engine.fanout.generation.strategy",
+        "generation:debate_only:1:0:1",
+        inputs={"checkpoint_seq": 1},
+        dependencies=(parent.id,),
+        provenance={"scheduled_by": parent.task_type},
+        db_path=isolated_db,
+    )
+    runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
+
+    resumed = task_worker.enqueue_run_workflow(
+        run.id, resume=True, db_path=isolated_db
+    )
+
+    assert resumed.id == fanout.id
+    assert resumed.id != stale.id
+    assert not any(
+        task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+        and task.status == "queued"
+        for task in tasks.list_tasks(run.id, db_path=isolated_db)
+    )
+
+
+def _wedge_task_at(
+    run_id: str, task_type: str, checkpoint_seq: int, status: str, db: str
+) -> str:
+    task = enqueue_task(
+        run_id,
+        task_type,
+        f"{task_type}:{checkpoint_seq}",
+        inputs={"checkpoint_seq": checkpoint_seq},
+        db_path=db,
+    )
+    with _store_db.connect(db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status=?, attempt=max_attempts "
+            "WHERE id=?",
+            (status, task.id),
+        )
+    return task.id
+
+
+def _queued(run_id: str, db: str) -> list[Any]:
+    return [
+        t for t in tasks.list_tasks(run_id, db_path=db) if t.status == "queued"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("status", "revived"),
+    [("failed", True), ("cancelled", True), ("succeeded", False)],
+)
+def test_resume_revives_a_dead_boundary_but_never_completed_work(
+    isolated_db: str, status: str, revived: bool
+) -> None:
+    # An unchanged checkpoint collides with a terminal boundary key, so an
+    # explicit resume must revive dead work; reviving a succeeded boundary
+    # would repeat committed, paid-for work.
+    run = seed_run("wedged goal")
+    task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+    seed_checkpoint(
+        run.id,
+        {"resume_successor": task_type},
+        stage="post_generation",
+        last_event_seq=1,
+        db_path=isolated_db,
+    )
+    task_id = _wedge_task_at(run.id, task_type, 1, status, isolated_db)
+    assert not _queued(run.id, isolated_db)
+
+    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
+
+    queued = _queued(run.id, isolated_db)
+    assert [t.id for t in queued] == ([task_id] if revived else [])
+    if revived:
+        assert queued[0].task_type == task_type
+        assert queued[0].attempt < queued[0].max_attempts
+
+
+@pytest.mark.parametrize(
+    ("lease_expires_in", "revived"), [(-3600, True), (3600, False)]
+)
+def test_resume_revives_only_a_lease_stranded_by_a_dead_worker(
+    isolated_db: str, lease_expires_in: float, revived: bool
+) -> None:
+    # Expired exhausted leases need explicit recovery (claim rescue skips spent
+    # retries); reviving a live lease would run the boundary twice.
+    run = seed_run("stranded goal")
+    task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
+    _save_resume_checkpoint(run.id, task_type, isolated_db)
+    task = enqueue_task(
+        run.id,
+        task_type,
+        f"{task_type}:1",
+        inputs={"checkpoint_seq": 1},
+        db_path=isolated_db,
+    )
+    _mark_leased(
+        task.id,
+        isolated_db,
+        owner="dead-or-alive",
+        expires_at=time.time() + lease_expires_in,
+        spend_budget=True,
+    )
+
+    task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
+
+    queued = _queued(run.id, isolated_db)
+    assert [t.id for t in queued] == ([task.id] if revived else [])
+    saved = tasks.get_task(task.id, db_path=isolated_db)
+    assert saved is not None
+    assert saved.status == ("queued" if revived else "leased")
+    if revived:
+        assert saved.attempt < saved.max_attempts
+    else:
+        assert saved.lease_owner == "dead-or-alive"
