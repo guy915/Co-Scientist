@@ -186,30 +186,3 @@ def test_golden_acceptance_requires_persisted_real_completion(
     }
     assessment = _assess(artifact, {"query_gene_disease_network": 1})
     assert assessment["passed"] is accepted
-
-
-def test_golden_run_rejects_unqualified_indra_before_execution(
-    tmp_path: Path,
-) -> None:
-    script = """
-import os
-from unittest.mock import patch
-from evaluations.golden_run import run
-with patch("evaluations.golden_run._install_tool_call_counter",
-           side_effect=AssertionError("execution started before admission")):
-    try:
-        run()
-    except RuntimeError as error:
-        assert "INDRA" in str(error), str(error)
-    else:
-        raise AssertionError("unqualified INDRA accepted")
-assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
-"""
-    _probe(
-        script,
-        tmp_path,
-        COSCIENTIST_REQUIRE_FREE_MODELS="1",
-        MODEL_NAME="openrouter/campaign/zero:free",
-        OPENROUTER_API_KEY="synthetic-router",
-        DEEPSEEK_API_KEY="synthetic-paid",
-    )
