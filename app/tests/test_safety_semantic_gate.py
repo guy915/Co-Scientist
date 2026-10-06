@@ -1,112 +1,225 @@
 # A configured semantic screen with unreachable credentials is a failed control
-# and must refuse.
+# and must refuse; forced offline is a deliberate mode and returns the
+# deterministic baseline.
 
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import pytest
 
-from app import safety
-from app.safety import screen_contextual
-from tests._process_mode_helpers import FakeProcessMode
+from app import credentials, safety
+from app.config import settings
 
-from ._llm_fake_backend import fake_completion, install_completion_backend
+from ._llm_fake_backend import completion_response, install_completion_backend
 
 pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
 
+_MODEL = "openrouter/test-safety-model"
+_OTHER_PROVIDER_KEY = "ANTHROPIC_API_KEY"
+_MODEL_PROVIDER_KEY = "OPENROUTER_API_KEY"
+_TEXT = "A benign research goal."
+_DUAL_USE = "# Report\nThis programme is explicitly dual-use."
 
-async def test_missing_credential_refuses_and_warns(
-    caplog: pytest.LogCaptureFixture, fake_process_mode: FakeProcessMode
+
+@pytest.fixture(autouse=True)
+def _screen_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "semantic_safety_enabled", True)
+    monkeypatch.setattr(settings, "semantic_safety_model", _MODEL)
+
+
+def _env(
+    monkeypatch: pytest.MonkeyPatch, *keys: str, offline: bool = False
 ) -> None:
-    fake_process_mode.online(credential=False)
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    if offline:
+        monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+    else:
+        monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    for key in keys:
+        monkeypatch.setenv(key, "sk-test")
+
+
+class _Provider:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.reply: str | Exception = '{"category":"allowed","reason":"model"}'
+
+    async def __call__(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        if isinstance(self.reply, Exception):
+            raise self.reply
+        return completion_response(self.reply)
+
+
+@pytest.fixture
+def provider(monkeypatch: pytest.MonkeyPatch) -> _Provider:
+    fake = _Provider()
+    install_completion_backend(monkeypatch, fake)
+    return fake
+
+
+@pytest.mark.parametrize(
+    ("offline", "keys", "enabled", "expected", "calls"),
+    [
+        (True, (_MODEL_PROVIDER_KEY,), True, ("allow", "deterministic"), 0),
+        (False, (), True, ("allow", "deterministic"), 0),
+        (False, (_OTHER_PROVIDER_KEY,), True, ("hold", ":no_credential"), 0),
+        (False, (_OTHER_PROVIDER_KEY,), False, ("allow", "deterministic"), 0),
+        (
+            False,
+            (_MODEL_PROVIDER_KEY,),
+            True,
+            ("allow", f"semantic:{_MODEL}"),
+            1,
+        ),
+    ],
+    ids=[
+        "forced_offline",
+        "keyless_process_is_pinned_offline",
+        "partial_deployment_refuses",
+        "disabled_screen_is_configuration",
+        "the_models_own_credential",
+    ],
+)
+async def test_the_screen_runs_only_with_the_models_credential(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: _Provider,
+    caplog: pytest.LogCaptureFixture,
+    offline: bool,
+    keys: tuple[str, ...],
+    enabled: bool,
+    expected: tuple[str, str],
+    calls: int,
+) -> None:
+    decision, assessor = expected
+    _env(monkeypatch, *keys, offline=offline)
+    monkeypatch.setattr(settings, "semantic_safety_enabled", enabled)
+
     with caplog.at_level(logging.WARNING, logger="app.safety.semantic"):
-        decision = await screen_contextual("A benign research goal.", "intake")
+        screened = await safety.screen_contextual(_TEXT, "intake")
 
-    assert decision.decision == "hold"
-    assert decision.requires_review is True
-    assert decision.risk_domains == ["assessment_unavailable"]
-    assert decision.assessor.endswith(":no_credential")
-    warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
-    assert warnings, "the refusal must be visible in the log"
-    assert "credential" in warnings[0].getMessage().lower()
+    assert screened.decision == decision
+    assert screened.assessor.endswith(assessor)
+    assert len(provider.calls) == calls
+    if decision == "hold":
+        assert screened.requires_review is True
+        assert screened.risk_domains == ["assessment_unavailable"]
+        assert "credential" in caplog.text.lower()
 
 
-async def test_disabled_screen_still_returns_the_baseline(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
+async def test_a_scoped_byok_key_opens_the_screen_for_a_partial_deployment(
+    monkeypatch: pytest.MonkeyPatch, provider: _Provider
 ) -> None:
-    from app.config import settings
-
-    monkeypatch.setattr(settings, "semantic_safety_enabled", False)
-    fake_process_mode.online(credential=False)
-    decision = await screen_contextual("A benign research goal.", "intake")
-
-    assert decision.decision == "allow"
-    assert decision.assessor == "deterministic"
-
-
-async def test_model_cannot_downgrade_a_deterministic_redaction(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
-    fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch, fake_completion('{"category":"allowed","reason":"t"}')
+    _env(monkeypatch, _OTHER_PROVIDER_KEY)
+    byok = credentials.ByokCredential(
+        provider="openrouter", api_key="sk-byok", model=_MODEL
     )
-    markdown = "# Report\nThis programme is explicitly dual-use."
-    baseline = safety.screen_final(markdown)
+
+    with credentials.scoped_byok(byok):
+        screened = await safety.screen_contextual(_TEXT, "intake")
+
+    assert screened.assessor.startswith("semantic:")
+    assert len(provider.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("keys", "calls"),
+    [((_OTHER_PROVIDER_KEY,), 0), ((_MODEL_PROVIDER_KEY,), 1)],
+)
+async def test_the_model_cannot_downgrade_a_deterministic_redaction(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: _Provider,
+    keys: tuple[str, ...],
+    calls: int,
+) -> None:
+    _env(monkeypatch, *keys)
+    baseline = safety.screen_final(_DUAL_USE)
     assert baseline.decision == "redact"
 
-    decision = await screen_contextual(
-        markdown, "final", deterministic=baseline
+    screened = await safety.screen_contextual(
+        _DUAL_USE, "final", deterministic=baseline
     )
 
-    assert decision.decision == "redact"
+    assert screened.decision == "redact"
+    assert len(provider.calls) == calls
 
 
-async def test_model_may_raise_the_deterministic_verdict(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
-    fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch, fake_completion('{"category":"prohibited","reason":"t"}')
-    )
-    decision = await screen_contextual("Ordinary looking text.", "final")
-
-    assert decision.decision == "block"
-    assert decision.assessor.startswith("semantic:")
-
-
-async def test_a_markdown_fenced_answer_still_allows(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
-    # json_object providers can wrap JSON in fences; use the shared parser
-    # rather than rejecting valid answers.
-    fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch,
-        fake_completion(
-            '```json\n{"category":"allowed","reason":"benign"}\n```'
+@pytest.mark.parametrize(
+    ("reply", "decision", "assessor"),
+    [
+        (
+            '{"category":"uncertain","reason":"Ambiguous operational intent.",'
+            '"risk_domains":["biology"]}',
+            "hold",
+            "semantic:",
         ),
-    )
-
-    decision = await screen_contextual("A benign research goal.", "intake")
-
-    assert decision.decision == "allow"
-    assert decision.assessor.startswith("semantic:")
-
-
-async def test_a_persistently_bad_reply_still_falls_back_to_unavailable(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
+        ('{"category":"prohibited","reason":"t"}', "block", "semantic:"),
+        # json_object providers can wrap JSON in fences.
+        (
+            '```json\n{"category":"allowed","reason":"ok"}\n```',
+            "allow",
+            "semantic:",
+        ),
+        ("not json at all, and no fence to strip either", "hold", ":error"),
+        (RuntimeError("provider unavailable"), "hold", ":error"),
+    ],
+    ids=[
+        "uncertain",
+        "prohibited",
+        "markdown_fenced",
+        "bad_reply",
+        "provider_error",
+    ],
+)
+async def test_the_models_verdict_can_raise_the_baseline_and_failure_holds(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: _Provider,
+    reply: str | Exception,
+    decision: str,
+    assessor: str,
 ) -> None:
-    # Exhausted parse retries must produce a review hold, never raise or allow.
-    fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch,
-        fake_completion("not json at all, and no fence to strip either"),
+    _env(monkeypatch, _MODEL_PROVIDER_KEY)
+    provider.reply = reply
+
+    screened = await safety.screen_contextual("Ambiguous protocol", "final")
+
+    assert screened.decision == decision
+    if assessor == "semantic:":
+        assert screened.assessor.startswith(assessor)
+    else:
+        assert screened.assessor.endswith(assessor)
+        assert screened.risk_domains == ["assessment_unavailable"]
+
+
+@pytest.mark.parametrize(
+    ("offline", "keys", "reply", "verdict"),
+    [
+        (False, (_MODEL_PROVIDER_KEY,), None, "allow"),
+        (True, (_MODEL_PROVIDER_KEY,), None, None),
+        (False, (_OTHER_PROVIDER_KEY,), None, None),
+        (False, (_MODEL_PROVIDER_KEY,), RuntimeError("down"), None),
+    ],
+    ids=["credentialed", "offline_pinned", "no_credential", "provider_fails"],
+)
+async def test_a_hold_is_assessed_only_when_the_model_can_be_asked(
+    monkeypatch: pytest.MonkeyPatch,
+    provider: _Provider,
+    offline: bool,
+    keys: tuple[str, ...],
+    reply: Exception | None,
+    verdict: str | None,
+) -> None:
+    _env(monkeypatch, *keys, offline=offline)
+    if reply:
+        provider.reply = reply
+
+    assessed = await safety.assess_hold_contextually(
+        "no-such-run", _TEXT, "hypothesis"
     )
 
-    decision = await screen_contextual("A benign research goal.", "intake")
-
-    assert decision.decision == "hold"
-    assert decision.risk_domains == ["assessment_unavailable"]
-    assert decision.assessor.endswith(":error")
+    assert (assessed.decision if assessed else None) == verdict
+    assert bool(provider.calls) is (
+        keys == (_MODEL_PROVIDER_KEY,) and not offline
+    )
