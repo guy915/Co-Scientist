@@ -308,12 +308,11 @@ def _assert_unknown_outcome_failed_closed(
     client: Any, run_id: str, target: ScientificTask, sibling: ScientificTask
 ) -> None:
     body = client.get(f"/api/runs/{run_id}").json()
-    task_rows = client.get(f"/api/runs/{run_id}/tasks").json()["tasks"]
-    task_by_id = {row["id"]: row for row in task_rows}
+    task_by_id = {t.id: t for t in tasks.list_tasks(run_id)}
     assert body["status"] == "failed"
     assert body["failure_kind"] == "llm_timeout_unknown"
-    assert task_by_id[target.id]["status"] == "failed"
-    assert task_by_id[sibling.id]["status"] == "cancelled"
+    assert task_by_id[target.id].status == "failed"
+    assert task_by_id[sibling.id].status == "cancelled"
     failed_events = [
         event["payload"]
         for event in store_events.list_events(run_id)

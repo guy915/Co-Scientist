@@ -85,7 +85,6 @@ class Settings(BaseSettings):
     # and initial ratings.
     elo_k_factor: int = 24
 
-    safety_mode: str = "standard"
     # Deterministic safety hard blocks run first and cannot be overridden by
     # semantic assessment.
     semantic_safety_enabled: bool = True

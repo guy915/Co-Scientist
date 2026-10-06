@@ -24,7 +24,7 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 | `main.py` | App setup, lifespan, ownership middleware; the diagnostics endpoints (`/health`, `/status`) live in `diagnostics_api.py` and are mounted by `app.main` |
 | `feedback_api.py` / `store/feedback.py` | Owner-scoped feedback; durable admission budgets and row/byte/age retention |
 | `diagnostic_events.py` | Chat role/character-count/response-duration metadata; never transcript text |
-| `config.py` | Pydantic settings (model names, API keys, Elo tuning, safety mode, worker/concurrency caps, auth). The DB path is *not* here — `COSCIENTIST_DB_PATH` is read directly in `store/db.py` |
+| `config.py` | Pydantic settings (model names, API keys, Elo tuning, worker/concurrency caps, auth). The DB path is *not* here — `COSCIENTIST_DB_PATH` is read directly in `store/db.py` |
 | `runs/` (`__init__.py`) | Durable run-lifecycle router (`/api/runs` endpoint group); sibling routers `runs/lifecycle.py` (start/cancel; `runs/lifecycle.py` holds the safety-adjudication handler that relaunches or blocks a held run, registered from `runs/collections.py` to keep the served route order), `runs/collections.py` (read-only getters + report), `runs/contrib.py` (scientist input + attachments), and `runs/support.py` (shared guards) are included into `runs.router`, the names callers use are re-exported from `app.runs` |
 | `api_contracts/` | Backend-owned typed JSON responses and the generator for `frontend/src/api/wire_*.ts`; read endpoints validate them, with older optional report sections and extra persisted fields preserved |
 | `runs/models.py` / `runs/events.py` | Create-run request models, SSE replay/tail helpers |
@@ -93,7 +93,7 @@ Run lifecycle (in `runs/`, mounted at `/api/runs`) — **primary API used by the
 - `GET /api/runs/{id}` — details; `PATCH /api/runs/{id}` — rename (title only; the research goal is deliberately not editable, and shared example mutations are 403); `POST /{id}/start`, `/cancel`.
 - `GET /api/runs/{id}/events` — SSE stream (live + replay).
 - `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
-- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/proximity`, `/metrics`, `/claim-evidence`.
+- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/claim-evidence`.
 - `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown).
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list. `POST /{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name`). `POST /{id}/messages/{message_id}/revise` edits a user Q&A question or retries an answer; it atomically rewinds only subsequent Q&A and preserves consumed setup and steering.
 - `POST /api/runs/{id}/messages/started` — the Agent's spoken confirmation that the run has started, streamed (`reasoning`/`chunk`/`done`, no error frame). The chat's session card renders it as its lead-in, the way the plan card renders the completing interview turn.

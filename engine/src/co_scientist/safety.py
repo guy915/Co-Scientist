@@ -230,9 +230,7 @@ def _all_matches(text: str, patterns: tuple[re.Pattern[str], ...]) -> tuple[str,
     )
 
 
-def review_content_safety(
-    text: str, stage: str, *, strict_intake: bool = False
-) -> ContentSafetyReview:
+def review_content_safety(text: str, stage: str) -> ContentSafetyReview:
     if stage not in {"intake", "final"}:
         raise ValueError("stage must be 'intake' or 'final'")
     prohibited = _all_matches(text, _CONTENT_PROHIBITED)
@@ -246,7 +244,7 @@ def review_content_safety(
             requires_review=False,
         )
     dual_use = _all_matches(text, _CONTENT_DUAL_USE)
-    if dual_use and (stage == "final" or strict_intake):
+    if dual_use and stage == "final":
         return ContentSafetyReview(
             decision="redact",
             category="redacted",

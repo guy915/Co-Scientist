@@ -6,7 +6,6 @@ from app.api_contracts.science import (
     Evidence,
     Hypothesis,
     MatchRow,
-    ProximityEdge,
     Review,
     SafetyDecision,
 )
@@ -34,12 +33,6 @@ class MatchesResponse(TypedDict):
     """Named collection envelope returned by the HTTP API."""
 
     matches: list[MatchRow]
-
-
-class ProximityResponse(TypedDict):
-    """Named collection envelope returned by the HTTP API."""
-
-    proximity: list[ProximityEdge]
 
 
 class ReviewsResponse(TypedDict):
