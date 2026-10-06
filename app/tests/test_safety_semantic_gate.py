@@ -29,9 +29,7 @@ def _screen_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "semantic_safety_model", _MODEL)
 
 
-def _env(
-    monkeypatch: pytest.MonkeyPatch, *keys: str, offline: bool = False
-) -> None:
+def _env(monkeypatch: pytest.MonkeyPatch, *keys: str, offline: bool = False) -> None:
     monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     if offline:
         monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
@@ -113,9 +111,7 @@ async def test_a_scoped_byok_key_opens_the_screen_for_a_partial_deployment(
     monkeypatch: pytest.MonkeyPatch, provider: _Provider
 ) -> None:
     _env(monkeypatch, _OTHER_PROVIDER_KEY)
-    byok = credentials.ByokCredential(
-        provider="openrouter", api_key="sk-byok", model=_MODEL
-    )
+    byok = credentials.ByokCredential(provider="openrouter", api_key="sk-byok", model=_MODEL)
 
     with credentials.scoped_byok(byok):
         screened = await safety.screen_contextual(_TEXT, "intake")
@@ -138,9 +134,7 @@ async def test_the_model_cannot_downgrade_a_deterministic_redaction(
     baseline = safety.screen_final(_DUAL_USE)
     assert baseline.decision == "redact"
 
-    screened = await safety.screen_contextual(
-        _DUAL_USE, "final", deterministic=baseline
-    )
+    screened = await safety.screen_contextual(_DUAL_USE, "final", deterministic=baseline)
 
     assert screened.decision == "redact"
     assert len(provider.calls) == calls
@@ -215,11 +209,7 @@ async def test_a_hold_is_assessed_only_when_the_model_can_be_asked(
     if reply:
         provider.reply = reply
 
-    assessed = await safety.assess_hold_contextually(
-        "no-such-run", _TEXT, "hypothesis"
-    )
+    assessed = await safety.assess_hold_contextually("no-such-run", _TEXT, "hypothesis")
 
     assert (assessed.decision if assessed else None) == verdict
-    assert bool(provider.calls) is (
-        keys == (_MODEL_PROVIDER_KEY,) and not offline
-    )
+    assert bool(provider.calls) is (keys == (_MODEL_PROVIDER_KEY,) and not offline)

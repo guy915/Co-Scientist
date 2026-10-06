@@ -52,9 +52,7 @@ __all__ = ["drive"]
 EVERY_ENTRY = pytest.mark.parametrize(
     "entry", [TEXT, JSON, TOOLS], ids=["call_llm", "call_llm_json", "tool_turn"]
 )
-TEXT_AND_JSON = pytest.mark.parametrize(
-    "entry", [TEXT, JSON], ids=["call_llm", "call_llm_json"]
-)
+TEXT_AND_JSON = pytest.mark.parametrize("entry", [TEXT, JSON], ids=["call_llm", "call_llm_json"])
 
 
 def _answer(entry: Entry, result: Any) -> Any:
@@ -85,9 +83,7 @@ async def test_a_throttled_call_waits_a_growing_jittered_interval(
 
 
 @EVERY_ENTRY
-async def test_a_throttled_call_recovers_after_one_wait(
-    drive: Driver, entry: Entry
-) -> None:
+async def test_a_throttled_call_recovers_after_one_wait(drive: Driver, entry: Entry) -> None:
     run = await drive(entry, [rate_limited(), ok(entry)])
 
     assert run.error is None
@@ -325,9 +321,7 @@ async def test_a_schema_failure_on_every_attempt_raises_the_validation_error(
 async def test_a_schema_failure_holds_the_rung_an_escalation_reached(
     drive: Driver,
 ) -> None:
-    run = await drive(
-        JSON, [exhausted(), wrong_type(), ok(JSON)], max_attempts=4
-    )
+    run = await drive(JSON, [exhausted(), wrong_type(), ok(JSON)], max_attempts=4)
 
     assert run.result == {"a": 1}
     first, raised, held = run.max_tokens
@@ -339,9 +333,7 @@ async def test_a_schema_failure_holds_the_rung_an_escalation_reached(
 async def test_feedback_outlives_an_attempt_that_failed_before_judging(
     drive: Driver,
 ) -> None:
-    run = await drive(
-        JSON, [wrong_type(), RuntimeError("blip"), ok(JSON)], max_attempts=4
-    )
+    run = await drive(JSON, [wrong_type(), RuntimeError("blip"), ok(JSON)], max_attempts=4)
 
     assert run.result == {"a": 1}
     assert SCHEMA_FEEDBACK in run.prompts[1]
@@ -351,9 +343,7 @@ async def test_feedback_outlives_an_attempt_that_failed_before_judging(
 async def test_a_final_attempt_call_failure_is_not_a_parse_error(
     drive: Driver,
 ) -> None:
-    run = await drive(
-        JSON, [wrong_type(), RuntimeError("provider exploded")], max_attempts=2
-    )
+    run = await drive(JSON, [wrong_type(), RuntimeError("provider exploded")], max_attempts=2)
 
     assert isinstance(run.error, RuntimeError)
     assert len(run.calls) == 2
@@ -379,11 +369,7 @@ async def test_alternating_reasoning_failures_exhaust_the_tool_attempt_budget(
 ) -> None:
     entry = replace(TOOLS, model=GATEWAY_MODEL)
     mandatory = reasoning_mandatory()
-    pair = (
-        [mandatory, thinking_only()]
-        if mandatory_first
-        else [thinking_only(), mandatory]
-    )
+    pair = [mandatory, thinking_only()] if mandatory_first else [thinking_only(), mandatory]
     run = await drive(entry, pair * 10 + [ok(entry)])
 
     if mandatory_first:
@@ -395,9 +381,7 @@ async def test_alternating_reasoning_failures_exhaust_the_tool_attempt_budget(
     enabled = {"enabled": True, "effort": "high"}
     disabled = {"enabled": False}
     assert run.reasoning == (
-        [enabled, enabled, disabled]
-        if mandatory_first
-        else [enabled, disabled, enabled]
+        [enabled, enabled, disabled] if mandatory_first else [enabled, disabled, enabled]
     )
     assert run.max_tokens == [18000, 24000, 24000]
     assert all(c["messages"] == run.calls[0]["messages"] for c in run.calls)
@@ -421,9 +405,7 @@ async def test_each_tool_turn_receives_its_own_three_attempt_budget(
 
     entry = replace(TOOLS, model=GATEWAY_MODEL, executor=executor)
     recovery = [exhausted(), exhausted()]
-    run = await drive(
-        entry, [*recovery, asked_for_a_tool, *recovery, ok(entry)]
-    )
+    run = await drive(entry, [*recovery, asked_for_a_tool, *recovery, ok(entry)])
 
     assert run.error is None
     assert run.result[0] == "fine"
@@ -483,9 +465,7 @@ async def test_escalation_only_plan_stops_before_revisiting_a_rung(
 
     mandatory = reasoning_mandatory()
     thinking = LLMThinkingOnlyError("reasoning stopped without an answer")
-    failures = (
-        [mandatory, thinking] if mandatory_first else [thinking, mandatory]
-    )
+    failures = [mandatory, thinking] if mandatory_first else [thinking, mandatory]
     script: list[Any] = failures * 10 + ["success sentinel"]
     attempts: list[Attempt] = []
     waited: list[float] = []
@@ -506,9 +486,7 @@ async def test_escalation_only_plan_stops_before_revisiting_a_rung(
         scoped_telemetry("escalation-only") as telemetry,
         pytest.raises(type(failures[0])) as raised,
     ):
-        await run_attempts(
-            make_attempt, AttemptPlan.escalation_only(GATEWAY_MODEL)
-        )
+        await run_attempts(make_attempt, AttemptPlan.escalation_only(GATEWAY_MODEL))
     assert raised.value is failures[0]
     expected = [
         BudgetEscalation.MINIMAL_REASONING_REQUIRED,
@@ -533,9 +511,7 @@ async def test_escalation_only_ladder_is_finite_and_call_local() -> None:
             reasoning_mandatory(),
         ]
 
-        async def make_attempt(
-            attempt: Attempt, failures: list[Exception] = failures
-        ) -> str:
+        async def make_attempt(attempt: Attempt, failures: list[Exception] = failures) -> str:
             attempts.append(attempt)
             if failures:
                 raise failures.pop(0)
@@ -553,9 +529,7 @@ async def test_escalation_only_ladder_is_finite_and_call_local() -> None:
     assert not any(attempt.is_final for attempt in attempts)
 
 
-async def test_an_escalation_only_plan_raises_a_failure_no_rung_answers() -> (
-    None
-):
+async def test_an_escalation_only_plan_raises_a_failure_no_rung_answers() -> None:
     calls = 0
 
     async def make_attempt(_attempt: Attempt) -> str:

@@ -22,9 +22,7 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
     return result
 
 
-def deepseek_thinking_kwargs(
-    model_name: str, *, effort: str | None = None
-) -> dict[str, Any]:
+def deepseek_thinking_kwargs(model_name: str, *, effort: str | None = None) -> dict[str, Any]:
     extra_body = _thinking_body(model_name, enabled=True)
     if not extra_body:
         return {}
@@ -171,9 +169,7 @@ class Settings(BaseSettings):
     evidence_resolver: str = "live"
 
     model_config = SettingsConfigDict(
-        env_file=(
-            None if os.getenv("PYTHON_DOTENV_DISABLED") == "1" else ".env"
-        ),
+        env_file=(None if os.getenv("PYTHON_DOTENV_DISABLED") == "1" else ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -225,17 +221,11 @@ def provider_credential_names(model_name: str) -> tuple[str, ...]:
 
 
 def has_provider_credential(model_name: str) -> bool:
-    return any(
-        os.getenv(name) for name in provider_credential_names(model_name)
-    )
+    return any(os.getenv(name) for name in provider_credential_names(model_name))
 
 
 def any_provider_credential() -> bool:
-    return any(
-        os.getenv(name)
-        for names in PROVIDER_CREDENTIAL_ENV.values()
-        for name in names
-    )
+    return any(os.getenv(name) for names in PROVIDER_CREDENTIAL_ENV.values() for name in names)
 
 
 BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {

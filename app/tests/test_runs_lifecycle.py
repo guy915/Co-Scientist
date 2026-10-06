@@ -54,30 +54,20 @@ def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
         cancel_entered_transaction.set()
         return cancel_tasks(*args, **kwargs)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(
-        runs, "reserve_run_capacity_in_transaction", reserve_then_wait
-    )
+    monkeypatch.setattr(runs, "reserve_run_capacity_in_transaction", reserve_then_wait)
     monkeypatch.setattr(lifecycle, "cancel_run_tasks", observe_cancel_tasks)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        pending_start = executor.submit(
-            start_client.post, f"/api/runs/{rid}/start", json={}
-        )
+        pending_start = executor.submit(start_client.post, f"/api/runs/{rid}/start", json={})
         early_cancel = None
         try:
             assert capacity_reserved.wait(timeout=5)
-            pending_cancel = executor.submit(
-                cancel_client.post, f"/api/runs/{rid}/cancel"
-            )
+            pending_cancel = executor.submit(cancel_client.post, f"/api/runs/{rid}/cancel")
             if cancel_entered_transaction.wait(timeout=0.5):
                 early_cancel = pending_cancel.result(timeout=5)
         finally:
             continue_start.set()
         started = pending_start.result(timeout=5)
-        cancelled = (
-            early_cancel
-            if early_cancel is not None
-            else pending_cancel.result(timeout=5)
-        )
+        cancelled = early_cancel if early_cancel is not None else pending_cancel.result(timeout=5)
 
     assert started.status_code == 200
     assert cancelled.status_code == 200
@@ -88,14 +78,12 @@ def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
     cancelled_event = next(
         event
         for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "cancelled"
+        if event["type"] == "status" and event["payload"].get("status") == "cancelled"
     )
     queued_event = next(
         event
         for event in events
-        if event["type"] == "lifecycle"
-        and event["payload"].get("event") == "queued"
+        if event["type"] == "lifecycle" and event["payload"].get("event") == "queued"
     )
     assert queued_event["seq"] < cancelled_event["seq"]
 
@@ -172,8 +160,7 @@ def test_start_rolls_back_capacity_when_bootstrap_enqueue_fails(
     assert run is not None and run.status == "draft"
     assert store.list_tasks(rid, db_path=isolated_db) == []
     assert not any(
-        event["type"] == "lifecycle"
-        and event["payload"].get("event") == "queued"
+        event["type"] == "lifecycle" and event["payload"].get("event") == "queued"
         for event in store_events.list_events(rid, db_path=isolated_db)
     )
 
@@ -192,9 +179,7 @@ def test_event_stream_tails_a_live_run_until_it_ends(
 
     def finish() -> None:
         # Without a terminal status event the stream must notice the run row.
-        store_events.append_event(
-            run.id, "status", {"status": "running"}, db_path=isolated_db
-        )
+        store_events.append_event(run.id, "status", {"status": "running"}, db_path=isolated_db)
         if terminal_event:
             store_events.append_event(
                 run.id, "status", {"status": "completed"}, db_path=isolated_db
@@ -250,22 +235,16 @@ def _seed_paused_restart(db_path: str) -> _PausedRestart:
         inputs={"checkpoint_seq": 0},
         db_path=db_path,
     )
-    claimed = store.claim_task(
-        _OLD_OWNER, run_id=run.id, lease_seconds=3600, db_path=db_path
-    )
+    claimed = store.claim_task(_OLD_OWNER, run_id=run.id, lease_seconds=3600, db_path=db_path)
     assert claimed is not None and claimed.id == writer.id
     successor_id, paused_seq = _append_late_successor(run.id, writer, db_path)
     return _PausedRestart(run.id, writer.id, successor_id, paused_seq)
 
 
-def _append_late_successor(
-    run_id: str, writer: ScientificTask, db_path: str
-) -> tuple[str, int]:
+def _append_late_successor(run_id: str, writer: ScientificTask, db_path: str) -> tuple[str, int]:
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     runs.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
-    paused_seq = store_events.append_event(
-        run_id, "status", {"status": "paused"}, db_path=db_path
-    )
+    paused_seq = store_events.append_event(run_id, "status", {"status": "paused"}, db_path=db_path)
     checkpoint_seq = seed_checkpoint(
         run_id,
         {"provider": "engine", "resume_successor": successor_type},
@@ -333,12 +312,7 @@ def _assert_startup_left_run_paused(
     assert run is not None and run.status == RunStatus.PAUSED.value
     assert writer is not None and writer.status == "leased"
     assert successor is not None and successor.status == "queued"
-    assert (
-        store.claim_task(
-            "before-explicit-resume", run_id=state.run_id, db_path=db_path
-        )
-        is None
-    )
+    assert store.claim_task("before-explicit-resume", run_id=state.run_id, db_path=db_path) is None
 
 
 def _assert_resume_reuses_successor(
@@ -357,36 +331,26 @@ def _assert_resume_reuses_successor(
     after = store.list_tasks(state.run_id, db_path=db_path)
     assert {task.id for task in after} == before_ids
     successors = [
-        task
-        for task in after
-        if task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
+        task for task in after if task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     ]
     assert len(successors) == 1 and successors[0].id == state.successor_id
     assert successors[0].dependencies == (state.writer_id,)
-    assert lifecycle.complete_task(
-        state.writer_id, _OLD_OWNER, {}, db_path=db_path
-    )
-    claimed = store.claim_task(
-        "after-explicit-resume", run_id=state.run_id, db_path=db_path
-    )
+    assert lifecycle.complete_task(state.writer_id, _OLD_OWNER, {}, db_path=db_path)
+    claimed = store.claim_task("after-explicit-resume", run_id=state.run_id, db_path=db_path)
     assert claimed is not None and claimed.id == state.successor_id
     _assert_ordered_event_replay(client, state.run_id, state.paused_seq)
 
 
-def _assert_ordered_event_replay(
-    client: TestClient, run_id: str, paused_seq: int
-) -> None:
-    events = client.get(f"/api/runs/{run_id}/events?stream=false").json()[
-        "events"
-    ]
+def _assert_ordered_event_replay(client: TestClient, run_id: str, paused_seq: int) -> None:
+    events = client.get(f"/api/runs/{run_id}/events?stream=false").json()["events"]
     seqs = [event["seq"] for event in events]
     assert all(left < right for left, right in pairwise(seqs))
     paused = next(event for event in events if event["seq"] == paused_seq)
     assert paused["type"] == "status"
     assert paused["payload"]["status"] == "paused"
-    replay = client.get(
-        f"/api/runs/{run_id}/events?stream=false&after={paused_seq}"
-    ).json()["events"]
+    replay = client.get(f"/api/runs/{run_id}/events?stream=false&after={paused_seq}").json()[
+        "events"
+    ]
     assert replay == [event for event in events if event["seq"] > paused_seq]
     assert [event["payload"].get("status") for event in replay] == ["resuming"]
 

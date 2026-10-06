@@ -21,21 +21,9 @@ def _client(host: str = "203.0.113.1") -> TestClient:
 
 def test_guessing_budget_includes_successful_exchanges() -> None:
     with _client() as client:
-        assert (
-            client.post(
-                "/api/auth/exchange", json={"access_code": "invite"}
-            ).status_code
-            == 200
-        )
-        assert (
-            client.post(
-                "/api/auth/exchange", json={"access_code": "wrong"}
-            ).status_code
-            == 401
-        )
-        blocked = client.post(
-            "/api/auth/exchange", json={"access_code": "invite"}
-        )
+        assert client.post("/api/auth/exchange", json={"access_code": "invite"}).status_code == 200
+        assert client.post("/api/auth/exchange", json={"access_code": "wrong"}).status_code == 401
+        blocked = client.post("/api/auth/exchange", json={"access_code": "invite"})
     assert blocked.status_code == 429
     assert blocked.headers["retry-after"] == "60"
 

@@ -60,10 +60,7 @@ def redact_payload_text(value: Any, matches: list[str]) -> Any:
     if isinstance(value, str):
         return redact_matched_spans(value, matches)
     if isinstance(value, dict):
-        return {
-            key: redact_payload_text(item, matches)
-            for key, item in value.items()
-        }
+        return {key: redact_payload_text(item, matches) for key, item in value.items()}
     if isinstance(value, list):
         return [redact_payload_text(item, matches) for item in value]
     return value

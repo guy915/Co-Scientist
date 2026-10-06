@@ -36,12 +36,8 @@ def isolate_process_budget(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Retry budgets are process-wide; each case needs a fresh allowance."""
     max_tries = Entrez.max_tries
     sleep_between_tries = Entrez.sleep_between_tries
-    monkeypatch.setattr(
-        entrez_rate_limit, "_study4_bound_study_id", None, raising=False
-    )
-    monkeypatch.setattr(
-        entrez_rate_limit, "_study4_retries_used", 0, raising=False
-    )
+    monkeypatch.setattr(entrez_rate_limit, "_study4_bound_study_id", None, raising=False)
+    monkeypatch.setattr(entrez_rate_limit, "_study4_retries_used", 0, raising=False)
     yield
     Entrez.max_tries = max_tries
     Entrez.sleep_between_tries = sleep_between_tries
@@ -186,9 +182,7 @@ class TestEntrezStudy4Recovery:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("COSCIENTIST_PUBMED_PILOT_TRACE", "1")
-        monkeypatch.setenv(
-            "COSCIENTIST_PUBMED_PILOT_BUILD_ID", "study4-test-build"
-        )
+        monkeypatch.setenv("COSCIENTIST_PUBMED_PILOT_BUILD_ID", "study4-test-build")
         monkeypatch.setenv(_RECOVERY_FLAG, "1")
         monkeypatch.delenv(_STUDY_ID_ENV, raising=False)
 
@@ -197,9 +191,7 @@ class TestEntrezStudy4Recovery:
 
         monkeypatch.setenv(_STUDY_ID_ENV, "M12-04b4e1a")
         with pytest.raises(ValueError, match="study ID"):
-            pubmed_pilot_trace.new_pilot_trace(
-                "implementation-id-is-not-study-id"
-            )
+            pubmed_pilot_trace.new_pilot_trace("implementation-id-is-not-study-id")
 
         monkeypatch.setenv(_STUDY_ID_ENV, _STUDY_ID)
         monkeypatch.delenv("COSCIENTIST_PUBMED_PILOT_TRACE", raising=False)
@@ -229,13 +221,8 @@ class TestEntrezStudy4Recovery:
         assert calls == 2
         assert trace["entrez_recovery"]["retries_used"] == 1
         assert trace["entrez_recovery"]["exhausted_calls"] == 1
-        assert [
-            row["attempt_ordinal"]
-            for row in trace["recovered_transient_attempts"]
-        ] == [1, 2]
-        assert {
-            row["outcome"] for row in trace["recovered_transient_attempts"]
-        } == {"exhausted"}
+        assert [row["attempt_ordinal"] for row in trace["recovered_transient_attempts"]] == [1, 2]
+        assert {row["outcome"] for row in trace["recovered_transient_attempts"]} == {"exhausted"}
         assert trace["entrez_recovery_call_outcomes"] == [
             {
                 "study_id": _STUDY_ID,
@@ -271,11 +258,7 @@ class TestEntrezStudy4Recovery:
         def run(trace: dict[str, Any]) -> str:
             with entrez_rate_limit.pilot_trace_context(trace):
                 try:
-                    return str(
-                        entrez_rate_limit.entrez_call(
-                            Entrez.esearch, db="pubmed", term="x"
-                        )
-                    )
+                    return str(entrez_rate_limit.entrez_call(Entrez.esearch, db="pubmed", term="x"))
                 except HTTPError:
                     return "budget-exhausted"
 
@@ -284,34 +267,13 @@ class TestEntrezStudy4Recovery:
 
         assert results.count("retrieved") == 2
         assert results.count("budget-exhausted") == 1
+        assert sum(trace["entrez_recovery"]["retries_used"] for trace in traces) == 2
+        assert max(trace["entrez_recovery"]["process_retries_used_at_end"] for trace in traces) == 2
+        assert sum(trace["entrez_recovery"]["recovered_calls"] for trace in traces) == 2
+        assert sum(trace["entrez_recovery"]["exhausted_calls"] for trace in traces) == 1
+        assert sum(len(trace["recovered_transient_attempts"]) for trace in traces) == 3
         assert (
-            sum(trace["entrez_recovery"]["retries_used"] for trace in traces)
-            == 2
-        )
-        assert (
-            max(
-                trace["entrez_recovery"]["process_retries_used_at_end"]
-                for trace in traces
-            )
-            == 2
-        )
-        assert (
-            sum(trace["entrez_recovery"]["recovered_calls"] for trace in traces)
-            == 2
-        )
-        assert (
-            sum(trace["entrez_recovery"]["exhausted_calls"] for trace in traces)
-            == 1
-        )
-        assert (
-            sum(len(trace["recovered_transient_attempts"]) for trace in traces)
-            == 3
-        )
-        assert (
-            sum(
-                trace["entrez_recovery"]["client_entry_attempts"]["esearch"]
-                for trace in traces
-            )
+            sum(trace["entrez_recovery"]["client_entry_attempts"]["esearch"] for trace in traces)
             == 5
         )
 
@@ -371,24 +333,19 @@ class TestPubmedStudy4RecoveryTrace:
         )
 
         assert list(result) == ["991"]
-        assert (
-            len(search_calls)
-            == trace["entrez_recovery"]["client_entry_attempts"]["esearch"]
-        )
+        assert len(search_calls) == trace["entrez_recovery"]["client_entry_attempts"]["esearch"]
         assert len(search_calls) == trace["entrez_calls"]["esearch"] + 1
         assert trace["incomplete_fetch_count"] == 0
         assert validated["entrez_recovery"] == trace["entrez_recovery"]
         assert validated["entrez_recovery"]["retries_used"] == 1
-        assert (
-            validated["recovered_transient_attempts"][0]["http_status"] == 429
-        )
+        assert validated["recovered_transient_attempts"][0]["http_status"] == 429
         event = validated["recovered_transient_attempts"][0]
         assert event["retry_after_value"] == canonical_retry_after
         assert event["retry_after_raw_prefix"] == retry_after[:128]
         assert event["retry_after_raw_truncated"] is (len(retry_after) > 128)
         assert event["wait_seconds"] == expected_wait
 
-    def test_terminal_second_fetch_failure_preserves_incomplete_and_logical_counts(  # noqa: E501
+    def test_terminal_second_fetch_failure_preserves_incomplete_and_logical_counts(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         run_id = "study4-terminal-fetch"
@@ -454,9 +411,7 @@ class TestPubmedStudy4RecoveryTrace:
     ) -> None:
         trace = _trace(monkeypatch)
         now = datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
-        monkeypatch.setattr(
-            entrez_rate_limit, "_wall_clock", lambda: now.timestamp()
-        )
+        monkeypatch.setattr(entrez_rate_limit, "_wall_clock", lambda: now.timestamp())
         waits: list[float] = []
         count = 0
 
@@ -472,21 +427,12 @@ class TestPubmedStudy4RecoveryTrace:
         monkeypatch.setattr(entrez_rate_limit, "_sleep", waits.append)
         with entrez_rate_limit.pilot_trace_context(trace):
             assert (
-                entrez_rate_limit.entrez_call(
-                    Entrez.efetch, db="pubmed", id="123"
-                )
-                == "retrieved"
+                entrez_rate_limit.entrez_call(Entrez.efetch, db="pubmed", id="123") == "retrieved"
             )
 
         assert waits == [expected_wait]
-        assert (
-            trace["recovered_transient_attempts"][0]["wait_seconds"]
-            == expected_wait
-        )
-        assert (
-            trace["recovered_transient_attempts"][0]["retry_after_value"]
-            == trace_value
-        )
+        assert trace["recovered_transient_attempts"][0]["wait_seconds"] == expected_wait
+        assert trace["recovered_transient_attempts"][0]["retry_after_value"] == trace_value
         event = trace["recovered_transient_attempts"][0]
         assert event["retry_after_raw_prefix"] == (
             retry_after[:128] if retry_after is not None else None
@@ -501,9 +447,7 @@ class TestPubmedStudy4RecoveryTrace:
     ) -> None:
         trace = _trace(monkeypatch)
         now = datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
-        monkeypatch.setattr(
-            entrez_rate_limit, "_wall_clock", lambda: now.timestamp()
-        )
+        monkeypatch.setattr(entrez_rate_limit, "_wall_clock", lambda: now.timestamp())
         requested = format_datetime(now + timedelta(seconds=30), usegmt=True)
         waits: list[float] = []
         count = 0
@@ -520,9 +464,7 @@ class TestPubmedStudy4RecoveryTrace:
         monkeypatch.setattr(entrez_rate_limit, "_sleep", waits.append)
         with entrez_rate_limit.pilot_trace_context(trace):
             assert (
-                entrez_rate_limit.entrez_call(
-                    Entrez.elink, dbfrom="pubmed", id="123"
-                )
+                entrez_rate_limit.entrez_call(Entrez.elink, dbfrom="pubmed", id="123")
                 == "retrieved"
             )
         assert waits == [30.0]
@@ -540,20 +482,12 @@ class TestPubmedStudy4RecoveryTrace:
             entrez_rate_limit.pilot_trace_context(trace),
             pytest.raises(HTTPError),
         ):
-            entrez_rate_limit.entrez_call(
-                Entrez.elink, dbfrom="pubmed", id="123"
-            )
+            entrez_rate_limit.entrez_call(Entrez.elink, dbfrom="pubmed", id="123")
         assert count == 1
         assert trace["entrez_recovery"]["retries_used"] == 0
         assert trace["entrez_recovery"]["exhausted_calls"] == 1
-        assert (
-            trace["recovered_transient_attempts"][0]["outcome"]
-            == "retry_after_over_cap"
-        )
-        assert (
-            trace["entrez_recovery_call_outcomes"][0]["final_outcome"]
-            == "retry_after_over_cap"
-        )
+        assert trace["recovered_transient_attempts"][0]["outcome"] == "retry_after_over_cap"
+        assert trace["entrez_recovery_call_outcomes"][0]["final_outcome"] == "retry_after_over_cap"
 
         trace = _trace(monkeypatch)
         later = format_datetime(now + timedelta(seconds=61), usegmt=True)
@@ -570,15 +504,10 @@ class TestPubmedStudy4RecoveryTrace:
             entrez_rate_limit.pilot_trace_context(trace),
             pytest.raises(HTTPError),
         ):
-            entrez_rate_limit.entrez_call(
-                Entrez.elink, dbfrom="pubmed", id="123"
-            )
+            entrez_rate_limit.entrez_call(Entrez.elink, dbfrom="pubmed", id="123")
         assert count == 1
         assert waits == []
-        assert (
-            trace["recovered_transient_attempts"][0]["outcome"]
-            == "retry_after_over_cap"
-        )
+        assert trace["recovered_transient_attempts"][0]["outcome"] == "retry_after_over_cap"
 
     def test_retry_enters_the_existing_keyless_400ms_process_pacer(
         self,
@@ -586,9 +515,7 @@ class TestPubmedStudy4RecoveryTrace:
     ) -> None:
         trace = _trace(monkeypatch)
         now: list[float] = [0.0]
-        monkeypatch.setattr(
-            entrez_rate_limit, "initialize_entrez", lambda: None
-        )
+        monkeypatch.setattr(entrez_rate_limit, "initialize_entrez", lambda: None)
         monkeypatch.setattr(entrez_rate_limit, "_clock", lambda: now[0])
         monkeypatch.setattr(
             entrez_rate_limit,
@@ -611,10 +538,7 @@ class TestPubmedStudy4RecoveryTrace:
         with entrez_rate_limit.pilot_trace_context(trace):
             assert entrez_rate_limit._request_interval() == 0.4
             assert (
-                entrez_rate_limit.entrez_call(
-                    Entrez.efetch, db="pubmed", id="123"
-                )
-                == "retrieved"
+                entrez_rate_limit.entrez_call(Entrez.efetch, db="pubmed", id="123") == "retrieved"
             )
 
         assert issued_at == [0.0, 0.4]

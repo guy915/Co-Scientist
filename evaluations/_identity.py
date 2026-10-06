@@ -37,8 +37,7 @@ def identity_digest(value: Any) -> str:
 def request_policy() -> dict[str, str]:
     engine = _ROOT / "engine" / "src" / "co_scientist"
     return {
-        name: hashlib.sha256((engine / name).read_bytes()).hexdigest()
-        for name in _POLICY_FILES
+        name: hashlib.sha256((engine / name).read_bytes()).hexdigest() for name in _POLICY_FILES
     }
 
 
@@ -47,9 +46,7 @@ def validate_identity(value: Any) -> dict[str, Any]:
         raise ValueError("comparison identity is missing or unsupported")
     contents = {key: item for key, item in value.items() if key != "digest"}
     if value.get("digest") != identity_digest(contents):
-        raise ValueError(
-            "comparison identity digest does not match its contents"
-        )
+        raise ValueError("comparison identity digest does not match its contents")
     return value
 
 
@@ -99,9 +96,7 @@ def _model_policy() -> dict[str, Any]:
         "routing": {
             model: {
                 "reasoning_enabled": deepseek_thinking_extra_body(model),
-                "reasoning_disabled": deepseek_thinking_extra_body(
-                    model, enabled=False
-                ),
+                "reasoning_disabled": deepseek_thinking_extra_body(model, enabled=False),
             }
             for model in sorted({m for m in models.values() if m})
         },
@@ -120,9 +115,7 @@ def arm_identity(
     controls do not prove served evidence.
     """
     if os.getenv("COSCIENTIST_CACHE_ENABLED") != "0":
-        raise ValueError(
-            "comparison identity requires disabled response caches"
-        )
+        raise ValueError("comparison identity requires disabled response caches")
     from app.run_modes import RUN_TIER_DEFAULTS
 
     tier = config["tier"]
@@ -164,11 +157,7 @@ def validate_stored_arm(
     identity = validate_identity(run.config.get("evaluation_identity"))
     if expected is not None and identity != expected:
         raise ValueError("comparison identity changed during execution")
-    config = {
-        key: value
-        for key, value in run.config.items()
-        if key != "evaluation_identity"
-    }
+    config = {key: value for key, value in run.config.items() if key != "evaluation_identity"}
     current = arm_identity(run.research_goal, config, str(run.llm_backend))
     if current != identity:
         raise ValueError("comparison controls changed; rerun both arms")
@@ -203,9 +192,7 @@ def _identity(
         "request_policy_files": request_policy(),
         "routing": {
             "reasoning_enabled": deepseek_thinking_extra_body(model),
-            "reasoning_disabled": deepseek_thinking_extra_body(
-                model, enabled=False
-            ),
+            "reasoning_disabled": deepseek_thinking_extra_body(model, enabled=False),
         }
         if live
         else {},
@@ -284,9 +271,7 @@ def _check_config(
         if config.get(key) == baseline.get(key):
             continue
         if key not in overrides or config.get(key) != overrides[key]:
-            raise ValueError(
-                "comparison has an undeclared configuration change"
-            )
+            raise ValueError("comparison has an undeclared configuration change")
 
 
 def _check_declared_overrides(
@@ -295,14 +280,8 @@ def _check_declared_overrides(
     overrides: dict[str, Any],
 ) -> None:
     for key, value in overrides.items():
-        if (
-            key not in config
-            or config[key] != value
-            or baseline.get(key) == value
-        ):
-            raise ValueError(
-                "comparison declares an unapplied or unchanged override"
-            )
+        if key not in config or config[key] != value or baseline.get(key) == value:
+            raise ValueError("comparison declares an unapplied or unchanged override")
 
 
 def _baseline_controls(identity: dict[str, Any], kind: str) -> dict[str, Any]:
@@ -349,14 +328,10 @@ def _match_goals(records: Sequence[dict[str, Any]], kind: str) -> None:
     goals: dict[str, set[str]] = {}
     for record in records:
         group = "scaling" if kind == "scaling" else str(record.get("goal_id"))
-        goals.setdefault(group, set()).add(
-            record["evaluation_identity"]["goal_sha256"]
-        )
+        goals.setdefault(group, set()).add(record["evaluation_identity"]["goal_sha256"])
     if any(len(values) != 1 for values in goals.values()):
         raise ValueError("comparison goal identities differ")
-    if kind == "ablation" and len(set.union(set(), *goals.values())) != len(
-        goals
-    ):
+    if kind == "ablation" and len(set.union(set(), *goals.values())) != len(goals):
         raise ValueError("comparison repeats one goal under different labels")
 
 
@@ -368,14 +343,10 @@ def _match_ablation_arms(records: Sequence[dict[str, Any]]) -> None:
             raise ValueError("comparison ablations require goal and arm labels")
         group = groups.setdefault(goal_id, set())
         if arm in group or (arm == "baseline" and record["overrides"]):
-            raise ValueError(
-                "comparison has duplicate arms or an altered baseline"
-            )
+            raise ValueError("comparison has duplicate arms or an altered baseline")
         group.add(arm)
     expected = set.union(*groups.values())
-    if "baseline" not in expected or any(
-        arms != expected for arms in groups.values()
-    ):
+    if "baseline" not in expected or any(arms != expected for arms in groups.values()):
         raise ValueError("comparison ablations require paired baseline arms")
 
 

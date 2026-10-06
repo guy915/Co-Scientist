@@ -42,11 +42,7 @@ def _observation(
     partners: tuple[Hypothesis, ...] = ()
     if combination_partner is not None:
         partners = (combination_partner,)
-    operator = (
-        EvolutionOperator.COMBINATION
-        if partners
-        else EvolutionOperator.ENHANCEMENT
-    )
+    operator = EvolutionOperator.COMBINATION if partners else EvolutionOperator.ENHANCEMENT
     context = EvolutionContext(
         model_name="fake/model",
         meta_review={},
@@ -64,19 +60,13 @@ def _observation(
     return _apply_evolution_result(parent, response, peers, context, operation)
 
 
-@pytest.mark.parametrize(
-    ("similarity", "accepted"), [(1.0, False), (0.6, True)]
-)
+@pytest.mark.parametrize(("similarity", "accepted"), [(1.0, False), (0.6, True)])
 def test_guard_rejects_only_at_the_proximity_edge_threshold(
     similarity: float, accepted: bool
 ) -> None:
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     peer = make_hypothesis(text="a disjoint wording entirely")
-    graph = {
-        "edges": [
-            {"source": parent.id, "target": peer.id, "similarity": similarity}
-        ]
-    }
+    graph = {"edges": [{"source": parent.id, "target": peer.id, "similarity": similarity}]}
 
     child, detail = _observation(
         "novel child wording sharing nothing lexically", parent, [peer], graph
@@ -90,9 +80,7 @@ def test_guard_coverage_fallback_rejects_near_verbatim_child() -> None:
     peer_text = "rapamycin suppresses mtor signaling downstream of the kinase"
     peer = make_hypothesis(text=peer_text)
 
-    child, _ = _observation(
-        "rapamycin suppresses mtor signaling downstream", parent, [peer]
-    )
+    child, _ = _observation("rapamycin suppresses mtor signaling downstream", parent, [peer])
 
     assert child is None
 
@@ -148,12 +136,8 @@ def test_combination_records_every_parent() -> None:
         parent,
         response,
         [],
-        EvolutionContext(
-            model_name="fake/model", meta_review={}, removed_duplicates=[]
-        ),
-        _EvolutionOperation(
-            operator=EvolutionOperator.COMBINATION, partners=(partner,)
-        ),
+        EvolutionContext(model_name="fake/model", meta_review={}, removed_duplicates=[]),
+        _EvolutionOperation(operator=EvolutionOperator.COMBINATION, partners=(partner,)),
     )
 
     assert child is not None and detail is not None
@@ -176,12 +160,8 @@ def test_combination_invalid_indices_degrade_to_single_parent() -> None:
             "combined_partners": [99],
         },
         [],
-        EvolutionContext(
-            model_name="fake/model", meta_review={}, removed_duplicates=[]
-        ),
-        _EvolutionOperation(
-            operator=EvolutionOperator.COMBINATION, partners=(partner,)
-        ),
+        EvolutionContext(model_name="fake/model", meta_review={}, removed_duplicates=[]),
+        _EvolutionOperation(operator=EvolutionOperator.COMBINATION, partners=(partner,)),
     )
 
     assert child is not None and detail is not None
@@ -192,9 +172,7 @@ def test_combination_invalid_indices_degrade_to_single_parent() -> None:
 async def test_enhancement_grounding_falls_back_to_run_articles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = stub_call_llm_json(
-        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
-    )
+    calls = stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True)
     parent = make_hypothesis(text="parent idea about oxidative stress")
     article = make_article(title="A run-accumulated evidence source")
     state = make_state(hypotheses=[parent], articles=[article])
@@ -226,9 +204,7 @@ async def test_enhancement_grounding_retrieves_when_mcp_is_up(
     async def fake_query_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
         return {"queries": ["mtor", "rapamycin resistance"]}
 
-    async def fake_retrieval(
-        state: Any, queries: list[str]
-    ) -> tuple[list[Any], list[str]]:
+    async def fake_retrieval(state: Any, queries: list[str]) -> tuple[list[Any], list[str]]:
         observed_queries.extend(queries)
         return [make_article(title="Freshly retrieved grounding source")], []
 
@@ -238,9 +214,7 @@ async def test_enhancement_grounding_retrieves_when_mcp_is_up(
         return dict(_RAPAMYCIN_RESPONSE)
 
     monkeypatch.setattr(evolve_grounding, "call_llm_json", fake_query_llm)
-    monkeypatch.setattr(
-        evolve_grounding, "_retrieve_probe_evidence", fake_retrieval
-    )
+    monkeypatch.setattr(evolve_grounding, "_retrieve_probe_evidence", fake_retrieval)
     monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
     parent = make_hypothesis(text="parent idea about oxidative stress")
     state = make_state(hypotheses=[parent], mcp_available=True)
@@ -267,20 +241,14 @@ def test_grounding_metrics_extra_counts_only_live_enhancements() -> None:
     )
 
     operators = ["enhancement", "combination", "enhancement"]
-    assert (
-        grounding_metrics_extra(make_state(mcp_available=True), operators) == 2
-    )
-    assert (
-        grounding_metrics_extra(make_state(mcp_available=False), operators) == 0
-    )
+    assert grounding_metrics_extra(make_state(mcp_available=True), operators) == 2
+    assert grounding_metrics_extra(make_state(mcp_available=False), operators) == 0
 
 
 async def test_evolution_prompt_splices_falsified_assumptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = stub_call_llm_json(
-        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
-    )
+    calls = stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True)
     parent = make_hypothesis(text="parent idea about oxidative stress")
     weakened = make_hypothesis(
         text="a weakened leader idea",
@@ -316,23 +284,15 @@ async def test_evolution_prompt_splices_falsified_assumptions(
 _PARENT_SECTIONS: dict[str, Any] = {
     "introduction": "Metabolic disease remains a major cause of morbidity.",
     "recent_findings": "Aldolase inhibitors have shown early promise [C1].",
-    "literature_grounding": (
-        "Quercetin depletes aldolase activity in hepatocytes [C1]."
-    ),
-    "safety_and_toxicity": (
-        "Quercetin is well tolerated at dietary doses in humans."
-    ),
+    "literature_grounding": ("Quercetin depletes aldolase activity in hepatocytes [C1]."),
+    "safety_and_toxicity": ("Quercetin is well tolerated at dietary doses in humans."),
 }
 
 _CHILD_SECTIONS: dict[str, Any] = {
     "introduction": "Growth signaling drives proliferative disease.",
     "recent_findings": "Kinase inhibitors reshaped the field [C2].",
-    "literature_grounding": (
-        "Rapamycin suppresses mtor signaling in mammalian cells [C2]."
-    ),
-    "safety_and_toxicity": (
-        "Rapamycin carries immunosuppression risk at chronic doses."
-    ),
+    "literature_grounding": ("Rapamycin suppresses mtor signaling in mammalian cells [C2]."),
+    "safety_and_toxicity": ("Rapamycin carries immunosuppression risk at chronic doses."),
 }
 
 
@@ -359,23 +319,17 @@ async def test_child_sections_come_from_the_evolution_response(
 ) -> None:
     original = _evolved_parent()
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    stub_call_llm_json(
-        monkeypatch, evolve, {**_RAPAMYCIN_RESPONSE, **_CHILD_SECTIONS}
-    )
+    stub_call_llm_json(monkeypatch, evolve, {**_RAPAMYCIN_RESPONSE, **_CHILD_SECTIONS})
 
     child = _children(await evolve_node(state))[0]
 
     assert child.introduction == _CHILD_SECTIONS["introduction"]
     assert child.recent_findings == _CHILD_SECTIONS["recent_findings"]
-    assert (
-        child.literature_grounding == (_CHILD_SECTIONS["literature_grounding"])
-    )
+    assert child.literature_grounding == (_CHILD_SECTIONS["literature_grounding"])
     assert child.safety_and_toxicity == (_CHILD_SECTIONS["safety_and_toxicity"])
 
 
-@pytest.mark.parametrize(
-    "sections", [{}, dict.fromkeys(_CHILD_SECTIONS, "   ")]
-)
+@pytest.mark.parametrize("sections", [{}, dict.fromkeys(_CHILD_SECTIONS, "   ")])
 async def test_child_never_inherits_the_parent_sections(
     monkeypatch: pytest.MonkeyPatch, sections: dict[str, str]
 ) -> None:
@@ -407,9 +361,7 @@ async def test_child_citation_map_resolves_its_own_keys(
             make_article("mTOR suppression", used_in_analysis=True),
         ],
     )
-    stub_call_llm_json(
-        monkeypatch, evolve, {**_RAPAMYCIN_RESPONSE, **_CHILD_SECTIONS}
-    )
+    stub_call_llm_json(monkeypatch, evolve, {**_RAPAMYCIN_RESPONSE, **_CHILD_SECTIONS})
 
     child = _children(await evolve_node(state))[0]
 
@@ -528,9 +480,7 @@ def _state() -> WorkflowState:
     return make_state(
         hypotheses=[
             make_hypothesis(text="Selected parent mechanism", elo_rating=900),
-            make_hypothesis(
-                text="Unrelated sibling mechanism", elo_rating=1500
-            ),
+            make_hypothesis(text="Unrelated sibling mechanism", elo_rating=1500),
         ],
         research_goal="Measure the parent mechanism",
         preferences="Use falsifiable interventions",
@@ -539,9 +489,7 @@ def _state() -> WorkflowState:
         meta_review={"common_weaknesses": ["Unrelated meta-review signal"]},
         supervisor_guidance={
             "workflow_plan": {
-                "evolution_phase": {
-                    "iteration_strategy": "Unrelated supervisor signal"
-                }
+                "evolution_phase": {"iteration_strategy": "Unrelated supervisor signal"}
             }
         },
         removed_duplicates=[{"text": "Unrelated removed duplicate"}],
@@ -549,9 +497,7 @@ def _state() -> WorkflowState:
         run_focus_guidance="Test a narrow causal question",
         articles_with_reasoning="Analyzed literature evidence",
         articles=[
-            make_article(
-                title="Retained paper", used_in_analysis=True, year=2025
-            ),
+            make_article(title="Retained paper", used_in_analysis=True, year=2025),
             make_article(title="Unread paper", used_in_analysis=False),
         ],
         context_enrichment_sources=[
@@ -561,9 +507,7 @@ def _state() -> WorkflowState:
     )
 
 
-def _assert_retained_evidence(
-    context: EvolutionContext, state: WorkflowState
-) -> None:
+def _assert_retained_evidence(context: EvolutionContext, state: WorkflowState) -> None:
     assert context.model_name == state["model_name"]
     assert context.creation_iteration == 4
     assert context.run_id == state["run_id"]

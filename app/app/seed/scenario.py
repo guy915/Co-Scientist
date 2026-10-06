@@ -553,16 +553,10 @@ class _ScenarioCounts:
 
 
 def _initial_count(seed: _CuratedSeed) -> int:
-    return (
-        len(seed.hypotheses)
-        - seed.scenario.evolution_count
-        - seed.scenario.second_pass_count
-    )
+    return len(seed.hypotheses) - seed.scenario.evolution_count - seed.scenario.second_pass_count
 
 
-def _lineage(
-    seed: _CuratedSeed, index: int, hypothesis_ids: list[str]
-) -> tuple[str | None, int]:
+def _lineage(seed: _CuratedSeed, index: int, hypothesis_ids: list[str]) -> tuple[str | None, int]:
     initial_count = _initial_count(seed)
     if index < initial_count:
         return None, 0
@@ -585,9 +579,7 @@ def _add_hypothesis(
             statement=item.statement,
             parent_id=parent_id,
             generation=generation,
-            category=(
-                "Evolved proposal" if parent_id else "Generated proposal"
-            ),
+            category=("Evolved proposal" if parent_id else "Generated proposal"),
             mechanism=item.mechanism,
             expected_effect=item.expected_effect,
             experimental_context=item.experiment,
@@ -609,9 +601,7 @@ def _add_hypothesis(
     return hyp_id
 
 
-def _add_reviews(
-    seed: _CuratedSeed, hyp_id: str, index: int, item: DemoHypothesis
-) -> None:
+def _add_reviews(seed: _CuratedSeed, hyp_id: str, index: int, item: DemoHypothesis) -> None:
     for reviewer, summary, critique in (
         (
             "reflection",
@@ -623,8 +613,7 @@ def _add_reviews(
             "Verification review: advance only if the rescue and orthogonal readout agree.",
             (
                 "Probe the proposed mediator with a perturbation, an independent "
-                "readout, and a matched control that could falsify the causal chain. "
-                + item.review
+                "readout, and a matched control that could falsify the causal chain. " + item.review
             ),
         ),
     ):
@@ -704,9 +693,7 @@ def _seed_hypotheses(seed: _CuratedSeed, evidence_ids: list[str]) -> list[str]:
 def _matchups(count: int) -> list[tuple[int, int]]:
     matchups = list(itertools.pairwise(range(count)))
     half = count // 2
-    matchups.extend(
-        (index, index + half) for index in range(min(half, count - half))
-    )
+    matchups.extend((index, index + half) for index in range(min(half, count - half)))
     return matchups
 
 
@@ -758,9 +745,7 @@ def _record_match(
     )
 
 
-def _seed_tournament(
-    seed: _CuratedSeed, hypothesis_ids: list[str]
-) -> list[tuple[int, int]]:
+def _seed_tournament(seed: _CuratedSeed, hypothesis_ids: list[str]) -> list[tuple[int, int]]:
     matchups = _matchups(len(hypothesis_ids))
     for iteration, pair in enumerate(matchups, start=1):
         _record_match(seed, iteration, pair, hypothesis_ids)
@@ -790,11 +775,7 @@ def _scenario_report_request(
     overview: dict[str, Any],
     meta_review: dict[str, Any],
 ) -> ReportRequest:
-    setup = (
-        seed.run.config.get("setup")
-        if isinstance(seed.run.config, dict)
-        else None
-    )
+    setup = seed.run.config.get("setup") if isinstance(seed.run.config, dict) else None
     key = scenario_key(seed.scenario)
     return ReportRequest(
         research_goal=seed.run.research_goal,
@@ -815,9 +796,7 @@ def _scenario_report_request(
     )
 
 
-async def _save_scenario_report(
-    seed: _CuratedSeed, hypothesis_ids: list[str]
-) -> dict[str, Any]:
+async def _save_scenario_report(seed: _CuratedSeed, hypothesis_ids: list[str]) -> dict[str, Any]:
     overview = _curated_research_overview(
         seed.scenario, seed.evidence, seed.hypotheses, hypothesis_ids
     )
@@ -858,16 +837,12 @@ def _emit_scenario_events(
         ("report", {"hypothesis_count": counts.hypotheses}),
         ("status", {"status": "completed"}),
     ):
-        events.append_event(
-            seed.run.id, event_type, event_payload, db_path=seed.db_path
-        )
+        events.append_event(seed.run.id, event_type, event_payload, db_path=seed.db_path)
 
 
 def _finalize_scenario_run(seed: _CuratedSeed, counts: _ScenarioCounts) -> None:
     duration = seed.scenario.duration_seconds
-    runs.update_run_status(
-        seed.run.id, RunStatus.COMPLETED, db_path=seed.db_path
-    )
+    runs.update_run_status(seed.run.id, RunStatus.COMPLETED, db_path=seed.db_path)
     runs.set_run_timing(seed.run.id, duration, db_path=seed.db_path)
     retrieval.save_run_metrics(
         seed.run.id,
@@ -890,9 +865,7 @@ def _finalize_scenario_run(seed: _CuratedSeed, counts: _ScenarioCounts) -> None:
     )
 
 
-async def _seed_curated_scenario(
-    run: RunRow, scenario: DemoScenario, db_path: str | None
-) -> None:
+async def _seed_curated_scenario(run: RunRow, scenario: DemoScenario, db_path: str | None) -> None:
     views.clear_run_derived_data(run.id, db_path=db_path)
     runs.set_run_title(run.id, f"Example: {scenario.title}", db_path=db_path)
     seed = _CuratedSeed(
@@ -902,9 +875,7 @@ async def _seed_curated_scenario(
         hypotheses=scenario_hypotheses(scenario),
         db_path=db_path,
     )
-    evidence_ids = insert_scenario_evidence(
-        seed.run.id, seed.evidence, seed.db_path
-    )
+    evidence_ids = insert_scenario_evidence(seed.run.id, seed.evidence, seed.db_path)
     hypothesis_ids = _seed_hypotheses(seed, evidence_ids)
     matchups = _seed_tournament(seed, hypothesis_ids)
     _seed_proximity(seed, hypothesis_ids)

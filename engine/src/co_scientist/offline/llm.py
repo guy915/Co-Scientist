@@ -167,12 +167,9 @@ _STATEMENT_TEMPLATES = (
 _MECHANISM_TEMPLATES = (
     "{term_a} acts upstream of {term_b}, so the effect appears only "
     "once the intermediate pool is depleted",
-    "Binding at {term_a} shifts the equilibrium toward {term_b} without "
-    "changing total abundance",
-    "The pathway routes through {term_a}; blocking it forces "
-    "compensatory flux into {term_b}",
-    "{term_a} occupies the site {term_b} needs, so the two compete "
-    "rather than acting in series",
+    "Binding at {term_a} shifts the equilibrium toward {term_b} without changing total abundance",
+    "The pathway routes through {term_a}; blocking it forces compensatory flux into {term_b}",
+    "{term_a} occupies the site {term_b} needs, so the two compete rather than acting in series",
     "Turnover of {term_a} sets how long {term_b} stays available, "
     "making the timing of the perturbation decisive",
     "A slow conformational step gates {term_a}, and {term_b} reports "
@@ -190,8 +187,7 @@ _EXPERIMENT_TEMPLATES = (
     "window, since order separates cause from correlate",
     "Pair a chemical and a genetic route to {term_a}, and accept the "
     "{term_b} result only where the two agree",
-    "Track {term_b} continuously through a single {term_a} pulse "
-    "instead of sampling endpoints",
+    "Track {term_b} continuously through a single {term_a} pulse instead of sampling endpoints",
 )
 
 _CRITIQUE_TEMPLATES = (
@@ -473,9 +469,7 @@ def _fill_property(
     hints: _FillHints,
 ) -> Any:
     if schema.get("type") == "array" and name in hints.array_lengths:
-        return _fill_array(
-            schema, hints.array_lengths[name], leaf_fn, hints, name
-        )
+        return _fill_array(schema, hints.array_lengths[name], leaf_fn, hints, name)
     return _fill_schema(schema, leaf_fn, hints, name)
 
 
@@ -487,10 +481,7 @@ def _fill_array(
     field: str = "",
 ) -> list[Any]:
     item_schema = schema.get("items", {"type": "string"})
-    return [
-        _fill_schema(item_schema, leaf_fn, hints, field)
-        for _ in range(max(count, 1))
-    ]
+    return [_fill_schema(item_schema, leaf_fn, hints, field) for _ in range(max(count, 1))]
 
 
 OFFLINE_MODEL_PREFIX = "offline/"
@@ -558,12 +549,8 @@ _REVIEW_SCORE_FIELDS: tuple[str, ...] = (
 _REVIEW_SCORE_VALUE = 7
 
 _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
-    "hypothesis_review": dict.fromkeys(
-        _REVIEW_SCORE_FIELDS, _REVIEW_SCORE_VALUE
-    ),
-    "hypothesis_batch_review": dict.fromkeys(
-        _REVIEW_SCORE_FIELDS, _REVIEW_SCORE_VALUE
-    ),
+    "hypothesis_review": dict.fromkeys(_REVIEW_SCORE_FIELDS, _REVIEW_SCORE_VALUE),
+    "hypothesis_batch_review": dict.fromkeys(_REVIEW_SCORE_FIELDS, _REVIEW_SCORE_VALUE),
 }
 
 # Hint only named optional fields/schemas; filling every optional would
@@ -598,9 +585,7 @@ def _prompt_text(completion_args: dict[str, Any]) -> str:
 
 
 def _seed_for(model: str, prompt: str, schema_name: str) -> int:
-    digest = hashlib.sha256(
-        "\x00".join((model, prompt, schema_name)).encode("utf-8")
-    ).digest()
+    digest = hashlib.sha256("\x00".join((model, prompt, schema_name)).encode("utf-8")).digest()
     return int.from_bytes(digest, byteorder="big")
 
 
@@ -610,26 +595,18 @@ def _supervisor_allocation_response(prompt: str) -> str:
     """
     needs_proximity = '"pool_grew_since_proximity": true' in prompt
     first_cycle = '"iteration": 0' in prompt
-    next_task = (
-        "proximity"
-        if needs_proximity
-        else ("evolve" if first_cycle else "generate")
-    )
+    next_task = "proximity" if needs_proximity else ("evolve" if first_cycle else "generate")
     reason = (
         "Refresh the scientific similarity landscape."
         if needs_proximity
         else (
-            "Improve reviewed leaders."
-            if first_cycle
-            else "Explore an underdeveloped direction."
+            "Improve reviewed leaders." if first_cycle else "Explore an underdeveloped direction."
         )
     )
     return json.dumps({"next_task": next_task, "reason": reason})
 
 
-def _schema_response(
-    model: str, prompt: str, json_schema: dict[str, Any]
-) -> Any:
+def _schema_response(model: str, prompt: str, json_schema: dict[str, Any]) -> Any:
     schema_name = json_schema.get("name", "")
 
     if schema_name == "supervisor_allocation":

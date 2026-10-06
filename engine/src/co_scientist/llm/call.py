@@ -56,9 +56,7 @@ def _call_for_attempt(
         if escalation is BudgetEscalation.MINIMAL_REASONING_REQUIRED:
             attempt_opt = dataclasses.replace(inner_opt, enable_thinking=False)
             with scoped_minimal_reasoning():
-                return await _call_llm_single_attempt(
-                    prompt, attempt_spec, attempt_opt
-                )
+                return await _call_llm_single_attempt(prompt, attempt_spec, attempt_opt)
         return await _call_llm_single_attempt(prompt, attempt_spec, attempt_opt)
 
     return _attempt
@@ -97,9 +95,7 @@ async def call_llm(
         return content
 
 
-async def _call_llm_for_json(
-    prompt: str, spec: _JsonCallSpec, enable_thinking: bool = True
-) -> str:
+async def _call_llm_for_json(prompt: str, spec: _JsonCallSpec, enable_thinking: bool = True) -> str:
     """Never nest another attempt loop or cache unvalidated raw text beside
     the validated JSON entry.
     """
@@ -138,9 +134,7 @@ def _json_call_for_attempt(
     async def _call_for_json(attempt: Attempt) -> str:
         escalation = attempt.rung
         attempt_prompt = judge.prompt_for(attempt)
-        call_enable_thinking = (
-            enable_thinking and escalation is not BudgetEscalation.NO_THINKING
-        )
+        call_enable_thinking = enable_thinking and escalation is not BudgetEscalation.NO_THINKING
         if escalation is BudgetEscalation.MINIMAL_REASONING_REQUIRED:
             with scoped_minimal_reasoning():
                 return await _call_llm_for_json(
@@ -157,9 +151,7 @@ def _json_call_for_attempt(
     return _call_for_json
 
 
-def _json_judge(
-    judge: JsonJudge, max_attempts: int
-) -> Judge[str, dict[str, Any]]:
+def _json_judge(judge: JsonJudge, max_attempts: int) -> Judge[str, dict[str, Any]]:
 
     def exhausted(last: Rejected) -> dict[str, Any]:
         return _handle_json_retries_exhausted(

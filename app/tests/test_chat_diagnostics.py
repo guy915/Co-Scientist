@@ -29,8 +29,5 @@ def test_chat_metadata_is_owned_and_excludes_text(
     assert len(owned) == 2
     assert logs.list_logs(filters=LogFilters(scope_client_id="bob")) == []
     assert "role=user chars=19" in owned[0]["message"]
-    assert (
-        "role=agent" in owned[1]["message"]
-        and "duration_seconds=1.250" in owned[1]["message"]
-    )
+    assert "role=agent" in owned[1]["message"] and "duration_seconds=1.250" in owned[1]["message"]
     assert "private" not in str(owned)

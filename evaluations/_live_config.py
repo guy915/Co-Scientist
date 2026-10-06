@@ -27,13 +27,9 @@ def configure_live_environment(model: str | None = None) -> str:
 def _explicit_model(selected: str | None) -> str:
     if "app.config" in sys.modules:
         raise RuntimeError("live evaluation requires a fresh process")
-    model = (
-        selected if selected is not None else os.getenv("MODEL_NAME", "")
-    ).strip()
+    model = (selected if selected is not None else os.getenv("MODEL_NAME", "")).strip()
     if not model.startswith("openrouter/") or model == "openrouter/":
-        raise ValueError(
-            "live evaluation requires explicit OpenRouter MODEL_NAME"
-        )
+        raise ValueError("live evaluation requires explicit OpenRouter MODEL_NAME")
     if not os.getenv("OPENROUTER_API_KEY", "").strip():
         raise ValueError("live evaluation requires OPENROUTER_API_KEY")
     return model

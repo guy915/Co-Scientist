@@ -51,9 +51,7 @@ async def stage_document(
     """
     owner = require_client_scope(request)
     if not consent:
-        raise HTTPException(
-            status_code=422, detail="consent is required to index a document"
-        )
+        raise HTTPException(status_code=422, detail="consent is required to index a document")
     extracted = await document_ingest.extract_upload(file)
     title = (file.filename or "Uploaded document").strip()
     document_id = store.add_staged_document(

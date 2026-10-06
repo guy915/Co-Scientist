@@ -69,9 +69,7 @@ _DISPATCH = [
 ]
 
 
-@pytest.mark.parametrize(
-    ("tool", "kwargs", "endpoint", "payload", "expected"), _DISPATCH
-)
+@pytest.mark.parametrize(("tool", "kwargs", "endpoint", "payload", "expected"), _DISPATCH)
 async def test_tool_calls_reach_their_endpoint_and_shape_the_result(
     monkeypatch: pytest.MonkeyPatch,
     tool: Any,

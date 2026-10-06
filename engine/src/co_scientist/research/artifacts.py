@@ -44,9 +44,7 @@ class ResearchBudget:
                 raise ValueError(f"reserved slots for {source!r} must be >= 1")
             total += places
         if total >= self.hits_per_question and total:
-            raise ValueError(
-                f"reservations claim all {self.hits_per_question} hits"
-            )
+            raise ValueError(f"reservations claim all {self.hits_per_question} hits")
 
     def descend(self) -> ResearchBudget | None:
         if self.depth <= 1:
@@ -114,9 +112,7 @@ class Question:
 
     @property
     def id(self) -> str:
-        return content_id(
-            "question", self.stance, self.text, self.parent_id or ""
-        )
+        return content_id("question", self.stance, self.text, self.parent_id or "")
 
 
 @dataclass(frozen=True)
@@ -196,9 +192,7 @@ class ResearchResult:
         return tuple(f for f in self.findings if f.question == question)
 
     def declined(self) -> tuple[ThreadRecord, ...]:
-        return tuple(
-            t for t in self.threads if t.status is ThreadStatus.DECLINED
-        )
+        return tuple(t for t in self.threads if t.status is ThreadStatus.DECLINED)
 
     def summaries(self) -> tuple[str, ...]:
         return tuple(t.summary for t in self.threads if t.summary)
@@ -243,9 +237,7 @@ class RetrievalError(Exception):
 
 
 class RetrievalPort(Protocol):
-    async def search(
-        self, *, query: str, source: str, limit: int
-    ) -> Sequence[SourceHit]: ...
+    async def search(self, *, query: str, source: str, limit: int) -> Sequence[SourceHit]: ...
 
     async def read(self, *, locator: str) -> str | None: ...
 
@@ -253,9 +245,7 @@ class RetrievalPort(Protocol):
 class ResearchModelPort(Protocol):
     async def plan_stances(self, *, goal: str, limit: int) -> Sequence[str]: ...
 
-    async def ask_questions(
-        self, *, goal: str, stance: str, limit: int
-    ) -> Sequence[str]: ...
+    async def ask_questions(self, *, goal: str, stance: str, limit: int) -> Sequence[str]: ...
 
     async def to_query(self, *, question: str) -> str:
         """Queries are lossy and source-shaped; retain the original question
@@ -263,13 +253,9 @@ class ResearchModelPort(Protocol):
         """
         ...
 
-    async def extract(
-        self, *, question: str, documents: Sequence[Document]
-    ) -> Extraction: ...
+    async def extract(self, *, question: str, documents: Sequence[Document]) -> Extraction: ...
 
-    async def compress(
-        self, *, question: str, findings: Sequence[Finding]
-    ) -> str:
+    async def compress(self, *, question: str, findings: Sequence[Finding]) -> str:
         """Summaries bound caller context while full findings remain in the
         ledger.
         """

@@ -229,26 +229,17 @@ async def _drive_replay_then_live_run(
         create = await client.post(
             "/api/runs",
             json={
-                "research_goal": "Integration flow: SSE replay-then-live "
-                "consistency",
+                "research_goal": "Integration flow: SSE replay-then-live consistency",
                 "tier": "express",
             },
         )
         run_id = create.json()["id"]
-        start_task = asyncio.create_task(
-            client.post(f"/api/runs/{run_id}/start", json={})
-        )
+        start_task = asyncio.create_task(client.post(f"/api/runs/{run_id}/start", json={}))
         await _await_condition(
-            lambda: (
-                len(store_events.list_events(run_id, db_path=isolated_db)) >= 3
-            )
+            lambda: len(store_events.list_events(run_id, db_path=isolated_db)) >= 3
         )
-        events_at_open = len(
-            store_events.list_events(run_id, db_path=isolated_db)
-        )
-        events_resp = await client.get(
-            f"/api/runs/{run_id}/events", params={"after": 0}
-        )
+        events_at_open = len(store_events.list_events(run_id, db_path=isolated_db))
+        events_resp = await client.get(f"/api/runs/{run_id}/events", params={"after": 0})
         start_resp = await start_task
     return run_id, events_resp, start_resp, events_at_open
 
@@ -284,9 +275,7 @@ def test_completion_notification_is_opt_in_durable_and_needs_smtp(
     caplog: pytest.LogCaptureFixture,
     smtp_configured: bool,
 ) -> None:
-    monkeypatch.setattr(
-        settings, "smtp_host", "smtp.example.org" if smtp_configured else ""
-    )
+    monkeypatch.setattr(settings, "smtp_host", "smtp.example.org" if smtp_configured else "")
     monkeypatch.setattr(
         settings,
         "smtp_from_email",
@@ -453,9 +442,7 @@ def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
 # artifact equality is not guaranteed.
 
 
-def _run_offline_workflow(
-    goal: str, db_path: str
-) -> tuple[str, list[dict[str, Any]]]:
+def _run_offline_workflow(goal: str, db_path: str) -> tuple[str, list[dict[str, Any]]]:
     run = seed_run(
         goal,
         profile="express",
@@ -473,11 +460,7 @@ def test_offline_workflow_emits_canonical_events_and_completes_with_report(
 ) -> None:
     run_id, events = _run_offline_workflow("Sequence test goal", isolated_db)
     types = [e["type"] for e in events]
-    nodes = [
-        e["payload"].get("task")
-        for e in events
-        if e["type"] == "scientific_task"
-    ]
+    nodes = [e["payload"].get("task") for e in events if e["type"] == "scientific_task"]
 
     expected_gate_events = {
         "safety.intake",
@@ -503,9 +486,7 @@ def test_offline_workflow_emits_canonical_events_and_completes_with_report(
         "deep_verification",
         "research_overview",
     }
-    assert expected_nodes <= set(nodes), (
-        f"missing nodes: {expected_nodes - set(nodes)}"
-    )
+    assert expected_nodes <= set(nodes), f"missing nodes: {expected_nodes - set(nodes)}"
     assert types.index("safety.intake") == 0
     assert nodes.index("supervisor") < nodes.index("generate")
     assert types.index("report") == len(types) - 2
@@ -553,9 +534,7 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert md is not None and "Research Report" in md
         scenario = DEMO_SCENARIOS[run.research_goal]
         expected_ideas = len(scenario_hypotheses(scenario))
-        hypotheses = store_hypotheses.list_hypotheses(
-            run.id, db_path=isolated_db
-        )
+        hypotheses = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
         assert len(hypotheses) == expected_ideas
         evidence = records.list_evidence(run.id, db_path=isolated_db)
         assert len(evidence) == 6
@@ -565,16 +544,11 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert len(records.list_matches(run.id, db_path=isolated_db)) == (
             expected_ideas - 1 + expected_ideas // 2
         )
-        assert all(
-            hypothesis["win_count"] + hypothesis["loss_count"]
-            for hypothesis in hypotheses
-        )
+        assert all(hypothesis["win_count"] + hypothesis["loss_count"] for hypothesis in hypotheses)
         assert "Curated demonstration only" in md
         assert "\n## Evaluation Criteria\n" in md
         assert "\n### Unexpected research directions\n" in md
-        assert md.index("## Main Research Directions") < md.index(
-            "## Top hypotheses"
-        )
+        assert md.index("## Main Research Directions") < md.index("## Top hypotheses")
         report = reports.get_latest_report(run.id, db_path=isolated_db)
         assert report is not None
         assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION

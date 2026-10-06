@@ -30,30 +30,20 @@ NODE_REGISTRY: dict[str, NodeSpec] = {
     "supervisor": NodeSpec("supervisor", supervisor.supervisor_node),
     "orchestrator": NodeSpec("supervisor", supervisor.orchestrator_node),
     "generate": NodeSpec("generation", generation.generate_node),
-    "literature_review": NodeSpec(
-        "generation", generation.literature_review_node
-    ),
+    "literature_review": NodeSpec("generation", generation.literature_review_node),
     "review": NodeSpec("reflection", reflection.review_node),
     "reflection": NodeSpec("reflection", reflection.reflection_node),
-    "comprehensive_reflection": NodeSpec(
-        "reflection", reflection.comprehensive_reflection_node
-    ),
-    "deep_verification": NodeSpec(
-        "reflection", reflection.deep_verification_node
-    ),
+    "comprehensive_reflection": NodeSpec("reflection", reflection.comprehensive_reflection_node),
+    "deep_verification": NodeSpec("reflection", reflection.deep_verification_node),
     "ranking": NodeSpec("ranking", ranking.ranking_node),
     "evolve": NodeSpec("evolution", evolution.evolve_node),
     "proximity": NodeSpec("proximity", proximity.proximity_node),
     "meta_review": NodeSpec("meta_review", meta_review.meta_review_node),
-    "research_overview": NodeSpec(
-        "meta_review", meta_review.research_overview_node
-    ),
+    "research_overview": NodeSpec("meta_review", meta_review.research_overview_node),
     "safety_screen": NodeSpec("safety", safety.safety_screen_node),
 }
 
-NODE_TO_AGENT: dict[str, str] = {
-    key: spec.agent for key, spec in NODE_REGISTRY.items()
-}
+NODE_TO_AGENT: dict[str, str] = {key: spec.agent for key, spec in NODE_REGISTRY.items()}
 
 __all__ = [
     "NODE_REGISTRY",

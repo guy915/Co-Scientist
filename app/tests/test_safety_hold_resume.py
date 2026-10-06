@@ -59,9 +59,7 @@ def hold_until_approved(stage: str) -> Any:
         provider: str,
         db_path: str | None = None,
     ) -> SafetyDecision:
-        approved = records.safety_stage_is_approved(
-            run_id, stage, POLICY_VERSION, db_path=db_path
-        )
+        approved = records.safety_stage_is_approved(run_id, stage, POLICY_VERSION, db_path=db_path)
         if subject.stage != stage or approved:
             return subject.deterministic
         return _held_decision(stage)
@@ -96,9 +94,7 @@ def held_decision_id(run_id: str, stage: str, db_path: str) -> int:
     held = [
         row
         for row in records.list_safety_decisions(run_id, db_path=db_path)
-        if row["stage"] == stage
-        and row["decision"] == "hold"
-        and row["resolution"] is None
+        if row["stage"] == stage and row["decision"] == "hold" and row["resolution"] is None
     ]
     assert held, f"no unresolved {stage} hold was recorded"
     return int(held[-1]["id"])
@@ -108,8 +104,7 @@ def claimable_engine_tasks(run_id: str, db_path: str) -> list[str]:
     return [
         task.task_type
         for task in tasks.list_tasks(run_id, db_path=db_path)
-        if task.task_type.startswith("engine.")
-        and task.status in {"queued", "leased", "paused"}
+        if task.task_type.startswith("engine.") and task.status in {"queued", "leased", "paused"}
     ]
 
 
@@ -169,9 +164,7 @@ def test_parked_task_is_released_with_a_fresh_budget(
     # Waiting for a reviewer must preserve claimable work without spending its
     # retry budget.
     run = seed_run("goal", profile="express", db_path=isolated_db)
-    enqueue_task(
-        run.id, "engine.finalize", "engine.finalize:1", db_path=isolated_db
-    )
+    enqueue_task(run.id, "engine.finalize", "engine.finalize:1", db_path=isolated_db)
     leased = tasks.claim_task("w1", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.attempt == 1
 
@@ -224,9 +217,7 @@ def test_only_a_paused_run_with_an_unresolved_review_awaits_a_decision(
     if held:
         run_id, decision_id = _run_with_held_decision(client, headers)
     else:
-        run_id = _create_run(
-            client, "A mundane pathway", headers=headers
-        ).json()["id"]
+        run_id = _create_run(client, "A mundane pathway", headers=headers).json()["id"]
     if resolved:
         client.post(
             f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
@@ -241,13 +232,9 @@ def test_only_a_paused_run_with_an_unresolved_review_awaits_a_decision(
     assert detail["awaiting_decision_count"] == awaiting
 
 
-def _run_with_held_decision(
-    client: TestClient, headers: dict[str, str]
-) -> tuple[str, str]:
+def _run_with_held_decision(client: TestClient, headers: dict[str, str]) -> tuple[str, str]:
 
-    created = _create_run(
-        client, "Review a sensitive research protocol", headers=headers
-    ).json()
+    created = _create_run(client, "Review a sensitive research protocol", headers=headers).json()
     records.add_safety_decision(
         NewSafetyDecision(
             run_id=created["id"],
@@ -273,13 +260,9 @@ def test_held_hypothesis_adjudication_records_without_blocking(
 
     client = _client()
     headers = {"X-Client-ID": "held-reviewer"}
-    created = _create_run(
-        client, "Adjudicate hypotheses held for review", headers=headers
-    ).json()
+    created = _create_run(client, "Adjudicate hypotheses held for review", headers=headers).json()
     run_id = created["id"]
-    _persist(
-        run_id=run_id, final_state=_held_final_state(), db_path=isolated_db
-    )
+    _persist(run_id=run_id, final_state=_held_final_state(), db_path=isolated_db)
 
     listed = client.get(f"/api/runs/{run_id}/safety", headers=headers)
     assert listed.status_code == 200
@@ -302,9 +285,7 @@ def test_held_hypothesis_adjudication_records_without_blocking(
 
     by_id = {
         d["id"]: d
-        for d in client.get(
-            f"/api/runs/{run_id}/safety", headers=headers
-        ).json()["safety"]
+        for d in client.get(f"/api/runs/{run_id}/safety", headers=headers).json()["safety"]
     }
     assert by_id[holds[0]["id"]]["resolution"] == "approved"
     assert by_id[holds[1]["id"]]["resolution"] == "rejected"
@@ -314,7 +295,4 @@ def test_held_hypothesis_adjudication_records_without_blocking(
         json={"resolution": "rejected"},
     )
     assert repeated.status_code == 409
-    assert (
-        client.get(f"/api/runs/{run_id}", headers=headers).json()["status"]
-        == "draft"
-    )
+    assert client.get(f"/api/runs/{run_id}", headers=headers).json()["status"] == "draft"

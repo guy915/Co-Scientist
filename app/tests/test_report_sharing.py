@@ -53,9 +53,7 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
 
         public = client.get(f"/api/shared/{share['token']}")
         assert public.status_code == 200
-        assert public.json()["report"]["payload"]["research_goal"] == (
-            "Study a causal pathway"
-        )
+        assert public.json()["report"]["payload"]["research_goal"] == ("Study a causal pathway")
 
         revoked = client.delete(
             f"/api/runs/{run_id}/shares/{share['id']}",
@@ -174,9 +172,7 @@ def _run_with_blocked_and_released_content(
 def test_shared_payload_is_filtered_to_release_artifact(
     isolated_db: str,
 ) -> None:
-    run_id, released_id, cited_id = _run_with_blocked_and_released_content(
-        isolated_db
-    )
+    run_id, released_id, cited_id = _run_with_blocked_and_released_content(isolated_db)
     with TestClient(app) as client:
         created = client.post(
             f"/api/runs/{run_id}/shares",
@@ -214,9 +210,7 @@ def test_shared_payload_is_filtered_to_release_artifact(
 
     shared = payload["hypotheses"][0]
     assert shared["title"] == "Released feedback idea"
-    assert shared["statement"] == (
-        "Modulating the feedback loop improves throughput."
-    )
+    assert shared["statement"] == ("Modulating the feedback loop improves throughput.")
     assert "abstract" not in payload["evidence"][0]
     assert payload["evidence"][0]["title"] == "A public pathway paper"
     assert payload["evidence"][0]["retracted"] is False

@@ -323,9 +323,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 {
                     "goal_summary": {
                         "type": "string",
-                        "description": (
-                            "concise restatement of the research goal"
-                        ),
+                        "description": ("concise restatement of the research goal"),
                     },
                     "key_areas": str_array(),
                     "constraints_identified": str_array(),
@@ -339,10 +337,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                             "focus_areas": str_array(),
                             "diversity_targets": {
                                 "type": "string",
-                                "description": (
-                                    "description of diversity targets"
-                                    " for hypotheses"
-                                ),
+                                "description": ("description of diversity targets for hypotheses"),
                             },
                             "quantity_target": {
                                 "type": "string",
@@ -369,9 +364,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                                     {
                                         "name": {
                                             "type": "string",
-                                            "description": (
-                                                "short criterion name"
-                                            ),
+                                            "description": ("short criterion name"),
                                         },
                                         "description": {
                                             "type": "string",
@@ -386,16 +379,13 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                                         },
                                         "questions": {
                                             "type": "array",
-                                            "maxItems": (
-                                                CRITICAL_CRITERIA_MAX_QUESTIONS
-                                            ),
+                                            "maxItems": (CRITICAL_CRITERIA_MAX_QUESTIONS),
                                             "items": obj(
                                                 {
                                                     "name": {
                                                         "type": "string",
                                                         "description": (
-                                                            "short name for"
-                                                            " this question"
+                                                            "short name for this question"
                                                         ),
                                                     },
                                                     "question": {
@@ -425,9 +415,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                             "refinement_priorities": str_array(),
                             "iteration_strategy": {
                                 "type": "string",
-                                "description": (
-                                    "description of iteration strategy"
-                                ),
+                                "description": ("description of iteration strategy"),
                             },
                         }
                     ),
@@ -472,8 +460,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                                     "rubric": {
                                         "type": "string",
                                         "description": (
-                                            "how to score this attribute from 1"
-                                            " (worst) to 5 (best)"
+                                            "how to score this attribute from 1 (worst) to 5 (best)"
                                         ),
                                     },
                                 }
@@ -501,8 +488,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                             f"{agent}_agent": {
                                 "type": "string",
                                 "description": (
-                                    f"assessment of {agent.replace('_', '-')}"
-                                    " agent performance"
+                                    f"assessment of {agent.replace('_', '-')} agent performance"
                                 ),
                             }
                             for agent in _AGENTS_ASSESSED
@@ -533,15 +519,11 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 {
                     "hypothesis_selection_strategy": {
                         "type": "string",
-                        "description": (
-                            "strategy for selecting final hypotheses"
-                        ),
+                        "description": ("strategy for selecting final hypotheses"),
                     },
                     "presentation_format": {
                         "type": "string",
-                        "description": (
-                            "format for presenting results to scientist"
-                        ),
+                        "description": ("format for presenting results to scientist"),
                     },
                     "key_insights_to_highlight": str_array(),
                 }

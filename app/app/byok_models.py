@@ -43,10 +43,7 @@ def provider_models(provider: str) -> tuple[str, ...]:
 
 
 def model_catalog() -> dict[str, list[str]]:
-    return {
-        provider: list(provider_models(provider))
-        for provider in BYOK_PROVIDER_DEFAULT_MODELS
-    }
+    return {provider: list(provider_models(provider)) for provider in BYOK_PROVIDER_DEFAULT_MODELS}
 
 
 def resolve_model_choice(provider: str, requested: str | None) -> str:
@@ -58,9 +55,7 @@ def resolve_model_choice(provider: str, requested: str | None) -> str:
     if not choice:
         return offered[0]
     if choice not in offered:
-        raise ByokModelError(
-            f"model {choice!r} is not offered for provider {provider}"
-        )
+        raise ByokModelError(f"model {choice!r} is not offered for provider {provider}")
     return choice
 
 

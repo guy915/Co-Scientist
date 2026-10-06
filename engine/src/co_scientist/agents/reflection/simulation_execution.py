@@ -56,31 +56,23 @@ def _tool_provider(
     simulation and stay off."""
     session = open_review_workspace(run_id, hypothesis_id)
     schemas = workspace_tool_schemas(session.policy)
-    if not any(
-        schema.get("function", {}).get("name") == RUN_COMMAND
-        for schema in schemas
-    ):
+    if not any(schema.get("function", {}).get("name") == RUN_COMMAND for schema in schemas):
         return None
     return WorkspaceToolProvider(session), schemas
 
 
-async def simulation_observations(
-    state: WorkflowState, hypothesis: Hypothesis
-) -> str | None:
+async def simulation_observations(state: WorkflowState, hypothesis: Hypothesis) -> str | None:
     run_id = str(state.get("run_id") or "unknown")
     try:
         opened = _tool_provider(run_id, hypothesis.id)
     except Exception as exc:
         # Workspace creation is outside the loop guard; disk failures need
         # mental fallback rather than exhausted durable retries.
-        logger.warning(
-            "simulation workspace unavailable for %s: %s", hypothesis.id, exc
-        )
+        logger.warning("simulation workspace unavailable for %s: %s", hypothesis.id, exc)
         return None
     if opened is None:
         logger.info(
-            "simulation execution unavailable for %s; reviewing by "
-            "mental simulation",
+            "simulation execution unavailable for %s; reviewing by mental simulation",
             hypothesis.id,
         )
         return None
@@ -111,9 +103,7 @@ async def _run_simulation_loop(
             )
 
 
-def _simulation_loop(
-    provider: WorkspaceToolProvider, schemas: list[dict[str, Any]]
-) -> ToolLoop:
+def _simulation_loop(provider: WorkspaceToolProvider, schemas: list[dict[str, Any]]) -> ToolLoop:
     """Turn limits cannot bound transcript spend: each call resends
     accumulated text."""
     return ToolLoop(
@@ -157,8 +147,6 @@ async def _observe(
     except Exception as exc:
         # If the closing turn fails too, mental simulation still supplies a
         # complete review.
-        logger.warning(
-            "simulation execution failed for %s: %s", hypothesis.id, exc
-        )
+        logger.warning("simulation execution failed for %s: %s", hypothesis.id, exc)
         return ""
     return observations.strip()

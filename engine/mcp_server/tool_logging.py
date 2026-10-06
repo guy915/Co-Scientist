@@ -45,9 +45,7 @@ def _describe_result(result: Any) -> str:
     return f"{parsed!r}"
 
 
-def _log_success(
-    name: str, described: str, result: Any, started: float
-) -> None:
+def _log_success(name: str, described: str, result: Any, started: float) -> None:
     logger.info(
         "tool %s(%s) -> %s in %dms",
         name,
@@ -57,9 +55,7 @@ def _log_success(
     )
 
 
-def _log_failure(
-    name: str, described: str, exc: BaseException, started: float
-) -> None:
+def _log_failure(name: str, described: str, exc: BaseException, started: float) -> None:
     """Tools normally degrade; unexpected exceptions retain their diagnostic
     traceback.
     """

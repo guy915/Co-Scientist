@@ -30,11 +30,7 @@ def contradicted_hypothesis_ids(
         if claim_edges is not None
         else store.list_claim_evidence(run_id, db_path=db_path)
     )
-    return {
-        str(edge["hypothesis_id"])
-        for edge in edges
-        if is_categorical_contradiction(edge)
-    }
+    return {str(edge["hypothesis_id"]) for edge in edges if is_categorical_contradiction(edge)}
 
 
 def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
@@ -56,11 +52,7 @@ def unverified_hypothesis_ids(
     if not edges:
         return set()
     supported = _supported_hypothesis_ids(edges)
-    rows = (
-        hyps
-        if hyps is not None
-        else hypotheses.list_hypotheses(run_id, db_path=db_path)
-    )
+    rows = hyps if hyps is not None else hypotheses.list_hypotheses(run_id, db_path=db_path)
     all_hypothesis_ids = {str(hypothesis.get("id")) for hypothesis in rows}
     return all_hypothesis_ids - supported
 
@@ -89,9 +81,7 @@ def exclude_unsafe_hypotheses(
     """
     contradicted = contradicted_hypothesis_ids(run_id, db_path, claim_edges)
     kept = [
-        hyp
-        for hyp in hyps
-        if _hypothesis_passes_safety_gate(run_id, hyp, contradicted, db_path)
+        hyp for hyp in hyps if _hypothesis_passes_safety_gate(run_id, hyp, contradicted, db_path)
     ]
     _log_gate_outcome(kept, hyps, contradicted)
     return kept
@@ -198,16 +188,10 @@ def _empty_leaderboard_reason(idea_count: int, tally: dict[str, int]) -> str:
         return "No hypothesis could be published: the run produced no ideas."
     clauses = _exclusion_clauses(tally)
     if not clauses:
-        return (
-            "No hypothesis could be published: every idea was withheld "
-            "from the ranked report."
-        )
+        return "No hypothesis could be published: every idea was withheld from the ranked report."
     total = sum(tally.values())
     noun = "idea" if total == 1 else "ideas"
-    return (
-        f"No hypothesis could be published: of {total} {noun}, "
-        f"{_join_clauses(clauses)}."
-    )
+    return f"No hypothesis could be published: of {total} {noun}, {_join_clauses(clauses)}."
 
 
 def _hypothesis_passes_safety_gate(

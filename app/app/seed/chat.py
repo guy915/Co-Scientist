@@ -11,9 +11,7 @@ from app.store import db, runs
 from app.store.models import RunRow
 
 
-def seed_example_chat(
-    run: RunRow, scenario: DemoScenario, db_path: str | None
-) -> None:
+def seed_example_chat(run: RunRow, scenario: DemoScenario, db_path: str | None) -> None:
     current = runs.get_run(run.id, db_path=db_path)
     assert current is not None
     at = current.created_at
@@ -35,9 +33,7 @@ def seed_example_chat(
         ),
         (
             "user",
-            scenario.direction
-            + "\n\nRequirements:\n"
-            + "\n".join(setup["requirements"]),
+            scenario.direction + "\n\nRequirements:\n" + "\n".join(setup["requirements"]),
         ),
         (
             "agent",
@@ -106,7 +102,6 @@ def seed_example_chat(
             ),
         ):
             conn.execute(
-                "INSERT INTO messages (run_id,sender,kind,content,created_at) "
-                "VALUES (?,?,?,?,?)",
+                "INSERT INTO messages (run_id,sender,kind,content,created_at) VALUES (?,?,?,?,?)",
                 (run.id, sender, kind, content, timestamp),
             )

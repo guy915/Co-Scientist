@@ -51,15 +51,11 @@ def tools_node(
             ]
 
         async def synthesize(**_: Any) -> tuple[str, list[Any]]:
-            return synthesis_response or json.dumps(
-                make_generation_response("validated")
-            ), []
+            return synthesis_response or json.dumps(make_generation_response("validated")), []
 
         monkeypatch.setattr(literature_tools, "get_mcp_client", get_client)
         monkeypatch.setattr(draft, "call_llm_with_tools", draft_call)
-        monkeypatch.setattr(
-            validate, "call_llm_with_tools", synthesis_call or synthesize
-        )
+        monkeypatch.setattr(validate, "call_llm_with_tools", synthesis_call or synthesize)
         if novelty_call is not None:
             monkeypatch.setattr(validate, "call_llm_json", novelty_call)
         return await generate_node(
@@ -89,15 +85,9 @@ async def test_tool_generation_resolves_its_warm_literature_citations(
 ) -> None:
     result = await tools_node(
         synthesis_response=json.dumps(
-            make_generation_response(
-                "cited", literature_grounding="As shown in [C1]."
-            )
+            make_generation_response("cited", literature_grounding="As shown in [C1].")
         ),
-        state_overrides={
-            "articles": [
-                make_article(title="Smith 2020", used_in_analysis=True)
-            ]
-        },
+        state_overrides={"articles": [make_article(title="Smith 2020", used_in_analysis=True)]},
     )
     source = result["hypotheses"].items[0].citation_map["C1"]
     assert source["title"] == "Smith 2020"

@@ -64,10 +64,7 @@ def test_run_coroutine_sync_runs_many_calls_concurrently() -> None:
 def test_propagate_context_restores_a_reused_worker_thread() -> None:
     with ThreadPoolExecutor(max_workers=1) as pool:
         with scoped_campaign_mode(True):
-            assert (
-                pool.submit(propagate_context(campaign_free_mode)).result()
-                is True
-            )
+            assert pool.submit(propagate_context(campaign_free_mode)).result() is True
         assert pool.submit(campaign_free_mode).result() is False
 
 
@@ -260,9 +257,7 @@ async def test_abandoned_cyclic_stream_closes_without_destroying_its_producer(
     try:
         response = stream()
         assert await anext(response) == "first"
-        producers = [
-            weakref.ref(task) for task in asyncio.all_tasks() - existing_tasks
-        ]
+        producers = [weakref.ref(task) for task in asyncio.all_tasks() - existing_tasks]
         assert len(producers) == 1
         abandoned: list[Any] = [response]
         abandoned.append(abandoned)

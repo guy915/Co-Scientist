@@ -31,25 +31,17 @@ def test_offline_announcement_is_stored_streamed_and_marked_fallback() -> None:
 
 def _started_run_id() -> str:
     c = _client()
-    return str(
-        _create_run(
-            c, "Investigate ferroptosis in cancer", tier="express"
-        ).json()["id"]
-    )
+    return str(_create_run(c, "Investigate ferroptosis in cancer", tier="express").json()["id"])
 
 
 def _announce(run_id: str, prompt: str = "Start research") -> Any:
     # TestClient vendors a distinct httpx Response type, so this boundary
     # deliberately returns Any.
-    return _client().post(
-        f"/api/runs/{run_id}/messages/started", json={"prompt": prompt}
-    )
+    return _client().post(f"/api/runs/{run_id}/messages/started", json={"prompt": prompt})
 
 
 def _start_rows(run_id: str) -> list[MessageRow]:
-    return [
-        m for m in store_messages.list_messages(run_id) if m.kind == "start"
-    ]
+    return [m for m in store_messages.list_messages(run_id) if m.kind == "start"]
 
 
 def test_thinking_only_announcement_retries_before_the_fallback(
@@ -68,9 +60,7 @@ def test_thinking_only_announcement_retries_before_the_fallback(
                 [
                     {
                         "content": None,
-                        "reasoning_content": (
-                            "brainstorming candidates at length..."
-                        ),
+                        "reasoning_content": ("brainstorming candidates at length..."),
                     }
                 ],
                 retry_chunks=[

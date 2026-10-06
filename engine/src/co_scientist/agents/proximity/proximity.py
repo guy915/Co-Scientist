@@ -94,9 +94,7 @@ async def _fetch_similarity_clusters(
 
     response = await _call_proximity_llm(state, prompt, schema)
 
-    similarity_clusters: list[dict[str, Any]] = response.get(
-        "similarity_clusters", []
-    )
+    similarity_clusters: list[dict[str, Any]] = response.get("similarity_clusters", [])
     return similarity_clusters
 
 
@@ -108,8 +106,7 @@ def _log_dedup_summary(
     """One info summary suffices; individual drops already have debug traces
     and archive records, avoiding crowding the bounded readable log."""
     logger.info(
-        "Proximity analysis complete: %s → %s hypotheses"
-        " (%s duplicates removed)",
+        "Proximity analysis complete: %s → %s hypotheses (%s duplicates removed)",
         original_count,
         kept_count,
         len(removed_duplicates),
@@ -128,12 +125,8 @@ def _finish_clustering(
 ) -> _ClusteringOutcome:
     _assign_cluster_ids(hypotheses, similarity_clusters)
     hypotheses_to_keep, removed_duplicates = _dedupe_by_cluster(hypotheses)
-    _log_dedup_summary(
-        len(hypotheses), len(hypotheses_to_keep), removed_duplicates
-    )
-    return _ClusteringOutcome(
-        hypotheses_to_keep, removed_duplicates, similarity_clusters
-    )
+    _log_dedup_summary(len(hypotheses), len(hypotheses_to_keep), removed_duplicates)
+    return _ClusteringOutcome(hypotheses_to_keep, removed_duplicates, similarity_clusters)
 
 
 async def _run_proximity_clustering(
@@ -150,29 +143,19 @@ async def _run_proximity_clustering(
     similarity_clusters = await _fetch_similarity_clusters(state, hypotheses)
 
     if not similarity_clusters:
-        logger.warning(
-            "No similarity clusters returned, skipping deduplication"
-        )
+        logger.warning("No similarity clusters returned, skipping deduplication")
         return None
 
     return _finish_clustering(hypotheses, similarity_clusters)
 
 
-def _survivor_index(
-    hypotheses: list[Hypothesis], outcome: _ClusteringOutcome
-) -> SurvivorIndex:
+def _survivor_index(hypotheses: list[Hypothesis], outcome: _ClusteringOutcome) -> SurvivorIndex:
     """Do not renumber survivors: response indices refer to the original
     prompt and dropped members must resolve to nothing."""
     kept_ids = {h.id for h in outcome.hypotheses_to_keep}
     return SurvivorIndex(
-        by_index={
-            index: hyp.id
-            for index, hyp in enumerate(hypotheses)
-            if hyp.id in kept_ids
-        },
-        by_text={
-            member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep
-        },
+        by_index={index: hyp.id for index, hyp in enumerate(hypotheses) if hyp.id in kept_ids},
+        by_text={member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep},
         texts={h.id: h.text for h in outcome.hypotheses_to_keep},
     )
 
@@ -212,9 +195,7 @@ def _build_proximity_update(
     """Bare subset lists replace the pool through its reducer; accumulate
     duplicate history and leave iteration ownership to the orchestrator."""
     metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=1))
-    all_removed_duplicates = (
-        state.get("removed_duplicates", []) + outcome.removed_duplicates
-    )
+    all_removed_duplicates = state.get("removed_duplicates", []) + outcome.removed_duplicates
     proximity_graph = _build_updated_proximity_graph(state, hypotheses, outcome)
 
     return {
@@ -226,9 +207,7 @@ def _build_proximity_update(
     }
 
 
-async def _emit_proximity_complete(
-    state: WorkflowState, outcome: _ClusteringOutcome
-) -> None:
+async def _emit_proximity_complete(state: WorkflowState, outcome: _ClusteringOutcome) -> None:
     await emit_progress(
         state,
         "proximity_complete",
@@ -258,9 +237,7 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     )
 
 
-async def _cluster_and_dedup(
-    state: WorkflowState, hypotheses: list[Hypothesis]
-) -> dict[str, Any]:
+async def _cluster_and_dedup(state: WorkflowState, hypotheses: list[Hypothesis]) -> dict[str, Any]:
     outcome = await _run_proximity_clustering(state, hypotheses)
     if outcome is None:
         return {"hypotheses": hypotheses}

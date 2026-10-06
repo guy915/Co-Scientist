@@ -293,8 +293,7 @@ def run_execution_started_at(
     """
     with _use_conn(conn, db_path) as active:
         row = active.execute(
-            "SELECT MIN(created_at) AS started FROM run_events "
-            "WHERE run_id=? AND type='lifecycle'",
+            "SELECT MIN(created_at) AS started FROM run_events WHERE run_id=? AND type='lifecycle'",
             (run_id,),
         ).fetchone()
     started = row["started"] if row is not None else None

@@ -31,9 +31,7 @@ def test_registry_lookups_over_a_loaded_config(
     assert alpha is not None and alpha.display_name == "Alpha Search"
     assert registry.get_tool("pubmed_search") is None
     assert registry.get_tools_for_workflow("does_not_exist") == []
-    assert registry.get_prompts_config().domain_context == (
-        "test domain context"
-    )
+    assert registry.get_prompts_config().domain_context == ("test domain context")
     assert [e.output_key for e in registry.get_enrichment_configs("all")] == [
         "gamma_out",
         "alpha_out",
@@ -45,9 +43,7 @@ def test_registry_lookups_over_a_loaded_config(
 
 def test_malformed_config_falls_back_to_default(tmp_path: Path) -> None:
     path = _write_config(tmp_path, "this: is: : not valid: yaml: :\n  - x")
-    _config_registry_registry = ToolRegistry(
-        config_path=path, skip_user_config=True
-    )
+    _config_registry_registry = ToolRegistry(config_path=path, skip_user_config=True)
     assert _config_registry_registry.get_tool("pubmed_search") is not None
 
 

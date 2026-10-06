@@ -64,9 +64,7 @@ class ExtractedDocument:
 async def extract_upload(file: UploadFile) -> ExtractedDocument:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     try:
-        return extract_document(
-            data, file.content_type or "application/octet-stream"
-        )
+        return extract_document(data, file.content_type or "application/octet-stream")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -98,8 +96,7 @@ def _extract_by_type(data: bytes, normalized_type: str) -> tuple[str, str]:
     if normalized_type in _IMAGE_TYPES:
         return _extract_image_ocr(data), "tesseract-cli-v1"
     raise ValueError(
-        "unsupported document type; upload PDF, PNG, JPEG, TIFF, WebP, "
-        "TXT, Markdown, CSV, or JSON"
+        "unsupported document type; upload PDF, PNG, JPEG, TIFF, WebP, TXT, Markdown, CSV, or JSON"
     )
 
 
@@ -116,10 +113,7 @@ def _extract_csv_document(decoded: str) -> tuple[str, str]:
         f"[Table 1 rows={len(rows) - 1} columns={width}]",
         "Header: " + " | ".join(header),
     ]
-    lines.extend(
-        f"Row {index}: " + " | ".join(row)
-        for index, row in enumerate(rows[1:], start=1)
-    )
+    lines.extend(f"Row {index}: " + " | ".join(row) for index, row in enumerate(rows[1:], start=1))
     return "\n".join(lines), "csv-table-v1"
 
 
@@ -129,8 +123,7 @@ def _extract_json_document(decoded: str) -> tuple[str, str]:
     except json.JSONDecodeError as exc:
         raise ValueError("JSON document could not be parsed") from exc
     return (
-        "[Structured JSON]\n"
-        + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        "[Structured JSON]\n" + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
         "json-structure-v1",
     )
 
@@ -166,9 +159,7 @@ def _extract_pdf(data: bytes) -> str:
     page_texts = _apply_heading_markup(reader, pages, page_texts)
     sections = [
         _assemble_pdf_page(index, page, text)
-        for index, (page, text) in enumerate(
-            zip(pages, page_texts, strict=True), start=1
-        )
+        for index, (page, text) in enumerate(zip(pages, page_texts, strict=True), start=1)
     ]
     return "\n\n".join(sections)
 
@@ -180,9 +171,7 @@ def _extract_pdf_page_text(page: Any) -> str:
         return page.extract_text() or ""
 
 
-def _apply_heading_markup(
-    reader: Any, pages: list[Any], page_texts: list[str]
-) -> list[str]:
+def _apply_heading_markup(reader: Any, pages: list[Any], page_texts: list[str]) -> list[str]:
     """Heading inference is optional; unsupported outlines or styling must
     fall back to extracted text rather than reject the scientist's
     document.
@@ -215,13 +204,10 @@ def _extract_pdf_page_figures(index: int, page: Any) -> list[str]:
             ocr = _extract_image_ocr(image_data)
         except ValueError:
             figure_sections.append(
-                f"[Figure {index}.{figure_index} "
-                f"sha256={digest} OCR unavailable]"
+                f"[Figure {index}.{figure_index} sha256={digest} OCR unavailable]"
             )
             continue
-        figure_sections.append(
-            f"[Figure {index}.{figure_index} sha256={digest}]\n{ocr}"
-        )
+        figure_sections.append(f"[Figure {index}.{figure_index} sha256={digest}]\n{ocr}")
     return figure_sections
 
 

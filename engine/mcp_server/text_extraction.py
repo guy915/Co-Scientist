@@ -76,9 +76,7 @@ def truncate_markdown(markdown: str, max_chars: int) -> str:
 
 def _pmc_html_to_markdown(html_content: str, max_chars: int) -> str:
     soup = BeautifulSoup(html_content, "lxml-xml")
-    for tag in soup.find_all(
-        ["back", "ref-list", "ack", "fn-group", "fig", "table-wrap"]
-    ):
+    for tag in soup.find_all(["back", "ref-list", "ack", "fn-group", "fig", "table-wrap"]):
         tag.decompose()
 
     parts = []
@@ -95,27 +93,19 @@ def _pmc_html_to_markdown(html_content: str, max_chars: int) -> str:
     body = soup.find("body")
     if body:
         parts.extend(
-            block
-            for section in body.find_all("sec")
-            if (block := _build_section_block(section))
+            block for section in body.find_all("sec") if (block := _build_section_block(section))
         )
     return truncate_markdown("\n\n".join(parts), max_chars)
 
 
-def extract_text_from_pmc_html(
-    html_content: str, max_chars: int = 200_000
-) -> str:
+def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> str:
     try:
         return _pmc_html_to_markdown(html_content, max_chars)
     except Exception as exc:
         logger.error("Failed to extract text from PMC HTML: %s", exc)
         try:
-            text = BeautifulSoup(html_content, "lxml-xml").get_text(
-                separator="\n", strip=True
-            )
+            text = BeautifulSoup(html_content, "lxml-xml").get_text(separator="\n", strip=True)
             return truncate_markdown(text, max_chars)
         except Exception as fallback_error:
-            logger.error(
-                "Fallback text extraction also failed: %s", fallback_error
-            )
+            logger.error("Fallback text extraction also failed: %s", fallback_error)
             return "[error: could not extract text from HTML]"

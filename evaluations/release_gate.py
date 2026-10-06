@@ -20,9 +20,7 @@ from app.report.gates import (
 _REQUIRED_PROVENANCE = ("model", "policy_version", "retrieval_sources")
 
 
-def _releasable(
-    hypotheses: list[dict[str, Any]], contradicted: set[str]
-) -> list[dict[str, Any]]:
+def _releasable(hypotheses: list[dict[str, Any]], contradicted: set[str]) -> list[dict[str, Any]]:
     return [
         hyp
         for hyp in hypotheses
@@ -70,9 +68,7 @@ def _verified_claim_ratio(claims: list[dict[str, Any]]) -> float:
 
 
 def _missing_provenance(provenance: dict[str, Any]) -> list[str]:
-    return [
-        field for field in _REQUIRED_PROVENANCE if not provenance.get(field)
-    ]
+    return [field for field in _REQUIRED_PROVENANCE if not provenance.get(field)]
 
 
 def scientific_release_gate(artifact: dict[str, Any]) -> dict[str, Any]:
@@ -93,7 +89,5 @@ def scientific_release_gate(artifact: dict[str, Any]) -> dict[str, Any]:
         "releasable_hypotheses": len(releasable),
         "contradicted_hypotheses": len(contradicted),
         "verified_claim_ratio": round(_verified_claim_ratio(claims), 4),
-        "missing_provenance": _missing_provenance(
-            artifact.get("provenance") or {}
-        ),
+        "missing_provenance": _missing_provenance(artifact.get("provenance") or {}),
     }

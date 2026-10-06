@@ -82,9 +82,7 @@ def _check_ingest_rate(request: Request) -> None:
 
 
 def _check_report_rate(request: Request) -> None:
-    _check_both_rates(
-        _report_hits, request, REPORTS_PER_MINUTE, "report rate exceeded"
-    )
+    _check_both_rates(_report_hits, request, REPORTS_PER_MINUTE, "report rate exceeded")
 
 
 router = APIRouter(tags=["logs"])
@@ -131,9 +129,7 @@ def _min_levelno(min_level: str | None) -> int:
         return 0
     levelno = level_to_number(min_level)
     if levelno is None:
-        raise HTTPException(
-            status_code=422, detail=f"unknown log level: {min_level}"
-        )
+        raise HTTPException(status_code=422, detail=f"unknown log level: {min_level}")
     return levelno
 
 
@@ -189,9 +185,7 @@ def _query_logs_payload(
     rows = logs.list_logs(filters=filters, limit=limit, conn=conn)
     # Count the full matching set so bounded display windows do not understate
     # totals.
-    total = logs.count_logs(
-        filters=dataclasses.replace(filters, after_id=0), conn=conn
-    )
+    total = logs.count_logs(filters=dataclasses.replace(filters, after_id=0), conn=conn)
     # Count rows after the session anchor; subtracting snapshots breaks when
     # retention or scoped clears remove older rows.
     session_total = logs.count_logs(filters=filters, conn=conn)
@@ -204,9 +198,7 @@ def _query_logs_payload(
     }
 
 
-def logs_payload(
-    query: LogQuery, *, scope_client_id: str | None = None
-) -> dict[str, Any]:
+def logs_payload(query: LogQuery, *, scope_client_id: str | None = None) -> dict[str, Any]:
     filters = LogFilters(
         after_id=query.after_id,
         min_levelno=_min_levelno(query.min_level),
@@ -232,9 +224,7 @@ class ClientLogRecord(BaseModel):
 class ClientLogBatch(BaseModel):
     """A batch of frontend log records."""
 
-    records: list[ClientLogRecord] = Field(
-        ..., min_length=1, max_length=MAX_CLIENT_BATCH
-    )
+    records: list[ClientLogRecord] = Field(..., min_length=1, max_length=MAX_CLIENT_BATCH)
 
 
 @router.post("/api/logs")
@@ -253,18 +243,14 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
         for record in batch.records:
             levelno = level_to_number(record.level) or logging.INFO
             logger_name = _sanitize(
-                record.logger
-                if record.logger.startswith("ui")
-                else f"ui.{record.logger}"
+                record.logger if record.logger.startswith("ui") else f"ui.{record.logger}"
             )
             logs.append_log(
                 NewLogRecord(
                     level=logging.getLevelName(levelno),
                     levelno=levelno,
                     logger_name=logger_name,
-                    message=_sanitize(record.message)[
-                        :MAX_CLIENT_MESSAGE_CHARS
-                    ],
+                    message=_sanitize(record.message)[:MAX_CLIENT_MESSAGE_CHARS],
                     run_id=record.run_id,
                     client_id=owner or None,
                 ),
@@ -284,16 +270,11 @@ def _report_subject(request: Request) -> str:
     """Request text reaches the body only; subject and recipient stay
     server-controlled to prevent header injection.
     """
-    return (
-        "Co-Scientist diagnostic report "
-        f"({client_id(request) or 'unidentified client'})"
-    )
+    return f"Co-Scientist diagnostic report ({client_id(request) or 'unidentified client'})"
 
 
 @router.post("/api/logs/report", status_code=202)
-async def report_logs(
-    req: LogReportRequest, request: Request
-) -> dict[str, Any]:
+async def report_logs(req: LogReportRequest, request: Request) -> dict[str, Any]:
     """Email one diagnostic export to the configured operator address.
 
     The Logs panel's Copy button already produces a self-describing export
@@ -321,16 +302,12 @@ async def report_logs(
     _check_report_rate(request)
     recipient = settings.log_report_email
     if not (recipient and email_notifications_configured()):
-        raise HTTPException(
-            status_code=503, detail="email delivery is not configured"
-        )
+        raise HTTPException(status_code=503, detail="email delivery is not configured")
     try:
         await deliver_email(recipient, _report_subject(request), req.report)
     except Exception as exc:
         logger.warning("Diagnostic report could not be sent: %s", exc)
-        raise HTTPException(
-            status_code=502, detail="the report could not be sent"
-        ) from exc
+        raise HTTPException(status_code=502, detail="the report could not be sent") from exc
     # Do not echo the emailed body into logs: it already contains a copy of
     # them.
     logger.info(

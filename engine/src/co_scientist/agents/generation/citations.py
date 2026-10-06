@@ -24,9 +24,7 @@ def _experiment_steps(raw: Any) -> list[str]:
     return steps
 
 
-def format_experiment_plan(
-    data: Any, fallback: str | None = None
-) -> str | None:
+def format_experiment_plan(data: Any, fallback: str | None = None) -> str | None:
     if isinstance(data, str):
         text = data.strip()
         return text or fallback
@@ -59,9 +57,7 @@ class ReferenceIndex:
         return not self.sources
 
 
-def _paper_citation_label(
-    authors: list[str], year: int | None, title: str
-) -> str:
+def _paper_citation_label(authors: list[str], year: int | None, title: str) -> str:
     # Author strings use First [Middle] Last format; the final token supplies
     # the surname.
 
@@ -145,9 +141,7 @@ def build_reference_index(
     )
     sources.update(enrichment_sources)
 
-    return ReferenceIndex(
-        text="\n".join(paper_lines + enrichment_lines), sources=sources
-    )
+    return ReferenceIndex(text="\n".join(paper_lines + enrichment_lines), sources=sources)
 
 
 def _record_citation_key(

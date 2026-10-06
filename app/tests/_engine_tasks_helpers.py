@@ -73,9 +73,7 @@ class _Generator:
         return self.state
 
 
-async def _deterministic_screen(
-    _run_id: str, subject: Any, *_: Any, **__: Any
-) -> Any:
+async def _deterministic_screen(_run_id: str, subject: Any, *_: Any, **__: Any) -> Any:
     return subject.deterministic
 
 
@@ -88,13 +86,9 @@ class FakeEngineTaskRuntime:
         self.generator_and_opts: Callable[..., tuple[Any, dict[str, Any]]] = (
             self.production.generator_and_opts
         )
-        self.generator_for_restore: Callable[..., Any] = (
-            self.production.generator_for_restore
-        )
+        self.generator_for_restore: Callable[..., Any] = self.production.generator_for_restore
         self.screen: Callable[..., Awaitable[Any]] = self.production.screen
-        self.drain_final_state: Callable[..., Awaitable[Any]] = (
-            self.production.drain_final_state
-        )
+        self.drain_final_state: Callable[..., Awaitable[Any]] = self.production.drain_final_state
 
 
 def _install_runtime(monkeypatch: pytest.MonkeyPatch) -> FakeEngineTaskRuntime:
@@ -106,9 +100,7 @@ def _install_runtime(monkeypatch: pytest.MonkeyPatch) -> FakeEngineTaskRuntime:
     return runtime
 
 
-def _patch_restore_generator(
-    monkeypatch: pytest.MonkeyPatch, generator: _Generator
-) -> None:
+def _patch_restore_generator(monkeypatch: pytest.MonkeyPatch, generator: _Generator) -> None:
     _install_runtime(monkeypatch).generator_for_restore = lambda *_: generator
 
 
@@ -141,9 +133,7 @@ def _milestones(run_id: str, *, db_path: str | None = None) -> list[str]:
     ]
 
 
-def _task_events(
-    run_id: str, task: str, *, db_path: str | None = None
-) -> list[dict[str, Any]]:
+def _task_events(run_id: str, task: str, *, db_path: str | None = None) -> list[dict[str, Any]]:
     return [
         event
         for event in events.list_events(run_id, db_path=db_path)
@@ -204,9 +194,7 @@ def _seed_ranking_node(
     state = _task_state(run_id)
     state.update(
         {
-            "hypotheses": _viable_hypotheses(
-                seed.hypothesis_count, played=seed.played
-            ),
+            "hypotheses": _viable_hypotheses(seed.hypothesis_count, played=seed.played),
             "tournament_pairs": seed.tournament_pairs,
             "metrics": ExecutionMetrics(tournaments_count=seed.consumed_rounds),
             "criteria": seed.criteria,
@@ -243,27 +231,19 @@ async def _run_ranking_node(run_id: str, db_path: str) -> dict[str, Any]:
     leased = tasks.claim_task("ranking", run_id=run_id, db_path=db_path)
     assert leased is not None
     scheduled = await engine_tasks.execute_node_task(leased, db_path=db_path)
-    assert lifecycle.complete_task(
-        leased.id, "ranking", scheduled, db_path=db_path
-    )
+    assert lifecycle.complete_task(leased.id, "ranking", scheduled, db_path=db_path)
     return scheduled
 
 
 async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
     matches = 0
     while True:
-        match = tasks.claim_task(
-            f"match-{matches}", run_id=run_id, db_path=db_path
-        )
+        match = tasks.claim_task(f"match-{matches}", run_id=run_id, db_path=db_path)
         assert match is not None
         if match.task_type != engine_tasks_support.RANKING_MATCH_TASK:
             break
-        result = await engine_tasks_ranking.execute_ranking_match(
-            match, db_path=db_path
-        )
-        assert lifecycle.complete_task(
-            match.id, f"match-{matches}", result, db_path=db_path
-        )
+        result = await engine_tasks_ranking.execute_ranking_match(match, db_path=db_path)
+        assert lifecycle.complete_task(match.id, f"match-{matches}", result, db_path=db_path)
         matches += 1
     return matches
 
@@ -272,19 +252,13 @@ def _run() -> str:
     return seed_run("queue goal").id
 
 
-def _enqueue(
-    run_id: str, task_type: str, key: str, db: str, **kwargs: Any
-) -> Any:
+def _enqueue(run_id: str, task_type: str, key: str, db: str, **kwargs: Any) -> Any:
     return enqueue_task(run_id, task_type, key, **kwargs, db_path=db)
 
 
 def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
-    promoted = _enqueue(
-        run_id, "reflection.full", "control:promote", db, priority=1
-    )
-    cancelled = _enqueue(
-        run_id, "generation.assumptions", "control:cancel", db, priority=2
-    )
+    promoted = _enqueue(run_id, "reflection.full", "control:promote", db, priority=1)
+    cancelled = _enqueue(run_id, "generation.assumptions", "control:cancel", db, priority=2)
     failed = _enqueue(
         run_id,
         "verification.deep",
@@ -309,9 +283,7 @@ def make_cancellable_executor(
     started: asyncio.Event, interrupted: asyncio.Event
 ) -> Callable[..., Awaitable[dict[str, bool]]]:
 
-    async def _execute(
-        _task: ScientificTask, *, db_path: str | None = None
-    ) -> dict[str, bool]:
+    async def _execute(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, bool]:
         started.set()
         try:
             await asyncio.Event().wait()
@@ -337,9 +309,7 @@ def small_run_config() -> dict[str, Any]:
     }
 
 
-async def fake_final_drain(
-    *_: Any, **__: Any
-) -> tuple[Any, float, dict[str, Any]]:
+async def fake_final_drain(*_: Any, **__: Any) -> tuple[Any, float, dict[str, Any]]:
     drained = SimpleNamespace(
         safety_counts={},
         grounding_counts={},

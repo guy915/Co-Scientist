@@ -16,9 +16,7 @@ class EntailmentLabel(str, enum.Enum):
 
     @property
     def is_supporting(self) -> bool:
-        return (
-            self is EntailmentLabel.SUPPORTS or self is EntailmentLabel.PARTIAL
-        )
+        return self is EntailmentLabel.SUPPORTS or self is EntailmentLabel.PARTIAL
 
 
 @dataclasses.dataclass(frozen=True)
@@ -93,25 +91,15 @@ def _classify_gate_claims(
     """Speculative allowances excuse missing support only, never categorical
     contradictions.
     """
-    contradicted = tuple(
-        a.claim for a in assessments if a.label is EntailmentLabel.CONTRADICTS
-    )
-    unsupported = tuple(
-        a.claim for a in assessments if a.label is EntailmentLabel.INSUFFICIENT
-    )
+    contradicted = tuple(a.claim for a in assessments if a.label is EntailmentLabel.CONTRADICTS)
+    unsupported = tuple(a.claim for a in assessments if a.label is EntailmentLabel.INSUFFICIENT)
     speculative_set = set(explicitly_speculative_claims)
     speculative = tuple(
-        claim
-        for claim in unsupported
-        if allow_speculative or claim in speculative_set
+        claim for claim in unsupported if allow_speculative or claim in speculative_set
     )
     speculative_lookup = set(speculative)
-    blocking_unsupported = tuple(
-        claim for claim in unsupported if claim not in speculative_lookup
-    )
-    blocking_contradicted = tuple(
-        claim for claim in contradicted if claim not in speculative_set
-    )
+    blocking_unsupported = tuple(claim for claim in unsupported if claim not in speculative_lookup)
+    blocking_contradicted = tuple(claim for claim in contradicted if claim not in speculative_set)
     return _ClaimPartition(
         contradicted=contradicted,
         unsupported=unsupported,
@@ -140,9 +128,7 @@ def _gate_block_reason(
         return f"{len(blocking_contradicted)} fundamental claim(s) contradicted"
     if not assessments:
         return "no atomic claims could be assessed"
-    if _blocks_for_missing_support(
-        assessments, require_supported_claim=require_supported_claim
-    ):
+    if _blocks_for_missing_support(assessments, require_supported_claim=require_supported_claim):
         return "no evidence-supported contextual claim"
     if blocking_unsupported:
         return f"{len(blocking_unsupported)} categorical claim(s) lack support"
@@ -154,9 +140,7 @@ def _failed_claims(partition: _ClaimPartition) -> tuple[str, ...]:
     speculative contradiction allowances.
     """
     return (
-        partition.blocking_contradicted
-        or partition.blocking_unsupported
-        or partition.unsupported
+        partition.blocking_contradicted or partition.blocking_unsupported or partition.unsupported
     )
 
 
@@ -193,9 +177,7 @@ def _allow_reason(partition: _ClaimPartition) -> str:
     """
     notes = []
     if partition.contradicted:
-        notes.append(
-            f"{len(partition.contradicted)} proposed claim(s) contradicted"
-        )
+        notes.append(f"{len(partition.contradicted)} proposed claim(s) contradicted")
     if partition.unsupported:
         notes.append("novel claims labeled speculative")
     if not notes:
@@ -285,9 +267,7 @@ def is_excused(edge: Edge) -> bool:
     """Unknown historical labels are not equivalent to explicitly
     insufficient evidence.
     """
-    return label_of(edge) is EntailmentLabel.INSUFFICIENT and is_speculative(
-        role_of(edge)
-    )
+    return label_of(edge) is EntailmentLabel.INSUFFICIENT and is_speculative(role_of(edge))
 
 
 def claim_status(edge: Edge) -> str:

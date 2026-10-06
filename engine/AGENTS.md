@@ -8,7 +8,7 @@ Package name: `co-scientist-engine`. Source under `src/co_scientist/`.
 ```bash
 pip install -e '.[dev]'          # install with dev deps
 pytest                            # unit tests (testpaths = ["tests"])
-ruff format .                     # format (80 cols)
+ruff format .                     # format (100 cols)
 ruff check .                      # lint
 mypy .                            # typecheck
 ```

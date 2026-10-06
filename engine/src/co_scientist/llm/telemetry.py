@@ -51,16 +51,13 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
         errors[kind] = errors.get(kind, 0) + count
     return ModelCallStats(
         deterministic_fallbacks=dict(
-            Counter(a.deterministic_fallbacks)
-            + Counter(b.deterministic_fallbacks)
+            Counter(a.deterministic_fallbacks) + Counter(b.deterministic_fallbacks)
         ),
         calls=a.calls + b.calls,
         observed_model_calls=a.observed_model_calls + b.observed_model_calls,
         reported_usage_calls=a.reported_usage_calls + b.reported_usage_calls,
         priced_usage_calls=a.priced_usage_calls + b.priced_usage_calls,
-        requested_models=dict(
-            Counter(a.requested_models) + Counter(b.requested_models)
-        ),
+        requested_models=dict(Counter(a.requested_models) + Counter(b.requested_models)),
         prompt_tokens=a.prompt_tokens + b.prompt_tokens,
         completion_tokens=a.completion_tokens + b.completion_tokens,
         reasoning_tokens=a.reasoning_tokens + b.reasoning_tokens,
@@ -80,9 +77,7 @@ class TelemetryAccumulator:
 
     def record(self, phase: str, model: str, stats: ModelCallStats) -> None:
         key = f"{phase}::{model}"
-        self._usage[key] = _add_stats(
-            self._usage.get(key, ModelCallStats()), stats
-        )
+        self._usage[key] = _add_stats(self._usage.get(key, ModelCallStats()), stats)
 
     def snapshot(self) -> dict[str, dict[str, Any]]:
         return {key: stats.as_dict() for key, stats in self._usage.items()}
@@ -91,9 +86,7 @@ class TelemetryAccumulator:
 _current_accumulator: ContextVar["TelemetryAccumulator | None"] = ContextVar(
     "llm_telemetry_accumulator", default=None
 )
-_current_phase: ContextVar[str] = ContextVar(
-    "llm_telemetry_phase", default=UNSPECIFIED_PHASE
-)
+_current_phase: ContextVar[str] = ContextVar("llm_telemetry_phase", default=UNSPECIFIED_PHASE)
 
 
 @contextlib.contextmanager
@@ -116,9 +109,7 @@ def scoped_telemetry_phase(sub_phase: str) -> Iterator[None]:
     """Relabel within the same accumulator; nested fresh scopes lose inner
     usage from node snapshots.
     """
-    with _bind_contextvar(
-        _current_phase, f"{_current_phase.get()}.{sub_phase}"
-    ):
+    with _bind_contextvar(_current_phase, f"{_current_phase.get()}.{sub_phase}"):
         yield
 
 
@@ -151,9 +142,7 @@ def _has_token_counts(response: Any) -> bool:
     )
 
 
-def record_completion_response(
-    model_name: str, response: Any, latency_seconds: float
-) -> None:
+def record_completion_response(model_name: str, response: Any, latency_seconds: float) -> None:
     """Attribute spend to the served fallback, not the requested primary."""
     usage = extract_token_usage(response)
     reported = getattr(response, "model", None)
@@ -172,9 +161,7 @@ def record_completion_response(
             calls=1,
             observed_model_calls=int(observed),
             reported_usage_calls=int(usage_reported),
-            priced_usage_calls=int(
-                observed and usage_reported and served in MODEL_PRICING
-            ),
+            priced_usage_calls=int(observed and usage_reported and served in MODEL_PRICING),
             requested_models={model_name: 1},
             prompt_tokens=usage.prompt_tokens,
             completion_tokens=usage.completion_tokens,
@@ -205,9 +192,7 @@ def record_retry(model_name: str) -> None:
 
 
 def record_cache_result(model_name: str, hit: bool) -> None:
-    stats = (
-        ModelCallStats(cache_hits=1) if hit else ModelCallStats(cache_misses=1)
-    )
+    stats = ModelCallStats(cache_hits=1) if hit else ModelCallStats(cache_misses=1)
     record_call(model_name, stats)
 
 

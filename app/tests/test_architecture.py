@@ -18,9 +18,7 @@ from app.api_contracts.generate import (
 from app.store.events import ACTIVITY_VALUES
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
-_INTERVIEW_MODULES = {
-    path.stem for path in (_APP_DIR / "interviews").glob("*.py")
-} - {"__init__"}
+_INTERVIEW_MODULES = {path.stem for path in (_APP_DIR / "interviews").glob("*.py")} - {"__init__"}
 
 
 def _layering_imports(path: Path) -> list[str]:
@@ -63,13 +61,9 @@ def test_interview_modules_do_not_reach_into_router_facade(source: str) -> None:
     path = _APP_DIR / "interviews" / source
     for node in ast.walk(ast.parse(path.read_text())):
         if isinstance(node, ast.ImportFrom) and node.module == "app.interviews":
-            assert {alias.name for alias in node.names} <= _INTERVIEW_MODULES, (
-                path
-            )
+            assert {alias.name for alias in node.names} <= _INTERVIEW_MODULES, path
         if isinstance(node, ast.Import):
-            assert all(
-                alias.name != "app.interviews" for alias in node.names
-            ), path
+            assert all(alias.name != "app.interviews" for alias in node.names), path
 
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -79,9 +73,7 @@ def _boundaries_imports(path: Path) -> list[tuple[int, str, list[str]]]:
     imports: list[tuple[int, str, list[str]]] = []
     for node in ast.walk(ast.parse(path.read_text())):
         if isinstance(node, ast.ImportFrom):
-            imports.append(
-                (node.lineno, node.module or "", [a.name for a in node.names])
-            )
+            imports.append((node.lineno, node.module or "", [a.name for a in node.names]))
         elif isinstance(node, ast.Import):
             imports.extend((node.lineno, a.name, []) for a in node.names)
     return imports
@@ -143,9 +135,7 @@ def test_shared_operations_do_not_import_graph_coordinators(
 ) -> None:
     agent_dir = _ROOT / "engine" / "src" / "co_scientist" / "agents"
     forbidden = {f"co_scientist.agents.{name}" for name in coordinators}
-    modules = {
-        module for _, module, _ in _boundaries_imports(agent_dir / owner)
-    }
+    modules = {module for _, module, _ in _boundaries_imports(agent_dir / owner)}
     assert forbidden.isdisjoint(modules), (owner, forbidden & modules)
 
 
@@ -194,9 +184,7 @@ def _tokens(source: str) -> list[str]:
     source = re.sub(r",\s*}", "}", source)
     source = re.sub(r"([=:])\s*\|", r"\1", source)
     tokens = re.findall(r""""[^"\n]*"|'[^'\n]*'|[\w$]+|[^\s]""", source)
-    return [
-        json.dumps(t[1:-1]) if t.startswith(("'", '"')) else t for t in tokens
-    ]
+    return [json.dumps(t[1:-1]) if t.startswith(("'", '"')) else t for t in tokens]
 
 
 def test_frontend_wire_types_are_generated_from_backend_contracts() -> None:

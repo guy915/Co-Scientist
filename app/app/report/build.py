@@ -90,11 +90,7 @@ def _hypothesis_title_by_id(hyps: list[dict[str, Any]]) -> dict[str, str]:
     """Overview examples can name ideas outside the markdown top-five slice, so
     resolve titles against the full released pool.
     """
-    return {
-        str(h["id"]): str(h["title"])
-        for h in hyps
-        if h.get("id") and h.get("title")
-    }
+    return {str(h["id"]): str(h["title"]) for h in hyps if h.get("id") and h.get("title")}
 
 
 def _report_markdown_inputs(
@@ -127,15 +123,11 @@ def _report_markdown_inputs(
     )
 
 
-def _resolve_knowledge_base(
-    data: _ReportData, req: ReportRequest
-) -> list[dict[str, Any]]:
+def _resolve_knowledge_base(data: _ReportData, req: ReportRequest) -> list[dict[str, Any]]:
     """Share one resolved topic list between payload and markdown; use released
     claim-graph topics only without an overview.
     """
-    synthesized = _synthesized_knowledge_base_topics(
-        req.research_overview, data.evidence
-    )
+    synthesized = _synthesized_knowledge_base_topics(req.research_overview, data.evidence)
     return synthesized or _knowledge_base_topics(data.hyps, data.claim_edges)
 
 
@@ -144,9 +136,7 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     # Order once after safety filtering so top ideas and standings open with the
     # same idea.
-    hyps = rank_for_publication(
-        exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
-    )
+    hyps = rank_for_publication(exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges))
     evidence = store.list_evidence(run_id, db_path=db_path)
     released_claim_edges = released_claim_evidence(hyps, claim_edges, evidence)
     contradicted = contradicted_hypothesis_ids(run_id, db_path, claim_edges)

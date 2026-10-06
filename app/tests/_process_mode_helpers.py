@@ -11,9 +11,7 @@ class FakeProcessMode:
         self.offline = True
         self.credential: bool | Callable[[str], bool] = False
 
-    def online(
-        self, *, credential: bool | Callable[[str], bool] = True
-    ) -> None:
+    def online(self, *, credential: bool | Callable[[str], bool] = True) -> None:
         self.offline = False
         self.credential = credential
 

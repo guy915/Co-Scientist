@@ -58,9 +58,7 @@ def _meta_review_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     meta_review: dict[str, Any] = state.get("meta_review") or {}
     hyps: list[dict[str, Any]] = state.get("hypotheses") or []
     ranked = sorted(hyps, key=lambda h: h.get("elo_rating", 0), reverse=True)
-    top_k_ids = [
-        str(h["id"]) for h in ranked[:_META_REVIEW_TOP_K] if h.get("id")
-    ]
+    top_k_ids = [str(h["id"]) for h in ranked[:_META_REVIEW_TOP_K] if h.get("id")]
     return {
         "critique": str(meta_review.get("summary", "")),
         "top_k_ids": top_k_ids,
@@ -84,9 +82,7 @@ def _deep_verification_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
 _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "generate": lambda state: {
         "count": len(state.get("hypotheses") or []),
-        "hypotheses": [
-            hypothesis_stub(h) for h in state.get("hypotheses") or []
-        ],
+        "hypotheses": [hypothesis_stub(h) for h in state.get("hypotheses") or []],
     },
     "literature_review": lambda state: {
         "count": len(state.get("articles") or []),
@@ -100,28 +96,21 @@ _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     },
     "ranking": lambda state: {
         "matches": [
-            {"winner": str(m.get("winner") or "")}
-            for m in state.get("tournament_matchups") or []
+            {"winner": str(m.get("winner") or "")} for m in state.get("tournament_matchups") or []
         ]
     },
     "evolve": lambda state: {
         "children": [
-            hypothesis_stub(h)
-            for h in state.get("hypotheses") or []
-            if h.get("evolution_history")
+            hypothesis_stub(h) for h in state.get("hypotheses") or [] if h.get("evolution_history")
         ]
     },
     "reflection": lambda state: {
-        "reviewed": sum(
-            1 for h in state.get("hypotheses") or [] if h.get("reviews")
-        )
+        "reviewed": sum(1 for h in state.get("hypotheses") or [] if h.get("reviews"))
     },
     "proximity": _proximity_payload_extra,
     "meta_review": _meta_review_payload_extra,
     "deep_verification": _deep_verification_payload_extra,
-    "research_overview": lambda state: {
-        "research_overview": state.get("research_overview") or {}
-    },
+    "research_overview": lambda state: {"research_overview": state.get("research_overview") or {}},
     "supervisor.plan": lambda _: {"agents": list(_ENGINE_PIPELINE_AGENTS)},
 }
 
@@ -168,16 +157,11 @@ _MILESTONE_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
     ),
     "meta_review": lambda _: "Meta-review complete",
     "evolve": lambda p: (
-        f"{len(p.get('children') or [])} hypotheses evolved "
-        f"(iteration {p.get('iteration', 0)})"
+        f"{len(p.get('children') or [])} hypotheses evolved (iteration {p.get('iteration', 0)})"
     ),
     "reflection": lambda p: f"{p.get('reviewed', 0)} hypotheses reviewed",
-    "proximity": lambda p: (
-        f"{len(p.get('clusters') or {})} clusters identified"
-    ),
-    "deep_verification": lambda p: (
-        f"{p.get('verified', 0)} hypotheses verified"
-    ),
+    "proximity": lambda p: f"{len(p.get('clusters') or {})} clusters identified",
+    "deep_verification": lambda p: f"{p.get('verified', 0)} hypotheses verified",
     "research_overview": lambda _: "Research overview ready",
 }
 

@@ -67,9 +67,7 @@ def _scaling_point(snapshot: dict[str, Any]) -> dict[str, Any]:
     )
     top = ranked[:10]
     expert_scores = [
-        float(item["expert_score"])
-        for item in top
-        if item.get("expert_score") is not None
+        float(item["expert_score"]) for item in top if item.get("expert_score") is not None
     ]
     metrics = snapshot.get("metrics") or {}
     return {
@@ -120,11 +118,7 @@ def _temporal_order_key(item: dict[str, Any]) -> tuple[int, int, float, str]:
     generation_ordinal = int(generation) if generation is not None else 0
     # Use authoring cycles; only legacy all-NULL runs fall back to lineage
     # order.
-    timeline = (
-        int(creation_iteration)
-        if creation_iteration is not None
-        else generation_ordinal
-    )
+    timeline = int(creation_iteration) if creation_iteration is not None else generation_ordinal
     created_at = item.get("created_at")
     return (
         timeline,
@@ -178,10 +172,7 @@ def temporal_scaling_curve(
     """
     ordered = sorted(hypotheses, key=_temporal_order_key)
     buckets = _split_into_buckets(ordered, bucket_count)
-    return [
-        _temporal_bucket_point(bucket, i, len(buckets))
-        for i, bucket in enumerate(buckets)
-    ]
+    return [_temporal_bucket_point(bucket, i, len(buckets)) for i, bucket in enumerate(buckets)]
 
 
 def _complete_cost_mean(items: Sequence[dict[str, Any]]) -> float | None:
@@ -221,9 +212,7 @@ def ablation_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
             "cost_usd": _mean([float(item["cost_usd"]) for item in items]),
             "cost_basis": "partial_static_estimate",
             "estimated_mean_usd": _complete_cost_mean(items),
-            "latency_seconds": _mean(
-                [float(item["latency_seconds"]) for item in items]
-            ),
+            "latency_seconds": _mean([float(item["latency_seconds"]) for item in items]),
             "goal_ids": sorted({str(item.get("goal_id")) for item in items}),
         }
     return {"arms": arms, "paired_goal_count": _paired_goal_count(records)}
@@ -245,12 +234,8 @@ def main() -> int:
     from evaluations._identity import validate_comparison
 
     validation = {
-        "scaling": validate_comparison(
-            payload.get("snapshots", []), kind="scaling"
-        ),
-        "ablation": validate_comparison(
-            payload.get("ablations", []), kind="ablation"
-        ),
+        "scaling": validate_comparison(payload.get("snapshots", []), kind="scaling"),
+        "ablation": validate_comparison(payload.get("ablations", []), kind="ablation"),
     }
     result = {
         "comparison_validation": validation,

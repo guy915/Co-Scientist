@@ -52,9 +52,7 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
         _operator_child_payload(operator),
         copy_response=True,
     )
-    parent = make_hypothesis(
-        "A parent proposal links metabolic state to recovery kinetics."
-    )
+    parent = make_hypothesis("A parent proposal links metabolic state to recovery kinetics.")
 
     child, detail = await evolve_single_hypothesis(
         parent,

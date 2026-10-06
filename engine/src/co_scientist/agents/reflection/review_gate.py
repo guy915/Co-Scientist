@@ -77,9 +77,7 @@ _MAX_FAILURE_POINTS = 3
 _MAX_FALSE_ASSUMPTIONS = 3
 
 
-def _is_fatal_mature_review(
-    review_type: ReviewType, result: dict[str, Any]
-) -> bool:
+def _is_fatal_mature_review(review_type: ReviewType, result: dict[str, Any]) -> bool:
     verdict = str(result.get("verdict") or "")
     return verdict in _FATAL_VERDICTS.get(review_type, frozenset())
 
@@ -96,9 +94,7 @@ def mature_disposition(hypothesis: Hypothesis) -> str | None:
         if _is_fatal_mature_review(review_type, result):
             return "inaccurate"
         verdict = str(result.get("verdict") or "")
-        disposition = _VERDICT_DISPOSITIONS.get(
-            (review_type, verdict), disposition
-        )
+        disposition = _VERDICT_DISPOSITIONS.get((review_type, verdict), disposition)
     return disposition
 
 
@@ -154,9 +150,7 @@ def _project_full_review(review: dict[str, Any]) -> dict[str, Any]:
     verdict = str(review.get("verdict") or "")
     if verdict:
         projected["verdict"] = verdict
-    justification = _clip_text(
-        review.get("justification"), _MAX_JUSTIFICATION_CHARS
-    )
+    justification = _clip_text(review.get("justification"), _MAX_JUSTIFICATION_CHARS)
     if justification:
         projected["justification"] = justification
     false_assumptions = [
@@ -178,8 +172,7 @@ def _project_simulation_review(review: dict[str, Any]) -> dict[str, Any]:
     if decisive_step:
         projected["decisive_step"] = decisive_step
     failure_points = [
-        _clip_text(point, _MAX_FAILURE_POINT_CHARS)
-        for point in review.get("failure_points") or []
+        _clip_text(point, _MAX_FAILURE_POINT_CHARS) for point in review.get("failure_points") or []
     ][:_MAX_FAILURE_POINTS]
     if failure_points:
         projected["failure_points"] = failure_points
@@ -274,9 +267,7 @@ def _disposition_for(review: HypothesisReview, axes: Sequence[str]) -> str:
 
 # Scientist reviews score their own assessment, not the agent rubric; neutral
 # missing-axis defaults would wrongly clear a blocked idea.
-_SCORED_AXES: frozenset[str] = frozenset(
-    axis for axis, _ in _CRITERION_AXIS_KEYWORDS
-)
+_SCORED_AXES: frozenset[str] = frozenset(axis for axis, _ in _CRITERION_AXIS_KEYWORDS)
 
 # Evidence restoration, failed calls and archived duplicates have other owners;
 # recomputing them would strand or resurrect the idea.

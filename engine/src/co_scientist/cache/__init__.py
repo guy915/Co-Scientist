@@ -49,9 +49,7 @@ def _evict_stale_entry(cache_file: Path) -> None:
         cache_file.unlink()
 
 
-def _clear_cache_files(
-    cache_dir: Path, enabled: bool, pattern: str, label: str
-) -> int:
+def _clear_cache_files(cache_dir: Path, enabled: bool, pattern: str, label: str) -> int:
     if not enabled or not cache_dir.exists():
         return 0
 
@@ -64,9 +62,7 @@ def _clear_cache_files(
     return count
 
 
-def _cache_dir_stats(
-    cache_dir: Path, enabled: bool, pattern: str
-) -> dict[str, Any]:
+def _cache_dir_stats(cache_dir: Path, enabled: bool, pattern: str) -> dict[str, Any]:
     if not enabled or not cache_dir.exists():
         return {"enabled": False, "cache_files": 0, "total_size_mb": 0.0}
 
@@ -81,9 +77,7 @@ def _cache_dir_stats(
     }
 
 
-def _read_llm_cache_entry(
-    cache_file: Path, cache_key: str
-) -> dict[str, Any] | None:
+def _read_llm_cache_entry(cache_file: Path, cache_key: str) -> dict[str, Any] | None:
     try:
         # Atomic replacement exposes a complete prior entry or a recoverable
         # read failure.
@@ -136,9 +130,7 @@ def _read_node_cache_entry(
         # payloads.
         with open(cache_file, "rb") as f:
             cached_data: dict[str, Any] = pickle.load(f)
-        logger.debug(
-            "node cache HIT for %s (key %s...)", node_name, cache_key[:8]
-        )
+        logger.debug("node cache HIT for %s (key %s...)", node_name, cache_key[:8])
         return cached_data
     except (pickle.PickleError, OSError) as e:
         logger.debug("node cache read failed for %s...: %s", cache_key[:8], e)
@@ -155,9 +147,7 @@ def _write_node_cache_file_atomically(
         with open(temp_file, "wb") as f:
             pickle.dump(output, f)
         temp_file.replace(cache_file)
-        logger.debug(
-            "cached node output for %s (key %s...)", node_name, cache_key[:8]
-        )
+        logger.debug("cached node output for %s (key %s...)", node_name, cache_key[:8])
     except Exception as e:
         logger.warning("Failed to cache node output for %s: %s", node_name, e)
 
@@ -194,24 +184,18 @@ class LLMCache:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
             logger.debug("LLM cache initialized at %s", self.cache_dir)
 
-    def _fold_optional_key_params(
-        self, key_data: dict[str, Any], request: LLMCacheRequest
-    ) -> None:
+    def _fold_optional_key_params(self, key_data: dict[str, Any], request: LLMCacheRequest) -> None:
         """Response-format and tool behavior belong in cache identity;
         freeform and JSON cannot share entries.
         """
         if request.tools is not None:
             key_data["tools"] = json.dumps(request.tools, sort_keys=True)
         if request.json_schema is not None:
-            key_data["json_schema"] = json.dumps(
-                request.json_schema, sort_keys=True
-            )
+            key_data["json_schema"] = json.dumps(request.json_schema, sort_keys=True)
         if request.force_json is not None:
             key_data["force_json"] = request.force_json
         if request.tool_contract is not None:
-            key_data["tool_contract"] = json.dumps(
-                request.tool_contract, sort_keys=True
-            )
+            key_data["tool_contract"] = json.dumps(request.tool_contract, sort_keys=True)
 
     def _generate_cache_key(self, request: LLMCacheRequest) -> str:
         key_data = {
@@ -228,9 +212,7 @@ class LLMCache:
         cache_key = self._generate_cache_key(request)
         return cache_key, self.cache_dir / f"{cache_key}.json"
 
-    def _read_or_miss(
-        self, cache_key: str, cache_file: Path
-    ) -> dict[str, Any] | None:
+    def _read_or_miss(self, cache_key: str, cache_file: Path) -> dict[str, Any] | None:
         if not cache_file.exists():
             logger.debug("cache MISS for key %s...", cache_key[:8])
             return None
@@ -255,9 +237,7 @@ class LLMCache:
 
         self._write_entry(request, response)
 
-    def _write_entry(
-        self, request: LLMCacheRequest, response: dict[str, Any]
-    ) -> None:
+    def _write_entry(self, request: LLMCacheRequest, response: dict[str, Any]) -> None:
         cache_key, cache_file = self._cache_location(request)
         request_meta = {
             "model": request.model_name,
@@ -272,9 +252,7 @@ class LLMCache:
             logger.warning("Failed to cache response: %s", e)
 
     def clear(self) -> int:
-        return _clear_cache_files(
-            self.cache_dir, self.enabled, "*.json", "cached responses"
-        )
+        return _clear_cache_files(self.cache_dir, self.enabled, "*.json", "cached responses")
 
     def get_stats(self) -> dict[str, Any]:
         return _cache_dir_stats(self.cache_dir, self.enabled, "*.json")
@@ -311,9 +289,7 @@ class NodeCache:
         key_data = {"node": node_name, **key_params}
         return _hash_key(key_data)
 
-    def get(
-        self, node_name: str, force: bool = False, **key_params: Any
-    ) -> dict[str, Any] | None:
+    def get(self, node_name: str, force: bool = False, **key_params: Any) -> dict[str, Any] | None:
         # Shared node outputs have neither credential nor experiment provenance.
         if campaign_free_mode() or current_api_key():
             return None
@@ -325,9 +301,7 @@ class NodeCache:
         cache_file = self.cache_dir / f"{cache_key}.pkl"
 
         if not cache_file.exists():
-            logger.debug(
-                "node cache MISS for %s (key %s...)", node_name, cache_key[:8]
-            )
+            logger.debug("node cache MISS for %s (key %s...)", node_name, cache_key[:8])
             return None
 
         # Dev/test force bypasses expiry as well as disabled caching.
@@ -360,14 +334,10 @@ class NodeCache:
 
         cache_key = self._generate_cache_key(node_name, **key_params)
         cache_file = self.cache_dir / f"{cache_key}.pkl"
-        _write_node_cache_file_atomically(
-            cache_file, node_name, cache_key, output
-        )
+        _write_node_cache_file_atomically(cache_file, node_name, cache_key, output)
 
     def clear(self) -> int:
-        return _clear_cache_files(
-            self.cache_dir, self.enabled, "*.pkl", "cached node outputs"
-        )
+        return _clear_cache_files(self.cache_dir, self.enabled, "*.pkl", "cached node outputs")
 
     def get_stats(self) -> dict[str, Any]:
         return _cache_dir_stats(self.cache_dir, self.enabled, "*.pkl")
@@ -393,13 +363,9 @@ def _resolve_cache_env() -> tuple[bool, str, float | None]:
     """The first accessor memoizes process defaults; per-generator
     preferences use task-local overrides.
     """
-    cache_enabled_str = os.getenv(
-        "COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower()
-    )
+    cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower())
     cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
-    ttl_seconds = parse_timeout_env(
-        "COSCIENTIST_CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL_SECONDS
-    )
+    ttl_seconds = parse_timeout_env("COSCIENTIST_CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL_SECONDS)
     return parse_bool_env(cache_enabled_str), cache_dir, ttl_seconds
 
 

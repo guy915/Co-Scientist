@@ -80,9 +80,7 @@ async def test_the_provider_is_asked_to_stop_at_the_timeout(
 
     backend = install_fake_backend(monkeypatch, answer)
 
-    await call_llm(
-        "prompt", CompletionSpec("deepseek/deepseek-v4-flash"), _NO_CACHE
-    )
+    await call_llm("prompt", CompletionSpec("deepseek/deepseek-v4-flash"), _NO_CACHE)
 
     assert backend.requests[0].get("timeout") == sent
 
@@ -133,9 +131,7 @@ async def test_a_provider_timeout_says_whether_a_zero_cost_request_went_out(
     backend = install_fake_backend(monkeypatch, accepted_then_lost)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
-        await call_llm(
-            "prompt", CompletionSpec(model, api_key=api_key), _NO_CACHE
-        )
+        await call_llm("prompt", CompletionSpec(model, api_key=api_key), _NO_CACHE)
 
     assert len(backend.requests) == 1, "an ambiguous call must not replay"
     assert excinfo.value.zero_cost_admitted is zero_cost_admitted
@@ -147,9 +143,7 @@ async def test_a_provider_timeout_says_whether_a_zero_cost_request_went_out(
         }
 
 
-def _rate_limit_error(
-    message: str, *, headers: dict[str, str] | None = None
-) -> RateLimitError:
+def _rate_limit_error(message: str, *, headers: dict[str, str] | None = None) -> RateLimitError:
     response = None
     if headers is not None:
         response = httpx.Response(
@@ -174,11 +168,7 @@ _THREE_HOURS = 3 * 3600
         (
             _rate_limit_error(
                 "rate limited",
-                headers={
-                    "x-ratelimit-reset": str(
-                        int((time.time() + _THREE_HOURS) * 1000)
-                    )
-                },
+                headers={"x-ratelimit-reset": str(int((time.time() + _THREE_HOURS) * 1000))},
             ),
             "x_ratelimit_reset_header",
         ),
@@ -226,9 +216,7 @@ _ROUTES_EXHAUSTED = (
 
 
 def _provider_error(factory: Callable[..., Exception]) -> Exception:
-    return factory(
-        message="having a moment", llm_provider="openrouter", model="m"
-    )
+    return factory(message="having a moment", llm_provider="openrouter", model="m")
 
 
 def _not_found(message: str) -> NotFoundError:
@@ -236,9 +224,7 @@ def _not_found(message: str) -> NotFoundError:
 
 
 def _bad_request(message: str) -> BadRequestError:
-    return BadRequestError(
-        message=message, model="m", llm_provider="openrouter"
-    )
+    return BadRequestError(message=message, model="m", llm_provider="openrouter")
 
 
 _THROTTLE = (1.0, 2.0)
@@ -297,9 +283,7 @@ async def test_a_failed_attempt_waits_by_kind_of_failure_not_by_its_wording(
 def test_backoff_waits_are_jittered_within_a_doubling_ceiling() -> None:
     for attempt in range(1, 6):
         ceiling = 2.0 * 2 ** (attempt - 1)
-        waits = {
-            backoff.jittered_backoff_seconds(attempt, 2.0) for _ in range(40)
-        }
+        waits = {backoff.jittered_backoff_seconds(attempt, 2.0) for _ in range(40)}
         assert len(waits) > 1, "identical waits re-synchronize the burst"
         assert all(ceiling / 2 <= wait <= ceiling for wait in waits)
     assert backoff.jittered_backoff_seconds(9, 0.5, 8.0) <= 8.0

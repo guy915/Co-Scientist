@@ -17,8 +17,7 @@ ASSUMPTION_TREE_SCHEMA: dict[str, Any] = {
                         "assumption": {
                             "type": "string",
                             "description": (
-                                "One assumption currently taken for"
-                                " granted in this research area"
+                                "One assumption currently taken for granted in this research area"
                             ),
                         },
                         "load_bearing": {
@@ -44,8 +43,7 @@ ASSUMPTION_SUB_SCHEMA: dict[str, Any] = {
             "parents": {
                 "type": "array",
                 "description": (
-                    "Sub-assumption decompositions, one entry per"
-                    " expanded parent assumption"
+                    "Sub-assumption decompositions, one entry per expanded parent assumption"
                 ),
                 "items": obj(
                     {
@@ -58,8 +56,7 @@ ASSUMPTION_SUB_SCHEMA: dict[str, Any] = {
                             ),
                         },
                         "sub_assumptions": str_array(
-                            "The finer-grained sub-assumptions the parent"
-                            " decomposes into"
+                            "The finer-grained sub-assumptions the parent decomposes into"
                         ),
                     }
                 ),
@@ -108,10 +105,7 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
             },
             "overlap_explanation": {
                 "type": "string",
-                "description": (
-                    "detailed explanation of how hypothesis compares"
-                    " to this paper"
-                ),
+                "description": ("detailed explanation of how hypothesis compares to this paper"),
             },
         }
     ),
@@ -426,9 +420,7 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
             },
             "refinement_summary": {
                 "type": "string",
-                "description": (
-                    "Summary of changes and improvements made during evolution."
-                ),
+                "description": ("Summary of changes and improvements made during evolution."),
             },
             "explanation": {
                 "type": "string",

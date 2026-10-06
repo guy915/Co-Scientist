@@ -37,17 +37,13 @@ class Hunk:
     @property
     def anchor(self) -> tuple[str, ...]:
         return tuple(
-            line.text
-            for line in self.lines
-            if line.kind in (LineKind.CONTEXT, LineKind.REMOVE)
+            line.text for line in self.lines if line.kind in (LineKind.CONTEXT, LineKind.REMOVE)
         )
 
     @property
     def replacement(self) -> tuple[str, ...]:
         return tuple(
-            line.text
-            for line in self.lines
-            if line.kind in (LineKind.CONTEXT, LineKind.ADD)
+            line.text for line in self.lines if line.kind in (LineKind.CONTEXT, LineKind.ADD)
         )
 
 
@@ -114,8 +110,7 @@ def _parse_body_line(line: str) -> PatchLine:
         if marker == kind.value:
             return PatchLine(kind, text)
     raise PatchError(
-        f"unrecognized line in hunk: {line!r} (expected it to start with "
-        f"' ', '-', or '+')"
+        f"unrecognized line in hunk: {line!r} (expected it to start with ' ', '-', or '+')"
     )
 
 
@@ -143,8 +138,7 @@ def _parse_add(cursor: _Cursor, path: str) -> AddFile:
         line = cursor.take()
         if not line.startswith("+"):
             raise PatchError(
-                f"every line of an added file must start with '+'; "
-                f"got {line!r} in {path!r}"
+                f"every line of an added file must start with '+'; got {line!r} in {path!r}"
             )
         body.append(line[1:])
     content = "\n".join(body)
@@ -153,9 +147,7 @@ def _parse_add(cursor: _Cursor, path: str) -> AddFile:
     return AddFile(path=path, content=content)
 
 
-def _flush(
-    hunks: list[Hunk], current: list[PatchLine], header: str | None
-) -> list[PatchLine]:
+def _flush(hunks: list[Hunk], current: list[PatchLine], header: str | None) -> list[PatchLine]:
     if current:
         hunks.append(Hunk(tuple(current), header))
     return []
@@ -294,10 +286,7 @@ def _matches_at(
 ) -> bool:
     fold = canonicalize
     assert callable(fold)
-    return all(
-        fold(lines[index + offset]) == fold(text)
-        for offset, text in enumerate(anchor)
-    )
+    return all(fold(lines[index + offset]) == fold(text) for offset, text in enumerate(anchor))
 
 
 def _first_match_on_rung(
@@ -314,9 +303,7 @@ def _first_match_on_rung(
     return None
 
 
-def seek_anchor(
-    lines: list[str], anchor: tuple[str, ...], start: int = 0
-) -> SeekResult | None:
+def seek_anchor(lines: list[str], anchor: tuple[str, ...], start: int = 0) -> SeekResult | None:
     """Search from a monotonic cursor so repeated context blocks resolve in
     order.
     """
@@ -355,9 +342,7 @@ def _resolve_within(root: Path, relative: str) -> Path:
     candidate = (root / relative).resolve()
     root_resolved = root.resolve()
     if candidate != root_resolved and root_resolved not in candidate.parents:
-        raise PatchError(
-            f"patch path {relative!r} resolves outside the patch root"
-        )
+        raise PatchError(f"patch path {relative!r} resolves outside the patch root")
     return candidate
 
 
@@ -371,9 +356,7 @@ def _read_lines(path: Path) -> list[str]:
     return lines
 
 
-def _plan_update(
-    root: Path, op: UpdateFile
-) -> tuple[PlannedWrite, tuple[str, ...]]:
+def _plan_update(root: Path, op: UpdateFile) -> tuple[PlannedWrite, tuple[str, ...]]:
     source = _resolve_within(root, op.path)
     if not source.is_file():
         raise PatchError(f"cannot update {op.path!r}: file does not exist")
@@ -409,9 +392,7 @@ def _plan_update(
     )
 
 
-def _plan_operation(
-    root: Path, op: FileOp
-) -> tuple[PlannedWrite, tuple[str, ...]]:
+def _plan_operation(root: Path, op: FileOp) -> tuple[PlannedWrite, tuple[str, ...]]:
     if isinstance(op, AddFile):
         target = _resolve_within(root, op.path)
         if target.exists():
@@ -456,9 +437,7 @@ def apply_patch(patch: Patch, root: Path) -> ApplyResult:
     for write in plans:
         _commit(write)
 
-    changed = tuple(
-        str(write.path.relative_to(root.resolve())) for write in plans
-    )
+    changed = tuple(str(write.path.relative_to(root.resolve())) for write in plans)
     logger.debug("applied patch touching %s", changed)
     return ApplyResult(changed=changed, rungs=rungs)
 

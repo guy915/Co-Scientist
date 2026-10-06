@@ -56,9 +56,7 @@ def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
 
     passages: list[EvidencePassage] = []
     for article in state.get("articles") or []:
-        head_text = " ".join(
-            part for part in (article.title, article.abstract) if part
-        )
+        head_text = " ".join(part for part in (article.title, article.abstract) if part)
         passages.extend(
             chunk_evidence_passage(
                 str(article.source_id or article.title),
@@ -123,9 +121,7 @@ def _per_claim_fingerprints(
     from app.claims.grounding import ClaimRecord, claim_fingerprint
 
     return {
-        claim: claim_fingerprint(
-            ClaimRecord(claim, claim_roles[claim]), passages, assessor_id
-        )
+        claim: claim_fingerprint(ClaimRecord(claim, claim_roles[claim]), passages, assessor_id)
         for claim in ordered_claims
     }
 
@@ -154,16 +150,12 @@ def _plan_hypothesis_gate(
 
     gate_history = hypothesis.enrichments.get("claim_gate") or {}
     prior_disposition = str(
-        gate_history.get("prior_review_disposition")
-        or hypothesis.review_disposition
-        or "viable"
+        gate_history.get("prior_review_disposition") or hypothesis.review_disposition or "viable"
     )
     from app.claims.grounding import combined_fingerprint
 
     ordered_claims, claim_roles = _harvest_hypothesis_claims(hypothesis)
-    claim_fingerprints = _per_claim_fingerprints(
-        assessor_id, ordered_claims, claim_roles, passages
-    )
+    claim_fingerprints = _per_claim_fingerprints(assessor_id, ordered_claims, claim_roles, passages)
     input_fingerprint = combined_fingerprint(
         [claim_fingerprints[claim] for claim in ordered_claims]
     )
@@ -206,9 +198,7 @@ def _record_gate_enrichment(
                 "fingerprint": plan.claim_fingerprints[assessment.claim],
                 "label": assessment.label.value,
                 "verification_method": assessment.verification_method,
-                "supporting_passages": [
-                    span.to_dict() for span in assessment.supporting_passages
-                ],
+                "supporting_passages": [span.to_dict() for span in assessment.supporting_passages],
                 "contradicting_passages": [
                     span.to_dict() for span in assessment.contradicting_passages
                 ],
@@ -275,9 +265,7 @@ def _build_gate_wave(
             skipped_unchanged += 1
             continue
         plans.append(plan)
-    return _GateWave(
-        plans, len(hypotheses), skipped_unrankable, skipped_unchanged
-    )
+    return _GateWave(plans, len(hypotheses), skipped_unrankable, skipped_unchanged)
 
 
 def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
@@ -308,9 +296,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     )
 
     passages = _build_evidence_passages(state)
-    model = effective_execution_model(
-        settings.claim_verifier_model or settings.model_name
-    )
+    model = effective_execution_model(settings.claim_verifier_model or settings.model_name)
     assert model is not None
     assessor, assessor_id = build_assessor(settings.claim_assessor, model)
     entailment_calls = [0]
@@ -318,9 +304,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
         settings.claim_assessor, model, call_counter=entailment_calls
     )
     spec = AssessorSpec(assessor, assessor_id, batch_assessor)
-    wave = _build_gate_wave(
-        state.get("hypotheses") or [], passages, assessor_id
-    )
+    wave = _build_gate_wave(state.get("hypotheses") or [], passages, assessor_id)
 
     with scoped_telemetry("claim_gate") as telemetry:
         assessed = await _assess_gate_claims(wave.plans, passages, spec)
@@ -330,17 +314,13 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     _log_gate_wave(wave, entailment_calls[0])
 
 
-def _fold_gate_telemetry(
-    state: dict[str, Any], usage: Mapping[str, Mapping[str, Any]]
-) -> None:
+def _fold_gate_telemetry(state: dict[str, Any], usage: Mapping[str, Mapping[str, Any]]) -> None:
     if not usage:
         return
     from co_scientist.models import MetricDeltas, create_metrics_update
     from co_scientist.models.metrics import merge_metrics
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
-    delta = create_metrics_update(
-        deltas=MetricDeltas(llm_calls=calls), model_usage=dict(usage)
-    )
+    delta = create_metrics_update(deltas=MetricDeltas(llm_calls=calls), model_usage=dict(usage))
     existing = state.get("metrics")
     state["metrics"] = merge_metrics(existing, delta) if existing else delta

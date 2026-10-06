@@ -30,9 +30,7 @@ def _item_id(run_id: str, hypothesis_id: str) -> str:
     return f"item-{digest[:16]}"
 
 
-def build_blinded_export(
-    run_id: str, hypotheses: list[dict[str, Any]]
-) -> dict[str, Any]:
+def build_blinded_export(run_id: str, hypotheses: list[dict[str, Any]]) -> dict[str, Any]:
     """Remove provider/Elo/lineage so raters cannot infer the source system."""
     return {
         "schema_version": SCHEMA_VERSION,
@@ -68,9 +66,7 @@ def _validate_axes(raw: dict[str, Any]) -> None:
     for axis in RATING_AXES:
         value = raw.get(axis)
         if not isinstance(value, int) or not 1 <= value <= 5:
-            raise ExpertReviewValidationError(
-                f"{axis} must be an integer in 1-5, got {value!r}"
-            )
+            raise ExpertReviewValidationError(f"{axis} must be an integer in 1-5, got {value!r}")
 
 
 def _validate_ids(raw: dict[str, Any]) -> tuple[str, str]:
@@ -118,9 +114,7 @@ def parse_ratings(payload: dict[str, Any]) -> list[ExpertRating]:
         rating = _parse_one_rating(raw)
         identity = (rating.rater_id, rating.item_id)
         if identity in seen:
-            raise ExpertReviewValidationError(
-                f"duplicate rating for rater/item {identity!r}"
-            )
+            raise ExpertReviewValidationError(f"duplicate rating for rater/item {identity!r}")
         seen.add(identity)
         ratings.append(rating)
     return ratings
@@ -128,11 +122,7 @@ def parse_ratings(payload: dict[str, Any]) -> list[ExpertRating]:
 
 def _mean_confidence_interval(values: list[int]) -> dict[str, Any]:
     mean = statistics.fmean(values)
-    margin = (
-        1.96 * statistics.stdev(values) / math.sqrt(len(values))
-        if len(values) > 1
-        else 0.0
-    )
+    margin = 1.96 * statistics.stdev(values) / math.sqrt(len(values)) if len(values) > 1 else 0.0
     return {
         "mean": round(mean, 4),
         "confidence_interval_95": [
@@ -151,11 +141,7 @@ def _wilson_interval(successes: int, total: int) -> list[float] | None:
     denominator = 1 + z**2 / total
     centre = (proportion + z**2 / (2 * total)) / denominator
     margin = (
-        z
-        * math.sqrt(
-            proportion * (1 - proportion) / total + z**2 / (4 * total**2)
-        )
-        / denominator
+        z * math.sqrt(proportion * (1 - proportion) / total + z**2 / (4 * total**2)) / denominator
     )
     return [round(centre - margin, 4), round(centre + margin, 4)]
 
@@ -174,9 +160,7 @@ def _pairwise_agreement(
 
     def agreement(successes: int) -> dict[str, Any]:
         return {
-            "proportion": (
-                round(successes / comparisons, 4) if comparisons else None
-            ),
+            "proportion": (round(successes / comparisons, 4) if comparisons else None),
             "confidence_interval_95": _wilson_interval(successes, comparisons),
         }
 

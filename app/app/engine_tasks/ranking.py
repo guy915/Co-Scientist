@@ -129,9 +129,7 @@ def _prepare_ranking_wave(
         int(state.get("current_iteration", 0)) * 10_000 + index,
         judged=_judged_pairs(state),
     )
-    previous_pair = frozenset(
-        str(item) for item in task.inputs["previous_pair"]
-    )
+    previous_pair = frozenset(str(item) for item in task.inputs["previous_pair"])
     return _WavePlan(
         wave=_ranking_wave(candidates, previous_pair, index, rounds, wave_size),
         index=index,
@@ -193,10 +191,7 @@ async def _judge_wave_matchups(
     context = prepare_ranking_judging_context(prompt, eligible)
     judge_context = _WaveJudgeContext(context, plan.index)
     judged = await asyncio.gather(
-        *(
-            _judge_one_matchup(pair, offset, judge_context)
-            for offset, pair in enumerate(plan.wave)
-        ),
+        *(_judge_one_matchup(pair, offset, judge_context) for offset, pair in enumerate(plan.wave)),
         return_exceptions=True,
     )
     return _surviving_judgements(plan.wave, list(judged))
@@ -254,9 +249,7 @@ async def _advance_ranking_wave(
         total_calls=carried.total_calls + calls_delta,
         next_index=plan.index + len(plan.wave),
         last_pair=last_pair,
-        model_usage=merge_usage_snapshots(
-            [carried.model_usage, telemetry.snapshot()]
-        ),
+        model_usage=merge_usage_snapshots([carried.model_usage, telemetry.snapshot()]),
     )
 
 
@@ -368,9 +361,7 @@ async def _emit_ranking_wave_progress(
     """
     rounds = plan.rounds
     milestone = (next_index // RANKING_PROGRESS_EVERY) * RANKING_PROGRESS_EVERY
-    crossed = plan.index // RANKING_PROGRESS_EVERY != (
-        next_index // RANKING_PROGRESS_EVERY
-    )
+    crossed = plan.index // RANKING_PROGRESS_EVERY != (next_index // RANKING_PROGRESS_EVERY)
     if plan.wave and next_index < rounds and crossed:
         with db.transaction(commit.db_path) as conn:
             run = runs.get_run(commit.task.run_id, conn=conn)
@@ -429,9 +420,7 @@ async def _commit_ranking_match(
 async def execute_ranking_match(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    replay, state, current_seq = leased_state(
-        task, db_path, label="ranking match"
-    )
+    replay, state, current_seq = leased_state(task, db_path, label="ranking match")
     if replay is not None:
         return replay
     eligible = _ranking_eligible(state)
@@ -451,9 +440,7 @@ async def execute_ranking_match(
         ),
     )
     state["pending_ranking_matchups"] = result.details
-    return await _commit_ranking_match(
-        TaskCommit(task, current_seq, db_path), state, plan, result
-    )
+    return await _commit_ranking_match(TaskCommit(task, current_seq, db_path), state, plan, result)
 
 
 async def _commit_ranking_finalize(
@@ -469,9 +456,7 @@ async def _commit_ranking_finalize(
     # Unfollowed engine imports arrive as Any; assert the declared type at this
     # boundary.
     successor: str | None = next_task_type("ranking", committed)
-    checkpoint_seq, successor_id = _save_state_and_enqueue(
-        commit, committed, successor
-    )
+    checkpoint_seq, successor_id = _save_state_and_enqueue(commit, committed, successor)
     await _emit_node_completion(
         commit.task.run_id,
         NodeCompletion("ranking", successor, checkpoint_seq),
@@ -485,9 +470,7 @@ async def _commit_ranking_finalize(
     }
 
 
-def _fold_ranking_telemetry(
-    update: dict[str, Any], model_usage: dict[str, dict[str, Any]]
-) -> None:
+def _fold_ranking_telemetry(update: dict[str, Any], model_usage: dict[str, dict[str, Any]]) -> None:
     """Wave telemetry accumulates across match checkpoints and folds into
     scientific metrics once at tournament finalization.
     """
@@ -506,9 +489,7 @@ async def execute_ranking_finalize(
     from co_scientist.agents.ranking import finalize_ranking
     from co_scientist.task_runtime import apply_task_update
 
-    replay, state, current_seq = leased_state(
-        task, db_path, label="ranking finalizer"
-    )
+    replay, state, current_seq = leased_state(task, db_path, label="ranking finalizer")
     if replay is not None:
         return replay
     update = await finalize_ranking(
@@ -521,9 +502,7 @@ async def execute_ranking_finalize(
     _fold_ranking_telemetry(update, dict(task.inputs.get("model_usage") or {}))
     committed = apply_task_update(state, update)
     committed.pop("pending_ranking_matchups", None)
-    return await _commit_ranking_finalize(
-        TaskCommit(task, current_seq, db_path), committed, update
-    )
+    return await _commit_ranking_finalize(TaskCommit(task, current_seq, db_path), committed, update)
 
 
 __all__ = ["RANKING_WAVE_SIZE"]

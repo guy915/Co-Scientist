@@ -74,9 +74,7 @@ def test_run_credential_round_trips_encrypted(byok_secret: str) -> None:
 
 def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
     run = _make_run()
-    cred = credentials.ByokCredential(
-        provider="openai", api_key=_KEY, model="openai/gpt-4o"
-    )
+    cred = credentials.ByokCredential(provider="openai", api_key=_KEY, model="openai/gpt-4o")
     credentials.store_run_credential(run.id, run.client_id, cred)
     with db.connect() as conn:
         conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
@@ -86,9 +84,7 @@ def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
 def test_byok_model_and_key_prefers_scoped_credential(
     byok_secret: str,
 ) -> None:
-    cred = credentials.ByokCredential(
-        provider="openai", api_key=_KEY, model="openai/gpt-4o"
-    )
+    cred = credentials.ByokCredential(provider="openai", api_key=_KEY, model="openai/gpt-4o")
     assert credentials.byok_model_and_key("chat-model") == (
         "chat-model",
         None,
@@ -117,9 +113,7 @@ def _mixed() -> credentials.ByokCredential:
 
 def test_redaction_scrubs_both_keys(byok_secret: str) -> None:
     message = f"{_KEY} then {_SECOND_KEY}"
-    record = logging.LogRecord(
-        "test", logging.ERROR, __file__, 1, message, (), None
-    )
+    record = logging.LogRecord("test", logging.ERROR, __file__, 1, message, (), None)
     with credentials.scoped_byok(_mixed()):
         assert credentials.ByokRedactionFilter().filter(record)
     assert record.getMessage() == "[REDACTED] then [REDACTED]"

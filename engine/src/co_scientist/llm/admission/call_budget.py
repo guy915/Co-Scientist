@@ -56,9 +56,7 @@ logger = logging.getLogger(__name__)
 # Bound process memory; evicting a tracked run forfeits its ceiling enforcement.
 _MAX_TRACKED_RUNS = 500
 
-_current_run: ContextVar[str | None] = ContextVar(
-    "llm_call_budget_run", default=None
-)
+_current_run: ContextVar[str | None] = ContextVar("llm_call_budget_run", default=None)
 
 
 @dataclass
@@ -73,9 +71,7 @@ _runs: OrderedDict[str, _RunCounter] = OrderedDict()
 
 
 @contextmanager
-def scoped_llm_call_budget(
-    run_id: str | None, ceiling: int | None
-) -> Iterator[None]:
+def scoped_llm_call_budget(run_id: str | None, ceiling: int | None) -> Iterator[None]:
     """Tasks re-enter one persisted run counter without resetting it; the
     first ceiling remains binding.
     """

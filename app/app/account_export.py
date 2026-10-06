@@ -71,7 +71,5 @@ async def export_account_data(request: Request) -> dict[str, Any]:
         "runs": runs,
         "documents": documents,
         "interviews": interviews.list_interviews(owner),
-        "feedback": feedback.list_feedback(
-            owner=owner, limit=feedback.MAX_ROWS
-        ),
+        "feedback": feedback.list_feedback(owner=owner, limit=feedback.MAX_ROWS),
     }

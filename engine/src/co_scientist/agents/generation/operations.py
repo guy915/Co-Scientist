@@ -29,9 +29,7 @@ from co_scientist.tools.response_parser import parse_mcp_result
 logger = logging.getLogger(__name__)
 
 
-GENERATION_STRATEGY_LABELS = frozenset(
-    {"dev_isolation", "lit_and_tools", "lit_only", "no_lit"}
-)
+GENERATION_STRATEGY_LABELS = frozenset({"dev_isolation", "lit_and_tools", "lit_only", "no_lit"})
 TOOLS_REQUIRING_STRATEGIES = frozenset({"dev_isolation", "lit_and_tools"})
 
 
@@ -87,9 +85,7 @@ def _determine_generation_counts(
     has_literature: bool,
     enable_tool_calling: bool,
 ) -> GenerationCounts:
-    strategy = _forced_generation_strategy(
-        state
-    ) or _classify_generation_strategy(
+    strategy = _forced_generation_strategy(state) or _classify_generation_strategy(
         state, has_literature, enable_tool_calling
     )
     if strategy == "dev_isolation":
@@ -101,9 +97,7 @@ def _determine_generation_counts(
     return GenerationCounts(
         tools_count=tools,
         debate_with_lit_count=(
-            remainder - tools
-            if strategy in {"lit_and_tools", "lit_only"}
-            else 0
+            remainder - tools if strategy in {"lit_and_tools", "lit_only"} else 0
         ),
         debate_only_count=remainder if strategy == "no_lit" else 0,
         assumptions_count=assumptions,
@@ -117,13 +111,9 @@ async def _report_generation_start(
     extra: dict[str, Any] = {}
     if counts.is_dev_isolation:
         logger.info(
-            "Dev isolation mode: allocating all hypotheses"
-            " to lit tools generation (no debate)"
+            "Dev isolation mode: allocating all hypotheses to lit tools generation (no debate)"
         )
-        message = (
-            f"Generating {total_count} hypotheses with lit"
-            " tools only (dev isolation mode)..."
-        )
+        message = f"Generating {total_count} hypotheses with lit tools only (dev isolation mode)..."
         extra = {"dev_isolation_mode": True}
     elif counts.debate_with_lit_count > 0:
         message = _report_literature_start(counts, total_count)
@@ -132,19 +122,14 @@ async def _report_generation_start(
             "No literature review tools available - generating"
             " hypotheses from model latent knowledge only"
         )
-        message = (
-            f"Generating {counts.debate_only_count} hypotheses"
-            " without literature review..."
-        )
+        message = f"Generating {counts.debate_only_count} hypotheses without literature review..."
         extra = {"literature_review_available": False, "degraded_mode": True}
     else:
         # A one-hypothesis literature/tools batch historically emits no start
         # event; preserve that lifecycle.
 
         return
-    await emit_progress(
-        state, "generation_start", message, PROGRESS_GENERATE_START, **extra
-    )
+    await emit_progress(state, "generation_start", message, PROGRESS_GENERATE_START, **extra)
 
 
 def _report_literature_start(counts: GenerationCounts, total_count: int) -> str:
@@ -175,9 +160,7 @@ class _ResolvedEnrichment:
     output_key: str
 
 
-def _extract_enrichment_payload(
-    parsed: Any, enrichment: EnrichmentConfig
-) -> Any:
+def _extract_enrichment_payload(parsed: Any, enrichment: EnrichmentConfig) -> Any:
     if enrichment.results_path and isinstance(parsed, dict):
         return parsed.get(enrichment.results_path, parsed)
     return parsed
@@ -219,9 +202,7 @@ async def _enrich_one_hypothesis(
             semaphore,
         )
     except Exception as e:
-        logger.warning(
-            "enrichment '%s' failed for hypothesis: %s", output_key, e
-        )
+        logger.warning("enrichment '%s' failed for hypothesis: %s", output_key, e)
         hyp.enrichments[output_key] = {"error": str(e)}
 
 
@@ -234,9 +215,7 @@ async def _run_one_enrichment(
 ) -> None:
     tool_config = tool_registry.get_tool(enrichment.tool)
     if not tool_config:
-        logger.warning(
-            "enrichment tool '%s' not found in registry", enrichment.tool
-        )
+        logger.warning("enrichment tool '%s' not found in registry", enrichment.tool)
         return
 
     resolved = _ResolvedEnrichment(
@@ -252,10 +231,7 @@ async def _run_one_enrichment(
     )
 
     await asyncio.gather(
-        *(
-            _enrich_one_hypothesis(hyp, resolved, mcp_client, semaphore)
-            for hyp in hypotheses
-        )
+        *(_enrich_one_hypothesis(hyp, resolved, mcp_client, semaphore) for hyp in hypotheses)
     )
 
 
@@ -280,9 +256,7 @@ async def _enrich_hypotheses(
 
     await asyncio.gather(
         *(
-            _run_one_enrichment(
-                enrichment, tool_registry, hypotheses, mcp_client, semaphore
-            )
+            _run_one_enrichment(enrichment, tool_registry, hypotheses, mcp_client, semaphore)
             for enrichment in enrichment_configs
         )
     )
@@ -359,10 +333,7 @@ def _log_bucket_methods(label: str, hypotheses: list[Hypothesis]) -> None:
     logger.debug(
         "%s generation_methods: %s",
         label,
-        [
-            h.generation_method.value if h.generation_method else None
-            for h in hypotheses
-        ],
+        [h.generation_method.value if h.generation_method else None for h in hypotheses],
     )
 
 
@@ -446,9 +417,7 @@ async def prepare_generation(
     state: WorkflowState,
 ) -> GenerationPlan:
     if not state.get("supervisor_guidance"):
-        raise GenerationError(
-            "No supervisor_guidance in state for node=generation"
-        )
+        raise GenerationError("No supervisor_guidance in state for node=generation")
     articles_with_reasoning = state.get("articles_with_reasoning")
     total_count = state["initial_hypotheses_count"]
     has_literature = _check_literature_availability(
@@ -476,9 +445,7 @@ async def prepare_generation(
     )
 
 
-def _with_interim_overview(
-    state: WorkflowState, articles_with_reasoning: str | None
-) -> str | None:
+def _with_interim_overview(state: WorkflowState, articles_with_reasoning: str | None) -> str | None:
     """The run's own overview is guidance, not retrieved literature;
     debate-only calls must omit this context."""
     block = format_interim_overview(state)
@@ -489,18 +456,14 @@ def _with_interim_overview(
     return f"{block}\n\n{articles_with_reasoning}"
 
 
-def _stamp_generation_lineage(
-    hypotheses: list[Hypothesis], creation_iteration: int
-) -> None:
+def _stamp_generation_lineage(hypotheses: list[Hypothesis], creation_iteration: int) -> None:
     """Expansion cycles preserve the underlying method as provenance;
     generated roots retain parent_id=None."""
     for hyp in hypotheses:
         hyp.creation_iteration = creation_iteration
         if creation_iteration > 0:
             if hyp.generation_method is not None:
-                hyp.enrichments["base_generation_method"] = (
-                    hyp.generation_method.value
-                )
+                hyp.enrichments["base_generation_method"] = hyp.generation_method.value
             hyp.generation_method = GenerationMethod.RESEARCH_EXPANSION
 
 

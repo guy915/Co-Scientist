@@ -224,13 +224,9 @@ class ContentSafetyReview:
     policy_version: str = POLICY_VERSION
 
 
-def _all_matches(
-    text: str, patterns: tuple[re.Pattern[str], ...]
-) -> tuple[str, ...]:
+def _all_matches(text: str, patterns: tuple[re.Pattern[str], ...]) -> tuple[str, ...]:
     return tuple(
-        match.group(0)
-        for pattern in patterns
-        if (match := pattern.search(text or "")) is not None
+        match.group(0) for pattern in patterns if (match := pattern.search(text or "")) is not None
     )
 
 
@@ -244,10 +240,7 @@ def review_content_safety(
         return ContentSafetyReview(
             decision="block",
             category="prohibited",
-            reason=(
-                "Content matches a prohibited weaponization or "
-                "mass-casualty policy rule."
-            ),
+            reason=("Content matches a prohibited weaponization or mass-casualty policy rule."),
             matches=prohibited,
             risk_domains=("cbrn_weaponization",),
             requires_review=False,
@@ -257,9 +250,7 @@ def review_content_safety(
         return ContentSafetyReview(
             decision="redact",
             category="redacted",
-            reason=(
-                "Dual-use content requires redaction and explicit oversight."
-            ),
+            reason=("Dual-use content requires redaction and explicit oversight."),
             matches=dual_use,
             risk_domains=("dual_use",),
             requires_review=True,
@@ -274,9 +265,7 @@ def review_content_safety(
     )
 
 
-def _first_match(
-    text: str, patterns: tuple[re.Pattern[str], ...]
-) -> str | None:
+def _first_match(text: str, patterns: tuple[re.Pattern[str], ...]) -> str | None:
     for pattern in patterns:
         m = pattern.search(text)
         if m:
@@ -296,9 +285,7 @@ def _match_review(
     return SafetyReview(outcome, reason, (hit,), POLICY_VERSION)
 
 
-_CERTAIN_CHECKS: tuple[
-    tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
-] = (
+_CERTAIN_CHECKS: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...] = (
     (
         _PROHIBITED_CERTAIN,
         SafetyOutcome.PROHIBITED,
@@ -311,9 +298,7 @@ _CERTAIN_CHECKS: tuple[
     ),
 )
 
-_CONTEXT_CHECKS: tuple[
-    tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
-] = (
+_CONTEXT_CHECKS: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...] = (
     (
         _PROHIBITED_CONTEXT,
         SafetyOutcome.PROHIBITED,
@@ -326,9 +311,7 @@ _CONTEXT_CHECKS: tuple[
     ),
 )
 
-_POST_OBFUSCATION_CHECKS: tuple[
-    tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
-] = (
+_POST_OBFUSCATION_CHECKS: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...] = (
     (
         _DUAL_USE,
         SafetyOutcome.DUAL_USE,
@@ -353,9 +336,7 @@ def _first_tiered_review(
     return None
 
 
-def _resolve_context_hit(
-    text: str, hit: str, outcome: SafetyOutcome, reason: str
-) -> SafetyReview:
+def _resolve_context_hit(text: str, hit: str, outcome: SafetyOutcome, reason: str) -> SafetyReview:
     """A finite verb list cannot prove benign intent; meta-research markers
     change the held reason only.
     """
@@ -412,9 +393,7 @@ def _review_after_certain_tier(text: str) -> SafetyReview:
     review = _first_tiered_review(text, _POST_OBFUSCATION_CHECKS)
     if review is not None:
         return review
-    return SafetyReview(
-        SafetyOutcome.ALLOW, "no safety concern detected", (), POLICY_VERSION
-    )
+    return SafetyReview(SafetyOutcome.ALLOW, "no safety concern detected", (), POLICY_VERSION)
 
 
 def review_hypothesis_safety(text: str) -> SafetyReview:

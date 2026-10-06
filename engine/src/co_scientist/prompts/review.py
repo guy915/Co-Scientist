@@ -19,9 +19,7 @@ def _review_sections(context: PromptRunContext) -> PromptSections:
     Evolution refinements.
     """
     return PromptSections(
-        supervisor_guidance=_format_supervisor_guidance_for_review(
-            context.supervisor_guidance
-        ),
+        supervisor_guidance=_format_supervisor_guidance_for_review(context.supervisor_guidance),
         meta_review_context=_format_meta_review_context(
             context.meta_review, include_coverage_sections=False
         ),
@@ -133,9 +131,7 @@ def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
         for criterion in criteria[:CRITICAL_CRITERIA_MAX_COUNT]:
             sections.extend(_format_critical_criterion(criterion))
     if review_phase.get("review_depth"):
-        sections.append(
-            f"**Review Depth Required:** {review_phase['review_depth']}\n"
-        )
+        sections.append(f"**Review Depth Required:** {review_phase['review_depth']}\n")
     return sections
 
 
@@ -156,10 +152,7 @@ def _format_config_review_instructions_guidance(
     items = _guidance_items(review_instructions)
     if not items:
         return []
-    sections = [
-        "\n**Review instructions (validate, do not restate the"
-        " preferences):**\n"
-    ]
+    sections = ["\n**Review instructions (validate, do not restate the preferences):**\n"]
     sections.extend(f"- {r}\n" for r in items)
     return sections
 
@@ -176,9 +169,7 @@ def _format_config_attributes_guidance(
     return sections
 
 
-def _format_config_synthesis_guidance(
-    config: Any, *, needs_header: bool
-) -> list[str]:
+def _format_config_synthesis_guidance(config: Any, *, needs_header: bool) -> list[str]:
     if not isinstance(config, dict):
         return []
 
@@ -190,9 +181,7 @@ def _format_config_synthesis_guidance(
     if needs_header and any((preferences, review_instructions, attributes)):
         sections.append("## Supervisor Guidance for Review\n")
     sections.extend(_format_config_preferences_guidance(preferences))
-    sections.extend(
-        _format_config_review_instructions_guidance(review_instructions)
-    )
+    sections.extend(_format_config_review_instructions_guidance(review_instructions))
     sections.extend(_format_config_attributes_guidance(attributes))
     return sections
 
@@ -204,14 +193,10 @@ def _format_supervisor_guidance_for_review(
         return ""
 
     workflow_plan = supervisor_guidance.get("workflow_plan", {})
-    sections = _format_review_phase_guidance(
-        workflow_plan.get("review_phase", {})
-    )
+    sections = _format_review_phase_guidance(workflow_plan.get("review_phase", {}))
 
     config = supervisor_guidance.get("config_synthesis", {})
-    sections.extend(
-        _format_config_synthesis_guidance(config, needs_header=not sections)
-    )
+    sections.extend(_format_config_synthesis_guidance(config, needs_header=not sections))
 
     return "".join(sections)
 
@@ -230,8 +215,6 @@ def get_reflection_prompt(
             "hypothesis": hypothesis_text,
             "indra_evidence": indra_evidence,
         },
-        sections=PromptSections(
-            meta_review_context=_format_meta_review_context(ctx.meta_review)
-        ),
+        sections=PromptSections(meta_review_context=_format_meta_review_context(ctx.meta_review)),
         tool_registry=ctx.tool_registry,
     )

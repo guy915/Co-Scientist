@@ -153,8 +153,7 @@ def test_no_chain_head_claims_disable_support_a_fallback_lacks() -> None:
         for name in declared.fallbacks:
             fallback = model_profile(f"openrouter/{name}")
             assert fallback.gateway and fallback.reasoning_can_disable, (
-                f"{primary} claims reasoning_can_disable=True but its "
-                f"fallback {name} does not"
+                f"{primary} claims reasoning_can_disable=True but its fallback {name} does not"
             )
 
 

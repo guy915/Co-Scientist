@@ -52,17 +52,10 @@ def _resume_predecessor_id(
     but nonexistent dependency would wedge resume forever.
     """
     stage = str(checkpoint["stage"])
-    if not (
-        stage.startswith("engine_task:")
-        or stage.startswith("engine_task_paused:")
-    ):
+    if not (stage.startswith("engine_task:") or stage.startswith("engine_task_paused:")):
         return None
     candidate = stage.rsplit(":", 1)[-1]
-    return (
-        candidate
-        if store.get_task(candidate, db_path=db.path, conn=db.conn)
-        else None
-    )
+    return candidate if store.get_task(candidate, db_path=db.path, conn=db.conn) else None
 
 
 def _enqueue_resume_task(
@@ -75,15 +68,11 @@ def _enqueue_resume_task(
     """
     checkpoint_seq = int(checkpoint["seq"])
     recorded_successor = checkpoint["state"].get("resume_successor")
-    task_type = str(recorded_successor or "") or (
-        f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    )
+    task_type = str(recorded_successor or "") or (f"{engine_tasks.NODE_TASK_PREFIX}orchestrator")
     predecessor_id = _resume_predecessor_id(checkpoint, db)
     anchored = bool(recorded_successor and predecessor_id is not None)
     idempotency_key = (
-        f"{task_type}:after:{predecessor_id}"
-        if anchored
-        else f"{task_type}:{checkpoint_seq}"
+        f"{task_type}:after:{predecessor_id}" if anchored else f"{task_type}:{checkpoint_seq}"
     )
     _revive_dead_resume_target(run_id, task_type, idempotency_key, db)
     return store.enqueue_task(
@@ -93,9 +82,7 @@ def _enqueue_resume_task(
             inputs={"checkpoint_seq": checkpoint_seq},
             idempotency_key=idempotency_key,
             priority=100,
-            dependencies=(predecessor_id,)
-            if anchored and predecessor_id
-            else (),
+            dependencies=(predecessor_id,) if anchored and predecessor_id else (),
             provenance={"scheduled_by": "resume"},
         ),
         db_path=db.path,
@@ -112,12 +99,8 @@ def _revive_dead_resume_target(
     """A dead boundary retains its idempotency key; revive it before enqueue
     or the resume would create no work.
     """
-    if lifecycle.revive_task_for_retry(
-        run_id, idempotency_key, db_path=db.path, conn=db.conn
-    ):
-        logger.info(
-            "Resume revived a dead %s task for run %s", task_type, run_id
-        )
+    if lifecycle.revive_task_for_retry(run_id, idempotency_key, db_path=db.path, conn=db.conn):
+        logger.info("Resume revived a dead %s task for run %s", task_type, run_id)
 
 
 def _is_live_engine_resume_row(task: ScientificTask, now: float) -> bool:
@@ -140,11 +123,7 @@ def _matches_checkpoint_target(
     *,
     include_predecessor_lease: bool = True,
 ) -> bool:
-    if (
-        include_predecessor_lease
-        and task.id == predecessor_id
-        and task.status == "leased"
-    ):
+    if include_predecessor_lease and task.id == predecessor_id and task.status == "leased":
         return True
     if not successor or task.task_type != successor:
         return False
@@ -230,9 +209,7 @@ def _find_checkpoint_resume_task(
         predecessor = None
         predecessor_id = None
     successor = str(checkpoint["state"].get("resume_successor") or "")
-    fanout_source = successor or (
-        predecessor.task_type if predecessor is not None else None
-    )
+    fanout_source = successor or (predecessor.task_type if predecessor is not None else None)
     now = time.time()
     _revive_expired_checkpoint_writer(run_id, predecessor, now, db)
     paused_stage = str(checkpoint["stage"]).startswith("engine_task_paused:")
@@ -256,9 +233,7 @@ def _already_claimable_task(
     checkpoint and predecessor, never a stale portfolio guess.
     """
     unpaused = lifecycle.resume_run_tasks(run_id, db_path=db.path, conn=db.conn)
-    checkpoint = checkpoints.get_latest_checkpoint(
-        run_id, db_path=db.path, conn=db.conn
-    )
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db.path, conn=db.conn)
     tasks = store.list_tasks(run_id, db_path=db.path, conn=db.conn)
 
     if checkpoint is None:
@@ -287,9 +262,7 @@ def _enqueue_resumed_workflow(
     existing = _already_claimable_task(run_id, db)
     if existing is not None:
         return existing
-    checkpoint = checkpoints.get_latest_checkpoint(
-        run_id, db_path=db.path, conn=db.conn
-    )
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db.path, conn=db.conn)
     if checkpoint is not None:
         return _enqueue_resume_task(run_id, checkpoint, db)
     _revive_resumable_precheckpoint_bootstrap(
@@ -319,17 +292,12 @@ def _revive_resumable_precheckpoint_bootstrap(
         bootstrap is None
         or (
             bootstrap.status == "leased"
-            and (
-                bootstrap.lease_expires_at is None
-                or bootstrap.lease_expires_at > now
-            )
+            and (bootstrap.lease_expires_at is None or bootstrap.lease_expires_at > now)
         )
         or bootstrap.status not in {"leased", "failed"}
         or (
             bootstrap.status == "failed"
-            and (
-                not allow_failed or not is_abandoned_spent_bootstrap(bootstrap)
-            )
+            and (not allow_failed or not is_abandoned_spent_bootstrap(bootstrap))
         )
     ):
         return

@@ -37,9 +37,7 @@ def record_metadata_batch(batch: dict[str, Any]) -> None:
     batch_record = _bounded_batch_record(batch)
     with _pilot_trace_lock:
         batching = _batching_trace(trace, selected_ids, selected_omitted)
-        _record_cache_hits(
-            batching, batch.get("cache_hit_pmids", []), selected_ids
-        )
+        _record_cache_hits(batching, batch.get("cache_hit_pmids", []), selected_ids)
         _append_bounded_batch(batching, batch_record)
 
 
@@ -48,8 +46,7 @@ def record_pubmed_batch_outcome(
     link_outcomes: dict[str, tuple[str | None, Exception | None]],
 ) -> None:
     batch["elink_results"] = [
-        _metadata_link_trace(paper_id, link_outcomes[paper_id])
-        for paper_id in batch["elink_pmids"]
+        _metadata_link_trace(paper_id, link_outcomes[paper_id]) for paper_id in batch["elink_pmids"]
     ]
     record_metadata_batch(batch)
 
@@ -64,18 +61,14 @@ def _metadata_link_trace(
 
 def _selected_metadata_ids(trace: dict[str, Any]) -> tuple[list[str], int]:
     selected = trace.get("selected")
-    if not isinstance(selected, dict) or not isinstance(
-        selected.get("ids"), list
-    ):
+    if not isinstance(selected, dict) or not isinstance(selected.get("ids"), list):
         return [], 0
     ids = selected["ids"]
     return ids[:_MAX_PILOT_TRACE_IDS], max(0, len(ids) - _MAX_PILOT_TRACE_IDS)
 
 
 def _batch_contains_selected(input_ids: Any, selected_ids: list[str]) -> bool:
-    return isinstance(input_ids, list) and any(
-        paper_id in selected_ids for paper_id in input_ids
-    )
+    return isinstance(input_ids, list) and any(paper_id in selected_ids for paper_id in input_ids)
 
 
 def _bounded_batch_record(batch: dict[str, Any]) -> dict[str, Any]:
@@ -106,9 +99,7 @@ def _batching_trace(
     return cast(dict[str, Any], batching)
 
 
-def _record_cache_hits(
-    batching: dict[str, Any], cache_hits: Any, selected_ids: list[str]
-) -> None:
+def _record_cache_hits(batching: dict[str, Any], cache_hits: Any, selected_ids: list[str]) -> None:
     if not isinstance(cache_hits, list):
         return
     sampled_hits = batching["cache_hits"]
@@ -118,14 +109,10 @@ def _record_cache_hits(
         if len(sampled_hits) < _MAX_PILOT_TRACE_IDS:
             sampled_hits.append(paper_id)
         else:
-            batching["truncated_cache_hits"] = (
-                batching.get("truncated_cache_hits", 0) + 1
-            )
+            batching["truncated_cache_hits"] = batching.get("truncated_cache_hits", 0) + 1
 
 
-def _append_bounded_batch(
-    batching: dict[str, Any], batch_record: dict[str, Any]
-) -> None:
+def _append_bounded_batch(batching: dict[str, Any], batch_record: dict[str, Any]) -> None:
     if len(batching["batches"]) < _MAX_PILOT_TRACE_IDS:
         batching["batches"].append(batch_record)
     else:
@@ -146,18 +133,14 @@ def _pilot_trace_flags() -> tuple[bool, bool]:
 def _enable_study4_recovery(trace: dict[str, Any]) -> None:
     study_id = os.getenv("COSCIENTIST_PUBMED_STUDY_ID")
     if study_id != STUDY4_RECOVERY_STUDY_ID:
-        raise ValueError(
-            "Study 4 Entrez recovery requires the protocol study ID"
-        )
+        raise ValueError("Study 4 Entrez recovery requires the protocol study ID")
     process_retries_used = bind_study4_recovery(study_id)
     trace.update(
         {
             "entrez_recovery": {
                 "study_id": study_id,
                 "policy": STUDY4_RECOVERY_POLICY,
-                "max_retries_per_logical_request": (
-                    STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST
-                ),
+                "max_retries_per_logical_request": (STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST),
                 "max_retries_per_study": STUDY4_MAX_RETRIES_PER_STUDY,
                 "retries_used": 0,
                 "recovered_calls": 0,
@@ -213,22 +196,15 @@ def new_pilot_trace(run_id: str | None) -> dict[str, Any] | None:
     return trace
 
 
-def record_pool_snapshot(
-    trace: dict[str, Any] | None, shared_dir: Path
-) -> None:
+def record_pool_snapshot(trace: dict[str, Any] | None, shared_dir: Path) -> None:
     if trace is None:
         return
     metadata_count = sum(1 for _ in shared_dir.glob("*.metadata.json"))
-    first_metadata_files = heapq.nsmallest(
-        _MAX_PILOT_TRACE_IDS, shared_dir.glob("*.metadata.json")
-    )
+    first_metadata_files = heapq.nsmallest(_MAX_PILOT_TRACE_IDS, shared_dir.glob("*.metadata.json"))
     trace["pre_search_shared_pool"] = {
         "file_count": sum(1 for _ in shared_dir.iterdir()),
         "metadata_count": metadata_count,
-        "first_ids": [
-            path.name.removesuffix(".metadata.json")
-            for path in first_metadata_files
-        ],
+        "first_ids": [path.name.removesuffix(".metadata.json") for path in first_metadata_files],
     }
 
 
@@ -237,15 +213,11 @@ def _abstract_available(metadata: dict[str, Any] | None) -> bool:
         return False
     abstract = metadata.get("abstract")
     return (
-        isinstance(abstract, str)
-        and bool(abstract.strip())
-        and (abstract.strip() != "<not found>")
+        isinstance(abstract, str) and bool(abstract.strip()) and (abstract.strip() != "<not found>")
     )
 
 
-def record_fetched_papers(
-    trace: dict[str, Any], all_details: dict[str, Any]
-) -> None:
+def record_fetched_papers(trace: dict[str, Any], all_details: dict[str, Any]) -> None:
     selected = trace.get("selected")
     selected_ids = selected["ids"] if isinstance(selected, dict) else []
     fetch_errors = trace.get("fetch_errors", [])
@@ -255,12 +227,8 @@ def record_fetched_papers(
             "pmid": paper_id,
             "fetched": paper_id in all_details,
             "metadata_origin": metadata_origins.get(paper_id),
-            "pmc_available": bool(
-                all_details.get(paper_id, {}).get("pmc_full_text_id")
-            ),
-            "abstract_available": _abstract_available(
-                all_details.get(paper_id)
-            ),
+            "pmc_available": bool(all_details.get(paper_id, {}).get("pmc_full_text_id")),
+            "abstract_available": _abstract_available(all_details.get(paper_id)),
             "incomplete": paper_id not in all_details
             or any(error.get("pmid") == paper_id for error in fetch_errors),
         }
@@ -270,9 +238,7 @@ def record_fetched_papers(
 
 def reserve_trace_run(run_dir: Path, run_id: str, build_id: str) -> None:
     if any(run_dir.iterdir()):
-        raise ValueError(
-            "PubMed pilot trace run_id is not empty or already reserved"
-        )
+        raise ValueError("PubMed pilot trace run_id is not empty or already reserved")
     reservation_path = run_dir / ".trace-reservation.json"
     try:
         descriptor = os.open(
@@ -281,9 +247,7 @@ def reserve_trace_run(run_dir: Path, run_id: str, build_id: str) -> None:
             0o600,
         )
     except FileExistsError as exc:
-        raise ValueError(
-            "PubMed pilot trace run_id is not empty or already reserved"
-        ) from exc
+        raise ValueError("PubMed pilot trace run_id is not empty or already reserved") from exc
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             json.dump(

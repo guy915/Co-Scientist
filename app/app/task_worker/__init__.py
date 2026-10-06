@@ -61,21 +61,15 @@ class WorkerPolicy:
 _PARKED_POLL_SECONDS = 15.0
 
 
-async def _execute_task_payload(
-    task: ScientificTask, *, db_path: str | None
-) -> dict[str, Any]:
+async def _execute_task_payload(task: ScientificTask, *, db_path: str | None) -> dict[str, Any]:
     if task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX):
         started = time.perf_counter()
         outcome = "completed"
         stage_logger = logging.getLogger("app.run_stage")
         with run_log_context(task.run_id):
-            stage_logger.info(
-                "stage_start task=%s attempt=%s", task.task_type, task.attempt
-            )
+            stage_logger.info("stage_start task=%s attempt=%s", task.task_type, task.attempt)
             try:
-                return await engine_tasks.execute_engine_task(
-                    task, db_path=db_path
-                )
+                return await engine_tasks.execute_engine_task(task, db_path=db_path)
             except asyncio.CancelledError:
                 outcome = "cancelled"
                 raise
@@ -103,14 +97,10 @@ async def _execute_until_lease_lost(
     """Lease revocation cancels in-flight provider and retrieval work
     instead of spending compute until natural completion.
     """
-    execution = asyncio.create_task(
-        _execute_task_payload(task, db_path=db_path)
-    )
+    execution = asyncio.create_task(_execute_task_payload(task, db_path=db_path))
     ownership = asyncio.create_task(lease_lost.wait())
     try:
-        done, _ = await asyncio.wait(
-            {execution, ownership}, return_when=asyncio.FIRST_COMPLETED
-        )
+        done, _ = await asyncio.wait({execution, ownership}, return_when=asyncio.FIRST_COMPLETED)
         if execution in done:
             return await execution
 
@@ -138,9 +128,7 @@ async def _execute_and_record(
         # Execution tasks inherit this run context and propagate it to child
         # tasks.
         with run_log_context(task.run_id):
-            result = await _execute_until_lease_lost(
-                task, lease_lost, db_path=db_path
-            )
+            result = await _execute_until_lease_lost(task, lease_lost, db_path=db_path)
     except _LeaseLostError:
         # Revoked workers must not overwrite already recorded cancellation,
         # pause or competing ownership.
@@ -201,9 +189,7 @@ async def run_once(
     )
     if task is None:
         return False
-    await _run_claimed_task(
-        task, worker_id, db_path=db_path, lease_seconds=lease_seconds
-    )
+    await _run_claimed_task(task, worker_id, db_path=db_path, lease_seconds=lease_seconds)
     return True
 
 
@@ -234,9 +220,7 @@ async def _cohort_worker_step(
     read-only existence probes avoid growing per-tick row decoding.
     """
     db_path = policy.db_path
-    claimable, active_lease, parked_until = store.cohort_poll(
-        run_id, db_path=db_path
-    )
+    claimable, active_lease, parked_until = store.cohort_poll(run_id, db_path=db_path)
     if claimable and await run_once(
         worker_id,
         run_id=run_id,
@@ -250,9 +234,7 @@ async def _cohort_worker_step(
     if parked_until is not None:
         # Future-due rate-limit parks keep the cohort alive; exiting would
         # repeatedly strand still-valid queued work.
-        await asyncio.sleep(
-            min(_PARKED_POLL_SECONDS, max(0.0, parked_until - time.time()))
-        )
+        await asyncio.sleep(min(_PARKED_POLL_SECONDS, max(0.0, parked_until - time.time())))
         return True
     return False
 
@@ -268,8 +250,7 @@ def _abandon_dead_leases_at_exit(run_id: str, db_path: str | None) -> None:
         return
     if abandoned:
         logger.warning(
-            "Run %s: failed %d task(s) whose lease outlived its worker "
-            "with no retries left.",
+            "Run %s: failed %d task(s) whose lease outlived its worker with no retries left.",
             run_id,
             abandoned,
         )
@@ -331,9 +312,7 @@ async def _heartbeat_lease(
                 lease_seconds,
                 db_path=db_path,
             ):
-                logger.warning(
-                    "Task %s lease heartbeat lost ownership", task.id
-                )
+                logger.warning("Task %s lease heartbeat lost ownership", task.id)
                 signals.lease_lost.set()
                 return
 
@@ -364,7 +343,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--worker-id", default=_worker_id())
     parser.add_argument("--poll-seconds", type=float, default=0.5)
     args = parser.parse_args(argv)
-    run_in_scoped_loop(
-        run_forever(args.worker_id, poll_seconds=args.poll_seconds)
-    )
+    run_in_scoped_loop(run_forever(args.worker_id, poll_seconds=args.poll_seconds))
     return 0

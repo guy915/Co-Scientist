@@ -130,9 +130,7 @@ class ResponseParser:
             try:
                 return json.loads(response)
             except json.JSONDecodeError:
-                logger.warning(
-                    "failed to parse JSON response: %s...", response[:100]
-                )
+                logger.warning("failed to parse JSON response: %s...", response[:100])
                 return response
 
         return response
@@ -214,9 +212,7 @@ class ResponseParser:
             return current.get(part)
         return None
 
-    def _navigate_indexed_part(
-        self, current: Any, match: "re.Match[str]"
-    ) -> Any:
+    def _navigate_indexed_part(self, current: Any, match: "re.Match[str]") -> Any:
         field, index = match.groups()
         if field:
             current = _get_dict_field(current, field)
@@ -252,21 +248,15 @@ class ResponseParser:
             used_in_analysis=True,
         )
 
-    def _map_fields(
-        self, item: dict[str, Any], dict_key: str | None
-    ) -> dict[str, Any]:
+    def _map_fields(self, item: dict[str, Any], dict_key: str | None) -> dict[str, Any]:
         mapping = self.response_format.field_mapping
         kwargs: dict[str, Any] = {}
 
         for article_field, expr in mapping.items():
             try:
-                kwargs[article_field] = self._evaluate_expression(
-                    expr, item, dict_key
-                )
+                kwargs[article_field] = self._evaluate_expression(expr, item, dict_key)
             except Exception as e:
-                logger.debug(
-                    "failed to evaluate %s=%s: %s", article_field, expr, e
-                )
+                logger.debug("failed to evaluate %s=%s: %s", article_field, expr, e)
                 # A failed field mapping must not discard valid sibling results.
                 kwargs[article_field] = None
 

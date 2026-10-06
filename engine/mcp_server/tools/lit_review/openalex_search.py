@@ -95,18 +95,12 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
                 if isinstance(name, str) and name:
                     authors.append(name)
         location = work.get("primary_location") or {}
-        landing_page = (
-            location.get("landing_page_url")
-            if isinstance(location, dict)
-            else None
-        )
+        landing_page = location.get("landing_page_url") if isinstance(location, dict) else None
         normalized[work_id] = {
             "title": work.get("title") or work.get("display_name") or "",
             "authors": authors,
             "year": work.get("publication_year"),
-            "abstract": _reconstruct_abstract(
-                work.get("abstract_inverted_index")
-            ),
+            "abstract": _reconstruct_abstract(work.get("abstract_inverted_index")),
             "url": landing_page or work.get("doi") or raw_id,
             "source": "openalex",
             "cited_by_count": work.get("cited_by_count", 0),
@@ -158,9 +152,7 @@ async def _collect_openalex_works(
     params: dict[str, str], per_page: int, max_papers: int
 ) -> dict[str, Any]:
     collected: dict[str, Any] = {}
-    async with httpx.AsyncClient(
-        timeout=30, trust_env=not campaign_free_mode()
-    ) as client:
+    async with httpx.AsyncClient(timeout=30, trust_env=not campaign_free_mode()) as client:
         while len(collected) < max(max_papers, 0):
             params["per_page"] = str(min(per_page, max_papers - len(collected)))
             resp = await client.get(_OPENALEX_WORKS_URL, params=params)
@@ -206,6 +198,4 @@ async def search_openalex(
     except (httpx.HTTPError, ValueError) as exc:
         reason = _unavailable_reason(exc)
         logger.warning("OpenAlex search failed for %r: %s", query, reason)
-        raise OpenAlexUnavailableError(
-            f"OpenAlex could not be searched: {reason}"
-        ) from exc
+        raise OpenAlexUnavailableError(f"OpenAlex could not be searched: {reason}") from exc

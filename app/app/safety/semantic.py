@@ -116,9 +116,7 @@ def _offensive_score(parsed: dict[str, Any]) -> float:
 
 def _structured_flag_domains(parsed: dict[str, Any]) -> list[str]:
     domains = [
-        domain
-        for key, domain in _PERSONAL_RECOMMENDATION_FLAGS.items()
-        if parsed.get(key) is True
+        domain for key, domain in _PERSONAL_RECOMMENDATION_FLAGS.items() if parsed.get(key) is True
     ]
     if _offensive_score(parsed) >= _OFFENSIVE_HOLD_SCORE:
         domains.append("offensive_content")
@@ -130,8 +128,7 @@ _FLAG_HOLD_REASONS = {
         "reads as a personal medical recommendation rather than a research goal"
     ),
     "personal_finance_recommendation": (
-        "reads as a personal financial recommendation rather than a research "
-        "goal"
+        "reads as a personal financial recommendation rather than a research goal"
     ),
     "offensive_content": "was assessed as offensive toward a group of people",
 }
@@ -139,16 +136,12 @@ _FLAG_HOLD_REASONS = {
 
 def _flag_hold_reason(domains: list[str]) -> str:
     causes = " and it ".join(
-        _FLAG_HOLD_REASONS[domain]
-        for domain in domains
-        if domain in _FLAG_HOLD_REASONS
+        _FLAG_HOLD_REASONS[domain] for domain in domains if domain in _FLAG_HOLD_REASONS
     )
     return f"Content {causes}; human review required."
 
 
-async def _call_semantic_safety_model(
-    text: str, stage: str, model: str
-) -> dict[str, Any]:
+async def _call_semantic_safety_model(text: str, stage: str, model: str) -> dict[str, Any]:
     """Use shared structured parsing and physical-call metering; json_object
     gateways may fence or reshape otherwise valid JSON.
     """
@@ -175,9 +168,7 @@ async def _call_semantic_safety_model(
     return result
 
 
-def _merge_risk_domains(
-    parsed: dict[str, Any], flagged: list[str]
-) -> list[str]:
+def _merge_risk_domains(parsed: dict[str, Any], flagged: list[str]) -> list[str]:
     """Deduplicate free-text and structured domains so one risk does not
     appear as independent findings.
     """
@@ -190,9 +181,7 @@ def _merge_risk_domains(
     return merged
 
 
-def _build_semantic_decision(
-    stage: str, model: str, parsed: dict[str, Any]
-) -> SafetyDecision:
+def _build_semantic_decision(stage: str, model: str, parsed: dict[str, Any]) -> SafetyDecision:
     category = str(parsed.get("category") or "uncertain")
     if category not in _SEMANTIC_CATEGORY_TO_DECISION:
         category = "uncertain"
@@ -216,9 +205,7 @@ def _build_semantic_decision(
     )
 
 
-async def run_semantic_safety_model(
-    text: str, stage: str, model: str
-) -> SafetyDecision:
+async def run_semantic_safety_model(text: str, stage: str, model: str) -> SafetyDecision:
     parsed = await _call_semantic_safety_model(text, stage, model)
     return _build_semantic_decision(stage, model, parsed)
 
@@ -234,10 +221,7 @@ def _assessment_unavailable_decision(
     return SafetyDecision(
         stage=stage,
         decision="hold",
-        reason=(
-            "Contextual safety assessment was unavailable; human review "
-            "required."
-        ),
+        reason=("Contextual safety assessment was unavailable; human review required."),
         category="uncertain",
         risk_domains=["assessment_unavailable"],
         requires_review=True,
@@ -249,9 +233,7 @@ def semantic_safety_error_decision(
     stage: str, model: str, baseline: SafetyDecision, exc: Exception
 ) -> SafetyDecision:
     logger.warning("Contextual safety assessment failed: %s", exc)
-    return _assessment_unavailable_decision(
-        stage, baseline, f"semantic:{model}:error"
-    )
+    return _assessment_unavailable_decision(stage, baseline, f"semantic:{model}:error")
 
 
 def semantic_credential_missing_decision(
@@ -267,6 +249,4 @@ def semantic_credential_missing_decision(
         model,
         stage,
     )
-    return _assessment_unavailable_decision(
-        stage, baseline, f"semantic:{model}:no_credential"
-    )
+    return _assessment_unavailable_decision(stage, baseline, f"semantic:{model}:no_credential")

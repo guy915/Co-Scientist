@@ -56,9 +56,7 @@ def _owned_process_groups(registry: SessionRegistry) -> set[int]:
     }
     if not roots:
         return set()
-    rows = subprocess.check_output(
-        ["ps", "-axo", "pid=,ppid=,pgid="], text=True
-    )
+    rows = subprocess.check_output(["ps", "-axo", "pid=,ppid=,pgid="], text=True)
     processes = [tuple(map(int, row.split())) for row in rows.splitlines()]
     descendants = set(roots)
     while True:
@@ -76,18 +74,10 @@ def _reap_process_groups(groups: set[int]) -> None:
             os.killpg(group, signal.SIGKILL)
 
 
-async def _execute(
-    provider: WorkspaceToolProvider, name: str, **arguments: Any
-) -> dict[str, Any]:
-    groups = (
-        _owned_process_groups(provider.session.sessions)
-        if arguments.get("kill")
-        else set()
-    )
+async def _execute(provider: WorkspaceToolProvider, name: str, **arguments: Any) -> dict[str, Any]:
+    groups = _owned_process_groups(provider.session.sessions) if arguments.get("kill") else set()
     try:
-        message = await provider.execute_tool_call(
-            _workspace_sessions_call(name, arguments)
-        )
+        message = await provider.execute_tool_call(_workspace_sessions_call(name, arguments))
     finally:
         _reap_process_groups(groups)
     parsed: dict[str, Any] = json.loads(message["content"])
@@ -106,9 +96,7 @@ async def _wait_for_output(
     deadline = time.monotonic() + timeout
     while needle not in payload["stdout"]:
         if time.monotonic() >= deadline:
-            raise AssertionError(
-                f"{needle!r} did not appear in stdout within {timeout}s"
-            )
+            raise AssertionError(f"{needle!r} did not appear in stdout within {timeout}s")
         payload = await _execute(
             provider,
             POLL_COMMAND,
@@ -121,9 +109,7 @@ async def _wait_for_output(
 
 async def _close_registry(registry: SessionRegistry) -> None:
     processes = [
-        session._proc
-        for session in registry._sessions.values()
-        if session._proc is not None
+        session._proc for session in registry._sessions.values() if session._proc is not None
     ]
     groups = _owned_process_groups(registry)
     try:
@@ -191,9 +177,7 @@ class TestStillRunningIsAnAnswer:
         assert polled["exit_code"] == 7
         assert "done" in polled["stdout"]
 
-    async def test_the_cursor_does_not_repeat_output(
-        self, provider: WorkspaceToolProvider
-    ) -> None:
+    async def test_the_cursor_does_not_repeat_output(self, provider: WorkspaceToolProvider) -> None:
         # Cursor advancement prevents quadratic replay; gating the second line
         # removes yield races.
         started = await _execute(
@@ -217,9 +201,7 @@ class TestStillRunningIsAnAnswer:
 
 
 class TestDrivingIt:
-    async def test_input_reaches_a_waiting_command(
-        self, provider: WorkspaceToolProvider
-    ) -> None:
+    async def test_input_reaches_a_waiting_command(self, provider: WorkspaceToolProvider) -> None:
         started = await _execute(
             provider,
             _WORKSPACE_SESSIONS_RUN_COMMAND,
@@ -277,14 +259,10 @@ class TestDrivingIt:
         )
         assert "not accepting input" in json.dumps(late)
         assert "tool execution failed" not in json.dumps(late)
-        again = await _execute(
-            provider, POLL_COMMAND, session_id=started["session_id"]
-        )
+        again = await _execute(provider, POLL_COMMAND, session_id=started["session_id"])
         assert "got:first" in again["stdout"]
 
-    async def test_an_unknown_session_says_why(
-        self, provider: WorkspaceToolProvider
-    ) -> None:
+    async def test_an_unknown_session_says_why(self, provider: WorkspaceToolProvider) -> None:
         payload = await _execute(provider, POLL_COMMAND, session_id="nope")
         assert "restart" in json.dumps(payload)
 
@@ -297,8 +275,7 @@ class TestBounds:
             [
                 "bash",
                 "-lc",
-                f"head -c {MAX_SESSION_OUTPUT_BYTES * 2} /dev/zero | tr "
-                "'\\0' 'x'",
+                f"head -c {MAX_SESSION_OUTPUT_BYTES * 2} /dev/zero | tr '\\0' 'x'",
             ],
             policy=session_ws.policy,
             cwd=session_ws.root,
@@ -309,9 +286,7 @@ class TestBounds:
         assert len(read.stdout) <= MAX_SESSION_OUTPUT_BYTES
         await _close_registry(registry)
 
-    async def test_closing_the_registry_ends_a_live_command(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_closing_the_registry_ends_a_live_command(self, tmp_path: Path) -> None:
         session_ws = WorkspaceSession(tmp_path)
         registry = SessionRegistry()
         session = await registry.start(
@@ -324,9 +299,7 @@ class TestBounds:
         await asyncio.sleep(0.05)
         assert not session.running
 
-    async def test_too_many_live_commands_is_refused(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_too_many_live_commands_is_refused(self, tmp_path: Path) -> None:
         session_ws = WorkspaceSession(tmp_path)
         registry = SessionRegistry()
         for _ in range(4):
@@ -348,9 +321,7 @@ class TestAnInterruptedCommand:
     """Worker restarts lose sessions; the model needs explicit aborts, not
     unmatched calls."""
 
-    async def test_the_resumed_transcript_says_the_call_was_aborted(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_the_resumed_transcript_says_the_call_was_aborted(self, tmp_path: Path) -> None:
         from co_scientist.llm.tools.transcript import (
             ABORTED_RESULT,
             normalize_tool_transcript,
@@ -375,9 +346,7 @@ class TestAnInterruptedCommand:
                         "type": "function",
                         "function": {
                             "name": POLL_COMMAND,
-                            "arguments": json.dumps(
-                                {"session_id": started["session_id"]}
-                            ),
+                            "arguments": json.dumps({"session_id": started["session_id"]}),
                         },
                     }
                 ],
@@ -388,9 +357,7 @@ class TestAnInterruptedCommand:
         repaired = normalize_tool_transcript(interrupted)
         assert repaired[1]["tool_call_id"] == "call_poll"
         assert json.loads(repaired[1]["content"]) == ABORTED_RESULT
-        payload = await _execute(
-            provider, POLL_COMMAND, session_id=started["session_id"]
-        )
+        payload = await _execute(provider, POLL_COMMAND, session_id=started["session_id"])
         assert "restart" in json.dumps(payload)
 
 
@@ -449,9 +416,7 @@ def test_environment_scan_finds_credential_shaped_names() -> None:
         }
     )
     assert set(found) == {"ANTHROPIC_API_KEY", "GITHUB_TOKEN"}
-    assert registry.register_environment(
-        {"SHORT_KEY": "abc", "REAL_KEY": _SECRET}
-    ) == ("REAL_KEY",)
+    assert registry.register_environment({"SHORT_KEY": "abc", "REAL_KEY": _SECRET}) == ("REAL_KEY",)
 
 
 def test_a_secret_containing_another_is_masked_as_itself() -> None:
@@ -466,9 +431,7 @@ def test_a_command_printing_a_secret_does_not_print_it(tmp_path: Path) -> None:
     echo = shutil.which("echo")
     if echo is None:  # pragma: no cover - environment-dependent
         pytest.skip("echo is not installed")
-    provider = WorkspaceToolProvider(
-        WorkspaceSession(tmp_path), secrets=_registry(API_KEY=_SECRET)
-    )
+    provider = WorkspaceToolProvider(WorkspaceSession(tmp_path), secrets=_registry(API_KEY=_SECRET))
 
     payload = _run(provider, [echo, _SECRET])
 
@@ -480,16 +443,12 @@ def test_reading_a_file_does_not_route_around_redaction(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "captured.txt").write_text(f"key={_SECRET}\n")
-    provider = WorkspaceToolProvider(
-        WorkspaceSession(tmp_path), secrets=_registry(API_KEY=_SECRET)
-    )
+    provider = WorkspaceToolProvider(WorkspaceSession(tmp_path), secrets=_registry(API_KEY=_SECRET))
 
     payload = _content(
         asyncio.run(
             provider.execute_tool_call(
-                _workspace_output_call(
-                    READ_FILE, json.dumps({"path": "captured.txt"})
-                )
+                _workspace_output_call(READ_FILE, json.dumps({"path": "captured.txt"}))
             )
         )
     )
@@ -524,9 +483,7 @@ def test_a_long_stream_keeps_both_ends(tmp_path: Path) -> None:
 def test_spilled_output_is_redacted_before_it_is_written(
     tmp_path: Path,
 ) -> None:
-    recorder = OutputRecorder(
-        tmp_path, _registry(API_KEY=_SECRET), preview_chars=100
-    )
+    recorder = OutputRecorder(tmp_path, _registry(API_KEY=_SECRET), preview_chars=100)
 
     pointer = recorder.record("stdout", f"{_SECRET}{'x' * 5000}").pointer
 
@@ -566,9 +523,7 @@ def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:
 
     payload = _content(
         asyncio.run(
-            WorkspaceToolProvider(session).execute_tool_call(
-                _workspace_output_call(LIST_FILES)
-            )
+            WorkspaceToolProvider(session).execute_tool_call(_workspace_output_call(LIST_FILES))
         )
     )
     assert payload["files"] == ["analysis.py"]
@@ -585,9 +540,7 @@ def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(
     outside.mkdir()
     (root / SPILL_DIRECTORY.split("/")[0]).symlink_to(outside)
 
-    bounded = OutputRecorder(root, preview_chars=50).record(
-        "stdout", "x" * 5000
-    )
+    bounded = OutputRecorder(root, preview_chars=50).record("stdout", "x" * 5000)
 
     assert bounded.pointer is None
     # Even mkdir would let command-chosen paths cause a host-side write.
@@ -603,9 +556,7 @@ def test_a_truncated_read_hands_back_a_way_to_the_rest(
     payload = _content(
         asyncio.run(
             WorkspaceToolProvider(session).execute_tool_call(
-                _workspace_output_call(
-                    READ_FILE, json.dumps({"path": "big.txt"})
-                )
+                _workspace_output_call(READ_FILE, json.dumps({"path": "big.txt"}))
             )
         )
     )

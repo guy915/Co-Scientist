@@ -7,9 +7,7 @@ from typing_extensions import NotRequired, TypeAliasType, TypedDict
 
 from app.store.models import RunStatus as RunStatus
 
-RunMode: TypeAlias = Literal[
-    "standard", "advanced", "express", "extended", "ultra"
-]
+RunMode: TypeAlias = Literal["standard", "advanced", "express", "extended", "ultra"]
 
 
 LegacyRunProfile: TypeAlias = RunMode | Literal["default"]
@@ -24,10 +22,7 @@ RunFocus: TypeAlias = (
 
 
 RunTier: TypeAlias = (
-    Literal["express"]
-    | Literal["standard"]
-    | Literal["extended"]
-    | Literal["ultra"]
+    Literal["express"] | Literal["standard"] | Literal["extended"] | Literal["ultra"]
 )
 
 
@@ -96,14 +91,10 @@ class RunSetupConfig(TypedDict):
 
 JsonPrimitive: TypeAlias = str | float | bool | None
 
-JsonValue = TypeAliasType(
-    "JsonValue", "JsonPrimitive | list[JsonValue] | dict[str, JsonValue]"
-)
+JsonValue = TypeAliasType("JsonValue", "JsonPrimitive | list[JsonValue] | dict[str, JsonValue]")
 
 
-@with_config(
-    ConfigDict(extra="allow", json_schema_extra={"x-open-config": True})
-)
+@with_config(ConfigDict(extra="allow", json_schema_extra={"x-open-config": True}))
 class RunConfig(TypedDict):
     """JSON contract; omitted fields stay omitted."""
 

@@ -105,16 +105,12 @@ def _render_review_summary_question(question: Any) -> str:
     return f"- **{name}:** {text}" if name else f"- {text}"
 
 
-def _render_review_summary_criterion(
-    index: int, criterion: Any, name: str
-) -> list[str]:
+def _render_review_summary_criterion(index: int, criterion: Any, name: str) -> list[str]:
     """Legacy bare-name criteria still render without question bullets until
     production reset.
     """
     lines = [f"### {index}. {name}\n"]
-    raw_questions = (
-        criterion.get("questions") if isinstance(criterion, dict) else None
-    )
+    raw_questions = criterion.get("questions") if isinstance(criterion, dict) else None
     questions = raw_questions if isinstance(raw_questions, list) else []
     for question in questions:
         line = _render_review_summary_question(question)
@@ -176,9 +172,7 @@ def _stored_document(match: dict[str, Any]) -> dict[str, Any] | None:
     return document if isinstance(document, dict) else None
 
 
-def _resolve_debate(
-    match: dict[str, Any], titles: dict[str, str]
-) -> _Debate | None:
+def _resolve_debate(match: dict[str, Any], titles: dict[str, str]) -> _Debate | None:
     """Recover the judge's canonical idea order from its verdict; deriving order
     from the winner would always show idea 1 winning.
     """
@@ -195,16 +189,12 @@ def _resolve_debate(
     return _Debate(first, second, verdict, turns)
 
 
-def _select_debates(
-    matches: list[dict[str, Any]], titles: dict[str, str]
-) -> list[_Debate]:
+def _select_debates(matches: list[dict[str, Any]], titles: dict[str, str]) -> list[_Debate]:
     """Turn count prioritizes contested comparisons; stable sorting preserves
     tournament order for equal depths.
     """
     debates = [
-        debate
-        for match in matches
-        if (debate := _resolve_debate(match, titles)) is not None
+        debate for match in matches if (debate := _resolve_debate(match, titles)) is not None
     ]
     debates.sort(key=lambda debate: len(debate.turns), reverse=True)
     return debates[:_MAX_DEBATES]
@@ -229,10 +219,7 @@ def _render_turn(index: int, turn: dict[str, Any]) -> str:
     own numbering as a separate note.
     """
     favored = "2" if str(turn.get("favored") or "1") == "2" else "1"
-    return (
-        f"**Turn {index} (favors idea {favored}{_numbering_note(turn)}):**"
-        f" {_turn_text(turn)}"
-    )
+    return f"**Turn {index} (favors idea {favored}{_numbering_note(turn)}):** {_turn_text(turn)}"
 
 
 def _render_debate(number: int, debate: _Debate) -> list[str]:
@@ -291,9 +278,7 @@ _NOVELTY_DISCLOSURE = (
 def _render_novelty_disclosure(
     top_hypotheses: list[dict[str, Any]],
 ) -> list[str]:
-    if not top_hypotheses or any(
-        hyp.get("novelty_validation") for hyp in top_hypotheses
-    ):
+    if not top_hypotheses or any(hyp.get("novelty_validation") for hyp in top_hypotheses):
         return []
     return [_NOVELTY_DISCLOSURE, ""]
 
@@ -328,9 +313,7 @@ def _render_citation_audit(
     if not citation_summary:
         return []
     lines = ["## Citation audit"]
-    lines.extend(
-        f"- {state}: {count}" for state, count in citation_summary.items()
-    )
+    lines.extend(f"- {state}: {count}" for state, count in citation_summary.items())
     lines.append("")
     return lines
 
@@ -384,29 +367,21 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         _render_evaluation_criteria_markdown(inputs.critical_criteria),
         _render_stratification_attributes_markdown(inputs.attributes),
         _render_meta_review_overview_markdown(inputs.meta_review or {}),
-        *research_overview_sections(
-            inputs.research_overview or {}, inputs.hypothesis_title_by_id
-        ),
+        *research_overview_sections(inputs.research_overview or {}, inputs.hypothesis_title_by_id),
         _render_review_summary_markdown(inputs.critical_criteria),
         _render_main_research_directions_markdown(inputs.meta_review or {}),
         top_hypotheses,
         _render_meta_review_ranking_markdown(inputs.meta_review or {}),
-        _render_tournament_debates_markdown(
-            inputs.matches or [], inputs.hypothesis_title_by_id
-        ),
+        _render_tournament_debates_markdown(inputs.matches or [], inputs.hypothesis_title_by_id),
         _render_knowledge_base_markdown(inputs.knowledge_base or []),
-        _render_data_sources_section(
-            inputs.skills_used or {}, inputs.retrieval_calls or []
-        ),
+        _render_data_sources_section(inputs.skills_used or {}, inputs.retrieval_calls or []),
         _render_citation_audit(inputs.citation_summary),
         _render_references_section(inputs.evidence or []),
     ]
 
 
 def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
-    title_lines = _render_title_and_provider(
-        inputs.research_goal, inputs.provider
-    )
+    title_lines = _render_title_and_provider(inputs.research_goal, inputs.provider)
     about_lines = _render_about_disclosure()
     sections = _report_sections(inputs)
     lines = title_lines + about_lines + _render_table_of_contents(sections)

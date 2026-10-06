@@ -51,10 +51,7 @@ def _items(raw: Any) -> list[Any]:
 def checkpoint_state(run: RunRow, conn: sqlite3.Connection) -> dict[str, Any]:
     latest = checkpoints.get_latest_checkpoint(run.id, conn=conn)
     envelope = latest.get("state") if latest else None
-    if (
-        not isinstance(envelope, dict)
-        or envelope.get("version") != CHECKPOINT_VERSION
-    ):
+    if not isinstance(envelope, dict) or envelope.get("version") != CHECKPOINT_VERSION:
         return {}
     state = envelope.get("state")
     return state if isinstance(state, dict) else {}
@@ -108,9 +105,7 @@ def gather_artifacts(
         "hypotheses": hypotheses,
         "reviews": reviews,
         "published_reviews": records.list_reviews(run.id, conn=conn),
-        "published_hypotheses": store_hypotheses.list_hypotheses(
-            run.id, conn=conn
-        ),
+        "published_hypotheses": store_hypotheses.list_hypotheses(run.id, conn=conn),
         "matches": matches,
         "checkpoint_matches": _items(state.get("tournament_matchups")),
         "conversation": [m.to_dict() for m in history],
@@ -124,11 +119,7 @@ def gather_artifacts(
         if state.get(key) is not None:
             artifacts[key] = _items(state[key])
     interview_id = run.config.get("interview_id")
-    interview = (
-        interviews.get_interview(str(interview_id), conn=conn)
-        if interview_id
-        else None
-    )
+    interview = interviews.get_interview(str(interview_id), conn=conn) if interview_id else None
     if interview and interview["client_id"] == run.client_id:
         artifacts["interview"] = [interview["fields"], *interview["turns"]]
     latest = reports.get_latest_report(run.id, conn=conn)

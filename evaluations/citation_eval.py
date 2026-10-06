@@ -14,9 +14,7 @@ from evaluations._artifacts import write_dated_artifact
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _DATASET = _ROOT / "evaluations" / "datasets" / "citation_entailment_v1.json"
-_CHALLENGE_DATASET = (
-    _ROOT / "evaluations" / "datasets" / "citation_entailment_challenge_v1.json"
-)
+_CHALLENGE_DATASET = _ROOT / "evaluations" / "datasets" / "citation_entailment_challenge_v1.json"
 
 # Contradiction misses threaten publication; conservative abstention costs
 # recall. These are reconstructed gates, not Google's undisclosed thresholds.
@@ -102,8 +100,7 @@ def _metrics(matrix: dict[str, dict[str, int]]) -> dict[str, Any]:
         "accuracy": round(correct / total, 3) if total else 0.0,
         "contradiction_recall": per_label["contradicts"]["recall"],
         "abstention_rate": round(
-            sum(matrix.get(exp, {}).get("insufficient", 0) for exp in matrix)
-            / total,
+            sum(matrix.get(exp, {}).get("insufficient", 0) for exp in matrix) / total,
             3,
         )
         if total

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_ENGINE_FAKE = (
-    Path(__file__).resolve().parents[2] / "engine" / "tests" / "_llm_fake.py"
-)
+_ENGINE_FAKE = Path(__file__).resolve().parents[2] / "engine" / "tests" / "_llm_fake.py"
 
 # Deferred imports let each probe configure its environment before loading
 # the recording backend.

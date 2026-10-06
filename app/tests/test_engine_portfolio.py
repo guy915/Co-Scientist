@@ -32,29 +32,19 @@ async def test_commit_plans_the_resolvable_tail_behind_the_successor(
 ) -> None:
     run = seed_run("Portfolio lookahead")
     predecessor = _portfolio_seed_predecessor(run.id, isolated_db)
-    checkpoint_seq = _seed_checkpoint(
-        run.id, _task_state(run.id), db_path=isolated_db
-    )
+    checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id), db_path=isolated_db)
     commit = TaskCommit(predecessor, checkpoint_seq, isolated_db)
 
-    engine_tasks_support._save_state_and_enqueue(
-        commit, _task_state(run.id), "reflection"
-    )
+    engine_tasks_support._save_state_and_enqueue(commit, _task_state(run.id), "reflection")
 
-    tasks = {
-        task.task_type: task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
-    }
+    tasks = {task.task_type: task for task in store.list_tasks(run.id, db_path=isolated_db)}
     reflection = tasks["engine.node.reflection"]
     review = tasks["engine.node.review"]
     assert reflection.status == "queued"
     assert review.status == "queued"
     assert reflection.dependencies == (predecessor.id,)
     assert review.dependencies == (reflection.id,)
-    assert (
-        reflection.idempotency_key
-        == f"engine.node.reflection:after:{predecessor.id}"
-    )
+    assert reflection.idempotency_key == f"engine.node.reflection:after:{predecessor.id}"
     assert review.idempotency_key == f"engine.node.review:after:{reflection.id}"
     assert "engine.node.comprehensive_reflection" not in tasks
 
@@ -93,16 +83,9 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
     decided = {**_task_state(run.id), "next_task": "evolve"}
     checkpoint_seq = _seed_checkpoint(run.id, decided, db_path=isolated_db)
     commit = TaskCommit(predecessor, checkpoint_seq, isolated_db)
-    committed_seq, _ = engine_tasks_support._save_state_and_enqueue(
-        commit, decided, "meta_review"
-    )
-    assert lifecycle.complete_task(
-        predecessor.id, "worker", {}, db_path=isolated_db
-    )
-    tasks = {
-        task.task_type: task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
-    }
+    committed_seq, _ = engine_tasks_support._save_state_and_enqueue(commit, decided, "meta_review")
+    assert lifecycle.complete_task(predecessor.id, "worker", {}, db_path=isolated_db)
+    tasks = {task.task_type: task for task in store.list_tasks(run.id, db_path=isolated_db)}
     meta_review = tasks["engine.node.meta_review"]
     evolve = tasks["engine.node.evolve"]
     review = tasks["engine.node.review"]
@@ -113,23 +96,14 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
         "this test is not exercising the transitive case"
     )
 
-    leased_meta_review = store.claim_task(
-        "worker", run_id=run.id, db_path=isolated_db
-    )
+    leased_meta_review = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased_meta_review is not None
     assert leased_meta_review.id == meta_review.id
     halted_state = {**_task_state(run.id), "safety_blocked": True}
-    meta_review_commit = TaskCommit(
-        leased_meta_review, committed_seq, isolated_db
-    )
-    engine_tasks_support._save_state_and_enqueue(
-        meta_review_commit, halted_state, None
-    )
+    meta_review_commit = TaskCommit(leased_meta_review, committed_seq, isolated_db)
+    engine_tasks_support._save_state_and_enqueue(meta_review_commit, halted_state, None)
 
-    refreshed = {
-        task.task_type: task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
-    }
+    refreshed = {task.task_type: task for task in store.list_tasks(run.id, db_path=isolated_db)}
     assert refreshed["engine.node.evolve"].status == "cancelled"
     assert refreshed["engine.node.review"].status == "cancelled", (
         "review is two hops from the diverging task and must be "
@@ -158,9 +132,7 @@ def test_a_permanent_failure_cancels_the_downstream_chain(
         max_attempts=1,
         db_path=isolated_db,
     )
-    leased_evolve = store.claim_task(
-        "worker", run_id=run.id, db_path=isolated_db
-    )
+    leased_evolve = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased_evolve is not None and leased_evolve.id == evolve.id
 
     review = enqueue_task(
@@ -180,8 +152,7 @@ def test_a_permanent_failure_cancels_the_downstream_chain(
     review_after = store.get_task(review.id, db_path=isolated_db)
     assert evolve_after is not None and evolve_after.status == "failed"
     assert review_after is not None and review_after.status == "cancelled", (
-        "the downstream row must be cancelled, or it is permanently "
-        "queued and unclaimable"
+        "the downstream row must be cancelled, or it is permanently queued and unclaimable"
     )
     claimable, _, _park = lifecycle.cohort_poll(run.id, db_path=isolated_db)
     assert not claimable, "nothing should read as claimable once settled"

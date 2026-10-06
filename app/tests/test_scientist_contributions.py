@@ -60,16 +60,12 @@ def test_scientist_hypothesis_admitted_with_authorship(
     assert body["admitted"] is True
     assert body["author"] == "dr-smith"
 
-    hyps = client.get(f"/api/runs/{run_id}/hypotheses", headers=headers).json()[
-        "hypotheses"
-    ]
+    hyps = client.get(f"/api/runs/{run_id}/hypotheses", headers=headers).json()["hypotheses"]
     manual = next(h for h in hyps if h["id"] == body["id"])
     assert manual["created_by_agent"] == "scientist_manual"
     assert manual["author"] == "dr-smith"
     assert manual["safety_status"] == "allow"
-    pending = client.get(
-        f"/api/runs/{run_id}/messages", headers=headers
-    ).json()["messages"]
+    pending = client.get(f"/api/runs/{run_id}/messages", headers=headers).json()["messages"]
     assert pending[-1]["kind"] == "steering"
     assert pending[-1]["meta"]["kind"] == "manual_hypothesis"
 
@@ -83,9 +79,7 @@ def test_scientist_unsafe_hypothesis_is_blocked_not_persisted(
     res = client.post(
         f"/api/runs/{run_id}/hypotheses",
         json={
-            "statement": (
-                "Weaponize the pathogen to enhance transmissibility in humans."
-            ),
+            "statement": ("Weaponize the pathogen to enhance transmissibility in humans."),
             "author": "bad-actor",
         },
     )
@@ -121,15 +115,11 @@ def test_scientist_review_lands_in_reviews_table(isolated_db: str) -> None:
     assert res.status_code == 200
     assert res.json()["recorded"] is True
 
-    reviews = client.get(f"/api/runs/{run_id}/reviews", headers=headers).json()[
-        "reviews"
-    ]
+    reviews = client.get(f"/api/runs/{run_id}/reviews", headers=headers).json()["reviews"]
     scientist = [r for r in reviews if r["reviewer_agent"] == "scientist"]
     assert len(scientist) == 1
     assert "dr-lee" in scientist[0]["summary"]
-    messages = client.get(
-        f"/api/runs/{run_id}/messages", headers=headers
-    ).json()["messages"]
+    messages = client.get(f"/api/runs/{run_id}/messages", headers=headers).json()["messages"]
     assert messages[-1]["meta"]["kind"] == "human_review"
     assert messages[-1]["applied"] is False
 
@@ -152,9 +142,7 @@ def test_scientist_review_rejects_bad_verdict_and_foreign_hypotheses(
     hosts = {"own": run_a, "other": run_b}
     hyp = "does-not-exist"
     if target in hosts:
-        posted = client.post(
-            f"/api/runs/{hosts[target]}/hypotheses", json=statement
-        )
+        posted = client.post(f"/api/runs/{hosts[target]}/hypotheses", json=statement)
         hyp = posted.json()["id"]
 
     res = client.post(
@@ -219,9 +207,7 @@ def _seed_hypothesis(run_id: str, db_path: str) -> str:
     return hypothesis_id
 
 
-def _seed_review(
-    run_id: str, hypothesis_id: str, verdict: str, db_path: str
-) -> None:
+def _seed_review(run_id: str, hypothesis_id: str, verdict: str, db_path: str) -> None:
     records.add_review(
         NewReview(
             run_id=run_id,
@@ -261,18 +247,14 @@ def test_scientist_idea_is_admitted_only_at_the_orchestrator_boundary(
 
     state = _restored_at(run.id, node, isolated_db)
 
-    assert [h.id for h in state["hypotheses"]] == (
-        [hypothesis_id] if admitted else []
-    )
+    assert [h.id for h in state["hypotheses"]] == ([hypothesis_id] if admitted else [])
     if admitted:
         merged = state["hypotheses"][0]
         assert merged.origin.value == "scientist_manual"
         # A scientist verdict never stands in for the run's own peer review.
         assert not has_peer_review(merged)
         assert (merged.review_disposition == "inaccurate") is (not rankable)
-        assert [r.reviewer for r in merged.reviews] == (
-            [SCIENTIST_REVIEWER] if verdict else []
-        )
+        assert [r.reviewer for r in merged.reviews] == ([SCIENTIST_REVIEWER] if verdict else [])
 
 
 def test_authorship_and_screen_survive_a_checkpoint_round_trip(
@@ -401,9 +383,7 @@ async def test_late_contribution_reopens_the_run_once_it_completes(
     assert posted.json()["continuation_task_id"] is None
     assert messages.get_pending_steering(run_id, db_path=isolated_db)
 
-    await task_worker.run_run_until_idle(
-        run_id, _LATE_CONTRIB_WORKER, db_path=isolated_db
-    )
+    await task_worker.run_run_until_idle(run_id, _LATE_CONTRIB_WORKER, db_path=isolated_db)
 
     reopened = runs.get_run(run_id, db_path=isolated_db)
     assert reopened is not None and reopened.status == "completed", (

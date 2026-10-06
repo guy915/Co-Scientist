@@ -13,9 +13,7 @@ _CLIENT = {"X-Client-ID": "free-usage-scientist"}
 
 
 @pytest.fixture
-def real_backend(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
+def real_backend(monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode) -> None:
     fake_process_mode.online()
 
     async def _no_title(goal: str) -> None:
@@ -36,9 +34,7 @@ def _create(
     )
 
 
-@pytest.mark.parametrize(
-    "overrides", [{"tier": "standard"}, {"max_iterations": 9}]
-)
+@pytest.mark.parametrize("overrides", [{"tier": "standard"}, {"max_iterations": 9}])
 def test_free_run_must_be_express_without_numeric_overrides(
     real_backend: None, overrides: dict[str, Any]
 ) -> None:

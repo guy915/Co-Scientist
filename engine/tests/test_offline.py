@@ -103,9 +103,7 @@ def _offline_isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
     isolate_offline_router(monkeypatch)
 
 
-def test_run_scoped_hypothesis_ids_are_deterministic_unique_and_scoped() -> (
-    None
-):
+def test_run_scoped_hypothesis_ids_are_deterministic_unique_and_scoped() -> None:
     random_ids = {models.Hypothesis(text=f"idea {n}").id for n in range(5)}
     assert len(random_ids) == 5
     assert all(uuid.UUID(value).version == 4 for value in random_ids)
@@ -119,6 +117,4 @@ def test_run_scoped_hypothesis_ids_are_deterministic_unique_and_scoped() -> (
     assert first == second
     assert len(set(first)) == 3
     assert models.Hypothesis(text="after").id not in first
-    assert models.run_seed_material("a", "bc") != models.run_seed_material(
-        "ab", "c"
-    )
+    assert models.run_seed_material("a", "bc") != models.run_seed_material("ab", "c")

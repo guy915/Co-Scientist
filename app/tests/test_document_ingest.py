@@ -44,15 +44,11 @@ def _build_objects(
         page_nums.append(page_num)
         stream = _content_stream(lines)
         objects[content_num] = (
-            f"<< /Length {len(stream)} >>\nstream\n".encode("latin-1")
-            + stream
-            + b"\nendstream"
+            f"<< /Length {len(stream)} >>\nstream\n".encode("latin-1") + stream + b"\nendstream"
         )
         objects[page_num] = _page_object(content_num, font_nums)
     kids = " ".join(f"{n} 0 R" for n in page_nums)
-    objects[2] = (
-        f"<< /Type /Pages /Kids [{kids}] /Count {len(page_nums)} >>"
-    ).encode("latin-1")
+    objects[2] = (f"<< /Type /Pages /Kids [{kids}] /Count {len(page_nums)} >>").encode("latin-1")
     objects[1] = b"<< /Type /Catalog /Pages 2 0 R >>"
     return objects, page_nums
 
@@ -75,10 +71,9 @@ def _serialize(objects: dict[int, bytes]) -> bytes:
     for num in range(1, max_num + 1):
         buf.write(f"{offsets.get(num, 0):010d} 00000 n \n".encode("latin-1"))
     buf.write(
-        (
-            f"trailer\n<< /Size {max_num + 1} /Root 1 0 R >>\n"
-            f"startxref\n{xref_offset}\n%%EOF"
-        ).encode("latin-1")
+        (f"trailer\n<< /Size {max_num + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF").encode(
+            "latin-1"
+        )
     )
     return buf.getvalue()
 

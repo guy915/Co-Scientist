@@ -11,9 +11,7 @@ def metadata_no_link_sidecar(metadata_file: Path) -> Path:
 def has_proven_metadata_no_link(metadata_file: Path) -> bool:
     """The empty-link proof is valid only for the current metadata bytes."""
     try:
-        expected = metadata_no_link_sidecar(metadata_file).read_text(
-            encoding="ascii"
-        )
+        expected = metadata_no_link_sidecar(metadata_file).read_text(encoding="ascii")
         actual = hashlib.sha256(metadata_file.read_bytes()).hexdigest()
     except (OSError, UnicodeError):
         return False

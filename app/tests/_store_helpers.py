@@ -24,9 +24,7 @@ def _add(
     mechanism: str = "",
 ) -> str:
     return store.add_hypothesis(
-        NewHypothesis(
-            run_id=run_id, title=title, statement=statement, mechanism=mechanism
-        ),
+        NewHypothesis(run_id=run_id, title=title, statement=statement, mechanism=mechanism),
         db_path=db,
     )
 
@@ -47,10 +45,7 @@ def seed_run(
         profile,
         provider,
         {} if config is None else config,
-        options
-        or RunCreateOptions(
-            client_id=client_id, llm_backend=llm_backend, db_path=db_path
-        ),
+        options or RunCreateOptions(client_id=client_id, llm_backend=llm_backend, db_path=db_path),
     )
 
 

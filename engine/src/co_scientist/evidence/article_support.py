@@ -72,10 +72,7 @@ def _publication_type(metadata: dict[str, Any]) -> str | None:
 
 
 def _correction_status(metadata: dict[str, Any], is_retracted: bool) -> str:
-    return str(
-        metadata.get("correction_status")
-        or ("retracted" if is_retracted else "current")
-    )
+    return str(metadata.get("correction_status") or ("retracted" if is_retracted else "current"))
 
 
 def build_article_from_metadata(
@@ -148,9 +145,7 @@ def parse_year_from_metadata(metadata: dict[str, Any]) -> int | None:
     return None
 
 
-def _build_article_url(
-    paper_id: str, metadata: dict[str, Any], source_name: str
-) -> str:
+def _build_article_url(paper_id: str, metadata: dict[str, Any], source_name: str) -> str:
 
     url = metadata.get("url")
     if url:
@@ -222,15 +217,12 @@ def get_papers_with_content(
 ) -> dict[str, dict[str, Any]]:
     papers_with_content = {}
     for pid, metadata in all_paper_metadata.items():
-        if not isinstance(metadata, dict) or not _has_analyzable_content(
-            metadata
-        ):
+        if not isinstance(metadata, dict) or not _has_analyzable_content(metadata):
             continue
         papers_with_content[pid] = metadata
         if not metadata.get("fulltext"):
             logger.debug(
-                "Paper %s: using abstract for analysis"
-                " (fulltext not downloaded)",
+                "Paper %s: using abstract for analysis (fulltext not downloaded)",
                 pid,
             )
     return papers_with_content
@@ -284,12 +276,9 @@ def make_success_result(
             f" queries, {len(analyzed)} of {len(articles)} articles analyzed",
             articles_retrieved=len(articles),
             articles_analyzed=len(analyzed),
-            fulltext_analyzed=sum(
-                bool(article.content) for article in analyzed
-            ),
+            fulltext_analyzed=sum(bool(article.content) for article in analyzed),
             abstract_only_analyzed=sum(
-                bool(not article.content and article.abstract)
-                for article in analyzed
+                bool(not article.content and article.abstract) for article in analyzed
             ),
         ),
     }

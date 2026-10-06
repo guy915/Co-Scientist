@@ -3,9 +3,7 @@ from typing import Any
 from app.report import markdown as report_markdown
 
 
-def render_markdown(
-    *, top_hypotheses: list[dict[str, Any]] | None = None, **fields: Any
-) -> str:
+def render_markdown(*, top_hypotheses: list[dict[str, Any]] | None = None, **fields: Any) -> str:
     hypotheses = (
         [
             {
@@ -19,9 +17,7 @@ def render_markdown(
     )
     fields.setdefault("research_goal", "Explain the cardiac benefit.")
     return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            provider="engine", top_hypotheses=hypotheses, **fields
-        )
+        report_markdown.ReportMarkdownInputs(provider="engine", top_hypotheses=hypotheses, **fields)
     )
 
 

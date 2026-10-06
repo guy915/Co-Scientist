@@ -29,9 +29,7 @@ def _send_smtp(recipient: str, subject: str, body: str) -> None:
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(body)
-    with smtplib.SMTP(
-        settings.smtp_host, settings.smtp_port, timeout=15
-    ) as smtp:
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
         smtp.starttls()
         if settings.smtp_username:
             smtp.login(settings.smtp_username, settings.smtp_password)
@@ -72,9 +70,7 @@ def _enqueue_completion_notification(
     conn: sqlite3.Connection | None = None,
 ) -> None:
     run = runs.get_run(run_id, db_path=db_path, conn=conn)
-    notification = (
-        run.config.get("completion_notification") if run else {}
-    ) or {}
+    notification = (run.config.get("completion_notification") if run else {}) or {}
     if not (notification.get("enabled") and notification.get("email")):
         return
     if not email_notifications_configured():

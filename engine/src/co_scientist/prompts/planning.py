@@ -107,9 +107,7 @@ def get_research_overview_direction_prompt(
 
 # No state value supplies this unconditional template slot; render a truthful
 # absence.
-_NO_META_REVIEW_INSTRUCTIONS = (
-    "No additional instructions were supplied for this synthesis."
-)
+_NO_META_REVIEW_INSTRUCTIONS = "No additional instructions were supplied for this synthesis."
 
 
 def get_meta_review_prompt(
@@ -235,14 +233,9 @@ def get_research_overview_revise_prompt(
     )
 
 
-def _format_lit_review_description(
-    mcp_available: bool, pubmed_available: bool
-) -> str:
+def _format_lit_review_description(mcp_available: bool, pubmed_available: bool) -> str:
     if pubmed_available or mcp_available:
-        return (
-            "literature review will search pubmed for relevant papers"
-            " and analyze them"
-        )
+        return "literature review will search pubmed for relevant papers and analyze them"
     return "literature review is not available (no pubmed access)"
 
 
@@ -274,9 +267,7 @@ def _build_supervisor_prompt_variables(
         "criteria": _format_bullet_list(inputs.criteria),
         "user_hypotheses": _format_bullet_list(inputs.user_hypotheses),
         "user_literature": _format_bullet_list(inputs.user_literature),
-        "initial_hypotheses_count": (
-            inputs.initial_hypotheses_count or "not specified"
-        ),
+        "initial_hypotheses_count": (inputs.initial_hypotheses_count or "not specified"),
         "max_iterations": inputs.max_iterations or "not specified",
         "evolution_max_count": inputs.evolution_max_count or "not specified",
         "literature_review_description": _format_lit_review_description(
@@ -326,14 +317,10 @@ def _format_supervisor_guidance_for_meta_review(
 
     sections = ["## Supervisor Guidance\n"]
     sections.append(
-        _format_bullet_section(
-            "Key Research Areas", goal_analysis.get("key_areas", [])
-        )
+        _format_bullet_section("Key Research Areas", goal_analysis.get("key_areas", []))
     )
     sections.extend(
-        _format_meta_review_evolution_phase_section(
-            workflow_plan.get("evolution_phase", {})
-        )
+        _format_meta_review_evolution_phase_section(workflow_plan.get("evolution_phase", {}))
     )
     sections.append(
         "Use this guidance to ensure your meta-review synthesis aligns"

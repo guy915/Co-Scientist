@@ -56,17 +56,13 @@ def _blocked(text: str, *, permissive_assessor: bool) -> bool:
     return bool(review.blocks_tournament)
 
 
-def _score(
-    items: list[dict[str, Any]], *, permissive_assessor: bool = False
-) -> list[_ScoredItem]:
+def _score(items: list[dict[str, Any]], *, permissive_assessor: bool = False) -> list[_ScoredItem]:
     return [
         _ScoredItem(
             category=item["category"],
             difficulty=item.get("difficulty", "easy"),
             should_block=bool(item["should_block"]),
-            blocked=_blocked(
-                item["text"], permissive_assessor=permissive_assessor
-            ),
+            blocked=_blocked(item["text"], permissive_assessor=permissive_assessor),
         )
         for item in items
     ]
@@ -93,9 +89,7 @@ def _confusion(rows: list[_ScoredItem]) -> dict[str, Any]:
 
 
 def _grouped(rows: list[_ScoredItem], key: str) -> dict[str, dict[str, int]]:
-    groups: dict[str, dict[str, int]] = defaultdict(
-        lambda: {"correct": 0, "total": 0}
-    )
+    groups: dict[str, dict[str, int]] = defaultdict(lambda: {"correct": 0, "total": 0})
     for row in rows:
         bucket = groups[getattr(row, key)]
         bucket["total"] += 1
@@ -110,9 +104,7 @@ def _by_difficulty(rows: list[_ScoredItem]) -> dict[str, Any]:
     }
 
 
-def _metrics(
-    rows: list[_ScoredItem], permissive: list[_ScoredItem]
-) -> dict[str, Any]:
+def _metrics(rows: list[_ScoredItem], permissive: list[_ScoredItem]) -> dict[str, Any]:
     """Offline arms bound contextual resolution; neither measures a real
     assessor's judgment.
     """
@@ -139,9 +131,7 @@ def run() -> dict[str, Any]:
         "controls_dataset": controls["name"],
         "controls_dataset_version": controls["version"],
         "policy_version": _policy_version(),
-        "metrics": _metrics(
-            _score(items), _score(items, permissive_assessor=True)
-        ),
+        "metrics": _metrics(_score(items), _score(items, permissive_assessor=True)),
         "external_gap": (
             "Does not reproduce Google's private 1,200-goal safety benchmark "
             "(request-only); synthetic sets for false-positive / "

@@ -50,9 +50,7 @@ async def test_a_rejected_hypothesis_cannot_enter_tournament(
 
     result = await ranking_node(state)
 
-    assert all(
-        "already established mechanism" not in prompt for prompt in seen_prompts
-    )
+    assert all("already established mechanism" not in prompt for prompt in seen_prompts)
     assert non_novel.total_matches == 0
     assert result["hypotheses"][-1].id == non_novel.id
 
@@ -65,9 +63,7 @@ def _hyp(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
 async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
     from co_scientist.models import ExecutionMetrics
 
-    hypotheses = [
-        _hyp(text=f"h{i}", win_count=1, loss_count=1) for i in range(4)
-    ]
+    hypotheses = [_hyp(text=f"h{i}", win_count=1, loss_count=1) for i in range(4)]
     state = make_state(
         hypotheses=hypotheses,
         tournament_pairs=6,
@@ -130,9 +126,7 @@ async def test_budget_is_charged_for_matches_judged_not_rounds_offered(
 
 def test_remaining_budget_funds_only_peer_reviewed_coverage() -> None:
     pool = [make_hypothesis(reviews=[make_review()]) for _ in range(3)]
-    state = make_state(
-        hypotheses=pool, metrics=ExecutionMetrics(tournaments_count=100)
-    )
+    state = make_state(hypotheses=pool, metrics=ExecutionMetrics(tournaments_count=100))
     assert remaining_ranking_rounds(state, pool) == 3
     for hypothesis in pool:
         hypothesis.reviews = []

@@ -65,12 +65,8 @@ def _probe_admitted(probe: dict[str, Any], verdict: str | None) -> bool:
 
 
 def _format_probe_line(probe: dict[str, Any]) -> str:
-    question = truncate(
-        str(probe.get("question") or "").strip(), _PROBE_FIELD_CHARS
-    )
-    answer = truncate(
-        str(probe.get("answer") or "").strip(), _PROBE_FIELD_CHARS
-    )
+    question = truncate(str(probe.get("question") or "").strip(), _PROBE_FIELD_CHARS)
+    answer = truncate(str(probe.get("answer") or "").strip(), _PROBE_FIELD_CHARS)
     if answer:
         return f"{question} -- finding: {answer}"
     return question
@@ -81,11 +77,7 @@ def _falsified_lines_for_hypothesis(hypothesis: Hypothesis) -> list[str]:
     if not probes:
         return []
     verdict = hypothesis.deep_verification_verdict
-    return [
-        _format_probe_line(probe)
-        for probe in probes
-        if _probe_admitted(probe, verdict)
-    ]
+    return [_format_probe_line(probe) for probe in probes if _probe_admitted(probe, verdict)]
 
 
 def falsified_nonfundamental_assumptions(
@@ -178,8 +170,7 @@ def _resolve_assumptions_context(
         has_references = False
 
     literature_context = (
-        "Relevant findings from the literature review:\n"
-        f"{articles_with_reasoning}\n"
+        f"Relevant findings from the literature review:\n{articles_with_reasoning}\n"
         if has_references and articles_with_reasoning
         else ""
     )
@@ -194,11 +185,7 @@ def _parse_top_assumptions(response: dict[str, Any]) -> list[_AssumptionNode]:
         text = str(entry.get("assumption") or "").strip()
         if not text:
             continue
-        nodes.append(
-            _AssumptionNode(
-                text=text, load_bearing=bool(entry.get("load_bearing"))
-            )
-        )
+        nodes.append(_AssumptionNode(text=text, load_bearing=bool(entry.get("load_bearing"))))
         if len(nodes) >= ASSUMPTION_TREE_MAX_TOP:
             break
     return nodes
@@ -209,9 +196,7 @@ def _select_parents(nodes: list[_AssumptionNode]) -> list[_AssumptionNode]:
     return parents[:ASSUMPTION_TREE_MAX_LOAD_BEARING]
 
 
-def _parse_sub_assumptions(
-    response: dict[str, Any], parents: list[_AssumptionNode]
-) -> None:
+def _parse_sub_assumptions(response: dict[str, Any], parents: list[_AssumptionNode]) -> None:
     """Wrap malformed parent indices deterministically so fixed-index offline
     fillers still produce a usable tree."""
     if not parents:
@@ -224,13 +209,9 @@ def _parse_sub_assumptions(
             continue
         parent = parents[index % len(parents)]
         subs = [
-            str(sub).strip()
-            for sub in (entry.get("sub_assumptions") or [])
-            if str(sub).strip()
+            str(sub).strip() for sub in (entry.get("sub_assumptions") or []) if str(sub).strip()
         ]
-        remaining = ASSUMPTION_TREE_MAX_SUB_PER_PARENT - len(
-            parent.sub_assumptions
-        )
+        remaining = ASSUMPTION_TREE_MAX_SUB_PER_PARENT - len(parent.sub_assumptions)
         parent.sub_assumptions.extend(subs[: max(0, remaining)])
 
 
@@ -259,13 +240,9 @@ def _build_tree_prompt(
         {
             "research_goal": state["research_goal"],
             "max_top_assumptions": ASSUMPTION_TREE_MAX_TOP,
-            "meta_review_context": _format_meta_review_context(
-                state.get("meta_review")
-            ),
+            "meta_review_context": _format_meta_review_context(state.get("meta_review")),
             "domain_context": "",
-            "citation_reference_section": _build_citation_reference_section(
-                reference_text
-            ),
+            "citation_reference_section": _build_citation_reference_section(reference_text),
             "literature_context": literature_context,
             "research_expansion_section": build_expansion_section(state),
             "falsified_assumptions_section": (
@@ -283,9 +260,7 @@ def _build_sub_prompt(
 ) -> tuple[str, Any]:
     """Numbered parents join responses positionally without requiring the
     model to echo their text."""
-    parents_list = "".join(
-        f"{index}. {parent.text}\n" for index, parent in enumerate(parents)
-    )
+    parents_list = "".join(f"{index}. {parent.text}\n" for index, parent in enumerate(parents))
     return load_prompt_with_schema(
         "generation_assumption_sub",
         {
@@ -293,9 +268,7 @@ def _build_sub_prompt(
             "parents_list": parents_list,
             "max_sub_per_parent": ASSUMPTION_TREE_MAX_SUB_PER_PARENT,
             "domain_context": "",
-            "citation_reference_section": _build_citation_reference_section(
-                reference_text
-            ),
+            "citation_reference_section": _build_citation_reference_section(reference_text),
             "literature_context": literature_context,
         },
     )
@@ -313,16 +286,10 @@ def _build_assumptions_prompt(
         {
             "research_goal": state["research_goal"],
             "num_hypotheses": count,
-            "meta_review_context": _format_meta_review_context(
-                state.get("meta_review")
-            ),
+            "meta_review_context": _format_meta_review_context(state.get("meta_review")),
             "domain_context": "",
-            "citation_reference_section": _build_citation_reference_section(
-                reference_text
-            ),
-            "lab_constraints_section": format_lab_constraints_section(
-                state.get("lab_constraints")
-            ),
+            "citation_reference_section": _build_citation_reference_section(reference_text),
+            "lab_constraints_section": format_lab_constraints_section(state.get("lab_constraints")),
             "literature_context": literature_context,
             "assumption_tree_section": tree_section,
             "research_expansion_section": build_expansion_section(state),
@@ -364,12 +331,8 @@ async def _build_assumption_tree(
 ) -> tuple[list[_AssumptionNode], int]:
     """A failed tree must still reach final ideation; its template supports
     the no-tree case."""
-    prompt, schema = _build_tree_prompt(
-        state, reference_text, literature_context
-    )
-    response = await _call_assumptions_llm(
-        state, prompt, schema, _TREE_LEVEL_PARAMS
-    )
+    prompt, schema = _build_tree_prompt(state, reference_text, literature_context)
+    response = await _call_assumptions_llm(state, prompt, schema, _TREE_LEVEL_PARAMS)
     nodes = _parse_top_assumptions(response)
     logger.info(
         "Assumption tree level 0: %s assumptions (%s load-bearing)",
@@ -380,12 +343,8 @@ async def _build_assumption_tree(
     parents = _select_parents(nodes)
     if not parents:
         return nodes, 1
-    sub_prompt, sub_schema = _build_sub_prompt(
-        state, parents, reference_text, literature_context
-    )
-    sub_response = await _call_assumptions_llm(
-        state, sub_prompt, sub_schema, _SUB_LEVEL_PARAMS
-    )
+    sub_prompt, sub_schema = _build_sub_prompt(state, parents, reference_text, literature_context)
+    sub_response = await _call_assumptions_llm(state, sub_prompt, sub_schema, _SUB_LEVEL_PARAMS)
     _parse_sub_assumptions(sub_response, parents)
     logger.info(
         "Assumption tree level 1: %s parents, %s sub-assumptions",
@@ -404,21 +363,14 @@ async def generate_with_assumptions(
     reference_text, sources, literature_context = _resolve_assumptions_context(
         reference_index, articles_with_reasoning
     )
-    nodes, tree_calls = await _build_assumption_tree(
-        state, reference_text, literature_context
-    )
+    nodes, tree_calls = await _build_assumption_tree(state, reference_text, literature_context)
     tree_section = _render_tree_section(nodes)
     prompt, schema = _build_assumptions_prompt(
         state, count, reference_text, literature_context, tree_section
     )
-    response = await _call_assumptions_llm(
-        state, prompt, schema, _FINAL_LEVEL_PARAMS
-    )
+    response = await _call_assumptions_llm(state, prompt, schema, _FINAL_LEVEL_PARAMS)
     raw: list[dict[str, Any]] = response.get("hypotheses", [])
-    hypotheses = [
-        hypothesis_from_llm_output(h, sources, GenerationMethod.ASSUMPTIONS)
-        for h in raw
-    ]
+    hypotheses = [hypothesis_from_llm_output(h, sources, GenerationMethod.ASSUMPTIONS) for h in raw]
     logger.info(
         "Assumptions generation produced %s hypotheses from a %s-node tree",
         len(hypotheses),

@@ -209,9 +209,7 @@ def test_activity_uses_live_facts_not_planner_assertions(
             1,
         )
 
-    monkeypatch.setattr(
-        orchestrator, "choose_supervisor_task", _hallucinated_decision
-    )
+    monkeypatch.setattr(orchestrator, "choose_supervisor_task", _hallucinated_decision)
     state = _state_with_steering(False)
     delta = asyncio.run(orchestrator_node(state))
 
@@ -219,9 +217,7 @@ def test_activity_uses_live_facts_not_planner_assertions(
     assert "No hypotheses" not in message
     assert "4 hypotheses" in message
     record = delta["task_history"][-1]
-    assert record["reason"].startswith(
-        "Supervisor selected generate from live state"
-    )
+    assert record["reason"].startswith("Supervisor selected generate from live state")
     assert record["planner_reason"] == "No hypotheses have been generated yet."
 
 
@@ -230,9 +226,7 @@ def _unreviewed(index: int = 0) -> Hypothesis:
 
 
 def _reviewed(index: int = 0) -> Hypothesis:
-    return make_hypothesis(
-        text=f"reviewed idea {index}", reviews=[make_review()]
-    )
+    return make_hypothesis(text=f"reviewed idea {index}", reviews=[make_review()])
 
 
 def test_only_unreviewed_hypotheses_are_owed() -> None:
@@ -267,9 +261,7 @@ def test_the_run_wide_ceiling_bounds_a_pathological_pool(
     assert second == []
 
 
-def test_a_marked_hypothesis_is_no_longer_owed_and_survives_a_checkpoint() -> (
-    None
-):
+def test_a_marked_hypothesis_is_no_longer_owed_and_survives_a_checkpoint() -> None:
     hypothesis = _unreviewed()
     mark_owed_review_issued(hypothesis)
 

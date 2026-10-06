@@ -63,12 +63,8 @@ def anchored_relaxed_query(query: str) -> str | None:
     tokens = query.split()
     if len(tokens) <= _ANCHOR_TERMS:
         return None
-    anchors = " AND ".join(
-        _field_tagged_term(term) for term in tokens[:_ANCHOR_TERMS]
-    )
-    loosened = " OR ".join(
-        _field_tagged_term(term) for term in tokens[_ANCHOR_TERMS:]
-    )
+    anchors = " AND ".join(_field_tagged_term(term) for term in tokens[:_ANCHOR_TERMS])
+    loosened = " OR ".join(_field_tagged_term(term) for term in tokens[_ANCHOR_TERMS:])
     return f"{anchors} AND ({loosened})"
 
 
@@ -81,9 +77,7 @@ def or_relaxed_query(query: str) -> str | None:
     return field_tag_terms(query, " OR ")
 
 
-def relaxation_ladder(
-    query: str, recency_years: int = 0
-) -> list[tuple[str, int]]:
+def relaxation_ladder(query: str, recency_years: int = 0) -> list[tuple[str, int]]:
     """Keep the recency-only rung untagged; anchor the subject before
     broadening every term.
     """
@@ -96,9 +90,7 @@ def relaxation_ladder(
     return ladder
 
 
-def _relaxation_rung_type(
-    rung_index: int, query: str, term: str, recency_years: int
-) -> str:
+def _relaxation_rung_type(rung_index: int, query: str, term: str, recency_years: int) -> str:
     if rung_index == 1:
         return "exact"
     if term == query and recency_years == 0:
@@ -106,9 +98,7 @@ def _relaxation_rung_type(
     return "anchored" if " AND (" in term else "or"
 
 
-def _record_attempt(
-    trace: dict[str, Any] | None, attempt: dict[str, Any] | None
-) -> None:
+def _record_attempt(trace: dict[str, Any] | None, attempt: dict[str, Any] | None) -> None:
     """Application ESearch rungs exclude hidden Biopython transport retries."""
     if trace is not None and attempt is not None:
         trace.setdefault("attempts", []).append(attempt)
@@ -136,9 +126,7 @@ def _record_failed_attempt(
     attempt: dict[str, Any],
     exc: Exception,
 ) -> None:
-    attempt.update(
-        {"count": 0, "first_ids": [], "error_type": type(exc).__name__}
-    )
+    attempt.update({"count": 0, "first_ids": [], "error_type": type(exc).__name__})
     _record_attempt(trace, attempt)
     if trace is None:
         return
@@ -181,9 +169,7 @@ def search_with_relaxation(
     threshold = min(MIN_RESULTS_BEFORE_RELAX, retmax)
     merged: list[str] = []
     fallback: tuple[int, str, str] | None = None
-    for rung_index, (term, recency) in enumerate(
-        relaxation_ladder(query, recency_years), start=1
-    ):
+    for rung_index, (term, recency) in enumerate(relaxation_ladder(query, recency_years), start=1):
         rung_type = _relaxation_rung_type(rung_index, query, term, recency)
         attempt = _new_attempt(trace, rung_index, rung_type, recency, retmax)
         try:
@@ -204,9 +190,7 @@ def search_with_relaxation(
             return merged
         if ids and fallback is None:
             fallback = (rung_index, rung_type, term)
-    _record_selected_rung(
-        trace, (*fallback, merged) if fallback else None, threshold_met=False
-    )
+    _record_selected_rung(trace, (*fallback, merged) if fallback else None, threshold_met=False)
     return merged
 
 
@@ -222,10 +206,7 @@ initialize_entrez()
 def _parse_authors(article: dict[str, Any]) -> list[str]:
     names = []
     for author in article.get("AuthorList", []):
-        name = (
-            f"{author.get('ForeName', '<invalid>')} "
-            f"{author.get('LastName', '<invalid>')}"
-        )
+        name = f"{author.get('ForeName', '<invalid>')} {author.get('LastName', '<invalid>')}"
         if "<invalid>" not in name:
             names.append(name)
     return names
@@ -237,9 +218,7 @@ def _extract_doi(pubmed_article: dict[str, Any]) -> str:
         (
             str(element)
             for element in filter(
-                lambda xml_string: (
-                    xml_string.attributes.get("IdType", None) == "doi"
-                ),
+                lambda xml_string: xml_string.attributes.get("IdType", None) == "doi",
                 pubmed_article["PubmedData"]["ArticleIdList"],
             )
         ),
@@ -250,9 +229,7 @@ def _extract_doi(pubmed_article: dict[str, Any]) -> str:
 def _parse_date_revised(citation: dict[str, Any]) -> str:
     """Keep the date shape used by split/index field mappings."""
     date_revised_raw = citation["DateRevised"]
-    return "{}/{}/{}".format(
-        *[str(date_revised_raw[field]) for field in ["Year", "Month", "Day"]]
-    )
+    return "{}/{}/{}".format(*[str(date_revised_raw[field]) for field in ["Year", "Month", "Day"]])
 
 
 def _extract_publication_types(article: dict[str, Any]) -> list[str]:
@@ -291,9 +268,7 @@ def _parse_pubmed_article(
     }
 
 
-def _apply_recency_filter(
-    search_params: dict[str, Any], recency_years: int
-) -> None:
+def _apply_recency_filter(search_params: dict[str, Any], recency_years: int) -> None:
     if recency_years <= 0:
         return
     from datetime import datetime
@@ -323,9 +298,7 @@ class _EntrezClient:
             # Failed PMC lookup and successful no-link are equally unreadable
             # but distinct provenance.
             related = self.entrez_read(
-                entrez_call(
-                    Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id
-                )
+                entrez_call(Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id)
             )
         except Exception as exc:
             record_pilot_fetch_error("elink", exc)
@@ -346,17 +319,13 @@ class _EntrezClient:
         loop.
         """
         # Even single-ID efetch returns a PubmedArticleSet list.
-        results = self.entrez_read(
-            entrez_call(Entrez.efetch, db="pubmed", id=paper_id)
-        )
+        results = self.entrez_read(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
         pubmed_article = results["PubmedArticle"][0]
         doi = _extract_doi(pubmed_article)
         pmc_id = self._fetch_pmc_fulltext_id(paper_id, doi)
         return _parse_pubmed_article(pubmed_article, pmc_id, doi)
 
-    def _esearch_ids(
-        self, query: str, retmax: int, recency_years: int
-    ) -> list[str]:
+    def _esearch_ids(self, query: str, retmax: int, recency_years: int) -> list[str]:
         search_params: dict[str, Any] = {
             "db": "pubmed",
             "term": query,
@@ -377,9 +346,7 @@ class _EntrezClient:
         recency_years: int = 0,
         trace: dict[str, Any] | None = None,
     ) -> list[str]:
-        ids = search_with_relaxation(
-            query, retmax, recency_years, self._esearch_ids, trace
-        )
+        ids = search_with_relaxation(query, retmax, recency_years, self._esearch_ids, trace)
         if not ids:
             logger.warning("No results found for query: %s", query)
         return ids

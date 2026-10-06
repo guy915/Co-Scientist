@@ -388,9 +388,7 @@ _SYSTEM_PROMPT = f"{_GUIDE}{_FORMAT_PROMPT}\n{_QUESTIONS_PROMPT}"
 
 def _clean_list(raw: Any) -> list[str]:
     """Schema-less trailing state blocks may encode a list as a bare string."""
-    result: list[str] = coerce_json_list(
-        raw, element="str", site="interviews.field_list"
-    )
+    result: list[str] = coerce_json_list(raw, element="str", site="interviews.field_list")
     return result
 
 
@@ -400,9 +398,7 @@ def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
     """
     title = response.get("title")
     return {
-        "research_challenge": str(
-            response.get("research_challenge") or ""
-        ).strip(),
+        "research_challenge": str(response.get("research_challenge") or "").strip(),
         "focus_area": _clean_list(response.get("focus_area")),
         "preferences": _clean_list(response.get("preferences")),
         "lab_constraints": _clean_list(response.get("lab_constraints")),
@@ -421,11 +417,7 @@ def _ready(fields: dict[str, Any]) -> bool:
     """Fallback completion requires an explicit preferences answer, even
     when that answer states no constraints.
     """
-    return bool(
-        fields["research_challenge"]
-        and fields["focus_area"]
-        and fields["preferences"]
-    )
+    return bool(fields["research_challenge"] and fields["focus_area"] and fields["preferences"])
 
 
 def _transcript_turn(turn: dict[str, Any]) -> dict[str, Any]:
@@ -489,8 +481,7 @@ _INTERVIEW_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 _ANSWER_MAX_TOKENS = 6_000
 
 _THINKING_ONLY_RETRY_NOTE = (
-    "\n\n[Answered nothing after reasoning at length; retrying without "
-    "extended thinking.]\n\n"
+    "\n\n[Answered nothing after reasoning at length; retrying without extended thinking.]\n\n"
 )
 
 
@@ -509,10 +500,7 @@ async def _stream_interview_content(
     )
     if prose.strip() or not reasoned:
         return prose, fields
-    logger.warning(
-        "Interview turn reasoned and wrote no answer; retrying once with "
-        "thinking off"
-    )
+    logger.warning("Interview turn reasoned and wrote no answer; retrying once with thinking off")
     await _emit(sinks.on_reasoning, _THINKING_ONLY_RETRY_NOTE)
     prose, fields, _ = await _run_interview_completion(
         model, messages, api_key, sinks, thinking_enabled=False
@@ -556,9 +544,7 @@ async def _emit(sink: ProseSink | None, text: str) -> None:
         await sink(text)
 
 
-async def _relay_chunk(
-    chunk: Any, splitter: TurnSplitter, sinks: TurnSinks
-) -> bool:
+async def _relay_chunk(chunk: Any, splitter: TurnSplitter, sinks: TurnSinks) -> bool:
     """Trailing state blocks are withheld; clients must never render and
     retract them.
     """
@@ -594,9 +580,7 @@ def _turn_response(
     earlier answers.
     """
     if fields is None:
-        logger.warning(
-            "Interview turn carried no usable spec block; keeping fields"
-        )
+        logger.warning("Interview turn carried no usable spec block; keeping fields")
         return {
             "assistant_message": prose,
             **dict(interview["fields"]),
@@ -645,10 +629,7 @@ def _fallback_interview_response(
     if completed:
         message = "The research goal is ready for run configuration."
     elif not fields.get("focus_area"):
-        message = (
-            "Which scientific mechanisms or focus areas should this research "
-            "prioritize?"
-        )
+        message = "Which scientific mechanisms or focus areas should this research prioritize?"
     else:
         message = (
             "What constraints, available models or data, exclusions, and "

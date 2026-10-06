@@ -169,9 +169,7 @@ def get_hypothesis_novelty_analysis_prompt(
     )
 
 
-def _format_novelty_paper_analysis(
-    j: int, analysis_data: dict[str, Any]
-) -> str:
+def _format_novelty_paper_analysis(j: int, analysis_data: dict[str, Any]) -> str:
     paper_meta = analysis_data.get("paper_metadata", {})
     analysis = analysis_data.get("analysis", {})
     p_title = paper_meta.get("title", "Unknown")
@@ -277,16 +275,10 @@ def _build_validation_synthesis_prompt_variables(
         "articles_metadata": format_articles_metadata(req.articles or []),
         "articles_with_reasoning": req.articles_with_reasoning
         or "no literature review summary available.",
-        "citation_reference_section": _build_citation_reference_section(
-            req.reference_list or ""
-        ),
+        "citation_reference_section": _build_citation_reference_section(req.reference_list or ""),
         "max_iterations": req.max_iterations,
-        "tool_instructions": _resolve_validation_tool_instructions(
-            req.tool_registry
-        ),
-        "already_validated_context": _build_already_validated_context(
-            req.already_validated_texts
-        ),
+        "tool_instructions": _resolve_validation_tool_instructions(req.tool_registry),
+        "already_validated_context": _build_already_validated_context(req.already_validated_texts),
     }
 
 

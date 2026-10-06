@@ -278,9 +278,7 @@ PROMPT_PAPER_MAX_CHARS: Final = 200_000
 _PROMPT_TRUNCATION_MARKER: Final = "\n\n[... truncated for length ...]"
 
 
-def truncate_for_prompt(
-    text: str, max_chars: int = PROMPT_PAPER_MAX_CHARS
-) -> str:
+def truncate_for_prompt(text: str, max_chars: int = PROMPT_PAPER_MAX_CHARS) -> str:
     return truncate(text, max_chars, _PROMPT_TRUNCATION_MARKER)
 
 

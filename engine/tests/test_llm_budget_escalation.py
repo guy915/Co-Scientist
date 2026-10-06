@@ -98,9 +98,7 @@ def _provider_error(reasoning: int) -> SimpleNamespace:
 
 
 def _empty_without_reasoning() -> SimpleNamespace:
-    return _completion(
-        _message("   "), usage=_usage(500, 0), finish_reason="stop"
-    )
+    return _completion(_message("   "), usage=_usage(500, 0), finish_reason="stop")
 
 
 def _requests(
@@ -110,9 +108,7 @@ def _requests(
     repeat_last: bool = True,
 ) -> list[dict[str, Any]]:
     _disable_cache(monkeypatch)
-    return scripted_backend(
-        monkeypatch, responses, repeat_last=repeat_last
-    ).requests
+    return scripted_backend(monkeypatch, responses, repeat_last=repeat_last).requests
 
 
 def _thinking(requests: list[dict[str, Any]]) -> list[str]:
@@ -151,9 +147,7 @@ async def test_the_ladder_raises_the_budget_then_drops_thinking_and_holds(
     with pytest.raises(LLMBudgetExhaustedError):
         await call_llm_json(
             "a prompt",
-            CompletionSpec(
-                model_name=_MODEL, max_tokens=8000, json_schema=_SCHEMA
-            ),
+            CompletionSpec(model_name=_MODEL, max_tokens=8000, json_schema=_SCHEMA),
             max_attempts=5,
         )
 
@@ -224,9 +218,7 @@ async def test_a_thinking_only_reply_skips_the_budget_rung_and_recovers(
 async def test_a_provider_error_recovers_without_disabling_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = _requests(
-        monkeypatch, [_provider_error(519), _completion(_message('{"a":3}'))]
-    )
+    calls = _requests(monkeypatch, [_provider_error(519), _completion(_message('{"a":3}'))])
 
     result = await call_llm_json("a prompt", _JSON_SPEC, max_attempts=5)
 
@@ -339,9 +331,7 @@ def test_two_concurrent_runs_are_counted_independently() -> None:
     release_run_call_budget("run-b")
 
 
-def test_releasing_a_run_drops_its_counter_and_an_unseen_run_is_a_no_op() -> (
-    None
-):
+def test_releasing_a_run_drops_its_counter_and_an_unseen_run_is_a_no_op() -> None:
     run_id = "run-release-1"
     with scoped_llm_call_budget(run_id, ceiling=None):
         record_provider_request()
@@ -365,9 +355,7 @@ def test_the_tracking_cap_evicts_the_oldest_run() -> None:
 
 
 def _asks_for_a_tool() -> SimpleNamespace:
-    return _completion(
-        _message(None, tool_calls=[make_tool_call("c1", "search", "{}")])
-    )
+    return _completion(_message(None, tool_calls=[make_tool_call("c1", "search", "{}")]))
 
 
 @pytest.mark.parametrize("kind", ["text", "json", "tools"])
@@ -406,9 +394,7 @@ async def test_every_provider_attempt_and_tool_turn_counts_once(
         repeat_last=False,
     )
     with scoped_llm_call_budget("run-json-attempts", ceiling=None):
-        assert await call_llm_json("a prompt", _JSON_SPEC, max_attempts=5) == {
-            "a": 1
-        }
+        assert await call_llm_json("a prompt", _JSON_SPEC, max_attempts=5) == {"a": 1}
     assert current_run_call_count("run-json-attempts") == 3
     release_run_call_budget("run-json-attempts")
 
@@ -484,6 +470,5 @@ def test_an_answer_from_a_declared_fallback_is_logged(
         _extract_completion_content(fallback, requested)
 
     assert (
-        f"LLM call to {requested} was answered by fallback "
-        "nvidia/nemotron-3-super-120b-a12b:free"
+        f"LLM call to {requested} was answered by fallback nvidia/nemotron-3-super-120b-a12b:free"
     ) in caplog.text

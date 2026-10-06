@@ -40,9 +40,7 @@ class _WorkerProcessCrashError(RuntimeError):
 def _publication_event_counts(events: list[dict[str, Any]]) -> dict[str, int]:
     event_types = Counter(event["type"] for event in events)
     terminal_statuses = Counter(
-        event["payload"].get("status")
-        for event in events
-        if event["type"] == "status"
+        event["payload"].get("status") for event in events if event["type"] == "status"
     )
     return {
         "report": event_types["report"],
@@ -91,9 +89,7 @@ def _seed_owned_finalize(
         db_path=isolated_db,
     )
     task = (
-        store.claim_task(
-            "report-finalize-worker", run_id=run_id, db_path=isolated_db
-        )
+        store.claim_task("report-finalize-worker", run_id=run_id, db_path=isolated_db)
         if claim
         else store.get_task(queued.id, db_path=isolated_db)
     )
@@ -106,15 +102,11 @@ def _seed_owned_finalize(
     return owner, run_id, task, hypothesis_id
 
 
-def _install_report_stubs(
-    hypothesis_id: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _install_report_stubs(hypothesis_id: str, monkeypatch: pytest.MonkeyPatch) -> None:
     built = report_build._BuiltReport(
         payload={
             "research_goal": "Study cancellation at report publication",
-            "leaderboard": [
-                {"id": hypothesis_id, "title": "IL-6 feedback", "elo": 1500}
-            ],
+            "leaderboard": [{"id": hypothesis_id, "title": "IL-6 feedback", "elo": 1500}],
         },
         markdown="# Goal Report\n\nIL-6 feedback.",
         facts=[
@@ -136,9 +128,7 @@ def _install_report_stubs(
     async def allow_final_screen(*_: Any, **__: Any) -> SafetyDecision:
         return SafetyDecision(stage="final", decision="allow")
 
-    monkeypatch.setattr(
-        report_finalize, "build_report_content", fake_build_report
-    )
+    monkeypatch.setattr(report_finalize, "build_report_content", fake_build_report)
     _install_runtime(monkeypatch).screen = allow_final_screen
 
 
@@ -173,9 +163,7 @@ def _publication_snapshot(
     isolated_db: str,
 ) -> dict[str, Any]:
     share = owner.post(f"/api/runs/{run_id}/shares", headers=_OWNER)
-    public = owner.get(
-        f"/api/shared/{share.json().get('token', 'no-issued-share-token')}"
-    )
+    public = owner.get(f"/api/shared/{share.json().get('token', 'no-issued-share-token')}")
     reconciliation = views.reconcile_interrupted_runs(db_path=isolated_db)
     persisted_run = runs.get_run(run_id, db_path=isolated_db)
     task_after = store.get_task(task_id, db_path=isolated_db)
@@ -192,19 +180,12 @@ def _publication_snapshot(
         == [{"id": run_id, "status": "cancelled"}],
         "run_status": persisted_run.status,
         "task_status": task_after.status,
-        "report_row_exists": reports.get_latest_report(
-            run_id, db_path=isolated_db
-        )
-        is not None,
-        "owner_report_status": owner.get(
-            f"/api/runs/{run_id}/report", headers=_OWNER
-        ).status_code,
+        "report_row_exists": reports.get_latest_report(run_id, db_path=isolated_db) is not None,
+        "owner_report_status": owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code,
         "owner_markdown_status": owner.get(
             f"/api/runs/{run_id}/report.md", headers=_OWNER
         ).status_code,
-        "knowledge_fact_count": len(
-            reports.list_knowledge_facts(run_id, db_path=isolated_db)
-        ),
+        "knowledge_fact_count": len(reports.list_knowledge_facts(run_id, db_path=isolated_db)),
         "report_event_count": event_counts["report"],
         "completed_event_count": event_counts["completed"],
         "cancelled_event_count": event_counts["cancelled"],
@@ -221,20 +202,14 @@ def _publication_snapshot(
 async def test_cancel_after_final_safety_withholds_report_publication(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    owner, run_id, task, hypothesis_id = _seed_owned_finalize(
-        isolated_db, monkeypatch
-    )
+    owner, run_id, task, hypothesis_id = _seed_owned_finalize(isolated_db, monkeypatch)
     _install_report_stubs(hypothesis_id, monkeypatch)
-    cancel_responses = _install_cancel_before_publication(
-        owner, run_id, monkeypatch
-    )
+    cancel_responses = _install_cancel_before_publication(owner, run_id, monkeypatch)
 
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    actual = _publication_snapshot(
-        owner, run_id, task.id, cancel_responses, isolated_db
-    )
+    actual = _publication_snapshot(owner, run_id, task.id, cancel_responses, isolated_db)
     assert actual == {
         "cancel_reached_publication_boundary": True,
         "run_status": RunStatus.CANCELLED.value,
@@ -263,16 +238,12 @@ async def test_normal_finalize_publishes_and_survives_restart(
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
 
-    assert await task_worker.run_once(
-        "normal-report-worker", run_id=run_id, db_path=isolated_db
-    )
+    assert await task_worker.run_once("normal-report-worker", run_id=run_id, db_path=isolated_db)
 
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == RunStatus.COMPLETED.value
     report_response = owner.get(f"/api/runs/{run_id}/report", headers=_OWNER)
-    markdown_response = owner.get(
-        f"/api/runs/{run_id}/report.md", headers=_OWNER
-    )
+    markdown_response = owner.get(f"/api/runs/{run_id}/report.md", headers=_OWNER)
     assert report_response.status_code == 200
     assert report_response.json()["payload"]["research_goal"] == (
         "Study cancellation at report publication"
@@ -287,8 +258,7 @@ async def test_normal_finalize_publishes_and_survives_restart(
     completion_event = next(
         event
         for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "completed"
+        if event["type"] == "status" and event["payload"].get("status") == "completed"
     )
     assert counts == {"report": 1, "completed": 1, "cancelled": 0}
     assert report_event["seq"] < completion_event["seq"]
@@ -306,10 +276,7 @@ async def test_normal_finalize_publishes_and_survives_restart(
     assert run_id not in reconciled["resumable"]
     persisted_report = reports.get_latest_report(run_id, db_path=isolated_db)
     assert persisted_report is not None
-    assert (
-        owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
-        == 200
-    )
+    assert owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code == 200
     cancelled = owner.post(f"/api/runs/{run_id}/cancel", headers=_OWNER)
     assert cancelled.status_code == 409
     persisted = runs.get_run(run_id, db_path=isolated_db)
@@ -331,17 +298,13 @@ async def test_restart_does_not_strand_finalize_lease_after_report_commit(
 
     monkeypatch.setattr(task_worker, "_record_success", crash_before_ack)
     with pytest.raises(_WorkerProcessCrashError, match="before complete_task"):
-        await task_worker.run_once(
-            "crashed-report-worker", run_id=run_id, db_path=isolated_db
-        )
+        await task_worker.run_once("crashed-report-worker", run_id=run_id, db_path=isolated_db)
 
     report = reports.get_latest_report(run_id, db_path=isolated_db)
     run = runs.get_run(run_id, db_path=isolated_db)
     task_rows = store.list_tasks(run_id, db_path=isolated_db)
     finalize = next(
-        task
-        for task in task_rows
-        if task.task_type == engine_tasks_support.FINALIZE_TASK
+        task for task in task_rows if task.task_type == engine_tasks_support.FINALIZE_TASK
     )
     assert report is not None
     assert run is not None and run.status == RunStatus.COMPLETED.value
@@ -356,14 +319,8 @@ async def test_restart_does_not_strand_finalize_lease_after_report_commit(
     assert run_id not in recovered_runs
     assert recovered_task.status == "completed"
     assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
-    assert (
-        owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
-        == 200
-    )
-    assert (
-        owner.get(f"/api/runs/{run_id}/report.md", headers=_OWNER).status_code
-        == 200
-    )
+    assert owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code == 200
+    assert owner.get(f"/api/runs/{run_id}/report.md", headers=_OWNER).status_code == 200
     assert (
         sum(
             task.task_type == "notification.email"

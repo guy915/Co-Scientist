@@ -104,9 +104,7 @@ class _TextRequest:
 
 
 _TITLE = _TextRequest("run titling", _TITLE_PROMPT, 24, 15.0, 0.3)
-_RESTATEMENT = _TextRequest(
-    "goal restatement", _RESTATEMENT_PROMPT, 200, 20.0, 0.4
-)
+_RESTATEMENT = _TextRequest("goal restatement", _RESTATEMENT_PROMPT, 200, 20.0, 0.4)
 
 
 def _clean_text(raw: str, max_chars: int, punctuation: str = "") -> str | None:
@@ -131,13 +129,9 @@ async def _request_completion(
     construction; both attempts keep their token and timeout floors.
     """
     offline_guard.require_remote_chat(request.purpose)
-    model, api_key = credentials.byok_model_and_key(
-        settings.effective_chat_model
-    )
+    model, api_key = credentials.byok_model_and_key(settings.effective_chat_model)
     thinking_kwargs = (
-        deepseek_thinking_kwargs(model)
-        if thinking_enabled
-        else thinking_off_kwargs(model)
+        deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
     )
     return await asyncio.wait_for(
         llm_request.acompletion(
@@ -167,18 +161,13 @@ async def _generate_text(goal: str, request: _TextRequest) -> str | None:
     content = _response_content(response)
     if not content.strip() and _reasoned_with_no_answer(response):
         logger.warning(
-            "%s call reasoned and wrote no answer; retrying once "
-            "with thinking off",
+            "%s call reasoned and wrote no answer; retrying once with thinking off",
             request.purpose,
         )
         try:
-            response = await _request_completion(
-                goal, request, thinking_enabled=False
-            )
+            response = await _request_completion(goal, request, thinking_enabled=False)
         except Exception as exc:
-            logger.warning(
-                "%s retry without thinking failed: %s", request.purpose, exc
-            )
+            logger.warning("%s retry without thinking failed: %s", request.purpose, exc)
             return None
         content = _response_content(response)
     return content

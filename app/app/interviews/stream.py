@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 _Fragment = tuple[str, str]
 
 
-def _resolved_execution_policy(
-    interview_id: str, execution_policy: str | None
-) -> str | None:
+def _resolved_execution_policy(interview_id: str, execution_policy: str | None) -> str | None:
     """Captured execution policy is trusted; vanished persisted state fails
     closed.
     """
@@ -50,9 +48,7 @@ async def _start_stream_advance(
     async def _on_prose(fragment: str) -> None:
         await queue.put(("chunk", fragment))
 
-    task = asyncio.create_task(
-        turns.advance_turn(interview_id, _on_reasoning, _on_prose)
-    )
+    task = asyncio.create_task(turns.advance_turn(interview_id, _on_reasoning, _on_prose))
     task.add_done_callback(lambda _: queue.put_nowait(None))
     return queue, task
 
@@ -66,18 +62,14 @@ async def _advance_stream(
     """One ordered queue carries reasoning and prose; disconnect
     cancellation stops unwatched provider work.
     """
-    execution_policy = _resolved_execution_policy(
-        interview_id, execution_policy
-    )
+    execution_policy = _resolved_execution_policy(interview_id, execution_policy)
     if execution_policy is None:
         yield sse_frame({"type": "error", "detail": "interview not found"})
         return
     with (
         scoped_execution_policy(
             execution_policy,
-            campaign_model_name=(
-                CAMPAIGN_MODEL_NAME if execution_policy == CAMPAIGN else None
-            ),
+            campaign_model_name=(CAMPAIGN_MODEL_NAME if execution_policy == CAMPAIGN else None),
         ),
         credentials.scoped_byok(byok),
     ):
@@ -87,9 +79,7 @@ async def _advance_stream(
                 kind, content = fragment
                 yield sse_frame({"type": kind, "content": content})
 
-            error_frame, updated = await _resolve_advance_task(
-                task, interview_id
-            )
+            error_frame, updated = await _resolve_advance_task(task, interview_id)
             if error_frame is not None:
                 yield error_frame
                 return
@@ -119,9 +109,7 @@ async def _resolve_advance_task(
     except Exception:
         logger.exception("Interview turn failed for %s", interview_id)
         return (
-            sse_frame(
-                {"type": "error", "detail": "The interview Agent failed."}
-            ),
+            sse_frame({"type": "error", "detail": "The interview Agent failed."}),
             None,
         )
 

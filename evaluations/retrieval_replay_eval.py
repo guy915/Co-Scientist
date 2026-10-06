@@ -59,15 +59,11 @@ def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     calls = retrieval.list_retrieval_calls(run_id, db_path=db_path)
     evidence = store.list_evidence(run_id, db_path=db_path)
     known = {str(call["id"]) for call in calls}
-    pointed = [
-        row for row in evidence if row.get("retrieval_call_id") is not None
-    ]
+    pointed = [row for row in evidence if row.get("retrieval_call_id") is not None]
     return {
         "run_id": run_id,
         "calls": len(calls),
-        "id_reproduction": _ratio(
-            sum(1 for call in calls if _rederives(call)), len(calls)
-        ),
+        "id_reproduction": _ratio(sum(1 for call in calls if _rederives(call)), len(calls)),
         "result_set_completeness": _ratio(
             sum(1 for call in calls if _result_set_complete(call)), len(calls)
         ),
@@ -196,9 +192,7 @@ def _synthetic_calls(question: str) -> tuple[Any, Any]:
             query=query,
             source="openalex",
             status=CallStatus.OK,
-            hits=(
-                SourceHit(locator="3", title="Also seen", snippet="", rank=0),
-            ),
+            hits=(SourceHit(locator="3", title="Also seen", snippet="", rank=0),),
             dropped=("3",),
         ),
     )

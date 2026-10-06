@@ -45,9 +45,7 @@ def _no_background_title_network(
     monkeypatch.setattr("app.runs.crud.generate_run_title", _no_title)
 
 
-def _fake_validation(
-    monkeypatch: pytest.MonkeyPatch, *, fail_auth: bool = False
-) -> dict[str, Any]:
+def _fake_validation(monkeypatch: pytest.MonkeyPatch, *, fail_auth: bool = False) -> dict[str, Any]:
     captured: dict[str, Any] = {}
 
     async def fake_acompletion(**kwargs: Any) -> SimpleNamespace:
@@ -153,9 +151,7 @@ async def test_execute_engine_task_scopes_the_credential(
 
     seen: dict[str, Any] = {}
 
-    async def fake_node_task(
-        task: Any, *, db_path: str | None = None
-    ) -> dict[str, Any]:
+    async def fake_node_task(task: Any, *, db_path: str | None = None) -> dict[str, Any]:
         seen["engine_key"] = current_api_key()
         seen["supervisor_key"] = api_key_for_model("gemini/gemini-3.8-flash")
         seen["app_credential"] = credentials.current_byok()
@@ -184,17 +180,13 @@ async def test_byok_key_absent_from_serialized_checkpoint(
 
     task = _node_task(run["id"])
     generator, opts = _generator_and_opts(task, None)
-    state = await generator.prepare_task_state(
-        "BYOK goal", opts=opts, run_id=run["id"]
-    )
+    state = await generator.prepare_task_state("BYOK goal", opts=opts, run_id=run["id"])
     envelope = serialize_workflow_state(state, last_event_seq=0)
     from app.store.checkpoints import NewCheckpoint, save_checkpoint
 
     save_checkpoint(
         run["id"],
-        NewCheckpoint(
-            stage="test", schema_version=1, last_event_seq=0, state=envelope
-        ),
+        NewCheckpoint(stage="test", schema_version=1, last_event_seq=0, state=envelope),
     )
     checkpoint = checkpoints.get_latest_checkpoint(run["id"])
     assert checkpoint is not None
@@ -223,11 +215,7 @@ def test_diagnostics_never_report_key_material(
 
 def _byok_qa_stream(**kwargs: Any) -> Any:
     chunk = SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                delta=SimpleNamespace(content="the answer", reasoning=None)
-            )
-        ]
+        choices=[SimpleNamespace(delta=SimpleNamespace(content="the answer", reasoning=None))]
     )
 
     class _Stream:
@@ -283,9 +271,7 @@ def test_interview_turn_scopes_the_header_credential(
             ' "focus_area": [], "preferences": [], "completed": true}'
         )
 
-    monkeypatch.setattr(
-        "app.interviews.model._stream_interview_content", fake_stream
-    )
+    monkeypatch.setattr("app.interviews.model._stream_interview_content", fake_stream)
     with TestClient(app) as client:
         response = client.post(
             "/api/interviews",

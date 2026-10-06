@@ -27,14 +27,12 @@ from tests._store_helpers import seed_run
         (
             5,
             {"safety": 5},
-            "No hypothesis could be published: of 5 ideas, 5 were withheld "
-            "by the safety review.",
+            "No hypothesis could be published: of 5 ideas, 5 were withheld by the safety review.",
         ),
         (
             3,
             {"contradicted": 3},
-            "No hypothesis could be published: of 3 ideas, 3 were "
-            "contradicted by the evidence.",
+            "No hypothesis could be published: of 3 ideas, 3 were contradicted by the evidence.",
         ),
         (
             0,
@@ -53,9 +51,7 @@ def test_empty_leaderboard_reason_names_only_what_withheld_the_ideas(
         "safety": 0,
     }
 
-    assert (
-        report_gates._empty_leaderboard_reason(ideas, full | tally) == expected
-    )
+    assert report_gates._empty_leaderboard_reason(ideas, full | tally) == expected
 
 
 def _leaderboard_hypothesis(identifier: str, title: str) -> dict[str, object]:
@@ -85,23 +81,15 @@ def test_a_contradicted_proposal_is_not_reported_as_withheld() -> None:
     withheld = _leaderboard_hypothesis("h2", "Unsupported bypass")
     proposing = _leaderboard_hypothesis("h3", "Speculative bypass")
     edges = [
-        _contradicted(
-            "h2", "The bypass is constitutively active.", "categorical"
-        ),
-        _contradicted(
-            "h3", "Blocking the loop may raise the flux.", "speculative"
-        ),
+        _contradicted("h2", "The bypass is constitutively active.", "categorical"),
+        _contradicted("h3", "Blocking the loop may raise the flux.", "speculative"),
     ]
 
-    published = report_gates.exclude_unsafe_hypotheses(
-        "run-1", [withheld, proposing], None, edges
-    )
+    published = report_gates.exclude_unsafe_hypotheses("run-1", [withheld, proposing], None, edges)
     insights = report_content._agent_insights(published, edges, {})
 
     assert [hyp["id"] for hyp in published] == ["h3"]
-    by_claim = {
-        entry.split(" (", 1)[0]: entry for entry in insights["contradictions"]
-    }
+    by_claim = {entry.split(" (", 1)[0]: entry for entry in insights["contradictions"]}
     assert "withheld" in by_claim["The bypass is constitutively active."]
     assert "withheld" not in by_claim["Blocking the loop may raise the flux."]
 
@@ -153,19 +141,13 @@ def test_goal_report_sections_preserve_claim_grounding() -> None:
         edges,
         {"common_weaknesses": ["Cell-type specificity remains uncertain."]},
     )
-    buckets = report_content._idea_buckets(
-        [released], [released, rejected], edges
-    )
+    buckets = report_content._idea_buckets([released], [released, rejected], edges)
 
     assert topics[0]["title"] == "Feedback control"
     assert topics[0]["reference_ids"] == ["ev1"]
     assert len(insights["contradictions"]) == 1
-    assert insights["contradictions"][0].startswith(
-        "The bypass is constitutively active."
-    )
-    assert insights["uncertainties"] == [
-        "Cell-type specificity remains uncertain."
-    ]
+    assert insights["contradictions"][0].startswith("The bypass is constitutively active.")
+    assert insights["uncertainties"] == ["Cell-type specificity remains uncertain."]
     assert buckets["high_potential"][0]["id"] == "h1"
     assert buckets["non_viable"][0]["id"] == "h2"
     assert "Evidence verification" in buckets["non_viable"][0]["reason"]
@@ -211,9 +193,7 @@ def test_the_overview_document_carries_the_about_disclosure() -> None:
     ) in markdown
 
 
-def _call(
-    source: str, question: str, question_id: str, query: str = "q"
-) -> dict[str, Any]:
+def _call(source: str, question: str, question_id: str, query: str = "q") -> dict[str, Any]:
     return {
         "source": source,
         "question": question,
@@ -281,16 +261,10 @@ def test_the_header_carries_goal_requirements_attributes_and_criteria() -> None:
 def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
     # Redaction must clear the pre-screen restatement too, or it republishes the
     # goal in different words.
-    run = seed_run(
-        "Synthesize a controlled pathogen.", client_id="c1", db_path=isolated_db
-    )
-    runs.set_run_goal_restatement(
-        run.id, "A paraphrase of the goal.", db_path=isolated_db
-    )
+    run = seed_run("Synthesize a controlled pathogen.", client_id="c1", db_path=isolated_db)
+    runs.set_run_goal_restatement(run.id, "A paraphrase of the goal.", db_path=isolated_db)
 
-    runs.redact_run_goal(
-        run.id, "[redacted]", "[redacted]", db_path=isolated_db
-    )
+    runs.redact_run_goal(run.id, "[redacted]", "[redacted]", db_path=isolated_db)
 
     reloaded = runs.get_run(run.id, db_path=isolated_db)
     assert reloaded is not None

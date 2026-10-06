@@ -64,9 +64,7 @@ def _task_commit(
     if not consume_steering:
         return TaskCommit(task, current_seq, db_path, ())
     consumed = opts.get(CONSUMED_STEERING_IDS_OPT) or []
-    return TaskCommit(
-        task, current_seq, db_path, tuple(int(item) for item in consumed)
-    )
+    return TaskCommit(task, current_seq, db_path, tuple(int(item) for item in consumed))
 
 
 def _ack_consumed_steering(
@@ -121,9 +119,7 @@ def merge_usage_snapshots(
     for snapshot in snapshots:
         if not snapshot:
             continue
-        merged = merge_metrics(
-            merged, create_metrics_update(model_usage=dict(snapshot))
-        )
+        merged = merge_metrics(merged, create_metrics_update(model_usage=dict(snapshot)))
     # Unfollowed engine imports arrive as Any; assert the declared telemetry
     # field type at this boundary.
     usage: dict[str, dict[str, Any]] = merged.model_usage
@@ -166,9 +162,7 @@ def _emit_node_milestone(
     node_type = _canonical_event_type(node_name)
     if node_type not in _MILESTONE_BUILDERS:
         return
-    payload = _canonical_engine_payload(
-        node_name, node_type, _plain_final_state(state)
-    )
+    payload = _canonical_engine_payload(node_name, node_type, _plain_final_state(state))
     append_node_milestone(run_id, node_type, payload, db_path=db_path)
 
 
@@ -234,16 +228,12 @@ def _save_paused_if_requested(
     conn: sqlite3.Connection,
 ) -> tuple[int, None] | None:
     task = commit.task
-    run = conn.execute(
-        "SELECT status FROM runs WHERE id=?", (task.run_id,)
-    ).fetchone()
+    run = conn.execute("SELECT status FROM runs WHERE id=?", (task.run_id,)).fetchone()
     if run is None or run["status"] != RunStatus.PAUSED.value:
         return None
     envelope["last_event_seq"] = events.latest_event_seq(task.run_id, conn=conn)
     return (
-        _save_paused_checkpoint(
-            commit, state, resume_successor, envelope, conn
-        ),
+        _save_paused_checkpoint(commit, state, resume_successor, envelope, conn),
         None,
     )
 
@@ -265,12 +255,8 @@ def _save_paused_state(
     )
     with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
-        envelope["last_event_seq"] = events.latest_event_seq(
-            task.run_id, conn=conn
-        )
-        return _save_paused_checkpoint(
-            commit, state, resume_successor, envelope, conn
-        )
+        envelope["last_event_seq"] = events.latest_event_seq(task.run_id, conn=conn)
+        return _save_paused_checkpoint(commit, state, resume_successor, envelope, conn)
 
 
 def _save_paused_state_if_requested(
@@ -284,9 +270,7 @@ def _save_paused_state_if_requested(
     envelope = serialize_workflow_state(state, last_event_seq=0)
     with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
-        paused = _save_paused_if_requested(
-            commit, state, resume_successor, envelope, conn
-        )
+        paused = _save_paused_if_requested(commit, state, resume_successor, envelope, conn)
         return paused[0] if paused is not None else None
 
 
@@ -343,9 +327,7 @@ def _require_run(task: ScientificTask, db_path: str | None) -> RunRow:
     return run
 
 
-def _require_item_task(
-    item_id: Any, db_path: str | None, *, kind: str
-) -> ScientificTask:
+def _require_item_task(item_id: Any, db_path: str | None, *, kind: str) -> ScientificTask:
     item = tasks.get_task(str(item_id), db_path=db_path)
     if item is None:
         raise RuntimeError(f"{kind} {item_id} disappeared")
@@ -358,9 +340,7 @@ def _successor_task_type(successor: str | None) -> str:
     return f"{NODE_TASK_PREFIX}{successor}"
 
 
-def assert_task_commit_allowed(
-    task: ScientificTask, conn: sqlite3.Connection
-) -> None:
+def assert_task_commit_allowed(task: ScientificTask, conn: sqlite3.Connection) -> None:
     """Lease and run liveness are checked inside the transaction that
     commits scientific effects.
     """
@@ -387,14 +367,11 @@ def assert_task_commit_allowed(
         from app.task_worker.outcomes import _LeaseLostError
 
         raise _LeaseLostError(
-            f"task {task.id} cannot commit after lease revocation "
-            "or run termination"
+            f"task {task.id} cannot commit after lease revocation or run termination"
         )
 
 
-def _generator_and_opts(
-    task: ScientificTask, db_path: str | None
-) -> tuple[Any, dict[str, Any]]:
+def _generator_and_opts(task: ScientificTask, db_path: str | None) -> tuple[Any, dict[str, Any]]:
     from co_scientist.generator.core import HypothesisGenerator
 
     from app.credentials import get_run_credential
@@ -439,9 +416,7 @@ def _save_node_checkpoint(
     latest = store.get_latest_checkpoint(task.run_id, conn=conn)
     latest_seq = int(latest["seq"]) if latest else 0
     if latest_seq != expected_checkpoint_seq:
-        raise RuntimeError(
-            "checkpoint changed while scientific task was executing"
-        )
+        raise RuntimeError("checkpoint changed while scientific task was executing")
     return store.save_checkpoint(
         task.run_id,
         NewCheckpoint(
@@ -479,21 +454,15 @@ def _save_state_and_enqueue(
     with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         if pause_if_requested:
-            paused = _save_paused_if_requested(
-                commit, state, successor_type, envelope, conn
-            )
+            paused = _save_paused_if_requested(commit, state, successor_type, envelope, conn)
             if paused is not None:
                 return paused
         checkpoint_seq = _save_node_checkpoint(
             task, envelope, successor_type, commit.current_seq, conn
         )
-        successor_task = _enqueue_node_portfolio(
-            task, state, successor, successor_type, conn
-        )
+        successor_task = _enqueue_node_portfolio(task, state, successor, successor_type, conn)
         _ack_consumed_steering(commit, conn, state)
-        retrieval.save_run_metrics(
-            task.run_id, _metrics_snapshot(state), conn=conn
-        )
+        retrieval.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
     return checkpoint_seq, successor_task.id
 
 
@@ -535,9 +504,7 @@ def _enqueue_exact_successor(
             run_id=task.run_id,
             task_type=successor.task_type,
             inputs=inputs,
-            idempotency_key=successor.idempotency_key.format(
-                checkpoint_seq=checkpoint_seq
-            ),
+            idempotency_key=successor.idempotency_key.format(checkpoint_seq=checkpoint_seq),
             priority=86,
             dependencies=(task.id,),
             provenance={"scheduled_by": task.task_type},
@@ -559,18 +526,12 @@ def _save_state_and_enqueue_exact(
     task = commit.task
     envelope = serialize_workflow_state(
         state,
-        last_event_seq=events.latest_event_seq(
-            task.run_id, db_path=commit.db_path
-        ),
+        last_event_seq=events.latest_event_seq(task.run_id, db_path=commit.db_path),
     )
     with db.transaction(commit.db_path) as conn:
         assert_task_commit_allowed(task, conn)
-        checkpoint_seq = _save_exact_checkpoint(
-            task, envelope, commit.current_seq, conn
-        )
-        enqueued = _enqueue_exact_successor(
-            task, successor, checkpoint_seq, conn
-        )
+        checkpoint_seq = _save_exact_checkpoint(task, envelope, commit.current_seq, conn)
+        enqueued = _enqueue_exact_successor(task, successor, checkpoint_seq, conn)
     return checkpoint_seq, enqueued.id
 
 
@@ -594,10 +555,7 @@ def _replay_or_supersede(
     """
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
-    if (
-        current_seq > expected_seq
-        and checkpoint["stage"] == f"engine_task:{task.id}"
-    ):
+    if current_seq > expected_seq and checkpoint["stage"] == f"engine_task:{task.id}":
         return (
             {"checkpoint_seq": current_seq, "replayed": True},
             checkpoint,
@@ -616,12 +574,8 @@ def restore_checkpoint_state(
     """
     from app.engine_adapter import restore_workflow_state
 
-    generator = engine_tasks_runtime.active().generator_for_restore(
-        task, db_path
-    )
-    return restore_workflow_state(
-        checkpoint["state"], tool_registry=generator.tool_registry
-    )
+    generator = engine_tasks_runtime.active().generator_for_restore(task, db_path)
+    return restore_workflow_state(checkpoint["state"], tool_registry=generator.tool_registry)
 
 
 def leased_state(
@@ -630,9 +584,7 @@ def leased_state(
     """A replay result returns immediately before restoring or repeating
     scientific work.
     """
-    replay, checkpoint, current_seq = _replay_or_supersede(
-        task, db_path, label=label
-    )
+    replay, checkpoint, current_seq = _replay_or_supersede(task, db_path, label=label)
     if replay is not None:
         return replay, {}, current_seq
     return (

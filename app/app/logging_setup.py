@@ -61,9 +61,7 @@ class JsonFormatter(logging.Formatter):
         if run_id:
             payload["run_id"] = run_id
         if record.exc_info:
-            payload["exc_info"] = record.exc_text or self.formatException(
-                record.exc_info
-            )
+            payload["exc_info"] = record.exc_text or self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
 
 
@@ -107,9 +105,7 @@ def _byok_redaction_filter() -> logging.Filter:
     return ByokRedactionFilter()
 
 
-def configure_logging(
-    log_format: str = "text", level: int = logging.INFO
-) -> logging.Handler:
+def configure_logging(log_format: str = "text", level: int = logging.INFO) -> logging.Handler:
     """Replace the previously installed handler so reloads cannot duplicate
     every record.
     """
@@ -167,9 +163,7 @@ class _CaptureQueueHandler(logging.handlers.QueueHandler):
         record.args = None
         if record.exc_info and not record.exc_text:
             with contextlib.suppress(Exception):
-                record.exc_text = _EXC_FORMATTER.formatException(
-                    record.exc_info
-                )
+                record.exc_text = _EXC_FORMATTER.formatException(record.exc_info)
         record.exc_info = None
         record.stack_info = None
         return record
@@ -207,8 +201,7 @@ class _StoreWriteHandler(logging.Handler):
             if not self._warned:
                 self._warned = True
                 print(
-                    f"cosci: log capture write failed ({exc}); further "
-                    "failures suppressed",
+                    f"cosci: log capture write failed ({exc}); further failures suppressed",
                     file=sys.stderr,
                 )
 
@@ -240,10 +233,7 @@ def _drop_dependency_chatter(record: logging.LogRecord) -> bool:
     if record.levelno >= logging.WARNING:
         return True
     name = record.name.lower()
-    return not any(
-        name == noise or name.startswith(f"{noise}.")
-        for noise in UNPERSISTED_LOGGERS
-    )
+    return not any(name == noise or name.startswith(f"{noise}.") for noise in UNPERSISTED_LOGGERS)
 
 
 # Periodic resurfacing preserves ongoing-condition visibility without filling
@@ -289,11 +279,7 @@ class _RepeatSuppressor:
         """Bound suppression history even when every key is unique and
         nothing has yet expired.
         """
-        self._seen = {
-            key: seen
-            for key, seen in self._seen.items()
-            if now - seen < self._window
-        }
+        self._seen = {key: seen for key, seen in self._seen.items() if now - seen < self._window}
         if len(self._seen) >= _REPEAT_KEYS_MAX:
             self._seen.clear()
 
@@ -371,9 +357,7 @@ def _build_capture_pipeline(
     # Suppress repeats after stamping run IDs because run identity belongs in
     # the suppression key.
     handler.addFilter(_RepeatSuppressor())
-    listener = logging.handlers.QueueListener(
-        record_queue, _StoreWriteHandler(max_rows)
-    )
+    listener = logging.handlers.QueueListener(record_queue, _StoreWriteHandler(max_rows))
     return handler, listener
 
 

@@ -47,9 +47,7 @@ def _canned(article: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _install_article(
-    monkeypatch: pytest.MonkeyPatch, article: dict[str, Any]
-) -> None:
+def _install_article(monkeypatch: pytest.MonkeyPatch, article: dict[str, Any]) -> None:
     install_entrez(
         monkeypatch,
         esearch=lambda **_kwargs: CannedEntrezHandle({"IdList": ["123"]}),
@@ -60,9 +58,7 @@ def _install_article(
 
 _MARKUP = {
     "ArticleTitle": "Repurposing loratadine in <i>Klebsiella pneumoniae</i>",
-    "Abstract": {
-        "AbstractText": ["<b>Background:</b>", "bla<sub>NDM-1</sub> is common."]
-    },
+    "Abstract": {"AbstractText": ["<b>Background:</b>", "bla<sub>NDM-1</sub> is common."]},
     "AuthorList": [],
 }
 _MARKUP_TEXT = (
@@ -116,18 +112,14 @@ def test_the_fulltext_tool_returns_article_metadata_and_links_it_to_the_run(
     _install_article(monkeypatch, article)
 
     results = asyncio.run(
-        tool.pubmed_search_with_fulltext(
-            query="single", slug="slug", max_papers=1, run_id="run"
-        )
+        tool.pubmed_search_with_fulltext(query="single", slug="slug", max_papers=1, run_id="run")
     )
 
     assert results.keys() == {"123"}
     assert {key: results["123"][key] for key in expected} == expected
     metadata_path = tmp_path / "pubmed/slug/runs/run/123.metadata.json"
     assert metadata_path.is_symlink()
-    assert (
-        json.loads(metadata_path.read_text(encoding="utf-8")) == results["123"]
-    )
+    assert json.loads(metadata_path.read_text(encoding="utf-8")) == results["123"]
 
 
 @pytest.mark.parametrize(
@@ -288,12 +280,8 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
     link_metadata_to_run(run_dir, "101")
     link_metadata_to_run(run_dir, "101")
     link_metadata_to_run(None, "101")
-    assert metadata_file.read_text() == (
-        '{"title": "Paper \\u03b2", "pmc_full_text_id": null}'
-    )
-    assert (run_dir / metadata_file.name).readlink() == Path(
-        "../../shared/101.metadata.json"
-    )
+    assert metadata_file.read_text() == ('{"title": "Paper \\u03b2", "pmc_full_text_id": null}')
+    assert (run_dir / metadata_file.name).readlink() == Path("../../shared/101.metadata.json")
 
     relocated = tmp_path / "relocated"
     tree.rename(relocated)
@@ -416,9 +404,7 @@ def test_batched_search_keeps_metadata_on_elink_error_and_recovers_next_run(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     cache_root = tmp_path / "cache"
-    configure_trace(
-        monkeypatch, cache_root, "batch-offline-build", free_models=True
-    )
+    configure_trace(monkeypatch, cache_root, "batch-offline-build", free_models=True)
     monkeypatch.setenv("COSCIENTIST_PUBMED_METADATA_BATCH", "1")
     monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
 
@@ -447,9 +433,7 @@ def test_batched_search_keeps_metadata_on_elink_error_and_recovers_next_run(
             raise RuntimeError("offline")
         return cast(_Handle, link(**kwargs))
 
-    monkeypatch.setattr(
-        Entrez, "esearch", lambda **_kwargs: _Handle({"IdList": paper_ids})
-    )
+    monkeypatch.setattr(Entrez, "esearch", lambda **_kwargs: _Handle({"IdList": paper_ids}))
     _install_batch_entrez(monkeypatch, efetch, elink)
 
     def search(run_id: str) -> dict[str, Any]:
@@ -464,19 +448,15 @@ def test_batched_search_keeps_metadata_on_elink_error_and_recovers_next_run(
 
     first_results = search("elink-failure-run")
     shared_dir = cache_root / "pubmed" / "batch-elink-recovery" / "shared"
-    first_trace = read_trace(
-        cache_root, "batch-elink-recovery", "elink-failure-run"
-    )
+    first_trace = read_trace(cache_root, "batch-elink-recovery", "elink-failure-run")
 
     assert list(first_results) == ["701"]
     assert first_results["701"]["pmc_full_text_id"] is None
     assert not any(shared_dir.glob("*.metadata.json"))
-    assert first_trace["metadata_origins"] == dict.fromkeys(
-        paper_ids, "entrez_fetch"
-    )
-    assert [
-        (error["pmid"], error["stage"]) for error in first_trace["fetch_errors"]
-    ] == [(paper_id, "elink") for paper_id in paper_ids]
+    assert first_trace["metadata_origins"] == dict.fromkeys(paper_ids, "entrez_fetch")
+    assert [(error["pmid"], error["stage"]) for error in first_trace["fetch_errors"]] == [
+        (paper_id, "elink") for paper_id in paper_ids
+    ]
 
     fail_elink = False
     second_results = search("elink-recovered-run")
@@ -486,7 +466,4 @@ def test_batched_search_keeps_metadata_on_elink_error_and_recovers_next_run(
     assert list(second_results) == ["701"]
     assert "Recovered PMC full text." in second_results["701"]["fulltext"]
     assert fulltext_requests == ["1701"]
-    assert all(
-        (shared_dir / f"{paper_id}.metadata.json").exists()
-        for paper_id in paper_ids
-    )
+    assert all((shared_dir / f"{paper_id}.metadata.json").exists() for paper_id in paper_ids)

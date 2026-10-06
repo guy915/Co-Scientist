@@ -44,9 +44,7 @@ def test_pdf_ocr_includes_figures_on_text_pages(
         def __init__(self, _stream: io.BytesIO) -> None:
             self.pages = [_Page()]
 
-    monkeypatch.setitem(
-        sys.modules, "pypdf", types.SimpleNamespace(PdfReader=_Reader)
-    )
+    monkeypatch.setitem(sys.modules, "pypdf", types.SimpleNamespace(PdfReader=_Reader))
     monkeypatch.setattr(
         document_ingest,
         "_extract_image_ocr",
@@ -124,9 +122,7 @@ def test_invalid_image_is_rejected_without_persisting_evidence(
     def _raise_decode_failure(_data: bytes) -> str:
         raise ValueError("image could not be decoded or OCR failed")
 
-    monkeypatch.setattr(
-        document_ingest, "_extract_image_ocr", _raise_decode_failure
-    )
+    monkeypatch.setattr(document_ingest, "_extract_image_ocr", _raise_decode_failure)
     client, run_id = _client_with_run("Inspect private figure")
 
     response = client.post(
@@ -311,9 +307,7 @@ def test_create_run_carries_staged_documents_into_its_corpus() -> None:
     )
     assert created.status_code == 200, created.text
     run_id = created.json()["id"]
-    evidence = client.get(
-        f"/api/runs/{run_id}/evidence", headers=_HEADERS
-    ).json()
+    evidence = client.get(f"/api/runs/{run_id}/evidence", headers=_HEADERS).json()
     titles = [row["title"] for row in evidence["evidence"]]
     assert "lab-notes.txt" in titles
 

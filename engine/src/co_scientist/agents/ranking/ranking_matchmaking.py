@@ -36,9 +36,7 @@ def build_tournament_pairings(
 
     by_id = {h.id: h for h in hypotheses}
     candidates = _build_match_candidates(hypotheses)
-    id_pairs = build_weighted_pairings(
-        candidates, tournament_rounds, seed, exclude=judged
-    )
+    id_pairs = build_weighted_pairings(candidates, tournament_rounds, seed, exclude=judged)
     return [(by_id[a], by_id[b]) for a, b in id_pairs]
 
 
@@ -111,11 +109,7 @@ def _coverage_pool(
 ) -> list[MatchCandidate]:
     """Fill the fewest-played level first; second matches must not crowd out
     firsts when enough rounds exist to cover everyone."""
-    below = [
-        c
-        for c in candidates
-        if state.coverage.get(c.id, 0) < state.weights.min_coverage
-    ]
+    below = [c for c in candidates if state.coverage.get(c.id, 0) < state.weights.min_coverage]
     if not below:
         return candidates
     fewest = min(state.coverage.get(c.id, 0) for c in below)
@@ -126,9 +120,7 @@ def _select_primary(
     candidates: list[MatchCandidate],
     state: _PairingState,
 ) -> MatchCandidate:
-    scored = [
-        (c, _priority(c, state)) for c in _coverage_pool(candidates, state)
-    ]
+    scored = [(c, _priority(c, state)) for c in _coverage_pool(candidates, state)]
     return _weighted_choice(scored, state.rng)
 
 
@@ -161,10 +153,7 @@ def _partner_score(
     score = _priority(candidate, state) + state.weights.elo_closeness * (
         _elo_closeness(candidate, primary, state)
     )
-    same_cluster = (
-        primary.cluster_id is not None
-        and candidate.cluster_id == primary.cluster_id
-    )
+    same_cluster = primary.cluster_id is not None and candidate.cluster_id == primary.cluster_id
     return score + state.weights.similarity_bonus if same_cluster else score
 
 
@@ -176,9 +165,7 @@ def _select_partner(
 ) -> MatchCandidate | None:
     """Apply coverage to both sides; prioritizing only the primary can spend
     rounds on covered partners while another idea remains unmatched."""
-    eligible = [
-        c for c in candidates if _is_eligible_partner(c, primary, recent_pairs)
-    ]
+    eligible = [c for c in candidates if _is_eligible_partner(c, primary, recent_pairs)]
     if not eligible:
         return None
     pool = _coverage_pool(eligible, state)
@@ -195,9 +182,7 @@ def _select_round_partner(
 ) -> MatchCandidate | None:
     """Do not relax into scheduled pairs: this build uses one Elo snapshot,
     so repeats replay evidence instead of refreshing it."""
-    prev_only: set[frozenset[str]] = (
-        {prev_pair} if prev_pair is not None else set()
-    )
+    prev_only: set[frozenset[str]] = {prev_pair} if prev_pair is not None else set()
     return _select_partner(primary, candidates, recent_pairs | prev_only, state)
 
 
@@ -222,9 +207,7 @@ def _schedule_one_pairing(
     """An exhausted primary must not end the build while other pairs remain."""
     for _ in range(len(candidates)):
         primary = _select_primary(candidates, state)
-        partner = _select_round_partner(
-            primary, candidates, recent_pairs, prev_pair, state
-        )
+        partner = _select_round_partner(primary, candidates, recent_pairs, prev_pair, state)
         if partner is not None:
             return _commit_pairing(primary, partner, recent_pairs, state)
     return _any_unscheduled_pairing(candidates, recent_pairs, state)

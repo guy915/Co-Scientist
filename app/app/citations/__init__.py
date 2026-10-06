@@ -156,9 +156,7 @@ def classify_source_type(meta: CitationMetadata) -> SourceType:
 _EARLIEST_PLAUSIBLE_YEAR = 1665
 
 
-def classify_date(
-    meta: CitationMetadata, *, today_year: int | None = None
-) -> DateState:
+def classify_date(meta: CitationMetadata, *, today_year: int | None = None) -> DateState:
     """Next-year accepted papers are plausible; pre-1665 dates precede the first
     scientific journal and indicate parse artifacts.
     """
@@ -174,9 +172,7 @@ def classify_date(
 _RESOLVE_CONCURRENCY = 6
 _RESOLVE_TIMEOUT_SECONDS = 8.0
 
-_PUBMED_ESUMMARY_URL = (
-    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-)
+_PUBMED_ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 
 
 def _doi_url(doi: str) -> str:
@@ -263,9 +259,7 @@ def live_resolver(meta: CitationMetadata) -> Resolvability:
     )
 
 
-def resolve_many(
-    metas: Iterable[CitationMetadata], *, resolver: Resolver
-) -> list[Resolvability]:
+def resolve_many(metas: Iterable[CitationMetadata], *, resolver: Resolver) -> list[Resolvability]:
     """Keep bounded, input-ordered fan-out for live checks; offline
     classification shares the same resolver path.
     """
@@ -273,9 +267,7 @@ def resolve_many(
     if not items:
         return []
     assess = functools.partial(assess_resolvability, resolver=resolver)
-    with ThreadPoolExecutor(
-        max_workers=min(_RESOLVE_CONCURRENCY, len(items))
-    ) as pool:
+    with ThreadPoolExecutor(max_workers=min(_RESOLVE_CONCURRENCY, len(items))) as pool:
         return list(pool.map(assess, items))
 
 

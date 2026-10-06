@@ -70,20 +70,13 @@ def _real_run(goal: str) -> RunRow:
     return seed_run(goal)
 
 
-def _stub_eligible(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
-    monkeypatch.setattr(
-        safety, "_should_escalate_to_semantic", lambda *a, **k: True
-    )
+def _stub_eligible(monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode) -> None:
+    monkeypatch.setattr(safety, "_should_escalate_to_semantic", lambda *a, **k: True)
     fake_process_mode.online()
 
 
 def _held_status(run_id: str, isolated_db: str) -> str:
-    by_id = {
-        h["id"]: h
-        for h in hypotheses.list_hypotheses(run_id, db_path=isolated_db)
-    }
+    by_id = {h["id"]: h for h in hypotheses.list_hypotheses(run_id, db_path=isolated_db)}
     return str(by_id["held-1"]["safety_status"])
 
 
@@ -108,9 +101,7 @@ def test_drain_escalates_and_audits_the_resolved_verdict(
     install_completion_backend(monkeypatch, completion)
     run = _real_run("drain escalation resolve")
 
-    _persist(
-        run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=_escalation_state(), db_path=isolated_db)
 
     if status is not None:
         assert _held_status(run.id, isolated_db) == status
@@ -161,9 +152,7 @@ def test_rescreen_does_not_downgrade_an_escalation_raised_block(
     install_completion_backend(monkeypatch, block_completion)
     run = _real_run("drain escalation rescreen")
 
-    _persist(
-        run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=_escalation_state(), db_path=isolated_db)
     assert _held_status(run.id, isolated_db) == "prohibited"
     before = records.list_safety_decisions(run.id, db_path=isolated_db)
 
@@ -191,18 +180,14 @@ def test_drain_escalation_fails_closed(
         raise RuntimeError("provider unavailable")
 
     if failure == "no_credential":
-        monkeypatch.setattr(
-            safety, "_should_escalate_to_semantic", lambda *a, **k: True
-        )
+        monkeypatch.setattr(safety, "_should_escalate_to_semantic", lambda *a, **k: True)
         fake_process_mode.online(credential=False)
     else:
         _stub_eligible(monkeypatch, fake_process_mode)
         install_completion_backend(monkeypatch, raise_completion)
     run = _real_run("drain escalation fails closed")
 
-    _persist(
-        run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
-    )
+    _persist(run_id=run.id, final_state=_escalation_state(), db_path=isolated_db)
 
     assert _held_status(run.id, isolated_db) == "uncertain"
 
@@ -212,18 +197,12 @@ def test_drain_skips_escalation_cleanly_when_offline(
 ) -> None:
 
     async def fail_if_called(**_: object) -> None:
-        raise AssertionError(
-            "an offline-backed run must never call the provider"
-        )
+        raise AssertionError("an offline-backed run must never call the provider")
 
     install_completion_backend(monkeypatch, fail_if_called)
-    run = seed_run(
-        "drain escalation offline", llm_backend="offline", db_path=isolated_db
-    )
+    run = seed_run("drain escalation offline", llm_backend="offline", db_path=isolated_db)
 
-    drained = _persist(
-        run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
-    )
+    drained = _persist(run_id=run.id, final_state=_escalation_state(), db_path=isolated_db)
 
     assert drained.safety_counts["screened"] == 2
     assert _held_status(run.id, isolated_db) == "uncertain"
@@ -316,10 +295,7 @@ def test_drain_persists_evidence_identity_and_retrieval_provenance(
     )
     _persist_and_finalize(run, final_state, isolated_db)
 
-    by_title = {
-        row["title"]: row
-        for row in records.list_evidence(run.id, db_path=isolated_db)
-    }
+    by_title = {row["title"]: row for row in records.list_evidence(run.id, db_path=isolated_db)}
     row = by_title["A PubMed paper"]
     assert row["doi"] == "10.1000/xyz123"
     assert row["pmid"] == "12345678"
@@ -355,10 +331,7 @@ def _persisted_evidence(
     state = _final_state_with_article(articles[0])
     state["articles"] = articles
     _persist_and_finalize(run, state, isolated_db)
-    return {
-        e["title"]: e
-        for e in records.list_evidence(run.id, db_path=isolated_db)
-    }
+    return {e["title"]: e for e in records.list_evidence(run.id, db_path=isolated_db)}
 
 
 def test_offline_resolver_availability_retraction_and_source_type(
@@ -370,9 +343,7 @@ def test_offline_resolver_availability_retraction_and_source_type(
             _article("Reachable-by-metadata paper", 1),
             _article("Retracted paper", 2, is_retracted=True),
             _article("No identifier at all", 3, url=""),
-            _article(
-                "Preprint indexed in pubmed", 6, publication_type="Preprint"
-            ),
+            _article("Preprint indexed in pubmed", 6, publication_type="Preprint"),
             {
                 **_article("Preprint server paper", 7),
                 "source": "biorxiv",
@@ -405,9 +376,7 @@ def test_live_resolver_dereferences_and_persists_retraction(
         metas: list[CitationMetadata], *, resolver: Resolver
     ) -> list[Resolvability]:
         return [
-            Resolvability.RETRACTED
-            if metas[0].retracted
-            else Resolvability.RESOLVABLE,
+            Resolvability.RETRACTED if metas[0].retracted else Resolvability.RESOLVABLE,
             Resolvability.UNRESOLVABLE,
             Resolvability.RETRACTED,
         ]
@@ -506,17 +475,12 @@ def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    by_text = {
-        h["statement"][:8]: h for h in hypotheses.list_hypotheses(run.id)
-    }
+    by_text = {h["statement"][:8]: h for h in hypotheses.list_hypotheses(run.id)}
     assert by_text["Inhibiti"]["safety_status"] == "allow"
     assert by_text["Weaponiz"]["safety_status"] == "prohibited"
 
     decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
-    assert any(
-        d["stage"] == "hypothesis" and d["decision"] == "block"
-        for d in decisions
-    )
+    assert any(d["stage"] == "hypothesis" and d["decision"] == "block" for d in decisions)
 
 
 @pytest.mark.parametrize("engine_audit", [True, False])
@@ -600,10 +564,7 @@ def test_drain_persists_multi_parent_lineage_without_dangling_ids(
     run = seed_run("combine goal")
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    hyps = {
-        h["id"]: h
-        for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-    }
+    hyps = {h["id"]: h for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)}
     assert hyps["child-1"]["parent_id"] == "parent-1"
     assert hyps["child-1"]["parent_ids"] == parent_ids
     assert hyps["parent-1"]["parent_ids"] is None
@@ -618,9 +579,7 @@ def test_drain_persists_creation_iteration(isolated_db: str) -> None:
         final_state={
             "hypotheses": [
                 _engine_hypothesis("seed", "Seed idea.", creation_iteration=0),
-                _engine_hypothesis(
-                    "reborn", "Re-generated later.", creation_iteration=2
-                ),
+                _engine_hypothesis("reborn", "Re-generated later.", creation_iteration=2),
                 _engine_hypothesis("legacy", "No cycle stamped."),
             ],
             "articles": [],
@@ -632,10 +591,7 @@ def test_drain_persists_creation_iteration(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    by_id = {
-        h["id"]: h
-        for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-    }
+    by_id = {h["id"]: h for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)}
     assert by_id["seed"]["creation_iteration"] == 0
     assert by_id["reborn"]["creation_iteration"] == 2
     assert by_id["legacy"]["creation_iteration"] is None
@@ -671,9 +627,7 @@ def _judged_matchup() -> dict[str, Any]:
             "turn": 2,
             "winner": "b",
             "winner_id": "e-b",
-            "reasoning": (
-                "Presented the other way round it still holds. Better idea: 1"
-            ),
+            "reasoning": ("Presented the other way round it still holds. Better idea: 1"),
             "presentation_order": "ba",
             "valid_output": True,
         },
@@ -731,10 +685,7 @@ def test_a_judged_debate_reaches_the_report(isolated_db: str) -> None:
         " Idea 2 names a measurable target." in markdown
     )
     # Swapped turn headers explain the numbering used by their own argument.
-    assert (
-        '**Turn 2 (favors idea 2; this turn\'s "Hypothesis 1" is idea 2):**'
-        in markdown
-    )
+    assert '**Turn 2 (favors idea 2; this turn\'s "Hypothesis 1" is idea 2):**' in markdown
     assert markdown.rstrip().count("Better idea:") == 1
     assert "Better idea: 2" in markdown
 
@@ -762,11 +713,7 @@ def test_novelty_score_comes_from_the_reviewers_novelty_axis(
             }
         )
     state = {
-        "hypotheses": [
-            _engine_hypothesis(
-                "h-1", "A hypothesis.", score=9.0, reviews=reviews
-            )
-        ],
+        "hypotheses": [_engine_hypothesis("h-1", "A hypothesis.", score=9.0, reviews=reviews)],
         "articles": [],
         "tournament_matchups": [],
         "meta_review": {},

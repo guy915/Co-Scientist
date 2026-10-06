@@ -138,9 +138,7 @@ if not TYPE_CHECKING:
     def __getattr__(name: str) -> Any:
         module = _EXPORTS.get(name)
         if module is None:
-            raise AttributeError(
-                f"module {__name__!r} has no attribute {name!r}"
-            )
+            raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
         value = getattr(importlib.import_module(module), name)
         globals()[name] = value
         return value
