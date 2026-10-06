@@ -149,8 +149,6 @@ class Settings(BaseSettings):
     # Removing the daily cap does not remove the free express-only envelope.
     free_runs_per_day: int = 3
 
-    tools_config: str | None = None
-
     # Hermetic tests select deterministic entailment; production defaults to
     # semantic assessment.
     claim_assessor: str = "llm"
