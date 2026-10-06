@@ -5,11 +5,13 @@ keeping every behavior they protect. Every decision below was settled with the
 owner on 4 October 2026, so the campaign runs unattended: the agent decides by
 these rules and reports at the end.
 
-**Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is complete for
-the engine and the MCP server and in progress for the app and the frontend.
-The coverage floor (80% per suite and protected module, or a protected
-module's lower baseline, with each suite aimed at 80–85%) and shared
-scaffolding remain the campaign guards.
+**Status:** complete (6 October 2026). Phase 1 finished in PRs #185 and
+#187, Phase 2 in #218, and Phase 3 in #233. Phase 3's exit test passed when
+the last two themed PRs, #232 and #233, removed 30 and 266 test lines. Every
+suite and protected module is at or above the 80% floor. The engine (84.2%),
+the MCP server (84.2%) and the frontend (85.9%) sit at the 80–85% band; the
+app stays at 93.5% because its protected-module floors and invariant tests
+cap further cuts.
 Phase counts and verification are recorded in
 `docs/test-campaign/progress.json`.
 The improvements campaign is preserved in merged history; PR #184 deliberately
