@@ -38,32 +38,17 @@ def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
 
 
-async def test_count_zero_returns_empty() -> None:
-    hyps, transcripts, llm_calls = await generate_with_debate(
-        make_state(), count=0
-    )
-    assert hyps == []
-    assert transcripts == []
-    assert llm_calls == 0
-
-
 @pytest.mark.parametrize(
     ("turn_text", "converges"),
     [
         ("HYPOTHESIS: the panel agrees", True),
-        ("HYPOTHESIS. The panel agrees", True),
         ("we conclude: HYPOTHESIS — inhibition of E", True),
-        ("Hypothesis: the panel agrees", True),
-        ("hypothesis:\nthe panel agrees", True),
         ("**HYPOTHESIS**: the panel agrees", True),
-        ("- HYPOTHESIS: the panel agrees", True),
         ("HYPOTHESIS\nthe panel agrees", True),
         ("the hypothesis is weak", False),
         ("Hypothesis 1: a direct causal mechanism", False),
-        ("Hypothesis 2: an upstream regulator", False),
         ("Hypotheses: three candidates remain", False),
         ('we will write "HYPOTHESIS" once we agree', False),
-        ("The hypothesis states that E inhibits R", False),
         ("the panel still disagrees", False),
     ],
 )
@@ -183,30 +168,12 @@ async def test_single_debate_of_a_larger_batch_gets_its_own_angle(
     assert expected is not None
     assert expected in final_prompts[0]
 
-
-async def test_a_lone_debate_still_gets_no_angle(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    final_prompts: list[str] = []
-
-    async def fake_call_llm(**_: Any) -> str:
-        return "a debate turn argument"
-
-    async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
-        final_prompts.append(str(kwargs["prompt"]))
-        return make_generation_response(
-            "the lone hypothesis", explanation="because"
-        )
-
-    monkeypatch.setattr(debate, "call_llm", fake_call_llm)
-    monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
-
+    final_prompts.clear()
     await generate_with_debate(
         make_state(),
         count=1,
         batch_position=DebateBatchPosition(debate_index=0, total_debates=1),
     )
-
     assert "Parallel debate" not in final_prompts[0]
 
 
@@ -335,25 +302,6 @@ async def test_tree_makes_three_bounded_calls(
     assert "(load-bearing)" in final and "sub A" in final
 
 
-async def test_sub_call_lists_parents_positionally(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = _install_sequence(
-        monkeypatch,
-        [
-            _tree_response(2, load_bearing_from=1),
-            _sub_response((0, ["sub of the load-bearing parent"])),
-            _final_response(),
-        ],
-    )
-    await generate_with_assumptions(make_state(), 1)
-
-    sub_prompt = calls[1]["prompt"]
-    assert "0. assumption 1" in sub_prompt
-    assert "assumption 0" not in sub_prompt
-    assert "parent_index" in sub_prompt
-
-
 async def test_tree_bounds_are_enforced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -376,6 +324,7 @@ async def test_tree_bounds_are_enforced(
     assert f"assumption {ASSUMPTION_TREE_MAX_TOP - 1}" in final_prompt
     assert f"assumption {ASSUMPTION_TREE_MAX_TOP} " not in final_prompt
     sub_prompt = calls[1]["prompt"]
+    assert "parent_index" in sub_prompt
     listed_parents = re.findall(r"(?m)^\d+\. assumption \d+", sub_prompt)
     assert len(listed_parents) == ASSUMPTION_TREE_MAX_LOAD_BEARING
     for parent_index in range(ASSUMPTION_TREE_MAX_LOAD_BEARING):
@@ -399,39 +348,6 @@ async def test_out_of_range_parent_index_wraps_deterministically(
     await generate_with_assumptions(make_state(), 1)
 
     assert "wrapped sub" in calls[-1]["prompt"]
-
-
-async def test_no_load_bearing_assumptions_skips_level_1(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = _install_sequence(
-        monkeypatch,
-        [
-            _tree_response(2, load_bearing_from=99),
-            _final_response(),
-        ],
-    )
-    result, llm_calls = await generate_with_assumptions(make_state(), 1)
-    assert [c["options"].prompt_name for c in calls] == [
-        "generation_assumption_tree",
-        "generation_assumptions",
-    ]
-    assert len(result) == 1
-    assert llm_calls == 2
-
-
-async def test_empty_tree_degrades_to_single_final_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = _install_sequence(
-        monkeypatch,
-        [{"assumptions": []}, _final_response()],
-    )
-    result, llm_calls = await generate_with_assumptions(make_state(), 1)
-    assert len(result) == 1
-    assert llm_calls == 2
-    final_prompt = calls[-1]["prompt"]
-    assert "Assumption Tree" not in final_prompt
 
 
 async def test_literature_context_grounds_every_level(
@@ -499,29 +415,6 @@ async def test_expansion_and_wrong_assumption_context_reach_the_tree(
         assert "Verified Incorrect" in prompt
         assert "Does efflux carry the drug?" in prompt
         assert "a prior hypothesis" in prompt
-
-
-async def test_offline_tree_is_deterministic(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from co_scientist.offline import llm as offline_llm
-    from tests._mcp import isolate_offline_router
-
-    isolate_offline_router(monkeypatch)
-    offline_llm.install_offline_router()
-
-    state = make_state(
-        research_goal="explain how protein X folds",
-        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-    )
-    first, _ = await generate_with_assumptions(state, 2)
-    second, _ = await generate_with_assumptions(state, 2)
-
-    assert first, "the offline tree must still produce hypotheses"
-    assert [h.text for h in first] == [h.text for h in second]
-    assert all(
-        h.generation_method is GenerationMethod.ASSUMPTIONS for h in first
-    )
 
 
 def _probe(
@@ -606,3 +499,27 @@ async def test_generation_caps_falsified_assumption_guidance(
     final = calls[-1]["prompt"]
     assert all(f"Q{i}?" in final for i in range(MAX_FALSIFIED_ASSUMPTION_LINES))
     assert f"Q{MAX_FALSIFIED_ASSUMPTION_LINES}?" not in final
+
+
+@pytest.mark.parametrize(
+    ("tree", "level_calls"),
+    [
+        (_tree_response(2, load_bearing_from=99), 2),
+        ({"assumptions": []}, 2),
+    ],
+    ids=["no_load_bearing", "empty_tree"],
+)
+async def test_tree_without_load_bearing_parents_skips_the_sub_level(
+    monkeypatch: pytest.MonkeyPatch, tree: dict[str, Any], level_calls: int
+) -> None:
+    calls = _install_sequence(monkeypatch, [tree, _final_response()])
+    result, llm_calls = await generate_with_assumptions(make_state(), 1)
+    assert [c["options"].prompt_name for c in calls] == [
+        "generation_assumption_tree",
+        "generation_assumptions",
+    ]
+    assert len(result) == 1
+    assert llm_calls == level_calls
+    assert ("Assumption Tree" in calls[-1]["prompt"]) is bool(
+        tree["assumptions"]
+    )

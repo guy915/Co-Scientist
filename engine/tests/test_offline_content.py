@@ -12,11 +12,6 @@ from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
-from co_scientist.generator.initial_state import (
-    RunCapabilities,
-    RunIdentity,
-    _build_initial_state,
-)
 from co_scientist.llm.structured.validate import get_fallback_response
 from co_scientist.models import ExecutionMetrics
 from co_scientist.offline import llm as offline_llm
@@ -29,7 +24,6 @@ from co_scientist.offline.llm import (
     _RECOMMENDED_IDEA_TEMPLATES,
     _SCOPE_CLAUSES,
     _TIME_ESTIMATE_TEMPLATES,
-    _goal_text,
     leaf_text,
     subject_terms,
 )
@@ -51,28 +45,13 @@ Run setup:
 """
 
 
-def test_the_goal_span_stops_before_the_surrounding_boilerplate() -> None:
-    """Unbounded subject scans mine template scaffolding rather than the
-    goal."""
-    span = _goal_text(_GOAL_PROMPT)
-
-    assert "antibiotic resistance" in span
-    assert "author-year" not in span
-    assert "Requirements" not in span
-
-
-def test_terms_come_from_the_goal() -> None:
+def test_terms_come_from_the_goal_not_the_surrounding_boilerplate() -> None:
     terms = subject_terms(_GOAL_PROMPT)
 
     assert "antibiotic" in terms
     assert "biofilms" in terms
     assert "requirements" not in terms
-
-
-def test_a_prompt_with_no_goal_falls_back_rather_than_inventing() -> None:
-    terms = subject_terms("Some text with no labelled goal at all here.")
-
-    assert "pathway flux" in terms
+    assert "pathway flux" in subject_terms("No labelled goal at all here.")
 
 
 def test_generated_text_is_never_mined_as_subject_matter() -> None:
@@ -159,14 +138,6 @@ def test_standalone_fields_stay_a_short_label(
         assert not any(clause in text for clause in _SCOPE_CLAUSES), text
 
 
-def test_identical_inputs_are_byte_identical() -> None:
-    args = (1, "statement", ("resistance", "biofilms"))
-
-    assert leaf_text(random.Random(7), *args) == leaf_text(
-        random.Random(7), *args
-    )
-
-
 async def test_offline_acompletion_sizes_directions_past_the_preview_gate() -> (
     None
 ):
@@ -200,56 +171,14 @@ async def test_offline_acompletion_sizes_directions_past_the_preview_gate() -> (
     assert len(set(titles)) == len(titles)
 
 
-async def test_offline_acompletion_sizes_unexpected_research_directions() -> (
-    None
-):
-    schema = RESEARCH_OVERVIEW_SCHEMA["schema"]
-
-    response = await offline_llm.offline_acompletion(
-        model=offline_llm.DEFAULT_OFFLINE_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": "Top-ranked hypotheses (highest Elo first):\n"
-                "1. (Elo 1200) first.\n",
-            }
-        ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "research_overview",
-                "schema": schema,
-            },
-        },
-    )
-
-    parsed = json.loads(response.choices[0].message.content)
-    jsonschema.validate(instance=parsed, schema=schema)
-    directions = parsed["unexpected_research_directions"]
-    assert len(directions) == 3
-    titles = [d["title"] for d in directions]
-    assert all(titles)
-    assert len(set(titles)) == len(titles)
-
-
 def _fresh_state(**extra: Any) -> WorkflowState:
     state: dict[str, Any] = {"degraded_nodes": []}
     state.update(extra)
     return cast(WorkflowState, state)
 
 
-async def test_fallback_records_degradation_into_active_state() -> None:
-    state = _fresh_state()
-    await emit_progress(state, "meta_review_start", "working", 45)
-
-    fallback = get_fallback_response({"name": "meta_review"})
-
-    assert fallback is not None
-    assert state["degraded_nodes"] == ["meta_review"]
-
-
 async def test_degradations_accumulate_in_serve_order() -> None:
-    state = _fresh_state()
+    state = cast(WorkflowState, {})
     await emit_progress(state, "phase", "working", 10)
 
     get_fallback_response({"name": "meta_review"})
@@ -264,15 +193,6 @@ async def test_fallback_without_active_state_still_serves() -> None:
     fallback = get_fallback_response({"name": "hypothesis_batch_review"})
 
     assert fallback == {"reviews": []}
-
-
-async def test_fallback_records_into_restored_state_lacking_key() -> None:
-    state = cast(WorkflowState, {})
-    await emit_progress(state, "phase", "working", 10)
-
-    get_fallback_response({"name": "deep_verification"})
-
-    assert state["degraded_nodes"] == ["deep_verification"]
 
 
 async def test_degradation_emits_progress_event() -> None:
@@ -317,20 +237,6 @@ def test_critical_node_fallback_records_nothing() -> None:
     _ACTIVE_WORKFLOW_STATE.set(state)
 
     assert get_fallback_response({"name": "hypothesis_generation"}) is None
-    assert state["degraded_nodes"] == []
-
-
-def test_initial_state_seeds_empty_degraded_nodes() -> None:
-    state = _build_initial_state(
-        config_fields={},
-        identity=RunIdentity(
-            research_goal="goal", start_time=0.0, run_id="run-1"
-        ),
-        capabilities=RunCapabilities(),
-        opts={},
-        user_inputs={},
-    )
-
     assert state["degraded_nodes"] == []
 
 

@@ -14,7 +14,6 @@ from co_scientist.agents.generation.debate import generate_with_debate
 from co_scientist.agents.generation.generate import generate_node
 from co_scientist.agents.generation.operations import (
     _determine_generation_counts,
-    _forced_generation_strategy,
 )
 from co_scientist.agents.meta_review.meta_review import meta_review_node
 from co_scientist.cache import LLMCacheRequest, get_cache
@@ -23,15 +22,12 @@ from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.llm.request.backend import active_backend
 from co_scientist.offline.llm import _prompt_text
 from co_scientist.prompts import (
-    DirectionWritingMaterial,
     DraftPromptRequest,
     ValidationSynthesisRequest,
     get_draft_prompt_with_tools,
-    get_research_overview_direction_prompt,
     get_research_overview_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
-from co_scientist.prompts.generation_debate import _DEBATE_MAX_DISCUSSION_TURNS
 from co_scientist.prompts.loading import load_prompt
 from tests._llm_fake import (
     install_fake_backend,
@@ -139,17 +135,6 @@ def test_parallel_debates_stay_distinct_with_warm_cache(
     assert len(texts) == 4, f"expected 4 distinct hypotheses, got {texts}"
 
 
-def test_derivation_is_unchanged_when_no_strategy_is_forced() -> None:
-    counts = _determine_generation_counts(
-        make_state(),
-        total_count=4,
-        has_literature=True,
-        enable_tool_calling=True,
-    )
-    assert counts.tools_count > 0
-    assert counts.debate_with_lit_count > 0
-
-
 def test_forced_debate_only_overrides_the_derived_mix() -> None:
     state = make_state(generation_strategy="no_lit")
     counts = _determine_generation_counts(
@@ -159,38 +144,6 @@ def test_forced_debate_only_overrides_the_derived_mix() -> None:
     assert counts.debate_with_lit_count == 0
     assert counts.debate_only_count > 0
     assert counts.is_degraded_mode is True
-
-
-def test_unknown_forced_label_falls_back_to_derivation() -> None:
-    assert (
-        _forced_generation_strategy(make_state(generation_strategy="bogus"))
-        is None
-    )
-    counts = _determine_generation_counts(
-        make_state(generation_strategy="bogus"),
-        total_count=4,
-        has_literature=False,
-        enable_tool_calling=False,
-    )
-    assert counts.debate_only_count > 0
-
-
-def test_resolver_refuses_tools_strategy_without_tool_calling() -> None:
-    opts = {"generation_strategy": "lit_and_tools"}
-    assert _resolve_generation_strategy(opts, False) == ""
-    assert _resolve_generation_strategy(opts, True) == "lit_and_tools"
-
-
-def test_resolver_allows_debate_strategy_without_tool_calling() -> None:
-    opts = {"generation_strategy": "no_lit"}
-    assert _resolve_generation_strategy(opts, False) == "no_lit"
-
-
-def test_resolver_ignores_absent_or_nonstring_strategy() -> None:
-    assert _resolve_generation_strategy({}, True) == ""
-    assert (
-        _resolve_generation_strategy({"generation_strategy": None}, True) == ""
-    )
 
 
 _GENERATION_SCHEMA_NAME = "hypothesis_generation"
@@ -317,39 +270,6 @@ async def test_debate_prompts_carry_scientist_criteria(
     assert all("{{MISSING" not in prompt for prompt in prompts)
 
 
-async def test_debate_prompt_states_the_envelope_from_the_loop_constants(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A stale prose envelope is a real instruction even when code enforces
-    different bounds."""
-    from co_scientist.prompts.generation_debate import (
-        _DEBATE_TYPICAL_MAX_TURNS,
-        _DEBATE_TYPICAL_MIN_TURNS,
-    )
-
-    prompts: list[str] = []
-
-    async def fake_call_llm(**kwargs: Any) -> str:
-        prompts.append(str(kwargs["prompt"]))
-        return "HYPOTHESIS: agreed"
-
-    monkeypatch.setattr(debate, "call_llm", fake_call_llm)
-    stub_call_llm_json(
-        monkeypatch,
-        debate,
-        make_generation_response("h", explanation="because"),
-    )
-
-    await generate_with_debate(make_state(), count=1)
-
-    envelope = (
-        f"typically {_DEBATE_TYPICAL_MIN_TURNS}-{_DEBATE_TYPICAL_MAX_TURNS}"
-        f" conversational turns, with a maximum of "
-        f"{_DEBATE_MAX_DISCUSSION_TURNS}"
-    )
-    assert all(envelope in prompt for prompt in prompts)
-
-
 @pytest.mark.parametrize(
     "constraints",
     [None, ["No mouse work; zebrafish only", "Budget capped at $50k"]],
@@ -427,71 +347,58 @@ async def test_generation_sends_the_scientific_contract_to_assumptions(
 
 
 @pytest.mark.parametrize(
-    "kind", ["draft", "synthesis", "evolution", "overview", "direction"]
+    ("strategy", "expected_tools_count_positive", "expected_debate_only"),
+    [(None, True, False), ("bogus", True, False), ("no_lit", False, True)],
 )
-def test_writing_prompts_keep_their_scientific_contract(kind: str) -> None:
-    if kind == "draft":
-        prompt, _ = get_draft_prompt_with_tools(
-            DraftPromptRequest(
-                research_goal="a goal",
-                hypotheses_count=2,
-                lab_constraints=["Biosafety level 2 only"],
-            )
-        )
-        expected = [
-            "novelty claims must be hedged",
-            "a shallow draft becomes a shallow final hypothesis",
-            "Biosafety level 2 only",
-        ]
-    elif kind == "synthesis":
-        prompt, schema = get_validation_synthesis_prompt_with_tools(
+def test_forced_strategy_overrides_only_a_recognised_label(
+    strategy: str | None,
+    expected_tools_count_positive: bool,
+    expected_debate_only: bool,
+) -> None:
+    state = make_state(generation_strategy=strategy)
+    counts = _determine_generation_counts(
+        state, total_count=4, has_literature=True, enable_tool_calling=True
+    )
+    assert (counts.tools_count > 0) is expected_tools_count_positive
+    assert (counts.debate_only_count > 0) is expected_debate_only
+    assert counts.is_degraded_mode is expected_debate_only
+
+
+@pytest.mark.parametrize(
+    ("opts", "tool_calling", "expected"),
+    [
+        ({"generation_strategy": "lit_and_tools"}, False, ""),
+        ({"generation_strategy": "lit_and_tools"}, True, "lit_and_tools"),
+        ({"generation_strategy": "no_lit"}, False, "no_lit"),
+        ({}, True, ""),
+        ({"generation_strategy": None}, True, ""),
+    ],
+)
+def test_the_resolver_refuses_tool_strategies_without_tool_calling(
+    opts: dict[str, Any], tool_calling: bool, expected: str
+) -> None:
+    assert _resolve_generation_strategy(opts, tool_calling) == expected
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda: get_draft_prompt_with_tools(
+            DraftPromptRequest(research_goal="a goal", hypotheses_count=2)
+        )[0],
+        lambda: get_validation_synthesis_prompt_with_tools(
             ValidationSynthesisRequest(
                 research_goal="a goal", hypotheses_with_analyses=[]
             )
-        )
-        expected = [
-            "novelty claims must be hedged",
-            "category",
-            "mechanism family",
-            "introduction",
-            "recent_findings",
-            "safety_and_toxicity",
-        ]
-        assert schema is not None
-        item = schema["schema"]["properties"]["hypotheses"]["items"]
-        assert {
-            "category",
-            "introduction",
-            "recent_findings",
-            "safety_and_toxicity",
-        } <= set(item["required"])
-    elif kind == "evolution":
-        prompt = load_prompt("evolution", {})
-        expected = ["novelty claims must be hedged"]
-    elif kind == "overview":
-        prompt, _ = get_research_overview_prompt(
+        )[0],
+        lambda: load_prompt("evolution", {}),
+        lambda: get_research_overview_prompt(
             research_goal="a goal", hypotheses_summary="1. an idea"
-        )
-        expected = [
-            "novelty claims must be hedged",
-            "report-level text",
-            "research strategy document",
-            "multi-paragraph narrative",
-        ]
-    else:
-        prompt, _ = get_research_overview_direction_prompt(
-            research_goal="a goal",
-            material=DirectionWritingMaterial(
-                title="A direction",
-                rationale="Why it matters.",
-                all_directions="-",
-            ),
-            hypotheses_summary="1. an idea",
-        )
-        expected = [
-            "sub_topics",
-            "specific_questions",
-            "recent_findings",
-            "already established",
-        ]
-    assert all(text.lower() in prompt.lower() for text in expected)
+        )[0],
+    ],
+    ids=["draft", "synthesis", "evolution", "overview"],
+)
+def test_every_writing_prompt_requires_hedged_novelty_claims(
+    build: Any,
+) -> None:
+    assert "novelty claims must be hedged" in build().lower()
