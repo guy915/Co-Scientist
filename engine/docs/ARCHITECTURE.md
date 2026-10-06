@@ -260,7 +260,7 @@ Supervisor → Literature Review → Generate (with tools) → Reflection → Re
 Development/testing mode for isolating tool-calling generation behavior.
 
 - **Default**: `False`
-- **Purpose**: Forces all hypotheses through tool-calling generation (no debate), forces literature review _node_ caching
+- **Purpose**: Forces all hypotheses through tool-calling generation (no debate)
 - **Use case**: Testing and debugging Generate node (with lit review mcp tools) in isolation
 
 **Only use for development/testing.**

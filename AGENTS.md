@@ -36,11 +36,10 @@ Per-project detail lives beside the code and loads when you touch that subtree. 
 
 Three services: **frontend** on Vercel (`co-scientist-ui`, https://ai-co-scientist.com/), **api** and **mcp** on Railway (project `co-scientist`, env `production`), both built from repo-root `Dockerfile.api` / `Dockerfile.mcp`. Full build, env-var and networking detail: **[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
 
-These three are load-bearing — each was an outage or a silent data-loss bug. Do not "clean them up" without reading the rationale in `docs/DEPLOYMENT.md`:
+These two are load-bearing — each was an outage or a silent data-loss bug. Do not "clean them up" without reading the rationale in `docs/DEPLOYMENT.md`:
 
 - **`RAILWAY_RUN_UID=0` must stay set on the api.** Railway mounts the persistent volume over `/app/data` at runtime, so an unprivileged process cannot write the SQLite DB; the app then dies in its lifespan hook before binding a port and every deploy fails its healthcheck. This is not an oversight to restore non-root on.
 - **The api service runs at exactly one replica.** The store is SQLite in WAL mode with `synchronous=NORMAL` — sound only single-writer. A second replica is unserialized concurrent writes to one file, a correctness bug no tuning fixes. Growing past this is a store migration, not a knob.
-- **`COSCIENTIST_CACHE_DIR` stays OFF the volume** (`/tmp/coscientist-cache`); only `COSCIENTIST_DB_PATH` belongs on it.
 
 ## Operational invariants
 

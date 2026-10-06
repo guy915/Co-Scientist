@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import pathlib
 from typing import Any, ClassVar
 
@@ -24,7 +23,6 @@ from app.run_modes import (
     resolved_run_config,
 )
 from app.store import messages as store
-from tests._engine_tasks_helpers import small_run_config as _cfg
 from tests._store_helpers import seed_run
 
 
@@ -319,25 +317,6 @@ class _FakeGenerator:
 
     def __init__(self, **kwargs: Any) -> None:
         _FakeGenerator.last_kwargs = kwargs
-
-
-def test_offline_generator_does_not_poison_cache_for_a_real_generator(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # The first startup generator may be offline; later real generators must
-    # retain process cache defaults.
-    from co_scientist import cache as engine_cache
-    from co_scientist.generator.core import HypothesisGenerator
-
-    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
-    monkeypatch.setattr(engine_cache, "_global_cache", None)
-
-    build_generator(_FakeGenerator, _cfg(), offline=True)
-    assert _FakeGenerator.last_kwargs["options"].enable_cache is False
-    build_generator(HypothesisGenerator, _cfg(), offline=True)
-
-    assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
-    assert engine_cache.get_cache().enabled is True
 
 
 _ALL_CREDENTIAL_ENV = tuple(name for names in PROVIDER_CREDENTIAL_ENV.values() for name in names)

@@ -234,7 +234,7 @@ def run_ablation_sweep(
     arm_overrides = _ARMS if arms is None else arms
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="ablation-sweep-"))
     db_path = str(tmp / "ablation.db")
-    _run_driver.configure_environment(db_path, str(tmp / "cache"), live=live)
+    _run_driver.configure_environment(db_path, live=live)
     driven, records = _drive_every_pair(goals, tier, arm_overrides, db_path, live=live)
     from evaluations._identity import validate_comparison
 

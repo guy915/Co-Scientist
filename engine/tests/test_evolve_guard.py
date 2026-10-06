@@ -26,7 +26,7 @@ from co_scientist.offline.llm import (
     install_offline_router,
 )
 from co_scientist.state import WorkflowState
-from tests._llm_fake import disable_llm_cache, stub_call_llm_json
+from tests._llm_fake import stub_call_llm_json
 from tests._mcp import isolate_offline_router
 from tests._state import make_article, make_hypothesis, make_state
 from tests.test_evolve import _RAPAMYCIN_RESPONSE, _children
@@ -373,7 +373,6 @@ async def test_offline_backend_produces_a_populated_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     isolate_offline_router(monkeypatch)
-    disable_llm_cache(monkeypatch)
     install_offline_router()
     original = _evolved_parent()
     state = make_state(

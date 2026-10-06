@@ -184,10 +184,6 @@ coscientist_logger.setLevel(_app_log_level)
 # provider variables directly.
 if settings.gemini_api_key:
     os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
-if settings.coscientist_cache_enabled:
-    os.environ["COSCIENTIST_CACHE_ENABLED"] = "true"
-if settings.coscientist_cache_dir:
-    os.environ["COSCIENTIST_CACHE_DIR"] = settings.coscientist_cache_dir
 
 # The engine MCP client reads its URL from environment rather than a Settings
 # parameter.

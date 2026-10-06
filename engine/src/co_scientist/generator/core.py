@@ -16,7 +16,6 @@ from co_scientist.generator.initial_state import (
 from co_scientist.generator.run_setup import (
     GeneratorOptions,
     _build_tool_registry,
-    _configure_cache_dir_env,
     _resolve_dev_isolation_flag,
     _resolve_dev_mode_flag,
     _resolve_generation_strategy,
@@ -64,11 +63,8 @@ class HypothesisGenerator:
         self.tournament_pairs = opts.tournament_pairs
         self.elo_k_factor = opts.elo_k_factor
         self.literature_review_papers_count = opts.literature_review_papers_count
-        # Credentials stay outside checkpoints; credential-free shared cache
-        # keys require BYOK bypass.
+        # Credentials stay outside checkpoints.
         self.api_key = opts.api_key
-        self.enable_cache = False if self.api_key else opts.enable_cache
-        _configure_cache_dir_env(opts.cache_dir)
         # Keep the provider-neutral bundled registry unless custom configuration
         # replaces it.
         self._tool_registry = _build_tool_registry(opts.tools_config, opts.disable_tools)

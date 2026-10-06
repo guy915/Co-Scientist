@@ -48,7 +48,6 @@ from tests._llm_fake import (
     make_tool_call,
     scripted_backend,
 )
-from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_fake import make_completion as _completion
 from tests._llm_fake import make_message as _message
 from tests._llm_fake import make_usage as _usage
@@ -107,7 +106,6 @@ def _requests(
     *,
     repeat_last: bool = True,
 ) -> list[dict[str, Any]]:
-    _disable_cache(monkeypatch)
     return scripted_backend(monkeypatch, responses, repeat_last=repeat_last).requests
 
 
@@ -224,30 +222,6 @@ async def test_a_provider_error_recovers_without_disabling_thinking(
 
     assert result == {"a": 3}
     assert _thinking(calls) == ["enabled", "enabled"]
-
-
-async def test_the_escalated_result_is_cached_under_the_original_request(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
-    """Future callers use the original request key, not the successful retry
-    budget."""
-    import co_scientist.cache as cache_mod
-
-    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
-    monkeypatch.setenv("COSCIENTIST_CACHE_DIR", str(tmp_path))
-    monkeypatch.setattr(cache_mod, "_global_cache", None)
-    calls = scripted_backend(
-        monkeypatch,
-        [_exhausted(THINKING_FLOOR_MAX_TOKENS), _completion(_message("ok"))],
-    ).requests
-    spec = CompletionSpec(model_name=_MODEL, max_tokens=8000)
-
-    first = await call_llm("a prompt", spec, max_attempts=5)
-    second = await call_llm("a prompt", spec, max_attempts=5)
-
-    assert (first, second) == ("ok", "ok")
-    assert len(calls) == 2
-    monkeypatch.setattr(cache_mod, "_global_cache", None)
 
 
 @pytest.mark.parametrize(

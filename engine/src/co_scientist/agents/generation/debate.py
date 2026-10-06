@@ -129,7 +129,6 @@ async def _call_final_debate_turn(
             json_schema=schema,
         ),
         options=LLMCallOptions(
-            use_cache=False,
             run_id=state.get("run_id"),
             prompt_name=f"generate_debate_{ctx.debate_id}_final",
         ),
@@ -201,9 +200,7 @@ async def _run_intermediate_debate_turn(state: WorkflowState, prompt: str) -> st
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,
         ),
-        options=LLMCallOptions(
-            use_cache=False,
-        ),
+        options=LLMCallOptions(),
     )
 
 

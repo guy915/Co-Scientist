@@ -14,7 +14,6 @@ from co_scientist.llm.tools.transcript import (
 )
 from tests._llm_fake import (
     SEARCH_TOOL,
-    disable_llm_cache,
     echo_executor,
     make_completion,
     make_message,
@@ -43,7 +42,6 @@ async def test_a_loop_stops_on_spend_before_it_runs_out_of_turns(
 ) -> None:
     """Growing transcripts make turn counts insufficient to bound token
     spend."""
-    disable_llm_cache(monkeypatch)
     fat = "x" * 40_000
     patch_acompletion(
         monkeypatch,
@@ -70,7 +68,6 @@ async def test_a_closing_turn_that_answers_nothing_still_fails_the_loop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A failed closing turn must not weaken the hard spend ceiling."""
-    disable_llm_cache(monkeypatch)
     patch_acompletion(
         monkeypatch,
         [
@@ -195,7 +192,6 @@ def test_an_overwritten_file_is_dropped_but_its_call_stays_answerable() -> None:
 async def test_a_truncated_tool_call_is_answered_with_an_error_not_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    disable_llm_cache(monkeypatch)
     truncated = make_completion(
         make_message(
             None,

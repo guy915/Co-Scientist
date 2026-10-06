@@ -318,7 +318,6 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
 ) -> None:
     # Entailment must use the engine admission seam so its provider calls
     # consume the run ceiling.
-    from co_scientist.cache import scoped_cache_override
     from co_scientist.exceptions import LLMCallBudgetExceededError
     from co_scientist.llm import scoped_llm_call_budget
 
@@ -327,7 +326,6 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
 
     with (
         pytest.raises(LLMCallBudgetExceededError),
-        scoped_cache_override(False),
         scoped_llm_call_budget("gate-budget-test-run", 0),
     ):
         await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
@@ -339,13 +337,11 @@ async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
 ) -> None:
     # Engine telemetry is the only call-count source; manual additions
     # double-charge spend.
-    from co_scientist.cache import scoped_cache_override
 
     _install_fake_acompletion(monkeypatch)
     state = _tasks_gate_multi_claim_state()
 
-    with scoped_cache_override(False):
-        await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     metrics = state["metrics"]
     gate_usage = {
