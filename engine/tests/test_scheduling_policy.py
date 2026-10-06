@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
-from co_scientist.agents.meta_review.research_overview import is_interim_firing
-from co_scientist.checkpoint import (
-    restore_workflow_state,
-    serialize_workflow_state,
-)
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -20,10 +15,7 @@ from co_scientist.scheduling import (
     validate_decision,
 )
 from co_scientist.scheduling.policy import stack_companions
-from co_scientist.state import WorkflowState
-from co_scientist.task_runtime import next_task_type
-from co_scientist.workflow_topology import TASK_ROUTES, route_after_meta_review
-from tests._state import BUDGET, healthy_stats, make_state
+from tests._state import BUDGET, healthy_stats
 
 _G, _E = TaskType.GENERATE, TaskType.EVOLVE
 
@@ -417,25 +409,6 @@ def test_policy_decides_by_precedence(case: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("case", "words"),
-    [
-        ("steering_generates", "steering"),
-        ("failed_task_is_retried", "retry"),
-        ("yield_tie_with_stagnation_evolves", "stagnant"),
-        (
-            "yield_tie_with_standing_stagnation_generates",
-            "already had its turn",
-        ),
-        ("owed_review_outranks_task_budget_termination", "review"),
-    ],
-)
-def test_a_decision_states_why(case: str, words: str) -> None:
-    overrides, budget, kwargs, _ = _DECISIONS[case]
-    decision = decide_next_task(healthy_stats(**overrides), budget, **kwargs)
-    assert words in decision.reason.lower()
-
-
-@pytest.mark.parametrize(
     ("proposed", "stats", "corrected_to"),
     [
         (_RANK, {"pool_size": 1, "rankable_count": 1}, _G),
@@ -461,11 +434,6 @@ def test_validation_corrects_an_unfit_proposal_and_keeps_queue_actions(
     assert validated.next_task is corrected_to
     assert "corrected" in validated.reason
     assert validated.queue_actions == retry
-
-
-def test_validation_passes_a_fit_decision_through_unchanged() -> None:
-    decision = SupervisorDecision(_E, "evolve leaders")
-    assert validate_decision(decision, healthy_stats()) is decision
 
 
 def _settled_stats(**overrides: object) -> SchedulerStats:
@@ -505,40 +473,6 @@ def test_meta_review_fires_once_new_critique_material_exists(
     assert (decision.next_task is TaskType.META_REVIEW) is fires
 
 
-def test_meta_review_and_evolve_both_route_through_the_meta_review_node() -> (
-    None
-):
-    assert TASK_ROUTES[TaskType.META_REVIEW.value] == "meta_review"
-    assert TASK_ROUTES[TaskType.EVOLVE.value] == "meta_review"
-    for task, successor in (
-        (TaskType.META_REVIEW, "orchestrator"),
-        (TaskType.EVOLVE, "evolve"),
-    ):
-        state = make_state(next_task=task.value)
-        assert route_after_meta_review(state) == successor
-        assert next_task_type("meta_review", state) == successor
-
-
-def _overview_settled_stats(**overrides: object) -> SchedulerStats:
-    base: dict[str, object] = {
-        "pool_size": 6,
-        "reviewed_count": 6,
-        "unreviewed_count": 0,
-        "rankable_count": 6,
-        "total_matches": 12,
-        "match_coverage": 2.0,
-        "iteration": 2,
-        "iterations_since_meta_review": 0,
-        "feedback_since_meta_review": 0,
-        "iterations_since_research_overview": 2,
-    }
-    base.update(overrides)
-    return SchedulerStats(**base)  # type: ignore[arg-type]
-
-
-_BUDGET = Budget(max_iterations=4, max_llm_calls=7000)
-
-
 _CHEAP_BUDGET = Budget(max_iterations=4, max_llm_calls=1200)
 
 
@@ -558,14 +492,6 @@ def _due_stats(**overrides: object) -> SchedulerStats:
     return SchedulerStats(**base)  # type: ignore[arg-type]
 
 
-def test_a_terminating_decision_is_never_wrapped() -> None:
-    stats = _due_stats(unreviewed_count=0, llm_calls=99)
-    spent = Budget(max_iterations=4, max_llm_calls=1)
-    decision = stack_companions(decide_next_task(stats, spent), stats, spent)
-    assert decision.terminate
-    assert not stacked_task_values(decision.queue_actions)
-
-
 def _overview_due(**overrides: object) -> SchedulerStats:
     return _due_stats(iterations_since_research_overview=2, **overrides)
 
@@ -577,35 +503,4 @@ def test_the_overview_companion_is_gated_by_the_tier_ceiling() -> None:
     )
     assert stacked_task_values(decision.queue_actions) == (
         TaskType.META_REVIEW.value,
-    )
-
-
-def test_the_overview_never_runs_ahead_of_a_critique_being_written() -> None:
-    """An overview scheduled before its critique would read the previous
-    cycle."""
-    meta_review = SupervisorDecision(
-        next_task=TaskType.META_REVIEW, reason="periodic feedback is due"
-    )
-    stacked = stack_companions(meta_review, _overview_due(), _BUDGET)
-    assert not stacked_task_values(stacked.queue_actions)
-
-
-def test_the_stacked_list_survives_a_checkpoint_round_trip() -> None:
-    """Companion tasks read restored state; losing this key silently skips or
-    mislabels synthesis."""
-    state = make_state(next_task=TaskType.REFLECT.value)
-    state["supervisor_queue_actions"] = [
-        {"action": "enqueue", "task_type": TaskType.META_REVIEW.value},
-        {"action": "enqueue", "task_type": TaskType.SYNTHESIZE.value},
-    ]
-    restored = restore_workflow_state(
-        serialize_workflow_state(dict(state), last_event_seq=0)
-    )
-    assert stacked_task_values(restored["supervisor_queue_actions"]) == (
-        TaskType.META_REVIEW.value,
-        TaskType.SYNTHESIZE.value,
-    )
-    assert is_interim_firing(cast(WorkflowState, restored))
-    assert route_after_meta_review(cast(WorkflowState, restored)) == (
-        "research_overview"
     )

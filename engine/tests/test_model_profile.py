@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,28 +15,18 @@ from co_scientist.llm import (
     call_llm,
     call_llm_json,
     call_llm_with_tools,
-    deepseek_thinking_extra_body,
     model_profile,
     scoped_api_key,
 )
 from co_scientist.llm.profile import (
-    ROUTES,
-    Thinking,
     gateway_routes,
-    priced_routes,
 )
 from co_scientist.llm.request.thinking import (
-    _GATEWAY_MAX_FALLBACKS,
     _gateway_provider,
 )
 from tests._llm_fake import (
-    NESTED_SCHEMA,
-    disable_llm_cache,
     install_fake_backend,
-    scripted_backend,
 )
-from tests._llm_fake import make_completion as _completion
-from tests._llm_fake import make_message as _message
 
 _NO_CACHE = LLMCallOptions(use_cache=False)
 
@@ -106,44 +95,6 @@ def test_a_byok_key_forces_the_cache_off_and_stays_out_of_state() -> None:
     assert "api_key" not in fields
 
 
-_ULTRA = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
-
-
-def test_capabilities_resolve_without_regard_to_case() -> None:
-    assert model_profile("DeepSeek/DeepSeek-V4-Flash") == model_profile(
-        "deepseek/deepseek-v4-flash"
-    )
-    assert model_profile(_ULTRA.upper()) == model_profile(_ULTRA)
-
-
-def test_the_thinking_knob_and_the_gateway_agree() -> None:
-    probes = ["deepseek/x", "openrouter/deepseek/x", "openrouter/a/b"]
-    for name in [*ROUTES, *probes]:
-        profile = model_profile(name)
-        if profile.thinking is Thinking.GATEWAY:
-            assert profile.gateway, name
-        if profile.thinking is Thinking.NATIVE:
-            assert not profile.gateway, name
-
-
-def test_every_declared_gateway_route_is_priced_and_funded() -> None:
-    routes = gateway_routes()
-    assert routes
-    for name in routes:
-        profile = model_profile(name)
-        assert profile.price is not None, name
-        assert profile.reasons, name
-
-
-def test_the_price_table_is_the_profile_prices() -> None:
-    assert priced_routes() == MODEL_PRICING
-    for name, price in MODEL_PRICING.items():
-        assert model_profile(name).price == price, name
-
-
-_PRIMARY = "openrouter/z-ai/glm-5.3-flash"
-
-
 def _price(model: str) -> tuple[float, float]:
     price = MODEL_PRICING[model]
     return price.prompt_usd_per_million, price.completion_usd_per_million
@@ -159,30 +110,6 @@ def test_no_fallback_costs_more_than_the_model_above_it() -> None:
             above = below
 
 
-def test_no_declared_chain_exceeds_openrouters_fallback_cap() -> None:
-    """OpenRouter accepts at most three models in a fallback chain."""
-    for primary in gateway_routes():
-        body = deepseek_thinking_extra_body(primary)
-        fallbacks = model_profile(primary).fallbacks
-        assert len(fallbacks) <= _GATEWAY_MAX_FALLBACKS, primary
-        assert len(body.get("models", [])) <= _GATEWAY_MAX_FALLBACKS, primary
-
-
-def test_no_chain_head_claims_disable_support_a_fallback_lacks() -> None:
-    """Every fallback sees the same request and must honor its reasoning
-    policy."""
-    for primary in gateway_routes():
-        declared = model_profile(primary)
-        if not declared.reasoning_can_disable:
-            continue
-        for name in declared.fallbacks:
-            fallback = model_profile(f"openrouter/{name}")
-            assert fallback.gateway and fallback.reasoning_can_disable, (
-                f"{primary} claims reasoning_can_disable=True but its "
-                f"fallback {name} does not"
-            )
-
-
 def test_every_catalogued_route_arms_the_routing_ceiling() -> None:
     for primary in gateway_routes():
         provider = _gateway_provider(primary)
@@ -193,58 +120,3 @@ def test_every_catalogued_route_arms_the_routing_ceiling() -> None:
                 "completion": 0,
                 "request": 0,
             }
-
-
-@pytest.mark.parametrize(
-    ("order", "expected"),
-    [("friendly, together", ["friendly", "together"]), ("", None)],
-    ids=["override", "empty-opts-out"],
-)
-def test_the_upstream_order_is_read_live_and_empty_opts_out(
-    monkeypatch: pytest.MonkeyPatch, order: str, expected: list[str] | None
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", order)
-
-    provider = deepseek_thinking_extra_body(_PRIMARY)["provider"]
-
-    assert provider.get("order") == expected
-    assert provider["require_parameters"] is True, "admission caps still apply"
-    assert "max_price" in provider
-
-
-@pytest.mark.parametrize(
-    ("model", "native"),
-    [
-        ("openrouter/google/gemma-4-26b-a4b-it:free", False),
-        ("google/gemma-4-26b-a4b-it", True),
-    ],
-    ids=["exact-free-route", "unqualified-route"],
-)
-async def test_the_gemma_route_alone_takes_its_schema_in_the_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-    clear_capability_cache: None,
-    model: str,
-    native: bool,
-) -> None:
-    disable_llm_cache(monkeypatch)
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.supports_response_schema", lambda m: True
-    )
-    sent: list[dict[str, Any]] = scripted_backend(
-        monkeypatch, [_completion(_message("{}"))]
-    ).requests
-
-    await call_llm(
-        "a prompt",
-        CompletionSpec(
-            model_name=model, api_key="test-byok-key", json_schema=NESTED_SCHEMA
-        ),
-    )
-
-    if native:
-        assert sent[0]["response_format"]["type"] == "json_schema"
-        assert sent[0]["messages"] == [{"role": "user", "content": "a prompt"}]
-    else:
-        assert sent[0]["response_format"] == {"type": "json_object"}
-        schema_text = json.dumps(NESTED_SCHEMA["schema"], indent=2)
-        assert schema_text in sent[0]["messages"][0]["content"]

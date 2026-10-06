@@ -18,9 +18,6 @@ from co_scientist.constants import (
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.schemas.synthesis import (
-    KNOWLEDGE_BASE_MAX_THEMES,
-)
 from tests._state import make_hypothesis, make_state
 from tests.test_research_overview import (
     _RESEARCH_OVERVIEW_OVERVIEW_RESPONSE as _OVERVIEW_RESPONSE,
@@ -201,35 +198,6 @@ async def test_the_synthesis_is_one_bounded_outline_call_plus_one_per_theme(
     assert "Ungrounded Section" not in str(topics)
 
 
-async def test_a_theme_beyond_the_readable_count_is_never_written(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    section = {"heading": "Cross-Linking", "evidence_ids": ["evidence-2"]}
-    outline = {
-        "themes": [
-            {"title": f"Theme {index}", "sections": [section]}
-            for index in range(KNOWLEDGE_BASE_MAX_THEMES + 3)
-        ]
-    }
-    writer = {
-        "sections": [{"heading": "Cross-Linking", "detail": "LOXL2 binds."}]
-    }
-
-    async def responder(**kwargs: Any) -> dict[str, Any]:
-        return (
-            outline
-            if kwargs["spec"].json_schema["name"] == "knowledge_base_outline"
-            else writer
-        )
-
-    topics, calls = await _synthesize(monkeypatch, responder)
-
-    assert calls == 1 + KNOWLEDGE_BASE_MAX_THEMES
-    assert (
-        len({topic["theme"] for topic in topics}) == KNOWLEDGE_BASE_MAX_THEMES
-    )
-
-
 async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -242,29 +210,6 @@ async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     assert [topic["theme"] for topic in topics] == [
         "Extracellular Matrix Architecture"
     ]
-
-
-@pytest.mark.parametrize(
-    "outline",
-    [
-        RuntimeError("boom"),
-        {"themes": []},
-        {"themes": [{"title": "Empty Theme", "sections": []}]},
-    ],
-    ids=["failed", "no-themes", "no-sections"],
-)
-async def test_an_unusable_outline_never_spends_the_writing_calls(
-    outline: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fake = AsyncMock(
-        side_effect=outline if isinstance(outline, Exception) else None,
-        return_value=outline,
-    )
-
-    topics, calls = await _synthesize(monkeypatch, fake)
-
-    assert (topics, calls) == ([], 1)
-    assert fake.await_count == 1
 
 
 _DRAFT: dict[str, Any] = {

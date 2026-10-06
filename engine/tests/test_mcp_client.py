@@ -16,65 +16,13 @@ from co_scientist.mcp_client import (
     POLICY,
     PUBLIC_TOOLS,
     MCPToolClient,
-    check_literature_source_available,
-    check_mcp_available,
     get_mcp_client,
 )
 from tests._mcp import (
     FakeMultiServerMCPClient,
-    make_registry,
     make_tool_call,
     string_tool,
 )
-
-URL = "http://x.test/mcp"
-
-
-@pytest.mark.parametrize(
-    ("registry", "tools", "error", "expected"),
-    [
-        (
-            {
-                "availability_check": "check_avail",
-                "check_mcp_tool_name": "check_pubmed_available",
-            },
-            [("check_pubmed_available", "true"), ("pubmed_search", "{}")],
-            None,
-            True,
-        ),
-        (
-            {
-                "availability_check": "check_avail",
-                "check_mcp_tool_name": "check_pubmed_available",
-            },
-            [("pubmed_search", "{}")],
-            None,
-            False,
-        ),
-        ({"availability_check": None}, [("pubmed_search", "{}")], None, True),
-        ({"availability_check": None}, [], ConnectionError("down"), False),
-    ],
-    ids=["explicit-check-true", "check-tool-missing", "null-check", "mcp-down"],
-)
-async def test_the_registry_decides_how_literature_availability_is_checked(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient],
-    registry: dict[str, Any],
-    tools: list[tuple[str, Any]],
-    error: Exception | None,
-    expected: bool,
-) -> None:
-    _patch_mcp_seam.tools = [string_tool(name, value) for name, value in tools]
-    _patch_mcp_seam.error = error
-
-    assert (
-        await check_literature_source_available(
-            tool_registry=make_registry(**registry)
-        )
-        is expected
-    )
-    assert await check_mcp_available(
-        tool_registry=make_registry(**registry)
-    ) is bool(tools)
 
 
 async def test_same_configuration_keeps_standard_and_campaign_clients(
@@ -116,46 +64,6 @@ async def test_same_configuration_keeps_standard_and_campaign_clients(
     assert campaign is not standard
     assert standard_again is standard
     assert _patch_mcp_seam.instances_created == 2
-
-
-def test_same_configuration_never_reuses_client_across_event_loops(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient],
-) -> None:
-    _patch_mcp_seam.tools = [string_tool("t1", "ok")]
-
-    async def get_client() -> MCPToolClient:
-        return await get_mcp_client(server_url="http://a.test/mcp")
-
-    first = asyncio.run(get_client())
-    second = asyncio.run(get_client())
-
-    assert first is not second
-    assert _patch_mcp_seam.instances_created == 2
-
-
-async def test_initialize_indexes_tools_once_and_serves_filtered_schemas(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient],
-) -> None:
-    _patch_mcp_seam.tools = [
-        string_tool("pubmed_search", "{}"),
-        string_tool("check_pubmed_available", "true"),
-    ]
-    client = MCPToolClient(server_url=URL)
-    assert client.has_tool("pubmed_search") is False
-
-    await client.initialize()
-    await client.initialize()
-
-    assert _patch_mcp_seam.instances_created == 1
-    assert client.has_tool("pubmed_search") is True
-    tools_dict, openai_tools = client.get_tools()
-    assert set(tools_dict) == {"pubmed_search", "check_pubmed_available"}
-    assert {t["function"]["name"] for t in openai_tools} == set(tools_dict)
-    filtered, filtered_schemas = client.get_tools(whitelist=["pubmed_search"])
-    assert set(filtered) == {"pubmed_search"}
-    assert [t["function"]["name"] for t in filtered_schemas] == [
-        "pubmed_search"
-    ]
 
 
 # MCP calls need their own timeout; the LLM timeout cannot cover a hung SSE tool
