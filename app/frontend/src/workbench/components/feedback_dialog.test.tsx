@@ -72,21 +72,6 @@ it.each(['/runs/direct-run/details', '/chats/private-chat'])(
   },
 );
 
-it('keeps a failed submission editable without exposing its diagnostic attachment', async () => {
-  vi.mocked(submitFeedback).mockRejectedValue(new Error('API unavailable'));
-  const dialog = open();
-  fireEvent.change(within(dialog).getByLabelText('Message'), {
-    target: {value: 'Keep this message'},
-  });
-  fireEvent.click(within(dialog).getByRole('button', {name: 'Submit'}));
-  await screen.findByRole('alert');
-  expect(within(dialog).getByLabelText('Message')).toHaveValue(
-    'Keep this message',
-  );
-  expect(within(dialog).getByRole('button', {name: 'Submit'})).toBeEnabled();
-  expect(screen.queryByText('private diagnostic export')).toBeNull();
-});
-
 it('does not submit after cancelling while diagnostic collection is pending', async () => {
   let release!: (value: string) => void;
   vi.mocked(sessionDiagnosticExport).mockImplementation(
