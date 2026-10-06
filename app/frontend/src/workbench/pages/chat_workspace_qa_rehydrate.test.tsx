@@ -171,3 +171,58 @@ it('keeps a linked draft recoverable without treating it as started', async () =
 
   await waitFor(() => expect(apiMock.startRun).toHaveBeenCalledWith('run-1'));
 });
+
+it('shows no home page while a reopened chat transcript loads', async () => {
+  const transcript = deferred<ReturnType<typeof completedInterview>>();
+  apiMock.getInterview.mockReturnValue(transcript.promise);
+  renderWorkspace('/chats/interview-1');
+  expect(screen.queryByText('Frame the research goal')).toBeNull();
+
+  await act(async () => transcript.resolve(completedInterview()));
+  expect(
+    await screen.findByText(
+      'I have enough detail to configure this research run.',
+    ),
+  ).toBeInTheDocument();
+});
+
+it('falls back to the home page when a reopened chat is unavailable', async () => {
+  apiMock.getInterview.mockRejectedValue(new Error('missing'));
+  renderWorkspace('/chats/missing');
+  expect(
+    await screen.findByText('Frame the research goal'),
+  ).toBeInTheDocument();
+});
+
+it('offers a jump to the latest message once the reader scrolls up', async () => {
+  apiMock.getInterview.mockResolvedValue(completedInterview());
+  const {container} = renderWorkspace('/chats/interview-1');
+  await screen.findByText(
+    'I have enough detail to configure this research run.',
+  );
+  const scroller = container.querySelector<HTMLElement>(
+    '.reference-chat-timeline',
+  )!;
+  Object.defineProperty(scroller, 'scrollHeight', {value: 1000});
+  Object.defineProperty(scroller, 'clientHeight', {value: 400});
+  const scrollTo = vi.fn();
+  scroller.scrollTo = scrollTo;
+  expect(
+    screen.queryByRole('button', {name: 'Jump to latest message'}),
+  ).toBeNull();
+
+  scroller.scrollTop = 100;
+  fireEvent.scroll(scroller);
+  fireEvent.click(
+    await screen.findByRole('button', {name: 'Jump to latest message'}),
+  );
+  expect(scrollTo).toHaveBeenCalledWith({top: 1000, behavior: 'smooth'});
+
+  scroller.scrollTop = 600;
+  fireEvent.scroll(scroller);
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', {name: 'Jump to latest message'}),
+    ).toBeNull(),
+  );
+});

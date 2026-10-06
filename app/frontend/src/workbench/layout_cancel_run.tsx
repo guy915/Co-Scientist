@@ -95,7 +95,7 @@ export function CancelRunControl({
       type="button"
       className={tooltipClassNames({
         className: headerControlButtonClasses(),
-        placement: 'left',
+        placement: 'bottom',
       })}
       data-tooltip={face.tooltip}
       aria-label={face.label}

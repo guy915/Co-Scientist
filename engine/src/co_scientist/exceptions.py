@@ -44,6 +44,12 @@ class LLMThinkingOnlyError(CoScientistError, ValueError):
     """An LLM finished its chain of thought and wrote no answer at all."""
 
 
+# A provider filter verdict keeps the request unchanged; preserve ValueError
+# callers.
+class LLMContentFilteredError(CoScientistError, ValueError):
+    """A provider content filter withheld the answer."""
+
+
 # Enforce ceilings inside tasks; not ValueError, which workers treat as
 # transient.
 class LLMCallBudgetExceededError(CoScientistError):

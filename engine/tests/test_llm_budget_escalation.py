@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 from types import SimpleNamespace
 from typing import Any, cast
@@ -39,6 +40,7 @@ from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     escalated_max_tokens,
 )
+from co_scientist.llm.request.response import _extract_completion_content
 from co_scientist.state import WorkflowState
 from tests._llm_fake import (
     SEARCH_TOOL,
@@ -185,6 +187,23 @@ async def test_a_call_already_sized_at_the_constant_still_gets_more_room(
     assert budgets[0] == BUDGET_ESCALATION_MAX_TOKENS
     assert budgets[1] > BUDGET_ESCALATION_MAX_TOKENS
     assert budgets[2] == budgets[1]
+
+
+async def test_a_content_filtered_reply_retries_without_changing_reasoning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    filtered = _completion(
+        _message(None),
+        usage=_usage(3136, 1149, reasoning_tokens=1149),
+        finish_reason="content_filter",
+    )
+    calls = _requests(monkeypatch, [filtered, _completion(_message('{"a":2}'))])
+
+    result = await call_llm_json("a prompt", _JSON_SPEC, max_attempts=5)
+
+    assert result == {"a": 2}
+    assert _thinking(calls) == ["enabled", "enabled"]
+    assert calls[0]["max_tokens"] == calls[1]["max_tokens"]
 
 
 async def test_a_thinking_only_reply_skips_the_budget_rung_and_recovers(
@@ -437,3 +456,34 @@ async def test_a_completion_budget_is_shared_by_the_calls_it_spawns() -> None:
         with pytest.raises(LLMCallBudgetExceededError):
             record_provider_request()
     assert current_completion_budget() is None
+
+
+def test_an_empty_answer_names_the_model_that_served_it() -> None:
+    response = _thinking_only(0)
+    response.model = "dots-studio/dots-3-note-preview:free"
+    requested = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+
+    with pytest.raises(ValueError, match="served dots-studio") as caught:
+        _extract_completion_content(response, requested)
+
+    assert requested in str(caught.value)
+
+
+def test_an_answer_from_a_declared_fallback_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    requested = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    primary = _completion(_message("{}"))
+    primary.model = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    fallback = _completion(_message("{}"))
+    fallback.model = "nvidia/nemotron-3-super-120b-a12b:free"
+
+    with caplog.at_level(logging.INFO):
+        _extract_completion_content(primary, requested)
+        assert "fallback" not in caplog.text
+        _extract_completion_content(fallback, requested)
+
+    assert (
+        f"LLM call to {requested} was answered by fallback "
+        "nvidia/nemotron-3-super-120b-a12b:free"
+    ) in caplog.text

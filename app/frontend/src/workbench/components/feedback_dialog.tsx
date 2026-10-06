@@ -12,6 +12,10 @@ import {
   useFocusTrap,
   useRestoreFocusOnClose,
 } from '../hooks/dom';
+import {
+  SETUP_PRIMARY_BUTTON_CLASSES,
+  SETUP_SECONDARY_BUTTON_CLASSES,
+} from '../classes';
 import {sessionDiagnosticExport} from '../layout_diagnostics';
 import {HeaderControlTrigger} from '../layout_primitives';
 import {SettingsSelect} from './settings_dialog';
@@ -148,14 +152,14 @@ export function FeedbackDialog({
         <div className="ucs-feedback-actions">
           <button
             type="button"
-            className="ucs-settings-field-input"
+            className={SETUP_SECONDARY_BUTTON_CLASSES}
             onClick={onClose}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="ucs-settings-field-input"
+            className={SETUP_PRIMARY_BUTTON_CLASSES}
             disabled={busy || !message.trim()}
           >
             {busy ? 'Submitting…' : 'Submit'}

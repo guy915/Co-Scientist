@@ -315,10 +315,15 @@ def _stop_run_after_unknown_provider_outcome(
     )
 
 
-# Persisted campaign policy proves zero-price admission only without caller
-# credentials; those expired leases may safely use ordinary rescue.
+# Persisted campaign policy or zero-cost stamp proves zero-price admission only
+# without caller credentials; those expired leases may safely use ordinary
+# rescue.
 _PROVABLY_FREE_RUN = (
-    "runs.execution_policy='campaign' AND NOT EXISTS "
+    "(runs.execution_policy='campaign' OR CASE "
+    "WHEN json_valid(runs.config_json) "
+    "THEN json_extract(runs.config_json,'$.zero_cost_admission') IS 1"
+    " ELSE 0 END)"
+    " AND NOT EXISTS "
     "(SELECT 1 FROM run_credentials WHERE run_credentials.run_id=runs.id)"
 )
 

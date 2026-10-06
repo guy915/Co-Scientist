@@ -109,3 +109,26 @@ def test_yesterdays_runs_do_not_count(real_backend: None) -> None:
                 "UPDATE free_run_usage SET created_at = created_at - 86400"
             )
         assert _create(client).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("worker_model", "stamped"),
+    [
+        ("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free", True),
+        ("openrouter/z-ai/glm-5.3-flash", False),
+    ],
+)
+def test_only_a_free_run_on_free_routes_is_stamped_zero_cost(
+    real_backend: None,
+    monkeypatch: pytest.MonkeyPatch,
+    worker_model: str,
+    stamped: bool,
+) -> None:
+    from app.store import runs
+
+    monkeypatch.setattr(settings, "model_name", worker_model)
+    with TestClient(app) as client:
+        run_id = _create(client).json()["id"]
+    run = runs.get_run(run_id)
+    assert run is not None
+    assert (run.config.get("zero_cost_admission") is True) is stamped

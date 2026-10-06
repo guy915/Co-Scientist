@@ -256,7 +256,7 @@ function alreadyShowing(
 export function useChatRehydration(
   session: ChatSession,
   chatId: string | undefined,
-): LinkedDraftRecovery {
+): LinkedDraftRecovery & {unavailableChatId: string | null} {
   const {chats} = useChatHistoryContext();
   const {history} = useRunHistoryContext();
   const appliedRef = useRef<string | null>(null);
@@ -269,6 +269,9 @@ export function useChatRehydration(
     useState<RehydratedAnnouncement | null>(null);
   const [linkedRun, setLinkedRun] = useState<LinkedRun | null>(null);
   const [lookupRetry, setLookupRetry] = useState(0);
+  const [unavailableChatId, setUnavailableChatId] = useState<string | null>(
+    null,
+  );
   const retryLinkedRunLookup = useCallback(
     () => setLookupRetry(current => current + 1),
     [],
@@ -301,6 +304,7 @@ export function useChatRehydration(
       } catch {
         // Missing and other-owner chats are equally inaccessible; leave nothing
         // to reopen and let the rail remove the row on its next refresh.
+        if (!cancelled) setUnavailableChatId(chatId);
       }
     })();
     return () => {
@@ -384,6 +388,7 @@ export function useChatRehydration(
     ...recoverySummary(currentLinked),
     status: recoveryStatus(currentLinked),
     retryStatusLookup: retryLinkedRunLookup,
+    unavailableChatId,
   };
 }
 

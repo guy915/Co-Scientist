@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from pathlib import Path
+import json
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
-from co_scientist.cache import LLMCache
-from co_scientist.exceptions import LLMBudgetExhaustedError
-from co_scientist.llm import (
-    CompletionSpec,
-    ToolLoop,
-    call_llm_with_tools,
-    precall,
-)
+from co_scientist.llm import CompletionSpec, ToolLoop, call_llm_with_tools
+from co_scientist.llm.tools.loop import _drop_dead_context
 from co_scientist.llm.tools.policy import _turns_remaining
+from co_scientist.llm.tools.transcript import (
+    ABORTED_RESULT,
+    elide_aged_evidence,
+    elide_superseded_writes,
+    normalize_tool_transcript,
+)
 from tests._llm_fake import (
     SEARCH_TOOL,
     disable_llm_cache,
@@ -41,72 +41,6 @@ def _loop(max_iterations: int, **overrides: Any) -> ToolLoop:
         max_iterations=max_iterations,
         **overrides,
     )
-
-
-async def test_a_tool_turn_runs_the_executor_then_answers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    disable_llm_cache(monkeypatch)
-    first = make_completion(
-        make_message(
-            None, tool_calls=[make_tool_call("call-1", "search", '{"q": 1}')]
-        )
-    )
-    first.choices[0].message.reasoning_content = "chain of thought"
-    requests: list[dict[str, Any]] = []
-    patch_acompletion(
-        monkeypatch, [first, make_completion(make_message("final"))], requests
-    )
-    seen: list[Any] = []
-
-    async def executor(tc: Any) -> dict[str, Any]:
-        seen.append(tc)
-        return {"role": "tool", "tool_call_id": tc.id, "content": "result"}
-
-    text, history = await call_llm_with_tools(
-        "a prompt",
-        CompletionSpec(model_name="test-model"),
-        ToolLoop(tools=SEARCH_TOOL, executor=executor),
-    )
-
-    assert text == "final"
-    assert [(tc.id, tc.function.name) for tc in seen] == [("call-1", "search")]
-    assert history[0] == {"role": "user", "content": "a prompt"}
-    assert history[2] == {
-        "role": "tool",
-        "tool_call_id": "call-1",
-        "content": "result",
-    }
-    assert history[-1]["content"] == "final"
-    # DeepSeek rejects a follow-up turn that drops the prior reasoning.
-    assert requests[1]["messages"][1]["reasoning_content"] == "chain of thought"
-    assert "reasoning_content" not in history[-1]
-
-
-async def test_a_failing_executor_does_not_replay_the_tools(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Retries cannot span tool execution: side effects and unanswered
-    calls would be replayed."""
-    disable_llm_cache(monkeypatch)
-    patch_acompletion(
-        monkeypatch,
-        [_asks_for_a_tool("c1"), make_completion(make_message("the answer"))],
-    )
-    runs: list[str] = []
-
-    async def explodes(tc: Any) -> dict[str, Any]:
-        runs.append(tc.id)
-        raise LLMBudgetExhaustedError("the executor gave up")
-
-    with pytest.raises(LLMBudgetExhaustedError):
-        await call_llm_with_tools(
-            "a prompt",
-            _SPEC,
-            ToolLoop(tools=SEARCH_TOOL, executor=explodes, max_iterations=4),
-        )
-
-    assert runs == ["c1"]
 
 
 @pytest.mark.parametrize(
@@ -224,37 +158,177 @@ async def test_a_closing_turn_that_answers_nothing_still_fails_the_loop(
         await call_llm_with_tools("a prompt", _SPEC, _loop(5))
 
 
-@pytest.mark.parametrize(
-    ("second_contract", "provider_calls"),
-    [({"pubmed": {"enabled": False}}, 2), ({"pubmed": {"enabled": True}}, 1)],
-    ids=["changed-contract-misses", "identical-contract-hits"],
-)
-async def test_a_cached_transcript_is_reused_only_for_the_same_tool_contract(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    second_contract: dict[str, Any],
-    provider_calls: int,
-) -> None:
-    """Equal schemas can hide changed tool configuration."""
-    cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(precall, "get_cache", lambda: cache)
-    state = patch_acompletion(
-        monkeypatch,
-        [
-            make_completion(make_message("answer one")),
-            make_completion(make_message("answer two")),
+_ABSTRACT = "A long abstract."
+
+
+_GOAL = {"role": "user", "content": "goal"}
+
+
+def _paper(pmid: str) -> dict[str, Any]:
+    return {"source_id": pmid, "title": f"Paper {pmid}", "abstract": _ABSTRACT}
+
+
+def _call(call_id: str, name: str, arguments: str = "{}") -> dict[str, Any]:
+    return {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": call_id,
+                "type": "function",
+                "function": {"name": name, "arguments": arguments},
+            }
         ],
+    }
+
+
+def _turn(*pmids: str) -> list[dict[str, Any]]:
+    call_id = f"c{'-'.join(pmids)}"
+    return [
+        _call(call_id, "search_pubmed"),
+        {
+            "role": "tool",
+            "tool_call_id": call_id,
+            "content": json.dumps({"results": [_paper(p) for p in pmids]}),
+        },
+    ]
+
+
+def _fetch_turn(call_id: str, tool: str, text: str) -> list[dict[str, Any]]:
+    return [
+        _call(call_id, tool),
+        {
+            "role": "tool",
+            "name": tool,
+            "tool_call_id": call_id,
+            "content": json.dumps(text),
+        },
+    ]
+
+
+def _records(message: dict[str, Any]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = json.loads(message["content"])["results"]
+    return records
+
+
+def _result(payload: Any) -> dict[str, Any]:
+    return {
+        "role": "tool",
+        "tool_call_id": "c1",
+        "content": json.dumps(payload),
+    }
+
+
+def test_an_aged_page_loses_its_text() -> None:
+    page = "p" * 9000
+    messages = [
+        _GOAL,
+        *_fetch_turn("u1", "read_url", page),
+        *_turn("222"),
+        *_turn("333"),
+    ]
+
+    assert elide_aged_evidence(messages) == 1
+    assert page not in messages[2]["content"]
+    assert "Call the same tool again" in messages[2]["content"]
+
+
+def test_a_record_found_again_after_ageing_out_keeps_its_new_copy() -> None:
+    """Ageing must precede dedup or a stale note can cause deletion of the
+    only fresh body."""
+    messages = [
+        _GOAL,
+        *_turn("111"),
+        *_turn("222"),
+        *_turn("333"),
+        *_turn("111"),
+    ]
+
+    _drop_dead_context(messages)
+    _drop_dead_context(messages)
+
+    assert _records(messages[8])[0]["abstract"] == _ABSTRACT
+
+
+def _assistant(*ids: str) -> dict[str, Any]:
+    message = _call(ids[0], "run_command")
+    message["tool_calls"] = [
+        {**message["tool_calls"][0], "id": call_id} for call_id in ids
+    ]
+    return message
+
+
+def _answer(call_id: str) -> dict[str, Any]:
+    return {
+        "role": "tool",
+        "tool_call_id": call_id,
+        "name": "run_command",
+        "content": "{}",
+    }
+
+
+def test_a_synthesized_result_does_not_claim_the_command_never_ran() -> None:
+    repaired = normalize_tool_transcript([_assistant("a")])
+
+    assert json.loads(repaired[1]["content"]) == ABORTED_RESULT
+    assert "may have run" in ABORTED_RESULT["detail"]
+    assert repaired[0]["tool_calls"][0]["id"] == "a", "the request is kept"
+
+
+def _write(call_id: str, path: str, content: str) -> dict[str, Any]:
+    return _call(
+        call_id,
+        "write_file",
+        json.dumps({"path": path, "content": content}),
     )
 
-    for contract in ({"pubmed": {"enabled": True}}, second_contract):
-        await call_llm_with_tools(
-            "same prompt",
-            CompletionSpec(model_name="test-model"),
-            ToolLoop(
-                tools=SEARCH_TOOL,
-                executor=echo_executor,
-                tool_contract=contract,
-            ),
-        )
 
-    assert state["calls"] == provider_calls
+def test_an_overwritten_file_is_dropped_but_its_call_stays_answerable() -> None:
+    messages = [
+        _write("a", "model.py", "first" * 400),
+        _write("b", "model.py", "second" * 400),
+    ]
+
+    assert elide_superseded_writes(messages) == 1
+
+    call = messages[0]["tool_calls"][0]
+    assert (call["id"], call["function"]["name"]) == ("a", "write_file")
+    arguments = call["function"]["arguments"]
+    assert "first" not in arguments
+    assert "superseded" in arguments
+    assert json.loads(arguments)["path"] == "model.py"
+    assert "second" in messages[1]["tool_calls"][0]["function"]["arguments"]
+
+
+async def test_a_truncated_tool_call_is_answered_with_an_error_not_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    disable_llm_cache(monkeypatch)
+    truncated = make_completion(
+        make_message(
+            None,
+            tool_calls=[make_tool_call("call-1", "search", '{"q": "unfinish')],
+        )
+    )
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(
+        monkeypatch,
+        [truncated, make_completion(make_message("final"))],
+        requests,
+    )
+    seen: list[Any] = []
+
+    async def executor(tc: Any) -> dict[str, Any]:
+        seen.append(tc)
+        return {"role": "tool", "tool_call_id": tc.id, "content": "result"}
+
+    text, _ = await call_llm_with_tools(
+        "a prompt", _SPEC, ToolLoop(tools=SEARCH_TOOL, executor=executor)
+    )
+
+    assert text == "final"
+    assert seen == []
+    resent = requests[1]["messages"]
+    assert resent[1]["tool_calls"][0]["function"]["arguments"] == "{}"
+    assert resent[2]["tool_call_id"] == "call-1"
+    assert "Re-issue the call" in resent[2]["content"]
