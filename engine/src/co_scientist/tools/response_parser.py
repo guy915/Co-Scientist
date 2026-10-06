@@ -289,12 +289,9 @@ class ResponseParser:
 
         value = self._get_field_value(field_expr, item, dict_key)
         for transform in transforms:
-            value = self._apply_transform(transform, value)
+            value = apply_transform(transform, value)
 
         return value
-
-    def _apply_transform(self, transform: str, value: Any) -> Any:
-        return apply_transform(transform, value)
 
     def _get_field_value(
         self, field_expr: str, item: dict[str, Any], dict_key: str | None = None
