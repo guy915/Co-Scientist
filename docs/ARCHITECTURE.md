@@ -119,7 +119,7 @@ Tables (SQLite, WAL):
 
 What varies per run is the **LLM backend**, not the provider. `engine_adapter.offline_mode()` returns `True` when:
 
-1. `COSCIENTIST_FORCE_OFFLINE=1` is set (or its deprecated alias `COSCIENTIST_FORCE_MOCK=1`), OR
+1. `COSCIENTIST_FORCE_OFFLINE=1` is set, OR
 2. no supported provider key is configured.
 
 An offline-backed run still executes the real durable engine; `co_scientist.offline.llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.

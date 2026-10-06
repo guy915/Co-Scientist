@@ -18,8 +18,6 @@ from app.store.logs import NewLogRecord
 # every emitted record.
 _run_id_var: ContextVar[str | None] = ContextVar("cosci_run_id", default=None)
 
-TEXT_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
 
 def current_run_id() -> str | None:
     return _run_id_var.get()
@@ -40,15 +38,6 @@ class RunIdFilter(logging.Filter):
         return True
 
 
-class TextRunIdFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        base = super().format(record)
-        run_id = getattr(record, "run_id", None)
-        if run_id:
-            return f"{base} [run_id={run_id}]"
-        return base
-
-
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
@@ -63,12 +52,6 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             payload["exc_info"] = record.exc_text or self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
-
-
-def _build_formatter(log_format: str) -> logging.Formatter:
-    if log_format == "json":
-        return JsonFormatter()
-    return TextRunIdFormatter(TEXT_FORMAT)
 
 
 # LiteLLM installs its own handler; root levels and LITELLM_LOG do not stop
@@ -105,7 +88,7 @@ def _byok_redaction_filter() -> logging.Filter:
     return ByokRedactionFilter()
 
 
-def configure_logging(log_format: str = "text", level: int = logging.INFO) -> logging.Handler:
+def configure_logging(level: int = logging.INFO) -> logging.Handler:
     """Replace the previously installed handler so reloads cannot duplicate
     every record.
     """
@@ -115,7 +98,7 @@ def configure_logging(log_format: str = "text", level: int = logging.INFO) -> lo
             root.removeHandler(handler)
     handler = logging.StreamHandler(sys.stdout)
     handler._cosci_handler = True  # type: ignore[attr-defined]
-    handler.setFormatter(_build_formatter(log_format))
+    handler.setFormatter(JsonFormatter())
     handler.addFilter(RunIdFilter())
     handler.addFilter(_byok_redaction_filter())
     root.addHandler(handler)
@@ -395,4 +378,4 @@ def shutdown_log_capture() -> None:
         _capture = None
 
 
-__all__ = ["_build_formatter", "run_log_context", "silence_litellm_logging"]
+__all__ = ["run_log_context", "silence_litellm_logging"]

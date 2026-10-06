@@ -76,7 +76,6 @@ def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
 
 
 def _model_policy() -> dict[str, Any]:
-    from app.config import settings
     from co_scientist.llm import deepseek_thinking_extra_body
 
     models = _configured_models()
@@ -90,7 +89,6 @@ def _model_policy() -> dict[str, Any]:
             }
             for model in sorted({m for m in models.values() if m})
         },
-        "claim_assessor": settings.claim_assessor,
         "request_policy_files": policy,
         "request_policy_sha256": identity_digest(policy),
     }

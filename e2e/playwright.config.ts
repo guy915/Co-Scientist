@@ -36,7 +36,6 @@ const backendServer = {
     // harness.
     COSCIENTIST_FORCE_OFFLINE: '1',
     PYTHON_DOTENV_DISABLED: '1',
-    CLAIM_ASSESSOR: 'heuristic',
     EVIDENCE_RESOLVER: 'offline',
     SMTP_HOST: '',
     LOGS_ADMIN_TOKEN: E2E_LOGS_ADMIN_TOKEN,

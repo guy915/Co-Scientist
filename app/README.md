@@ -114,14 +114,13 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | Variable | Default | Description |
 |---|---|---|
 | `OPENROUTER_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | — | Optional provider keys. If none are set, the app uses the offline LLM backend. The default models need the OpenRouter one. |
-| `COSCIENTIST_FORCE_OFFLINE` | `0` | Force the offline LLM backend even when a provider key is set (deprecated alias: `COSCIENTIST_FORCE_MOCK`) |
+| `COSCIENTIST_FORCE_OFFLINE` | `0` | Force the offline LLM backend even when a provider key is set |
 | `MODEL_NAME` | `openrouter/inclusionai/ling-3.1-flash` | LiteLLM worker model ID |
 | `SUPERVISOR_MODEL_NAME` | `openrouter/inclusionai/ling-3.1-flash` | Model for supervisor and meta-review |
 | `CHAT_MODEL_NAME` | `openrouter/inclusionai/ling-3.1-flash` | Model for chat-workspace Q&A; falls back to `MODEL_NAME` |
 | `SEMANTIC_SAFETY_MODEL` | `openrouter/inclusionai/ling-3.1-flash` | Model for contextual safety screening |
 | `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
 | `ENTREZ_EMAIL` | — | Email for NCBI Entrez / PubMed access (optional) |
-| `COSCIENTIST_DEBUG` | `false` | Enable debug-level logging |
 | `AUTH_MODE` | `compatibility` | Local development identity; set `required` before exposing the API |
 | `AUTH_SECRET` | — | Random signing secret; required when authentication is required |
 | `RESEARCHER_ACCESS_CODES` | `{}` | JSON mapping of researcher IDs to unique high-entropy invite codes |
@@ -225,7 +224,7 @@ bun run fix      # gts fix (format + autofix)
 
 ## Offline mode
 
-Every run executes on the real engine; the engine is a hard runtime dependency. If no LLM API key is set (or `COSCIENTIST_FORCE_OFFLINE=1` is set — the deprecated alias `COSCIENTIST_FORCE_MOCK=1` is still honored), the server pins the engine's `offline/` model backend instead of a real provider, producing deterministic, schema-valid hypotheses and evidence with no API spend. The `/status` endpoint reports `llm_backend: "offline"`. This is useful for frontend development and CI.
+Every run executes on the real engine; the engine is a hard runtime dependency. If no LLM API key is set (or `COSCIENTIST_FORCE_OFFLINE=1` is set), the server pins the engine's `offline/` model backend instead of a real provider, producing deterministic, schema-valid hypotheses and evidence with no API spend. The `/status` endpoint reports `llm_backend: "offline"`. This is useful for frontend development and CI.
 
 ## Literature review (MCP)
 

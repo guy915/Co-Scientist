@@ -58,7 +58,6 @@ assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
 assert os.environ["PYTHON_DOTENV_DISABLED"] == "1"
 assert "DEEPSEEK_API_KEY" not in os.environ
 assert os.environ["OPENROUTER_API_KEY"] == "synthetic-router"
-assert settings.gemini_api_key == ""
 for model in (settings.model_name, settings.supervisor_model_name,
               settings.chat_model_name, settings.semantic_safety_model,
               settings.claim_verifier_model):
@@ -70,7 +69,6 @@ for model in (settings.model_name, settings.supervisor_model_name,
         MODEL_NAME="openrouter/campaign/zero:free",
         SUPERVISOR_MODEL_NAME="deepseek/paid",
         DEEPSEEK_API_KEY="synthetic-paid",
-        gemini_api_key="synthetic-lowercase-paid",
         OPENROUTER_API_KEY="synthetic-router",
     )
 
