@@ -37,7 +37,6 @@ from app.logs_api import router as logs_router
 from app.operator_access import is_operator
 from app.runs import router as runs_router
 from app.seed import seed_demo_runs
-from app.shares import router as shares_router
 from app.store import checkpoints as store
 from app.store import db, runs, tasks
 from app.store import runs_views as views
@@ -280,10 +279,8 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     # Authorize routed ASGI paths, not URLs reconstructed from caller-controlled
     # Host headers.
     path = request.scope["path"]
-    public_api = (
-        path.startswith("/api/auth/")
-        or path.startswith("/api/shared/")
-        or (path == "/api/feedback/admin" and request.method == "GET")
+    public_api = path.startswith("/api/auth/") or (
+        path == "/api/feedback/admin" and request.method == "GET"
     )
     try:
         principal = principal_for_request(request)
@@ -316,7 +313,6 @@ app.add_middleware(
 app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(documents_router)
-app.include_router(shares_router)
 app.include_router(account_export_router)
 app.include_router(free_usage_router)
 app.include_router(byok_models_router)

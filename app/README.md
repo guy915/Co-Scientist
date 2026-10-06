@@ -153,7 +153,7 @@ Runs can be cancelled mid-flight; interrupted runs resume on restart. The backen
 
 ## API reference
 
-The backend mounts several routers (`runs`, `interviews`, `shares`, `feedback`,
+The backend mounts several routers (`runs`, `interviews`, `feedback`,
 `auth`, `logs`) plus top-level diagnostics. The core run-lifecycle group is
 below; for the complete, always-current surface use the interactive docs at
 `/docs`.

@@ -241,7 +241,13 @@ def test_grounding_telemetry_is_charged_once_into_plain_metrics(
 
 
 def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
-    edges = records.list_proximity_edges(run_id, db_path=db_path)
+    with db.connect(db_path) as conn:
+        edges = [
+            dict(row)
+            for row in conn.execute(
+                "SELECT * FROM proximity_edges WHERE run_id=? ORDER BY id", (run_id,)
+            )
+        ]
     hypotheses = store_hypotheses.list_hypotheses(run_id, db_path=db_path)
     hypothesis_ids = {hypothesis["id"] for hypothesis in hypotheses}
     assert len(edges) == 1

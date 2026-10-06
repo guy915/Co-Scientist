@@ -45,7 +45,6 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 | `hypothesis/safety.py`, `hypothesis/__init__.py` | Pre-tournament per-hypothesis screening writing `safety_status` |
 | `document_ingest.py`, `run_corpus.py` | Attachment extraction + per-run keyword (BM25-style) retrieval |
 | `documents.py`, `staged_documents.py` | The router serves `/api/documents`; shared ownership resolution and document metadata summaries live in `staged_documents.py`, which run creation and interviews import directly. `/api/documents` — pre-run document staging, owned by client id. An attachment made in the composer is uploaded here *before* any run exists, so the goal interview quotes it and `POST /api/runs` copies it into the new run's corpus as part of creating it |
-| `shares.py` | Revocable public Goal Report share tokens |
 | `account_export.py`, `notifications.py` | `GET /api/account/export` (N11, a client's own runs/documents/interviews); durable completion-email scheduling and SMTP delivery as the `notification.email` task |
 | `diagnostics.py` | `/health` checks and the cached MCP/PubMed/web-search probes behind `/status` |
 | `elo.py`, `citations/`, `safety/`, `run_modes/`, `seed/` | Elo utilities; citation classification; intake/final screening; run tier/focus normalization; demo seeder (fixed example transcripts in `seed/chat.py`, owner copies in `store/examples.py`) |
@@ -67,7 +66,7 @@ private engine imports and reverse dependencies.
 
 **Run size comes from the tier, not the request body.** `run_modes.RUN_TIER_DEFAULTS` defines express/standard/extended/ultra, each scaling `initial_hypotheses_count`, `max_iterations`, `evolution_max_count`, `tournament_pairs`, `evidence_count`, and `max_llm_calls` (a runaway backstop, not a work allowance) together. Numeric overrides in the request body may only **raise** a tier baseline, never lower it. `focus` (`prefer_evidence`/`balance`/`prefer_novelty`/`breakthrough`) contributes prompt guidance instead, threaded through as `run_focus_guidance`.
 
-**Auth and ownership.** `main.enforce_run_ownership` is an HTTP middleware over every `/api/*` path. Only `/api/auth/*` and `/api/shared/*` are public; everything else 401s when `auth_mode=required` and no principal resolves. A `/api/runs/{id}` request whose principal subject differs from the run's `client_id` gets **404, not 403** (demo-owned reads and the example-chat copy endpoint exempt; other demo mutations return 403) — so a "missing" run is usually an ownership mismatch, not deleted data. In `compatibility` mode (the default) the principal comes from the `X-Client-ID` header, so send a consistent one before concluding anything is gone. Settings: `auth_mode`, `auth_secret`, `researcher_access_codes` (JSON id→code), `auth_session_hours`.
+**Auth and ownership.** `main.enforce_run_ownership` is an HTTP middleware over every `/api/*` path. Only `/api/auth/*` is public; everything else 401s when `auth_mode=required` and no principal resolves. A `/api/runs/{id}` request whose principal subject differs from the run's `client_id` gets **404, not 403** (demo-owned reads and the example-chat copy endpoint exempt; other demo mutations return 403) — so a "missing" run is usually an ownership mismatch, not deleted data. In `compatibility` mode (the default) the principal comes from the `X-Client-ID` header, so send a consistent one before concluding anything is gone. Settings: `auth_mode`, `auth_secret`, `researcher_access_codes` (JSON id→code), `auth_session_hours`.
 
 **App model calls** go through `llm_request.py` and the engine's public
 `complete_request` transport. `llm_scope.py` gives an interview, Q&A exchange,
@@ -93,17 +92,16 @@ Run lifecycle (in `runs/`, mounted at `/api/runs`) — **primary API used by the
 - `GET /api/runs/{id}` — details; `PATCH /api/runs/{id}` — rename (title only; the research goal is deliberately not editable, and shared example mutations are 403); `POST /{id}/start`, `/cancel`.
 - `GET /api/runs/{id}/events` — SSE stream (live + replay).
 - `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
-- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/proximity`, `/metrics`, `/claim-evidence`.
+- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/claim-evidence`.
 - `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown).
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list. `POST /{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name`). `POST /{id}/messages/{message_id}/revise` edits a user Q&A question or retries an answer; it atomically rewinds only subsequent Q&A and preserves consumed setup and steering.
 - `POST /api/runs/{id}/messages/started` — the Agent's spoken confirmation that the run has started, streamed (`reasoning`/`chunk`/`done`, no error frame). The chat's session card renders it as its lead-in, the way the plan card renders the completing interview turn.
 - `POST /api/runs/{id}/attachments`, `/attachments/upload` — per-run private corpus (for a run that already exists; setup-time attachments go through `/api/documents` and ride in on `document_ids` at create).
 - `POST /api/runs/{id}/safety/{decision_id}/adjudicate` — human adjudication of a safety decision.
-- `POST|GET /api/runs/{id}/shares`, `DELETE /{id}/shares/{share_id}`, `GET /api/shared/{token}` — revocable public Goal Report links.
 
 Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create); `GET /api/account/export`; `POST /api/auth/exchange`.
 
-Additional routers mounted in `main.py`: `interviews`, `documents`, `shares`, `account_export`, `auth`, and `logs` (see each module for its endpoint group).
+Additional routers mounted in `main.py`: `interviews`, `documents`, `account_export`, `auth`, and `logs` (see each module for its endpoint group).
 
 **Persisted logs** (`logs_api.py` + `logging_setup.py` + `store/logs.py`) — one app-wide, durable log in the SQLite `app_logs` table:
 
@@ -145,11 +143,11 @@ Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (confi
 
 Vite reads `VITE_API_BASE_URL`; when it is unset the api client falls back to **same-origin relative paths** (`src/api/runs.ts`), and `vite.config.ts` proxies `/api`, `/status`, and `/health` to `http://localhost:8008` in dev — so localhost only works via that proxy, and a production build with the var unset calls its own origin. The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/error_boundary.tsx`, `src/components/icon.tsx`, and helpers under `src/lib/`. Styling: `src/index.css` (Tailwind layers, fonts, `--color-th-*` token bridge) plus the surface sheets under `src/styles/`, imported in order by `src/main.tsx`.
 
-**Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/chats/:id` (owned conversation), `/examples/:id` (open a private copy of a curated example), `/runs/:id/:tab` (run detail; bare `/runs/:id` redirects to `details`, so switching tabs is a param change rather than a remount), `/access` (researcher access-code exchange), `/shared/:token` (read-only public Goal Report), `*` (404). `/runs` and `/runs/new` redirect to `/`. Providers nest `ErrorBoundary > ThemeProvider > SystemStatusProvider > RunHistoryProvider > Layout > Routes`. Canonical run tabs and their legacy aliases live in `src/workbench/run_tabs.ts`; `normalizeTab()` is the single resolver. The old public surface (`/about` landing page, `/demos/:slug` public demos, `/runs` dashboard) was deliberately removed; `src/public/` now holds only residual helpers (`not_found_page.tsx`, `no_index.tsx`). The one landing surface now is the page *under* the chat home at `/` (`pages/home_landing*.tsx`, lazy-loaded below the home stage and reached by scrolling past the composer); the home still opens on the chat. It also carries the product FAQ (`/#faq`); Settings has no Help section.
+**Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/chats/:id` (owned conversation), `/examples/:id` (open a private copy of a curated example), `/runs/:id/:tab` (run detail; bare `/runs/:id` redirects to `details`, so switching tabs is a param change rather than a remount), `/access` (researcher access-code exchange), `*` (404). `/runs` and `/runs/new` redirect to `/`. Providers nest `ErrorBoundary > ThemeProvider > SystemStatusProvider > RunHistoryProvider > Layout > Routes`. Canonical run tabs and their legacy aliases live in `src/workbench/run_tabs.ts`; `normalizeTab()` is the single resolver. The old public surface (`/about` landing page, `/demos/:slug` public demos, `/runs` dashboard) was deliberately removed; `src/public/` now holds only residual helpers (`not_found_page.tsx`, `no_index.tsx`). The one landing surface now is the page *under* the chat home at `/` (`pages/home_landing*.tsx`, lazy-loaded below the home stage and reached by scrolling past the composer); the home still opens on the chat. It also carries the product FAQ (`/#faq`); Settings has no Help section.
 
 **Run detail** (`src/workbench/pages/`): `run_detail.tsx` is a thin router — `run_detail_specifications.tsx` (details), `run_detail_learning.tsx`, `run_detail_overview.tsx`, and `components/tabs/ideas_tab.tsx` (+ `ideas_detail_pane.tsx` / `ideas_detail_data.ts`) render the four tabs, and `run_detail_active.tsx` replaces them while a run is in flight. Data fetching is `useRunDetailData` (`run_detail_data.ts`); titlebar, tab nav, skeleton, and toast live in `run_detail_shell.tsx`; the static views share document primitives from `run_detail_document.tsx`. The earlier `overview_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `run_specifications_tab.tsx`, and `chat_tab.tsx` were retired (removed in the `references/ui-ux/` deletion; recoverable from git history).
 
-Run-detail, shared-report and researcher-access pages load through route-level
+Run-detail and researcher-access pages load through route-level
 dynamic imports. Their pending state keeps the layout mounted. Model prose uses
 `src/components/markdown_message.tsx` as a lightweight public wrapper; its lazy
 `markdown_message_renderer.tsx` owns Markdown parsing, highlighting, block
@@ -180,5 +178,5 @@ JSON, including legacy reports, public projections and nonempty curated
 collections. Generated `wire_*.ts` modules
 own the frontend types; `src/api/runs.ts` re-exports them. `TypedDict` response
 models retain omission
-separately from null and allow existing extra persisted fields; public shares
+separately from null and allow existing extra persisted fields; reports
 still pass through their explicit release gates and field projection first.
