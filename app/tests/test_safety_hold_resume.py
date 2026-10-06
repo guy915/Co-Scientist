@@ -118,12 +118,11 @@ def approve(client: TestClient, run_id: str, decision_id: int) -> None:
 
 
 @pytest.fixture()
-def held_run(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def held_run(manual_worker: None, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     # Disable detached workers to avoid racing the cohort this test drains
     # directly.
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     return make_client()
 
 

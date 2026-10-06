@@ -1,16 +1,11 @@
-"""Standalone durable worker for queued Co-Scientist run tasks."""
+"""Durable worker for queued Co-Scientist run tasks, run as a per-run cohort inside the API."""
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import contextlib
 import logging
-import os
-import socket
 import time
-import uuid
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -315,33 +310,3 @@ async def _heartbeat_lease(
                 logger.warning("Task %s lease heartbeat lost ownership", task.id)
                 signals.lease_lost.set()
                 return
-
-
-async def run_forever(
-    worker_id: str,
-    *,
-    db_path: str | None = None,
-    poll_seconds: float = 0.5,
-) -> None:
-    # Standalone workers lack the API lifespan and must independently install
-    # the harmless offline router.
-    from co_scientist.offline.llm import install_offline_router
-
-    install_offline_router()
-    while True:
-        worked = await run_once(worker_id, db_path=db_path)
-        if not worked:
-            await asyncio.sleep(poll_seconds)
-
-
-def _worker_id() -> str:
-    return f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--worker-id", default=_worker_id())
-    parser.add_argument("--poll-seconds", type=float, default=0.5)
-    args = parser.parse_args(argv)
-    run_in_scoped_loop(run_forever(args.worker_id, poll_seconds=args.poll_seconds))
-    return 0
