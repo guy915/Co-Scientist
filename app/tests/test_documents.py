@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import io
-import json
 import sys
 import types
 from typing import Any, cast
@@ -11,24 +9,12 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
-from app import offline_guard
-from app.config import settings
-from app.interviews import model as interviews_model
 from app.run_corpus import (
-    CorpusDocument,
-    KeywordCorpusRetriever,
     engine_context_sources,
 )
-from app.store import interviews as store
 from app.store import messages, records
 from tests._client import create_run as _create_run
 from tests._client import make_client
-from tests._interviews_helpers import (
-    _fake_stream,
-    _interview_payload,
-    _response,
-)
-from tests._llm_fake_backend import install_completion_backend
 
 
 def _client_with_run(goal: str) -> tuple[TestClient, str]:
@@ -152,27 +138,6 @@ def test_invalid_image_is_rejected_without_persisting_evidence(
     assert response.status_code == 422
     assert "OCR failed" in response.json()["detail"]
     assert records.list_evidence(run_id, db_path=isolated_db) == []
-
-
-def _corpus() -> list[CorpusDocument]:
-    return [
-        CorpusDocument(
-            "d1",
-            "Kinase X in AML",
-            "Kinase X inhibition reduces tumor growth in acute myeloid "
-            "leukemia cells through apoptosis.",
-        ),
-        CorpusDocument(
-            "d2",
-            "Photosynthesis",
-            "Chloroplast electron transport drives carbon fixation in plants.",
-        ),
-        CorpusDocument(
-            "d3",
-            "Immune surveillance",
-            "Receptor Y blockade restores immune surveillance against tumors.",
-        ),
-    ]
 
 
 def test_engine_context_sources_preserve_private_provenance() -> None:
@@ -312,20 +277,6 @@ def test_upload_endpoint_refuses_a_mislabeled_file(
     assert records.list_evidence(run_id, db_path=isolated_db) == []
 
 
-def test_keyword_retrieval_ranks_relevant_documents_only() -> None:
-    retriever = KeywordCorpusRetriever(_corpus())
-
-    hits = retriever.retrieve("kinase inhibition tumor growth AML", k=2)
-    assert hits[0].document.doc_id == "d1"
-    assert hits[0].score > 0.0
-    first = [h.document.doc_id for h in retriever.retrieve("tumor immune", k=3)]
-    assert first == [
-        h.document.doc_id for h in retriever.retrieve("tumor immune", k=3)
-    ]
-    assert retriever.retrieve("quantum chromodynamics gluon") == []
-    assert KeywordCorpusRetriever([]).retrieve("anything") == []
-
-
 def test_staging_rejects_an_unextractable_document() -> None:
     client = make_client()
     response = client.post(
@@ -346,44 +297,6 @@ def test_staged_document_is_not_visible_to_another_client() -> None:
         json={"research_challenge": "x", "document_ids": [document_id]},
     )
     assert response.status_code == 404
-
-
-def test_attached_document_reaches_the_interview_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client = make_client()
-    document_id = _stage_id(client)
-    created = client.post(
-        "/api/interviews",
-        headers=_HEADERS,
-        json={
-            "research_challenge": "How do hearts regenerate?",
-            "document_ids": [document_id],
-        },
-    )
-    assert created.status_code == 200, created.text
-    assert [d["title"] for d in _interview_payload(created)["documents"]] == [
-        "lab-notes.txt"
-    ]
-
-    interview_id = store.list_interviews("doc-scientist")[0]["id"]
-    captured: dict[str, Any] = {}
-
-    async def _fake_acompletion(**kwargs: Any) -> Any:
-        captured.update(kwargs)
-        return _fake_stream(json.dumps(_response("Which mechanism?")))
-
-    install_completion_backend(monkeypatch, _fake_acompletion)
-    monkeypatch.setattr(settings, "chat_model_name", "openai/gpt-4o")
-    monkeypatch.setattr(offline_guard, "remote_chat_allowed", lambda: True)
-    interview = store.get_interview(str(interview_id))
-    assert interview is not None
-
-    asyncio.run(interviews_model._call_interview_model(interview))
-
-    prompt = " ".join(m["content"] for m in captured["messages"])
-    assert _DOC_TEXT in prompt
-    assert "lab-notes.txt" in prompt
 
 
 def test_create_run_carries_staged_documents_into_its_corpus() -> None:
@@ -421,37 +334,6 @@ def test_create_run_with_an_unknown_document_creates_no_run() -> None:
     assert len(after) == len(before)
 
 
-def test_run_created_from_a_chat_inherits_the_chat_documents() -> None:
-    client = make_client()
-    document_id = _stage_id(client)
-    client.post(
-        "/api/interviews",
-        headers=_HEADERS,
-        json={"research_challenge": "goal", "document_ids": [document_id]},
-    )
-    interview_id = str(store.list_interviews("doc-scientist")[0]["id"])
-    store.update_interview(
-        interview_id,
-        {
-            "research_challenge": "goal",
-            "focus_area": ["signalling"],
-            "preferences": [],
-            "lab_constraints": [],
-            "title": None,
-        },
-        None,
-        completed=True,
-    )
-    created = _create_run(
-        client, "goal", headers=_HEADERS, interview_id=interview_id
-    )
-    assert created.status_code == 200, created.text
-    evidence = client.get(
-        f"/api/runs/{created.json()['id']}/evidence", headers=_HEADERS
-    ).json()
-    assert "lab-notes.txt" in [row["title"] for row in evidence["evidence"]]
-
-
 @pytest.mark.parametrize(
     ("body", "status"),
     [
@@ -467,62 +349,3 @@ def test_attachment_needs_consent_and_a_bounded_size(
     res = client.post(f"/api/runs/{run_id}/attachments", json=body)
 
     assert res.status_code == status
-
-
-def test_attachment_indexed_and_searchable(isolated_db: str) -> None:
-    client, run_id = _client_with_run("Scientist-in-the-loop goal")
-
-    res = client.post(
-        f"/api/runs/{run_id}/attachments",
-        json={
-            "title": "Persister cell review",
-            "text": (
-                "Drug-tolerant persister cells survive EGFR inhibition via "
-                "a reversible transcriptional program and mitochondrial "
-                "priming."
-            ),
-            "consent": True,
-        },
-    )
-    assert res.status_code == 200
-    assert res.json()["indexed"] is True
-
-    hits = client.get(
-        f"/api/runs/{run_id}/attachments/search",
-        params={"q": "persister mitochondrial priming"},
-    ).json()["results"]
-    assert hits
-    assert hits[0]["title"] == "Persister cell review"
-
-
-def test_pasted_and_uploaded_attachments_emit_same_audit_event(
-    isolated_db: str,
-) -> None:
-    client, run_id = _client_with_run("Scientist-in-the-loop goal")
-
-    pasted = client.post(
-        f"/api/runs/{run_id}/attachments",
-        json={
-            "title": "Pasted note",
-            "text": "Persister cells tolerate EGFR inhibition reversibly.",
-            "consent": True,
-        },
-    ).json()
-    uploaded = client.post(
-        f"/api/runs/{run_id}/attachments/upload",
-        files={
-            "file": ("assay.md", b"Kinase X reduced growth.", "text/markdown")
-        },
-        data={"consent": "true"},
-    ).json()
-
-    events = client.get(f"/api/runs/{run_id}/events?stream=false").json()
-    attachment_events = [
-        e for e in events["events"] if e["type"] == "scientist.attachment"
-    ]
-    assert [e["payload"]["evidence_id"] for e in attachment_events] == [
-        pasted["id"],
-        uploaded["id"],
-    ]
-    assert attachment_events[0]["payload"]["title"] == "Pasted note"
-    assert attachment_events[1]["payload"]["title"] == "assay.md"

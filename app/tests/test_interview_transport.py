@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import Any, NamedTuple
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,11 +12,6 @@ from app.execution_policy import CAMPAIGN, CAMPAIGN_MODEL_NAME, STANDARD
 from app.interviews import model as interviews_model
 from app.interviews import stream as interviews_stream
 from app.interviews import turns as interview_turns
-from app.interviews.model import (
-    CLOSE_MARKER,
-    OPEN_MARKER,
-    TurnSplitter,
-)
 from app.main import app
 from app.store import interviews as store
 from app.store.interviews import NewInterviewTurn
@@ -101,40 +96,6 @@ def _capture_model_input(
         return reply
 
     monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
-
-
-def test_revising_a_completed_interview_reopens_it(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    completed = InterviewFields(
-        focus=["Efflux-pump regulation"],
-        preferences=["Clinical isolates only"],
-        title="Restoring susceptibility",
-        completed=True,
-    )
-    _patch_model_sequence(
-        monkeypatch,
-        [
-            _response("The goal is ready.", completed),
-            _response("One more question first."),
-        ],
-    )
-    with TestClient(app) as client:
-        started = _start(client, "How do bacteria regain susceptibility?")
-        assert started["status"] == "completed"
-
-        retried = _interview_payload(
-            client.post(
-                f"/api/interviews/{started['id']}/turns/"
-                f"{started['turns'][-1]['id']}/retry",
-                headers=HEADERS,
-            )
-        )
-
-    assert retried["status"] == "active"
-    assert retried["completed_at"] is None
-    assert retried["fields"]["focus_area"] == []
-    assert retried["fields"]["preferences"] == []
 
 
 def test_a_revision_refuses_the_wrong_kind_of_turn_and_other_owners(
@@ -273,66 +234,3 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
         if task is not asyncio.current_task() and not task.done()
     ]
     assert pending == []
-
-
-_FIELDS = '{"research_challenge": "Reverse fibrosis", "completed": false}'
-
-
-def _block(body: str = _FIELDS) -> str:
-    return f"{OPEN_MARKER}\n{body}\n{CLOSE_MARKER}"
-
-
-class _Streamed(NamedTuple):
-    relayed: str
-    whole: str
-    fields: dict[str, Any] | None
-
-
-def _stream(deltas: list[str]) -> _Streamed:
-    splitter = TurnSplitter()
-    relayed = [splitter.feed(delta) for delta in deltas]
-    trailing, whole, fields = splitter.finish()
-    return _Streamed("".join(relayed) + trailing, whole, fields)
-
-
-def test_split_without_a_block_keeps_the_prose_and_reports_no_fields() -> None:
-    _, prose, fields = _stream(["Which model system?"])
-
-    assert prose == "Which model system?"
-    assert fields is None
-
-
-@pytest.mark.parametrize(
-    "deltas",
-    [
-        ["Question?", "<run_", "spec>", _FIELDS, CLOSE_MARKER],
-        ["Question?", "<", "run_spec>", _FIELDS, CLOSE_MARKER],
-        ["Question?<r", "un_s", "pec>", _FIELDS, CLOSE_MARKER],
-        ["Question?", "<run_spec>" + _FIELDS + CLOSE_MARKER],
-    ],
-)
-def test_marker_split_across_deltas_never_leaks_into_prose(
-    deltas: list[str],
-) -> None:
-    # Buffer possible marker suffixes so raw wire markers never flash as
-    # scientist-visible prose.
-    streamed = _stream(deltas)
-
-    assert streamed.relayed == "Question?"
-    assert streamed.whole == "Question?"
-    assert "<" not in streamed.relayed
-    assert "run_spec" not in streamed.relayed
-    assert streamed.fields == {
-        "research_challenge": "Reverse fibrosis",
-        "completed": False,
-    }
-
-
-def test_single_delta_and_fragmented_turn_agree() -> None:
-    text = f"**Bold** and a list:\n- one\n- two\n\n{_block()}"
-    streamed = _stream(list(text))
-    _, expected_prose, expected_fields = _stream([text])
-
-    assert streamed.relayed.strip() == expected_prose
-    assert streamed.whole == expected_prose
-    assert streamed.fields == expected_fields

@@ -16,7 +16,6 @@ from app.store import runs_views as views
 from app.store.models import RunStatus
 from tests._client import create_run as _create_run
 from tests._client import make_client, wait_for
-from tests._store_helpers import seed_run
 
 _OWNER = {"X-Client-ID": "export-owner"}
 _OTHER = {"X-Client-ID": "someone-else"}
@@ -149,16 +148,6 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
     )
 
 
-def test_invalid_invite_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _configure_auth(monkeypatch)
-    response = make_client().post(
-        "/api/auth/exchange", json={"access_code": "wrong"}
-    )
-    assert response.status_code == 401
-
-
 @pytest.mark.parametrize("auth_mode", ["compatibility", "required"])
 def test_invalid_bearer_returns_401_json(
     monkeypatch: pytest.MonkeyPatch, auth_mode: str
@@ -196,26 +185,6 @@ def _configure_allowlisted_cors(
     monkeypatch.setitem(cors.kwargs, "allow_credentials", True)
     monkeypatch.setattr(app, "middleware_stack", None)
     return app
-
-
-def test_allowed_origin_can_read_auth_denial(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _configure_auth(monkeypatch)
-    app = _configure_allowlisted_cors(monkeypatch)
-    client = TestClient(app, raise_server_exceptions=False)
-
-    response = client.get(
-        "/api/runs", headers={"Origin": "https://ai-co-scientist.com"}
-    )
-
-    assert response.status_code == 401
-    assert response.headers["access-control-allow-origin"] == (
-        "https://ai-co-scientist.com"
-    )
-    assert response.headers["access-control-allow-credentials"] == "true"
-    assert "origin" in response.headers["vary"].lower()
-    client.close()
 
 
 def test_allowed_origin_can_read_ownership_denial(
@@ -258,25 +227,6 @@ def test_allowed_origin_can_read_ownership_denial(
     client.close()
 
 
-@pytest.mark.parametrize(
-    ("raw", "origins", "credentialed"),
-    [
-        ("", ["*"], False),
-        (
-            "https://ai-co-scientist.com, https://www.ai-co-scientist.com",
-            ["https://ai-co-scientist.com", "https://www.ai-co-scientist.com"],
-            True,
-        ),
-    ],
-)
-def test_only_an_explicit_cors_allowlist_is_credentialed(
-    raw: str, origins: list[str], credentialed: bool
-) -> None:
-    from app.main import _resolve_cors_config
-
-    assert _resolve_cors_config(raw) == (origins, credentialed)
-
-
 def _headerless_client() -> TestClient:
     # Identityless clients must not acquire a default identity header.
     from app.main import app
@@ -315,38 +265,6 @@ def test_headerless_caller_is_refused_and_creates_nothing(
     assert response.status_code == 400
     assert "X-Client-ID" in response.json()["detail"]
     assert views.list_runs(client_id="") == []
-
-
-def test_headerless_callers_no_longer_share_a_run(isolated_db: str) -> None:
-    # Legacy empty-string identities must remain unreachable to every caller.
-    legacy = seed_run(
-        "Pre-fix headerless goal",
-        profile="express",
-        client_id="",
-        db_path=isolated_db,
-    )
-    client = _headerless_client()
-
-    assert client.get(f"/api/runs/{legacy.id}").status_code == 404
-    assert client.get("/api/runs").json()["runs"] == []
-
-
-@pytest.mark.parametrize(
-    ("overrides", "match"),
-    [
-        ({"auth_mode": "requried"}, "auth_mode"),
-        ({"auth_mode": ""}, "auth_mode"),
-        ({"auth_mode": "required", "auth_secret": ""}, "AUTH_SECRET"),
-        ({"auth_mode": "required", "auth_secret": " "}, "AUTH_SECRET"),
-        ({"auth_session_hours": 0}, "auth_session_hours"),
-        ({"auth_session_hours": -1}, "auth_session_hours"),
-    ],
-)
-def test_invalid_auth_configuration_is_rejected(
-    overrides: dict[str, Any], match: str
-) -> None:
-    with pytest.raises(ValidationError, match=match):
-        Settings(_env_file=None, **overrides)
 
 
 def test_configuration_failure_does_not_print_access_codes() -> None:

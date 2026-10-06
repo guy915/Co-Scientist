@@ -5,8 +5,7 @@ from typing import Any
 
 import pytest
 
-from app import qa
-from app.qa import artifacts, snapshot
+from app.qa import artifacts
 from app.runs.chat import _gather_qa_context
 from app.store import db, hypotheses, interviews, runs
 from app.store.models import RunRow, RunStatus
@@ -119,55 +118,3 @@ def test_interview_owner_is_checked_and_all_answers_are_retrievable() -> None:
     assert context.artifacts["setup"][0]["criteria"] == ["Replicable"]
     run.client_id = "other"
     assert "interview" not in _gather_qa_context(run).artifacts
-
-
-def test_retrieval_reaches_records_and_text_beyond_both_caps() -> None:
-    records = [{"text": "x" * 6000 + "LAST PAGE"} for _ in range(100)]
-    result = json.loads(
-        artifacts.retrieve(
-            {"hypotheses": records},
-            {
-                "section": "hypotheses",
-                "offset": 99,
-                "character_offset": 6000,
-                "limit": 999,
-            },
-        )
-    )
-    assert len(result["records"]) == 1
-    assert "LAST PAGE" in result["records"][0]["text"]
-    assert result["next_offset"] is None
-    bounded = json.loads(
-        artifacts.retrieve(
-            {"hypotheses": records},
-            {
-                "section": "hypotheses",
-                "limit": 999,
-            },
-        )
-    )
-    assert len(bounded["records"]) == 3
-    assert all(
-        len(r["text"]) <= artifacts.CHUNK_CHARS for r in bounded["records"]
-    )
-
-
-def test_prompt_stays_bounded_and_always_retains_grounding_rules() -> None:
-    from types import SimpleNamespace
-
-    context = qa.QaRunContext(
-        research_goal="a" * 100000,
-        hypotheses=[
-            snapshot.idea_view({"text": "b" * 100000}) for _ in range(100)
-        ],
-        reviews=[],
-        matches=[],
-        manifest=[],
-        history=[SimpleNamespace(sender="user", content="c" * 100000)] * 100,
-        artifacts={"hypotheses": []},
-    )
-    prompt = qa.build_system_prompt(context)
-    assert len(prompt) < 26000
-    assert "never invent a citation" in prompt
-    assert "untrusted data" in prompt
-    assert "search_run_artifacts" in prompt

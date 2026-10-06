@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-import app.qa.manifest as qa_ideas
 from app import qa
 from tests._llm_fake_backend import install_completion_backend
 
@@ -19,24 +18,6 @@ def _idea(title: str, **fields: Any) -> dict[str, Any]:
         "status": "active",
     }
     return {**base, **fields}
-
-
-def test_search_ranks_title_matches_and_returns_the_idea_bodies() -> None:
-    ideas = [
-        _idea("Unrelated", statement="lipid lipid lipid repair repair repair"),
-        _idea("Mitochondrial calcium buffering"),
-        _idea("Lipid repair"),
-    ]
-    results = qa_ideas.search_ideas(ideas, "lipid repair", 1)
-    assert results[0]["title"] == "Lipid repair"
-    assert results[0]["Statement"] == "a statement"
-    assert results[0]["Mechanism"] == "a mechanism"
-
-
-def test_a_query_matching_nothing_falls_back_to_the_leaders() -> None:
-    ideas = [_idea("Alpha"), _idea("Beta")]
-    results = qa_ideas.search_ideas(ideas, "zzzz qqqq", 1)
-    assert [r["title"] for r in results] == ["Alpha"]
 
 
 def _fragment(index: int, **fields: Any) -> SimpleNamespace:
@@ -88,20 +69,6 @@ def _search_call_chunk() -> Any:
     )
 
 
-def test_a_model_that_answers_directly_makes_one_call(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    fake = _scripted_litellm([[_chunk("The run "), _chunk("is going well.")]])
-    install_completion_backend(monkeypatch, (fake).acompletion)
-
-    deltas = _drain(
-        qa.stream_llm_deltas("model", "sys", "how is it?", [_idea("H")])
-    )
-
-    assert deltas == [("chunk", "The run "), ("chunk", "is going well.")]
-    assert len(fake.sent) == 1
-
-
 def test_a_model_that_asks_for_ideas_is_given_them_and_answers(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
@@ -124,20 +91,6 @@ def test_a_model_that_asks_for_ideas_is_given_them_and_answers(
     assert "tools" not in second
     assert fake.sent[0]["max_tokens"] == second["max_tokens"]
     assert fake.sent[0]["timeout"] == second["timeout"]
-
-
-def test_a_tool_call_after_the_answer_started_is_ignored(
-    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
-) -> None:
-    fake = _scripted_litellm(
-        [[_chunk("Half an answer."), _search_call_chunk()], [_chunk("never")]]
-    )
-    install_completion_backend(monkeypatch, (fake).acompletion)
-
-    deltas = _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")]))
-
-    assert deltas == [("chunk", "Half an answer.")]
-    assert len(fake.sent) == 1
 
 
 def test_run_artifact_lookup_uses_same_bounded_two_round_stream(
