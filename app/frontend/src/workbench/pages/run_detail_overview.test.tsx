@@ -2,7 +2,10 @@ import {screen} from '@testing-library/react';
 import {expect, it, describe} from 'vitest';
 import type {Hypothesis} from '@/api/runs';
 import {makeHypothesis, makeMatch} from '@/test_fixtures';
-import {renderOverview} from './run_detail_overview_test_support';
+import {
+  renderFullReport,
+  renderOverview,
+} from './run_detail_overview_test_support';
 
 describe('run detail overview', () => {
   it('falls back to live data when there is no persisted report', async () => {
@@ -21,5 +24,18 @@ describe('run detail overview', () => {
     expect(
       screen.getByText('1 tournament matches have been recorded for this run.'),
     ).toBeInTheDocument();
+  });
+
+  it('renders the synthesized summary and idea buckets from the report', () => {
+    renderFullReport();
+
+    expect(
+      screen.getByText('A synthesized summary of the research.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('High Potential')).toBeInTheDocument();
+    expect(screen.getByText('Non-Viable')).toBeInTheDocument();
+    expect(screen.getByText('Verified ideas')).toBeInTheDocument();
+    expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
+    expect(screen.getByText('11')).toBeInTheDocument();
   });
 });
