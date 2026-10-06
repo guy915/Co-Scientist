@@ -6,7 +6,6 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, safety, task_worker
-from app.config import settings
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import support as engine_tasks_support
 from app.safety.types import SafetyDecision
@@ -39,7 +38,6 @@ class _PauseDuringPrepare:
 def _start_bootstrap(
     monkeypatch: pytest.MonkeyPatch, db_path: str, goal: str = "Bootstrap race"
 ) -> tuple[Any, str, Any]:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
     created = _create_run(client, goal)
     run_id = str(created.json()["id"])
@@ -191,7 +189,7 @@ def _cancel_after_second_run_read(run_id: str, client: Any) -> Any:
 
 @pytest.mark.asyncio
 async def test_cancel_after_bootstrap_read_cannot_be_overwritten(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, run_id, task = _start_bootstrap(monkeypatch, isolated_db)
     real_get_run = runs.get_run
@@ -263,6 +261,7 @@ async def _hold_intake_screen(
 @pytest.mark.parametrize("decision", ["block", "hold"])
 @pytest.mark.asyncio
 async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
+    manual_worker: None,
     decision: str,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -286,7 +285,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
 
 @pytest.mark.asyncio
 async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client, run_id, original = _start_bootstrap(monkeypatch, isolated_db)
     replacement = _replace_expired_bootstrap_lease(client, run_id, original, isolated_db)
@@ -318,7 +317,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
 
 @pytest.mark.asyncio
 async def test_bootstrap_pause_without_resume_commits_paused_checkpoint(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, run_id, task = _pause_during_bootstrap_prepare(monkeypatch, isolated_db)
 

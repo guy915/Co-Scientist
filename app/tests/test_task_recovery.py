@@ -59,9 +59,8 @@ def _stamped_run_with_expired_lease(
 
 @pytest.mark.asyncio
 async def test_expired_provably_free_lease_is_retried(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     replayed: list[str] = []
 
     async def _replay(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
@@ -82,9 +81,8 @@ async def test_expired_provably_free_lease_is_retried(
 
 @pytest.mark.asyncio
 async def test_expired_provably_free_lease_with_byok_still_fails_closed(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", "synthetic-zero-cost-lease-secret")
     replayed: list[str] = []
 
@@ -115,9 +113,8 @@ async def test_expired_provably_free_lease_with_byok_still_fails_closed(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("config", [{}, {"zero_cost_admission": "yes"}])
 async def test_expired_standard_lease_without_the_stamp_fails_closed(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     run = seed_run(
         "Unproven lease loss",
         config=config,
@@ -273,6 +270,7 @@ def test_failed_attempt_write_is_transactional_with_settlement(
     ],
 )
 async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
+    manual_worker: None,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     error: Exception,
@@ -280,7 +278,6 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
     expected_kind: str | None,
     expected_message: str,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _raise_known_or_near_miss(
         _task: ScientificTask, *, db_path: str | None = None
@@ -306,9 +303,8 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
 
 @pytest.mark.asyncio
 async def test_run_failure_kind_comes_from_task_that_settles_run(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _fail_tasks(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
         if task.task_type == "engine.bootstrap":
@@ -354,9 +350,8 @@ def _redaction_parse_sse(text: str) -> list[dict[str, Any]]:
 
 @pytest.mark.asyncio
 async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
     monkeypatch.setattr(settings, "auth_mode", "required")
     monkeypatch.setattr(settings, "auth_secret", "synthetic-test-signing-key")

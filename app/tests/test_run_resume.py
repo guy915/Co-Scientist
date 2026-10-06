@@ -6,7 +6,6 @@ from typing import Any
 import pytest
 
 from app import task_worker
-from app.config import settings
 from app.runs import lifecycle as runs_lifecycle
 from app.store import checkpoints, hypotheses, reports, runs
 from app.store import events as store_events
@@ -93,9 +92,8 @@ def _seed_scientist_artifacts(run_id: str) -> str:
 
 
 def test_resuming_a_pre_engine_checkpoint_restarts_from_a_fresh_bootstrap(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     run_id = _new_run(client)
     _seed_agent_artifacts(run_id)
@@ -172,11 +170,10 @@ def _checkpoint_hypothesis_ids(run_id: str, db_path: str) -> set[str]:
 
 @pytest.mark.asyncio
 async def test_two_resume_cycles_still_complete_with_pool_intact(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Disable the embedded worker so two interruption boundaries cannot race
     # detached execution.
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     created = _create_run(client, "Double resume coverage", tier="express")
     assert created.status_code == 200

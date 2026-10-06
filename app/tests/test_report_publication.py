@@ -6,7 +6,6 @@ from typing import Any, cast
 import pytest
 
 from app import engine_tasks, task_worker
-from app.config import settings
 from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
@@ -122,7 +121,6 @@ def _seed_leased_finalize(
     *,
     monitor_halt: bool = False,
 ) -> tuple[Any, dict[str, str], str, Any]:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     headers = {"X-Client-ID": client_id}
     created = _create_run(
@@ -230,6 +228,7 @@ def _owner_events(owner: Any, headers: dict[str, str], run_id: str) -> list[dict
 )
 @pytest.mark.asyncio
 async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
+    manual_worker: None,
     gate: tuple[Any, str],
     monitor_halt: bool,
     stage: str,
@@ -273,7 +272,7 @@ async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
 
 @pytest.mark.asyncio
 async def test_empty_leaderboard_block_remains_auditable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, "readiness-block-owner"
@@ -305,7 +304,7 @@ async def test_empty_leaderboard_block_remains_auditable(
 
 @pytest.mark.asyncio
 async def test_leased_finalize_redaction_audits_and_scrubs_report(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, "final-redaction-owner"
@@ -346,7 +345,7 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
 
 @pytest.mark.asyncio
 async def test_leased_monitor_halt_remains_auditable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db,
@@ -376,6 +375,7 @@ async def test_leased_monitor_halt_remains_auditable(
 @pytest.mark.parametrize("decision", ["allow", "redact"])
 @pytest.mark.asyncio
 async def test_cancel_during_final_screen_has_no_final_safety_audit(
+    manual_worker: None,
     decision: str,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -447,7 +447,7 @@ def _install_final_drain(
 
 @pytest.mark.asyncio
 async def test_cancel_during_final_drain_keeps_cancelled_state(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
@@ -485,7 +485,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
 
 @pytest.mark.asyncio
 async def test_pause_during_final_drain_waits_for_explicit_resume(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, original_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
@@ -566,7 +566,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
 
 @pytest.mark.asyncio
 async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _owner, run_id, task, hypothesis_id = _seed_owned_finalize(isolated_db, monkeypatch)
     _install_report_stubs(hypothesis_id, monkeypatch)
