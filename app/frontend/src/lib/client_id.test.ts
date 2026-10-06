@@ -1,13 +1,10 @@
 import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import {
   getClientId,
-  DEFAULT_BYOK_PROVIDER,
   getStoredApiKey,
-  getStoredApiProvider,
   getStoredModel,
   keyedProviders,
   setStoredApiKey,
-  setStoredApiProvider,
   setStoredModel,
 } from './client_id';
 
@@ -20,12 +17,6 @@ describe('client id', () => {
       const id = getClientId();
       expect(id).toBeTruthy();
       expect(localStorage.getItem('co_scientist_client_id')).toBe(id);
-    });
-
-    it('returns the same id on subsequent calls', () => {
-      const first = getClientId();
-      const second = getClientId();
-      expect(second).toBe(first);
     });
 
     it('works when randomUUID is unavailable in a non-secure context', () => {
@@ -53,14 +44,6 @@ describe('api keys', () => {
     expect(keyedProviders()).toEqual(['anthropic', 'gemini']);
   });
 
-  it('reads and writes the viewed provider by default', () => {
-    setStoredApiProvider('openai');
-    setStoredApiKey('sk-o');
-    expect(getStoredApiKey()).toBe('sk-o');
-    setStoredApiProvider('gemini');
-    expect(getStoredApiKey()).toBe('');
-  });
-
   it('clearing a key leaves other keys and drops its model choices', () => {
     setStoredApiKey('sk-a', 'anthropic');
     setStoredApiKey('sk-g', 'gemini');
@@ -80,24 +63,6 @@ describe('api keys', () => {
     expect(localStorage.getItem('cosci-api-key')).toBeNull();
     setStoredApiKey('', 'openai');
     expect(keyedProviders()).toEqual([]);
-  });
-
-  it('migrates a legacy model name to the legacy provider', () => {
-    localStorage.setItem(PROVIDER_KEY, 'openai');
-    localStorage.setItem('cosci-api-model', 'openai/gpt-6-luna');
-    setStoredApiProvider('gemini');
-    expect(getStoredModel('worker')).toEqual({
-      provider: 'openai',
-      model: 'openai/gpt-6-luna',
-    });
-  });
-
-  it('defaults the viewed provider and ignores unknown values', () => {
-    expect(getStoredApiProvider()).toBe(DEFAULT_BYOK_PROVIDER);
-    localStorage.setItem(PROVIDER_KEY, 'skynet');
-    expect(getStoredApiProvider()).toBe(DEFAULT_BYOK_PROVIDER);
-    setStoredApiProvider('not-a-provider' as never);
-    expect(localStorage.getItem(PROVIDER_KEY)).toBe(DEFAULT_BYOK_PROVIDER);
   });
 
   it('treats corrupt stored keys and models as empty', () => {

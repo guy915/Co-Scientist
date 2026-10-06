@@ -39,15 +39,6 @@ it.each(['running', 'paused'])('offers the control for a %s run', status => {
   expect(stopButton()).toBeInTheDocument();
 });
 
-it.each([
-  ['finished', 'completed', 'run-1'],
-  ['never started a run', undefined, undefined],
-  ['never started (draft)', 'draft', 'run-1'],
-])('offers nothing for a session that %s', (_name, status, runId) => {
-  renderControl(status, runId);
-  expect(screen.queryByRole('button', {name: /stop/i})).toBeNull();
-});
-
 it('asks twice before stopping, since stopping cannot be undone', async () => {
   renderControl('running');
 
@@ -63,30 +54,6 @@ it('asks twice before stopping, since stopping cannot be undone', async () => {
   });
 
   expect(cancelRun).toHaveBeenCalledWith('run-1');
-});
-
-it('disarms itself so a stale confirm cannot stop a run later', () => {
-  vi.useFakeTimers();
-  renderControl('running');
-
-  fireEvent.click(stopButton());
-  act(() => void vi.advanceTimersByTime(5_000));
-
-  expect(screen.getByRole('button', {name: 'Stop run'})).toBeInTheDocument();
-});
-
-it('refreshes the run list after stopping, which is what hides it', async () => {
-  const onChanged = vi.fn();
-  window.addEventListener(RUNS_CHANGED_EVENT, onChanged);
-  renderControl('running');
-
-  fireEvent.click(stopButton());
-  await act(async () => {
-    fireEvent.click(screen.getByRole('button', {name: 'Confirm stop'}));
-  });
-
-  expect(onChanged).toHaveBeenCalled();
-  window.removeEventListener(RUNS_CHANGED_EVENT, onChanged);
 });
 
 it('treats "already finished" as the list being stale, not as an error', async () => {

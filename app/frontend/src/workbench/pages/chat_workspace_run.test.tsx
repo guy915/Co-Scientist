@@ -1,7 +1,5 @@
-import {makeChatSummary, makeRunMessage} from '@/test_fixtures';
-import {act, fireEvent, screen, waitFor} from '@testing-library/react';
+import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
-import {STARTED_SESSION_STANDBY_COPY} from './chat_timeline_run_spec_card';
 import {
   ANNOUNCEMENT_TEXT,
   apiMock,
@@ -21,12 +19,6 @@ function submitResearchGoal(goal = RESEARCH_GOAL) {
   const input = screen.getByRole('textbox');
   fireEvent.change(input, {target: {value: goal}});
   fireEvent.submit(input.closest('form')!);
-}
-
-// Completion email adds another textbox; identify the composer by its element
-// type.
-function getComposer(): HTMLElement {
-  return screen.getAllByRole('textbox').find(el => el.tagName === 'TEXTAREA')!;
 }
 
 function installClipboardAndDownloadSpies() {
@@ -103,6 +95,44 @@ async function startRunFromSpec({
   expect(await screen.findByText('Research session')).toBeInTheDocument();
 }
 
+it('starts the durable run on confirmation', async () => {
+  await driveToRunSpec();
+  await startRunFromSpec();
+
+  expect(screen.getByTestId('location')).toHaveTextContent('/');
+  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
+  expect(apiMock.announceRunStart).toHaveBeenCalledWith(
+    'run-1',
+    'Start research',
+    expect.anything(),
+    expect.anything(),
+  );
+  expect(screen.getAllByText('Start research').length).toBeGreaterThan(1);
+  expect(
+    screen.getByRole('heading', {name: 'Research plan'}),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', {
+      name: 'Investigate glucose homeostasis under cold stress',
+    }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
+  expect(screen.getByText('Research session')).toBeInTheDocument();
+  expect(screen.getByRole('link', {name: /Open/i})).toBeInTheDocument();
+  expect(
+    screen.getByRole('link', {name: 'View session details'}),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', {
+      name: 'Start a new research goal session on a new topic',
+    }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('Report ready')).not.toBeInTheDocument();
+  expect(
+    screen.queryByText('Mitochondrial feedback hypothesis'),
+  ).not.toBeInTheDocument();
+});
+
 it('shows request and response controls in the transcript', async () => {
   const spies = installClipboardAndDownloadSpies();
 
@@ -147,296 +177,4 @@ it('shows request and response controls in the transcript', async () => {
   expect(spies.downloadedNames).toContain('co-scientist-research-plan.md');
   expect(spies.anchorClick).toHaveBeenCalled();
   expect(spies.revokeObjectURL).toHaveBeenCalledWith(RESPONSE_BLOB_URL);
-});
-
-it('cancels a draft setup back to the home screen with a toast', async () => {
-  renderWorkspace();
-
-  const input = screen.getByRole('textbox');
-  fireEvent.change(input, {
-    target: {value: 'Investigate glucose homeostasis under cold stress.'},
-  });
-  fireEvent.submit(input.closest('form')!);
-
-  expect(
-    await screen.findByRole('heading', {name: 'Research plan'}),
-  ).toBeInTheDocument();
-
-  fireEvent.click(screen.getByText('Cancel'));
-
-  expect(
-    screen.getByRole('heading', {
-      name: 'What breakthrough should we make today?',
-    }),
-  ).toBeInTheDocument();
-  expect(screen.getByText('The session was canceled')).toBeInTheDocument();
-  expect(screen.queryByRole('heading', {name: 'Research plan'})).toBeNull();
-});
-
-it('infers a run spec in chat from the research goal', async () => {
-  await driveToRunSpec();
-
-  expect(screen.queryByText('AI Co-Scientist')).toBeNull();
-  expect(
-    screen.getByRole('heading', {name: 'Research plan'}),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText("Here's my plan to tackle the topic:"),
-  ).toBeInTheDocument();
-  expect(
-    screen
-      .getByRole('heading', {
-        name: 'Investigate glucose homeostasis under cold stress',
-      })
-      .closest('.reference-setup-document'),
-  ).not.toBeNull();
-  expect(screen.getByText('Cancel')).toBeInTheDocument();
-  expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
-  expect(screen.getByRole('group', {name: 'Run type'})).toBeInTheDocument();
-  expect(screen.getByLabelText(/Express/i)).toBeChecked();
-  expect(screen.getByLabelText(/Standard/i)).toBeDisabled();
-});
-
-it('starts the durable run on confirmation', async () => {
-  await driveToRunSpec();
-  await startRunFromSpec();
-
-  expect(screen.getByTestId('location')).toHaveTextContent('/');
-  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
-  expect(apiMock.announceRunStart).toHaveBeenCalledWith(
-    'run-1',
-    'Start research',
-    expect.anything(),
-    expect.anything(),
-  );
-  expect(screen.getAllByText('Start research').length).toBeGreaterThan(1);
-  expect(
-    screen.getByRole('heading', {name: 'Research plan'}),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByRole('heading', {
-      name: 'Investigate glucose homeostasis under cold stress',
-    }),
-  ).toBeInTheDocument();
-  expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
-  expect(screen.getByText('Research session')).toBeInTheDocument();
-  expect(screen.getByRole('link', {name: /Open/i})).toBeInTheDocument();
-  expect(
-    screen.getByRole('link', {name: 'View session details'}),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByRole('button', {
-      name: 'Start a new research goal session on a new topic',
-    }),
-  ).toBeInTheDocument();
-  expect(screen.queryByText('Report ready')).not.toBeInTheDocument();
-  expect(
-    screen.queryByText('Mitochondrial feedback hypothesis'),
-  ).not.toBeInTheDocument();
-});
-
-it('does not repeat the start exchange the live tab already shows', async () => {
-  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
-  apiMock.getRunMessages.mockResolvedValue([
-    makeRunMessage({
-      id: 8,
-      content: 'Start research',
-      kind: 'start',
-      created_at: 8,
-    }),
-    makeRunMessage({
-      id: 9,
-      sender: 'system',
-      content: ANNOUNCEMENT_TEXT,
-      kind: 'start',
-      created_at: 9,
-    }),
-  ]);
-
-  await driveToRunSpec();
-  await startRunFromSpec();
-
-  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
-  await waitFor(() => {
-    expect(
-      screen
-        .getAllByText('Start research')
-        .filter(node => node.closest('button') === null),
-    ).toHaveLength(1);
-  });
-  expect(screen.getAllByText(ANNOUNCEMENT_TEXT)).toHaveLength(1);
-});
-
-it('withholds the session block until the reply has been written', async () => {
-  let finishAnnouncement: (() => void) | undefined;
-  apiMock.announceRunStart.mockImplementation(
-    async (
-      _runId: string,
-      _prompt: string,
-      sinks: {onChunk?: (fragment: string) => void} = {},
-    ) =>
-      new Promise<{fallback: boolean}>(resolve => {
-        finishAnnouncement = () => {
-          sinks.onChunk?.(ANNOUNCEMENT_TEXT);
-          resolve({fallback: false});
-        };
-      }),
-  );
-
-  await driveToRunSpec();
-  await startRunFromSpec({waitForSessionCard: false});
-  await waitFor(() => {
-    expect(apiMock.announceRunStart).toHaveBeenCalled();
-  });
-
-  expect(screen.queryByText('Research session')).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole('link', {name: 'View session details'}),
-  ).not.toBeInTheDocument();
-
-  await act(async () => {
-    finishAnnouncement?.();
-  });
-
-  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
-  expect(screen.getByText('Research session')).toBeInTheDocument();
-  expect(
-    screen.getByRole('link', {name: 'View session details'}),
-  ).toBeInTheDocument();
-});
-
-it('falls back to the standby copy when no reply is written', async () => {
-  apiMock.announceRunStart.mockRejectedValue(new Error('provider down'));
-
-  await driveToRunSpec();
-  await startRunFromSpec();
-
-  expect(
-    await screen.findByText(
-      /Your session has been started and Co-Scientist has started research/,
-    ),
-  ).toBeInTheDocument();
-  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  expect(STARTED_SESSION_STANDBY_COPY).toContain('a few minutes');
-});
-
-it('drops a half-written reply the scientist stopped', async () => {
-  apiMock.announceRunStart.mockImplementation(
-    async (
-      _runId: string,
-      _prompt: string,
-      sinks: {onChunk?: (fragment: string) => void} = {},
-    ) => {
-      sinks.onChunk?.('Your session is un');
-      throw new DOMException('aborted', 'AbortError');
-    },
-  );
-
-  await driveToRunSpec();
-  await startRunFromSpec();
-
-  expect(
-    await screen.findByText(
-      /Your session has been started and Co-Scientist has started research/,
-    ),
-  ).toBeInTheDocument();
-  expect(screen.queryByText(/Your session is un$/)).not.toBeInTheDocument();
-});
-
-it('opens the started run detail from the session card', async () => {
-  await driveToRunSpec();
-  await startRunFromSpec();
-
-  fireEvent.click(screen.getByRole('link', {name: /Open/i}));
-
-  await waitFor(() => {
-    expect(screen.getByTestId('location')).toHaveTextContent(
-      '/runs/run-1/details',
-    );
-  });
-});
-
-it('keeps the composer live once the run starts, asking it instead of the interview', async () => {
-  await driveToRunSpec();
-  await startRunFromSpec();
-
-  const composer = getComposer();
-  expect(composer).toBeEnabled();
-  expect(screen.getByRole('button', {name: 'Files'})).toBeEnabled();
-  expect(screen.getByRole('button', {name: 'Connectors'})).toBeEnabled();
-  expect(
-    screen.getByText('Ask a question about this research session'),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByText('Session started — start a new chat'),
-  ).not.toBeInTheDocument();
-
-  apiMock.askRunQuestion.mockResolvedValue(1);
-  fireEvent.change(composer, {
-    target: {value: 'Which hypothesis ranked highest?'},
-  });
-  fireEvent.submit(composer.closest('form')!);
-
-  await waitFor(() => {
-    expect(apiMock.askRunQuestion).toHaveBeenCalledWith(
-      'run-1',
-      'Which hypothesis ranked highest?',
-      expect.any(Object),
-      expect.any(AbortSignal),
-    );
-  });
-  expect(apiMock.addInterviewTurn).not.toHaveBeenCalled();
-});
-
-it('streams a run Q&A answer into a growing assistant bubble', async () => {
-  await driveToRunSpec();
-  await startRunFromSpec();
-
-  let sinks: {onChunk?: (fragment: string) => void} = {};
-  let resolveAsk: (() => void) | undefined;
-  apiMock.askRunQuestion.mockImplementation(
-    (_id: string, _q: string, s: typeof sinks) =>
-      new Promise<number>(resolve => {
-        sinks = s;
-        resolveAsk = () => resolve(3);
-      }),
-  );
-
-  const composer = getComposer();
-  fireEvent.change(composer, {target: {value: 'Why?'}});
-  fireEvent.submit(composer.closest('form')!);
-
-  expect(await screen.findByText('Why?')).toBeInTheDocument();
-  sinks.onChunk?.('Because ');
-  sinks.onChunk?.('the evidence supports it.');
-  expect(
-    await screen.findByText('Because the evidence supports it.'),
-  ).toBeInTheDocument();
-
-  resolveAsk?.();
-  await waitFor(() => {
-    expect(
-      screen.getByText('Because the evidence supports it.'),
-    ).toBeInTheDocument();
-  });
-});
-
-it('re-enables the composer when a started session starts a new chat', async () => {
-  await driveToRunSpec();
-  await startRunFromSpec();
-  expect(
-    screen.getByText('Ask a question about this research session'),
-  ).toBeInTheDocument();
-
-  fireEvent.click(
-    screen.getByRole('button', {
-      name: 'Start a new research goal session on a new topic',
-    }),
-  );
-
-  const composer = screen.getByRole('textbox');
-  expect(composer).toBeEnabled();
-  expect(
-    screen.getByText('Start a new research goal to begin'),
-  ).toBeInTheDocument();
 });

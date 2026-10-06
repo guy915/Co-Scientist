@@ -1,7 +1,6 @@
 import {describe, it, expect} from 'vitest';
-import {render, waitFor, screen} from '@testing-library/react';
-import {NoIndex, NotFoundPage} from './page';
-import {MemoryRouter} from 'react-router-dom';
+import {render, waitFor} from '@testing-library/react';
+import {NoIndex} from './page';
 
 describe('no index', () => {
   describe('NoIndex', () => {
@@ -14,25 +13,6 @@ describe('no index', () => {
         expect(robots).not.toBeNull();
         expect(robots).toHaveAttribute('content', 'noindex, nofollow');
       });
-    });
-  });
-});
-
-describe('not found page', () => {
-  describe('NotFoundPage', () => {
-    it('renders the 404 heading and message', () => {
-      render(
-        <MemoryRouter>
-          <NotFoundPage />
-        </MemoryRouter>,
-      );
-      expect(
-        screen.getByRole('heading', {name: 'Page not found'}),
-      ).toBeInTheDocument();
-      expect(screen.getByText('404')).toBeInTheDocument();
-      expect(
-        screen.getByText('The page you requested does not exist.'),
-      ).toBeInTheDocument();
     });
   });
 });

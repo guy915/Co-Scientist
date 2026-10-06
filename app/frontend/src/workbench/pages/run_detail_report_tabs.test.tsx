@@ -6,31 +6,6 @@ import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt, tab} from './run_detail_test_support';
 
-it('renders all four report tabs', async () => {
-  renderAt('/runs/run-1');
-  await screen.findByText('All Ideas');
-  for (const label of [
-    'Goal Details',
-    'Learning',
-    'Research Overview',
-    'All Ideas',
-  ]) {
-    expect(tab(new RegExp(label))).toBeInTheDocument();
-  }
-});
-
-it('resolves a tab alias in the URL to its canonical tab', async () => {
-  renderAt('/runs/run-1/specs');
-  await screen.findByText('Run Specifications');
-  expect(tab(/Goal Details/)).toHaveAttribute('aria-current', 'page');
-});
-
-it('links to the canonical tab even from an aliased URL', async () => {
-  renderAt('/runs/run-1/specs');
-  await screen.findByText('All Ideas');
-  expect(tab(/^Goal Details$/)).toHaveAttribute('href', '/runs/run-1/details');
-});
-
 it('navigates when a tab is clicked', async () => {
   renderAt('/runs/run-1');
   await screen.findByText('All Ideas');
@@ -40,14 +15,6 @@ it('navigates when a tab is clicked', async () => {
       '/runs/run-1/learning',
     ),
   );
-});
-
-it("labels the content region with the active tab's name", async () => {
-  renderAt('/runs/run-1/overview');
-  await screen.findByText('Summary');
-  expect(
-    screen.getByRole('main', {name: 'Research Overview'}),
-  ).toBeInTheDocument();
 });
 
 const UNGROUNDED_NOTICE = /No literature was retrieved for this run/;

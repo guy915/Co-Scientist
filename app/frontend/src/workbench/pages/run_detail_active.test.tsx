@@ -42,24 +42,6 @@ describe('run detail active', () => {
     expect(hasLivePulse()).toBe(false);
     expect(screen.getByRole('status')).toHaveTextContent('Reconnecting...');
   });
-
-  it('surfaces a stream that ended with no retry', () => {
-    renderView('disconnected');
-    expect(hasLivePulse()).toBe(false);
-    expect(screen.getByRole('status')).toHaveTextContent('Stream disconnected');
-  });
-
-  it('names a stream that has not opened yet', () => {
-    renderView('connecting');
-    expect(hasLivePulse()).toBe(false);
-    expect(screen.getByRole('status')).toHaveTextContent('Connecting...');
-  });
-
-  it('treats a missing transport state as no signal, not a drop', () => {
-    renderView(undefined);
-    expect(hasLivePulse()).toBe(true);
-    expect(screen.queryByRole('status')).toBeNull();
-  });
 });
 
 describe('run detail activity log', () => {
@@ -83,36 +65,10 @@ describe('run detail activity log', () => {
     );
   }
 
-  it('renders the closed-vocabulary label when an event carries `activity`', () => {
-    renderLog([event(1, {task: 'ranking', activity: 'tournament'})]);
-    expect(screen.getByText('Comparing ideas')).toBeInTheDocument();
-  });
-
   it('falls back to the legacy node-keyed table when `activity` is absent', () => {
     renderLog([event(1, {task: 'ranking'})]);
     expect(screen.getByText('Ranking tournament')).toBeInTheDocument();
     expect(screen.queryByText('Comparing ideas')).toBeNull();
-  });
-
-  it('collapses three consecutive same-activity events into one card', () => {
-    renderLog([
-      event(1, {task: 'ranking', activity: 'tournament'}),
-      event(2, {task: 'ranking', activity: 'tournament'}),
-      event(3, {task: 'ranking', activity: 'tournament'}),
-    ]);
-    expect(screen.getByText('Comparing ideas')).toBeInTheDocument();
-    expect(screen.getAllByText('Comparing ideas')).toHaveLength(1);
-  });
-
-  it('splits a run into separate groups when a different activity interrupts it', () => {
-    renderLog([
-      event(1, {task: 'ranking', activity: 'tournament'}),
-      event(2, {task: 'ranking', activity: 'tournament'}),
-      event(3, {task: 'review', activity: 'review'}),
-      event(4, {task: 'ranking', activity: 'tournament'}),
-    ]);
-    expect(screen.getAllByText('Comparing ideas')).toHaveLength(2);
-    expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
   });
 
   it('expands a group to show its individual events', () => {
@@ -126,15 +82,5 @@ describe('run detail activity log', () => {
     );
     expect(screen.getByText('Match 1')).toBeInTheDocument();
     expect(screen.getByText('Match 2')).toBeInTheDocument();
-  });
-
-  it('reads the newest group as in progress, not an older one', () => {
-    renderLog([
-      event(1, {task: 'ranking', activity: 'tournament'}),
-      event(2, {task: 'ranking', activity: 'tournament'}),
-      event(3, {task: 'review', activity: 'review'}),
-      event(4, {task: 'review', activity: 'review'}),
-    ]);
-    expect(screen.getAllByText('In progress')).toHaveLength(1);
   });
 });

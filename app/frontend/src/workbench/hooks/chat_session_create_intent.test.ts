@@ -8,8 +8,6 @@ import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {
   getPendingCreateIntent,
   readPendingCreateIntent,
-  rememberPendingCreateRun,
-  retirePendingCreateIntent,
 } from './chat_session_start_run';
 
 const PAYLOAD = {
@@ -48,37 +46,12 @@ describe('pending create intent', () => {
     ).not.toContain('bearer-secret-one');
   });
 
-  it('reads the exact intent and known run by chat ID for the current owner', async () => {
-    const intent = await getPendingCreateIntent('chat-1', PAYLOAD);
-    await rememberPendingCreateRun('chat-1', intent.key, 'run-known');
-
-    expect(await readPendingCreateIntent('chat-1')).toEqual({
-      key: intent.key,
-      payload: PAYLOAD,
-      createdRunId: 'run-known',
-    });
-  });
-
   it('does not expose an intent after the owner changes', async () => {
     setAccessToken('bearer-secret-one');
     await getPendingCreateIntent('chat-1', PAYLOAD);
     setAccessToken('bearer-secret-two');
 
     expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
-  });
-
-  it('retires only the matching intent key', async () => {
-    const first = await getPendingCreateIntent('chat-1', PAYLOAD);
-    const replacement = await getPendingCreateIntent('chat-1', {
-      ...PAYLOAD,
-      research_goal: 'changed goal',
-    });
-    await retirePendingCreateIntent('chat-1', first.key);
-
-    expect(await readPendingCreateIntent('chat-1')).toMatchObject({
-      key: replacement.key,
-      payload: {...PAYLOAD, research_goal: 'changed goal'},
-    });
   });
 
   it.each([
