@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import ast
 import asyncio
 import logging
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from co_scientist import tool_effects
-from co_scientist.config.registry import ToolRegistry
 from co_scientist.llm.tools.loop import (
     _execute_logged_tool,
     _execute_tool_calls,
@@ -93,46 +90,6 @@ async def test_barrier_tool_never_overlaps_a_sibling(
 
     assert not overlapped_with_barrier
     assert [r["content"] for r in results] == ["read_a", "spawn", "read_b"]
-
-
-# Parse the sibling MCP package: its separate dependencies are absent in this
-# environment.
-_MCP_SERVER_ROOT = Path(__file__).resolve().parents[1] / "mcp_server"
-
-
-def _accepted_arguments(root: Path) -> dict[str, set[str]]:
-    accepted: dict[str, set[str]] = {}
-    for path in sorted(root.rglob("*.py")):
-        if "tests" in path.parts:
-            continue
-        module = ast.parse(path.read_text(encoding="utf-8"))
-        for name, params in _public_functions(module):
-            accepted.setdefault(name, params)
-    return accepted
-
-
-def _public_functions(module: ast.Module) -> list[tuple[str, set[str]]]:
-    functions = []
-    for node in ast.walk(module):
-        if not isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef):
-            continue
-        if not node.name.startswith("_"):
-            functions.append((node.name, _parameter_names(node)))
-    return functions
-
-
-def _parameter_names(node: ast.AsyncFunctionDef | ast.FunctionDef) -> set[str]:
-    return {arg.arg for arg in (*node.args.args, *node.args.kwonlyargs)}
-
-
-@pytest.fixture(scope="module")
-def accepted() -> dict[str, set[str]]:
-    return _accepted_arguments(_MCP_SERVER_ROOT)
-
-
-@pytest.fixture(scope="module")
-def registry() -> ToolRegistry:
-    return ToolRegistry()
 
 
 @pytest.mark.parametrize("outcome", ["returned", "failed", "cancelled"])

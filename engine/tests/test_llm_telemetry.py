@@ -5,19 +5,12 @@ from typing import Any
 
 import pytest
 
-from co_scientist.exceptions import (
-    LLMBudgetExhaustedError,
-)
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm,
     call_llm_json,
     scoped_telemetry,
-)
-from co_scientist.llm.attempts.escalation import (
-    BudgetEscalation,
-    escalation_for_error,
 )
 from tests._llm_fake import (
     disable_llm_cache,
@@ -115,20 +108,6 @@ async def test_a_provider_error_is_logged_at_a_bounded_length(
 
     assert any("Unterminated string" in r.getMessage() for r in caplog.records)
     assert all(len(r.getMessage()) < 1000 for r in caplog.records)
-
-
-@pytest.mark.parametrize("rung", list(BudgetEscalation))
-def test_a_spent_budget_has_an_answer_at_every_rung_but_the_top_two(
-    rung: BudgetEscalation,
-) -> None:
-    top = {
-        BudgetEscalation.NO_THINKING,
-        BudgetEscalation.MINIMAL_REASONING_REQUIRED,
-    }
-
-    answer = escalation_for_error(LLMBudgetExhaustedError("spent"), rung)
-
-    assert (answer is None) == (rung in top)
 
 
 async def test_known_zero_estimate_is_distinct_from_missing_cost_evidence(

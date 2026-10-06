@@ -139,7 +139,7 @@
       }
     },
     "2": {
-      "status": "in_progress",
+      "status": "complete",
       "start": {
         "engine": {
           "test_lines": 49434,
@@ -172,7 +172,7 @@
           "tests": 35
         }
       },
-      "current": {
+      "end": {
         "engine": {
           "test_lines": 31534,
           "files": 77,
@@ -194,9 +194,9 @@
           "tests": 293
         },
         "evaluations": {
-          "test_lines": 3364,
+          "test_lines": 2397,
           "files": 16,
-          "tests": 208
+          "tests": 169
         },
         "browser": {
           "test_lines": 1520,
@@ -205,8 +205,9 @@
         }
       },
       "production_lines_start": 114507,
-      "production_lines_current": 114927,
-      "production_lines_deleted": -420,
+      "production_lines_end": 114905,
+      "production_lines_deleted": -398,
+      "production_lines_removed_what_goes_9": 72,
       "coverage_start": {
         "app": {
           "covered": 13110,
@@ -227,6 +228,28 @@
           "covered": 2349,
           "total": 2536,
           "percent": 92.62618296529969
+        }
+      },
+      "coverage_end": {
+        "app": {
+          "covered": 13037,
+          "total": 13607,
+          "percent": 95.8109796428309
+        },
+        "engine": {
+          "covered": 13934,
+          "total": 14500,
+          "percent": 96.09655172413794
+        },
+        "frontend": {
+          "covered": 3864,
+          "total": 4295,
+          "percent": 89.965075669383
+        },
+        "mcp": {
+          "covered": 2371,
+          "total": 2531,
+          "percent": 93.67838798893719
         }
       },
       "themes": [
@@ -423,6 +446,17 @@
           "inventory": "pull request body",
           "validation_location": "pull request body",
           "pull_request": 217
+        },
+        {
+          "suite": "evaluations",
+          "theme": "evaluation-harness-through-behavior-tables",
+          "test_lines_removed": 967,
+          "tests_removed": 39,
+          "files_removed": 0,
+          "scope_status": "complete; finishes the evaluations suite and Phase 2 for every suite; deletes 22 production lines only tests reached",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 218
         }
       ],
       "pull_requests": [
@@ -442,7 +476,8 @@
         214,
         215,
         216,
-        217
+        217,
+        218
       ],
       "coverage_rule": {
         "from": "2026-10-06",
@@ -455,6 +490,292 @@
         ],
         "protected_below_floor": "held at their fixed baseline"
       }
+    },
+    "3": {
+      "status": "complete",
+      "start": {
+        "engine": {
+          "test_lines": 31534,
+          "files": 77,
+          "tests": 2084
+        },
+        "app": {
+          "test_lines": 33573,
+          "files": 85,
+          "tests": 1309
+        },
+        "mcp": {
+          "test_lines": 5668,
+          "files": 12,
+          "tests": 317
+        },
+        "frontend": {
+          "test_lines": 8116,
+          "files": 81,
+          "tests": 293
+        },
+        "evaluations": {
+          "test_lines": 2397,
+          "files": 16,
+          "tests": 169
+        },
+        "browser": {
+          "test_lines": 1520,
+          "files": 11,
+          "tests": 35
+        }
+      },
+      "end": {
+        "engine": {
+          "test_lines": 13756,
+          "files": 51,
+          "tests": 827
+        },
+        "app": {
+          "test_lines": 25389,
+          "files": 90,
+          "tests": 872
+        },
+        "mcp": {
+          "test_lines": 3873,
+          "files": 12,
+          "tests": 152
+        },
+        "frontend": {
+          "test_lines": 7040,
+          "files": 73,
+          "tests": 246
+        },
+        "evaluations": {
+          "test_lines": 2230,
+          "files": 13,
+          "tests": 146
+        },
+        "browser": {
+          "test_lines": 1520,
+          "files": 11,
+          "tests": 35
+        }
+      },
+      "production_lines_start": 114905,
+      "production_lines_end": 115145,
+      "production_lines_deleted": -240,
+      "production_lines_removed_what_goes_9": 0,
+      "coverage_start": {
+        "app": {
+          "covered": 13037,
+          "total": 13607,
+          "percent": 95.8109796428309
+        },
+        "engine": {
+          "covered": 13934,
+          "total": 14500,
+          "percent": 96.09655172413794
+        },
+        "frontend": {
+          "covered": 3864,
+          "total": 4295,
+          "percent": 89.965075669383
+        },
+        "mcp": {
+          "covered": 2371,
+          "total": 2531,
+          "percent": 93.67838798893719
+        }
+      },
+      "coverage_end": {
+        "app": {
+          "covered": 12725,
+          "total": 13615,
+          "percent": 93.46309217774514
+        },
+        "engine": {
+          "covered": 12249,
+          "total": 14547,
+          "percent": 84.20292843885338
+        },
+        "frontend": {
+          "covered": 3726,
+          "total": 4337,
+          "percent": 85.91192068249941
+        },
+        "mcp": {
+          "covered": 2132,
+          "total": 2531,
+          "percent": 84.2354800474121
+        }
+      },
+      "themes": [
+        {
+          "suite": "mcp",
+          "theme": "organize-and-finish",
+          "test_lines_removed": 1704,
+          "tests_removed": 147,
+          "files_removed": 0,
+          "scope_status": "complete; MCP suite in the coverage band (files merged by behavior, shared trace validators added)",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 93.6784,
+            "after": 85.2232
+          },
+          "pull_request": 219
+        },
+        {
+          "suite": "engine",
+          "theme": "merge-by-behavior-and-cut-covered-duplicates",
+          "test_lines_removed": 12573,
+          "tests_removed": 933,
+          "files_removed": 25,
+          "scope_status": "pass 1; 29 files merged into their behavior's file, none over 800 lines",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 96.0966,
+            "after": 94.2966
+          },
+          "pull_request": 220
+        },
+        {
+          "suite": "engine",
+          "theme": "coverage-band",
+          "test_lines_removed": 5084,
+          "tests_removed": 326,
+          "files_removed": 1,
+          "scope_status": "complete; finishes the engine Phase 3 sweep (measured net delta after the #221 merge is 5046 lines)",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 94.2966,
+            "after": 84.1379
+          },
+          "pull_request": 222
+        },
+        {
+          "suite": "app",
+          "theme": "runs-tasks-resume-and-recovery-organize",
+          "test_lines_removed": 2289,
+          "tests_removed": 89,
+          "files_removed": -3,
+          "scope_status": "slice 1 of 3; every file over 800 lines split; makes the engine-metrics test deterministic (measured net delta after the #221 merge is 2253 lines)",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 95.811,
+            "after": 95.7064
+          },
+          "pull_request": 224
+        },
+        {
+          "suite": "frontend",
+          "theme": "coverage-band-and-merge-by-behavior",
+          "test_lines_removed": 1187,
+          "tests_removed": 53,
+          "files_removed": 8,
+          "scope_status": "complete; finishes the frontend suite at the top edge of the band; makes home_landing coverage deterministic",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 89.9584,
+            "after": 85.9
+          },
+          "pull_request": 227
+        },
+        {
+          "suite": "app",
+          "theme": "api-surfaces-organize-and-finish",
+          "test_lines_removed": 3143,
+          "tests_removed": 175,
+          "files_removed": 0,
+          "scope_status": "slice 2 of 3; app suite stays above the band because module floors cap further cuts",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 95.7106,
+            "after": 94.1462
+          },
+          "pull_request": 228
+        },
+        {
+          "suite": "app",
+          "theme": "engine-tasks-reports-claims-organize-and-finish",
+          "test_lines_removed": 2883,
+          "tests_removed": 181,
+          "files_removed": -2,
+          "scope_status": "slice 3 of 3; app suite complete above the band because module floors and invariant tests cap further cuts",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 94.1462,
+            "after": 93.4631
+          },
+          "pull_request": 229
+        },
+        {
+          "suite": "mcp",
+          "theme": "final-sweep",
+          "test_lines_removed": 91,
+          "tests_removed": 18,
+          "files_removed": 0,
+          "scope_status": "complete; MCP suite in the coverage band",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 85.2232,
+            "after": 84.2355
+          },
+          "pull_request": 230
+        },
+        {
+          "suite": "evaluations",
+          "theme": "organize-and-finish",
+          "test_lines_removed": 30,
+          "tests_removed": 6,
+          "files_removed": 2,
+          "scope_status": "complete; evaluations suite folded into behavior files",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 232
+        },
+        {
+          "suite": "engine",
+          "theme": "final-sweep",
+          "test_lines_removed": 266,
+          "tests_removed": 6,
+          "files_removed": 0,
+          "scope_status": "complete; engine suite in the coverage band",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "coverage_percent": {
+            "before": 84.2029,
+            "after": 84.2029
+          },
+          "pull_request": 233
+        }
+      ],
+      "pull_requests": [
+        219,
+        220,
+        222,
+        224,
+        227,
+        228,
+        229,
+        230,
+        232,
+        233
+      ],
+      "non_campaign_pull_requests": [
+        221,
+        223,
+        225,
+        226,
+        231
+      ],
+      "tooling_changes": [
+        "Size ratchet (evaluations/tests/test_code_size_ratchet.py) retired by PR 226 on 6 October 2026; its classification rule was used to count lines and files here"
+      ],
+      "exit_test": "passed: the last two themed pull requests, 232 (30 test lines) and 233 (266 test lines), each removed under 1,000 test lines"
     }
   },
   "load_bearing_distinctions": [
@@ -463,7 +784,23 @@
     "Stage-specific HTTP failures and mutable query snapshots",
     "MCP pacing, byte-reading Entrez handles and both study traces",
     "Frontend real adapter defaults, malformed wire inputs, authentication and timers",
-    "Scientific evaluation schemas and credential-environment matrices"
+    "Scientific evaluation schemas and credential-environment matrices",
+    "Entrez pacing, Study 4 retry budget with exact-argument retry, trace run-id and concurrency tests, and the redirect-hop URL guard add few lines but prove the pacing, bounded-call and URL-guard invariants (#219)",
+    "Biopython id-encoding tests pin the comma-joined EFetch and separate ELink id contract that batching relies on (#200)",
+    "Subprocess evaluation tests (credential isolation, live-model rejection, free-price admission, import boundary) add no traced coverage but guard spend and evidence invariants (#218)",
+    "Campaign-scope paid-BYOK rejection, the run-wide ceiling bound and the import-cycle and architecture scans (#220, #222)",
+    "Gateway pricing and fallback-chain checks, the stacked-list checkpoint round trip and the capability-shim and telemetry tests (#202, #222)",
+    "Cancel, pause and resume race tests, one per commit window: node commit, bootstrap commit, resume admission, start admission and startup reconcile (#206, #207, #215, #224)",
+    "Lease-stranding and dead-bootstrap tables cover the live, expired and spent branches of never reviving dead work (#224)",
+    "No-database-connection-held and concurrent claim assessment tests guard the SQLite write-lock rule and a past finalization slowdown (#212, #213)",
+    "Share-token hashing and filtered public report are covered only by the two share tests (#215)",
+    "Only-test-of-an-invariant cases: resume after a final safety block, campaign-mode interview streaming, operator-field redaction in diagnostics (#207, #216)",
+    "Structured, mislabeled, unextractable and PDF OCR upload tests hold document_ingest.py exactly at its 75.52% baseline; the example-chat private-copy test holds store/examples.py (#228)",
+    "Frontend: request-and-response controls download test, copy and revise tests, full-report test and small safety-section tests hold unique lines in modules at their floor (#217, #227)",
+    "Lazy-loaded modules (HomeLanding) must be covered by their own test, or coverage depends on load (#227)",
+    "The graph-versus-durable generation test is the only check of the generation fan-out idempotency keys, which persist in stored tasks (PR 229)",
+    "The finalize pause-read race guards a commit window the final-drain pause test does not reach (PR 229)",
+    "llm/request/backend.py needs the backend-scope test to stay above its 80% floor (PR 233)"
   ],
   "flakes": [
     {
@@ -493,6 +830,22 @@
     {
       "pr": 217,
       "cause": "findByText returned the pending plain-text reasoning node that the lazy Markdown renderer then replaced; assert inside waitFor with fresh queries."
+    },
+    {
+      "pr": 203,
+      "cause": "A streamed bubble is replaced when its turn settles, so an assertion on the stale element failed; wait for the visible replacement."
+    },
+    {
+      "pr": 203,
+      "cause": "vi.fn call counts leaked between qa_rehydrate tests; beforeEach now clears mocks."
+    },
+    {
+      "pr": 224,
+      "cause": "test_completed_run_serves_engine_metrics reran an offline run up to five times because uuid4 hypothesis ids seed the offline prompts and could leave no evolved child; pin the id factory and run once."
+    },
+    {
+      "pr": 227,
+      "cause": "chat_workspace lazy-loads HomeLanding, so chat-workspace tests covered it only when the chunk rendered before they ended and make coverage failed the guard under load; home_landing.test.tsx now covers it on its own."
     }
   ]
 }

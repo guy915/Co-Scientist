@@ -62,35 +62,6 @@ def _hyp(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
     return make_hypothesis(text=text, reviews=[make_review()], **overrides)
 
 
-def test_tournament_budget_is_spent_across_the_whole_run() -> None:
-    """Invoking ranking in a later cycle must not recharge its allowance."""
-    from co_scientist.agents.ranking.ranking_lifecycle import (
-        _tournament_round_count,
-    )
-    from co_scientist.models import ExecutionMetrics
-
-    hypotheses = [
-        _hyp(text=f"h{i}", win_count=1, loss_count=1) for i in range(4)
-    ]
-
-    fresh = make_state(hypotheses=hypotheses, tournament_pairs=12)
-    assert _tournament_round_count(fresh, hypotheses) == 12
-
-    partway = make_state(
-        hypotheses=hypotheses,
-        tournament_pairs=12,
-        metrics=ExecutionMetrics(tournaments_count=9),
-    )
-    assert _tournament_round_count(partway, hypotheses) == 3
-
-    spent = make_state(
-        hypotheses=hypotheses,
-        tournament_pairs=12,
-        metrics=ExecutionMetrics(tournaments_count=12),
-    )
-    assert _tournament_round_count(spent, hypotheses) == 0
-
-
 async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
     from co_scientist.models import ExecutionMetrics
 
