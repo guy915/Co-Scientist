@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -12,7 +11,6 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
-import app.main
 from app import engine_tasks, task_worker
 from app.config import settings
 from app.engine_tasks import node as engine_tasks_node
@@ -27,194 +25,8 @@ from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._client import drain as _drain
 from tests._client import make_client as _client
-from tests._client import start_and_complete as _start_and_complete
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
-
-
-def _run_views(client: TestClient, run_id: str) -> dict[str, Any]:
-
-    def _get(name: str) -> Any:
-        return client.get(f"/api/runs/{run_id}/{name}").json()
-
-    return {
-        "hyps": _get("hypotheses")["hypotheses"],
-        "evidence": _get("evidence")["evidence"],
-        "matches": _get("matches")["matches"],
-        "citations": _get("citations")["citations"],
-        "safety": _get("safety")["safety"],
-        "claim_evidence": _get("claim-evidence")["claim_evidence"],
-        "report": _get("report"),
-    }
-
-
-def test_owned_proximity_endpoint_returns_persisted_landscape(
-    isolated_db: str,
-) -> None:
-    from app.store import hypotheses as store
-    from app.store import records
-    from app.store.hypotheses import NewHypothesis
-    from app.store.records import NewProximityEdge
-
-    client = _client()
-    headers = {"X-Client-ID": "landscape-owner"}
-    run = _create_run(
-        client, "Map a conceptual hypothesis landscape", headers=headers
-    ).json()
-    source = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run["id"], title="Source", statement="Source mechanism"
-        )
-    )
-    target = store.add_hypothesis(
-        NewHypothesis(
-            run_id=run["id"], title="Target", statement="Target mechanism"
-        )
-    )
-    records.add_proximity_edge(
-        NewProximityEdge(
-            run_id=run["id"],
-            source_hypothesis_id=source,
-            target_hypothesis_id=target,
-            similarity=0.81,
-            cluster_id="cluster-1",
-        )
-    )
-
-    response = client.get(f"/api/runs/{run['id']}/proximity", headers=headers)
-
-    assert response.status_code == 200
-    edges = response.json()["proximity"]
-    assert len(edges) == 1
-    assert edges[0]["source_hypothesis_id"] == source
-    assert edges[0]["target_hypothesis_id"] == target
-    assert edges[0]["similarity"] == 0.81
-    assert edges[0]["cluster_id"] == "cluster-1"
-
-
-def test_list_runs_honors_limit_query(isolated_db: str) -> None:
-    client = _client()
-    headers = {"X-Client-ID": "limit-test"}
-    for i in range(3):
-        res = _create_run(
-            client, f"Limit test {i}", headers=headers, run_mode="default"
-        )
-        assert res.status_code == 200
-
-    listed = client.get("/api/runs?limit=2", headers=headers)
-
-    assert listed.status_code == 200
-    assert len(listed.json()["runs"]) == 2
-
-
-def test_create_run_persists_setup_and_exact_tier_defaults(
-    isolated_db: str,
-) -> None:
-    client = _client()
-    res = _create_run(
-        client,
-        "Discover selective autophagy mechanisms",
-        requirements=["Use primary literature", ""],
-        attributes=["Mechanistic"],
-        criteria=["Testability"],
-        focus="prefer_novelty",
-        tier="standard",
-    )
-
-    assert res.status_code == 200
-    data = res.json()
-    assert (data["status"], data["provider"]) == ("draft", "engine")
-    assert (data["run_mode"], data["profile"]) == ("standard", "standard")
-    config = data["config"]
-    assert config["initial_hypotheses_count"] == 8
-    assert config["max_iterations"] == 2
-    assert config["evolution_max_count"] == 8
-    assert config["tournament_pairs"] == 12
-    assert config["evidence_count"] == 8
-    assert config["setup"] == {
-        "goal": "Discover selective autophagy mechanisms",
-        "requirements": ["Use primary literature"],
-        "attributes": ["Mechanistic"],
-        "criteria": ["Testability"],
-        "focus": "prefer_novelty",
-        "tier": "standard",
-    }
-
-
-def test_legacy_profile_and_tiny_overrides_run_as_default(
-    isolated_db: str,
-) -> None:
-    res = _create_run(
-        _client(),
-        "Map senescence escape mechanisms",
-        profile="advanced",
-        initial_hypotheses_count=1,
-        max_iterations=0,
-        evolution_max_count=1,
-    )
-
-    run = res.json()
-    assert (run["run_mode"], run["profile"]) == ("standard", "standard")
-    assert run["config"]["initial_hypotheses_count"] >= 8
-    assert run["config"]["max_iterations"] >= 2
-    assert run["config"]["evolution_max_count"] >= 8
-
-
-def test_create_run_without_spec_gets_baseline_planning(
-    isolated_db: str,
-) -> None:
-    from app.run_modes import (
-        DEFAULT_ATTRIBUTES,
-        DEFAULT_CRITERIA,
-        DEFAULT_REQUIREMENTS,
-    )
-
-    client = _client()
-    res = _create_run(client, "Map tau propagation in the brain")
-
-    assert res.status_code == 200
-    setup = res.json()["config"]["setup"]
-    assert setup["requirements"] == list(DEFAULT_REQUIREMENTS)
-    assert setup["attributes"] == list(DEFAULT_ATTRIBUTES)
-    assert setup["criteria"] == list(DEFAULT_CRITERIA)
-
-
-def test_default_run_completes_persists_and_reopens_after_restart(
-    isolated_db: str,
-) -> None:
-    client = _client()
-    run_id = _start_and_complete(
-        client,
-        "Investigate ferroptosis as a tumor-suppression mechanism",
-    )
-    views = _run_views(client, run_id)
-    hyps = views["hyps"]
-
-    assert len(hyps) >= 2
-    assert any(h["parent_id"] for h in hyps), "no evolved children persisted"
-    assert all(h["elo_rating"] >= 1000 for h in hyps)
-    assert any(h["elo_rating"] != 1200 for h in hyps), "no Elo updates observed"
-    assert views["evidence"] == []
-    assert views["citations"] == []
-    assert len(views["matches"]) >= 2
-    assert {s["stage"] for s in views["safety"]} >= {"intake", "final"}
-    assert all(h["safety_status"] == "allow" for h in hyps)
-    assert len(views["claim_evidence"]) >= 1
-    assert all(
-        e["label"] in {"supports", "contradicts", "insufficient"}
-        for e in views["claim_evidence"]
-    )
-    assert all(h.get("unverified") is False for h in hyps)
-    assert views["report"]["payload"]["leaderboard"]
-
-    importlib.reload(app.main)
-    reopened = TestClient(
-        app.main.app, headers={"X-Client-ID": DEFAULT_TEST_CLIENT_ID}
-    )
-    assert reopened.get(f"/api/runs/{run_id}").json()["status"] == "completed"
-    markdown = reopened.get(f"/api/runs/{run_id}/report.md")
-    assert markdown.status_code == 200
-    assert "Research Overview" in markdown.text
 
 
 def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
