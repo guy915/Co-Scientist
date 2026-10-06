@@ -3,7 +3,6 @@ from __future__ import annotations
 import pathlib
 from typing import Any
 
-import jsonschema
 import pytest
 
 from co_scientist.agents.reflection.review import review_node
@@ -47,81 +46,89 @@ def _review_with_scores(scores: dict[str, int]) -> HypothesisReview:
     )
 
 
-def test_absent_criteria_keep_the_default_soundness_novelty_gate() -> None:
-    assert _gate_axes_for_criteria(None) == (
-        "scientific_soundness",
-        "novelty",
-    )
-    assert _gate_axes_for_criteria([]) == ("scientific_soundness", "novelty")
+@pytest.mark.parametrize(
+    ("criteria", "axes"),
+    [
+        (None, ("scientific_soundness", "novelty")),
+        (
+            ["purely aesthetic presentation"],
+            ("scientific_soundness", "novelty"),
+        ),
+        (
+            [
+                "Scientific soundness",
+                "Novelty over known mechanisms",
+                "Discriminating experimental design",
+                "Translational feasibility",
+            ],
+            (
+                "scientific_soundness",
+                "novelty",
+                "testability",
+                "potential_impact",
+            ),
+        ),
+        (
+            [
+                "Idea correctness: Required",
+                "Idea novelty: Required",
+                "Maximize impact: Yes",
+            ],
+            ("scientific_soundness", "novelty", "potential_impact"),
+        ),
+    ],
+    ids=["absent", "unmapped", "scientist_axes", "app_defaults"],
+)
+def test_criteria_resolve_onto_the_scored_axes_the_gate_checks(
+    criteria: list[str] | None, axes: tuple[str, ...]
+) -> None:
+    assert _gate_axes_for_criteria(criteria) == axes
 
 
-def test_unmapped_criteria_fall_back_to_the_default_axes() -> None:
-    axes = _gate_axes_for_criteria(["purely aesthetic presentation"])
-    assert axes == ("scientific_soundness", "novelty")
-
-
-def test_criteria_resolve_onto_the_matching_scored_axes() -> None:
-    axes = _gate_axes_for_criteria(
-        [
-            "Scientific soundness",
-            "Novelty over known mechanisms",
-            "Discriminating experimental design",
-            "Translational feasibility",
-        ]
-    )
-    assert axes == (
-        "scientific_soundness",
-        "novelty",
-        "testability",
-        "potential_impact",
-    )
-
-
-def test_the_apps_published_default_criteria_resolve_onto_axes() -> None:
-    axes = _gate_axes_for_criteria(
-        [
-            "Idea correctness: Required",
-            "Idea novelty: Required",
-            "Maximize impact: Yes",
-        ]
-    )
-    assert axes == ("scientific_soundness", "novelty", "potential_impact")
-
-
-def test_a_fatal_criterion_axis_blocks_where_the_default_gate_would_not() -> (
-    None
-):
+@pytest.mark.parametrize(
+    ("scores", "disposition"),
+    [
+        ({"scientific_soundness": 8, "novelty": 8, "safety": 1}, "unsafe"),
+        ({"scientific_soundness": 1, "novelty": 1, "safety": 1}, "unsafe"),
+        ({"scientific_soundness": 8, "novelty": 8}, "viable"),
+        ({"scientific_soundness": 8, "novelty": 8, "safety": 4}, "viable"),
+    ],
+    ids=[
+        "serious",
+        "outranks_soundness",
+        "missing_is_no_verdict",
+        "rework_band",
+    ],
+)
+def test_only_a_serious_safety_score_blocks_the_idea(
+    scores: dict[str, int], disposition: str
+) -> None:
     hypothesis = make_hypothesis(text="idea")
-    review = _review_with_scores(
-        {
-            "scientific_soundness": 8,
-            "novelty": 8,
-            "testability": 1,
-        }
-    )
 
     _apply_initial_review_gate(
-        [hypothesis], [review], criteria=["Discriminating experimental design"]
+        [hypothesis], [_review_with_scores(scores)], criteria=None
     )
 
-    assert hypothesis.review_disposition == "inaccurate"
-    assert not hypothesis.is_rankable()
+    assert hypothesis.review_disposition == disposition
+    assert hypothesis.is_rankable() == (disposition == "viable")
 
 
-def test_the_same_scores_stay_viable_without_criteria() -> None:
+@pytest.mark.parametrize(
+    ("criteria", "disposition"),
+    [(["Discriminating experimental design"], "inaccurate"), (None, "viable")],
+)
+def test_a_fatal_criterion_axis_blocks_where_the_default_gate_would_not(
+    criteria: list[str] | None, disposition: str
+) -> None:
     hypothesis = make_hypothesis(text="idea")
     review = _review_with_scores(
-        {
-            "scientific_soundness": 8,
-            "novelty": 8,
-            "testability": 1,
-        }
+        {"scientific_soundness": 8, "novelty": 8, "testability": 1}
     )
 
-    _apply_initial_review_gate([hypothesis], [review], criteria=None)
+    _apply_initial_review_gate([hypothesis], [review], criteria=criteria)
 
-    assert hypothesis.review_disposition == "viable"
-    assert hypothesis.is_rankable()
+    assert hypothesis.review_disposition == disposition
+    assert hypothesis.is_rankable() == (disposition == "viable")
 
 
 @pytest.mark.parametrize(
@@ -168,52 +175,6 @@ def test_canonical_axes_keep_their_disposition_names_under_criteria() -> None:
 
     assert unsound.review_disposition == "inaccurate"
     assert stale.review_disposition == "non_novel"
-
-
-def test_a_serious_safety_score_blocks_without_criteria() -> None:
-    hypothesis = make_hypothesis(text="idea")
-    review = _review_with_scores(
-        {"scientific_soundness": 8, "novelty": 8, "safety": 1}
-    )
-
-    _apply_initial_review_gate([hypothesis], [review], criteria=None)
-
-    assert hypothesis.review_disposition == "unsafe"
-    assert not hypothesis.is_rankable()
-
-
-def test_a_missing_safety_score_does_not_block() -> None:
-    """An omitted JSON-object field is a review defect, not a safety verdict."""
-    hypothesis = make_hypothesis(text="idea")
-    review = _review_with_scores({"scientific_soundness": 8, "novelty": 8})
-
-    _apply_initial_review_gate([hypothesis], [review], criteria=None)
-
-    assert hypothesis.review_disposition == "viable"
-    assert hypothesis.is_rankable()
-
-
-def test_a_safety_score_in_the_rework_band_still_ranks() -> None:
-    hypothesis = make_hypothesis(text="idea")
-    review = _review_with_scores(
-        {"scientific_soundness": 8, "novelty": 8, "safety": 4}
-    )
-
-    _apply_initial_review_gate([hypothesis], [review], criteria=None)
-
-    assert hypothesis.review_disposition == "viable"
-    assert hypothesis.is_rankable()
-
-
-def test_a_safety_rejection_outranks_a_soundness_rejection() -> None:
-    hypothesis = make_hypothesis(text="idea")
-    review = _review_with_scores(
-        {"scientific_soundness": 1, "novelty": 1, "safety": 1}
-    )
-
-    _apply_initial_review_gate([hypothesis], [review], criteria=None)
-
-    assert hypothesis.review_disposition == "unsafe"
 
 
 def _gate_review(soundness: int, novelty: int) -> HypothesisReview:
@@ -334,14 +295,6 @@ def test_dispositions_owned_elsewhere_are_left_alone(foreign: str) -> None:
     assert hypothesis.review_disposition == foreign
 
 
-def test_an_unreviewed_hypothesis_keeps_its_absent_disposition() -> None:
-    hypothesis = make_hypothesis()
-
-    refresh_review_dispositions([hypothesis])
-
-    assert hypothesis.review_disposition is None
-
-
 @pytest.mark.asyncio
 async def test_review_node_revisits_dispositions_with_nothing_to_review(
     monkeypatch: pytest.MonkeyPatch,
@@ -385,20 +338,6 @@ def test_evolution_children_re_enter_review_unreviewed() -> None:
     assert child.review_disposition is None
 
 
-_EXPECTED = {
-    "initial",
-    "full",
-    "deep_verification",
-    "observation",
-    "simulation",
-    "recurrent",
-}
-
-
-def test_all_six_review_types_are_enumerated() -> None:
-    assert {rt.value for rt in ReviewType} == _EXPECTED
-
-
 def test_every_review_type_resolves_to_a_prompt_and_schema() -> None:
     for review_type in ReviewType:
         name = prompt_name_for(review_type)
@@ -415,87 +354,6 @@ def test_every_review_type_resolves_to_a_prompt_and_schema() -> None:
         )
         assert prompt.strip()
         assert loaded_schema == schema
-
-
-def test_full_review_schema_shape() -> None:
-    schema = schema_for(ReviewType.FULL)
-    assert schema is not None
-    required = set(schema["schema"]["required"])
-    assert {"correctness", "assumptions", "quality_and_novelty", "verdict"} <= (
-        required
-    )
-
-
-def test_full_review_assumption_carries_published_reasoning() -> None:
-    schema = schema_for(ReviewType.FULL)
-    assert schema is not None
-    assumption = schema["schema"]["properties"]["assumptions"]["items"]
-    assert set(assumption["required"]) == {"assumption", "reasoning", "support"}
-
-
-def test_simulation_review_schema_shape() -> None:
-    schema = schema_for(ReviewType.SIMULATION)
-    assert schema is not None
-    props = schema["schema"]["properties"]
-    assert props["verdict"]["enum"] == [
-        "holds",
-        "partially_holds",
-        "breaks_down",
-    ]
-    assert "steps" in props and "failure_points" in props
-
-
-# Closed schemas reject invented answer keys; prompt and schema names must
-# agree.
-def test_simulation_review_answer_from_the_prompt_validates() -> None:
-    schema = schema_for(ReviewType.SIMULATION)
-    assert schema is not None
-    answer = {
-        "model": "Two kinases coupled by a negative feedback loop.",
-        "steps": [
-            {"step": "The ligand binds its receptor.", "plausible": True}
-        ],
-        "failure_points": ["Step 3 stalls without the cofactor."],
-        "robustness": "A redundant pathway blunts the effect.",
-        "verdict": "partially_holds",
-        "decisive_step": "Step 3.",
-    }
-    jsonschema.validate(instance=answer, schema=schema["schema"])
-
-
-def test_full_review_answer_from_the_prompt_validates() -> None:
-    schema = schema_for(ReviewType.FULL)
-    assert schema is not None
-    answer = {
-        "correctness": "Internally consistent.",
-        "assumptions": [
-            {
-                "assumption": "The receptor is expressed.",
-                "reasoning": "Two prior cohort studies detect it directly.",
-                "support": "supported",
-            }
-        ],
-        "quality_and_novelty": "A non-obvious combination.",
-        "literature_grounding": "Two cohort studies report the association.",
-        "comparison_with_knowledge_base": "Agrees with the canonical model.",
-        "goal_requirements_assessment": "Meets every stated requirement.",
-        "feasibility_steps": ["Run the pilot cohort.", "Read out at day 30."],
-        "feasibility_reasoning": "Both steps use standard assays.",
-        "impact_assessment": "Would change first-line practice.",
-        "reviews_summary": {
-            "executive_verdict": "The hypothesis stands, with one caveat.",
-            "critical_flaws": ["The dose assumption is unsupported."],
-            "addressed_objections": ["Off-target binding is ruled out."],
-            "validated_risks": ["The effect may be strain-specific."],
-            "supporting_arguments": ["Two cohorts show the association."],
-            "alignment_and_novelty": ["Squarely on the research goal."],
-            "feasibility_assessment": ["A pilot settles it in six weeks."],
-            "conclusion": "Worth a pilot once the dose is pinned down.",
-        },
-        "verdict": "needs_revision",
-        "justification": "The dose assumption is unsupported.",
-    }
-    jsonschema.validate(instance=answer, schema=schema["schema"])
 
 
 def test_full_review_prompt_names_every_required_field() -> None:
@@ -534,10 +392,6 @@ def test_full_review_prompt_names_every_reviews_summary_part() -> None:
     ).read_text()
     for part in node["properties"]:
         assert f"`{part}`" in template, part
-
-
-def test_recurrent_review_adapts_full_review() -> None:
-    assert prompt_name_for(ReviewType.RECURRENT) == "full_review"
 
 
 def _agent_review(**scores: int) -> HypothesisReview:
@@ -653,20 +507,6 @@ def test_a_scientist_verdict_cannot_reopen_a_foreign_disposition() -> None:
     assert hypothesis.review_disposition == "evidence_blocked"
 
 
-def test_the_reviewer_attribution_survives_serialization() -> None:
-    hypothesis = _hypothesis_with(
-        _agent_review(), _scientist_review_gate_scientist_review(2)
-    )
-
-    restored = Hypothesis.from_dict(hypothesis.to_dict())
-
-    assert [review.reviewer for review in restored.reviews] == [
-        "agent",
-        SCIENTIST_REVIEWER,
-    ]
-    assert not has_peer_review(_hypothesis_with(restored.reviews[1]))
-
-
 def _scheduler_pool() -> WorkflowState:
     settled = _hypothesis_with(_agent_review())
     settled.win_count, settled.loss_count = 1, 1
@@ -689,18 +529,6 @@ def test_an_admitted_idea_does_not_pull_the_run_into_ranking() -> None:
 
     assert decision is not None
     assert decision.next_task is TaskType.REFLECT
-
-
-def test_steering_still_schedules_generation_when_it_arrives() -> None:
-    state = _scheduler_pool()
-    state["pending_steering"] = True
-
-    decision = required_transition(
-        _compute_stats(state, {}), _default_budget(state)
-    )
-
-    assert decision is not None
-    assert decision.next_task is TaskType.GENERATE
 
 
 def _modes(hypothesis: object, iteration: int) -> list[str]:

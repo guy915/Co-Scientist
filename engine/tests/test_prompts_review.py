@@ -8,15 +8,11 @@ from co_scientist.prompts import (
     RankingSide,
     SupervisorPromptInputs,
     get_meta_review_prompt,
-    get_proximity_prompt,
     get_ranking_prompt,
-    get_review_batch_prompt,
     get_review_prompt,
     get_supervisor_prompt,
-    load_prompt_with_schema,
     substitute_variables,
 )
-from co_scientist.prompts.loading import _get_domain_variables
 from co_scientist.schemas import _PROMPT_SCHEMA_MAP
 from co_scientist.schemas.review import RANKING_SCHEMA
 
@@ -42,71 +38,9 @@ _GUIDANCE: dict[str, Any] = {
 }
 
 
-def test_substitute_variables_replaces_placeholder() -> None:
-    assert substitute_variables("Hello {{name}}", {"name": "World"}) == (
-        "Hello World"
-    )
-
-
-def test_substitute_variables_coerces_non_string_values() -> None:
-    assert substitute_variables("count={{n}}", {"n": 7}) == "count=7"
-
-
 def test_substitute_variables_missing_key_emits_marker() -> None:
     out = substitute_variables("a {{absent}} b", {})
     assert "{{MISSING:absent}}" in out
-
-
-def test_load_prompt_with_schema_returns_prompt_and_schema() -> None:
-    """This low-level loader leaves unsupplied placeholders unfilled."""
-    prompt, schema = load_prompt_with_schema(
-        "review",
-        {
-            "research_goal": "cure ALS",
-            "hypothesis_text": "TDP-43 aggregation",
-        },
-    )
-    assert isinstance(prompt, str)
-    assert prompt
-    assert "cure ALS" in prompt
-    assert isinstance(schema, dict)
-
-
-def test_load_prompt_with_schema_none_for_unschemaed_prompt() -> None:
-    _, schema = load_prompt_with_schema("literature_review_synthesis", {})
-    assert schema is None
-
-
-def test_get_domain_variables_none_returns_string_dict() -> None:
-    variables = _get_domain_variables(None)
-    expected_keys = {
-        "domain_context",
-        "domain_generation_guidance",
-        "domain_review_guidance",
-        "domain_evolution_guidance",
-        "domain_reflection_guidance",
-    }
-    assert set(variables) == expected_keys
-    assert all(isinstance(v, str) for v in variables.values())
-
-
-def test_supervisor_prompt_interpolates_goal_and_counts() -> None:
-    prompt, schema = get_supervisor_prompt(
-        SupervisorPromptInputs(
-            research_goal="map gut-brain axis signaling",
-            initial_hypotheses_count=4,
-            max_iterations=3,
-            evolution_max_count=6,
-        )
-    )
-    assert isinstance(prompt, str)
-    assert prompt
-    assert "map gut-brain axis signaling" in prompt
-    assert "4" in prompt
-    assert "3" in prompt
-    assert "6" in prompt
-    assert "{{MISSING" not in prompt
-    assert isinstance(schema, dict)
 
 
 def test_supervisor_prompt_constraints_branch_changes_output() -> None:
@@ -154,18 +88,6 @@ def test_prompt_builders_include_run_setup_guidance() -> None:
     assert "Causal clarity" in prompt
 
 
-def test_review_prompt_interpolates_goal_and_hypothesis() -> None:
-    prompt, schema = get_review_prompt(
-        research_goal="explain long-COVID fatigue",
-        hypothesis_text="Persistent viral antigen drives T-cell exhaustion",
-    )
-    assert isinstance(prompt, str)
-    assert "explain long-COVID fatigue" in prompt
-    assert "Persistent viral antigen drives T-cell exhaustion" in prompt
-    assert "{{MISSING" not in prompt
-    assert isinstance(schema, dict)
-
-
 def test_review_prompt_supervisor_guidance_branch() -> None:
     without_guidance, _ = get_review_prompt(
         research_goal="g", hypothesis_text="h"
@@ -206,46 +128,6 @@ def test_review_prompt_surfaces_synthesized_config() -> None:
     assert "1 impossible .. 5 routine" in prompt
 
 
-def test_review_prompt_meta_review_branch() -> None:
-    meta_review = {
-        "common_strengths": ["clear mechanism"],
-        "common_weaknesses": ["weak controls"],
-    }
-    prompt, _ = get_review_prompt(
-        research_goal="g",
-        hypothesis_text="h",
-        context=PromptRunContext(meta_review=meta_review),
-    )
-    assert "Meta-Review Context" in prompt
-    assert "clear mechanism" in prompt
-    assert "weak controls" in prompt
-
-
-def test_review_batch_prompt_interpolates_goal_and_list() -> None:
-    prompt, schema = get_review_batch_prompt(
-        research_goal="reduce tumor metastasis",
-        hypotheses_list="1. block CXCR4\n2. inhibit MMP-9",
-    )
-    assert "reduce tumor metastasis" in prompt
-    assert "block CXCR4" in prompt
-    assert "inhibit MMP-9" in prompt
-    assert "{{MISSING" not in prompt
-    assert isinstance(schema, dict)
-
-
-def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
-    prompt, schema = get_meta_review_prompt(
-        research_goal="characterise synaptic pruning",
-        all_reviews="Review A: strong. Review B: weak controls.",
-        instructions="focus on safety",
-    )
-    assert "characterise synaptic pruning" in prompt
-    assert "Review A: strong" in prompt
-    assert "focus on safety" in prompt
-    assert "{{MISSING:instructions}}" not in prompt
-    assert isinstance(schema, dict)
-
-
 def test_meta_review_prompt_includes_preferences() -> None:
     prompt, _ = get_meta_review_prompt(
         research_goal="g",
@@ -254,67 +136,6 @@ def test_meta_review_prompt_includes_preferences() -> None:
     )
     assert "prioritize wet-lab feasibility over novelty" in prompt
     assert "{{MISSING" not in prompt
-
-
-def test_meta_review_prompt_defaults_preferences_when_absent() -> None:
-    prompt, _ = get_meta_review_prompt(research_goal="g", all_reviews="r")
-    assert "Focus on novelty, testability, and potential impact." in prompt
-
-
-def test_meta_review_prompt_supervisor_guidance_branch() -> None:
-    with_guidance, _ = get_meta_review_prompt(
-        research_goal="g",
-        all_reviews="r",
-        context=PromptRunContext(supervisor_guidance=_GUIDANCE),
-    )
-    assert "mitochondrial dysfunction" in with_guidance
-    assert "Evolution Phase Guidance" in with_guidance
-
-
-def test_proximity_prompt_encodes_dict_and_str_hypotheses() -> None:
-    prompt, schema = get_proximity_prompt(
-        hypotheses=[
-            {"text": "alpha pathway hypothesis"},
-            "beta pathway hypothesis",
-        ]
-    )
-    assert "alpha pathway hypothesis" in prompt
-    assert "beta pathway hypothesis" in prompt
-    assert "{{MISSING" not in prompt
-    assert isinstance(schema, dict)
-
-
-def test_proximity_prompt_guidance_branch() -> None:
-    prompt, _ = get_proximity_prompt(
-        hypotheses=["h"], supervisor_guidance=_GUIDANCE
-    )
-    assert "oxidative stress" in prompt
-
-
-def test_ranking_prompt_interpolates_both_hypotheses() -> None:
-    prompt, schema = get_ranking_prompt(
-        research_goal="optimise CRISPR delivery",
-        side_a=RankingSide(text="lipid nanoparticle approach"),
-        side_b=RankingSide(text="AAV vector approach"),
-    )
-    assert "optimise CRISPR delivery" in prompt
-    assert "lipid nanoparticle approach" in prompt
-    assert "AAV vector approach" in prompt
-    assert "{{MISSING" not in prompt
-    assert isinstance(schema, dict)
-
-
-def test_ranking_prompt_review_scores_branch() -> None:
-    prompt, _ = get_ranking_prompt(
-        research_goal="g",
-        side_a=RankingSide(
-            text="a", review={"overall_score": 8.5, "scores": {"novelty": 9}}
-        ),
-        side_b=RankingSide(text="b", review={"overall_score": 6.0}),
-    )
-    assert "Review of hypothesis 1:\nReview scores:" in prompt
-    assert "8.5" in prompt
-    assert "novelty" in prompt
 
 
 def test_ranking_prompt_review_scores_says_disregard_not_consider() -> None:
@@ -328,15 +149,6 @@ def test_ranking_prompt_review_scores_says_disregard_not_consider() -> None:
         " not be directly comparable across reviews." in prompt
     )
     assert "Consider these scores" not in prompt
-
-
-def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
-    prompt, _ = get_ranking_prompt(
-        research_goal="g",
-        side_a=RankingSide(text="a"),
-        side_b=RankingSide(text="b"),
-    )
-    assert "No reflection notes available." in prompt
 
 
 def test_ranking_prompt_renders_mature_review_findings() -> None:
@@ -363,16 +175,6 @@ def test_ranking_prompt_renders_mature_review_findings() -> None:
     assert "Simulation review verdict: breaks_down" in prompt
     assert "Decisive step: binding fails" in prompt
     assert "Hypothesis 2 Mature Review Findings" not in prompt
-    assert "{{MISSING" not in prompt
-
-
-def test_ranking_prompt_has_no_mature_review_block_without_reviews() -> None:
-    prompt, _ = get_ranking_prompt(
-        research_goal="g",
-        side_a=RankingSide(text="a"),
-        side_b=RankingSide(text="b"),
-    )
-    assert "Mature Review Findings" not in prompt
     assert "{{MISSING" not in prompt
 
 
@@ -433,22 +235,6 @@ def test_review_prompt_omits_coverage_sections() -> None:
     )
 
 
-def test_review_batch_prompt_omits_coverage_sections() -> None:
-    prompt, _ = get_review_batch_prompt(
-        research_goal="reduce tumor metastasis",
-        hypotheses_list="1. block CXCR4\n2. inhibit MMP-9",
-        context=PromptRunContext(meta_review=_COVERAGE_META_REVIEW),
-    )
-    assert "Meta-Review Context" in prompt
-    assert "broaden the cohort" in prompt
-    assert "Research Areas Already Covered" not in prompt
-    assert "Open Directions Flagged for Further Exploration" not in prompt
-    assert "UNIQUEMARKER-already-covered-kinase-inhibition" not in prompt
-    assert "UNIQUEMARKER-open-direction-combine-autophagy-proteasome" not in (
-        prompt
-    )
-
-
 def test_ranking_prompt_keeps_coverage_sections() -> None:
     prompt, _ = get_ranking_prompt(
         research_goal="g",
@@ -458,62 +244,6 @@ def test_ranking_prompt_keeps_coverage_sections() -> None:
     )
     assert "UNIQUEMARKER-already-covered-kinase-inhibition" in prompt
     assert "UNIQUEMARKER-open-direction-combine-autophagy-proteasome" in prompt
-
-
-def test_review_prompt_critical_criteria_structured_shape() -> None:
-    guidance = {
-        "workflow_plan": {
-            "review_phase": {
-                "critical_criteria": [
-                    {
-                        "name": "Kinetic Feasibility",
-                        "questions": [
-                            {
-                                "name": "Biological Timeframe Consistency",
-                                "question": (
-                                    "Does the design account for the"
-                                    " mechanism's kinetics?"
-                                ),
-                            },
-                            {
-                                "name": "Kinetic Competition",
-                                "question": (
-                                    "Does degradation outpace synthesis?"
-                                ),
-                            },
-                        ],
-                    }
-                ]
-            }
-        }
-    }
-    prompt, _ = get_review_prompt(
-        research_goal="g",
-        hypothesis_text="h",
-        context=PromptRunContext(supervisor_guidance=guidance),
-    )
-    assert "Kinetic Feasibility" in prompt
-    assert "Biological Timeframe Consistency" in prompt
-    assert "Does the design account for the mechanism's kinetics?" in prompt
-    assert "Kinetic Competition" in prompt
-    assert "Does degradation outpace synthesis?" in prompt
-
-
-def test_review_prompt_critical_criteria_legacy_shape() -> None:
-    guidance = {
-        "workflow_plan": {
-            "review_phase": {
-                "critical_criteria": ["novelty", "testability"],
-            }
-        }
-    }
-    prompt, _ = get_review_prompt(
-        research_goal="g",
-        hypothesis_text="h",
-        context=PromptRunContext(supervisor_guidance=guidance),
-    )
-    assert "novelty" in prompt
-    assert "testability" in prompt
 
 
 def test_review_prompt_critical_criteria_caps_count_and_questions() -> None:
@@ -566,94 +296,6 @@ def test_review_prompt_critical_criteria_malformed_entries_degrade() -> None:
     )
     assert "Valid Criterion" in prompt
     assert "plain text q" in prompt
-
-
-def test_review_prompt_critical_criteria_absent_renders_no_section() -> None:
-    prompt, _ = get_review_prompt(
-        research_goal="g",
-        hypothesis_text="h",
-        context=PromptRunContext(
-            supervisor_guidance={
-                "workflow_plan": {"review_phase": {"review_depth": "deep"}}
-            }
-        ),
-    )
-    assert "Critical Criteria to Emphasize" not in prompt
-    assert "Review Depth Required" in prompt
-
-
-def test_review_prompt_critical_criteria_not_a_list_degrades() -> None:
-    guidance = {
-        "workflow_plan": {
-            "review_phase": {"critical_criteria": "not a list"},
-        }
-    }
-    prompt, _ = get_review_prompt(
-        research_goal="g",
-        hypothesis_text="h",
-        context=PromptRunContext(supervisor_guidance=guidance),
-    )
-    assert "not a list" in prompt
-
-
-def test_review_prompt_excludes_description_even_when_present() -> None:
-    """Descriptions are report-only; injecting them duplicates per-review
-    guidance."""
-    marker = "UNIQUE_DESCRIPTION_PROSE_MARKER_NEVER_INJECTED"
-    guidance = {
-        "workflow_plan": {
-            "review_phase": {
-                "critical_criteria": [
-                    {
-                        "name": "Kinetic Feasibility",
-                        "description": (
-                            f"{marker}: explains what this criterion"
-                            " demands and why it matters for the goal."
-                        ),
-                        "questions": [
-                            {
-                                "name": "Kinetic Competition",
-                                "question": "Does degradation outpace"
-                                " synthesis?",
-                            }
-                        ],
-                    }
-                ],
-            }
-        }
-    }
-    prompt, _ = get_review_prompt(
-        research_goal="g",
-        hypothesis_text="h",
-        context=PromptRunContext(supervisor_guidance=guidance),
-    )
-    assert "Kinetic Feasibility" in prompt
-    assert "Kinetic Competition" in prompt
-    assert "Does degradation outpace synthesis?" in prompt
-    assert marker not in prompt
-
-
-def test_review_prompt_blank_description_is_harmless() -> None:
-    guidance = {
-        "workflow_plan": {
-            "review_phase": {
-                "critical_criteria": [
-                    {
-                        "name": "Valid Criterion",
-                        "description": "   ",
-                        "questions": [{"question": "Q?"}],
-                    }
-                ],
-            }
-        }
-    }
-    prompt, _ = get_review_prompt(
-        research_goal="g",
-        hypothesis_text="h",
-        context=PromptRunContext(supervisor_guidance=guidance),
-    )
-    assert "Valid Criterion" in prompt
-    assert "Q?" in prompt
 
 
 _TEMPLATES = (

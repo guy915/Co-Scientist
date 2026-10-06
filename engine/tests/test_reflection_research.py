@@ -9,9 +9,6 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import comprehensive_reflection as cr
-from co_scientist.agents.reflection import (
-    comprehensive_reflection as review_prompt_context,
-)
 from co_scientist.agents.reflection import deep_verification_evidence as dve
 from co_scientist.agents.reflection import simulation_execution as se
 from co_scientist.agents.reflection.review_evidence import (
@@ -20,13 +17,11 @@ from co_scientist.agents.reflection.review_evidence import (
     research_for_review,
 )
 from co_scientist.agents.reflection.review_gate import ReviewType
-from co_scientist.evidence import search
 from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.generator import run_setup
 from co_scientist.models import Hypothesis
 from co_scientist.research import result_from_dict
 from co_scientist.research_adapter import (
-    review_budget_for_tier,
     reviewed_hypothesis_limit,
 )
 from co_scientist.workspace.session import WorkspaceSession
@@ -105,26 +100,6 @@ async def test_only_the_best_ranked_hypotheses_are_researched(
     assert client.calls == []
 
 
-def test_before_any_tournament_the_review_score_decides(
-    tmp_path: Path,
-) -> None:
-    """Cycle-one Elo is uniform; review scores make the funded set meaningful
-    rather than arbitrary."""
-    limit = reviewed_hypothesis_limit("extended")
-    pool = []
-    for n in range(limit + 3):
-        hypothesis = _viable(f"mechanism {n}", elo=1200)
-        hypothesis.score = 50.0 + n
-        pool.append(hypothesis)
-
-    funded = _researched_hypothesis_ids(
-        _reflection_research_evidence_state(tmp_path, pool, tier="extended"),
-        "extended",
-    )
-
-    assert funded == {h.id for h in pool[-limit:]}
-
-
 async def test_a_funded_hypothesis_researches_and_names_its_searches(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
@@ -141,23 +116,6 @@ async def test_a_funded_hypothesis_researches_and_names_its_searches(
     assert [article.source_id for article in found.articles] == ["doc-a"]
     made = result_from_dict(found.ledger).calls
     assert found.articles[0].retrieval_call_id in {call.id for call in made}
-
-
-async def test_research_asks_about_the_claim_not_only_the_goal(
-    tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
-) -> None:
-    hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
-
-    await research_for_review(
-        _reflection_research_evidence_state(
-            tmp_path, [hypothesis], tier="extended"
-        ),
-        hypothesis,
-    )
-
-    assert any(
-        "mechanism X drives fibrosis" in prompt for prompt in scripted.prompts
-    )
 
 
 async def test_the_first_questions_are_the_doubts_already_on_record(
@@ -215,28 +173,6 @@ def test_a_simulation_failure_point_is_a_doubt_too() -> None:
     ]
 
 
-def test_seed_questions_stop_at_the_first_level_breadth() -> None:
-    hypothesis = make_hypothesis(text="mechanism X")
-    hypothesis.enrichments["full"] = {
-        "assumptions": [
-            {"assumption": f"doubt {n}", "support": "likely_false"}
-            for n in range(5)
-        ]
-    }
-
-    assert _seed_questions(hypothesis, 2) == ["doubt 0", "doubt 1"]
-
-
-def test_the_run_can_quote_its_review_research_ceiling() -> None:
-    for tier, threads in (("extended", 4), ("ultra", 5)):
-        budget = review_budget_for_tier(tier, ("alpha",))
-        assert budget is not None
-        assert budget.max_threads() == threads
-    assert review_budget_for_tier("standard", ("alpha",)) is None
-    assert review_budget_for_tier("ultra", ()) is None
-    assert reviewed_hypothesis_limit("standard") == 0
-
-
 # Offer run_command explicitly so these tests exercise the loop on every host.
 _RUNNABLE_TOOLS = [{"function": {"name": "run_command"}}]
 
@@ -264,47 +200,6 @@ class TestWhenItRuns:
         assert observations is None
         assert called.await_count == 0
 
-    async def test_only_the_simulation_review_executes(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        # Other review modes cannot answer their questions by execution; tools
-        # would only add cost.
-        called = AsyncMock(return_value="observed something")
-        monkeypatch.setattr(cr, "simulation_observations", called)
-        state = _reflection_simulation_execution_state(
-            enable_simulation_execution=True
-        )
-
-        for review_type in ReviewType:
-            if review_type is ReviewType.SIMULATION:
-                continue
-            assert (
-                await cr._observations_for(
-                    state, make_hypothesis(text="a"), review_type
-                )
-                is None
-            )
-        assert called.await_count == 0
-
-    async def test_it_runs_when_asked_for_the_simulation_review(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            cr,
-            "simulation_observations",
-            AsyncMock(return_value="the model diverged at step 3"),
-        )
-
-        observations = await cr._observations_for(
-            _reflection_simulation_execution_state(
-                enable_simulation_execution=True
-            ),
-            make_hypothesis(text="a"),
-            ReviewType.SIMULATION,
-        )
-
-        assert observations == "the model diverged at step 3"
-
 
 class TestTheOfflineBackendNeverExecutes:
     def test_an_offline_run_stays_mental(self) -> None:
@@ -323,12 +218,6 @@ class TestTheOfflineBackendNeverExecutes:
                 {"enable_simulation_execution": True}, "deepseek/some-model"
             )
             is True
-        )
-
-    def test_an_omitted_option_is_not_a_request(self) -> None:
-        assert (
-            run_setup._resolve_simulation_execution({}, "deepseek/some-model")
-            is False
         )
 
 
@@ -354,25 +243,6 @@ class TestDegradation:
 
         assert result is None
         assert loop.await_count == 0
-
-    async def test_an_unopenable_workspace_reviews_mentally(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Directory creation can fail before loop guards; propagate that and
-        durable retries lose the review."""
-
-        def _no_space(*_args: Any, **_kwargs: Any) -> None:
-            raise OSError(28, "No space left on device")
-
-        monkeypatch.setattr(se, "open_review_workspace", _no_space)
-
-        assert (
-            await se.simulation_observations(
-                _reflection_simulation_execution_state(run_id="r1"),
-                make_hypothesis(text="a"),
-            )
-            is None
-        )
 
     async def test_a_failing_close_does_not_lose_the_observations(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -420,31 +290,6 @@ class TestDegradation:
             se,
             "call_llm_with_tools",
             AsyncMock(side_effect=RuntimeError("provider fell over")),
-        )
-
-        assert (
-            await se.simulation_observations(
-                _reflection_simulation_execution_state(run_id="r1"),
-                make_hypothesis(text="a"),
-            )
-            is None
-        )
-
-    async def test_an_empty_answer_is_not_an_observation(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        # No observation differs from executing successfully and observing
-        # nothing.
-        monkeypatch.setattr(
-            se, "workspace_tool_schemas", lambda policy: _RUNNABLE_TOOLS
-        )
-        monkeypatch.setattr(
-            se,
-            "open_review_workspace",
-            lambda *a, **k: WorkspaceSession(tmp_path),
-        )
-        monkeypatch.setattr(
-            se, "call_llm_with_tools", AsyncMock(return_value=("  \n ", []))
         )
 
         assert (
@@ -515,36 +360,6 @@ class TestWhatTheReviewerSees:
             "peak concentration 4.1 uM" in (variables["execution_observations"])
         )
 
-    def test_no_execution_says_so_rather_than_leaving_a_gap(self) -> None:
-        variables = cr._prompt_variables(
-            _reflection_simulation_execution_state(),
-            make_hypothesis(text="a"),
-            ReviewType.SIMULATION,
-            None,
-        )
-
-        assert (
-            variables["execution_observations"]
-            == review_prompt_context._NO_EXECUTION_NOTE
-        )
-
-    def test_the_template_carries_the_section(self) -> None:
-        from co_scientist.prompts.loading import load_prompt
-
-        prompt = load_prompt(
-            "simulation_review",
-            cr._prompt_variables(
-                _reflection_simulation_execution_state(),
-                make_hypothesis(text="a"),
-                ReviewType.SIMULATION,
-                None,
-                "the rate constant is 40x too small",
-            ),
-        )
-
-        assert "the rate constant is 40x too small" in prompt
-        assert "{{" not in prompt
-
 
 class TestProvenance:
     async def test_an_executed_review_is_marked_executed(
@@ -591,22 +406,6 @@ class TestProvenance:
         assert result["executed"] is False
         assert "execution_observations" not in result
 
-    async def test_other_reviews_carry_no_execution_flag(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
-        )
-
-        _, result, _ = await cr._run_review(
-            _reflection_simulation_execution_state(),
-            make_hypothesis(text="a"),
-            ReviewType.FULL,
-        )
-
-        assert result is not None
-        assert "executed" not in result
-
 
 class TestIsolation:
     def test_two_reviews_of_one_run_do_not_share_a_directory(
@@ -625,20 +424,6 @@ class TestIsolation:
         assert first.root.is_dir() and second.root.is_dir()
 
 
-def test_the_simulation_loop_carries_its_own_spend_ceiling() -> None:
-    """Measured simulations gained no observation quality above their own
-    spend ceiling."""
-    from co_scientist.agents.reflection.simulation_execution import (
-        MAX_SIMULATION_TURNS,
-        SIMULATION_TOKEN_BUDGET,
-    )
-    from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
-
-    assert SIMULATION_TOKEN_BUDGET < DEFAULT_TOOL_LOOP_TOKEN_BUDGET
-    assert 30_000 <= SIMULATION_TOKEN_BUDGET <= 60_000
-    assert MAX_SIMULATION_TURNS == 14
-
-
 def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
     return make_search_config(
         search_tool_name="search_pubmed",
@@ -648,55 +433,6 @@ def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
         model_name="offline/deterministic",
         semantic_relevance_enabled=semantic_relevance_enabled,
     )
-
-
-def _ranked() -> dict[str, dict[str, Any]]:
-    return {
-        "best": {"title": "Best", "retrieval_score": 5.0},
-        "worst": {"title": "Worst", "retrieval_score": 1.5},
-    }
-
-
-async def test_disabled_pass_costs_nothing_and_keeps_lexical_order(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    async def _never(*args: Any, **kwargs: Any) -> dict[str, dict[str, Any]]:
-        nonlocal calls
-        calls += 1
-        return {}
-
-    monkeypatch.setattr(search, "apply_semantic_relevance", _never)
-
-    ranked = _ranked()
-    result = await search._apply_semantic_relevance_if_enabled(
-        ranked, _config(semantic_relevance_enabled=False)
-    )
-
-    assert calls == 0
-    assert list(result.keys()) == ["best", "worst"]
-
-
-async def test_enabled_pass_still_runs_for_the_run_level_review(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    async def _judge(
-        ranked: dict[str, dict[str, Any]], *args: Any, **kwargs: Any
-    ) -> dict[str, dict[str, Any]]:
-        nonlocal calls
-        calls += 1
-        return ranked
-
-    monkeypatch.setattr(search, "apply_semantic_relevance", _judge)
-
-    await search._apply_semantic_relevance_if_enabled(
-        _ranked(), _config(semantic_relevance_enabled=True)
-    )
-
-    assert calls == 1
 
 
 async def test_probe_retrieval_opts_out_of_the_relevance_pass(

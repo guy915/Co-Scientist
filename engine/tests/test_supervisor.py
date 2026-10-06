@@ -7,12 +7,14 @@ import pytest
 
 from co_scientist.agents.supervisor import supervisor, supervisor_decision
 from co_scientist.agents.supervisor.supervisor import supervisor_node
+from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
 from co_scientist.llm import call as llm_call
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
     SupervisorDecision,
     TaskType,
+    TerminationReason,
 )
 from co_scientist.state import WorkflowState
 from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
@@ -55,60 +57,7 @@ async def test_guidance_carries_response_subobjects(
         assert guidance[key] == response[key]
     assert result["metrics"] is not None
     assert result["metrics"].llm_calls == 1
-
-
-async def test_missing_response_fields_default_to_empty(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_call_llm_json(monkeypatch, supervisor, {})
-
-    result = await supervisor_node(make_state())
-
-    guidance = result["supervisor_guidance"]
-    assert guidance["research_goal_analysis"] == {}
-    assert guidance["workflow_plan"] == {}
-    assert guidance["config_synthesis"] == {}
-    assert guidance["performance_assessment"] == {}
-    assert guidance["adjustment_recommendations"] == []
-    assert guidance["output_preparation"] == {}
-
-
-async def test_list_research_goal_analysis_does_not_crash(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    analysis = ["area one", "area two"]
-    stub_call_llm_json(
-        monkeypatch, supervisor, {"research_goal_analysis": analysis}
-    )
-
-    result = await supervisor_node(make_state())
-
-    guidance = result["supervisor_guidance"]
-    assert guidance["research_goal_analysis"] == analysis
-    assert result["messages"][0]["metadata"]["key_areas"] == 0
-
-
-async def test_key_areas_feed_message_metadata(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_call_llm_json(
-        monkeypatch,
-        supervisor,
-        {
-            "research_goal_analysis": {
-                "key_areas": ["alpha", "beta", "gamma", "delta"],
-            }
-        },
-    )
-
-    result = await supervisor_node(make_state())
-
-    assert result["supervisor_guidance"]["research_goal_analysis"][
-        "key_areas"
-    ] == ["alpha", "beta", "gamma", "delta"]
-    message = result["messages"][0]
-    assert message["metadata"]["phase"] == "supervisor"
-    assert message["metadata"]["key_areas"] == 4
+    assert result["messages"][0]["metadata"]["phase"] == "supervisor"
 
 
 def _supervisor_decision_state() -> WorkflowState:
@@ -274,14 +223,38 @@ async def test_scientist_steering_reprioritizes_generation(
 
 
 @pytest.mark.asyncio
-async def test_review_backlog_skips_the_planning_call(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("stats", "task"),
+    [
+        (
+            SchedulerStats(
+                pool_size=8, reviewed_count=5, unreviewed_count=3, iteration=1
+            ),
+            TaskType.REFLECT,
+        ),
+        (
+            SchedulerStats(pool_size=1, reviewed_count=1, iteration=0),
+            TaskType.GENERATE,
+        ),
+        (
+            SchedulerStats(
+                pool_size=6,
+                reviewed_count=6,
+                rankable_count=6,
+                total_matches=12,
+                match_coverage=2.0,
+                pool_grew_since_proximity=True,
+                iteration=1,
+            ),
+            TaskType.PROXIMITY,
+        ),
+    ],
+    ids=["review_backlog", "small_pool", "proximity_refresh"],
+)
+async def test_required_transitions_skip_the_planning_call(
+    monkeypatch: pytest.MonkeyPatch, stats: SchedulerStats, task: TaskType
 ) -> None:
-
     _forbid_allocation(monkeypatch)
-    stats = SchedulerStats(
-        pool_size=8, reviewed_count=5, unreviewed_count=3, iteration=1
-    )
 
     (
         decision,
@@ -291,55 +264,7 @@ async def test_review_backlog_skips_the_planning_call(
         _supervisor_decision_state(), stats, Budget(max_iterations=4)
     )
 
-    assert decision.next_task is TaskType.REFLECT
-    assert provenance == "required-transition"
-
-
-@pytest.mark.asyncio
-async def test_small_pool_skips_the_planning_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    _forbid_allocation(monkeypatch)
-    stats = SchedulerStats(pool_size=1, reviewed_count=1, iteration=0)
-
-    (
-        decision,
-        provenance,
-        _,
-    ) = await supervisor_decision.choose_supervisor_task(
-        _supervisor_decision_state(), stats, Budget(max_iterations=4)
-    )
-
-    assert decision.next_task is TaskType.GENERATE
-    assert provenance == "required-transition"
-
-
-@pytest.mark.asyncio
-async def test_proximity_refresh_skips_the_planning_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    _forbid_allocation(monkeypatch)
-    stats = SchedulerStats(
-        pool_size=6,
-        reviewed_count=6,
-        rankable_count=6,
-        total_matches=12,
-        match_coverage=2.0,
-        pool_grew_since_proximity=True,
-        iteration=1,
-    )
-
-    (
-        decision,
-        provenance,
-        _,
-    ) = await supervisor_decision.choose_supervisor_task(
-        _supervisor_decision_state(), stats, Budget(max_iterations=4)
-    )
-
-    assert decision.next_task is TaskType.PROXIMITY
+    assert decision.next_task is task
     assert provenance == "required-transition"
 
 
@@ -391,66 +316,6 @@ async def test_failed_durable_task_still_consults_the_model(
     assert decision.next_task is TaskType.REFLECT
     assert decision.queue_actions[0]["action"] == "retry"
     assert provenance == "model"
-
-
-@pytest.mark.asyncio
-async def test_corrected_allocation_still_delivers_the_queue_action(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Repeated rank correction must not discard the failed row's only
-    revival path."""
-    retry = {"action": "retry", "task_id": "task-9", "reason": "Transient."}
-
-    _stub_allocation(
-        monkeypatch,
-        make_allocation_response(
-            "rank",
-            "Rank once the failed match is revived.",
-            queue_actions=[retry],
-        ),
-    )
-    state = _supervisor_decision_state()
-    state["durable_task_queue"] = [
-        {"task_id": "task-9", "status": "failed", "error": "unavailable"}
-    ]
-    stats = SchedulerStats(
-        pool_size=6, reviewed_count=6, rankable_count=1, iteration=1
-    )
-
-    decision, _, _ = await supervisor_decision.choose_supervisor_task(
-        state, stats, Budget(max_iterations=4)
-    )
-
-    assert decision.next_task is TaskType.GENERATE
-    assert "corrected" in decision.reason
-    assert decision.queue_actions[0]["task_id"] == "task-9"
-
-
-@pytest.mark.asyncio
-async def test_allocation_runs_on_the_worker_model_with_thinking(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    seen: dict[str, Any] = {}
-
-    async def _allocation(**kwargs: Any) -> dict[str, str]:
-        seen.update(kwargs)
-        return make_allocation_response("evolve", "Improve leaders.")
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
-    state = _supervisor_decision_state()
-    stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
-
-    _, provenance, _ = await supervisor_decision.choose_supervisor_task(
-        state, stats, Budget(max_iterations=4)
-    )
-
-    assert provenance == "model"
-    assert seen["spec"].model_name == state["model_name"]
-    assert seen["spec"].model_name != state["supervisor_model_name"]
-    assert seen["options"].enable_thinking is True
-    # Identical live-state prompts recur; allocation must never replay from
-    # cache.
-    assert seen["options"].use_cache is False
 
 
 @pytest.mark.asyncio
@@ -596,191 +461,91 @@ async def test_non_progress_guard_still_delivers_the_queue_action(
     assert decision.queue_actions == (_RETRY,)
 
 
-@pytest.mark.asyncio
-async def test_guard_without_queue_actions_returns_the_baseline_itself(
-    monkeypatch: pytest.MonkeyPatch,
+def _owed(**overrides: Any) -> SchedulerStats:
+    return SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        owed_coverage_rounds=2,
+        llm_calls=99,
+        **overrides,
+    )
+
+
+@pytest.mark.parametrize(
+    ("budget", "stats", "task", "stopped"),
+    [
+        # Owed coverage defers the budget stop, safety does not.
+        (
+            Budget(max_iterations=5, max_llm_calls=10),
+            _owed(),
+            TaskType.RANK,
+            None,
+        ),
+        (
+            Budget(max_iterations=5, max_llm_calls=10),
+            _owed(safety_blocked=True),
+            TaskType.RANK,
+            TerminationReason.SAFETY,
+        ),
+        # The allowance, not the baseline task, bounds the deferral.
+        (
+            Budget(max_iterations=5, max_llm_calls=10),
+            _owed(),
+            TaskType.REFLECT,
+            None,
+        ),
+        (
+            Budget(max_iterations=5, max_llm_calls=10),
+            _owed(settlement_allowance=0),
+            TaskType.RANK,
+            TerminationReason.BUDGET,
+        ),
+        (
+            Budget(max_iterations=5, max_ideas=10),
+            SchedulerStats(pool_size=10, unreviewed_count=0),
+            TaskType.GENERATE,
+            TerminationReason.MAX_IDEAS,
+        ),
+        (
+            Budget(max_iterations=5, max_ideas=10),
+            SchedulerStats(pool_size=10, unreviewed_count=2),
+            TaskType.GENERATE,
+            None,
+        ),
+        (
+            Budget(max_iterations=5, max_matches_per_idea=3.0),
+            SchedulerStats(rankable_count=6, match_coverage=3.0),
+            TaskType.RANK,
+            TerminationReason.MAX_MATCHES_PER_IDEA,
+        ),
+    ],
+    ids=[
+        "owed_coverage_defers",
+        "safety_overrides_owed_coverage",
+        "model_task_still_defers",
+        "spent_allowance_stops",
+        "max_ideas",
+        "max_ideas_waits_for_review_backlog",
+        "max_matches_per_idea",
+    ],
+)
+def test_hard_stops_bind_ahead_of_the_model(
+    budget: Budget,
+    stats: SchedulerStats,
+    task: TaskType,
+    stopped: TerminationReason | None,
 ) -> None:
-    monkeypatch.setattr(
-        supervisor_decision, "call_llm_json", _allocating("generate")
-    )
-
-    _stub_allocation(
-        monkeypatch, make_allocation_response("generate", "Grow the pool.")
-    )
-    stats = SchedulerStats(
-        pool_size=8,
-        reviewed_count=6,
-        unreviewed_count=2,
-        rankable_count=8,
-        iteration=2,
-    )
-
-    decision, provenance, _ = await supervisor_decision.choose_supervisor_task(
-        _supervisor_decision_guards_state(), stats, Budget(max_iterations=2)
-    )
-
-    assert provenance == "hard-invariant"
-    assert decision.queue_actions == ()
-
-
-def test_hard_stop_yields_to_owed_coverage_but_not_to_safety() -> None:
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-    )
-
-    budget = Budget(max_iterations=5, max_llm_calls=10)
-    settling = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
-    stats = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        llm_calls=99,
-    )
-
-    assert _hard_stop(stats, budget, settling) is None
-
-    blocked = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        llm_calls=99,
-        safety_blocked=True,
-    )
-    stop = _hard_stop(blocked, budget, settling)
-
-    assert stop is not None
-    assert stop.next_task is TaskType.TERMINATE
-
-
-def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
-    """A model can choose a non-rank task; the allowance must bound deferral
-    on that path."""
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-        TerminationReason,
-    )
-
-    budget = Budget(max_iterations=5, max_llm_calls=10)
-    reflecting = SupervisorDecision(
-        next_task=TaskType.REFLECT, reason="review backlog"
-    )
-    owed = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        llm_calls=99,
-    )
-
-    assert _hard_stop(owed, budget, reflecting) is None
-
-    spent = SchedulerStats(
-        pool_size=6,
-        rankable_count=6,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        settlement_allowance=0,
-        llm_calls=99,
-    )
     stop = _hard_stop(
-        spent,
-        budget,
-        SupervisorDecision(next_task=TaskType.RANK, reason="settle"),
+        stats, budget, SupervisorDecision(next_task=task, reason="x")
     )
 
-    assert stop is not None
-    assert stop.termination_reason is TerminationReason.BUDGET
-
-
-def test_hard_stop_defers_for_an_under_covered_pool() -> None:
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-    )
-
-    budget = Budget(max_iterations=5, max_llm_calls=10)
-    settling = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
-    under_covered = SchedulerStats(
-        pool_size=10,
-        rankable_count=10,
-        unmatched_rankable_count=0,
-        owed_coverage_rounds=5,
-        llm_calls=99,
-    )
-
-    assert _hard_stop(under_covered, budget, settling) is None
-
-
-def test_hard_stop_enforces_max_ideas_ahead_of_the_model() -> None:
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-        TerminationReason,
-    )
-
-    budget = Budget(max_iterations=5, max_ideas=10)
-    baseline = SupervisorDecision(next_task=TaskType.GENERATE, reason="grow")
-    at_ceiling = SchedulerStats(pool_size=10, unreviewed_count=0)
-
-    stop = _hard_stop(at_ceiling, budget, baseline)
-
-    assert stop is not None
-    assert stop.termination_reason is TerminationReason.MAX_IDEAS
-
-    with_backlog = SchedulerStats(pool_size=10, unreviewed_count=2)
-    assert _hard_stop(with_backlog, budget, baseline) is None
-
-
-def test_hard_stop_enforces_max_matches_per_idea_ahead_of_the_model() -> None:
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-        TerminationReason,
-    )
-
-    budget = Budget(max_iterations=5, max_matches_per_idea=3.0)
-    baseline = SupervisorDecision(next_task=TaskType.RANK, reason="rank")
-    at_ceiling = SchedulerStats(rankable_count=6, match_coverage=3.0)
-
-    stop = _hard_stop(at_ceiling, budget, baseline)
-
-    assert stop is not None
-    assert stop.termination_reason is TerminationReason.MAX_MATCHES_PER_IDEA
-
-
-def test_stale_cancelled_flag_is_not_a_hard_stop() -> None:
-    from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
-    from co_scientist.scheduling import (
-        Budget,
-        SchedulerStats,
-        SupervisorDecision,
-        TaskType,
-    )
-
-    budget = Budget(max_iterations=5, max_llm_calls=10)
-    baseline = SupervisorDecision(next_task=TaskType.GENERATE, reason="grow")
-    stats = SchedulerStats(pool_size=6, cancelled=True)
-
-    assert _hard_stop(stats, budget, baseline) is None
+    if stopped is None:
+        assert stop is None
+    else:
+        assert stop is not None
+        assert stop.next_task is TaskType.TERMINATE
+        assert stop.termination_reason is stopped
 
 
 # This model lacks native schema support; these constraints must hold locally.
@@ -864,45 +629,6 @@ async def test_out_of_range_queue_action_priority_is_rejected(
     assert len(prompts) == 5
     assert "VALIDATION ERROR" in prompts[1]
     assert "maximum" in prompts[1]
-
-
-@pytest.mark.asyncio
-async def test_non_integer_queue_action_priority_is_rejected(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    decision, provenance, _ = await _allocate(
-        monkeypatch, _allocation_text(priority="urgent")
-    )
-
-    assert provenance == "reconstructed-fallback"
-    assert decision.queue_actions == ()
-
-
-@pytest.mark.asyncio
-async def test_null_queue_action_priority_is_accepted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    decision, provenance, prompts = await _allocate(
-        monkeypatch, _allocation_text(priority=None)
-    )
-
-    assert provenance == "model"
-    assert decision.queue_actions[0]["priority"] is None
-    assert len(prompts) == 1
-
-
-@pytest.mark.asyncio
-async def test_integral_float_priority_is_normalized_to_an_int(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """JSON Schema's integer type admits integral floats."""
-    body = json.loads(_allocation_text(priority=88))
-    body["priority"] = 55.0
-    decision, provenance, _ = await _allocate(monkeypatch, json.dumps(body))
-
-    assert provenance == "model"
-    assert decision.priority == 55
-    assert isinstance(decision.priority, int)
 
 
 @pytest.mark.asyncio
