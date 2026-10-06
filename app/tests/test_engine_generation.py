@@ -22,7 +22,6 @@ from co_scientist.models import (
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 import app.engine_tasks.fanout as fanout
 from app import engine_tasks
-from app.config import settings
 from app.engine_tasks import fanout_aggregates as aggregates
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import node as engine_tasks_node
@@ -201,9 +200,8 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
 
 @pytest.mark.asyncio
 async def test_generation_fanout_created_during_pause_waits_for_resume(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     original_dispatch = engine_tasks_node._dispatch_node_fanout
 
     with make_client() as client:

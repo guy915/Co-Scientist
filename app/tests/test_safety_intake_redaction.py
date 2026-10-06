@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, safety, task_worker
-from app.config import settings
 from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
 from app.store import db, records, reports, runs, tasks
@@ -44,9 +43,8 @@ def _persist_run(db_path: str) -> Any:
 
 @pytest.mark.asyncio
 async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     created = _create_run(owner, _STRICT_GOAL)
     assert created.status_code == 200, created.text
@@ -91,9 +89,8 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
 
 @pytest.mark.asyncio
 async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     created = _create_run(owner, "Study a benign topic")
     assert created.status_code == 200, created.text

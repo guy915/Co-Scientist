@@ -133,3 +133,13 @@ def claim_llm_cache_disabled() -> Iterator[None]:
 
     with scoped_cache_override(False):
         yield
+
+
+@pytest.fixture
+def manual_worker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests that step tasks by hand must not race the embedded per-run cohort that start,
+    resume and startup recovery launch.
+    """
+    from app import task_worker
+
+    monkeypatch.setattr(task_worker, "run_run_worker_pool_sync", lambda *_: None)

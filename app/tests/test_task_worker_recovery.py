@@ -325,9 +325,8 @@ def _assert_unknown_outcome_failed_closed(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("cause", ["stored-credential", "paid-to-free-route"])
 async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, cause: str
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch, cause: str
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     routes = ("model_name", "supervisor_model_name", "chat_model_name")
     credentialed = cause == "stored-credential"
     if credentialed:
@@ -379,9 +378,8 @@ async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
 
 @pytest.mark.asyncio
 async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     accepted: list[int] = []
 
     async def _timeout_once(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
@@ -422,13 +420,13 @@ async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
     ],
 )
 async def test_unknown_fanout_outcome_preserves_siblings_and_aggregate(
+    manual_worker: None,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     expired: bool,
     family: str,
     kind: str,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     calls: list[str] = []
 
     async def dispatch(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:

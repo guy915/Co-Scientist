@@ -55,7 +55,6 @@ def _seed_owned_finalize(
     *,
     claim: bool = True,
 ) -> tuple[Any, str, Any, str]:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
     monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
 
@@ -200,7 +199,7 @@ def _publication_snapshot(
 
 @pytest.mark.asyncio
 async def test_cancel_after_final_safety_withholds_report_publication(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, task, hypothesis_id = _seed_owned_finalize(isolated_db, monkeypatch)
     _install_report_stubs(hypothesis_id, monkeypatch)
@@ -231,7 +230,7 @@ async def test_cancel_after_final_safety_withholds_report_publication(
 
 @pytest.mark.asyncio
 async def test_normal_finalize_publishes_and_survives_restart(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
@@ -286,7 +285,7 @@ async def test_normal_finalize_publishes_and_survives_restart(
 
 @pytest.mark.asyncio
 async def test_restart_does_not_strand_finalize_lease_after_report_commit(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False

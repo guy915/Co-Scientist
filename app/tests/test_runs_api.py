@@ -51,9 +51,9 @@ def test_create_run_validates_goal_and_tier(goal: str, fields: dict[str, Any], s
 
 
 def test_concurrency_ceiling_is_uniform_and_per_client(
+    manual_worker: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "max_concurrent_runs", 2)
     client = _client()
 
