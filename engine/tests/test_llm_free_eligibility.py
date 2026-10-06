@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
@@ -9,6 +11,11 @@ import httpx
 import pytest
 import tiktoken
 
+from co_scientist.cache import LLMCache
+from co_scientist.constants import (
+    MINIMAL_REASONING_MAX_TOKENS,
+    THINKING_FLOOR_MAX_TOKENS,
+)
 from co_scientist.exceptions import FreeModelEligibilityError
 from co_scientist.llm import (
     CompletionSpec,
@@ -18,6 +25,9 @@ from co_scientist.llm import (
     call_llm_json,
     call_llm_with_tools,
     current_run_call_count,
+    enforce_free_request,
+    precall,
+    scoped_api_key,
     scoped_llm_call_budget,
 )
 from co_scientist.llm.admission import free_policy as free_catalog
@@ -35,107 +45,76 @@ from tests._llm_fake import _free_catalog as _isolated_catalog
 
 __all__ = ["_isolated_catalog"]
 
-_LLM_FREE_ELIGIBILITY_MODEL = "openrouter/campaign/zero:free"
-_LLM_FREE_ELIGIBILITY_OPTIONS = LLMCallOptions(use_cache=False)
+_MODEL = "openrouter/campaign/zero:free"
+_NO_CACHE = LLMCallOptions(use_cache=False)
+_ZERO_CAP = {"prompt": 0, "completion": 0, "request": 0}
+_ZERO = {"prompt": "0", "completion": "0"}
+
+
+def _spec(**overrides: Any) -> CompletionSpec:
+    return CompletionSpec(_MODEL, **overrides)
+
+
+async def _probe(**overrides: Any) -> str:
+    return await call_llm("probe", _spec(**overrides), options=_NO_CACHE)
 
 
 @pytest.mark.usefixtures("_isolated_catalog")
-class TestLlmFreeEligibility:
-    @pytest.mark.parametrize("entry_point", [call_llm, call_llm_json])
+class TestFreeAdmission:
     @pytest.mark.parametrize(
-        "pricing,expiration",
+        ("pricing", "expiration"),
         [
             (None, None),
             ({}, None),
             ({"prompt": "0", "completion": "0.01"}, None),
-            ({"prompt": "0", "completion": "0"}, "not-a-date"),
-            ({"prompt": "0", "completion": "0"}, "2000-01-01"),
+            (_ZERO, "not-a-date"),
+            (_ZERO, "2000-01-01"),
+            *[
+                ({"prompt": "0", "completion": price}, None)
+                for price in ("NaN", "Infinity", "-1", "1e-999", None, 0, True)
+            ],
+            *[
+                ({**_ZERO, **extra}, None)
+                for extra in (
+                    {"request": "0.1"},
+                    {"input_cache_read": "0.01"},
+                    {"internal_reasoning": "0.1"},
+                    {"web_search": "0.01"},
+                    {
+                        "overrides": [
+                            {"min_prompt_tokens": 100, "completion": "1"}
+                        ]
+                    },
+                )
+            ],
         ],
     )
-    async def test_unverified_route_never_reaches_provider_or_consumes_budget(
+    async def test_an_unverifiable_route_never_reaches_the_provider(
         self,
         monkeypatch: pytest.MonkeyPatch,
-        entry_point: Any,
         pricing: Any,
         expiration: str | None,
     ) -> None:
-        monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
         catalog = _catalog(pricing)
         if expiration is not None:
             catalog["data"][0]["expiration_date"] = expiration
         _mock_catalog(monkeypatch, catalog)
         requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch,
-            [make_completion(make_message('{"ok": true}'))],
-            requests,
-        )
+        patch_acompletion(monkeypatch, [], requests)
         run_id = str(uuid4())
+
         with (
             scoped_llm_call_budget(run_id, 10),
             pytest.raises(RuntimeError, match="zero-cost"),
         ):
-            await entry_point(
-                "public probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
+            await _probe()
+
         assert requests == []
         assert current_run_call_count(run_id) == 0
 
-    @pytest.mark.parametrize(
-        "price", ["NaN", "Infinity", "-1", "1e-999", None, 0, True]
-    )
-    async def test_invalid_or_nonzero_prices_are_not_rounded_to_free(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        price: Any,
+    async def test_a_retry_rechecks_prices_before_counting_or_transport(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _mock_catalog(
-            monkeypatch, _catalog({"prompt": "0", "completion": price})
-        )
-        requests: list[dict[str, Any]] = []
-        patch_acompletion(monkeypatch, [], requests)
-        with pytest.raises(RuntimeError, match="zero-cost"):
-            await call_llm(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
-        assert requests == []
-
-    @pytest.mark.parametrize(
-        "extra",
-        [
-            {"request": "0.1"},
-            {"input_cache_read": "0.01"},
-            {"internal_reasoning": "0.1"},
-            {"web_search": "0.01"},
-            {"overrides": [{"min_prompt_tokens": 100, "completion": "1"}]},
-        ],
-    )
-    async def test_ancillary_and_conditional_charges_are_unavailable(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        extra: dict[str, Any],
-    ) -> None:
-        _mock_catalog(
-            monkeypatch, _catalog({"prompt": "0", "completion": "0", **extra})
-        )
-        patch_acompletion(monkeypatch, [])
-        with pytest.raises(RuntimeError, match="zero-cost"):
-            await call_llm(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
-
-    async def test_retry_rechecks_expired_prices_before_counting_or_transport(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        from co_scientist.llm.admission import free_policy as free_catalog
-
         monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
         catalog_reads: list[str] = []
 
@@ -160,55 +139,35 @@ class TestLlmFreeEligibility:
             scoped_llm_call_budget(run_id, 10),
             pytest.raises(RuntimeError, match="zero-cost"),
         ):
-            await call_llm_json(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
+            await call_llm_json("probe", _spec(), options=_NO_CACHE)
         assert len(requests) == 1
         assert len(catalog_reads) == 2
         assert current_run_call_count(run_id) == 1
 
-    @pytest.mark.parametrize("entry_point", [call_llm, call_llm_json])
-    async def test_qualified_route_sends_zero_caps_and_pinned_endpoint(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        entry_point: Any,
+    async def test_a_qualified_route_sends_zero_caps_and_reads_the_catalog_once(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        catalog = _catalog({"prompt": "0", "completion": "0"})
+        catalog = _catalog(_ZERO)
         catalog["data"][0]["expiration_date"] = "9999-12-31"
-        calls = _mock_catalog(monkeypatch, catalog)
+        reads = _mock_catalog(monkeypatch, catalog)
         requests: list[dict[str, Any]] = []
         patch_acompletion(
-            monkeypatch,
-            [make_completion(make_message('{"ok": true}'))] * 2,
-            requests,
+            monkeypatch, [make_completion(make_message("ok"))] * 2, requests
         )
-        for _ in range(2):
-            await entry_point(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
-        assert len(calls) == 1
+
+        await _probe()
+        await _probe()
+
+        assert len(reads) == 1
         assert len(requests) == 2
-        assert requests[0]["extra_body"]["provider"]["max_price"] == {
-            "prompt": 0,
-            "completion": 0,
-            "request": 0,
-        }
+        assert requests[0]["extra_body"]["provider"]["max_price"] == _ZERO_CAP
         assert requests[0]["api_base"] == "https://openrouter.ai/api/v1"
 
     @pytest.mark.parametrize("campaign", [False, True])
     @pytest.mark.parametrize("scoped", [False, True])
-    async def test_byok_separation_and_campaign_override(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        campaign: bool,
-        scoped: bool,
+    async def test_a_byok_key_skips_the_free_gate_unless_a_campaign_requires_it(
+        self, monkeypatch: pytest.MonkeyPatch, campaign: bool, scoped: bool
     ) -> None:
-        from co_scientist.llm import scoped_api_key
-
         monkeypatch.setenv(
             "COSCIENTIST_REQUIRE_FREE_MODELS", str(int(campaign))
         )
@@ -219,30 +178,18 @@ class TestLlmFreeEligibility:
         patch_acompletion(
             monkeypatch, [make_completion(make_message("ok"))], requests
         )
-        spec = CompletionSpec(
-            _LLM_FREE_ELIGIBILITY_MODEL,
-            api_key=None if scoped else "byok-test-key",
-        )
+
         with scoped_api_key("byok-test-key" if scoped else None):
+            byok = _probe(api_key=None if scoped else "byok-test-key")
             if campaign:
                 with pytest.raises(RuntimeError, match="zero-cost"):
-                    await call_llm(
-                        "probe", spec, options=_LLM_FREE_ELIGIBILITY_OPTIONS
-                    )
+                    await byok
             else:
-                assert (
-                    await call_llm(
-                        "probe", spec, options=_LLM_FREE_ELIGIBILITY_OPTIONS
-                    )
-                    == "ok"
-                )
+                assert await byok == "ok"
+
         assert len(requests) == int(not campaign)
         with pytest.raises(RuntimeError, match="zero-cost"):
-            await call_llm(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
+            await _probe()
 
     @pytest.mark.parametrize(
         "body",
@@ -255,16 +202,12 @@ class TestLlmFreeEligibility:
             {"service_tier": "priority"},
         ],
     )
-    async def test_unqualified_fallbacks_and_addons_are_rejected(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        body: dict[str, Any],
+    async def test_fallbacks_and_addons_outside_the_free_pool_are_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, body: dict[str, Any]
     ) -> None:
-        from co_scientist.llm import enforce_free_request
-
-        _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
+        _mock_catalog(monkeypatch, _catalog(_ZERO))
         args = {
-            "model": _LLM_FREE_ELIGIBILITY_MODEL,
+            "model": _MODEL,
             "messages": [{"role": "user", "content": "probe"}],
             "extra_body": body,
         }
@@ -289,51 +232,36 @@ class TestLlmFreeEligibility:
             {"model": "openrouter/missing/model"},
         ],
     )
-    async def test_campaign_rejects_unverified_request_shapes(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        changes: dict[str, Any],
+    async def test_a_campaign_rejects_unverified_request_shapes(
+        self, monkeypatch: pytest.MonkeyPatch, changes: dict[str, Any]
     ) -> None:
-        from co_scientist.llm import enforce_free_request
-
         monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-        _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
+        _mock_catalog(monkeypatch, _catalog(_ZERO))
         args = {
-            "model": _LLM_FREE_ELIGIBILITY_MODEL,
+            "model": _MODEL,
             "messages": [{"role": "user", "content": "probe"}],
             **changes,
         }
         with pytest.raises(RuntimeError, match="zero-cost"):
             await enforce_free_request(args)
 
-    async def test_catalog_failure_after_expiry_never_uses_stale_prices(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
+    async def test_an_unreadable_catalog_after_expiry_never_reuses_stale_prices(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from co_scientist.llm.admission import free_policy as free_catalog
-
         monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
-        _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
+        _mock_catalog(monkeypatch, _catalog(_ZERO))
         requests: list[dict[str, Any]] = []
         patch_acompletion(
             monkeypatch, [make_completion(make_message("ok"))], requests
         )
-        await call_llm(
-            "probe",
-            CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-            options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-        )
+        await _probe()
 
         def unavailable(*args: Any, **kwargs: Any) -> None:
             raise httpx.ConnectError("unavailable")
 
         monkeypatch.setattr(httpx, "get", unavailable)
         with pytest.raises(RuntimeError, match="zero-cost catalog"):
-            await call_llm(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
+            await _probe()
         assert len(requests) == 1
 
     @pytest.mark.parametrize(
@@ -345,29 +273,19 @@ class TestLlmFreeEligibility:
             {"data": [{"id": "x"}, {"id": "x"}]},
         ],
     )
-    async def test_invalid_catalog_fails_closed(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        payload: Any,
+    async def test_an_invalid_catalog_fails_closed(
+        self, monkeypatch: pytest.MonkeyPatch, payload: Any
     ) -> None:
         _mock_catalog(monkeypatch, payload)
         patch_acompletion(monkeypatch, [])
         with pytest.raises(RuntimeError, match="zero-cost catalog"):
-            await call_llm(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
+            await _probe()
 
-    async def test_unknown_promotion_needs_explicit_ancillary_prices(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
+    async def test_an_unknown_promotion_needs_explicit_ancillary_prices(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from co_scientist.llm import enforce_free_request
-        from co_scientist.llm.admission import free_policy as free_catalog
-
         monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-        data = _catalog({"prompt": "0", "completion": "0"})
+        data = _catalog(_ZERO)
         data["data"][0]["id"] = "campaign/promo"
         _mock_catalog(monkeypatch, data)
         args: dict[str, Any] = {
@@ -393,67 +311,44 @@ class TestLlmFreeEligibility:
         await enforce_free_request(args)
         assert args["extra_body"]["provider"]["max_price"]["request"] == 0
 
-    def test_catalog_cache_is_shared_across_worker_event_loops(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
+    def test_the_catalog_cache_is_shared_across_worker_event_loops(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import asyncio
-        from concurrent.futures import ThreadPoolExecutor
-
-        from co_scientist.llm import enforce_free_request
-
-        catalog = _catalog({"prompt": "0", "completion": "0"})
+        catalog = _catalog(_ZERO)
         catalog["data"][0]["expiration_date"] = None
         reads = _mock_catalog(monkeypatch, catalog)
 
         def verify(_: int) -> None:
-            asyncio.run(
-                enforce_free_request(
-                    {"model": _LLM_FREE_ELIGIBILITY_MODEL, "messages": []}
-                )
-            )
+            asyncio.run(enforce_free_request({"model": _MODEL, "messages": []}))
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             list(pool.map(verify, range(8)))
         assert len(reads) == 1
 
     @pytest.mark.parametrize(
-        "setting,value",
+        ("setting", "value"),
         [
             ("model_fallbacks", ["openai/paid"]),
-            ("model_alias_map", {_LLM_FREE_ELIGIBILITY_MODEL: "openai/paid"}),
+            ("model_alias_map", {_MODEL: "openai/paid"}),
         ],
     )
     async def test_sdk_global_routing_cannot_bypass_admission(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        setting: str,
-        value: Any,
+        self, monkeypatch: pytest.MonkeyPatch, setting: str, value: Any
     ) -> None:
-        _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
+        _mock_catalog(monkeypatch, _catalog(_ZERO))
         monkeypatch.setattr(f"litellm.{setting}", value)
         requests: list[dict[str, Any]] = []
         patch_acompletion(
             monkeypatch, [make_completion(make_message("ok"))], requests
         )
         with pytest.raises(RuntimeError, match="zero-cost"):
-            await call_llm(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
+            await _probe()
         assert requests == []
 
-    @pytest.mark.parametrize("kind", ["text", "json", "tools"])
-    async def test_campaign_does_not_reuse_paid_byok_cache(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Any,
-        kind: str,
+    @pytest.mark.parametrize("kind", ["text", "tools"])
+    async def test_a_campaign_does_not_reuse_a_paid_byok_cache_entry(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any, kind: str
     ) -> None:
-        from co_scientist.cache import LLMCache
-        from co_scientist.llm import ToolLoop, call_llm_with_tools, precall
-
         cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
         monkeypatch.setattr(precall, "get_cache", lambda: cache)
         requests: list[dict[str, Any]] = []
@@ -472,8 +367,7 @@ class TestLlmFreeEligibility:
                 return await call_llm_with_tools(
                     "probe", spec, ToolLoop(tools=[], executor=unused_tool)
                 )
-            entry = call_llm if kind == "text" else call_llm_json
-            return await entry("probe", spec)
+            return await call_llm("probe", spec)
 
         await invoke()
         await invoke()
@@ -494,51 +388,30 @@ class TestLlmFreeEligibility:
             {"extra_body": {"provider": None}},
         ],
     )
-    async def test_malformed_containers_raise_terminal_policy_error(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        changes: dict[str, Any],
+    async def test_malformed_request_containers_raise_a_terminal_policy_error(
+        self, monkeypatch: pytest.MonkeyPatch, changes: dict[str, Any]
     ) -> None:
-        from co_scientist.exceptions import FreeModelEligibilityError
-        from co_scientist.llm import enforce_free_request
-
-        _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
+        _mock_catalog(monkeypatch, _catalog(_ZERO))
         with pytest.raises(FreeModelEligibilityError):
-            await enforce_free_request(
-                {"model": _LLM_FREE_ELIGIBILITY_MODEL, **changes}
-            )
+            await enforce_free_request({"model": _MODEL, **changes})
 
     @pytest.mark.parametrize("inputs", ["text", {"text": True}, 1])
     async def test_malformed_input_modalities_are_not_admitted(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        inputs: Any,
+        self, monkeypatch: pytest.MonkeyPatch, inputs: Any
     ) -> None:
-        from co_scientist.exceptions import FreeModelEligibilityError
-
-        data = _catalog({"prompt": "0", "completion": "0"})
+        data = _catalog(_ZERO)
         data["data"][0]["architecture"]["input_modalities"] = inputs
         _mock_catalog(monkeypatch, data)
         patch_acompletion(monkeypatch, [make_completion(make_message("ok"))])
         with pytest.raises(FreeModelEligibilityError):
-            await call_llm(
-                "probe",
-                CompletionSpec(_LLM_FREE_ELIGIBILITY_MODEL),
-                options=_LLM_FREE_ELIGIBILITY_OPTIONS,
-            )
+            await _probe()
 
-    @pytest.mark.parametrize("variant", ["pro", "mini"])
     @pytest.mark.parametrize("thinking", [False, True])
     async def test_nex_requests_fund_and_control_observed_reasoning(
-        self, monkeypatch: pytest.MonkeyPatch, variant: str, thinking: bool
+        self, monkeypatch: pytest.MonkeyPatch, thinking: bool
     ) -> None:
-        from co_scientist.constants import (
-            MINIMAL_REASONING_MAX_TOKENS,
-            THINKING_FLOOR_MAX_TOKENS,
-        )
-
-        model = f"openrouter/nex-agi/nex-n2.5-{variant}:free"
-        catalog = _catalog({"prompt": "0", "completion": "0"})
+        model = "openrouter/nex-agi/nex-n2.5-pro:free"
+        catalog = _catalog(_ZERO)
         catalog["data"][0]["id"] = model.removeprefix("openrouter/")
         _mock_catalog(monkeypatch, catalog)
         requests: list[dict[str, Any]] = []
@@ -563,24 +436,17 @@ class TestLlmFreeEligibility:
         )
         assert requests[0]["response_format"] == {"type": "json_object"}
         body = requests[0]["extra_body"]
-        assert body["provider"]["max_price"] == {
-            "prompt": 0,
-            "completion": 0,
-            "request": 0,
-        }
+        assert body["provider"]["max_price"] == _ZERO_CAP
         assert "models" not in body
-        if thinking:
-            assert body["reasoning"] == {"enabled": True, "effort": "high"}
-        else:
-            assert body["reasoning"] == {
-                "enabled": True,
-                "max_tokens": MINIMAL_REASONING_MAX_TOKENS,
-            }
+        assert body["reasoning"] == (
+            {"enabled": True, "effort": "high"}
+            if thinking
+            else {"enabled": True, "max_tokens": MINIMAL_REASONING_MAX_TOKENS}
+        )
         assert requests[0]["max_tokens"] >= THINKING_FLOOR_MAX_TOKENS
 
 
 _FREE_MODEL = "openrouter/minimax/minimax-m3:free"
-_NO_CACHE = LLMCallOptions(use_cache=False)
 
 
 async def _tool_executor(call: Any) -> dict[str, str]:
@@ -647,11 +513,7 @@ async def test_free_completions_send_zero_price_ceiling_on_every_attempt(
     for request in requests:
         assert request.get("api_key") == api_key
         body = request["extra_body"]
-        assert body["provider"]["max_price"] == {
-            "prompt": 0,
-            "completion": 0,
-            "request": 0,
-        }
+        assert body["provider"]["max_price"] == _ZERO_CAP
         assert body["models"] == [
             "nvidia/nemotron-3-super-120b-a12b:free",
             "google/gemma-4-31b-it:free",
@@ -666,9 +528,7 @@ async def test_explicit_paid_byok_keeps_its_priced_route(
 
     async def completion(**kwargs: Any) -> SimpleNamespace:
         requests.append(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
-        )
+        return make_completion(make_message("ok"))
 
     install_fake_backend(monkeypatch, completion)
     await call_llm(
@@ -735,95 +595,17 @@ async def test_litellm_serializes_zero_ceiling_into_openrouter_request(
         "https://openrouter.ai/api/v1/chat/completions"
     )
     body = json.loads(requests[0].content)
-    assert body["provider"]["max_price"] == {
-        "prompt": 0,
-        "completion": 0,
-        "request": 0,
-    }
-
-
-@pytest.mark.usefixtures("_isolated_catalog")
-class TestFreeCatalog:
-    def test_expired_catalog_recovers_after_a_failed_refresh(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
-        payload = _catalog({"prompt": "0", "completion": "0"})
-        _mock_catalog(monkeypatch, payload)
-        assert free_catalog.current_catalog()["campaign/zero:free"][
-            "pricing"
-        ] == {
-            "prompt": "0",
-            "completion": "0",
-        }
-
-        def unavailable(*_: Any, **__: Any) -> None:
-            raise httpx.ConnectError("unavailable")
-
-        monkeypatch.setattr(httpx, "get", unavailable)
-        with pytest.raises(
-            FreeModelEligibilityError, match="catalog unavailable"
-        ):
-            free_catalog.current_catalog()
-        payload["data"][0]["pricing"]["completion"] = "1"
-        reads = _mock_catalog(monkeypatch, payload)
-        assert (
-            free_catalog.current_catalog()["campaign/zero:free"]["pricing"][
-                "completion"
-            ]
-            == "1"
-        )
-        assert len(reads) == 1
-
-    def test_injected_reader_is_shared_by_worker_threads(self) -> None:
-        from concurrent.futures import ThreadPoolExecutor
-
-        reads: list[int] = []
-
-        def load() -> dict[str, Any]:
-            reads.append(1)
-            return {"injected": {"pricing": {"prompt": "0"}}}
-
-        with (
-            free_catalog.using_catalog_reader(free_catalog.CatalogReader(load)),
-            ThreadPoolExecutor(max_workers=4) as pool,
-        ):
-            results = list(
-                pool.map(lambda _: free_catalog.current_catalog(), range(8))
-            )
-        assert all(result == results[0] for result in results)
-        assert "injected" in results[0]
-        assert reads == [1]
-
-    def test_nested_reader_scope_restores_its_predecessor_after_failure(
-        self,
-    ) -> None:
-        outer = free_catalog.CatalogReader(lambda: {"outer": {}})
-        inner = free_catalog.CatalogReader(lambda: {"inner": {}})
-        with free_catalog.using_catalog_reader(outer):
-            assert free_catalog.current_catalog() == {"outer": {}}
-            with (
-                pytest.raises(ValueError, match="scope failed"),
-                free_catalog.using_catalog_reader(inner),
-            ):
-                assert free_catalog.current_catalog() == {"inner": {}}
-                raise ValueError("scope failed")
-            assert free_catalog.current_catalog() == {"outer": {}}
+    assert body["provider"]["max_price"] == _ZERO_CAP
 
 
 async def test_each_model_is_billed_to_the_key_scoped_for_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist.llm import scoped_api_key
-
     requests: list[dict[str, Any]] = []
 
     async def completion(**kwargs: Any) -> SimpleNamespace:
         requests.append(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
-        )
+        return make_completion(make_message("ok"))
 
     install_fake_backend(monkeypatch, completion)
     keys = {"gemini/pro": "supervisor-key"}

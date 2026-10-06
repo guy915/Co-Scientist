@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 from typing import Any
 
 import jsonschema
@@ -13,39 +12,13 @@ from co_scientist.llm.request.completion import (
     _supports_json_schema_response_format,
 )
 from co_scientist.llm.structured.validate import reshape_json_output
+from co_scientist.schemas.planning import META_REVIEW_SCHEMA
 from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
-from tests._llm_fake import NESTED_SCHEMA as _NESTED_SCHEMA
-from tests._llm_fake import disable_llm_cache as _disable_cache
-from tests._llm_fake import scripted_backend
+from tests._llm_fake import NESTED_SCHEMA, disable_llm_cache, scripted_backend
+from tests._llm_fake import make_completion as _completion
+from tests._llm_fake import make_message as _message
 
-
-def _completion(content: str) -> SimpleNamespace:
-    message = SimpleNamespace(
-        role="assistant", content=content, tool_calls=None
-    )
-    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
-
-
-def _patch_registry(
-    monkeypatch: pytest.MonkeyPatch, supported: bool
-) -> dict[str, int]:
-    state = {"calls": 0}
-
-    def fake_supports(model: str) -> bool:
-        state["calls"] += 1
-        return supported
-
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.supports_response_schema", fake_supports
-    )
-    return state
-
-
-def _capture_acompletion(
-    monkeypatch: pytest.MonkeyPatch, responses: list[SimpleNamespace]
-) -> list[dict[str, Any]]:
-    return scripted_backend(monkeypatch, responses).requests
-
+pytestmark = pytest.mark.usefixtures("clear_capability_cache")
 
 _ANSWER_DISCIPLINE = (
     "\n\n## Answer Discipline\n\n"
@@ -71,8 +44,85 @@ _SCHEMA_PROMPT_TRAILER = (
     "the schema lists; any field it does not declare will be rejected."
 )
 
+_FLAT_SCHEMA: dict[str, Any] = {"type": "object", "properties": {}}
 
-_LLM_CAPABILITY_SHIM_CLOSED_SCHEMA: dict[str, Any] = {
+
+def _registry(monkeypatch: pytest.MonkeyPatch, supported: bool) -> None:
+    _supports_json_schema_response_format.cache_clear()
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.supports_response_schema",
+        lambda model: supported,
+    )
+
+
+def _serve(
+    monkeypatch: pytest.MonkeyPatch, supported: bool, *contents: str
+) -> list[dict[str, Any]]:
+    disable_llm_cache(monkeypatch)
+    _registry(monkeypatch, supported)
+    return scripted_backend(
+        monkeypatch, [_completion(_message(c)) for c in contents]
+    ).requests
+
+
+@pytest.mark.parametrize(
+    "schema", [NESTED_SCHEMA, _FLAT_SCHEMA], ids=["named", "bare"]
+)
+async def test_an_unsupported_model_gets_json_object_mode_and_a_schema_prompt(
+    monkeypatch: pytest.MonkeyPatch, schema: dict[str, Any]
+) -> None:
+    sent = _serve(monkeypatch, False, "{}")
+
+    await call_llm(
+        "a prompt", CompletionSpec(model_name="test-model", json_schema=schema)
+    )
+
+    assert sent[0]["response_format"] == {"type": "json_object"}
+    assert sent[0]["messages"] == [
+        {
+            "role": "user",
+            "content": (
+                "a prompt"
+                + _SCHEMA_PROMPT_SUFFIX
+                + json.dumps(schema.get("schema", schema), indent=2)
+                + _SCHEMA_PROMPT_TRAILER
+            ),
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("schema", "envelope"),
+    [
+        (NESTED_SCHEMA, NESTED_SCHEMA),
+        (_FLAT_SCHEMA, {"name": "response", "schema": _FLAT_SCHEMA}),
+        (
+            {"schema": _FLAT_SCHEMA},
+            {"name": "response", "schema": _FLAT_SCHEMA},
+        ),
+    ],
+    ids=["named", "bare", "unnamed-envelope"],
+)
+async def test_a_supported_model_gets_a_named_native_schema(
+    monkeypatch: pytest.MonkeyPatch,
+    schema: dict[str, Any],
+    envelope: dict[str, Any],
+) -> None:
+    sent = _serve(monkeypatch, True, "{}")
+
+    await call_llm(
+        "a prompt", CompletionSpec(model_name="test-model", json_schema=schema)
+    )
+
+    assert sent[0]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": envelope,
+    }
+    assert sent[0]["messages"] == [{"role": "user", "content": "a prompt"}]
+    assert "name" not in _FLAT_SCHEMA, "the caller's schema is not mutated"
+
+
+_CLOSED: dict[str, Any] = {
     "name": "capability_shim_closed",
     "schema": {
         "type": "object",
@@ -81,448 +131,150 @@ _LLM_CAPABILITY_SHIM_CLOSED_SCHEMA: dict[str, Any] = {
         "required": ["summary"],
     },
 }
-
-
-@pytest.mark.usefixtures("clear_capability_cache")
-class TestLlmCapabilityShim:
-    def test_deepseek_family_overrides_registry(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """LiteLLM advertises native schema support that the DeepSeek API
-        rejects."""
-        state = _patch_registry(monkeypatch, supported=True)
-
-        assert (
-            _supports_json_schema_response_format("deepseek/deepseek-chat")
-            is False
-        )
-        assert state["calls"] == 0
-
-    def test_registry_supported_model_keeps_json_schema(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _patch_registry(monkeypatch, supported=True)
-
-        assert (
-            _supports_json_schema_response_format("gemini/gemini-2.5-flash")
-            is True
-        )
-
-    def test_registry_unsupported_model_downgrades(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _patch_registry(monkeypatch, supported=False)
-
-        assert (
-            _supports_json_schema_response_format("some/other-model") is False
-        )
-
-    def test_registry_lookup_failure_defaults_to_supported(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-
-        def raising_supports(model: str) -> bool:
-            raise RuntimeError("registry unavailable")
-
-        monkeypatch.setattr(
-            "co_scientist.llm.litellm.supports_response_schema",
-            raising_supports,
-        )
-
-        assert _supports_json_schema_response_format("some/other-model") is True
-
-    async def test_call_llm_downgrades_request_for_unsupported_model(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=False)
-        captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-
-        await call_llm(
-            "a prompt",
-            CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
-        )
-
-        assert captured[0]["response_format"] == {"type": "json_object"}
-        expected_content = (
-            "a prompt"
-            + _SCHEMA_PROMPT_SUFFIX
-            + json.dumps(_NESTED_SCHEMA["schema"], indent=2)
-            + _SCHEMA_PROMPT_TRAILER
-        )
-        assert captured[0]["messages"] == [
-            {
-                "role": "user",
-                "content": expected_content,
+_MAX_LENGTH: dict[str, Any] = {
+    "name": "capability_shim_max_length",
+    "schema": {
+        "type": "object",
+        "properties": {"title": {"type": "string", "maxLength": 20}},
+        "required": ["title"],
+    },
+}
+_MAX_ITEMS: dict[str, Any] = {
+    "name": "capability_shim_max_items",
+    "schema": {
+        "type": "object",
+        "properties": {
+            "steps": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 5,
             }
-        ]
-
-    async def test_downgraded_prompt_forbids_echoing_the_schema(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """JSON-object mode enforces no schema; instructions must distinguish
-        the answer from its schema."""
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=False)
-        captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-
-        await call_llm(
-            "a prompt",
-            CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
-        )
-
-        content = captured[0]["messages"][0]["content"]
-        assert "Do NOT output the schema itself" in content
-        assert "any field it does not declare will be rejected" in content
-
-    async def test_downgraded_prompt_names_the_reply_as_the_deliverable(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """The answer instruction must precede the schema; placing it after
-        did not reduce empty answers."""
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=False)
-        captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-
-        await call_llm(
-            "a prompt",
-            CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
-        )
-
-        content = captured[0]["messages"][0]["content"]
-        assert "Your reasoning is not your answer" in content
-        assert content.index(
-            "Your reasoning is not your answer"
-        ) < content.index("RESPOND WITH VALID JSON ONLY")
-
-    async def test_schema_instructions_absent_for_supported_models(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Native schema enforcement already constrains output; repeated
-        prompt rules only spend tokens."""
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=True)
-        captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-
-        await call_llm(
-            "a prompt",
-            CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
-        )
-
-        assert (
-            "messages" not in captured[0]
-            or "Do NOT output the schema"
-            not in (captured[0]["messages"][0]["content"])
-        )
-
-    async def test_call_llm_keeps_json_schema_for_supported_model(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=True)
-        captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-
-        await call_llm(
-            "a prompt",
-            CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
-        )
-
-        assert captured[0]["response_format"] == {
-            "type": "json_schema",
-            "json_schema": _NESTED_SCHEMA,
-        }
-        assert captured[0]["messages"] == [
-            {"role": "user", "content": "a prompt"}
-        ]
-
-    async def test_call_llm_downgrade_unwraps_nested_schema_key(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=False)
-        captured = _capture_acompletion(monkeypatch, [_completion("{}")])
-        flat_schema: dict[str, Any] = {"type": "object", "properties": {}}
-
-        await call_llm(
-            "a prompt",
-            CompletionSpec(model_name="test-model", json_schema=flat_schema),
-        )
-
-        content = captured[0]["messages"][0]["content"]
-        assert json.dumps(flat_schema, indent=2) in content
-
-    async def test_call_llm_json_backfills_before_validation_on_downgrade(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=False)
-        captured = _capture_acompletion(
-            monkeypatch, [_completion('{"summary": "ok", "assessment": {}}')]
-        )
-
-        result = await call_llm_json(
-            "a prompt",
-            CompletionSpec(model_name="test-model", json_schema=_NESTED_SCHEMA),
-            max_attempts=2,
-        )
-
-        assert result == {
-            "summary": "ok",
-            "assessment": {"verdict": "holds", "notes": []},
-        }
-        assert len(captured) == 1
-
-    async def test_call_llm_json_no_backfill_for_supported_model(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=True)
-        incomplete = _completion('{"summary": "ok", "assessment": {}}')
-        _capture_acompletion(monkeypatch, [incomplete, incomplete])
-
-        with pytest.raises(ValidationError):
-            await call_llm_json(
-                "a prompt",
-                CompletionSpec(
-                    model_name="test-model", json_schema=_NESTED_SCHEMA
-                ),
-                max_attempts=2,
-            )
-
-    async def test_call_llm_json_prunes_invented_fields_on_downgrade(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=False)
-        captured = _capture_acompletion(
-            monkeypatch,
-            [_completion('{"summary": "ok", "nih_specific_aims": "Aim 1"}')],
-        )
-
-        result = await call_llm_json(
-            "a prompt",
-            CompletionSpec(
-                model_name="test-model",
-                json_schema=_LLM_CAPABILITY_SHIM_CLOSED_SCHEMA,
-            ),
-            max_attempts=2,
-        )
-
-        assert result == {"summary": "ok"}
-        assert len(captured) == 1
-
-    async def test_call_llm_json_no_prune_for_supported_model(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=True)
-        invented = _completion(
-            '{"summary": "ok", "nih_specific_aims": "Aim 1"}'
-        )
-        _capture_acompletion(monkeypatch, [invented, invented])
-
-        with pytest.raises(ValidationError):
-            await call_llm_json(
-                "a prompt",
-                CompletionSpec(
-                    model_name="test-model",
-                    json_schema=_LLM_CAPABILITY_SHIM_CLOSED_SCHEMA,
-                ),
-                max_attempts=2,
-            )
-
-    @pytest.mark.parametrize("unnamed_envelope", [False, True])
-    async def test_native_bare_schema_has_named_wire_envelope(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-        unnamed_envelope: bool,
-    ) -> None:
-        _disable_cache(monkeypatch)
-        _patch_registry(monkeypatch, supported=True)
-        captured = _capture_acompletion(
-            monkeypatch, [_completion('{"label":"supports"}')]
-        )
-        schema = {
-            "type": "object",
-            "properties": {"label": {"type": "string", "enum": ["supports"]}},
-            "required": ["label"],
-            "additionalProperties": False,
-        }
-        result = await call_llm_json(
-            "Classify the supplied evidence.",
-            CompletionSpec(
-                model_name="test-model",
-                json_schema={"schema": schema} if unnamed_envelope else schema,
-            ),
-            max_attempts=1,
-        )
-        assert result == {"label": "supports"}
-        assert captured[0]["response_format"] == {
-            "type": "json_schema",
-            "json_schema": {"name": "response", "schema": schema},
-        }
-        assert "name" not in schema
-
-
-def test_backfill_fills_missing_required_fields_by_type() -> None:
-    schema = {
-        "type": "object",
-        "properties": {
-            "s": {"type": "string"},
-            "o": {"type": "object"},
-            "a": {"type": "array"},
-            "i": {"type": "integer"},
-            "n": {"type": "number"},
-            "u": {},
         },
-        "required": ["s", "o", "a", "i", "n", "u"],
-    }
-    obj: dict[str, Any] = {}
-
-    reshape_json_output(obj, schema)
-
-    assert obj == {"s": "", "o": {}, "a": [], "i": 0, "n": 0, "u": ""}
-
-
-def test_backfill_uses_first_enum_value_for_strings() -> None:
-    schema = {
-        "type": "object",
-        "properties": {
-            "verdict": {"type": "string", "enum": ["holds", "weakened"]}
-        },
-        "required": ["verdict"],
-    }
-    obj: dict[str, Any] = {}
-
-    reshape_json_output(obj, schema)
-
-    assert obj == {"verdict": "holds"}
-
-
-def test_backfill_recurses_into_nested_objects() -> None:
-    obj: dict[str, Any] = {"summary": "ok", "assessment": {}}
-
-    reshape_json_output(obj, _NESTED_SCHEMA["schema"])
-
-    assert obj == {
-        "summary": "ok",
-        "assessment": {"verdict": "holds", "notes": []},
-    }
-
-
-def test_backfill_leaves_present_fields_untouched() -> None:
-    obj: dict[str, Any] = {
-        "summary": 42,
-        "assessment": {"verdict": "custom", "notes": ["kept"]},
-    }
-
-    reshape_json_output(obj, _NESTED_SCHEMA["schema"])
-
-    assert obj == {
-        "summary": 42,
-        "assessment": {"verdict": "custom", "notes": ["kept"]},
-    }
-
-
-def test_backfill_ignores_required_fields_without_property_schema() -> None:
-    schema = {
-        "type": "object",
-        "properties": {},
-        "required": ["mystery"],
-    }
-    obj: dict[str, Any] = {}
-
-    reshape_json_output(obj, schema)
-
-    assert obj == {}
-
-
-def test_backfill_noop_for_non_dict_inputs() -> None:
-    reshape_json_output(["not", "a", "dict"], {"required": ["x"]})
-    reshape_json_output({}, "not a schema")
-
-
-_ARRAY_OF_OBJECTS_SCHEMA: dict[str, Any] = {
+        "required": ["steps"],
+    },
+}
+_ENVELOPE: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "items": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "notes": {"type": "array", "items": {"type": "string"}},
-                },
-                "required": ["title", "notes"],
-            },
-        },
+        "hypotheses": {"type": "array", "items": {"type": "string"}}
     },
-    "required": ["items"],
 }
 
 
-def test_backfill_recurses_into_array_items() -> None:
-    obj: dict[str, Any] = {
-        "items": [
-            {"title": "present", "notes": ["kept"]},
-            {"title": "missing notes"},
-        ]
+@pytest.mark.parametrize(
+    ("schema", "content", "repaired"),
+    [
+        (
+            NESTED_SCHEMA,
+            '{"summary": "ok", "assessment": {}}',
+            {
+                "summary": "ok",
+                "assessment": {"verdict": "holds", "notes": []},
+            },
+        ),
+        (
+            _CLOSED,
+            '{"summary": "ok", "nih_specific_aims": "Aim 1"}',
+            {"summary": "ok"},
+        ),
+        (
+            _MAX_ITEMS,
+            '{"steps": ["a", "b", "c", "d", "e", "f"]}',
+            {"steps": ["a", "b", "c", "d", "e"]},
+        ),
+        (
+            _MAX_LENGTH,
+            '{"title": "this title runs well past the cap"}',
+            {"title": "this title runs well"},
+        ),
+        (
+            _ENVELOPE,
+            '{"hypotheses": {"hypotheses": ["one"]}}',
+            {"hypotheses": ["one"]},
+        ),
+    ],
+    ids=["backfill", "prune", "truncate-array", "truncate-string", "envelope"],
+)
+async def test_only_a_json_object_provider_is_repaired_locally(
+    monkeypatch: pytest.MonkeyPatch,
+    schema: dict[str, Any],
+    content: str,
+    repaired: dict[str, Any],
+) -> None:
+    """Native schema providers reject malformed output; trimming there would
+    hide an anomaly, while JSON-object providers repeat the same flaw on
+    every retry."""
+    sent = _serve(monkeypatch, False, content)
+    spec = CompletionSpec(model_name="test-model", json_schema=schema)
+
+    assert await call_llm_json("a prompt", spec, max_attempts=2) == repaired
+    assert len(sent) == 1, "no second provider call"
+
+    _serve(monkeypatch, True, content, content)
+    with pytest.raises(ValidationError):
+        await call_llm_json("a prompt", spec, max_attempts=2)
+
+
+async def test_a_mangled_nested_taxonomy_validates_after_the_shims(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema = META_REVIEW_SCHEMA["schema"]
+    caps = schema["properties"]["recurring_themes"]["items"]["properties"][
+        "sub_themes"
+    ]
+    point_cap = caps["items"]["properties"]["points"]["maxItems"]
+    mangled = {
+        "theme": "Primary Driver vs. Consequence",
+        "points": [f"point {i}" for i in range(point_cap + 3)],
+        "example_reviews": ["review 3"],
     }
-
-    reshape_json_output(obj, _ARRAY_OF_OBJECTS_SCHEMA)
-
-    assert obj == {
-        "items": [
-            {"title": "present", "notes": ["kept"]},
-            {"title": "missing notes", "notes": []},
-        ]
+    answer = {
+        "meta_review_summary": "",
+        "recurring_themes": [
+            {
+                "theme": "Core",
+                "description": "How the mechanism is argued.",
+                "frequency": "very common",
+                "sub_themes": [mangled] * (caps["maxItems"] + 2),
+            }
+        ],
+        "strengths": [],
+        "weaknesses": [],
+        "process_assessment": {
+            "generation_process": "",
+            "review_process": "",
+            "evolution_process": "",
+        },
+        "strategic_recommendations": [],
+        "potential_connections": [],
+        "candidate_comparison": {
+            "thematic_summary": "",
+            "axes": [],
+            "ideas": [],
+        },
+        "existing_solutions_comparison": {
+            "summary": "",
+            "axes": [],
+            "rows": [],
+        },
+        "main_research_directions": "",
     }
+    _serve(monkeypatch, False, json.dumps(answer))
+
+    result = await call_llm_json(
+        "a prompt",
+        CompletionSpec(model_name="test-model", json_schema=META_REVIEW_SCHEMA),
+        max_attempts=1,
+    )
+
+    subs = result["recurring_themes"][0]["sub_themes"]
+    assert len(subs) == caps["maxItems"]
+    assert subs[0]["description"] == "", "a missing nested field is backfilled"
+    assert "example_reviews" not in subs[0], "an invented key is pruned"
+    assert len(subs[0]["points"]) == point_cap
 
 
-def test_backfill_ignores_non_dict_array_items() -> None:
-    obj: dict[str, Any] = {"items": ["not a dict", 42]}
-
-    reshape_json_output(obj, _ARRAY_OF_OBJECTS_SCHEMA)
-
-    assert obj == {"items": ["not a dict", 42]}
-
-
-def test_backfill_rescues_a_full_review_missing_reviews_summary() -> None:
-    """Required nested review blocks must backfill too on JSON-object
-    providers."""
-    schema = FULL_REVIEW_SCHEMA["schema"]
-    answer: dict[str, Any] = {
-        "correctness": "Internally consistent.",
-        "assumptions": [],
-        "quality_and_novelty": "A non-obvious combination.",
-        "literature_grounding": "Two cohort studies agree.",
-        "verdict": "sound",
-        "justification": "Worth a pilot.",
-    }
-
-    reshape_json_output(answer, schema)
-
-    jsonschema.validate(instance=answer, schema=schema)
-    assert answer["reviews_summary"]["critical_flaws"] == []
-    assert answer["reviews_summary"]["executive_verdict"] == ""
-    assert answer["feasibility_steps"] == []
-
-
-_LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA: dict[str, Any] = {
+_PRUNE_CLOSED: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
@@ -542,109 +294,219 @@ _LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA: dict[str, Any] = {
         },
     },
 }
+_ITEMS_REQUIRED: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "notes": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["title", "notes"],
+            },
+        },
+    },
+    "required": ["items"],
+}
+_BOUNDS: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "steps": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+        "unbounded": {"type": "array", "items": {"type": "string"}},
+        "sections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "notes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 1,
+                    },
+                    "note": {"type": "string", "maxLength": 8},
+                },
+            },
+        },
+        "title": {"type": "string", "maxLength": 20},
+        "code": {"type": "string", "minLength": 3, "maxLength": 5},
+        "free": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string", "maxLength": 6}},
+    },
+}
 
 
-def test_prune_drops_invented_top_level_properties() -> None:
-    obj: dict[str, Any] = {
-        "summary": "ok",
-        "knowledge_base": {"entries": []},
-        "nih_specific_aims": "Aim 1",
-        "research_contacts": ["someone"],
-    }
-
-    reshape_json_output(obj, _LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA)
-
-    assert obj == {"summary": "ok"}
-
-
-def test_prune_recurses_into_nested_objects() -> None:
-    obj: dict[str, Any] = {
-        "assessment": {"verdict": "holds", "confidence": 0.9}
-    }
-
-    reshape_json_output(obj, _LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA)
-
-    assert obj == {"assessment": {"verdict": "holds"}}
-
-
-def test_prune_recurses_into_arrays_of_objects() -> None:
-    obj: dict[str, Any] = {"items": [{"title": "a", "rank": 1}, {"title": "b"}]}
-
-    reshape_json_output(obj, _LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA)
-
-    assert obj == {"items": [{"title": "a"}, {"title": "b"}]}
-
-
-def test_prune_keeps_extras_where_the_schema_allows_them() -> None:
-    schema: dict[str, Any] = {
-        "type": "object",
-        "properties": {"summary": {"type": "string"}},
-    }
-    obj: dict[str, Any] = {"summary": "ok", "extra": 1}
-
+@pytest.mark.parametrize(
+    ("schema", "obj", "expected"),
+    [
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "s": {"type": "string"},
+                    "o": {"type": "object"},
+                    "a": {"type": "array"},
+                    "i": {"type": "integer"},
+                    "n": {"type": "number"},
+                    "u": {},
+                    "e": {"type": "string", "enum": ["holds", "weakened"]},
+                    "mystery_has_no_property_schema": {},
+                },
+                "required": ["s", "o", "a", "i", "n", "u", "e", "unknown"],
+            },
+            {},
+            {
+                "s": "",
+                "o": {},
+                "a": [],
+                "i": 0,
+                "n": 0,
+                "u": "",
+                "e": "holds",
+            },
+        ),
+        (
+            NESTED_SCHEMA["schema"],
+            {
+                "summary": 42,
+                "assessment": {"verdict": "custom", "notes": ["k"]},
+            },
+            {
+                "summary": 42,
+                "assessment": {"verdict": "custom", "notes": ["k"]},
+            },
+        ),
+        (
+            _ITEMS_REQUIRED,
+            {
+                "items": [
+                    {"title": "present", "notes": ["kept"]},
+                    {"title": "x"},
+                ]
+            },
+            {
+                "items": [
+                    {"title": "present", "notes": ["kept"]},
+                    {"title": "x", "notes": []},
+                ]
+            },
+        ),
+        (
+            _ITEMS_REQUIRED,
+            {"items": ["not a dict", 42]},
+            {"items": ["not a dict", 42]},
+        ),
+        (
+            _PRUNE_CLOSED,
+            {
+                "summary": "ok",
+                "knowledge_base": {"entries": []},
+                "assessment": {"verdict": "holds", "confidence": 0.9},
+                "items": [{"title": "a", "rank": 1}, {"title": "b"}],
+            },
+            {
+                "summary": "ok",
+                "assessment": {"verdict": "holds"},
+                "items": [{"title": "a"}, {"title": "b"}],
+            },
+        ),
+        (
+            {"type": "object", "properties": {"summary": {"type": "string"}}},
+            {"summary": "ok", "extra": 1},
+            {"summary": "ok", "extra": 1},
+        ),
+        (_PRUNE_CLOSED, {"summary": 42}, {"summary": 42}),
+        (
+            _BOUNDS,
+            {
+                "steps": ["a", "b", "c", "d"],
+                "unbounded": list("abcdefghij"),
+                "sections": [
+                    {"notes": ["first", "second"], "note": "way too long"},
+                    {"notes": ["only one"], "note": "ok"},
+                ],
+                "tags": ["short", "waytoolongtag"],
+            },
+            {
+                "steps": ["a", "b", "c"],
+                "unbounded": list("abcdefghij"),
+                "sections": [
+                    {"notes": ["first"], "note": "way too"},
+                    {"notes": ["only one"], "note": "ok"},
+                ],
+                "tags": ["short", "waytoo"],
+            },
+        ),
+        (
+            _BOUNDS,
+            {"title": "abcdefghij klmnopqr stuvwxyz"},
+            {"title": "abcdefghij klmnopqr"},
+        ),
+        (
+            _BOUNDS,
+            {"title": "onelongwordwithnospaceatall"},
+            {"title": "onelongwordwithnospa"},
+        ),
+        (
+            _BOUNDS,
+            {"code": "ab", "free": "x" * 30, "title": 12345, "steps": "none"},
+            {"code": "ab", "free": "x" * 30, "title": 12345, "steps": "none"},
+        ),
+    ],
+    ids=[
+        "backfill-by-type",
+        "backfill-leaves-present-fields",
+        "backfill-array-items",
+        "non-dict-array-items-ignored",
+        "prune-nested-and-array",
+        "prune-keeps-extras-the-schema-allows",
+        "prune-keeps-declared-invalid",
+        "truncate-arrays-and-strings",
+        "truncate-at-a-word-boundary",
+        "truncate-hard-cut",
+        "truncate-leaves-what-it-cannot-bound",
+    ],
+)
+def test_reshaping_repairs_only_what_the_schema_lets_it(
+    schema: dict[str, Any], obj: Any, expected: Any
+) -> None:
     reshape_json_output(obj, schema)
 
-    assert obj == {"summary": "ok", "extra": 1}
+    assert obj == expected
 
 
-def test_prune_keeps_declared_fields_even_when_invalid() -> None:
-    obj: dict[str, Any] = {"summary": 42}
-
-    reshape_json_output(obj, _LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA)
-
-    assert obj == {"summary": 42}
-
-
-def test_prune_noop_for_non_dict_inputs() -> None:
-    reshape_json_output(
-        ["not", "a", "dict"], _LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA
-    )
+def test_reshaping_ignores_inputs_that_are_not_objects() -> None:
+    reshape_json_output(["not", "a", "dict"], {"required": ["x"]})
     reshape_json_output({"a": 1}, "not a schema")
 
 
-@pytest.mark.parametrize("envelope", [{"hypotheses": ["one"]}, {"items": []}])
-def test_downgraded_nested_array_envelope_is_unwrapped(
-    envelope: dict[str, Any],
-) -> None:
-    schema = {
-        "type": "object",
-        "properties": {
-            "hypotheses": {"type": "array", "items": {"type": "string"}}
-        },
-    }
-    result = {"hypotheses": envelope}
-    reshape_json_output(result, schema)
-    assert result["hypotheses"] == next(iter(envelope.values()))
-
-
-def test_ambiguous_array_envelope_still_fails_validation() -> None:
+def test_an_ambiguous_array_envelope_still_fails_validation() -> None:
     schema = {"type": "object", "properties": {"hypotheses": {"type": "array"}}}
     result: dict[str, Any] = {"hypotheses": {"a": [], "b": []}}
+
     reshape_json_output(result, schema)
+
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(result, schema)
 
 
-@pytest.mark.asyncio
-async def test_wrapped_array_succeeds_without_a_second_provider_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _disable_cache(monkeypatch)
-    _patch_registry(monkeypatch, supported=False)
-    captured = _capture_acompletion(
-        monkeypatch, [_completion('{"hypotheses": {"hypotheses": ["one"]}}')]
-    )
-    result = await call_llm_json(
-        "generate",
-        CompletionSpec(
-            model_name="test-model",
-            json_schema={
-                "type": "object",
-                "properties": {
-                    "hypotheses": {"type": "array", "items": {"type": "string"}}
-                },
-            },
-        ),
-    )
-    assert result == {"hypotheses": ["one"]}
-    assert len(captured) == 1
+def test_a_full_review_missing_its_summary_blocks_is_rescued() -> None:
+    """Required nested review blocks must backfill on JSON-object
+    providers."""
+    schema = FULL_REVIEW_SCHEMA["schema"]
+    answer: dict[str, Any] = {
+        "correctness": "Internally consistent.",
+        "assumptions": [],
+        "quality_and_novelty": "A non-obvious combination.",
+        "literature_grounding": "Two cohort studies agree.",
+        "verdict": "sound",
+        "justification": "Worth a pilot.",
+    }
+
+    reshape_json_output(answer, schema)
+
+    jsonschema.validate(instance=answer, schema=schema)
+    assert answer["reviews_summary"]["critical_flaws"] == []
+    assert answer["feasibility_steps"] == []
