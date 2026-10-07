@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.platform.llm.tool_effects import declare_local_tool
-from co_scientist.platform.retrieval.tools.provider import tool_error_message, tool_result_message
-from co_scientist.platform.retrieval.tools.provider import tracked_executor as track_calls
+from co_scientist.platform.llm.tools.messages import tool_error_message, tool_result_message
+from co_scientist.platform.llm.tools.messages import tracked_executor as track_calls
 from co_scientist.platform.sandbox import (
     SandboxKind,
     SandboxPolicy,

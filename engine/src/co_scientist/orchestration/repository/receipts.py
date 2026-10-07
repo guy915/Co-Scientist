@@ -4,7 +4,7 @@ import re
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from co_scientist.platform.db import current_time, use_conn
 from co_scientist.platform.db.models import RunRow, row_to_run
@@ -95,6 +95,34 @@ def _recheck_receipt_and_documents(
     return current, None
 
 
+def _index_staged_documents_for_run(
+    run_id: str,
+    staged: list[dict[str, Any]],
+    source: str,
+    *,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    from co_scientist.domains.documents.repository import mark_documents_used_by_run
+    from co_scientist.domains.research_state.repository.records import NewEvidence, add_evidence
+
+    for document in staged:
+        add_evidence(
+            NewEvidence(
+                run_id=run_id,
+                title=str(document["title"]),
+                source=source,
+                abstract=str(document["text"]),
+                mime_type=str(document["mime_type"]),
+                sha256=str(document["sha256"]),
+                byte_size=int(document["byte_size"]),
+                document_version=str(document["sha256"]),
+                extraction_tool=str(document["extraction_tool"]),
+            ),
+            conn=conn,
+        )
+    mark_documents_used_by_run(run_id, [str(document["id"]) for document in staged], conn=conn)
+
+
 def commit_run_creation(
     client_id: str,
     idempotency_key: str | None,
@@ -108,7 +136,6 @@ def commit_run_creation(
     setup, credentials and attachment persistence.
     """
     from co_scientist.domains.access import credentials
-    from co_scientist.domains.documents.repository import index_staged_documents_for_run
     from co_scientist.platform.db import transaction
 
     if (idempotency_key is None) != (request_digest is None):
@@ -122,7 +149,7 @@ def commit_run_creation(
         run = create_run(conn)
         if byok is not None:
             credentials.store_run_credential(run.id, client_id, byok, conn=conn)
-        index_staged_documents_for_run(run.id, current_documents, attachment_source, conn=conn)
+        _index_staged_documents_for_run(run.id, current_documents, attachment_source, conn=conn)
         if idempotency_key is not None and request_digest is not None:
             add_run_creation_receipt(
                 client_id,
