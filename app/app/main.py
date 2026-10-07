@@ -10,6 +10,12 @@ from typing import Any, cast
 
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import uvicorn
+from co_scientist.api.auth import Principal, principal_for_request
+from co_scientist.api.diagnostics_api import router as diagnostics_api_router
+from co_scientist.api.documents import router as documents_router
+from co_scientist.api.feedback_api import router as feedback_router
+from co_scientist.api.logs_api import router as logs_router
+from co_scientist.api.runs import router as runs_router
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.domains.access.byok_models import router as byok_models_router
@@ -35,12 +41,6 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app import API_VERSION
-from app.auth import Principal, principal_for_request
-from app.diagnostics_api import router as diagnostics_api_router
-from app.documents import router as documents_router
-from app.feedback_api import router as feedback_router
-from app.logs_api import router as logs_router
-from app.runs import router as runs_router
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
 async def _resume_checkpointed_runs(resumable: list[str]) -> None:
     if not resumable:
         return
-    from app.runs import resume_interrupted_runs
+    from co_scientist.api.runs import resume_interrupted_runs
 
     await resume_interrupted_runs(resumable)
 
@@ -282,9 +282,12 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     ownership_response = await _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response
+    from co_scientist.platform.db.admission import connecting_host
     from co_scientist.platform.llm.provider_usage import scoped_client
 
-    with scoped_client(principal.subject):
+    with scoped_client(
+        principal.subject, host=connecting_host(request.client.host if request.client else None)
+    ):
         return cast(Response, await call_next(request))
 
 

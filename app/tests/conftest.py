@@ -91,7 +91,7 @@ def fake_process_mode() -> Iterator[FakeProcessMode]:
 def _fresh_probe_cache() -> None:
     # Clear module probe caches so earlier tests cannot supply status within the
     # TTL window.
-    from app.diagnostics import clear_probe_cache
+    from co_scientist.api.diagnostics import clear_probe_cache
 
     clear_probe_cache()
 
@@ -100,7 +100,7 @@ def _fresh_probe_cache() -> None:
 def _fresh_health_check_cache() -> None:
     # Health caches reference prior isolated databases; clear them before each
     # test.
-    from app.diagnostics import clear_health_check_cache
+    from co_scientist.api.diagnostics import clear_health_check_cache
 
     clear_health_check_cache()
 

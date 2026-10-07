@@ -19,7 +19,7 @@ def real_backend(monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcess
     async def _no_title(goal: str) -> None:
         return None
 
-    monkeypatch.setattr("app.runs.crud.generate_run_title", _no_title)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_run_title", _no_title)
 
 
 def _create(

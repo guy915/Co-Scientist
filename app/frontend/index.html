@@ -55,6 +55,11 @@
       background-size: 200% 100%;
       animation: sk-shimmer 1.5s ease-in-out infinite;
     }
+    @media (prefers-reduced-motion: reduce) {
+      .sk {
+        animation: none;
+      }
+    }
     .sk-wrap {
       min-height: 100vh;
       background: var(--sk-bg);

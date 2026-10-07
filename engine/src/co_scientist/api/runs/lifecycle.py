@@ -6,9 +6,14 @@ import os
 import sqlite3
 from typing import Any
 
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import co_scientist.orchestration.engine_tasks as engine_tasks
 import co_scientist.orchestration.task_worker as task_worker
+from co_scientist.api.auth import client_id
+from co_scientist.api.runs.models import SafetyAdjudicationRequest, StartRunRequest
+from co_scientist.api.runs.support import _run_or_404
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.repository import records
@@ -24,11 +29,6 @@ from co_scientist.platform.db.models import (
     RunStatus,
     ScientificTask,
 )
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-
-from app.auth import client_id
-from app.runs.models import SafetyAdjudicationRequest, StartRunRequest
-from app.runs.support import _run_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +130,11 @@ def _queue_resume_workflow(
             expected_lifecycle_revision,
             conn=conn,
         )
+        run = _run_or_404(run_id, conn=conn)
+        if not runs.has_run_capacity_in_transaction(
+            conn, run.id, run.client_id, settings.max_concurrent_runs
+        ):
+            raise HTTPException(status_code=409, detail="concurrent run limit reached")
         revive_failed_bootstrap = _has_failed_precheckpoint_bootstrap_while_paused(
             run_id, conn=conn
         )

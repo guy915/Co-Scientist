@@ -154,7 +154,7 @@ export function ReportErrorAlert({message}: {message: string | null}) {
     <Card
       role="alert"
       tone="danger"
-      layoutClassName="cosci-report-alert mx-8 mt-4"
+      layoutClassName="cosci-report-alert ui-motion-enter mx-8 mt-4"
     >
       {message}
     </Card>
@@ -201,7 +201,9 @@ export function RunEndState({
   const copy = END_STATE_COPY[status];
   const guidance = status === 'failed' ? runFailureGuidance(failureKind) : null;
   return (
-    <article className={REPORT_DOCUMENT_CLASSES}>
+    <article
+      className={joinClasses(REPORT_DOCUMENT_CLASSES, 'ui-motion-enter')}
+    >
       <h2 className={REPORT_H2_CLASSES}>{copy.heading}</h2>
       <p>{copy.description}</p>
       {guidance && (
@@ -236,7 +238,7 @@ export function RunEndState({
 }
 
 const NOTICE_LAYOUT_CLASSES =
-  'mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
+  'ui-motion-enter mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
 
 // A completed run without literature still needs an explicit ungrounded report
 // notice.

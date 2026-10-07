@@ -5,14 +5,24 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
 
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.access.free_usage as free_usage
 import co_scientist.domains.documents.staged as staged_documents
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import co_scientist.orchestration.repository.receipts as run_creation_receipts
 import co_scientist.platform.retrieval.run_corpus as run_corpus
+from co_scientist.api.auth import client_id, require_client_scope
+from co_scientist.api.runs.models import (
+    CreateRunRequest,
+    RenameRunRequest,
+    _build_create_run_config,
+)
+from co_scientist.api.runs.support import _run_or_404
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
+from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.domains.chat.goal_text import (
     clean_title,
     generate_goal_restatement,
@@ -28,20 +38,12 @@ from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.admission import claim_run, connecting_host
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from co_scientist.platform.llm.execution_policy import (
     ZERO_COST_CONFIG_KEY,
     deployment_routes_are_free,
 )
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
-
-from app.auth import client_id, require_client_scope
-from app.runs.models import (
-    CreateRunRequest,
-    RenameRunRequest,
-    _build_create_run_config,
-)
-from app.runs.support import _run_or_404
 
 
 async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
@@ -336,6 +338,13 @@ def _persist_setup_transaction(
         )
         if setup.free_usage:
             free_usage.claim_free_run(conn, admission.owner, run.id)
+        claim_run(
+            conn,
+            run.id,
+            admission.owner,
+            connecting_host(request.client.host if request.client else None),
+            free=setup.free_usage,
+        )
         return run
 
     try:
@@ -352,6 +361,8 @@ def _persist_setup_transaction(
         raise HTTPException(status_code=404, detail="attached document not found") from exc
     except free_usage.FreeUsageExhaustedError as exc:
         raise free_usage.exhausted_error() from exc
+    except ProviderAdmissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     return run, receipt
 
 
@@ -664,7 +675,7 @@ def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
             before this handler runs); 403 for a shared demo run, which
             that middleware deliberately exempts from ownership so every
             caller can read it, and which is therefore no one caller's to
-            rename (the same guard ``app.runs.crud`` applies).
+            rename (the same guard ``co_scientist.api.runs.crud`` applies).
     """
     run = _run_or_404(run_id)
     if run.client_id == DEMO_CLIENT_ID:
