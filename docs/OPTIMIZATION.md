@@ -8,7 +8,7 @@ make it a production-ready, professional-grade product.
 This plan sets the goal, the guardrails and the starting evidence. It does not
 list every task. The campaign finds them, ranks them and works through them.
 
-**Status:** in progress since 6 October 2026. The audit is recorded in
+**Status:** done, 6–7 October 2026. The audit is recorded in
 `docs/optimization/findings.md`, whose Progress table lists each fix and its
 numbers: CI 5:51 → 2:43 wall, store and API latency, request handlers off the
 event loop, bundle size and caching, typing latency, contrast and focus, error
@@ -17,9 +17,9 @@ its risk (listed with the reason) or an owner action on the board. Standard and
 Express baselines with per-stage timings are recorded. The model lane removed
 retries against a missing tool (M10); its three answer-changing batches each
 lost claim verification and are rejected, so the model configuration is
-unchanged. The final Express and Standard check runs after the daily request
-reset.
-Live progress is on the `Campaign board: optimization` issue.
+unchanged. The non-blocking final check (one Express and one Standard run on
+`main`) runs after the daily request reset and is appended when it finishes.
+Owner actions remain on the `Campaign board: optimization` issue.
 
 ## Scope
 
