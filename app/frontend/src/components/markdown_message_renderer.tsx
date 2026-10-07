@@ -7,8 +7,8 @@ import {
   type ReactNode,
 } from 'react';
 import Markdown from 'react-markdown';
-import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
+import {rehypeHighlightKnownLanguages} from './highlight_code';
 import {Icon} from './icon';
 import {copyText} from '../lib/clipboard';
 import {fromMarkdown} from 'mdast-util-from-markdown';
@@ -17,9 +17,8 @@ import {gfmFromMarkdown} from 'mdast-util-gfm';
 
 const REMARK_PLUGINS = [remarkGfm];
 
-// Highlight only the parsed tree, never raw HTML. The common-language subset
-// bounds the shipped bundle.
-const REHYPE_PLUGINS = [rehypeHighlight];
+// Highlight only the parsed tree, never raw HTML.
+const REHYPE_PLUGINS = [rehypeHighlightKnownLanguages];
 
 // Never enable rehype-raw for untrusted model output. Scientist text stays
 // plain because its collapse measurement depends on that span.
