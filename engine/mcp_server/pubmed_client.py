@@ -16,16 +16,11 @@ logger = logging.getLogger(__name__)
 # impossible relaxation.
 MIN_RESULTS_BEFORE_RELAX = 3
 
+# PubMed reserves uppercase AND/OR/NOT; lowercase forms are ordinary search terms
+# (NCBI PubMed Help).
 _BOOLEAN_OPERATORS = frozenset({"AND", "OR", "NOT"})
 
 EsearchFn = Callable[[str, int, int], list[str]]
-
-
-def _has_boolean_structure(query: str) -> bool:
-    """PubMed reserves uppercase AND/OR/NOT; lowercase forms are ordinary
-    search terms (NCBI PubMed Help).
-    """
-    return any(token in _BOOLEAN_OPERATORS for token in query.split())
 
 
 def _field_tagged_term(term: str) -> str:
@@ -33,13 +28,6 @@ def _field_tagged_term(term: str) -> str:
     unmatched phrases into ANDed words.
     """
     return f"({term}[tiab] OR {term}[mesh])"
-
-
-def field_tag_terms(query: str, joiner: str) -> str:
-    """Callers screen out explicit Boolean queries first; retagging them would
-    override the caller's query intent.
-    """
-    return joiner.join(_field_tagged_term(term) for term in query.split())
 
 
 # Two leading terms anchor the topic; one is broad, while three can reproduce
@@ -51,9 +39,9 @@ def anchored_relaxed_query(query: str) -> str | None:
     """Leading terms carry the subject; relaxing them would answer a
     different question.
     """
-    if _has_boolean_structure(query):
-        return None
     tokens = query.split()
+    if any(token in _BOOLEAN_OPERATORS for token in tokens):
+        return None
     if len(tokens) <= _ANCHOR_TERMS:
         return None
     anchors = " AND ".join(_field_tagged_term(term) for term in tokens[:_ANCHOR_TERMS])
@@ -62,12 +50,12 @@ def anchored_relaxed_query(query: str) -> str | None:
 
 
 def or_relaxed_query(query: str) -> str | None:
-    if _has_boolean_structure(query):
-        return None
     tokens = query.split()
+    if any(token in _BOOLEAN_OPERATORS for token in tokens):
+        return None
     if len(tokens) < 2:
         return None
-    return field_tag_terms(query, " OR ")
+    return " OR ".join(_field_tagged_term(term) for term in tokens)
 
 
 def relaxation_ladder(query: str, recency_years: int = 0) -> list[tuple[str, int]]:
