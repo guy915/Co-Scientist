@@ -294,3 +294,29 @@ __all__ = [
     "model_profile",
     "priced_routes",
 ]
+
+
+# Pricing uses exact case-sensitive routes; capability lookup does not.
+MODEL_PRICING: Final[dict[str, ModelPrice]] = priced_routes()
+
+
+def estimate_cost_usd(
+    model_name: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cached_prompt_tokens: int = 0,
+) -> float:
+    """Unknown exact routes remain untracked; measured cache-read rates price
+    provider cache hits.
+    """
+    price = MODEL_PRICING.get(model_name)
+    if price is None:
+        return 0.0
+    cached = 0
+    if price.cached_prompt_usd_per_million:
+        cached = max(0, min(cached_prompt_tokens, prompt_tokens))
+    return (
+        (prompt_tokens - cached) / 1_000_000 * price.prompt_usd_per_million
+        + cached / 1_000_000 * price.cached_prompt_usd_per_million
+        + completion_tokens / 1_000_000 * price.completion_usd_per_million
+    )

@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import {getSystemStatus, type SystemStatus} from '@/api/system';
+import {getSystemStatus, type SystemStatus} from '@/shared/api/system';
 
 interface SystemStatusState {
   status: SystemStatus | null;

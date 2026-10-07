@@ -3,7 +3,7 @@ import {it, expect} from 'vitest';
 import {render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {IdeasTab} from './ideas_tab';
-import type {Hypothesis} from '@/api/runs';
+import type {Hypothesis} from '@/shared/api/runs';
 import {makeHypothesis} from '@/test_fixtures';
 
 function renderIdeas(ui: ReactElement, path = '/runs/run-1/ideas') {

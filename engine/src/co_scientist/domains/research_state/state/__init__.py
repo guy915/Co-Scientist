@@ -8,12 +8,8 @@ from typing import Annotated, Any
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
 
-from co_scientist.domains.research_state.models import (
-    Article,
-    ExecutionMetrics,
-    Hypothesis,
-    merge_metrics,
-)
+from co_scientist.domains.research_state.models import ExecutionMetrics, Hypothesis, merge_metrics
+from co_scientist.platform.retrieval.article import Article
 
 logger = logging.getLogger(__name__)
 

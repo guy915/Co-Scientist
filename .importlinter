@@ -29,10 +29,7 @@ layers =
     co_scientist.platform.telemetry
     co_scientist.core
 ignore_imports =
-    co_scientist.core.config -> co_scientist.platform.llm
-    co_scientist.domains.research_state.drain.matches -> co_scientist.science.ranking.ranking_debate
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.research
-    co_scientist.domains.documents.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
     co_scientist.domains.access.free_usage -> co_scientist.api.auth
     co_scientist.domains.access.free_usage -> co_scientist.api.runs.models
     co_scientist.domains.chat.interviews -> co_scientist.api.contracts.interviews
@@ -42,8 +39,6 @@ ignore_imports =
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.events
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.tasks
     co_scientist.domains.chat.qa.snapshot -> co_scientist.orchestration.repository.supervisor_plan
-    co_scientist.domains.chat.qa.snapshot -> co_scientist.orchestration.checkpoint
-    co_scientist.domains.report.content -> co_scientist.science.reflection.reflection_helpers
     co_scientist.domains.report.finalize -> co_scientist.orchestration.engine_tasks.runtime
     co_scientist.domains.report.finalize -> co_scientist.orchestration.engine_tasks.support
     co_scientist.domains.report.finalize -> co_scientist.orchestration.notifications
@@ -58,25 +53,16 @@ ignore_imports =
     co_scientist.domains.safety.gate -> co_scientist.orchestration.task_worker.outcomes
     co_scientist.domains.chat.seed -> co_scientist.orchestration.repository.runs_views
     co_scientist.platform.db.checkpoints -> co_scientist.orchestration.repository.supervisor_plan
-    co_scientist.domains.documents.repository -> co_scientist.domains.research_state.repository.records
     co_scientist.domains.chat.repository.examples -> co_scientist.orchestration.repository.runs
     co_scientist.platform.telemetry.logs -> co_scientist.platform.db
     co_scientist.platform.telemetry.retrieval_calls -> co_scientist.platform.db
     co_scientist.platform.telemetry.retrieval_calls -> co_scientist.science.research
-    co_scientist.core.constants -> co_scientist.platform.llm.profile
-    co_scientist.platform.retrieval.evidence.article_support -> co_scientist.domains.research_state.models
     co_scientist.platform.retrieval.evidence.article_support -> co_scientist.science.research
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
-    co_scientist.platform.retrieval.evidence.search -> co_scientist.domains.research_state.state
-    co_scientist.platform.retrieval.evidence.search_support -> co_scientist.domains.research_state.state
-    co_scientist.core.metrics -> co_scientist.platform.llm
-    co_scientist.platform.telemetry.progress -> co_scientist.domains.research_state.state
     co_scientist.platform.retrieval.research_adapter -> co_scientist.science.prompts
     co_scientist.platform.retrieval.research_adapter -> co_scientist.science.research
     co_scientist.platform.llm.tool_effects -> co_scientist.platform.retrieval.config.registry
-    co_scientist.platform.retrieval.tools.response_parser -> co_scientist.domains.research_state.models
-    co_scientist.platform.sandbox.workspace.tools -> co_scientist.platform.retrieval.tools.provider
 
 [importlinter:contract:agents]
 name = Science agents are independent
@@ -97,7 +83,6 @@ ignore_imports =
     co_scientist.science.evolution.evolve_prompt -> co_scientist.science.reflection.review_gate
     co_scientist.science.evolution.evolve_results -> co_scientist.science.generation.citations
     co_scientist.science.evolution.operations -> co_scientist.science.generation.citations
-    co_scientist.science.generation.literature_review.enrichment -> co_scientist.science.reflection.reflection_helpers
     co_scientist.science.generation.operations -> co_scientist.science.meta_review.research_overview
     co_scientist.science.meta_review.meta_review -> co_scientist.science.reflection.review_gate
     co_scientist.science.meta_review.meta_review -> co_scientist.science.safety_screen
@@ -242,6 +227,8 @@ source_modules =
     co_scientist.science
     co_scientist.platform.retrieval.research_adapter
     co_scientist.platform.retrieval.degradation
+    co_scientist.platform.retrieval.article
+    co_scientist.domains.research_state.entity_names
     co_scientist.core.json_schema
     co_scientist.domains.safety.rules
     co_scientist.platform.sandbox

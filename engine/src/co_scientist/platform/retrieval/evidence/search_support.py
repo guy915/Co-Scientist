@@ -1,13 +1,14 @@
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from co_scientist.core.constants import (
     LITERATURE_REVIEW_PAPERS_COUNT,
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
 )
-from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.evidence.search_fusion import (
     merge_search_results as merge_search_results,
 )
@@ -24,11 +25,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SearchConfig:
-    tool_registry: Optional["ToolRegistry"]
-    workflow: Optional["WorkflowConfig"]
+    tool_registry: ToolRegistry | None
+    workflow: WorkflowConfig | None
     is_multi_source: bool
     search_tool_name: str
-    search_tool_config: Optional["ToolConfig"]
+    search_tool_config: ToolConfig | None
     source_name: str
     papers_to_read_count: int
     is_dev_mode: bool
@@ -42,10 +43,10 @@ class SearchConfig:
 
 
 def _primary_search_tool(
-    tool_registry: "ToolRegistry | None",
-    workflow: "WorkflowConfig | None",
+    tool_registry: ToolRegistry | None,
+    workflow: WorkflowConfig | None,
     is_multi_source: bool,
-) -> "ToolConfig | None":
+) -> ToolConfig | None:
     if is_multi_source and workflow is not None:
         sources = workflow.get_enabled_search_sources()
         logger.info(
@@ -59,7 +60,18 @@ def _primary_search_tool(
     return None
 
 
-def search_config_for(state: WorkflowState) -> SearchConfig:
+# The WorkflowState keys search reads; retrieval sits below the domain state,
+# which satisfies this structurally.
+class SearchState(TypedDict):
+    research_goal: str
+    run_id: str
+    model_name: str
+    literature_review_papers_count: int
+    dev_mode: bool | None
+    tool_registry: Any | None
+
+
+def search_config_for(state: SearchState) -> SearchConfig:
     tool_registry = state.get("tool_registry")
     workflow = tool_registry.get_workflow("literature_review") if tool_registry else None
     is_multi_source = bool(workflow and workflow.is_multi_source())
@@ -91,7 +103,7 @@ def search_config_for(state: WorkflowState) -> SearchConfig:
     )
 
 
-def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:
+def _quoted_field_mapping_source(tool_config: ToolConfig) -> str | None:
     """YAML field_mapping encodes static source labels as quoted literals,
     not field names."""
     if not (tool_config.response_format and tool_config.response_format.field_mapping):
@@ -102,7 +114,7 @@ def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:
     return source_val[1:-1]
 
 
-def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
+def extract_source_name(tool_config: ToolConfig | None) -> str:
     if not tool_config:
         return "unknown"
     literal_source = _quoted_field_mapping_source(tool_config)
@@ -112,7 +124,7 @@ def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
     return tool_config.source_type or "unknown"
 
 
-def _resolve_source_id_field(tool_config: "ToolConfig") -> str:
+def _resolve_source_id_field(tool_config: ToolConfig) -> str:
     """The @ prefix is field-mapping transform syntax, not a native response
     key."""
     source_id_field = tool_config.response_format.field_mapping.get("source_id", "source_id")
@@ -123,7 +135,7 @@ def _resolve_source_id_field(tool_config: "ToolConfig") -> str:
 
 def _rekey_list_response_by_id(
     papers: list[Any],
-    tool_config: "ToolConfig",
+    tool_config: ToolConfig,
 ) -> dict[str, Any]:
     source_id_field = _resolve_source_id_field(tool_config)
     normalized: dict[str, Any] = {}
@@ -147,7 +159,7 @@ def _extract_results_path(result_data: Any, results_path: str | None) -> Any:
 
 def _normalize_with_response_format(
     result_data: Any,
-    tool_config: "ToolConfig",
+    tool_config: ToolConfig,
 ) -> dict[str, dict[str, Any]]:
     response_format = tool_config.response_format
     result_data = _extract_results_path(result_data, response_format.results_path)
@@ -163,7 +175,7 @@ def _normalize_with_response_format(
 
 def normalize_search_response(
     result_data: Any,
-    tool_config: Optional["ToolConfig"],
+    tool_config: ToolConfig | None,
 ) -> dict[str, dict[str, Any]]:
     if not isinstance(result_data, (dict, list)):
         return {}
@@ -190,9 +202,9 @@ def parse_mcp_query_result(result: Any) -> list[str]:
 
 
 def determine_query_source_type(
-    workflow: Optional["WorkflowConfig"],
-    tool_registry: Optional["ToolRegistry"],
-    search_tool_config: Optional["ToolConfig"],
+    workflow: WorkflowConfig | None,
+    tool_registry: ToolRegistry | None,
+    search_tool_config: ToolConfig | None,
     is_multi_source: bool,
 ) -> str:
     # One specialized query prompt cannot serve every source of a multi-source run.

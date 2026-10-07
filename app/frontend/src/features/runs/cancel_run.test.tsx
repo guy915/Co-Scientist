@@ -1,14 +1,16 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {HttpError} from '@/api/runs';
+import {HttpError} from '@/shared/api/runs';
 import {RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import {CancelRunControl} from './cancel_run';
 
 const cancelRun = vi.hoisted(() => vi.fn());
 
-vi.mock('@/api/runs', async () => {
+vi.mock('@/shared/api/runs', async () => {
   const actual =
-    await vi.importActual<typeof import('@/api/runs')>('@/api/runs');
+    await vi.importActual<typeof import('@/shared/api/runs')>(
+      '@/shared/api/runs',
+    );
   return {...actual, cancelRun};
 });
 
