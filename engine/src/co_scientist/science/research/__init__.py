@@ -24,6 +24,7 @@ from co_scientist.science.research.serialization import (
     result_from_dict,
     result_to_dict,
 )
+from co_scientist.science.research.strings import string_items, stripped_string_items
 
 __all__ = [
     "DEFAULT_BREADTH_FLOOR",
@@ -49,4 +50,6 @@ __all__ = [
     "dedupe_findings",
     "result_from_dict",
     "result_to_dict",
+    "string_items",
+    "stripped_string_items",
 ]

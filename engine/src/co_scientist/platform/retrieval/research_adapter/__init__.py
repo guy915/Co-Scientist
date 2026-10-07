@@ -38,6 +38,7 @@ from co_scientist.science.research import (
     ResearchBudget,
     RetrievalError,
     SourceHit,
+    stripped_string_items,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ class LlmResearchModel:
             {"research_goal": goal, "limit": limit},
             DEFAULT_MAX_TOKENS,
         )
-        return _strings(data.get("stances"))[:limit]
+        return stripped_string_items(data.get("stances"))[:limit]
 
     async def ask_questions(self, *, goal: str, stance: str, limit: int) -> Sequence[str]:
         data = await self._ask(
@@ -81,7 +82,7 @@ class LlmResearchModel:
             {"research_goal": goal, "stance": stance, "limit": limit},
             DEFAULT_MAX_TOKENS,
         )
-        return _strings(data.get("questions"))[:limit]
+        return stripped_string_items(data.get("questions"))[:limit]
 
     async def to_query(self, *, question: str) -> str:
         data = await self._ask("research_query", {"question": question}, DEFAULT_MAX_TOKENS)
@@ -103,7 +104,7 @@ class LlmResearchModel:
         )
         return Extraction(
             findings=_findings(data.get("findings"), documents),
-            follow_ups=tuple(_strings(data.get("follow_ups"))),
+            follow_ups=tuple(stripped_string_items(data.get("follow_ups"))),
         )
 
     async def compress(self, *, question: str, findings: Sequence[Finding]) -> str:
@@ -186,12 +187,6 @@ def _one_finding(item: object, documents: Sequence[Document]) -> ExtractedFindin
         locator=documents[index].hit.locator,
         span=quote.strip(),
     )
-
-
-def _strings(raw: object) -> list[str]:
-    if not isinstance(raw, list):
-        return []
-    return [item.strip() for item in raw if isinstance(item, str) and item.strip()]
 
 
 # Exclude fetch-varying metadata from content identity so retries hash the same

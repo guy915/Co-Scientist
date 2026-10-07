@@ -14,6 +14,8 @@ class Principal:
 
 def principal_for_request(request: Request) -> Principal:
     subject = request.headers.get("X-Client-ID", "")
+    if len(subject.encode("utf-8")) > 128:
+        raise HTTPException(status_code=400, detail="X-Client-ID is too long")
     if subject == DEMO_CLIENT_ID:
         raise HTTPException(status_code=400, detail="the demo identity is reserved")
     return Principal(subject)

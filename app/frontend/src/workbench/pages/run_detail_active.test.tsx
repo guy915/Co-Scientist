@@ -28,7 +28,9 @@ describe('run detail active', () => {
   }
 
   function hasLivePulse(): boolean {
-    return document.querySelector('.animate-ping') !== null;
+    return (
+      document.querySelector('[class~="motion-safe:animate-ping"]') !== null
+    );
   }
 
   it('shows the live pulse and no status note on an open stream', () => {
