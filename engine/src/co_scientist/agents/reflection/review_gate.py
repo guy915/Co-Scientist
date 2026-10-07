@@ -9,7 +9,7 @@ from co_scientist.core.constants import (
     NEEDS_REVISION_SCORE,
     NOT_VIABLE_SCORE,
 )
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     SCIENTIST_REVIEWER,
     Hypothesis,
     HypothesisReview,

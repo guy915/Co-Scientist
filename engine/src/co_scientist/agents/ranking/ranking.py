@@ -32,8 +32,8 @@ from co_scientist.agents.ranking.ranking_matchmaking import (
 from co_scientist.core.constants import (
     ELO_K_FACTOR,
 )
-from co_scientist.models import BLOCKING_REVIEW_DISPOSITIONS, Hypothesis
-from co_scientist.state import WorkflowState
+from co_scientist.domains.research_state.models import BLOCKING_REVIEW_DISPOSITIONS, Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

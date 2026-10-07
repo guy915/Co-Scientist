@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.research_state.elo import live_leaderboard
 
-from app.elo import live_leaderboard
 from app.goal_text import (
     generate_goal_restatement,
     generate_run_title,

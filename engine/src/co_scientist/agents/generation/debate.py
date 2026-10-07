@@ -17,7 +17,8 @@ from co_scientist.core.constants import (
     scaled_max_tokens,
 )
 from co_scientist.core.exceptions import GenerationError
-from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.domains.research_state.models import GenerationMethod, Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -32,7 +33,6 @@ from co_scientist.prompts import (
 from co_scientist.prompts.generation_debate import (
     _DEBATE_MAX_DISCUSSION_TURNS,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

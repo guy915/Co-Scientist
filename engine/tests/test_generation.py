@@ -11,7 +11,7 @@ from co_scientist.agents.generation.assumptions import (
 from co_scientist.agents.generation.generate import (
     generate_hypotheses,
 )
-from co_scientist.models import GenerationMethod
+from co_scientist.domains.research_state.models import GenerationMethod
 from tests._state import (
     _DebateRecorder,
     _install,

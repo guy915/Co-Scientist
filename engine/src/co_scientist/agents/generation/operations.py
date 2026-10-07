@@ -19,12 +19,12 @@ from co_scientist.core.constants import (
     PROGRESS_GENERATE_START,
 )
 from co_scientist.core.exceptions import GenerationError
-from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.domains.research_state.models import GenerationMethod, Hypothesis
+from co_scientist.domains.research_state.state import AppendHypotheses, WorkflowState
 from co_scientist.platform.retrieval.config.schema import EnrichmentConfig, ToolConfig
 from co_scientist.platform.retrieval.mcp_client import get_mcp_client
 from co_scientist.platform.retrieval.tools.response_parser import parse_mcp_result
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.state import AppendHypotheses, WorkflowState
 
 logger = logging.getLogger(__name__)
 

@@ -20,12 +20,12 @@ from co_scientist.agents.evolution.evolve_prompt import (
 )
 from co_scientist.agents.evolution.evolve_results import _apply_evolution_result
 from co_scientist.agents.generation.citations import ReferenceIndex
-from co_scientist.models import Hypothesis
+from co_scientist.domains.research_state.models import Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm.offline.llm import (
     DEFAULT_OFFLINE_MODEL,
     install_offline_router,
 )
-from co_scientist.state import WorkflowState
 from tests._llm_fake import stub_call_llm_json
 from tests._mcp import isolate_offline_router
 from tests._state import make_article, make_hypothesis, make_state

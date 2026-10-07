@@ -4,6 +4,8 @@ import time
 from typing import Any
 
 from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
+from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
 from co_scientist.platform.db.models import MessageRow, RunRow, RunStatus
 from fastapi import APIRouter, HTTPException, Request
@@ -29,9 +31,7 @@ from app.runs.models import (
     StartAnnouncementRequest,
 )
 from app.runs.support import _require_run, _run_or_404
-from app.store import hypotheses as store_hypotheses
 from app.store import messages as store
-from app.store import records
 from app.store.examples import open_example_chat
 from app.store.messages import NewMessage
 

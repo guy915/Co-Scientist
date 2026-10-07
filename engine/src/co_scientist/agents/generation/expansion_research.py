@@ -4,6 +4,7 @@ import logging
 from typing import Any, NamedTuple
 
 from co_scientist.core.constants import truncate
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.evidence.article_support import (
     build_articles_from_metadata,
     records_from_findings,
@@ -20,7 +21,6 @@ from co_scientist.research import (
     conduct_research,
     result_to_dict,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,12 @@ from co_scientist.core.constants import (
     PROGRESS_SAFETY_SCREEN_COMPLETE,
     PROGRESS_SAFETY_SCREEN_START,
 )
-from co_scientist.models import Hypothesis, create_metrics_update, phase_message
+from co_scientist.domains.research_state.models import (
+    Hypothesis,
+    create_metrics_update,
+    phase_message,
+)
+from co_scientist.domains.research_state.state import ReplaceHypotheses, WorkflowState
 from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.safety import (
@@ -20,7 +25,6 @@ from co_scientist.safety import (
     review_content_safety,
     review_hypothesis_safety,
 )
-from co_scientist.state import ReplaceHypotheses, WorkflowState
 
 logger = logging.getLogger(__name__)
 

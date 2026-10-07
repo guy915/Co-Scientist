@@ -4,7 +4,7 @@ import dataclasses
 from collections.abc import Callable
 from typing import Any
 
-from app.elo import DEFAULT_K_FACTOR
+from co_scientist.domains.research_state.elo import DEFAULT_K_FACTOR
 
 DEFAULT_CRITERIA: tuple[dict[str, str], ...] = (
     {"name": "Idea correctness", "value": "Required"},

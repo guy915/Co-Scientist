@@ -21,17 +21,17 @@ from co_scientist.agents.supervisor.orchestrator import (
     _default_budget,
 )
 from co_scientist.core.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     SCIENTIST_REVIEWER,
     Hypothesis,
     HypothesisReview,
     has_peer_review,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.prompts.loading import load_prompt_with_schema
 from co_scientist.scheduling.models import TaskType
 from co_scientist.scheduling.policy import required_transition
 from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
-from co_scientist.state import WorkflowState
 from tests._state import make_hypothesis, make_state
 
 

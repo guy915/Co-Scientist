@@ -6,12 +6,16 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.platform.retrieval.citations import CitationRecord, classify_citation
-
-from app.claims.assessor import SENTENCE_SPLIT
 from app.report import format_deep_verification_critique
-from app.store import records as store
-from app.store.records import NewCitation, NewEvidence, NewReview
+
+from co_scientist.domains.research_state.claims.assessor import SENTENCE_SPLIT
+from co_scientist.domains.research_state.repository import records as store
+from co_scientist.domains.research_state.repository.records import (
+    NewCitation,
+    NewEvidence,
+    NewReview,
+)
+from co_scientist.platform.retrieval.citations import CitationRecord, classify_citation
 
 _BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
 

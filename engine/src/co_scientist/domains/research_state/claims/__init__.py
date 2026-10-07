@@ -4,9 +4,7 @@ import logging
 import re
 from collections.abc import Callable, Sequence
 
-from co_scientist.platform.llm import record_deterministic_fallback
-
-from app.claims.assessor import (
+from co_scientist.domains.research_state.claims.assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
     SENTENCE_SPLIT,
     AssessorDraft,
@@ -14,12 +12,17 @@ from app.claims.assessor import (
     deterministic_assessor,
     retrieve_passages,
 )
-from app.claims.assessor import Assessor as Assessor
-from app.claims.assessor import as_passages as as_passages
-from app.claims.gate import ClaimAssessment, EntailmentLabel, SupportSpan
-from app.claims.gate import GateDecision as GateDecision
-from app.claims.gate import GateResult as GateResult
-from app.claims.gate import publication_gate as publication_gate
+from co_scientist.domains.research_state.claims.assessor import Assessor as Assessor
+from co_scientist.domains.research_state.claims.assessor import as_passages as as_passages
+from co_scientist.domains.research_state.claims.gate import (
+    ClaimAssessment,
+    EntailmentLabel,
+    SupportSpan,
+)
+from co_scientist.domains.research_state.claims.gate import GateDecision as GateDecision
+from co_scientist.domains.research_state.claims.gate import GateResult as GateResult
+from co_scientist.domains.research_state.claims.gate import publication_gate as publication_gate
+from co_scientist.platform.llm import record_deterministic_fallback
 
 logger = logging.getLogger(__name__)
 

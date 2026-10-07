@@ -9,17 +9,20 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.platform.llm import scoped_telemetry
-from litellm.exceptions import RateLimitError
-
-from app.claims import (
+from co_scientist.domains.research_state.claims import (
     ClaimAssessment,
     EntailmentLabel,
     EvidencePassage,
     assess_claim,
     assess_claims_batch,
 )
-from app.claims.verifier import make_llm_assessor, make_llm_batch_assessor
+from co_scientist.domains.research_state.claims.verifier import (
+    make_llm_assessor,
+    make_llm_batch_assessor,
+)
+from co_scientist.platform.llm import scoped_telemetry
+from litellm.exceptions import RateLimitError
+
 from app.evidence_chunking import chunk_evidence_passage
 
 from ._llm_fake_backend import (
@@ -164,7 +167,7 @@ def test_a_verdict_keeps_only_support_located_in_the_shown_passages(
     install_completion_backend(
         monkeypatch, fake_completion(_reply(mode, _verdict(label, supporting)))
     )
-    with caplog.at_level(logging.INFO, logger="app.claims"):
+    with caplog.at_level(logging.INFO, logger="co_scientist.domains.research_state.claims"):
         result = _assess(mode, passages)
 
     assert result.label is expected

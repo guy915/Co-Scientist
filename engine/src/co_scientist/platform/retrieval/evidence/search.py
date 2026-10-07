@@ -3,6 +3,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from co_scientist.core.constants import corpus_slug
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.evidence.relevance import (
     apply_semantic_relevance,
 )
@@ -24,7 +25,6 @@ from co_scientist.platform.retrieval.evidence.search_support import (
     merge_search_results,
 )
 from co_scientist.platform.retrieval.mcp_client import MCPToolClient
-from co_scientist.state import WorkflowState
 
 
 async def collect_papers(

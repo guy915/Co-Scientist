@@ -7,18 +7,18 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from co_scientist.platform import db as store_db
-from co_scientist.platform.retrieval.citations import CitationState
-
-from app.store import events as store_events
-from app.store import hypotheses as store
-from app.store import records
-from app.store.hypotheses import NewHypothesis
-from app.store.records import (
+from co_scientist.domains.research_state.repository import hypotheses as store
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
+from co_scientist.domains.research_state.repository.records import (
     NewCitation,
     NewEvidence,
     NewReview,
 )
+from co_scientist.platform import db as store_db
+from co_scientist.platform.retrieval.citations import CitationState
+
+from app.store import events as store_events
 from tests._store_helpers import seed_run
 
 

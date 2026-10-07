@@ -17,7 +17,8 @@ from co_scientist.core.constants import (
     LOW_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.models import Article, Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.models import Article, Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -42,7 +43,6 @@ from co_scientist.research import (
     result_to_dict,
 )
 from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

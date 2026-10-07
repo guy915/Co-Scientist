@@ -15,8 +15,8 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
     TournamentGuidance,
     _gather_tournament_context,
 )
-from co_scientist.models import Hypothesis
-from co_scientist.state import WorkflowState
+from co_scientist.domains.research_state.models import Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 
 
 @dataclass(frozen=True)

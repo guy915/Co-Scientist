@@ -1,6 +1,6 @@
-import {Icon, type IconName} from '@/components/icon';
+import type {IconName} from '@/components/icon';
+import {IconButton} from '@/shared/ui';
 import {copyText} from '@/lib/clipboard';
-import {tooltipClassNames} from '../classes';
 
 export interface MessageAction {
   icon: IconName;
@@ -40,24 +40,12 @@ export function MessageActionRow({
       }
     >
       {actions.map(action => (
-        <button
+        <IconButton
           key={action.label}
-          type="button"
-          className={tooltipClassNames({
-            className:
-              'size-8 grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg',
-            placement: 'top',
-          })}
-          aria-label={action.label}
-          data-tooltip={action.label}
+          icon={action.icon}
+          label={action.label}
           onClick={action.onClick}
-        >
-          <Icon
-            aria-hidden="true"
-            className="text-[1.12rem]"
-            name={action.icon}
-          />
-        </button>
+        />
       ))}
     </div>
   );

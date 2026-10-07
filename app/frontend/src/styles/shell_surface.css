@@ -1,10 +1,4 @@
-/* Stay in CSS: the unlayered global a/button transition in index.css outranks
-   utilities, and the pressed color must beat the hover and focus utilities.
-   The hamburger has no reduced-motion rule, as before. */
-.ucs-nav-hamburger {
-  transition: background-color 120ms cubic-bezier(0.2, 0, 0, 1);
-}
-
+/* The pressed color must beat the hover and focus utilities. */
 .ucs-nav-item {
   transition:
     background-color 120ms cubic-bezier(0.2, 0, 0, 1),

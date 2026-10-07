@@ -12,13 +12,13 @@ from co_scientist.core.constants import (
     TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,
     truncate,
 )
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Hypothesis,
     has_peer_review,
     rank_for_publication,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

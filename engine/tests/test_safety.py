@@ -11,7 +11,17 @@ from co_scientist.agents.safety import (
     review_direction_safety,
     safety_screen_node,
 )
-from co_scientist.models import GenerationMethod, Hypothesis, HypothesisOrigin
+from co_scientist.domains.research_state.models import (
+    GenerationMethod,
+    Hypothesis,
+    HypothesisOrigin,
+)
+from co_scientist.domains.research_state.state import (
+    AppendHypotheses,
+    ReplaceHypotheses,
+    WorkflowState,
+    deduplicate_hypotheses,
+)
 from co_scientist.safety import (
     POLICY_VERSION,
     REDACTED_PLACEHOLDER,
@@ -19,12 +29,6 @@ from co_scientist.safety import (
     is_blocking,
     redact_hypothesis_fields,
     review_hypothesis_safety,
-)
-from co_scientist.state import (
-    AppendHypotheses,
-    ReplaceHypotheses,
-    WorkflowState,
-    deduplicate_hypotheses,
 )
 from co_scientist.task_runtime import (
     TASK_NODES,

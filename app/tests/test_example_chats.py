@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 
+from co_scientist.domains.research_state.repository import hypotheses, records
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
 from app import seed
-from app.store import examples, hypotheses, interviews, records, reports, runs_views
+from app.store import examples, interviews, reports, runs_views
 
 
 def _example(db_path: str) -> str:

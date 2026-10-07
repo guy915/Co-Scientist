@@ -111,7 +111,7 @@ def _metrics_snapshot(state: dict[str, Any]) -> dict[str, Any]:
 def merge_usage_snapshots(
     snapshots: Sequence[Mapping[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    from co_scientist.models import (
+    from co_scientist.domains.research_state.models import (
         ExecutionMetrics,
         create_metrics_update,
         merge_metrics,

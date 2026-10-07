@@ -8,13 +8,13 @@ import pytest
 
 import co_scientist.agents.generation.literature_tools.draft as draft_skills
 import co_scientist.platform.sandbox.skills as catalog
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.platform.sandbox import workspace_write
 from co_scientist.platform.sandbox.workspace.output import OutputRecorder
 from co_scientist.platform.sandbox.workspace.session import SessionRead, WorkspaceSession
 from co_scientist.platform.sandbox.workspace.tool_schemas import READ_SKILL
 from co_scientist.platform.sandbox.workspace.tools import _handle_run_command, _ToolContext
-from co_scientist.state import WorkflowState
 
 
 @pytest.fixture

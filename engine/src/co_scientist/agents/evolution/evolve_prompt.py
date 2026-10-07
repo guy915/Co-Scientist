@@ -22,7 +22,8 @@ from co_scientist.agents.proximity.proximity_graph import (
 from co_scientist.agents.reflection.review_gate import (
     mature_review_summary,
 )
-from co_scientist.models import Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.prompts import (
     format_lab_constraints_section,
     format_preferences,
@@ -37,7 +38,6 @@ from co_scientist.prompts.generation_draft import (
     _build_citation_reference_section,
 )
 from co_scientist.prompts.loading import _get_domain_variables
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

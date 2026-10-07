@@ -3,8 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import pytest
-
-from app.claims import (
+from co_scientist.domains.research_state.claims import (
     ClaimAssessment,
     EntailmentLabel,
     EvidencePassage,

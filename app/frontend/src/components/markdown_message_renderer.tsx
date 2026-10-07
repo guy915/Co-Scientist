@@ -9,7 +9,7 @@ import {
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {rehypeHighlightKnownLanguages} from './highlight_code';
-import {Icon} from './icon';
+import {IconButton} from '@/shared/ui';
 import {copyText} from '../lib/clipboard';
 import {fromMarkdown} from 'mdast-util-from-markdown';
 import {gfm} from 'micromark-extension-gfm';
@@ -156,18 +156,14 @@ function CodeCopyButton({text}: {text: string}) {
   }, [copied]);
 
   return (
-    <button
-      type="button"
-      className="ml-auto grid size-6 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring"
-      aria-label={copied ? 'Copied' : 'Copy code'}
+    <IconButton
+      size="xs"
+      icon={copied ? 'check' : 'content_copy'}
+      label={copied ? 'Copied' : 'Copy code'}
+      tooltipPlacement="left"
+      layoutClassName="ml-auto"
       onClick={() => void copyText(text).then(() => setCopied(true))}
-    >
-      <Icon
-        aria-hidden="true"
-        name={copied ? 'check' : 'content_copy'}
-        className="text-[1rem]"
-      />
-    </button>
+    />
   );
 }
 

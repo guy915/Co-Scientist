@@ -20,7 +20,7 @@ from app.store import tasks
 from app.store.tasks import NewTask
 
 if TYPE_CHECKING:
-    from co_scientist.state import WorkflowState
+    from co_scientist.domains.research_state.state import WorkflowState
 
 
 @dataclass(frozen=True)
@@ -145,7 +145,7 @@ def _mature_reflection_update(
     from co_scientist.agents.reflection.deep_verification import (
         merge_retrieved_articles,
     )
-    from co_scientist.models import (
+    from co_scientist.domains.research_state.models import (
         MetricDeltas,
         create_metrics_update,
         phase_message,
@@ -287,7 +287,7 @@ def _verification_aggregate_update(
     from co_scientist.agents.reflection.deep_verification import (
         merge_retrieved_articles,
     )
-    from co_scientist.models import (
+    from co_scientist.domains.research_state.models import (
         MetricDeltas,
         create_metrics_update,
         phase_message,
@@ -388,7 +388,7 @@ def _apply_review_items(
     from co_scientist.agents.reflection.review_gate import (
         refresh_review_dispositions,
     )
-    from co_scientist.models import HypothesisReview
+    from co_scientist.domains.research_state.models import HypothesisReview
 
     successful = 0
     failed = 0
@@ -418,7 +418,7 @@ def _review_aggregate_update(
     failed: int,
     model_usage: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    from co_scientist.models import (
+    from co_scientist.domains.research_state.models import (
         MetricDeltas,
         create_metrics_update,
         phase_message,
@@ -485,7 +485,7 @@ def _collect_generation_results(
     item_task_ids: Sequence[Any],
     db_path: str | None,
 ) -> _GenerationItems:
-    from co_scientist.models import Hypothesis
+    from co_scientist.domains.research_state.models import Hypothesis
 
     buckets: dict[str, list[Any]] = {
         "tools": [],
@@ -532,7 +532,7 @@ async def _generation_aggregate_update(
         GenerationResults,
         finalize_generation,
     )
-    from co_scientist.models import MetricDeltas, create_metrics_update
+    from co_scientist.domains.research_state.models import MetricDeltas, create_metrics_update
 
     buckets = items.buckets
     update: dict[str, Any] = await finalize_generation(

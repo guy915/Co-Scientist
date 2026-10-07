@@ -42,13 +42,14 @@ from co_scientist.core.constants import (
     RESEARCH_OVERVIEW_TOP_K,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS, short_error_text
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
     phase_message,
     rank_for_publication,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm_json,
@@ -67,7 +68,6 @@ from co_scientist.schemas.synthesis import (
 from co_scientist.schemas.synthesis import (
     RESEARCH_OVERVIEW_INTERIM_MAX_QUESTIONS as _MAX_QUESTIONS,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

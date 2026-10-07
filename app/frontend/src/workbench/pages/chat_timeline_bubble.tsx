@@ -1,7 +1,6 @@
 import type {QaSource} from '@/api/runs';
-import {Icon} from '@/components/icon';
 import {MarkdownMessage} from '@/components/markdown_message';
-import {Button} from '@/shared/ui';
+import {Button, IconButton} from '@/shared/ui';
 import {
   useEffect,
   useLayoutEffect,
@@ -15,7 +14,6 @@ import {
   type SetStateAction,
   type TransitionEvent,
 } from 'react';
-import {tooltipClassNames} from '../classes';
 import {
   MessageActionRow,
   requestActions,
@@ -589,24 +587,15 @@ function CollapseToggleButton({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className:
-          'reference-user-collapse size-8 shrink-0 grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-[1.25rem] text-cosci-muted hover:bg-cosci-user-bubble-hover hover:text-cosci-fg focus-visible:bg-cosci-user-bubble-hover focus-visible:text-cosci-fg',
-        placement: 'right',
-      })}
-      aria-label={expanded ? 'Collapse' : 'Expand'}
-      data-tooltip={expanded ? 'Collapse' : 'Expand'}
+    <IconButton
+      icon={expanded ? 'expand_less' : 'expand_more'}
+      label={expanded ? 'Collapse' : 'Expand'}
+      tooltipPlacement="right"
+      layoutClassName="reference-user-collapse"
       onClick={event => {
         onToggle();
         if (event.detail > 0) event.currentTarget.blur();
       }}
-    >
-      <Icon
-        aria-hidden="true"
-        name={expanded ? 'expand_less' : 'expand_more'}
-      />
-    </button>
+    />
   );
 }

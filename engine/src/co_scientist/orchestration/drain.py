@@ -6,31 +6,6 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
-from co_scientist.core.config import settings
-from co_scientist.platform import db
-from co_scientist.platform.retrieval.citations import empty_citation_summary
-
-from app.claims import EvidencePassage
-from app.claims.grounding import (
-    AssessorSpec,
-    assess_hypothesis_claims,
-    build_assessor,
-    build_batch_assessor,
-    evidence_passages,
-    persist_grounding,
-)
-from app.engine_adapter.drain.hypotheses import (
-    _hypotheses_with_proximity_archive,
-    _HypothesisSink,
-    _persist_evidence_and_hypotheses,
-    resolve_articles,
-)
-from app.engine_adapter.drain.matches import (
-    _persist_engine_matches,
-    _persist_engine_proximity,
-    _persist_retrieval_calls,
-)
-from app.engine_adapter.drain.reviews import _CitationSink
 from app.hypothesis import (
     persist_escalated_verdicts,
     screen_hypotheses,
@@ -40,11 +15,36 @@ from app.hypothesis.safety import (
     HypothesisSafetyOutcome,
     escalate_held_hypotheses,
 )
-from app.store import hypotheses
-from app.store import records as store_records
 from app.store import supervisor_plan as plans
-from app.store.records import NewSafetyDecision
 from app.store.supervisor_plan import NewSupervisorPlan
+
+from co_scientist.core.config import settings
+from co_scientist.domains.research_state.claims import EvidencePassage
+from co_scientist.domains.research_state.claims.grounding import (
+    AssessorSpec,
+    assess_hypothesis_claims,
+    build_assessor,
+    build_batch_assessor,
+    evidence_passages,
+    persist_grounding,
+)
+from co_scientist.domains.research_state.drain.hypotheses import (
+    _hypotheses_with_proximity_archive,
+    _HypothesisSink,
+    _persist_evidence_and_hypotheses,
+    resolve_articles,
+)
+from co_scientist.domains.research_state.drain.matches import (
+    _persist_engine_matches,
+    _persist_engine_proximity,
+    _persist_retrieval_calls,
+)
+from co_scientist.domains.research_state.drain.reviews import _CitationSink
+from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.domains.research_state.repository import records as store_records
+from co_scientist.domains.research_state.repository.records import NewSafetyDecision
+from co_scientist.platform import db
+from co_scientist.platform.retrieval.citations import empty_citation_summary
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +190,7 @@ def _gate_records_by_store_id(
 def _reusable_by_hypothesis(
     gate_records: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    from app.claims.grounding import reusable_assessments
+    from co_scientist.domains.research_state.claims.grounding import reusable_assessments
 
     indexed = {store_id: reusable_assessments(record) for store_id, record in gate_records.items()}
     return {key: value for key, value in indexed.items() if value}
@@ -204,7 +204,7 @@ def fold_grounding_telemetry(final_state: dict[str, Any], usage: dict[str, dict[
         create_metrics_update,
         merge_metrics,
     )
-    from co_scientist.models import MetricDeltas
+    from co_scientist.domains.research_state.models import MetricDeltas
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
     existing = ExecutionMetrics.from_dict(final_state.get("metrics") or {})

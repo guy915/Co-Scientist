@@ -39,13 +39,14 @@ from co_scientist.core.constants import (
     LOW_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Article,
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
     phase_message,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -54,7 +55,6 @@ from co_scientist.platform.llm import (
 from co_scientist.prompts import build_tool_instructions
 from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.prompts.loading import load_prompt_with_schema
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

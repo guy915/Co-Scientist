@@ -6,6 +6,8 @@ from __future__ import annotations
 import os
 
 import pytest
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.records import NewEvidence
 from co_scientist.platform.telemetry import retrieval_calls as store
 from co_scientist.research import (
     CallStatus,
@@ -18,8 +20,7 @@ from co_scientist.research import (
     ThreadStatus,
 )
 
-from app.store import records, runs
-from app.store.records import NewEvidence
+from app.store import runs
 from tests._store_helpers import seed_run
 
 

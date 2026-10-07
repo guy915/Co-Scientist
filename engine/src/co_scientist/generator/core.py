@@ -8,6 +8,7 @@ from co_scientist.core.constants import (
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_MAX_ITERATIONS,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.generator.initial_state import (
     RunCapabilities,
     RunIdentity,
@@ -26,7 +27,6 @@ from co_scientist.generator.run_setup import (
     _resolve_simulation_execution,
     _resolve_tool_calling_generation,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

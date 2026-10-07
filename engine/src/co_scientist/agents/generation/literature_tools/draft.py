@@ -20,6 +20,7 @@ from co_scientist.core.constants import (
     get_draft_max_iterations,
     scaled_max_tokens,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
     CompletionSpec,
@@ -43,7 +44,6 @@ from co_scientist.prompts import (
     PromptRunContext,
     get_draft_prompt_with_tools,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

@@ -24,13 +24,14 @@ from co_scientist.core.constants import (
     INITIAL_ELO_RATING,
     PROGRESS_ORCHESTRATOR_DECISION,
 )
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
     has_peer_review,
     phase_message,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import current_run_call_count
 from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.scheduling import (
@@ -43,7 +44,6 @@ from co_scientist.scheduling import (
     policy,
     stacked_task_values,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

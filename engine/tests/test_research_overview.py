@@ -14,7 +14,7 @@ from co_scientist.core.constants import (
     RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,
     RESEARCH_OVERVIEW_MAX_TOKENS,
 )
-from co_scientist.models import Article, Hypothesis
+from co_scientist.domains.research_state.models import Article, Hypothesis
 from co_scientist.scheduling import TaskType
 from co_scientist.schemas.synthesis import (
     RESEARCH_OVERVIEW_TARGET_DIRECTIONS,

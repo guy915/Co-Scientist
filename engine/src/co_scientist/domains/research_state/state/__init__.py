@@ -8,7 +8,7 @@ from typing import Annotated, Any
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
 
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Article,
     ExecutionMetrics,
     Hypothesis,

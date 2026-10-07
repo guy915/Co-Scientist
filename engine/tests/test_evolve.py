@@ -12,7 +12,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     operator_instruction,
     operator_template,
 )
-from co_scientist.models import Hypothesis
+from co_scientist.domains.research_state.models import Hypothesis
 from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis
 

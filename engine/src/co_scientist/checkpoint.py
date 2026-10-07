@@ -13,12 +13,12 @@ from langchain_core.messages import (
     messages_to_dict,
 )
 
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Article,
     ExecutionMetrics,
     Hypothesis,
 )
-from co_scientist.state import WorkflowState
+from co_scientist.domains.research_state.state import WorkflowState
 
 # Bump incompatible envelope changes; mismatched versions fail closed.
 CHECKPOINT_VERSION = 1

@@ -12,6 +12,20 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
+from co_scientist.domains.research_state.claims import (
+    Assessor,
+    BatchAssessor,
+    _locate_all,
+    deterministic_assessor,
+)
+from co_scientist.domains.research_state.claims.assessor import (
+    _MIN_CONTRADICTION_COVERAGE,
+    AssessorDraft,
+    EvidencePassage,
+    _quote_negates_claim,
+    _tokens,
+)
+from co_scientist.domains.research_state.claims.gate import EntailmentLabel, SupportSpan
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -23,21 +37,6 @@ from co_scientist.platform.llm import (
     scoped_telemetry_phase,
 )
 from co_scientist.schemas.builders import obj
-
-from app.claims import (
-    Assessor,
-    BatchAssessor,
-    _locate_all,
-    deterministic_assessor,
-)
-from app.claims.assessor import (
-    _MIN_CONTRADICTION_COVERAGE,
-    AssessorDraft,
-    EvidencePassage,
-    _quote_negates_claim,
-    _tokens,
-)
-from app.claims.gate import EntailmentLabel, SupportSpan
 
 logger = logging.getLogger(__name__)
 

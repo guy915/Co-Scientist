@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     ExecutionMetrics,
     Hypothesis,
     HypothesisOrigin,

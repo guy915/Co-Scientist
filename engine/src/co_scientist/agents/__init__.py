@@ -15,7 +15,7 @@ from co_scientist.agents import (
     safety,
     supervisor,
 )
-from co_scientist.state import WorkflowState
+from co_scientist.domains.research_state.state import WorkflowState
 
 NodeCallable = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
