@@ -1,8 +1,6 @@
 import dataclasses
 import enum
 import logging
-from dataclasses import dataclass
-from typing import Any
 
 from co_scientist.constants import (
     BUDGET_ESCALATION_MAX_INCREMENT,
@@ -15,6 +13,7 @@ from co_scientist.exceptions import (
     LLMThinkingOnlyError,
 )
 from co_scientist.llm.request.thinking import effective_thinking_enabled
+from co_scientist.llm.values import CompletionSpec
 
 logger = logging.getLogger(__name__)
 
@@ -213,19 +212,7 @@ def log_escalation(
     )
 
 
-@dataclass(frozen=True)
-class _JsonCallSpec:
-    """Credentials stay in task context rather than this spec shared across
-    attempts.
-    """
-
-    model_name: str
-    max_tokens: int
-    temperature: float
-    json_schema: dict[str, Any] | None
-
-
-def escalated_spec(spec: _JsonCallSpec, escalation: BudgetEscalation) -> _JsonCallSpec:
+def escalated_spec(spec: CompletionSpec, escalation: BudgetEscalation) -> CompletionSpec:
     if escalation is BudgetEscalation.NONE:
         return spec
     return dataclasses.replace(spec, max_tokens=escalated_max_tokens(spec.max_tokens, escalation))
