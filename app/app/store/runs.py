@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
+from co_scientist.platform.db.admission import capacity_available
 from co_scientist.platform.db.models import (
     DEMO_CLIENT_ID,
     TERMINAL_STATUSES,
@@ -445,8 +446,15 @@ def reserve_run_capacity_in_transaction(
     limit: int,
     expected_status: str,
 ) -> bool:
-    count = _count_other_active_runs(conn, run_id, client_id)
-    if count >= limit:
+    if not has_run_capacity_in_transaction(conn, run_id, client_id, limit):
         return False
     changed = _queue_run_if_startable(conn, run_id, current_time(), expected_status)
     return bool(changed)
+
+
+def has_run_capacity_in_transaction(
+    conn: sqlite3.Connection, run_id: str, client_id: str, limit: int
+) -> bool:
+    return _count_other_active_runs(conn, run_id, client_id) < limit and capacity_available(
+        conn, run_id, limit
+    )
