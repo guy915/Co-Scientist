@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {Run} from '@/shared/api/runs';
-import {makeRun} from '@/test_fixtures';
+import {makeRun} from '@/shared/testing/fixtures';
 import {homeRunStepIndex, RunStepFlow} from './chat_home_stage';
 import {render, screen} from '@testing-library/react';
 

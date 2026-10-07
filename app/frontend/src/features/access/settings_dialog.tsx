@@ -9,6 +9,7 @@ import {
   SegmentedControl,
   Select,
   TextField,
+  ExternalLink,
 } from '@/shared/ui';
 import {
   type ByokProvider,
@@ -132,7 +133,7 @@ function SettingsBody({
   const theme = useTheme();
   const apiKeyField = useApiKeyField();
   return (
-    <div className="mt-5 grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-6 [@media(max-width:700px)]:mt-[0.9rem] [@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:grid-rows-[auto_minmax(0,1fr)] [@media(max-width:700px)]:gap-4">
+    <div className="mt-5 grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-6 phone:mt-[0.9rem] phone:grid-cols-[minmax(0,1fr)] phone:grid-rows-[auto_minmax(0,1fr)] phone:gap-4">
       <SettingsNav section={section} onSectionChange={onSectionChange} />
       <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 [align-content:start]">
         {section === 'appearance' && (
@@ -189,19 +190,13 @@ function ApiKeyHint({provider}: {provider: ByokProvider}) {
   const {url, article} = PROVIDER_KEY_PAGES[provider];
   return (
     <p className={HINT_CLASSES}>
-      <a
-        className="inline-flex items-center gap-1 text-[0.82rem] font-medium text-cosci-blue no-underline focus-visible:underline [&:hover]:underline"
+      <ExternalLink
+        className="inline-flex items-center gap-1 text-[0.82rem] font-medium text-cosci-blue no-underline focus-visible:underline hover:underline"
         href={url}
-        target="_blank"
-        rel="noreferrer"
       >
         Get {article} {PROVIDER_LABELS[provider]} API key
-        <Icon
-          aria-hidden="true"
-          className="text-[0.95rem]"
-          name="open_in_new"
-        />
-      </a>
+        <Icon className="text-[0.95rem]" name="open_in_new" />
+      </ExternalLink>
     </p>
   );
 }

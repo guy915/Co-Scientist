@@ -12,6 +12,7 @@ class ModelCallStats:
 
     deterministic_fallbacks: dict[str, int] = field(default_factory=dict)
     calls: int = 0
+    decision_calls: int = 0
     observed_model_calls: int = 0
     reported_usage_calls: int = 0
     priced_usage_calls: int = 0

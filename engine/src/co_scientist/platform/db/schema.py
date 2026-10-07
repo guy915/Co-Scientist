@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS provider_admissions (
     calls INTEGER NOT NULL, tokens INTEGER NOT NULL,
     PRIMARY KEY(day, scope, subject)
 );
+CREATE TABLE IF NOT EXISTS run_call_admissions (
+    run_id TEXT PRIMARY KEY, calls INTEGER NOT NULL, ceiling INTEGER NOT NULL
+);
 -- Explicitly retired empirical-outcomes data; no runtime consumer remains.
 DROP TABLE IF EXISTS outcome_refinement_actions;
 DROP TABLE IF EXISTS hypothesis_outcomes;

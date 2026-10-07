@@ -146,3 +146,11 @@ One lead session runs both lanes as parallel subagent streams;
 2. **Model lane:** the benchmark baseline now; model usage and engine run time
    after the engine cuts merge. This runs before the shrink touches the LLM
    stack, so the shrink simplifies the optimized code.
+
+## Decision-model evaluation
+
+The manual `Decision bake-off` workflow compares Liquid `d1:free` with the
+current free LLM on recorded research inputs. Its repository secrets never
+reach presubmit. Offline fake-client checks establish fallback and admission
+behavior; live judge agreement, calibration and held-out escalation must be
+reported before any call site is adopted. See [decision-model.md](decision-model.md).

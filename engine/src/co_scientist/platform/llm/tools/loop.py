@@ -51,12 +51,24 @@ logger = logging.getLogger(__name__)
 
 
 async def _execute_logged_tool(
-    call: Any, executor: Callable[[Any], Awaitable[dict[str, Any]]]
+    call: Any,
+    executor: Callable[[Any], Awaitable[dict[str, Any]]],
+    allowed_names: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     name = str(getattr(getattr(call, "function", None), "name", "unknown"))[:80]
     outcome = "returned"
     raw = getattr(getattr(call, "function", None), "arguments", None)
+    actual_name = getattr(getattr(call, "function", None), "name", None)
+    if allowed_names is not None and (
+        not isinstance(actual_name, str) or actual_name not in allowed_names
+    ):
+        return {
+            "role": "tool",
+            "name": name,
+            "tool_call_id": call.id,
+            "content": json.dumps({"error": "Tool is not available in this operation"}),
+        }
     if object_arguments(raw) is None:
         logger.info("tool_call name=%s outcome=invalid_arguments", name)
         return {
@@ -85,6 +97,7 @@ async def _execute_logged_tool(
 async def _execute_tool_calls(
     tool_calls: list[Any],
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
+    allowed_names: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Effect barriers run alone in model-requested order; batching must not
     reorder read/write effects.
@@ -92,7 +105,9 @@ async def _execute_tool_calls(
     results: list[dict[str, Any]] = []
     for batch in batch_by_effects(tool_calls):
         results.extend(
-            await asyncio.gather(*[_execute_logged_tool(tc, tool_executor) for tc in batch])
+            await asyncio.gather(
+                *[_execute_logged_tool(tc, tool_executor, allowed_names) for tc in batch]
+            )
         )
     return results
 
@@ -108,11 +123,12 @@ def _build_tool_loop_completion_args(
         # Repair at send time so every cut transcript reaches the provider with
         # valid pairing.
         "messages": normalize_tool_transcript(messages),
-        "tools": request.tools,
         "max_tokens": escalated_max_tokens(request.max_tokens, escalation),
         "temperature": request.temperature,
         "drop_params": True,
     }
+    if request.tools:
+        completion_args["tools"] = request.tools
     _apply_thinking_args(
         completion_args,
         request.model_name,
@@ -160,7 +176,12 @@ async def _run_tool_call_iteration(
     if final is None:
         logger.debug("llm requested %s tool calls", len(message.tool_calls))
         messages.append(_message_to_history_dict(message))
-        messages.extend(await _execute_tool_calls(message.tool_calls, tool_executor))
+        allowed_names = frozenset(
+            tool["function"]["name"]
+            for tool in request.tools or []
+            if isinstance(tool.get("function", {}).get("name"), str)
+        )
+        messages.extend(await _execute_tool_calls(message.tool_calls, tool_executor, allowed_names))
         return False, None
 
     # Do not retain answerless assistant turns: the answering retry would resend

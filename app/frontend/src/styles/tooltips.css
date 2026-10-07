@@ -18,7 +18,7 @@
 
 [data-tooltip].ucs-tooltip-anchor::after {
   position: absolute;
-  z-index: 1000;
+  z-index: var(--z-index-tooltip);
   display: block;
   width: max-content;
   max-width: min(20rem, calc(100vw - 2rem));

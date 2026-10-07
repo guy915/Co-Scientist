@@ -18,20 +18,20 @@ import type {SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 const HEADER_CLASSES =
-  'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4rem] items-center justify-between gap-[1rem] [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
-  '[@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:gap-[0.35rem] [@media(max-width:700px)]:px-[0.5rem]';
+  'ucs-header-action-bar sticky top-0 z-header flex min-h-[4rem] items-center justify-between gap-4 [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
+  'phone:min-w-0 phone:gap-[0.35rem] phone:px-2';
 
 const PRODUCT_LOCKUP_CLASSES =
-  'inline-flex cursor-pointer items-center gap-[0.5rem] [border:0] bg-transparent p-0 font-gsans text-[1.25rem] font-medium tracking-[-0.6px] text-cosci-fg no-underline';
+  'inline-flex cursor-pointer items-center gap-2 [border:0] bg-transparent p-0 font-gsans text-[1.25rem] font-medium tracking-[-0.6px] text-cosci-fg no-underline';
 
 const HEADER_TITLE_CLASSES =
-  'ucs-header-title absolute top-1/2 left-1/2 min-w-0 max-w-[min(52rem,44vw)] overflow-hidden text-center text-[1rem] font-medium text-cosci-fg [transform:translate(-50%,-50%)] [@media(max-width:700px)]:hidden';
+  'ucs-header-title absolute top-1/2 left-1/2 min-w-0 max-w-[min(52rem,44vw)] overflow-hidden text-center text-[1rem] font-medium text-cosci-fg [transform:translate(-50%,-50%)] phone:hidden';
 
 // Keep the session switch on phones: it is the route back to the transcript
 // after leaving a run.
 const HEADER_ACTIONS_CLASSES =
   'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-[0.55rem] [transform:translateY(-50%)] ' +
-  '[@media(max-width:700px)]:[&>:not(.ucs-session-switch)]:hidden';
+  'phone:[&>:not(.ucs-session-switch)]:hidden';
 
 function HamburgerButton({
   navOpen,
@@ -42,7 +42,7 @@ function HamburgerButton({
 }) {
   return (
     // Phones only; the wrapper owns display so the button keeps its own.
-    <span className="hidden flex-none [@media(max-width:700px)]:inline-flex">
+    <span className="hidden flex-none phone:inline-flex">
       <IconButton
         icon="menu"
         size="md"
@@ -72,9 +72,7 @@ function ProductLockup({
       className={tooltipClassNames({
         className: joinClasses(
           PRODUCT_LOCKUP_CLASSES,
-          hasSession
-            ? '[@media(max-width:700px)]:mr-auto'
-            : '[@media(max-width:700px)]:mr-[0.5rem]',
+          hasSession ? 'phone:mr-auto' : 'phone:mr-2',
         ),
         placement: 'right',
       })}
@@ -86,7 +84,7 @@ function ProductLockup({
     >
       <GoogleLabsIcon
         aria-hidden="true"
-        className="size-[1.32rem] flex-[0_0_1.32rem] text-cosci-accent [@media(max-width:700px)]:hidden"
+        className="size-[1.32rem] flex-[0_0_1.32rem] text-cosci-accent phone:hidden"
       />
       <span>Co-Scientist</span>
     </Link>

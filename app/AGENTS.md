@@ -126,6 +126,10 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 - Add paired light/dark tokens in `tokens.css`, never inline hardcoded `dark:[#hex]` overrides. Theme swaps must update both palettes; respect reduced-motion preferences and suppress transitions during swaps.
 - Use `rounded-md` (6px) for data blocks, `rounded-xl` (12px) for interactive containers, and `rounded-full` for pills/buttons/chips. Existing bare `rounded` utilities are 8px.
 - Cards and inputs use tonal layers rather than box shadows; reserve elevation for overlays.
+- Breakpoints are the variants in `index.css`: `phone:` (≤700px, equal to `MOBILE_MEDIA_QUERY` in `shared/hooks/dom.ts`, which a test checks), `above-phone:`, `tablet:` (701–1180px) and `desktop:` (≥1181px). Lint rejects a hand-written phone breakpoint.
+- Hover styles use `hover:`, which Tailwind applies only where the pointer can hover; `[&:hover]:` stays lit after a tap on touch screens, and lint rejects it.
+- Page-level stacking uses the named layers in `index.css` (`z-header` < `z-drawer-scrim` < `z-rail` < `z-dialog-scrim` < `z-dialog` < `z-toast`, then tooltips); a small integer (`z-1`) orders children inside one component only.
+- Keyboard focus: `index.css` gives every focused control except text entry a 2px `th-ring` outline at zero specificity. A component may restyle its ring but must not remove it; fields show focus through their border.
 - Goal Report Markdown relies on browser-default paragraph/list spacing. Global margin resets or Tailwind preflight collapse that spacing and remove list markers; reset individual styled components instead.
 
 **UI building blocks** (`src/shared/ui/`, imported from `@/shared/ui`). New UI composes these. Shape, radius, colour, focus ring and motion live in the component; a call site passes only layout (`layoutClassName`: margins, width, grid placement, position).
@@ -143,6 +147,8 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 | Label or status | `Chip`: `tonal` or `outlined`, tone `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs`, `sm`, `md`. |
 | Text input | `TextField` / `TextArea`: `outlined`, or `bare` inside a surface that already draws the box (composer, bubble editor). |
 | Grouping surface | `Card`: `block` (notices, `rounded-md`), `tile` (stats and summaries) or `panel` (control groups and side rails, `rounded-2xl`). Tones `neutral`, `raised`, `warning`, `danger`; `outlined` adds the hairline. `CardButton` is a card that is one action as a whole (home suggestions). |
+| Link off the app | `ExternalLink`: opens in a new tab with `rel="noopener noreferrer"`, and renders its `fallback` instead when the URL is not `http(s)` or `mailto` (model-written URLs reach it). |
+| Status, error, loading | `StatusText` for an inline line (`muted`, or `danger`, which is announced as an alert); `ErrorNotice` for a failure that blocks a surface, with an optional `action`; `PageStatus` for the area a lazy page fills while loading. Reds come from `cosci-danger-*` only. |
 | Rail destination | `NavItemButton` / `NavItemLink`: a round icon on the collapsed rail, an icon and label row when the rail is open and in the phone drawer. |
 
 **Enforced:** `bun run lint` (and `make lint`) rejects a raw `<button>`, a hex, `rgb()` or `hsl()` colour, and an arbitrary radius (`rounded-[…]`, `border-radius:`, inline `borderRadius`) anywhere outside `src/shared/ui/`, tests and `md3_scheme.ts`. Radii come from the Tailwind scale or a named radius in `index.css` (`rounded-bubble`, `rounded-workspace`, `rounded-tile`, `rounded-5xl`); colours come from tokens.

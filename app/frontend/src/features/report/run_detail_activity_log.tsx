@@ -80,7 +80,7 @@ function ActivityDisc({
   return (
     <span
       className={joinClasses(
-        'relative z-[1] grid size-[2.125rem] shrink-0 place-items-center',
+        'relative z-1 grid size-[2.125rem] shrink-0 place-items-center',
         'rounded-full',
         isLatest ? 'animate-pulse bg-th-primary' : 'bg-cosci-hover',
       )}

@@ -340,3 +340,11 @@ quote; operator model selection still determines the cost per token. BYOK
 calls retain the operation cap and use the caller's funding. Session-start
 announcements are claimed once per run; repeats replay the stored reply, or
 a deterministic confirmation if the original stream was interrupted.
+
+## Decision-provider admission
+
+The optional Liquid decision client retains the shared physical-call/token
+ceilings and reserves its own daily allowance before HTTP. Failed attempts are
+not refunded. Never hold a DB writer over a provider request or replace an
+exhausted free decision route with a paid model. Configuration and the manual
+evaluation workflow are in [decision-model.md](decision-model.md).

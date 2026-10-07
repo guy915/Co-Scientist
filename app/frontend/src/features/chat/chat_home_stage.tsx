@@ -36,59 +36,59 @@ export interface HomeStageProps {
 // exclude their bound. The landing sheet owns the stage height when mounted.
 const HOME_STAGE_CLASSES =
   'reference-home-stage grid h-full min-h-0 grid-cols-[minmax(40rem,50.75rem)_minmax(17rem,21rem)] justify-center gap-[clamp(2.5rem,7vw,7.5rem)] overflow-hidden px-6 pt-[1.15rem] pb-[clamp(1.6rem,4vh,2.6rem)] ' +
-  '[@media(min-width:701px)_and_(max-width:1180px)]:h-auto [@media(min-width:701px)_and_(max-width:1180px)]:min-h-full [@media(min-width:701px)_and_(max-width:1180px)]:grid-cols-[minmax(0,1fr)] [@media(min-width:701px)_and_(max-width:1180px)]:justify-items-center [@media(min-width:701px)_and_(max-width:1180px)]:gap-[clamp(1.5rem,3.5vw,2.5rem)] [@media(min-width:701px)_and_(max-width:1180px)]:overflow-visible [@media(min-width:701px)_and_(max-width:1180px)]:px-[clamp(1.5rem,4vw,2.25rem)] [@media(min-width:701px)_and_(max-width:1180px)]:py-0 ' +
-  'min-[1181px]:[--home-recents-width:clamp(19rem,18vw,20.5rem)] min-[1181px]:[align-items:start] min-[1181px]:grid-cols-[minmax(0,1fr)_minmax(19rem,var(--home-recents-width))] min-[1181px]:justify-stretch min-[1181px]:gap-[clamp(2.25rem,3.1vw,3.35rem)] min-[1181px]:py-0 min-[1181px]:pr-[clamp(0.7rem,1.2vw,1.3rem)] min-[1181px]:pl-[clamp(2rem,3vw,4rem)] ' +
-  '[@media(max-width:700px)]:flex [@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:flex-col [@media(max-width:700px)]:gap-0 [@media(max-width:700px)]:px-[clamp(0.9rem,4vw,1.25rem)] [@media(max-width:700px)]:pt-3 [@media(max-width:700px)]:pb-[clamp(0.8rem,2.2vh,1.15rem)]';
+  'tablet:h-auto tablet:min-h-full tablet:grid-cols-[minmax(0,1fr)] tablet:justify-items-center tablet:gap-[clamp(1.5rem,3.5vw,2.5rem)] tablet:overflow-visible tablet:px-[clamp(1.5rem,4vw,2.25rem)] tablet:py-0 ' +
+  'desktop:[--home-recents-width:clamp(19rem,18vw,20.5rem)] desktop:[align-items:start] desktop:grid-cols-[minmax(0,1fr)_minmax(19rem,var(--home-recents-width))] desktop:justify-stretch desktop:gap-[clamp(2.25rem,3.1vw,3.35rem)] desktop:py-0 desktop:pr-[clamp(0.7rem,1.2vw,1.3rem)] desktop:pl-[clamp(2rem,3vw,4rem)] ' +
+  'phone:flex phone:flex-1 phone:flex-col phone:gap-0 phone:px-[clamp(0.9rem,4vw,1.25rem)] phone:pt-3 phone:pb-[clamp(0.8rem,2.2vh,1.15rem)]';
 
 // Only spacer tracks shrink as the composer grows upward; children take explicit
 // rows so auto-flow cannot place the greeting into spacer tracks.
 const HOME_MAIN_CLASSES =
-  'reference-home-main relative z-0 grid [align-content:start] pt-[clamp(2.4rem,7vh,3.5rem)] motion-safe:animate-[reference-fade-in_0.3s_ease-in-out_0s_forwards] ' +
-  '[@media(min-width:701px)_and_(max-width:1180px)]:h-[calc(100vh-4.5rem)] [@media(min-width:701px)_and_(max-width:1180px)]:supports-[height:100dvh]:h-[calc(100dvh-4.5rem)] [@media(min-width:701px)_and_(max-width:1180px)]:w-[min(100%,43rem)] [@media(min-width:701px)_and_(max-width:1180px)]:grid-rows-[minmax(0,clamp(2.4rem,7vh,3.5rem))_auto_auto_minmax(2rem,1fr)_auto_max-content_max-content] [@media(min-width:701px)_and_(max-width:1180px)]:pt-0 [@media(min-width:701px)_and_(max-width:1180px)]:pb-[clamp(1rem,2.5vh,1.75rem)] ' +
-  'min-[1181px]:h-full min-[1181px]:max-h-[calc(100vh-4.5rem)] min-[1181px]:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] min-[1181px]:max-w-[clamp(46rem,55vw,53.5rem)] min-[1181px]:min-w-0 min-[1181px]:justify-self-center min-[1181px]:grid-rows-[minmax(1.5rem,clamp(4.85rem,8.8vh,6.4rem))_auto_minmax(1.25rem,clamp(3.85rem,7.6vh,5.8rem))_auto_minmax(2rem,1fr)_auto_max-content_max-content] min-[1181px]:pt-0 min-[1181px]:pb-[clamp(1.35rem,3.2vh,2.25rem)] ' +
-  '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:flex-col [@media(max-width:700px)]:pt-2';
+  'reference-home-main relative z-0 grid [align-content:start] pt-[clamp(2.4rem,7vh,3.5rem)] ui-motion-enter ' +
+  'tablet:h-[calc(100vh-4.5rem)] tablet:supports-[height:100dvh]:h-[calc(100dvh-4.5rem)] tablet:w-[min(100%,43rem)] tablet:grid-rows-[minmax(0,clamp(2.4rem,7vh,3.5rem))_auto_auto_minmax(2rem,1fr)_auto_max-content_max-content] tablet:pt-0 tablet:pb-[clamp(1rem,2.5vh,1.75rem)] ' +
+  'desktop:h-full desktop:max-h-[calc(100vh-4.5rem)] desktop:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] desktop:max-w-[clamp(46rem,55vw,53.5rem)] desktop:min-w-0 desktop:justify-self-center desktop:grid-rows-[minmax(1.5rem,clamp(4.85rem,8.8vh,6.4rem))_auto_minmax(1.25rem,clamp(3.85rem,7.6vh,5.8rem))_auto_minmax(2rem,1fr)_auto_max-content_max-content] desktop:pt-0 desktop:pb-[clamp(1.35rem,3.2vh,2.25rem)] ' +
+  'phone:flex phone:min-h-0 phone:w-full phone:flex-1 phone:flex-col phone:pt-2';
 
 const HOME_TITLE_CLASSES =
   'm-[0_auto_0.5rem] w-[min(100%,34.375rem)] font-gsans text-[clamp(2.25rem,3.4vw,2.8125rem)] leading-[1.156] font-normal text-pretty text-cosci-fg text-center ' +
-  'min-[701px]:row-2 min-[1181px]:w-[min(100%,43.5rem)] min-[1181px]:text-[clamp(2.35rem,3vw,2.8125rem)] ' +
+  'above-phone:row-2 desktop:w-[min(100%,43.5rem)] desktop:text-[clamp(2.35rem,3vw,2.8125rem)] ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:text-[clamp(2.1rem,2.8vw,2.65rem)] ' +
-  '[@media(max-width:700px)]:m-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:text-[clamp(1.85rem,7.6vw,2.35rem)] [@media(max-width:700px)]:leading-[1.16]';
+  'phone:m-0 phone:w-full phone:text-[clamp(1.85rem,7.6vw,2.35rem)] phone:leading-[1.16]';
 
 const HOME_LOGO_CLASSES =
-  'm-[auto_auto_1rem] block h-auto w-[2.5rem] self-center text-(--cosci-accent) [&_path]:fill-current [&_path]:stroke-current';
+  'm-[auto_auto_1rem] block h-auto w-[2.5rem] self-center text-cosci-accent [&_path]:fill-current [&_path]:stroke-current';
 
 const STEP_TIMELINE_CLASSES =
-  "relative m-[clamp(3.7rem,8.5vh,5.2rem)_0_0] grid list-none grid-cols-3 gap-[3.9rem] p-0 before:absolute before:top-4 before:right-4 before:left-4 before:h-px before:bg-(--cosci-step-line) before:content-[''] " +
-  'min-[701px]:row-3 min-[1181px]:row-4 min-[1181px]:mt-0 min-[1181px]:gap-x-0 ' +
-  '[@media(min-width:701px)_and_(max-width:1180px)]:mt-[clamp(2.75rem,6vh,4rem)] [@media(min-width:701px)_and_(max-width:1180px)]:gap-0 ' +
+  "relative m-[clamp(3.7rem,8.5vh,5.2rem)_0_0] grid list-none grid-cols-3 gap-[3.9rem] p-0 before:absolute before:top-4 before:right-4 before:left-4 before:h-px before:bg-cosci-step-line before:content-[''] " +
+  'above-phone:row-3 desktop:row-4 desktop:mt-0 desktop:gap-x-0 ' +
+  'tablet:mt-[clamp(2.75rem,6vh,4rem)] tablet:gap-0 ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:mt-[clamp(2.35rem,5.8vh,3.2rem)]';
 
 const STEP_ITEM_CLASSES =
-  'relative z-[1] grid gap-4 min-[1181px]:w-[min(100%,15.8rem)] [@media(min-width:701px)_and_(max-width:1180px)]:w-[min(100%,14rem)] [@media(min-width:701px)_and_(max-width:1180px)]:grid-cols-[1fr] [@media(min-width:701px)_and_(max-width:1180px)]:gap-[0.85rem]';
+  'relative z-1 grid gap-4 desktop:w-[min(100%,15.8rem)] tablet:w-[min(100%,14rem)] tablet:grid-cols-[1fr] tablet:gap-[0.85rem]';
 
 const STEP_NUMBER_CLASSES =
-  'grid size-[1.875rem] place-items-center rounded-full bg-(--cosci-accent) text-[1rem] font-normal text-(--cosci-accent-fg) [transition:background-color_0.3s_ease-in-out]';
+  'grid size-[1.875rem] place-items-center rounded-full bg-cosci-accent text-[1rem] font-normal text-cosci-accent-fg [transition:background-color_0.3s_ease-in-out]';
 
 const STEP_BODY_CLASSES =
   'mt-1 max-w-[16rem] text-[0.875rem] leading-[1.43] text-cosci-fg [@media(min-width:1181px)_and_(max-height:760px)]:text-[0.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:leading-[1.28]';
 
 const SUGGESTION_ROW_CLASSES =
-  'mt-[clamp(3.2rem,7vh,4.35rem)] grid grid-cols-3 gap-[0.85rem] min-[701px]:row-5 min-[701px]:mt-0 min-[1181px]:row-6 min-[1181px]:[align-self:end] [@media(max-width:700px)]:mt-auto [@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:gap-[0.15rem]';
+  'mt-[clamp(3.2rem,7vh,4.35rem)] grid grid-cols-3 gap-[0.85rem] above-phone:row-5 above-phone:mt-0 desktop:row-6 desktop:[align-self:end] phone:mt-auto phone:grid-cols-[minmax(0,1fr)] phone:gap-[0.15rem]';
 
 const SUGGESTION_BUTTON_LAYOUT_CLASSES =
   'flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full items-center overflow-hidden p-3 leading-[1.35] ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:max-h-[3.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[3.9rem] ' +
-  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
+  'phone:h-auto phone:max-h-none phone:min-h-0 phone:gap-[0.85rem] phone:px-[0.85rem] phone:py-[0.6rem]';
 
 // TruncatedLabel clips only at whole words; CSS text-overflow would cut
 // letters.
 const SUGGESTION_TEXT_CLASSES =
-  'line-clamp-2 leading-[1.35] [@media(max-width:700px)]:block [@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:flex-auto [@media(max-width:700px)]:leading-[1.4] [@media(max-width:700px)]:whitespace-nowrap';
+  'line-clamp-2 leading-[1.35] phone:block phone:min-w-0 phone:flex-auto phone:leading-[1.4] phone:whitespace-nowrap';
 
 // The preview shows the full teaser: line clamps would cut letters, while
 // viewport bounds permit whole-word wrapping.
 const SUGGESTION_PREVIEW_CLASSES =
-  'pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-[5] m-0 block w-max max-w-[min(46rem,calc(100vw-7rem))] text-[0.84rem] leading-[1.25rem] font-normal text-pretty text-cosci-shell-icon transition-[opacity,visibility] duration-short ease-standard [@media(max-width:700px)]:hidden';
+  'pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-5 m-0 block w-max max-w-[min(46rem,calc(100vw-7rem))] text-[0.84rem] leading-[1.25rem] font-normal text-pretty text-cosci-shell-icon transition-[opacity,visibility] duration-short ease-standard phone:hidden';
 
 // Anchor edge previews inward so they cannot overflow the viewport.
 const SUGGESTION_PREVIEW_POSITION_CLASSES = [
@@ -174,8 +174,8 @@ function HomeGreeting({isMobile}: {isMobile: boolean}) {
               key={step.n}
               className={joinClasses(
                 STEP_ITEM_CLASSES,
-                index === 1 && 'min-[701px]:justify-self-center',
-                index === 2 && 'min-[701px]:[justify-self:end]',
+                index === 1 && 'above-phone:justify-self-center',
+                index === 2 && 'above-phone:[justify-self:end]',
               )}
             >
               <span className={STEP_NUMBER_CLASSES}>{step.n}</span>
@@ -311,7 +311,6 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
           are text-only. */}
       {isMobile && (
         <Icon
-          aria-hidden="true"
           className="size-[1.4rem] flex-none text-[1.4rem] text-cosci-shell-icon"
           name={suggestion.icon}
         />
@@ -428,21 +427,21 @@ export const SESSION_STEPS: readonly {
 // than a desktop-style scroller; 1181px+ fills the stage column. Mobile never
 // renders the panel.
 const RECENTS_PANEL_CLASSES =
-  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 motion-safe:animate-[reference-fade-in_0.3s_ease-in-out_0s_forwards] ' +
-  'min-[701px]:mt-4 min-[701px]:min-h-auto min-[701px]:w-[min(100%,43rem)] min-[701px]:grid-rows-[auto_auto] min-[701px]:overflow-visible ' +
-  'min-[1181px]:mt-0 min-[1181px]:h-full min-[1181px]:min-h-0 min-[1181px]:w-full min-[1181px]:max-h-[calc(100vh-4.5rem)] min-[1181px]:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] min-[1181px]:grid-rows-[auto_minmax(0,1fr)] min-[1181px]:[justify-self:end] min-[1181px]:gap-[1.55rem] min-[1181px]:pt-[clamp(0.35rem,1vh,0.75rem)] min-[1181px]:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
+  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 ui-motion-enter ' +
+  'above-phone:mt-4 above-phone:min-h-auto above-phone:w-[min(100%,43rem)] above-phone:grid-rows-[auto_auto] above-phone:overflow-visible ' +
+  'desktop:mt-0 desktop:h-full desktop:min-h-0 desktop:w-full desktop:max-h-[calc(100vh-4.5rem)] desktop:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] desktop:grid-rows-[auto_minmax(0,1fr)] desktop:[justify-self:end] desktop:gap-[1.55rem] desktop:pt-[clamp(0.35rem,1vh,0.75rem)] desktop:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
 
 const RECENTS_PANEL_EMPTY_CLASSES = 'grid-rows-[auto_1fr] self-stretch pb-8';
 
 const RECENTS_LIST_CLASSES =
-  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-[2.6rem] min-[1181px]:scroll-p-[0.55rem_0.55rem_2.15rem] min-[1181px]:gap-[2.65rem]';
+  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-[2.6rem] desktop:scroll-p-[0.55rem_0.55rem_2.15rem] desktop:gap-[2.65rem]';
 
 // Background-independent masks soften the scroll edge in both themes without
 // matching surface colors; symmetric 1181px+ insets leave scrollbar slack so
 // narrowed cards cannot overflow horizontally.
 const RECENTS_LIST_SCROLL_CLASSES =
   'overflow-y-auto p-0 pr-[0.6rem] [mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] [-webkit-mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] ' +
-  'max-h-[calc(100vh-12rem)] supports-[height:100dvh]:max-h-[calc(100dvh-12rem)] min-[701px]:max-h-none min-[701px]:overflow-visible min-[1181px]:overflow-y-auto min-[1181px]:p-[0.55rem_0.55rem_2.15rem]';
+  'max-h-[calc(100vh-12rem)] supports-[height:100dvh]:max-h-[calc(100dvh-12rem)] above-phone:max-h-none above-phone:overflow-visible desktop:overflow-y-auto desktop:p-[0.55rem_0.55rem_2.15rem]';
 
 // The empty state is not a scroller; a mask would dim the card itself.
 const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
@@ -450,7 +449,7 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 // Its transition stays in home_surface.css: the global unlayered `a` rule
 // would beat a utility.
 const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-cosci-suggestion-bg bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card hover:bg-cosci-recent-card-hover-bg focus-visible:bg-cosci-recent-card-hover-bg desktop:min-h-0 desktop:border-transparent';
 
 interface HomeRecentsPanelProps {
   runs: Run[];
@@ -476,12 +475,8 @@ export function HomeRecentsPanel({
       aria-label="Recent runs"
     >
       <div className="flex items-center gap-2 text-th-muted-fg">
-        <Icon
-          aria-hidden="true"
-          className="size-5 min-[1181px]:size-[1.375rem]"
-          name="history"
-        />
-        <h2 className="m-0 text-[1.15rem] font-semibold text-cosci-fg min-[1181px]:text-[1rem] min-[1181px]:leading-[1.5] min-[1181px]:font-medium">
+        <Icon className="size-5 desktop:size-[1.375rem]" name="history" />
+        <h2 className="m-0 text-[1.15rem] font-semibold text-cosci-fg desktop:text-[1rem] desktop:leading-[1.5] desktop:font-medium">
           Recents
         </h2>
       </div>
@@ -496,7 +491,7 @@ export function HomeRecentsPanel({
             <div className="box-border grid h-full min-h-[25rem] w-full place-items-center content-center gap-4 rounded-3xl border-[1.5px] border-dashed border-cosci-border p-6 text-center text-cosci-muted">
               <GoogleLabsIcon
                 aria-hidden="true"
-                className="block h-[1.95rem] w-[2.1rem] text-(--cosci-accent)"
+                className="block h-[1.95rem] w-[2.1rem] text-cosci-accent"
               />
               <strong className="max-w-[17rem] text-[1rem] leading-[1.35] font-[650] text-inherit">
                 You have not started any sessions yet.
@@ -558,7 +553,8 @@ function RecentRunCard({
               : runPath(run.id, 'details')
         }
         className={joinClasses(RECENT_CARD_CLASSES, active && 'is-active-run')}
-        title={run.research_goal}
+        // The labels below are cut to fit; assistive tech still gets the goal.
+        aria-description={run.research_goal}
       >
         <RecentCardMeta run={run} />
         <TruncatedLabel
@@ -570,7 +566,7 @@ function RecentRunCard({
           lines={2}
         />
         <TruncatedLabel
-          className="reference-recent-description line-clamp-3 text-[0.9rem] leading-[1.35] text-cosci-shell-icon min-[1181px]:text-[0.94rem] min-[1181px]:leading-[1.34]"
+          className="reference-recent-description line-clamp-3 text-[0.9rem] leading-[1.35] text-cosci-shell-icon desktop:text-[0.94rem] desktop:leading-[1.34]"
           text={run.research_goal}
           lines={3}
         />
@@ -600,7 +596,7 @@ function RecentRunResults({run}: {run: Run}) {
         )}
       </span>
       {topIdeas.length > 0 && (
-        <ol className="m-0 mt-[0.15rem] grid list-none gap-[0.65rem] p-0 text-[0.75rem] leading-[1.33] tracking-[0.1px] text-cosci-fg min-[1181px]:gap-2">
+        <ol className="m-0 mt-[0.15rem] grid list-none gap-[0.65rem] p-0 text-[0.75rem] leading-[1.33] tracking-[0.1px] text-cosci-fg desktop:gap-2">
           {topIdeas.map((idea, index) => (
             <li
               key={idea}
@@ -737,7 +733,6 @@ function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   return (
     <div className={RUN_STEP_CLASSES}>
       <Icon
-        aria-hidden="true"
         className="reference-run-step-icon size-5 shrink-0 text-cosci-shell-icon"
         name={icon}
       />
