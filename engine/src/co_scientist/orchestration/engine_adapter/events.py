@@ -6,8 +6,8 @@ from typing import Any
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.research_state.elo import rank_for_publication
+from co_scientist.domains.research_state.proximity_edges import is_judged_edge
 from co_scientist.orchestration.run_events import hypothesis_stub
-from co_scientist.science.proximity.proximity_graph import is_judged_edge
 
 
 def _canonical_event_type(node_name: str) -> str:

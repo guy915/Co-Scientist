@@ -24,16 +24,16 @@ from co_scientist.platform.llm import (
     call_llm_json,
 )
 from co_scientist.platform.retrieval.article import Article
+from co_scientist.science.evidence_context import (
+    EvidenceCaps,
+    build_evidence_context,
+    showable_articles,
+)
 from co_scientist.science.prompts import build_tool_instructions
 from co_scientist.science.prompts._common import _format_meta_review_context
 from co_scientist.science.prompts.loading import load_prompt_with_schema
 from co_scientist.science.reflection.deep_verification import (
     merge_retrieved_articles,
-)
-from co_scientist.science.reflection.deep_verification_evidence import (
-    EvidenceCaps,
-    build_evidence_context,
-    showable_articles,
 )
 from co_scientist.science.reflection.reflection import (
     apply_observation_result,

@@ -19,17 +19,6 @@ from co_scientist.domains.research_state.models import (
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import current_run_call_count
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.science.ranking.ranking_lifecycle import (
-    _coverage_floor,
-    _tournament_round_count,
-)
-from co_scientist.science.reflection.owed_review import (
-    mark_owed_review_issued,
-    owed_review_targets,
-)
-from co_scientist.science.reflection.owed_review import (
-    owed_review_count as _owed_review_count,
-)
 from co_scientist.science.scheduling import (
     Budget,
     SchedulerStats,
@@ -40,6 +29,14 @@ from co_scientist.science.scheduling import (
     policy,
     stacked_task_values,
 )
+from co_scientist.science.scheduling.owed_review import (
+    mark_owed_review_issued,
+    owed_review_targets,
+)
+from co_scientist.science.scheduling.owed_review import (
+    owed_review_count as _owed_review_count,
+)
+from co_scientist.science.scheduling.tournament import coverage_floor, remaining_ranking_rounds
 from co_scientist.science.supervisor.supervisor_decision import (
     WORK_TASKS,
     choose_supervisor_task,
@@ -106,7 +103,7 @@ def _compute_stats(state: WorkflowState, book: dict[str, Any]) -> SchedulerStats
         avg_coverage=avg_coverage,
         unmatched_rankable_count=unmatched,
         # Coverage debt and finite settlement allowance must use the same floor.
-        owed_coverage_rounds=_coverage_floor(hyps),
+        owed_coverage_rounds=coverage_floor(hyps),
         top_elo=max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING),
         llm_calls=llm_calls,
         gen_yield=gen_yield,
@@ -201,7 +198,7 @@ def _build_scheduler_stats(
         owed_coverage_rounds=scalars.owed_coverage_rounds,
         settlement_allowance=book.get("settlement_allowance"),
         owed_at_last_settlement=book.get("owed_at_last_settlement"),
-        tournament_rounds_remaining=_tournament_round_count(state, state.get("hypotheses") or []),
+        tournament_rounds_remaining=remaining_ranking_rounds(state, state.get("hypotheses") or []),
         top_elo=scalars.top_elo,
         generation_yield=scalars.gen_yield,
         evolution_yield=scalars.evo_yield,
@@ -348,7 +345,7 @@ def _settled_allowance(
         if allowance is None:
             # Use the tournament floor; zero-match counts miss ideas one match
             # short and would underfund the settlement allowance.
-            allowance = _coverage_floor(hypotheses)
+            allowance = coverage_floor(hypotheses)
         return (
             max(0, int(allowance) - 1),
             stats.owed_coverage_rounds,

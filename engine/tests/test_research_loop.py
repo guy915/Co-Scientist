@@ -107,7 +107,7 @@ def test_no_production_module_reads_the_raw_criteria_keys() -> None:
         if rel in _ALLOWED_READERS:
             continue
         source = path.read_text(encoding="utf-8")
-        if rel == "science/generation/citations.py":
+        if rel == "science/citations.py":
             formatter = next(
                 node
                 for node in ast.parse(source).body

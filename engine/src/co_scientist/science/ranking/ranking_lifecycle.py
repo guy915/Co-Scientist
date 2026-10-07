@@ -5,13 +5,10 @@ from co_scientist.core.constants import (
     INITIAL_ELO_RATING,
     PROGRESS_TOURNAMENT_COMPLETE,
     PROGRESS_TOURNAMENT_START,
-    TOURNAMENT_MATCHES_PER_HYPOTHESIS,
-    TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,
     truncate,
 )
 from co_scientist.domains.research_state.models import (
     Hypothesis,
-    has_peer_review,
     rank_for_publication,
 )
 from co_scientist.domains.research_state.state import WorkflowState
@@ -19,6 +16,7 @@ from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.science.ranking.ranking_debate import (
     _build_ranking_delta,
 )
+from co_scientist.science.scheduling.tournament import remaining_ranking_rounds
 
 logger = logging.getLogger(__name__)
 
@@ -63,58 +61,6 @@ def add_to_tournament(hypothesis: Hypothesis) -> bool:
 def _admit_hypotheses_to_tournament(hypotheses: list[Hypothesis]) -> None:
     for hypothesis in hypotheses:
         add_to_tournament(hypothesis)
-
-
-def consumed_tournament_rounds(state: WorkflowState) -> int:
-    """Dedup removes hypotheses and their tallies; only accumulated run
-    metrics keep spent match budget from being refunded."""
-    metrics = state.get("metrics")
-    return max(0, int(getattr(metrics, "tournaments_count", 0) or 0))
-
-
-def _coverage_floor(hypotheses: list[Hypothesis]) -> int:
-    """Only reviewed rankable ideas owe matches. Bound by distinct pairs and
-    fund the largest lone-idea deficit, not just half the owed slots."""
-    rankable = [h for h in hypotheses if h.is_rankable() and has_peer_review(h)]
-    if len(rankable) < 2:
-        return 0
-    owed_per_idea = [
-        max(0, TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS - h.total_matches) for h in rankable
-    ]
-    owed = sum(owed_per_idea)
-    if not owed:
-        return 0
-    max_pairs = len(rankable) * (len(rankable) - 1) // 2
-    rounds = max((owed + 1) // 2, max(owed_per_idea))
-    return min(rounds, max_pairs)
-
-
-def _tournament_budget(state: WorkflowState, hypotheses: list[Hypothesis]) -> int:
-    """Evolution adds ideas after the tier allowance runs out; scaling by
-    pool size funds later children beyond minimal coverage."""
-    configured = max(1, int(state.get("tournament_pairs") or len(hypotheses)))
-    rankable = sum(1 for h in hypotheses if h.is_rankable())
-    scaled = (rankable * TOURNAMENT_MATCHES_PER_HYPOTHESIS + 1) // 2
-    return max(configured, scaled)
-
-
-def remaining_ranking_rounds(state: WorkflowState, hypotheses: list[Hypothesis]) -> int:
-    """This is a whole-run allowance; coverage still funds unmatched reviewed
-    ideas so seed Elo is not presented as an earned tournament rating."""
-    budget = _tournament_budget(state, hypotheses)
-    remaining = max(0, budget - consumed_tournament_rounds(state))
-    floor = _coverage_floor(hypotheses)
-    if floor > remaining:
-        logger.info(
-            "Tournament budget spent (%s of %s), but %s round(s) still owed "
-            "to hypotheses that have never been matched",
-            remaining,
-            budget,
-            floor,
-        )
-        return floor
-    logger.info("Tournament budget: %s of %s rounds remaining", remaining, budget)
-    return remaining
 
 
 async def prepare_ranking_round(
@@ -168,6 +114,5 @@ async def finalize_ranking(
 
 
 _TournamentGuidance = TournamentGuidance
-_tournament_round_count = remaining_ranking_rounds
 _prepare_ranking_round = prepare_ranking_round
 _finalize_ranking_result = finalize_ranking

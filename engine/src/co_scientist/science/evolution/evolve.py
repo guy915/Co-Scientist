@@ -49,9 +49,6 @@ from co_scientist.science.evolution.evolve_prompt import (
 from co_scientist.science.evolution.evolve_prompt import (
     sample_context_hypotheses as sample_context_hypotheses,
 )
-from co_scientist.science.evolution.evolve_prompt import (
-    token_coverage as token_coverage,
-)
 from co_scientist.science.evolution.evolve_results import (
     _apply_evolution_result as _apply_evolution_result,
 )

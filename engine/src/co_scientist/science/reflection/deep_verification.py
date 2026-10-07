@@ -24,8 +24,7 @@ from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import CompletionSpec, call_llm_json
 from co_scientist.platform.retrieval.article import Article
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.science.prompts import get_deep_verification_prompt
-from co_scientist.science.reflection.deep_verification_evidence import (
+from co_scientist.science.evidence_context import (
     PUBLIC_SNIPPET_CHARS,
     EvidenceCaps,
     _augment_evidence_context_with_meta_review,
@@ -34,10 +33,11 @@ from co_scientist.science.reflection.deep_verification_evidence import (
     _retrieved_evidence_context,
     build_evidence_context,
 )
-from co_scientist.science.reflection.deep_verification_evidence import (
+from co_scientist.science.evidence_context import (
     merge_retrieved_articles as merge_retrieved_articles,
 )
-from co_scientist.science.reflection.deep_verification_evidence import (
+from co_scientist.science.prompts import get_deep_verification_prompt
+from co_scientist.science.reflection.review_evidence import (
     with_researched as _with_researched,
 )
 from co_scientist.science.schemas.review import (
