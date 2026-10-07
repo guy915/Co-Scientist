@@ -32,9 +32,9 @@ from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.domains.research_state.repository.records import NewEvidence
+from co_scientist.orchestration.engine_tasks import gate as engine_tasks_gate
 from co_scientist.platform.llm import scoped_telemetry
 
-from app.engine_tasks import gate as engine_tasks_gate
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add, seed_run
 

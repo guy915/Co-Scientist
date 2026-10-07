@@ -8,6 +8,8 @@ from typing import Any, NamedTuple, Protocol
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.access.free_usage as free_usage
 import co_scientist.domains.documents.staged as staged_documents
+import co_scientist.orchestration.engine_adapter as engine_adapter
+import co_scientist.orchestration.repository.receipts as run_creation_receipts
 import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
@@ -21,6 +23,10 @@ from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.chat.seed import is_current_demo_run
 from co_scientist.domains.documents import repository as documents
 from co_scientist.domains.research_state.repository import records
+from co_scientist.orchestration.repository import events, tasks
+from co_scientist.orchestration.repository import runs as store
+from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.admission import claim_run, connecting_host
@@ -31,8 +37,6 @@ from co_scientist.platform.llm.execution_policy import (
 )
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
-import app.engine_adapter as engine_adapter
-import app.store.receipts as run_creation_receipts
 from app.auth import client_id, require_client_scope
 from app.runs.models import (
     CreateRunRequest,
@@ -40,10 +44,6 @@ from app.runs.models import (
     _build_create_run_config,
 )
 from app.runs.support import _run_or_404
-from app.store import events, tasks
-from app.store import runs as store
-from app.store import runs_views as views
-from app.store.runs import RunCreateOptions
 
 
 async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
@@ -443,7 +443,7 @@ def delete_run(run_id: str) -> dict[str, Any]:
     through the run's hypotheses, evidence, reviews,
     citations, matches, safety decisions, reports, messages, checkpoints,
     metrics, and every other run-scoped table (enforced foreign keys, see
-    ``app.store.runs``); it cannot be undone.
+    ``co_scientist.orchestration.repository.runs``); it cannot be undone.
 
     Returns:
         The deleted run's id and the row counts removed, per table --

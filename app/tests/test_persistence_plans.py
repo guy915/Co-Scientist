@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 from co_scientist.domains.report import repository as reports
+from co_scientist.orchestration.repository import supervisor_plan as plans
 
-from app.store import supervisor_plan as plans
 from tests._drain_helpers import (
     _final_state_with_features,
     _persist_and_finalize,

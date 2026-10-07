@@ -23,6 +23,12 @@ from co_scientist.domains.safety.rules import (
     redact_hypothesis_fields,
     review_hypothesis_safety,
 )
+from co_scientist.orchestration.task_runtime import (
+    TASK_NODES,
+    execute_task_node,
+    next_task_type,
+)
+from co_scientist.orchestration.workflow_topology import route_next_task
 from co_scientist.science.meta_review import meta_review
 from co_scientist.science.meta_review.meta_review import meta_review_node
 from co_scientist.science.safety_screen import (
@@ -30,12 +36,6 @@ from co_scientist.science.safety_screen import (
     review_direction_safety,
     safety_screen_node,
 )
-from co_scientist.task_runtime import (
-    TASK_NODES,
-    execute_task_node,
-    next_task_type,
-)
-from co_scientist.workflow_topology import route_next_task
 from tests._llm_fake import (
     install_fake_llm,
     make_test_generator,

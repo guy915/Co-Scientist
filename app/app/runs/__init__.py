@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from co_scientist.core.async_bridge import off_loop
+from co_scientist.orchestration.repository import events as store
 from fastapi import (
     APIRouter,
     Query,
@@ -24,7 +25,6 @@ from app.runs.lifecycle import (
 from app.runs.support import (
     _run_or_404 as _run_or_404,
 )
-from app.store import events as store
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 

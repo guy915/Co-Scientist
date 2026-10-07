@@ -14,16 +14,16 @@ from co_scientist.domains.research_state.repository import hypotheses, records
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.domains.safety.types import REDACTED_PLACEHOLDER
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.engine_tasks import finalize as engine_tasks_node
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
-from app import engine_tasks, task_worker
-from app.engine_tasks import finalize as engine_tasks_node
-from app.engine_tasks import support as engine_tasks_support
-from app.store import events as store_events
-from app.store import runs, tasks
-from app.store import tasks_lifecycle as lifecycle
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -266,7 +266,7 @@ async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
 
     monkeypatch.setattr(module, name, cancel_first)
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
@@ -400,7 +400,7 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
 
     _install_runtime(monkeypatch).screen = cancel_then_decide
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
@@ -475,7 +475,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
     )
     task = tasks.claim_task("cancel-during-drain-worker", run_id=run_id, db_path=isolated_db)
     assert task is not None
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     run = runs.get_run(run_id, db_path=isolated_db)

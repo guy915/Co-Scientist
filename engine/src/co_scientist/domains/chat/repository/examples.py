@@ -7,11 +7,10 @@ import sqlite3
 import uuid
 from typing import Any
 
-from app.store import runs
-from app.store.runs import RunCreateOptions
-
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.chat.seed import is_current_demo_run
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
 

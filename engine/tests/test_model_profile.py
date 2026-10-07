@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 
 from co_scientist.core.constants import MODEL_PRICING
-from co_scientist.generator.core import HypothesisGenerator
-from co_scientist.generator.run_setup import GeneratorOptions
+from co_scientist.orchestration.generator.core import HypothesisGenerator
+from co_scientist.orchestration.generator.run_setup import GeneratorOptions
 from co_scientist.platform.llm import (
     CompletionSpec,
     ToolLoop,

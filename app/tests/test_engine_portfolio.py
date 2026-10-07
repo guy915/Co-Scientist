@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import pytest
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.engine_tasks.node import _check_portfolio_predecessor
+from co_scientist.orchestration.engine_tasks.support import SupersededTaskError, TaskCommit
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
+from co_scientist.orchestration.task_worker import outcomes as task_worker_outcomes
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 
-from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.node import _check_portfolio_predecessor
-from app.engine_tasks.support import SupersededTaskError, TaskCommit
-from app.store import runs
-from app.store import tasks as store
-from app.store import tasks_lifecycle as lifecycle
-from app.task_worker import outcomes as task_worker_outcomes
 from tests._engine_tasks_helpers import (
     _seed_checkpoint,
     _task_state,

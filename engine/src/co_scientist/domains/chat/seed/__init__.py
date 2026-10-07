@@ -7,8 +7,7 @@ import sqlite3
 from importlib import resources
 from typing import Any
 
-from app.store import runs_views as views
-
+from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
 

@@ -7,10 +7,9 @@ from typing import Any
 
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
+from co_scientist.orchestration.repository import runs
 from co_scientist.platform.db.models import RunRow, ScientificTask
 from fastapi import HTTPException
-
-from app.store import runs
 
 
 def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:
@@ -34,7 +33,7 @@ def _steer_and_continue(
     """Contributions continue from durable checkpoint state rather than
     restarting prior scientific work.
     """
-    from app import engine_tasks
+    from co_scientist.orchestration import engine_tasks
 
     message = messages.append_message(
         NewMessage(
