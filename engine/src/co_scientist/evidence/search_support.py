@@ -121,16 +121,6 @@ def _resolve_source_id_field(tool_config: "ToolConfig") -> str:
     return source_id_field
 
 
-def _paper_id_for_rekey(paper: Any, source_id_field: str, fallback_index: int) -> str:
-    return cast(
-        str,
-        paper.get(source_id_field)
-        or paper.get("arxiv_id")
-        or paper.get("id")
-        or str(fallback_index),
-    )
-
-
 def _rekey_list_response_by_id(
     papers: list[Any],
     tool_config: "ToolConfig",
@@ -138,7 +128,13 @@ def _rekey_list_response_by_id(
     source_id_field = _resolve_source_id_field(tool_config)
     normalized: dict[str, Any] = {}
     for paper in papers:
-        paper_id = _paper_id_for_rekey(paper, source_id_field, len(normalized))
+        paper_id = cast(
+            str,
+            paper.get(source_id_field)
+            or paper.get("arxiv_id")
+            or paper.get("id")
+            or str(len(normalized)),
+        )
         normalized[paper_id] = paper
     return normalized
 

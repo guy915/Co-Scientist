@@ -160,19 +160,8 @@ async def _synthesize_meta_review(
             run_focus_guidance=state.get("run_focus_guidance"),
         ),
     )
-    response = await _call_meta_review_llm(state, prompt, schema)
-    meta_review = _build_meta_review(response)
-    _log_meta_review_summary(meta_review)
-    return meta_review
-
-
-async def _call_meta_review_llm(
-    state: WorkflowState,
-    prompt: str,
-    schema: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Supervisor-model synthesis steers cross-hypothesis evolution."""
-    return await call_llm_json(
+    # Supervisor-model synthesis steers cross-hypothesis evolution.
+    response = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
             model_name=state["supervisor_model_name"],
@@ -184,6 +173,15 @@ async def _call_meta_review_llm(
             prompt_name="meta_review",
         ),
     )
+    meta_review = _build_meta_review(response)
+    # One combined log record avoids competing SQLite writes and crowding
+    # the reader's bounded event window.
+    logger.info(
+        "Meta-review complete: %s common strengths, %s strategic recommendations",
+        len(meta_review["common_strengths"]),
+        len(meta_review["strategic_recommendations"]),
+    )
+    return meta_review
 
 
 def _build_meta_review_result(meta_review: dict[str, Any]) -> dict[str, Any]:
@@ -217,16 +215,6 @@ def _degraded_meta_review_result() -> dict[str, Any]:
     result = _empty_meta_review_result()
     result["meta_review"]["summary"] = "Meta-review synthesis was unavailable for this cycle"
     return result
-
-
-def _log_meta_review_summary(meta_review: dict[str, Any]) -> None:
-    """One combined log record avoids competing SQLite writes and crowding
-    the reader's bounded event window."""
-    logger.info(
-        "Meta-review complete: %s common strengths, %s strategic recommendations",
-        len(meta_review["common_strengths"]),
-        len(meta_review["strategic_recommendations"]),
-    )
 
 
 def _collect_review_summaries(

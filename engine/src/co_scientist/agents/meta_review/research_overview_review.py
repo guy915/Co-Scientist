@@ -51,7 +51,7 @@ async def review_research_overview(
     for round_index in range(_MAX_OVERVIEW_REVISION_ROUNDS):
         verdict = await _call_reviewer(context, current)
         calls += 1
-        if _accepted(verdict):
+        if verdict.get("accept", True):
             return current, _review_meta(round_index), calls
         current = await _call_reviser(context, current, verdict.get("notes") or [])
         calls += 1
@@ -60,10 +60,6 @@ async def review_research_overview(
 
 def _review_meta(rounds: int) -> dict[str, Any]:
     return {"reviewed": rounds > 0, "rounds": rounds}
-
-
-def _accepted(verdict: dict[str, Any]) -> bool:
-    return bool(verdict.get("accept", True))
 
 
 async def _call_supervisor(
