@@ -17,7 +17,6 @@ from co_scientist.agents.reflection.deep_verification_evidence import (
 from co_scientist.agents.reflection.reflection import (
     apply_observation_result,
     observe_hypothesis,
-    store_indra_enrichment,
 )
 from co_scientist.agents.reflection.review_evidence import (
     _review_evidence_for,
@@ -334,7 +333,6 @@ async def _run_missing_observation_reviews(
         if result is None:
             continue
         apply_observation_result(hypothesis, result)
-        store_indra_enrichment(hypothesis, result)
         successful += 1
     return successful
 

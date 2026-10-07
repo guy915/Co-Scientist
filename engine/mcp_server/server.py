@@ -53,16 +53,6 @@ from mcp_server.tools.biomedical_databases import (
     search_string_interactions,
     search_uniprot,
 )
-from mcp_server.tools.indra_cogex import (
-    query_causal_subnetwork,
-    query_clinical_trials,
-    query_drug_info,
-    query_gene_codependents,
-    query_gene_disease_network,
-    query_mechanistic_statements,
-    query_pathways,
-    run_enrichment_analysis,
-)
 from mcp_server.tools.lit_review.arxiv_search import search_arxiv
 from mcp_server.tools.lit_review.europepmc_search import (
     search_biorxiv,
@@ -132,14 +122,6 @@ _MCP_TOOLS = (
     (search_gnomad_constraint, "search_gnomad_constraint"),
     (search_gwas_catalog_associations, "search_gwas_catalog_associations"),
     (search_clinical_trials, "search_clinical_trials"),
-    (query_gene_disease_network, "query_gene_disease_network"),
-    (query_gene_codependents, "query_gene_codependents"),
-    (query_drug_info, "query_drug_info"),
-    (query_clinical_trials, "query_clinical_trials"),
-    (query_pathways, "query_pathways"),
-    (query_causal_subnetwork, "query_causal_subnetwork"),
-    (query_mechanistic_statements, "query_mechanistic_statements"),
-    (run_enrichment_analysis, "run_enrichment_analysis"),
 )
 
 for _tool_fn, _tool_name in _MCP_TOOLS:
@@ -201,7 +183,6 @@ async def root() -> JSONResponse:
                 "WEB_SEARCH": web_search_provider is not None,
             },
             "integrations": {
-                "indra_cogex": os.getenv("INDRA_COGEX_URL", "https://discovery.indra.bio"),
                 "web_search_provider": web_search_provider,
                 # Credential refusals are observed on real searches, not
                 # inferred at startup.
