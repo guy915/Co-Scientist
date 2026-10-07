@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import contextlib
-import copy
+import hashlib
 import json
 import logging
 import logging.handlers
-import queue
+import os
 import sys
 import threading
 from collections.abc import Generator
 from contextvars import ContextVar
 
+from co_scientist.platform import db
 from co_scientist.platform.telemetry import logs as store
+from co_scientist.platform.telemetry.capture_queue import CaptureListener, CaptureQueue
 from co_scientist.platform.telemetry.logs import NewLogRecord
 
 # Child tasks inherit run context, allowing one workflow binding to correlate
@@ -127,29 +129,48 @@ class _CaptureQueueHandler(logging.handlers.QueueHandler):
     before the listener crosses that boundary.
     """
 
-    def emit(self, record: logging.LogRecord) -> None:
+    def handle(self, record: logging.LogRecord) -> bool:
         if getattr(record, "_cosci_captured", False):
-            return
+            return False
         record._cosci_captured = True
-        super().emit(record)
+        # Filters (including repeat history) must only retain bounded copies.
+        return super().handle(self.prepare(record))
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.enqueue(record)
 
     def prepare(self, record: logging.LogRecord) -> logging.LogRecord:
         """Copy shared records before materialization; malformed logging
         arguments must not break capture.
         """
-        record = copy.copy(record)
         try:
-            record.message = record.getMessage()
+            message = record.getMessage()
         except Exception:
-            record.message = str(record.msg)
-        record.msg = record.message
-        record.args = None
+            message = "log message could not be formatted"
+        exc_text = record.exc_text
         if record.exc_info and not record.exc_text:
             with contextlib.suppress(Exception):
-                record.exc_text = _EXC_FORMATTER.formatException(record.exc_info)
-        record.exc_info = None
-        record.stack_info = None
-        return record
+                exc_text = _EXC_FORMATTER.formatException(record.exc_info)
+        from co_scientist.core.byok_scope import redact_byok_text
+
+        pending = logging.LogRecord(
+            _bounded_text(record.name, 256),
+            record.levelno,
+            _bounded_text(record.pathname, 256),
+            record.lineno,
+            _bounded_text(redact_byok_text(message), 8192),
+            (),
+            None,
+        )
+        pending.created = record.created
+        pending.exc_text = _bounded_text(redact_byok_text(exc_text), 8192) if exc_text else None
+        owner = getattr(record, "client_id", None)
+        pending.client_id = _bounded_text(owner, 128) if isinstance(owner, str) else None
+        return pending
+
+
+def _bounded_text(text: str, byte_limit: int) -> str:
+    return text.encode("utf-8", errors="replace")[:byte_limit].decode("utf-8", errors="ignore")
 
 
 class _StoreWriteHandler(logging.Handler):
@@ -162,6 +183,9 @@ class _StoreWriteHandler(logging.Handler):
         self._max_rows = max_rows
         self._writes = 0
         self._warned = False
+        # A bounded shutdown may leave one busy write finishing; it must never
+        # spill into a later configuration's database.
+        self._db_path = os.path.abspath(db.default_db_path() or "./coscientist.db")
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -175,11 +199,12 @@ class _StoreWriteHandler(logging.Handler):
                     exc_text=record.exc_text,
                     created_at=record.created,
                     client_id=getattr(record, "client_id", None),
-                )
+                ),
+                db_path=self._db_path,
             )
             self._writes += 1
-            if self._writes % _PRUNE_EVERY == 0:
-                store.prune_logs(max_rows=self._max_rows)
+            if self._writes == 1 or self._writes % _PRUNE_EVERY == 0:
+                store.prune_capture_logs(max_rows=self._max_rows, db_path=self._db_path)
         except Exception as exc:  # must never propagate into logging
             if not self._warned:
                 self._warned = True
@@ -234,7 +259,7 @@ class _RepeatSuppressor:
 
     def __init__(self, window: float = REPEAT_SUPPRESS_SECONDS) -> None:
         self._window = window
-        self._seen: dict[tuple[str, int, str | None, str], float] = {}
+        self._seen: dict[tuple[str, int, str | None, bytes], float] = {}
         self._lock = threading.Lock()
 
     def __call__(self, record: logging.LogRecord) -> bool:
@@ -246,7 +271,7 @@ class _RepeatSuppressor:
             record.name,
             record.levelno,
             getattr(record, "run_id", None),
-            message,
+            hashlib.sha256(message.encode()).digest(),
         )
         now = record.created
         with self._lock:
@@ -307,6 +332,10 @@ class LogCapture:
         self._handler = handler
         self._listener = listener
         self._stopped = False
+        self._queue: CaptureQueue = handler.queue
+
+    def stats(self) -> dict[str, int]:
+        return self._queue.stats()
 
     def stop(self) -> None:
         """QueueListener.stop is not idempotent, but explicit shutdown and
@@ -329,7 +358,7 @@ _capture: LogCapture | None = None
 def _build_capture_pipeline(
     level: int, max_rows: int
 ) -> tuple[_CaptureQueueHandler, logging.handlers.QueueListener]:
-    record_queue: queue.SimpleQueue[logging.LogRecord] = queue.SimpleQueue()
+    record_queue = CaptureQueue()
     handler = _CaptureQueueHandler(record_queue)
     handler.setLevel(level)
     handler.addFilter(RunIdFilter())
@@ -340,7 +369,7 @@ def _build_capture_pipeline(
     # Suppress repeats after stamping run IDs because run identity belongs in
     # the suppression key.
     handler.addFilter(_RepeatSuppressor())
-    listener = logging.handlers.QueueListener(record_queue, _StoreWriteHandler(max_rows))
+    listener = CaptureListener(record_queue, _StoreWriteHandler(max_rows))
     return handler, listener
 
 
@@ -360,10 +389,6 @@ def configure_log_capture(
     """
     global _capture
     shutdown_log_capture()
-    with contextlib.suppress(Exception):
-        # Prune prior-process backlog once; routine retention runs on the writer
-        # thread.
-        store.prune_logs(max_rows=max_rows)
     handler, listener = _build_capture_pipeline(level, max_rows)
     listener.start()
     _attach_capture_handler(handler)

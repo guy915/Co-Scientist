@@ -7,6 +7,45 @@ from typing import Any
 
 from co_scientist.platform.db import connect, use_conn
 
+UI_LOG_MAX_ROWS = 2000
+_UI_SOURCE = "(logger = 'ui' OR logger GLOB 'ui.*')"
+
+
+def _prune_source(conn: sqlite3.Connection, source: str, max_rows: int) -> int:
+    row = conn.execute(
+        "SELECT id FROM app_logs WHERE " + source + " ORDER BY id DESC LIMIT 1 OFFSET ?",
+        (max_rows,),
+    ).fetchone()
+    if row is None:
+        return 0
+    # Legacy backlogs drain in bounded batches; serving retention never needs
+    # one unbounded delete or a materialized keep-set.
+    deleted = conn.execute(
+        "DELETE FROM app_logs WHERE id IN (SELECT id FROM app_logs WHERE "
+        + source
+        + " AND id <= ? ORDER BY id LIMIT 500)",
+        (row["id"],),
+    )
+    return int(deleted.rowcount or 0)
+
+
+def prune_ui_logs(*, conn: sqlite3.Connection) -> int:
+    return _prune_source(conn, _UI_SOURCE, UI_LOG_MAX_ROWS)
+
+
+def prune_capture_logs(*, max_rows: int, db_path: str | None = None) -> int:
+    critical_rows = max(1, max_rows // 4)
+    with connect(db_path) as conn:
+        return sum(
+            (
+                _prune_source(conn, f"NOT {_UI_SOURCE} AND levelno >= 30", critical_rows),
+                _prune_source(
+                    conn, f"NOT {_UI_SOURCE} AND levelno < 30", max(0, max_rows - critical_rows)
+                ),
+                prune_ui_logs(conn=conn),
+            )
+        )
+
 
 @dataclass(frozen=True)
 class NewLogRecord:
