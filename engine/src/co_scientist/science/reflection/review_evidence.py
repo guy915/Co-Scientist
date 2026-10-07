@@ -31,11 +31,11 @@ from co_scientist.platform.retrieval.research_adapter import (
     review_budget_for_tier,
     reviewed_hypothesis_limit,
 )
+from co_scientist.science.evidence_context import (
+    _retrieve_probe_evidence,
+)
 from co_scientist.science.prompts import (
     get_hypothesis_query_generation_prompt,
-)
-from co_scientist.science.reflection.deep_verification_evidence import (
-    _retrieve_probe_evidence,
 )
 from co_scientist.science.reflection.review_gate import ReviewType
 from co_scientist.science.research import (
@@ -96,7 +96,7 @@ async def research_for_review(
 async def _prepare(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> tuple[McpRetrieval, ResearchBudget] | None:
-    from co_scientist.science.reflection.deep_verification_evidence import (
+    from co_scientist.science.evidence_context import (
         _probe_search_config,
     )
 
@@ -315,3 +315,18 @@ def researched_articles_for(state: WorkflowState, hypothesis: Hypothesis) -> lis
         return []
     evidence = flight.result()
     return list(evidence.articles) if evidence.ledger is not None else []
+
+
+def with_researched(
+    state: WorkflowState,
+    hypothesis: Hypothesis,
+    probed: list[Article],
+) -> list[Article]:
+    """Reuse funded research without new retrieval; duplicate sources waste
+    budget and imply independent agreement."""
+    known = {article.source_id for article in probed}
+    return probed + [
+        article
+        for article in researched_articles_for(state, hypothesis)
+        if article.source_id not in known
+    ]

@@ -25,6 +25,7 @@ import {
   type SessionSwitchData,
 } from '@/features/runs/session_switch';
 import {useChatHistoryContext} from '@/shared/hooks/history_context';
+import {routeIds} from '@/shared/lib/routes';
 
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
@@ -78,11 +79,8 @@ function deriveRoutePresentation(pathname: string): {
   workspaceClasses: string;
   pageClasses: string;
 } {
-  const isRunRoute = pathname.startsWith('/runs/');
-  const activeRunId = isRunRoute ? pathname.split('/')[2] : undefined;
-  const activeChatId = pathname.startsWith('/chats/')
-    ? pathname.split('/')[2]
-    : undefined;
+  const {runId: activeRunId, chatId: activeChatId} = routeIds(pathname);
+  const isRunRoute = activeRunId !== undefined;
   // Tab changes keep RunDetail mounted and do not redispatch its title; clear
   // only when the title-owning context changes.
   const titleContextKey = isRunRoute ? `run:${activeRunId}` : pathname;

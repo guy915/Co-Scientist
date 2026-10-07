@@ -9,11 +9,11 @@ import {
 import type {ShellPanel} from './layout';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {ChatSummary, Run} from '@/shared/api/runs';
-import {conciseTitle} from '@/shared/lib/text';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {useFittingRows, useOverflowing} from '@/shared/hooks/dom';
 import {preferredSessionSide} from '@/shared/hooks/session_side';
-import {tabPath} from '@/shared/lib/run_tabs';
+import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
+import {displayTitle} from '@/shared/lib/titles';
 
 const RAIL_MENU_LAYOUT_CLASSES =
   'absolute z-[35] origin-bottom-left bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] ' +
@@ -318,13 +318,13 @@ export function withExamples(
 
 // Started sessions default to their run; explicit last-viewed side takes
 // precedence so history reopens where the reader left off.
-function chatPath(chat: ChatSummary): string {
+function chatEntryPath(chat: ChatSummary): string {
   if (chat.id.startsWith(EXAMPLE_ENTRY_PREFIX))
-    return `/examples/${chat.id.slice(EXAMPLE_ENTRY_PREFIX.length)}`;
-  if (!chat.run_id) return `/chats/${chat.id}`;
+    return examplePath(chat.id.slice(EXAMPLE_ENTRY_PREFIX.length));
+  if (!chat.run_id) return chatPath(chat.id);
   return preferredSessionSide(chat.run_id) === 'chat'
-    ? `/chats/${chat.id}`
-    : tabPath(chat.run_id, undefined);
+    ? chatPath(chat.id)
+    : runPath(chat.run_id);
 }
 
 function ChatHistoryLink({
@@ -337,7 +337,7 @@ function ChatHistoryLink({
   return (
     <Link
       data-fitting-row=""
-      to={chatPath(chat)}
+      to={chatEntryPath(chat)}
       className={tooltipClassNames({
         className: joinClasses(
           CHAT_HISTORY_LINK_CLASSES,
@@ -353,7 +353,7 @@ function ChatHistoryLink({
     >
       <TruncatedLabel
         className={CHAT_HISTORY_LABEL_CLASSES}
-        text={chat.title?.trim() || conciseTitle(chat.challenge)}
+        text={displayTitle(chat.title, chat.challenge)}
       />
     </Link>
   );

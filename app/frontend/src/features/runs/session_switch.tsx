@@ -3,8 +3,8 @@ import {Icon, type IconName} from '@/shared/ui/icon';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import {TabNav, TabNavLink} from '@/shared/ui';
 import {HEADER_CONTROL_ICON_CLASSES} from '@/shared/ui/layout_primitives';
-import {tabPath} from '@/shared/lib/run_tabs';
 import {useRecordSessionSide} from '@/shared/hooks/session_side';
+import {chatPath, runPath} from '@/shared/lib/routes';
 
 export interface SessionSwitchData {
   chatId: string;
@@ -58,9 +58,7 @@ const SWITCH_SIDES: {
 
 // Results use the default tab; the run page owns live-progress/report selection.
 function sessionSideHref(session: SessionSwitchData, side: string): string {
-  return side === 'chat'
-    ? `/chats/${session.chatId}`
-    : tabPath(session.runId, undefined);
+  return side === 'chat' ? chatPath(session.chatId) : runPath(session.runId);
 }
 
 // Real links preserve deep/new-tab navigation; explicit names survive hidden

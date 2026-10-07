@@ -14,11 +14,11 @@ from co_scientist.core.exceptions import (
 from co_scientist.orchestration.generator import run_setup
 from co_scientist.platform.retrieval.article import Article
 from co_scientist.platform.sandbox.workspace.session import WorkspaceSession
+from co_scientist.science import evidence_context
 from co_scientist.science.reflection import (
     ReviewRun,
     ReviewType,
     apply_initial_review_gate,
-    deep_verification_evidence,
     observe_hypothesis,
     review_hypothesis,
     select_hypotheses_to_verify,
@@ -103,7 +103,7 @@ def test_retracted_evidence_never_reaches_a_prompt() -> None:
     )
     only_retracted = make_state(articles=[retracted])
     assert review_prompt_context._build_domain_context(only_retracted, None) == ""
-    assert deep_verification_evidence._retrieved_evidence_context([retracted]) == ""
+    assert evidence_context._retrieved_evidence_context([retracted]) == ""
     state = make_state(
         articles=[
             make_article(

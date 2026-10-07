@@ -26,14 +26,11 @@ from co_scientist.science.ranking.ranking_debate import (
 from co_scientist.science.ranking.ranking_lifecycle import (
     _TournamentGuidance as _TournamentGuidance,
 )
-from co_scientist.science.ranking.ranking_lifecycle import (
-    finalize_ranking,
-    prepare_ranking_round,
-    remaining_ranking_rounds,
-)
+from co_scientist.science.ranking.ranking_lifecycle import finalize_ranking, prepare_ranking_round
 from co_scientist.science.ranking.ranking_matchmaking import (
     build_tournament_pairings,
 )
+from co_scientist.science.scheduling.tournament import remaining_ranking_rounds
 
 logger = logging.getLogger(__name__)
 

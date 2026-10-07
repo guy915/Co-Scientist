@@ -6,6 +6,7 @@ import {
   useChatHistoryContext,
   useRunHistoryContext,
 } from '@/shared/hooks/history_context';
+import {chatPath} from '@/shared/lib/routes';
 
 export function ExampleChat() {
   const {id} = useParams<{id: string}>();
@@ -22,8 +23,7 @@ export function ExampleChat() {
         if (!id) throw new Error('Example not found');
         const interview = await openExampleChat(id);
         await Promise.all([reloadChats(), reloadRuns()]);
-        if (!cancelled)
-          await navigate(`/chats/${interview.id}`, {replace: true});
+        if (!cancelled) await navigate(chatPath(interview.id), {replace: true});
       } catch {
         if (!cancelled)
           setError('The example could not be opened. Please try again.');
