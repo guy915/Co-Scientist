@@ -1,7 +1,13 @@
 import {useMemo, useState} from 'react';
 import type {Evidence, KnowledgeBaseTopic, Report} from '@/api/runs';
 import {Icon} from '@/components/icon';
-import {Button} from '@/shared/ui';
+import {
+  Button,
+  Chip,
+  chipClasses,
+  chipIconClasses,
+  joinClasses,
+} from '@/shared/ui';
 import {splitAbstractSections, capitalizeTerm} from '@/lib/text';
 import {renderInlineHtml} from '@/lib/sanitize_html';
 import {
@@ -455,35 +461,45 @@ function ReferenceListItem({item, number}: {item: Evidence; number: number}) {
 function ReferenceSourceState({item}: {item: Evidence}) {
   if (item.retracted) {
     return (
-      <span
-        className="reference-retracted-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-danger-border bg-cosci-danger-bg px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-danger-fg max-[700px]:col-start-2 max-[700px]:w-fit"
-        title={REFERENCE_RETRACTED_TITLE}
+      <Chip
+        variant="outlined"
+        tone="danger"
+        tooltip={REFERENCE_RETRACTED_TITLE}
         aria-label={REFERENCE_RETRACTED_TITLE}
+        layoutClassName="reference-retracted-pill max-[700px]:col-start-2"
       >
         {REFERENCE_RETRACTED_TEXT}
-      </span>
+      </Chip>
     );
   }
   if (item.available === false) {
     return (
-      <span
-        className="reference-unavailable-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-border bg-transparent px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-muted max-[700px]:col-start-2 max-[700px]:w-fit"
-        title={REFERENCE_UNAVAILABLE_TITLE}
+      <Chip
+        variant="outlined"
+        tooltip={REFERENCE_UNAVAILABLE_TITLE}
         aria-label={REFERENCE_UNAVAILABLE_TITLE}
+        layoutClassName="reference-unavailable-pill max-[700px]:col-start-2"
       >
         {REFERENCE_UNAVAILABLE_TEXT}
-      </span>
+      </Chip>
     );
   }
   if (!item.url) return null;
   return (
     <a
-      className="reference-open-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-reference-open-border bg-transparent px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg no-underline transition-colors hover:border-cosci-reference-open-hover-border hover:bg-cosci-reference-open-hover-bg max-[700px]:col-start-2 max-[700px]:w-fit"
+      className={joinClasses(
+        chipClasses({variant: 'outlined', interactive: true}),
+        'reference-open-pill max-[700px]:col-start-2',
+      )}
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
     >
-      <Icon className="text-base" aria-hidden="true" name="open_in_new" />
+      <Icon
+        className={chipIconClasses()}
+        aria-hidden="true"
+        name="open_in_new"
+      />
       Open
     </a>
   );

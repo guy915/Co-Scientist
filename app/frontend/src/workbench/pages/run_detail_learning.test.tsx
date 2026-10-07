@@ -90,7 +90,11 @@ describe('run detail learning', () => {
 
     const pill = screen.getByText('Retracted');
     expect(pill).toBeInTheDocument();
-    expect(pill).toHaveAttribute('title', 'This source has been retracted');
+    expect(pill).toHaveAttribute(
+      'data-tooltip',
+      'This source has been retracted',
+    );
+    expect(pill).toHaveAccessibleName('This source has been retracted');
     expect(screen.queryByText('Unavailable')).toBeNull();
     expect(screen.queryByRole('link', {name: 'Open'})).toBeNull();
   });

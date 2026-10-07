@@ -1,6 +1,7 @@
 import type {HTMLAttributes, ReactNode} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from './cx';
+import {tooltipClassNames, type TooltipPlacement} from './tooltip';
 
 export type ChipTone =
   'neutral' | 'info' | 'success' | 'accent' | 'warning' | 'danger';
@@ -41,6 +42,8 @@ export interface ChipStyle {
   tone?: ChipTone;
   variant?: ChipVariant;
   size?: ChipSize;
+  // A chip that is itself a link gets a hover and focus state.
+  interactive?: boolean;
 }
 
 // Chips are always pills; anchors that read as chips use these classes.
@@ -48,6 +51,7 @@ export function chipClasses({
   tone = 'neutral',
   variant = 'tonal',
   size = 'md',
+  interactive = false,
 }: ChipStyle = {}): string {
   return joinClasses(
     'inline-flex w-fit items-center rounded-full whitespace-nowrap no-underline',
@@ -55,7 +59,15 @@ export function chipClasses({
       ? `border bg-transparent ${OUTLINED_CLASSES[tone]}`
       : `border-0 ${TONAL_CLASSES[tone]}`,
     SIZE_CLASSES[size],
+    interactive &&
+      'cursor-pointer hover:border-cosci-muted hover:bg-cosci-hover ' +
+        'focus-visible:outline-2 focus-visible:outline-offset-2 ' +
+        'focus-visible:outline-th-ring',
   );
+}
+
+export function chipIconClasses(size: ChipSize = 'md'): string {
+  return ICON_CLASSES[size];
 }
 
 export function Chip({
@@ -63,21 +75,35 @@ export function Chip({
   variant,
   size = 'md',
   icon,
+  tooltip,
+  tooltipPlacement = 'top',
   layoutClassName,
   children,
   ...rest
-}: ChipStyle &
+}: Omit<ChipStyle, 'interactive'> &
   Omit<HTMLAttributes<HTMLSpanElement>, 'className'> & {
     icon?: IconName;
+    tooltip?: string;
+    tooltipPlacement?: TooltipPlacement;
     layoutClassName?: string;
     children: ReactNode;
   }) {
+  const className = joinClasses(
+    chipClasses({tone, variant, size}),
+    layoutClassName,
+  );
   return (
     <span
-      className={joinClasses(
-        chipClasses({tone, variant, size}),
-        layoutClassName,
-      )}
+      className={
+        tooltip
+          ? tooltipClassNames({
+              className,
+              placement: tooltipPlacement,
+              wrap: true,
+            })
+          : className
+      }
+      data-tooltip={tooltip}
       {...rest}
     >
       {icon && (

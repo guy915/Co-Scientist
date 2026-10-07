@@ -119,6 +119,7 @@ body {
   /* The attachment badge’s shared mid-grey keeps white labels legible in both
      themes. */
   --cosci-attach-badge: #7d8797;
+  --cosci-attach-badge-fg: #fff;
 
   /* Inverse-primary stays legible on the dark action pill; ordinary blue would
      be dark-on-dark. */

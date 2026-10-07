@@ -1,9 +1,9 @@
 import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import type {RunStatus} from '@/api/runs';
-import {Icon, type IconName} from '@/components/icon';
+import type {IconName} from '@/components/icon';
 import {isModifiedClick} from '@/workbench/dom_events';
-import {IconButton} from '@/shared/ui';
+import {Chip, IconButton} from '@/shared/ui';
 import {GoogleLabsIcon} from './layout_primitives';
 import {TruncatedLabel} from './components/truncated_label';
 import {CancelRunControl} from './layout_cancel_run';
@@ -174,21 +174,17 @@ export function SystemStatusIndicator() {
   const chip = buildSystemStatusChip(status, unreachable);
   if (!chip) return null;
 
-  const tone = chip.danger
-    ? 'bg-cosci-logs-danger-bg text-cosci-logs-danger-fg'
-    : 'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg';
   return (
-    <span
+    <Chip
       role="status"
-      className={tooltipClassNames({
-        className: `ucs-system-status inline-flex h-[1.7rem] items-center gap-[0.3rem] rounded-full px-[0.62rem] text-[0.72rem] font-semibold whitespace-nowrap ${tone}`,
-        placement: 'bottom',
-        wrap: true,
-      })}
-      data-tooltip={chip.detail}
+      size="sm"
+      tone={chip.danger ? 'danger' : 'accent'}
+      icon={chip.icon}
+      tooltip={chip.detail}
+      tooltipPlacement="bottom"
+      layoutClassName="ucs-system-status"
     >
-      <Icon aria-hidden="true" className="text-[0.95rem]" name={chip.icon} />
       <span>{chip.label}</span>
-    </span>
+    </Chip>
   );
 }
