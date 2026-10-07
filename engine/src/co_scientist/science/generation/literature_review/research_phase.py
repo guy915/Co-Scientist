@@ -7,19 +7,19 @@ from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
 )
 from co_scientist.platform.retrieval.mcp_client import MCPToolClient
-from co_scientist.platform.retrieval.research_adapter import (
-    LlmResearchModel,
-    McpRetrieval,
-    ResearchRun,
-    budget_for_tier,
-)
-from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.science.research import (
+from co_scientist.platform.retrieval.research import (
     ResearchBudget,
     ResearchResult,
     conduct_research,
     result_to_dict,
 )
+from co_scientist.platform.retrieval.research_adapter import (
+    McpRetrieval,
+    ResearchRun,
+    budget_for_tier,
+)
+from co_scientist.platform.telemetry.progress import emit_progress
+from co_scientist.science.research_model import LlmResearchModel
 
 logger = logging.getLogger(__name__)
 

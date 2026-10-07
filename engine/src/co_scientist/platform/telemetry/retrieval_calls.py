@@ -4,12 +4,9 @@ import json
 import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import Any
 
 from co_scientist.platform.db import connect, current_time, list_by_run, use_conn
-
-if TYPE_CHECKING:
-    from co_scientist.science.research import ResearchResult
 
 
 def save_run_metrics(
@@ -116,58 +113,3 @@ def list_retrieval_calls(run_id: str, *, db_path: str | None = None) -> list[dic
         db_path,
         json_fields=("hits", "admitted", "dropped"),
     )
-
-
-class _Origin(NamedTuple):
-    """Question IDs and depth come from the thread, not the call's hashed
-    text; depth zero means unknown rather than first level.
-    """
-
-    depth: int
-    question_id: str
-
-
-_UNKNOWN = _Origin(depth=0, question_id="")
-
-
-def retrieval_call_rows(run_id: str, result: ResearchResult) -> list[NewRetrievalCall]:
-    """Persist failures and empty searches separately; otherwise coverage
-    cannot distinguish an unreachable source from no results.
-    """
-    origins = _origin_by_call(result)
-    return [
-        NewRetrievalCall(
-            run_id=run_id,
-            id=call.id,
-            question=call.question,
-            question_id=origins.get(call.id, _UNKNOWN).question_id,
-            query=call.query,
-            source=call.source,
-            depth=origins.get(call.id, _UNKNOWN).depth,
-            status=call.status.value,
-            hits=[
-                {
-                    "locator": hit.locator,
-                    "title": hit.title,
-                    "snippet": hit.snippet,
-                    "rank": hit.rank,
-                    "score": hit.score,
-                    "metadata": dict(hit.metadata),
-                }
-                for hit in call.hits
-            ],
-            admitted=list(call.admitted),
-            dropped=list(call.dropped),
-            error=call.error,
-            duration_seconds=call.duration_seconds,
-        )
-        for call in result.calls
-    ]
-
-
-def _origin_by_call(result: ResearchResult) -> dict[str, _Origin]:
-    return {
-        call_id: _Origin(depth=thread.depth, question_id=thread.question.id)
-        for thread in result.threads
-        for call_id in thread.call_ids
-    }

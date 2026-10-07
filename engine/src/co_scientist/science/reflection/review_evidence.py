@@ -25,8 +25,12 @@ from co_scientist.platform.retrieval.evidence.article_support import (
     build_articles_from_metadata,
     records_from_findings,
 )
+from co_scientist.platform.retrieval.research import (
+    ResearchBudget,
+    conduct_research,
+    result_to_dict,
+)
 from co_scientist.platform.retrieval.research_adapter import (
-    LlmResearchModel,
     McpRetrieval,
     review_budget_for_tier,
     reviewed_hypothesis_limit,
@@ -38,11 +42,7 @@ from co_scientist.science.prompts import (
     get_hypothesis_query_generation_prompt,
 )
 from co_scientist.science.reflection.review_gate import ReviewType
-from co_scientist.science.research import (
-    ResearchBudget,
-    conduct_research,
-    result_to_dict,
-)
+from co_scientist.science.research_model import LlmResearchModel
 from co_scientist.science.schemas import LITERATURE_QUERY_SCHEMA
 
 logger = logging.getLogger(__name__)

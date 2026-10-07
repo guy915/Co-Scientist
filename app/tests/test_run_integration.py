@@ -267,10 +267,9 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
 
 
 @pytest.mark.parametrize("smtp_configured", [True, False])
-def test_completion_notification_is_opt_in_durable_and_needs_smtp(
+def test_unverified_completion_notification_stays_disabled_even_with_smtp(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
     smtp_configured: bool,
 ) -> None:
     monkeypatch.setattr(settings, "smtp_host", "smtp.example.org" if smtp_configured else "")
@@ -280,7 +279,7 @@ def test_completion_notification_is_opt_in_durable_and_needs_smtp(
         "noreply@example.org" if smtp_configured else "",
     )
     headers = {"X-Client-ID": "notification-scientist"}
-    with caplog.at_level("WARNING"), _client() as client:
+    with _client() as client:
         run_id = _create_run(
             client,
             "Study notification fidelity",
@@ -297,13 +296,7 @@ def test_completion_notification_is_opt_in_durable_and_needs_smtp(
         for task in store_tasks.list_tasks(run_id, db_path=isolated_db)
         if task.task_type == "notification.email"
     ]
-    if smtp_configured:
-        assert len(email_tasks) == 1
-        assert email_tasks[0].inputs["email"] == "scientist@example.org"
-        assert email_tasks[0].max_attempts == 3
-    else:
-        assert not email_tasks
-        assert "SMTP is not configured" in caplog.text
+    assert not email_tasks
 
 
 _STEER = "Prioritise chaperone co-expression over temperature shifts"
