@@ -1,4 +1,4 @@
-import {expect, test} from '../support/fixtures';
+import {MOBILE_VIEWPORT, expect, test} from '../support/fixtures';
 
 test.describe('home', () => {
 test('faithful home lists seeded demo runs in recents', async ({page}) => {
@@ -14,6 +14,19 @@ test('faithful home lists seeded demo runs in recents', async ({page}) => {
   await expect(
     recents.getByText(/you have not started any sessions yet/i),
   ).not.toBeVisible();
+});
+
+test('closed phone drawer keeps its chat links out of the tab order', async ({
+  page,
+}) => {
+  await page.setViewportSize(MOBILE_VIEWPORT);
+  await page.goto('/');
+  const nav = page.getByRole('complementary', {name: 'Primary navigation'});
+  const chatLinks = nav.locator('.ucs-chat-list a');
+  await expect(chatLinks.first()).toBeHidden();
+
+  await page.getByRole('button', {name: 'Open navigation'}).click();
+  await expect(chatLinks.first()).toBeVisible();
 });
 });
 

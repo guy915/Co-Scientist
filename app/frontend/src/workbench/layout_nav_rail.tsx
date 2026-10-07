@@ -68,13 +68,13 @@ const NAV_LABEL_CLASSES =
   '[transition:opacity_180ms_cubic-bezier(0.2,0,0,1),max-width_240ms_cubic-bezier(0.2,0,0,1)] motion-reduce:[transition:none]';
 
 const SIDE_CONTENT_CLASSES =
-  'visible mt-[1rem] grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
+  'mt-[1rem] grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
   'min-[701px]:flex min-[701px]:min-h-0 min-[701px]:max-h-none min-[701px]:flex-1 min-[701px]:flex-col ' +
   '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:flex-1 ' +
   '[@media(max-width:700px)]:flex-col [@media(max-width:700px)]:overflow-hidden';
 
-// Labels and side content set `visible` explicitly: the closed drawer panel is
-// visibility:hidden, and visibility inherits.
+// Children inherit the closed phone drawer's visibility:hidden, which keeps its
+// chat links out of the tab order; none may set `visible` on phones.
 const NAV_RAIL_VARIANTS = {
   open: {
     panel: joinClasses(
@@ -96,10 +96,7 @@ const NAV_RAIL_VARIANTS = {
       'min-[701px]:[justify-content:stretch] min-[701px]:[justify-items:start] min-[701px]:gap-x-[0.72rem] min-[701px]:px-[0.75rem]',
       'min-[701px]:text-left min-[701px]:leading-none',
     ),
-    label: joinClasses(
-      NAV_LABEL_CLASSES,
-      'min-[701px]:visible [@media(max-width:700px)]:visible',
-    ),
+    label: NAV_LABEL_CLASSES,
     sideContent: SIDE_CONTENT_CLASSES,
     settingsControl: `${SETTINGS_CONTROL_CLASSES} min-[701px]:w-full`,
   },
@@ -128,7 +125,7 @@ const NAV_RAIL_VARIANTS = {
     label: joinClasses(
       NAV_LABEL_CLASSES,
       'hidden invisible w-0 max-w-0 overflow-hidden opacity-0',
-      '[@media(max-width:700px)]:block [@media(max-width:700px)]:max-w-none [@media(max-width:700px)]:opacity-100 [@media(max-width:700px)]:visible',
+      '[@media(max-width:700px)]:block [@media(max-width:700px)]:max-w-none [@media(max-width:700px)]:opacity-100 [@media(max-width:700px)]:[visibility:inherit]',
     ),
     sideContent: joinClasses(
       SIDE_CONTENT_CLASSES,
