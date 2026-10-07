@@ -47,6 +47,7 @@ their risk are at the end with the reason.
 | F5 | #297 | API refusals shown as their message, not `409 {"detail":…}` |
 | F6 | #294 | Closed mobile drawer out of the tab order; one `main` landmark |
 | F8 | #298 | Re-download after an app-only deploy 161 → 79 KB gzip |
+| F10 | #311 | Light-mode muted text 4.10:1 → at least 4.5:1 on every surface it sits on |
 | M1 | #243 | Benchmark retrieval enabled |
 | M10 | #302 | Searches against an unregistered MCP tool fail once: 135 wasted calls and about 118 s of backoff per Express run → 0 |
 
@@ -179,7 +180,8 @@ Two Express baselines on `main` at `df08134` (Ling 3.1 Flash default):
 | M6 | Ling's output cap is 32,768 tokens | Endpoint `max_completion_tokens` 32,768; the largest engine budget is 24k (`BUDGET_ESCALATION_MAX_TOKENS`), so escalation stays within it | — | — | — |
 | M10 | Searches retry a tool the server never registered | Without a web-search key the MCP server has no `search_web`; the engine retried it as transient, four attempts with backoff per search (Express r2: 135 wasted calls). Production registers it | M (benchmark, self-hosting) | S | none |
 | M11 | Most fallbacks land on the slowest route | Ling's chain tries Nemotron Ultra before Super. Express r2 ([37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903)): Ultra served 71 of 150 calls at 104 s each (37 tok/s), 63% of all call time; Super 41 s (120 tok/s). Batch 1 tries Super first | H (time) | S | med (answer-changing; benchmarked) |
-| M12 | Ling ignores the minimal-reasoning cap | Claim checks request reasoning off; Ling gets a 2,048-token cap but reasoned 15.4k tokens per claim-gate call (154 s), exhausted its budget and retried 12 times, and 5 of 63 claims fell back to the lexical assessor. Super honors the cap (2.0k). Batch 2 sends Ling the low effort tier | M (time, quality) | S | med (answer-changing; benchmarked) |
+| M12 | Ling ignores the minimal-reasoning cap | Claim checks request reasoning off; Ling gets a 2,048-token cap but reasoned 15.4k tokens per claim-gate call (154 s), exhausted its budget and retried 12 times, and 5 of 63 claims fell back to the lexical assessor. Super honors the cap (2.0k). Batch 2 sent Ling the low effort tier and was rejected (below); batch 3 funds those calls | M (time, quality) | S | med (answer-changing; benchmarked) |
+| M14 | OpenAlex refuses searches in long benchmarks | OpenAlex's keyless budget is shared per IP; GitHub runners exhausted it during the Standard baseline (16 refused searches). Production showed none. A free key as a repository secret is an owner action (on the board) | M (benchmark validity) | S | none |
 
 With retrieval on (#243), Express
 [37540122229](https://github.com/guy915/Co-Scientist/actions/runs/37540122229)
@@ -194,6 +196,27 @@ Starting evidence re-check (measured on Nemotron): the tool-loop and
 reasoning-exhaustion findings need a run with retrieval on (M1) before they
 can be confirmed on Ling; each run had one retry. Caching remains near
 zero (M4).
+
+Baselines at `a82eed8` with every fan-out stage timed: Express r2
+([37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903))
+and Standard
+([37558735897](https://github.com/guy915/Co-Scientist/actions/runs/37558735897):
+157 min, 283 calls, 19 ideas, unsupported claim rate 0.84, unverified idea
+rate 0.67). Model batches, each one Express run against r2:
+
+| | r2 | Batch 1: Super before Ultra (M11) | Batch 2: Ling's low tier for claim checks (M12) |
+|---|---|---|---|
+| Run | [37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903) | [37566987457](https://github.com/guy915/Co-Scientist/actions/runs/37566987457) | [37572259558](https://github.com/guy915/Co-Scientist/actions/runs/37572259558) |
+| Wall time | 92.3 min | 77.2 min | 135.1 min |
+| Unsupported claim rate | 0.76 | 0.97 | 0.76 |
+| Unverified idea rate | 0.20 | 0.83 | 0.20 |
+| Claim checks on the lexical fallback | 5 | 11 | 20 |
+
+Batch 2 is rejected: Ling still reasoned 15.4k tokens per claim check at the
+low tier, and Super's rose from 2.0k to 11.2k. Batch 1 is 16% faster, but its
+quality loss is not small; it tracks its claim-check fallbacks, so batch 1 is
+re-run together with batch 3, which funds Ling's reasoning-off calls instead of
+capping them.
 
 ## Not worth the risk
 
@@ -217,3 +240,4 @@ zero (M4).
 | F7 | Preload the body font and landing chunk | Throttled cold load (1.6 Mbps, 150 ms RTT, median of 5): preloading the 400 font moved FCP 3,736 → 3,828 ms and LCP 4,332 → 4,500 ms. On a bandwidth-bound link the font competes with the entry scripts, and LCP is text, so the hero image is not on the critical path |
 | F14 | A URL-aware pre-hydration skeleton | A deep link shows a landing-shaped placeholder until React mounts; fixing it is a visual change in lever 7's area for a brief placeholder |
 | I11 | Drop heavy transitive dependencies | `grpcio`, `tokenizers`, `huggingface-hub` and `hf-xet` are litellm's own requirements; only `watchfiles` (via `uvicorn[standard]`, used by `--reload`) could go: a few MB for a rewritten extras list and a regenerated hash-pinned lock |
+| M13 | Run proximity beside the research overview | The overview does not read proximity's output, but the workflow commits one node per checkpoint; running two nodes at once means concurrent checkpoint writers for one run, an invariant change in `docs/OPERATIONS.md`, to save about 4 minutes of an Express run |

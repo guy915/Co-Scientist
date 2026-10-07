@@ -12,10 +12,10 @@ list every task. The campaign finds them, ranks them and works through them.
 `docs/optimization/findings.md`, whose Progress table lists each fix and its
 numbers: CI 5:51 → 2:43 wall, store and API latency, request handlers off the
 event loop, bundle size and caching, error tracking and launch files. Findings
-judged not worth their risk are listed there with the reason. The Standard and
-second Express baselines are running with per-stage timings; the first model
-batch follows. Contrast and focus fixes (F10, F11) wait for shrink lever 7's
-stylesheet PRs.
+judged not worth their risk are listed there with the reason. Standard and
+Express baselines with per-stage timings are recorded; of the first two model
+batches one is rejected and the other is re-run with a third that funds Ling's
+claim-check reasoning, next after the daily request reset.
 Live progress is on the `Campaign board: optimization` issue.
 
 ## Scope
