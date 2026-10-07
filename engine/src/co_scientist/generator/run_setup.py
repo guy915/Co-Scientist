@@ -9,14 +9,14 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.agents.generation.operations import (
-    GENERATION_STRATEGY_LABELS,
-    TOOLS_REQUIRING_STRATEGIES,
-)
 from co_scientist.core.constants import ELO_K_FACTOR
 from co_scientist.platform.llm.offline.llm import is_offline_model
 from co_scientist.platform.retrieval.config.registry import parse_bool_env
 from co_scientist.platform.retrieval.research_adapter import tier_researches
+from co_scientist.science.generation.operations import (
+    GENERATION_STRATEGY_LABELS,
+    TOOLS_REQUIRING_STRATEGIES,
+)
 
 
 @dataclass(frozen=True)

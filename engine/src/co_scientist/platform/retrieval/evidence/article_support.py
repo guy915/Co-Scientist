@@ -12,7 +12,7 @@ from co_scientist.core.constants import (
     truncate_for_prompt,
 )
 from co_scientist.domains.research_state.models import Article, phase_message
-from co_scientist.research import Finding, ResearchResult
+from co_scientist.science.research import Finding, ResearchResult
 
 if TYPE_CHECKING:
     from co_scientist.platform.retrieval.research_adapter import McpRetrieval

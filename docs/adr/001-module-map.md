@@ -92,7 +92,7 @@ location makes redundant.
 | `domains/documents/` | app `document_ingest.py`, `pdf.py`, `pdf_worker.py`, `evidence_chunking.py`, `staged_documents.py`, `store/documents.py` |
 | `domains/access/` | app `credentials.py`, `byok_models.py`, `free_usage.py`, `retention.py` |
 | `domains/feedback/` | app `store/feedback.py` |
-| `science/` | engine `agents/{generation,reflection,ranking,evolution,proximity,meta_review,supervisor}` → `science/<agent>`; `agents/safety.py` → `science/safety_screen`; `agents/node_degradation.py`; `scheduling/` → `science/supervisor/scheduling`; `prompts/`, `schemas/`, `research/` |
+| `science/` | engine `agents/{generation,reflection,ranking,evolution,proximity,meta_review,supervisor}` → `science/<agent>`; `agents/safety.py` → `science/safety_screen`; `agents/node_degradation.py`; `scheduling/` → `science/scheduling` (meta-review and orchestration read it too, so it is not the supervisor's alone); `prompts/`, `schemas/`, `research/` |
 | `orchestration/` | engine `agents/__init__.py` (node registry), `workflow_topology.py`, `task_runtime.py`, `checkpoint.py`, `generator/`; app `engine_tasks/`, `task_worker/`, `run_events.py`, `notifications.py`, `engine_adapter/{__init__,opts,events}.py`, `engine_adapter/drain/{__init__,final_state}.py`, `store/{tasks,tasks_lifecycle,runs,runs_views,events,supervisor_plan,receipts}.py` |
 | `api/` | app `api_contracts/` → `api/contracts`, `runs/`, `diagnostics_api.py`, `diagnostics.py`, `logs_api.py`, `feedback_api.py`, `documents.py`, `sse.py`, `operator_access.py`, `auth.py` |
 | `main.py` | app `main.py`, `__init__.py` (`API_VERSION`) |

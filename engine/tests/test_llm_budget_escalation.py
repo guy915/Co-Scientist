@@ -8,7 +8,6 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.agents.supervisor.orchestrator import _compute_stats
 from co_scientist.core import constants
 from co_scientist.core.constants import (
     BUDGET_ESCALATION_MAX_INCREMENT,
@@ -42,6 +41,7 @@ from co_scientist.platform.llm.attempts.escalation import (
     escalated_max_tokens,
 )
 from co_scientist.platform.llm.request.response import _extract_completion_content
+from co_scientist.science.supervisor.orchestrator import _compute_stats
 from tests._llm_fake import (
     SEARCH_TOOL,
     echo_executor,

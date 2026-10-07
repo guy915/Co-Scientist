@@ -3,15 +3,6 @@ import dataclasses
 from typing import Any, cast
 
 import pytest
-from co_scientist.agents.generation import (
-    assumptions,
-    debate,
-    literature_tools,
-    prepare_generation,
-)
-from co_scientist.agents.generation import (
-    generate as coordinator,
-)
 from co_scientist.checkpoint import restore_workflow_state
 from co_scientist.domains.research_state.models import (
     Article,
@@ -21,6 +12,15 @@ from co_scientist.domains.research_state.models import (
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus, ScientificTask
+from co_scientist.science.generation import (
+    assumptions,
+    debate,
+    literature_tools,
+    prepare_generation,
+)
+from co_scientist.science.generation import (
+    generate as coordinator,
+)
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 import app.engine_tasks.fanout as fanout
@@ -94,8 +94,8 @@ async def _advance_generation_node(
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
 
-    import co_scientist.agents.generation.assumptions as assumptions_module
-    import co_scientist.agents.generation.debate as debate_module
+    import co_scientist.science.generation.assumptions as assumptions_module
+    import co_scientist.science.generation.debate as debate_module
 
     monkeypatch.setattr(debate_module, "generate_with_debate", _fake_debate)
     monkeypatch.setattr(assumptions_module, "generate_with_assumptions", _fake_assumptions)

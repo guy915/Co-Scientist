@@ -4,13 +4,13 @@ import json
 from typing import Any
 
 import pytest
-from co_scientist.agents.meta_review import meta_review as meta_review_module
 from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.safety import (
     review_hypothesis_safety as _parity_review_hypothesis_safety,
 )
+from co_scientist.science.meta_review import meta_review as meta_review_module
 from fastapi.testclient import TestClient
 
 from app import safety

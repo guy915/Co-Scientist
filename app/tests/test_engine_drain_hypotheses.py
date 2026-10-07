@@ -8,12 +8,6 @@ from typing import Any
 
 import co_scientist.platform.retrieval.citations as citation_resolver
 import pytest
-from co_scientist.agents.ranking.ranking_debate import (
-    _DebateRun,
-    _finalize_debate_response,
-    _MatchupPrompt,
-    build_matchup,
-)
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.claims.grounding import evidence_passages
 from co_scientist.domains.research_state.drain.matches import _persist_engine_matches
@@ -25,6 +19,12 @@ from co_scientist.platform.retrieval.citations import (
     CitationMetadata,
     Resolvability,
     Resolver,
+)
+from co_scientist.science.ranking.ranking_debate import (
+    _DebateRun,
+    _finalize_debate_response,
+    _MatchupPrompt,
+    build_matchup,
 )
 
 from app import safety

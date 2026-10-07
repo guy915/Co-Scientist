@@ -21,7 +21,7 @@ layers =
     (co_scientist.main) : app.main
     (co_scientist.api) : app.api_contracts : app.runs : app.diagnostics_api : app.diagnostics : app.logs_api : app.feedback_api : app.documents : app.sse : app.operator_access : app.auth
     co_scientist.orchestration : co_scientist.workflow_topology : co_scientist.task_runtime : co_scientist.checkpoint : co_scientist.generator : app.engine_tasks : app.task_worker : app.run_events : app.notifications : app.engine_adapter.opts : app.engine_adapter.events : app.store.tasks : app.store.tasks_lifecycle : app.store.runs : app.store.runs_views : app.store.events : app.store.supervisor_plan : app.store.receipts
-    (co_scientist.science) : co_scientist.agents.generation : co_scientist.agents.reflection : co_scientist.agents.ranking : co_scientist.agents.evolution : co_scientist.agents.proximity : co_scientist.agents.meta_review : co_scientist.agents.supervisor : co_scientist.agents.safety : co_scientist.agents.node_degradation : co_scientist.scheduling : co_scientist.prompts : co_scientist.schemas : co_scientist.research
+    co_scientist.science
     co_scientist.domains.chat
     (co_scientist.domains.report) : app.report : app.store.reports
     (co_scientist.domains.safety) : co_scientist.safety : app.safety : app.hypothesis
@@ -33,10 +33,10 @@ layers =
     co_scientist.core
 ignore_imports =
     co_scientist.domains.research_state.claims.grounding -> app.engine_adapter
-    co_scientist.domains.research_state.claims.verifier -> co_scientist.schemas.builders
+    co_scientist.domains.research_state.claims.verifier -> co_scientist.science.schemas.builders
     co_scientist.core.config -> co_scientist.platform.llm
-    co_scientist.domains.research_state.drain.matches -> co_scientist.agents.ranking.ranking_debate
-    co_scientist.domains.research_state.drain.matches -> co_scientist.research
+    co_scientist.domains.research_state.drain.matches -> co_scientist.science.ranking.ranking_debate
+    co_scientist.domains.research_state.drain.matches -> co_scientist.science.research
     co_scientist.domains.research_state.drain.reviews -> app.report
     co_scientist.platform.telemetry.error_tracking -> co_scientist.domains.access.credentials
     co_scientist.domains.documents.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
@@ -45,7 +45,7 @@ ignore_imports =
     co_scientist.domains.access.free_usage -> app.runs.models
     co_scientist.domains.chat.interviews -> app.api_contracts.interviews
     co_scientist.domains.chat.interviews -> app.auth
-    co_scientist.domains.chat.interviews.questions -> co_scientist.schemas.builders
+    co_scientist.domains.chat.interviews.questions -> co_scientist.science.schemas.builders
     co_scientist.domains.chat.interviews.stream -> app.sse
     co_scientist.domains.chat.interviews.turns -> app.auth
     co_scientist.platform.llm.llm_request -> co_scientist.domains.access.credentials
@@ -59,7 +59,7 @@ ignore_imports =
     co_scientist.domains.chat.qa.manifest -> app.store.tasks
     co_scientist.domains.chat.qa.snapshot -> app.store.supervisor_plan
     co_scientist.domains.chat.qa.snapshot -> co_scientist.checkpoint
-    app.report.content -> co_scientist.agents.reflection.reflection_helpers
+    app.report.content -> co_scientist.science.reflection.reflection_helpers
     app.report.finalize -> app.engine_tasks.runtime
     app.report.finalize -> app.engine_tasks.support
     app.report.finalize -> app.notifications
@@ -74,25 +74,25 @@ ignore_imports =
     app.safety -> app.store.events
     app.safety -> app.store.runs
     app.safety -> app.task_worker.outcomes
-    app.safety.semantic -> co_scientist.schemas.builders
+    app.safety.semantic -> co_scientist.science.schemas.builders
     co_scientist.domains.chat.seed -> app.store.runs_views
     co_scientist.platform.db.checkpoints -> app.store.supervisor_plan
     co_scientist.domains.documents.repository -> co_scientist.domains.research_state.repository.records
     co_scientist.domains.chat.repository.examples -> app.store.runs
     co_scientist.platform.telemetry.logs -> co_scientist.platform.db
     co_scientist.platform.telemetry.retrieval_calls -> co_scientist.platform.db
-    co_scientist.platform.telemetry.retrieval_calls -> co_scientist.research
+    co_scientist.platform.telemetry.retrieval_calls -> co_scientist.science.research
     co_scientist.core.constants -> co_scientist.platform.llm.profile
     co_scientist.platform.retrieval.evidence.article_support -> co_scientist.domains.research_state.models
-    co_scientist.platform.retrieval.evidence.article_support -> co_scientist.research
-    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.prompts
-    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.schemas
+    co_scientist.platform.retrieval.evidence.article_support -> co_scientist.science.research
+    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
+    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
     co_scientist.platform.retrieval.evidence.search -> co_scientist.domains.research_state.state
     co_scientist.platform.retrieval.evidence.search_support -> co_scientist.domains.research_state.state
     co_scientist.core.metrics -> co_scientist.platform.llm
     co_scientist.platform.telemetry.progress -> co_scientist.domains.research_state.state
-    co_scientist.platform.retrieval.research_adapter -> co_scientist.prompts
-    co_scientist.platform.retrieval.research_adapter -> co_scientist.research
+    co_scientist.platform.retrieval.research_adapter -> co_scientist.science.prompts
+    co_scientist.platform.retrieval.research_adapter -> co_scientist.science.research
     co_scientist.platform.llm.tool_effects -> co_scientist.platform.retrieval.config.registry
     co_scientist.platform.retrieval.tools.response_parser -> co_scientist.domains.research_state.models
     co_scientist.platform.sandbox.workspace.tools -> co_scientist.platform.retrieval.tools.provider
@@ -101,28 +101,28 @@ ignore_imports =
 name = Science agents are independent
 type = independence
 modules =
-    co_scientist.agents.generation
-    co_scientist.agents.reflection
-    co_scientist.agents.ranking
-    co_scientist.agents.evolution
-    co_scientist.agents.proximity
-    co_scientist.agents.meta_review
-    co_scientist.agents.supervisor
-    co_scientist.agents.safety
+    co_scientist.science.generation
+    co_scientist.science.reflection
+    co_scientist.science.ranking
+    co_scientist.science.evolution
+    co_scientist.science.proximity
+    co_scientist.science.meta_review
+    co_scientist.science.supervisor
+    co_scientist.science.safety_screen
 ignore_imports =
-    co_scientist.agents.evolution.evolve_grounding -> co_scientist.agents.reflection.deep_verification_evidence
-    co_scientist.agents.evolution.evolve_prompt -> co_scientist.agents.generation.assumptions
-    co_scientist.agents.evolution.evolve_prompt -> co_scientist.agents.proximity.proximity_graph
-    co_scientist.agents.evolution.evolve_prompt -> co_scientist.agents.reflection.review_gate
-    co_scientist.agents.evolution.evolve_results -> co_scientist.agents.generation.citations
-    co_scientist.agents.evolution.operations -> co_scientist.agents.generation.citations
-    co_scientist.agents.generation.literature_review.enrichment -> co_scientist.agents.reflection.reflection_helpers
-    co_scientist.agents.generation.operations -> co_scientist.agents.meta_review.research_overview
-    co_scientist.agents.meta_review.meta_review -> co_scientist.agents.reflection.review_gate
-    co_scientist.agents.meta_review.meta_review -> co_scientist.agents.safety
-    co_scientist.agents.ranking.ranking_debate -> co_scientist.agents.reflection.review_gate
-    co_scientist.agents.supervisor.orchestrator -> co_scientist.agents.ranking.ranking_lifecycle
-    co_scientist.agents.supervisor.orchestrator -> co_scientist.agents.reflection.owed_review
+    co_scientist.science.evolution.evolve_grounding -> co_scientist.science.reflection.deep_verification_evidence
+    co_scientist.science.evolution.evolve_prompt -> co_scientist.science.generation.assumptions
+    co_scientist.science.evolution.evolve_prompt -> co_scientist.science.proximity.proximity_graph
+    co_scientist.science.evolution.evolve_prompt -> co_scientist.science.reflection.review_gate
+    co_scientist.science.evolution.evolve_results -> co_scientist.science.generation.citations
+    co_scientist.science.evolution.operations -> co_scientist.science.generation.citations
+    co_scientist.science.generation.literature_review.enrichment -> co_scientist.science.reflection.reflection_helpers
+    co_scientist.science.generation.operations -> co_scientist.science.meta_review.research_overview
+    co_scientist.science.meta_review.meta_review -> co_scientist.science.reflection.review_gate
+    co_scientist.science.meta_review.meta_review -> co_scientist.science.safety_screen
+    co_scientist.science.ranking.ranking_debate -> co_scientist.science.reflection.review_gate
+    co_scientist.science.supervisor.orchestrator -> co_scientist.science.ranking.ranking_lifecycle
+    co_scientist.science.supervisor.orchestrator -> co_scientist.science.reflection.owed_review
 
 [importlinter:contract:fastapi]
 name = FastAPI only in api and main
@@ -146,19 +146,7 @@ source_modules =
     app.store.events
     app.store.supervisor_plan
     app.store.receipts
-    co_scientist.agents.generation
-    co_scientist.agents.reflection
-    co_scientist.agents.ranking
-    co_scientist.agents.evolution
-    co_scientist.agents.proximity
-    co_scientist.agents.meta_review
-    co_scientist.agents.supervisor
-    co_scientist.agents.safety
-    co_scientist.agents.node_degradation
-    co_scientist.scheduling
-    co_scientist.prompts
-    co_scientist.schemas
-    co_scientist.research
+    co_scientist.science
     co_scientist.domains.chat
     app.report
     app.store.reports
@@ -223,19 +211,7 @@ source_modules =
     app.store.events
     app.store.supervisor_plan
     app.store.receipts
-    co_scientist.agents.generation
-    co_scientist.agents.reflection
-    co_scientist.agents.ranking
-    co_scientist.agents.evolution
-    co_scientist.agents.proximity
-    co_scientist.agents.meta_review
-    co_scientist.agents.supervisor
-    co_scientist.agents.safety
-    co_scientist.agents.node_degradation
-    co_scientist.scheduling
-    co_scientist.prompts
-    co_scientist.schemas
-    co_scientist.research
+    co_scientist.science
     co_scientist.domains.chat
     app.report
     app.store.reports
@@ -292,19 +268,7 @@ source_modules =
     app.store.events
     app.store.supervisor_plan
     app.store.receipts
-    co_scientist.agents.generation
-    co_scientist.agents.reflection
-    co_scientist.agents.ranking
-    co_scientist.agents.evolution
-    co_scientist.agents.proximity
-    co_scientist.agents.meta_review
-    co_scientist.agents.supervisor
-    co_scientist.agents.safety
-    co_scientist.agents.node_degradation
-    co_scientist.scheduling
-    co_scientist.prompts
-    co_scientist.schemas
-    co_scientist.research
+    co_scientist.science
     co_scientist.domains.chat
     app.report
     app.store.reports
@@ -338,19 +302,7 @@ source_modules =
     app.sse
     app.operator_access
     app.auth
-    co_scientist.agents.generation
-    co_scientist.agents.reflection
-    co_scientist.agents.ranking
-    co_scientist.agents.evolution
-    co_scientist.agents.proximity
-    co_scientist.agents.meta_review
-    co_scientist.agents.supervisor
-    co_scientist.agents.safety
-    co_scientist.agents.node_degradation
-    co_scientist.scheduling
-    co_scientist.prompts
-    co_scientist.schemas
-    co_scientist.research
+    co_scientist.science
     co_scientist.platform.retrieval
     co_scientist.platform.llm
     co_scientist.platform.sandbox
@@ -393,14 +345,11 @@ source_modules =
     co_scientist.domains.research_state.models
     co_scientist.platform.sandbox.patch
     co_scientist.platform.telemetry.progress
-    co_scientist.prompts
-    co_scientist.research
+    co_scientist.science
     co_scientist.platform.retrieval.research_adapter
     co_scientist.platform.retrieval.degradation
     co_scientist.safety
     co_scientist.platform.sandbox
-    co_scientist.scheduling
-    co_scientist.schemas
     co_scientist.platform.sandbox.skills
     co_scientist.domains.research_state.state
     co_scientist.task_runtime

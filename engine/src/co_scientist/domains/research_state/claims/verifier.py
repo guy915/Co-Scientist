@@ -36,7 +36,7 @@ from co_scientist.platform.llm import (
     record_deterministic_fallback,
     scoped_telemetry_phase,
 )
-from co_scientist.schemas.builders import obj
+from co_scientist.science.schemas.builders import obj
 
 logger = logging.getLogger(__name__)
 

@@ -186,10 +186,10 @@ def _assert_verification_committed(run_id: str, db_path: str) -> None:
 def _assert_fingerprints_survive_the_checkpoint(run_id: str, db_path: str) -> None:
     # Verification fingerprints must survive checkpoints or every later cycle
     # repeats the same paid work.
-    from co_scientist.agents.reflection.deep_verification import (
+    from co_scientist.domains.research_state.models import Hypothesis
+    from co_scientist.science.reflection.deep_verification import (
         verification_fingerprint,
     )
-    from co_scientist.domains.research_state.models import Hypothesis
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert latest is not None
@@ -208,7 +208,7 @@ async def test_verification_children_commit_through_single_aggregator(
     run = seed_run("Task-level science")
     await _advance_verification_node(run.id, monkeypatch, isolated_db)
 
-    import co_scientist.agents.reflection as reflection
+    import co_scientist.science.reflection as reflection
 
     monkeypatch.setattr(reflection, "verify_hypothesis", _fake_verify)
     await _run_verification_children_and_aggregate(run.id, isolated_db)

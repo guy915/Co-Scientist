@@ -6,8 +6,15 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import co_scientist.agents.reflection.deep_verification as leaf
-from co_scientist.agents.reflection import (
+import co_scientist.science.reflection.deep_verification as leaf
+from co_scientist.core.exceptions import (
+    LLMCallBudgetExceededError,
+    LLMRateLimitParkError,
+)
+from co_scientist.domains.research_state.models import Article
+from co_scientist.generator import run_setup
+from co_scientist.platform.sandbox.workspace.session import WorkspaceSession
+from co_scientist.science.reflection import (
     ReviewRun,
     ReviewType,
     apply_initial_review_gate,
@@ -17,29 +24,22 @@ from co_scientist.agents.reflection import (
     select_hypotheses_to_verify,
     verify_hypothesis,
 )
-from co_scientist.agents.reflection import comprehensive_reflection as cr
-from co_scientist.agents.reflection import (
+from co_scientist.science.reflection import comprehensive_reflection as cr
+from co_scientist.science.reflection import (
     comprehensive_reflection as review_prompt_context,
 )
-from co_scientist.agents.reflection import deep_verification as dv
-from co_scientist.agents.reflection import reflection as observation
-from co_scientist.agents.reflection import review_evidence as ev
-from co_scientist.agents.reflection import simulation_execution as se
-from co_scientist.agents.reflection.deep_verification import (
+from co_scientist.science.reflection import deep_verification as dv
+from co_scientist.science.reflection import reflection as observation
+from co_scientist.science.reflection import review_evidence as ev
+from co_scientist.science.reflection import simulation_execution as se
+from co_scientist.science.reflection.deep_verification import (
     mark_verification_issued,
     verification_fingerprint,
 )
-from co_scientist.agents.reflection.reflection import reflection_node
-from co_scientist.agents.reflection.review_evidence import (
+from co_scientist.science.reflection.reflection import reflection_node
+from co_scientist.science.reflection.review_evidence import (
     ReviewResearch,
 )
-from co_scientist.core.exceptions import (
-    LLMCallBudgetExceededError,
-    LLMRateLimitParkError,
-)
-from co_scientist.domains.research_state.models import Article
-from co_scientist.generator import run_setup
-from co_scientist.platform.sandbox.workspace.session import WorkspaceSession
 from tests._llm_fake import mock_call_llm_json
 from tests._state import make_article, make_hypothesis, make_review, make_state
 

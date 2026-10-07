@@ -11,7 +11,7 @@ from co_scientist.platform.llm.request.completion import (
     _supports_json_schema_response_format,
 )
 from co_scientist.platform.llm.structured.validate import reshape_json_output
-from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
+from co_scientist.science.schemas.review import FULL_REVIEW_SCHEMA
 from tests._llm_fake import NESTED_SCHEMA, scripted_backend
 from tests._llm_fake import make_completion as _completion
 from tests._llm_fake import make_message as _message

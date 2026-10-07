@@ -48,11 +48,11 @@ def _hypothesis_for_item(task: ScientificTask, state: dict[str, Any]) -> tuple[s
 async def execute_review_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    from co_scientist.agents.reflection.review import (
+    from co_scientist.platform.llm import scoped_telemetry
+    from co_scientist.science.reflection.review import (
         ReviewContext,
         review_single_hypothesis,
     )
-    from co_scientist.platform.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="review item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
@@ -74,8 +74,8 @@ async def execute_review_item(
 async def execute_verification_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    from co_scientist.agents.reflection import verify_hypothesis
     from co_scientist.platform.llm import scoped_telemetry
+    from co_scientist.science.reflection import verify_hypothesis
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="verification item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
@@ -94,8 +94,8 @@ async def execute_verification_item(
 async def execute_mature_reflection_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    from co_scientist.agents.reflection import ReviewType, review_hypothesis
     from co_scientist.platform.llm import scoped_telemetry
+    from co_scientist.science.reflection import ReviewType, review_hypothesis
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="mature reflection")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
@@ -103,7 +103,7 @@ async def execute_mature_reflection_item(
     with scoped_telemetry("comprehensive_reflection") as telemetry:
         ledger: dict[str, Any] | None = None
         if mode is ReviewType.OBSERVATION:
-            from co_scientist.agents.reflection import observe_hypothesis
+            from co_scientist.science.reflection import observe_hypothesis
 
             if not state.get("articles_with_reasoning"):
                 raise RuntimeError("observation review has no literature context")
@@ -202,7 +202,7 @@ async def _plan_generation_fanout(state: dict[str, Any]) -> _GenerationPlan:
     """Provider preparation completes before any plan transaction acquires
     SQLite's writer.
     """
-    from co_scientist.agents.generation import prepare_generation
+    from co_scientist.science.generation import prepare_generation
 
     plan = await prepare_generation(cast("WorkflowState", state))
     return _GenerationPlan(
@@ -295,8 +295,8 @@ async def _run_debate_strategy(
     """Parallel debates need their sibling index and whole batch size to
     select distinct diversity angles.
     """
-    from co_scientist.agents.generation.citations import ReferenceIndex
-    from co_scientist.agents.generation.debate import (
+    from co_scientist.science.generation.citations import ReferenceIndex
+    from co_scientist.science.generation.debate import (
         DebateBatchPosition,
         generate_with_debate,
     )
@@ -324,10 +324,10 @@ async def _run_generation_strategy(
     count: int,
     inputs: _StrategyRunInputs,
 ) -> tuple[list[Any], list[dict[str, Any]], int]:
-    from co_scientist.agents.generation.assumptions import (
+    from co_scientist.science.generation.assumptions import (
         generate_with_assumptions,
     )
-    from co_scientist.agents.generation.literature_tools import (
+    from co_scientist.science.generation.literature_tools import (
         generate_with_tools,
     )
 
@@ -352,9 +352,9 @@ async def execute_generation_strategy(
     """Legacy debate inputs lack sibling angles; actual science-skill source
     usage travels to the report for attribution.
     """
-    from co_scientist.agents.generation.citations import ReferenceIndex
     from co_scientist.platform.llm import scoped_telemetry
     from co_scientist.platform.sandbox.skills import scoped_skill_usage
+    from co_scientist.science.generation.citations import ReferenceIndex
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="generation strategy")
     strategy = str(task.inputs["strategy"])
@@ -512,7 +512,7 @@ def _enqueue_verification_fanout(
     *,
     db_path: str | None,
 ) -> dict[str, Any]:
-    from co_scientist.agents.reflection import select_hypotheses_to_verify
+    from co_scientist.science.reflection import select_hypotheses_to_verify
 
     selected = select_hypotheses_to_verify(state["hypotheses"], state["model_name"])
     items, aggregate = _create_fanout_tasks(
@@ -534,7 +534,7 @@ def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
     """The engine owns maturity scheduling so durable and internal paths
     cannot disagree or repay completed reviews.
     """
-    from co_scientist.agents.reflection.review_gate import reviews_needed
+    from co_scientist.science.reflection.review_gate import reviews_needed
 
     return [(hypothesis.id, review.value) for review in reviews_needed(hypothesis, iteration)]
 
@@ -559,7 +559,7 @@ def _recheck_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
     """Initially blocked ideas still receive their bounded recheck;
     checkpointed issuance survives recovery.
     """
-    from co_scientist.agents.reflection.review_gate import (
+    from co_scientist.science.reflection.review_gate import (
         RECHECK_REVIEW_TYPE,
         recheck_targets,
     )

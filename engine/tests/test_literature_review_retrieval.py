@@ -9,7 +9,6 @@ from unittest.mock import AsyncMock
 import pytest
 
 import co_scientist.platform.retrieval.evidence as evidence
-from co_scientist.agents.reflection import deep_verification_evidence as probes
 from co_scientist.generator.initial_state import (
     RunCapabilities,
     RunIdentity,
@@ -23,6 +22,7 @@ from co_scientist.platform.retrieval.degradation import (
     MCP_UNREACHABLE,
 )
 from co_scientist.platform.retrieval.evidence import search
+from co_scientist.science.reflection import deep_verification_evidence as probes
 from tests._llm_fake import install_fake_llm
 from tests._mcp import make_tool_lookup_registry
 from tests._research_fakes import (

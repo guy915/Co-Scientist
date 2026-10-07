@@ -66,7 +66,7 @@ USER coscientist
 # Discard the import-created smoke database.
 RUN COSCIENTIST_FORCE_OFFLINE=1 PYTHON_DOTENV_DISABLED=1 \
     COSCIENTIST_DB_PATH=/tmp/coscientist-image-smoke.db \
-    python -c "import app.main, co_scientist.core.constants, co_scientist.agents.generation; \
+    python -c "import app.main, co_scientist.core.constants, co_scientist.science.generation; \
 import importlib, pkgutil, co_scientist; \
 [importlib.import_module(m.name) for m in pkgutil.walk_packages(co_scientist.__path__, 'co_scientist.')]" \
     && rm -f /tmp/coscientist-image-smoke.db*

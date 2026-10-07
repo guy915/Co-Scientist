@@ -293,7 +293,7 @@ def _refresh_dispositions(hypotheses: list[Any], state: dict[str, Any]) -> None:
     """Scientist verdicts affect the next node without waiting for another
     paid review pass.
     """
-    from co_scientist.agents.reflection.review_gate import (
+    from co_scientist.science.reflection.review_gate import (
         refresh_review_dispositions,
     )
 

@@ -5,7 +5,7 @@ import pathlib
 import re
 from pathlib import Path
 
-from co_scientist.research import (
+from co_scientist.science.research import (
     ThreadStatus,
     conduct_research,
 )
@@ -93,7 +93,7 @@ def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
     outside = {
         name
         for name in borrowed
-        if name.startswith("co_scientist") and not name.startswith("co_scientist.research")
+        if name.startswith("co_scientist") and not name.startswith("co_scientist.science.research")
     }
     assert not outside
 
@@ -107,7 +107,7 @@ def test_no_production_module_reads_the_raw_criteria_keys() -> None:
         if rel in _ALLOWED_READERS:
             continue
         source = path.read_text(encoding="utf-8")
-        if rel == "agents/generation/citations.py":
+        if rel == "science/generation/citations.py":
             formatter = next(
                 node
                 for node in ast.parse(source).body
@@ -124,5 +124,5 @@ def test_no_production_module_reads_the_raw_criteria_keys() -> None:
 # This list covers raw experiment readers outside schema and formatting
 # boundaries.
 _ALLOWED_READERS = {
-    "schemas/generation.py",
+    "science/schemas/generation.py",
 }

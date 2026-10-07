@@ -4,13 +4,6 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.meta_review import meta_review
-from co_scientist.agents.meta_review.meta_review import meta_review_node
-from co_scientist.agents.safety import (
-    monitor_research_direction,
-    review_direction_safety,
-    safety_screen_node,
-)
 from co_scientist.domains.research_state.models import (
     GenerationMethod,
     Hypothesis,
@@ -29,6 +22,13 @@ from co_scientist.safety import (
     is_blocking,
     redact_hypothesis_fields,
     review_hypothesis_safety,
+)
+from co_scientist.science.meta_review import meta_review
+from co_scientist.science.meta_review.meta_review import meta_review_node
+from co_scientist.science.safety_screen import (
+    monitor_research_direction,
+    review_direction_safety,
+    safety_screen_node,
 )
 from co_scientist.task_runtime import (
     TASK_NODES,

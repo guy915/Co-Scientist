@@ -9,12 +9,12 @@ import pytest
 from litellm.exceptions import APIError
 
 import co_scientist.platform.llm as llm
-from co_scientist.agents.meta_review import meta_review as mr
-from co_scientist.agents.meta_review import research_overview as ro
-from co_scientist.agents.proximity import proximity as px
 from co_scientist.core.exceptions import (
     LLMTimeoutError,
 )
+from co_scientist.science.meta_review import meta_review as mr
+from co_scientist.science.meta_review import research_overview as ro
+from co_scientist.science.proximity import proximity as px
 from co_scientist.task_runtime import next_task_type
 from co_scientist.workflow_topology import (
     WORKFLOW_ROUTES,

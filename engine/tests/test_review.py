@@ -5,23 +5,23 @@ from typing import Any
 
 import pytest
 
-import co_scientist.agents.reflection.review_gate as review_recheck
-from co_scientist.agents.reflection import comprehensive_reflection, review
-from co_scientist.agents.reflection.comprehensive_reflection import (
+import co_scientist.science.reflection.review_gate as review_recheck
+from co_scientist.core.constants import COMPARATIVE_BATCH_THRESHOLD
+from co_scientist.domains.research_state.models import Hypothesis, HypothesisReview
+from co_scientist.science.reflection import comprehensive_reflection, review
+from co_scientist.science.reflection.comprehensive_reflection import (
     comprehensive_reflection_node,
 )
-from co_scientist.agents.reflection.review import (
+from co_scientist.science.reflection.review import (
     _sanitize_review_scores,
     review_node,
 )
-from co_scientist.agents.reflection.review_gate import (
+from co_scientist.science.reflection.review_gate import (
     RECHECK_REVIEW_TYPE,
     ReviewType,
     recheck_targets,
     store_mature_review_result,
 )
-from co_scientist.core.constants import COMPARATIVE_BATCH_THRESHOLD
-from co_scientist.domains.research_state.models import Hypothesis, HypothesisReview
 from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis, make_review, make_state
 

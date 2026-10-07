@@ -5,18 +5,18 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from co_scientist.agents.meta_review import research_overview as ro
-from co_scientist.agents.meta_review import (
-    research_overview_direction_calls as calls,
-)
 from co_scientist.core.constants import (
     RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,
     RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,
     RESEARCH_OVERVIEW_MAX_TOKENS,
 )
 from co_scientist.domains.research_state.models import Article, Hypothesis
-from co_scientist.scheduling import TaskType
-from co_scientist.schemas.synthesis import (
+from co_scientist.science.meta_review import research_overview as ro
+from co_scientist.science.meta_review import (
+    research_overview_direction_calls as calls,
+)
+from co_scientist.science.scheduling import TaskType
+from co_scientist.science.schemas.synthesis import (
     RESEARCH_OVERVIEW_TARGET_DIRECTIONS,
 )
 from tests._state import make_article, make_hypothesis, make_state

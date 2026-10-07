@@ -7,13 +7,13 @@ from co_scientist.core import run_modes
 from co_scientist.domains.chat import seed
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from co_scientist.platform.telemetry import logs
-from co_scientist.scheduling import (
+from co_scientist.science.scheduling import (
     Budget,
     SchedulerStats,
     TaskType,
     TerminationReason,
 )
-from co_scientist.scheduling.policy import (
+from co_scientist.science.scheduling.policy import (
     decide_next_task,
 )
 from fastapi.testclient import TestClient
