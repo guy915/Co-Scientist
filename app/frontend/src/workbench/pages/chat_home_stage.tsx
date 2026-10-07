@@ -5,22 +5,22 @@ import {
   isCompletedStatus,
   type ChatSummary,
 } from '@/api/runs';
-import {joinClasses} from '../classes';
-import {useIsMobile} from '../hooks/dom';
+import {joinClasses} from '@/shared/ui/classes';
+import {useIsMobile} from '@/shared/hooks/dom';
 import {Composer, type ConnectorToggleProps} from './chat_composer';
-import {useChatHistoryContext} from '../hooks/history_context';
-import {GoogleLabsIcon} from '../layout_primitives';
-import {Icon, type IconName} from '@/components/icon';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {useChatHistoryContext} from '@/shared/hooks/history_context';
+import {GoogleLabsIcon} from '@/shared/ui/layout_primitives';
+import {Icon, type IconName} from '@/shared/ui/icon';
+import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {Button, CardButton, Chip} from '@/shared/ui';
-import {TruncatedLabel} from '../components/truncated_label';
+import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {Link} from 'react-router-dom';
 import {
   firstSentenceClause,
   formatDurationPhrase,
   capitalizeTerm,
-} from '@/lib/text';
-import {useNowTick} from '@/workbench/hooks/timers';
+} from '@/shared/lib/text';
+import {useNowTick} from '@/shared/hooks/timers';
 import {preferredSessionSide} from '../layout_session_switch';
 
 export interface HomeStageProps {
@@ -444,7 +444,7 @@ const RECENTS_PANEL_CLASSES =
 const RECENTS_PANEL_EMPTY_CLASSES = 'grid-rows-[auto_1fr] self-stretch pb-8';
 
 const RECENTS_LIST_CLASSES =
-  'm-0 grid min-h-0 list-none gap-[2.6rem] min-[1181px]:scroll-p-[0.55rem_0.55rem_2.15rem] min-[1181px]:gap-[2.65rem]';
+  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-[2.6rem] min-[1181px]:scroll-p-[0.55rem_0.55rem_2.15rem] min-[1181px]:gap-[2.65rem]';
 
 // Background-independent masks soften the scroll edge in both themes without
 // matching surface colors; symmetric 1181px+ insets leave scrollbar slack so
@@ -731,7 +731,7 @@ export function RunStepFlow({run}: {run: Run}) {
 
   return (
     <div className="mt-[0.1rem] grid gap-[0.7rem]">
-      <div className="grid">
+      <div className="ui-motion-enter-items grid">
         <div className={RUN_STEP_CLASSES}>
           <span
             aria-hidden="true"

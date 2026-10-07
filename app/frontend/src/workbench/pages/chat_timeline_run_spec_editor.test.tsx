@@ -3,7 +3,7 @@ import {editInterviewFields} from '@/api/runs';
 import {makeSpec} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {beforeEach, expect, test, vi} from 'vitest';
-import type {InferredRunSpec} from '../run_spec';
+import type {InferredRunSpec} from '@/shared/lib/run_spec';
 import {RunSpecCard} from './chat_timeline_run_spec_card';
 import {
   SpecFieldsSection,

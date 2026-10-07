@@ -27,7 +27,7 @@ dependencies = [
     # The adapter depends on MCP v1 RequestContext paths; a major upgrade requires coordinated
     # changes.
     "mcp>=1.24.0,<2",
-    "litellm~=1.80.16",
+    "litellm~=1.88.6",
     "httpx~=0.28.1",
     "typing-extensions~=4.15.0",
     "jsonschema~=4.26.0",

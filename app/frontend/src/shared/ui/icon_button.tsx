@@ -1,6 +1,7 @@
 import type {ButtonHTMLAttributes, Ref} from 'react';
-import {Icon, type IconName} from '@/components/icon';
+import type {IconName} from './icon';
 import {joinClasses} from './cx';
+import {SwapIcon} from './swap_icon';
 import {tooltipClassNames, type TooltipPlacement} from './tooltip';
 
 export type IconButtonVariant = 'ghost' | 'elevated';
@@ -94,7 +95,7 @@ export function IconButton({
       data-tooltip={tip ?? undefined}
       {...rest}
     >
-      <Icon aria-hidden="true" name={icon} />
+      <SwapIcon name={icon} />
     </button>
   );
 }

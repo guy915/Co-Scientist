@@ -1,5 +1,5 @@
 import type {HTMLAttributes, ReactNode} from 'react';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from './icon';
 import {joinClasses} from './cx';
 import {tooltipClassNames, type TooltipPlacement} from './tooltip';
 

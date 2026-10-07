@@ -3,8 +3,8 @@ import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/api/runs';
 import {makeHypothesis, makeRunWithSummary} from '@/test_fixtures';
-import {ChatHistoryProvider} from '../hooks/history_context';
-import {RunHistoryProvider} from '../hooks/history_context';
+import {ChatHistoryProvider} from '@/shared/hooks/history_context';
+import {RunHistoryProvider} from '@/shared/hooks/history_context';
 import {ChatWorkspace} from './chat_workspace';
 
 const apiMock = vi.hoisted(() => {

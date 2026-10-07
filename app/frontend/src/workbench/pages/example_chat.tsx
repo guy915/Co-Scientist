@@ -5,7 +5,7 @@ import {Button} from '@/shared/ui';
 import {
   useChatHistoryContext,
   useRunHistoryContext,
-} from '../hooks/history_context';
+} from '@/shared/hooks/history_context';
 
 export function ExampleChat() {
   const {id} = useParams<{id: string}>();
@@ -37,7 +37,9 @@ export function ExampleChat() {
     <div className="p-6 text-cosci-text">
       {error ? (
         <>
-          <p role="alert">{error}</p>
+          <p className="ui-motion-enter" role="alert">
+            {error}
+          </p>
           <Button
             variant="outlined"
             onClick={() => setAttempt(value => value + 1)}
@@ -46,7 +48,9 @@ export function ExampleChat() {
           </Button>
         </>
       ) : (
-        <p role="status">Opening example chat…</p>
+        <p className="ui-motion-enter" role="status">
+          Opening example chat…
+        </p>
       )}
     </div>
   );

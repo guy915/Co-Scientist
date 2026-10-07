@@ -15,10 +15,10 @@ import {
   startRun,
   type Run,
 } from '@/api/runs';
-import {conciseTitle} from '@/lib/text';
-import {RUNS_CHANGED_EVENT} from '../dom_events';
+import {conciseTitle} from '@/shared/lib/text';
+import {RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import type {StartedSession} from '../pages/chat_timeline_run_spec_card';
-import {announceChatsChanged} from './history_context';
+import {announceChatsChanged} from '@/shared/hooks/history_context';
 import {
   type ExecuteStartDeps,
   type HandlerDeps,
@@ -26,13 +26,17 @@ import {
   type SessionState,
 } from './use_chat_session';
 import {beginTurnAbort, isAbortError} from './chat_session_transcript';
-import {interviewToRunSpec} from '../run_spec';
-import {resolveByokRoutes, getClientId, makePrefixedId} from '@/lib/client_id';
+import {interviewToRunSpec} from '@/shared/lib/run_spec';
+import {
+  resolveByokRoutes,
+  getClientId,
+  makePrefixedId,
+} from '@/shared/lib/client_id';
 import {
   recoverySpecForRun,
   type LinkedRunTarget,
   type PendingRunCreatePayload,
-} from '../run_spec';
+} from '@/shared/lib/run_spec';
 
 export const START_RESEARCH_PROMPT = 'Start research';
 

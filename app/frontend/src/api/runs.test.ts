@@ -1,5 +1,5 @@
 import {jsonResponse, errorResponse, fetchMock} from '@/http_test_support';
-import {setStoredApiKey, setStoredModel} from '@/lib/client_id';
+import {setStoredApiKey, setStoredModel} from '@/shared/lib/client_id';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   cancelRun,

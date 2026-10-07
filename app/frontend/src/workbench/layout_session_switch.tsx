@@ -1,9 +1,9 @@
 import type {ChatSummary} from '@/api/runs';
-import {Icon, type IconName} from '@/components/icon';
-import {joinClasses, tooltipClassNames} from './classes';
+import {Icon, type IconName} from '@/shared/ui/icon';
+import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import {TabNav, TabNavLink} from '@/shared/ui';
-import {HEADER_CONTROL_ICON_CLASSES} from './layout_primitives';
-import {tabPath} from './run_tabs';
+import {HEADER_CONTROL_ICON_CLASSES} from '@/shared/ui/layout_primitives';
+import {tabPath} from '@/shared/lib/run_tabs';
 import {useEffect} from 'react';
 
 export interface SessionSwitchData {

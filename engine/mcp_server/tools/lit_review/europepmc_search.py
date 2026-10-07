@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from mcp_server.http_client import make_client
 from mcp_server.text_extraction import clean_markup
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ async def _get_with_transport_retry(
 ) -> httpx.Response:
     for delay in (*_TRANSPORT_RETRY_DELAYS_SECONDS, None):
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with make_client(30) as client:
                 response = await client.get(_EUROPEPMC_URL, params=params)
                 response.raise_for_status()
             return response

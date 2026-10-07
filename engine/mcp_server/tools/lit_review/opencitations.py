@@ -8,6 +8,7 @@ from urllib.parse import quote
 
 import httpx
 
+from mcp_server.http_client import make_client
 from mcp_server.tools._pacing import RequestPacer
 
 logger = logging.getLogger(__name__)
@@ -140,11 +141,10 @@ async def _fetch_citation_data(
 ) -> tuple[int, int, list[dict[str, Any]], list[dict[str, Any]]]:
     try:
         async with asyncio.timeout(_TOTAL_TIMEOUT_SECONDS):
-            async with httpx.AsyncClient(
-                timeout=_REQUEST_TIMEOUT_SECONDS,
-                follow_redirects=False,
-                trust_env=False,
+            async with make_client(
+                _REQUEST_TIMEOUT_SECONDS,
                 headers={"Accept": "application/json"},
+                honour_proxy_env=False,
             ) as client:
                 # Check counts before requesting potentially large unpaginated
                 # edge sets.

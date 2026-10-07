@@ -1,6 +1,7 @@
 import type {ButtonHTMLAttributes, ReactNode, Ref} from 'react';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from './icon';
 import {joinClasses} from './cx';
+import {SwapIcon} from './swap_icon';
 import {tooltipClassNames, type TooltipPlacement} from './tooltip';
 
 export type ButtonVariant = 'filled' | 'outlined' | 'tonal' | 'text' | 'link';
@@ -123,13 +124,7 @@ export function Button({
       data-tooltip={tooltip}
       {...rest}
     >
-      {icon && (
-        <Icon
-          aria-hidden="true"
-          className={buttonIconClasses(size)}
-          name={icon}
-        />
-      )}
+      {icon && <SwapIcon className={buttonIconClasses(size)} name={icon} />}
       {children}
       {trailingIcon && (
         <Icon

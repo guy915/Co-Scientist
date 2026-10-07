@@ -6,7 +6,7 @@ import {
   readPendingCreateIntent,
   promoteDraftToRun,
 } from './chat_session_start_run';
-import type {InferredRunSpec} from '../run_spec';
+import type {InferredRunSpec} from '@/shared/lib/run_spec';
 
 vi.mock('@/api/runs', async importActual => ({
   ...(await importActual<typeof import('@/api/runs')>()),
