@@ -10,6 +10,13 @@ from co_scientist.core.run_modes import (
     resolved_run_config,
 )
 from co_scientist.domains.chat.repository import messages as store
+from co_scientist.domains.research_state.elo import (
+    rank_for_publication as app_rank_for_publication,
+)
+from co_scientist.domains.research_state.models import UNDERMINED_VERDICT, Hypothesis
+from co_scientist.domains.research_state.models import (
+    rank_for_publication as engine_rank_for_publication,
+)
 from co_scientist.generator.core import HypothesisGenerator
 
 import app.engine_adapter as provider
@@ -340,3 +347,63 @@ def test_offline_mode(
     if has_key:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     assert provider.offline_mode() is expected
+
+
+# Raw Elo and publication order disagree here: the leader is undermined and
+# the runner-up has never played a match.
+_MIXED_POOL: list[dict[str, Any]] = [
+    {"id": "undermined-top", "elo_rating": 1400, "win_count": 5, "loss_count": 0},
+    {"id": "unplayed-high", "elo_rating": 1200, "win_count": 0, "loss_count": 0},
+    {"id": "played-high", "elo_rating": 1230, "win_count": 4, "loss_count": 1},
+    {"id": "played-low", "elo_rating": 1184, "win_count": 3, "loss_count": 2},
+]
+
+
+def test_meta_review_top_k_follows_the_publication_order() -> None:
+    """The narrative's leading ideas and the report leaderboard read the same
+    run; raw Elo would lead with an undermined or untested idea.
+    """
+    pool = [
+        {**row, "verification_verdict": "undermined" if row["id"] == "undermined-top" else None}
+        for row in _MIXED_POOL
+    ]
+    state = {"meta_review": {"summary": "converging"}, "hypotheses": pool}
+
+    payload = _canonical_engine_payload("meta_review", "meta_review", state)
+
+    assert payload["top_k_ids"] == [
+        "played-high",
+        "played-low",
+        "unplayed-high",
+        "undermined-top",
+    ]
+
+
+def test_the_engine_and_the_app_publish_the_same_order() -> None:
+    """Two implementations of one rule: the engine's research overview and
+    the app's report must not order the same run differently. The drain maps
+    deep_verification_verdict onto the store's verification_verdict, so each
+    side is given its own field names for the same pool.
+    """
+    engine_pool = [
+        Hypothesis(
+            text=f"idea {row['id']}",
+            id=row["id"],
+            elo_rating=row["elo_rating"],
+            win_count=row["win_count"],
+            loss_count=row["loss_count"],
+            deep_verification_verdict=(
+                UNDERMINED_VERDICT if row["id"] == "undermined-top" else None
+            ),
+        )
+        for row in _MIXED_POOL
+    ]
+    app_pool = [
+        {**row, "verification_verdict": "undermined" if row["id"] == "undermined-top" else None}
+        for row in _MIXED_POOL
+    ]
+
+    engine_order = [h.id for h in engine_rank_for_publication(engine_pool)]
+    app_order = [str(h["id"]) for h in app_rank_for_publication(app_pool)]
+
+    assert engine_order == app_order

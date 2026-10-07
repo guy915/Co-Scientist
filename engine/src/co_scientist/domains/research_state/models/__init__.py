@@ -365,7 +365,11 @@ def rank_by_elo(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
 
 
 def rank_for_publication(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
-    """Verification can undermine the highest-Elo idea after matches; demote
-    it without altering pair selection.
+    """One order for every reader-facing surface, matching the app's: an
+    unplayed baseline rating is not evidence, and verification can undermine
+    the highest-Elo idea after matches. Pair selection keeps raw Elo.
     """
-    return sorted(rank_by_elo(hypotheses), key=lambda h: h.is_undermined())
+    return sorted(
+        rank_by_elo(hypotheses),
+        key=lambda h: (h.is_undermined(), not h.total_matches),
+    )
