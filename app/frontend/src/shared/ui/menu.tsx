@@ -105,7 +105,7 @@ export function Menu({
 
 export const MENU_ITEM_CLASSES =
   'flex min-h-[2.5rem] w-full cursor-pointer items-center gap-[0.72rem] ' +
-  'rounded-xl border-0 bg-transparent px-[0.75rem] text-left font-[inherit] ' +
+  'rounded-xl border-0 bg-transparent px-3 text-left font-[inherit] ' +
   'text-[0.875rem] text-cosci-fg no-underline hover:bg-cosci-menu-row-hover ' +
   'focus-visible:bg-cosci-menu-row-hover focus-visible:outline-2 ' +
   'focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +

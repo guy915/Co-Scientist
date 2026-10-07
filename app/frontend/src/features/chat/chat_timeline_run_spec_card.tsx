@@ -613,7 +613,7 @@ function SessionLinkCard({
           Research session
         </small>
       </span>
-      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-started-card-fg/75 px-[1.25rem] py-[0.65rem] text-center font-semibold text-started-card-fg/90 hover:bg-started-card-fg/12 focus-visible:bg-started-card-fg/12">
+      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-started-card-fg/75 px-5 py-[0.65rem] text-center font-semibold text-started-card-fg/90 hover:bg-started-card-fg/12 focus-visible:bg-started-card-fg/12">
         Open
       </span>
     </Link>

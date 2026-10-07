@@ -32,10 +32,10 @@ const SETTINGS_CONTROL_CLASSES =
 // bottom under its toolbar.
 // `ucs-nav-panel` scopes the shell tones for its buttons (tokens.css).
 const NAV_PANEL_CLASSES =
-  'ucs-nav-panel relative z-rail box-border flex h-[100vh] w-full flex-col items-center justify-between [border-right:0] bg-cosci-rail py-[1.25rem] ' +
+  'ucs-nav-panel relative z-rail box-border flex h-[100vh] w-full flex-col items-center justify-between [border-right:0] bg-cosci-rail py-5 ' +
   'phone:fixed phone:[inset:0_auto_0_0] ' +
   'phone:h-auto phone:w-[21rem] phone:min-w-0 phone:max-w-[85vw] ' +
-  'phone:items-stretch phone:px-[0.75rem] phone:py-[1rem] ' +
+  'phone:items-stretch phone:px-3 phone:py-4 ' +
   'phone:rounded-r-workspace';
 
 const NAV_GROUP_PHONE_CLASSES =
@@ -47,7 +47,7 @@ const NAV_BOTTOM_CLASSES =
   'phone:w-full phone:items-stretch phone:[justify-items:stretch] phone:gap-[0.3rem]';
 
 const SIDE_CONTENT_CLASSES =
-  'transition-[opacity,visibility] duration-medium ease-standard mt-[1rem] grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
+  'transition-[opacity,visibility] duration-medium ease-standard mt-4 grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
   'above-phone:flex above-phone:min-h-0 above-phone:max-h-none above-phone:flex-1 above-phone:flex-col ' +
   'phone:flex phone:min-h-0 phone:max-h-none phone:flex-1 ' +
   'phone:flex-col phone:overflow-hidden';
@@ -58,14 +58,14 @@ const NAV_RAIL_VARIANTS = {
   open: {
     panel: joinClasses(
       NAV_PANEL_CLASSES,
-      'above-phone:items-stretch above-phone:px-[0.75rem] above-phone:py-[1rem]',
+      'above-phone:items-stretch above-phone:px-3 above-phone:py-4',
       'phone:visible phone:[transform:translateX(0)]',
       'phone:shadow-drawer',
       'phone:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard)] phone:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
       'grid gap-[0.85rem] above-phone:flex above-phone:min-h-0 above-phone:w-full above-phone:flex-1 above-phone:flex-col',
-      'above-phone:items-stretch above-phone:gap-[0.25rem] above-phone:mt-[0.25rem]',
+      'above-phone:items-stretch above-phone:gap-1 above-phone:mt-1',
       NAV_GROUP_PHONE_CLASSES,
     ),
     bottom: NAV_BOTTOM_CLASSES,
@@ -77,11 +77,11 @@ const NAV_RAIL_VARIANTS = {
     // and the accessibility tree.
     panel: joinClasses(
       NAV_PANEL_CLASSES,
-      'above-phone:py-[1rem] phone:invisible phone:[transform:translateX(-100%)]',
+      'above-phone:py-4 phone:invisible phone:[transform:translateX(-100%)]',
       'phone:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard),visibility_0s_linear_var(--motion-duration-long)] phone:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
-      'grid w-full items-center justify-items-center gap-[0.74rem] above-phone:gap-[0.25rem] above-phone:mt-[0.25rem]',
+      'grid w-full items-center justify-items-center gap-[0.74rem] above-phone:gap-1 above-phone:mt-1',
       NAV_GROUP_PHONE_CLASSES,
     ),
     bottom: joinClasses(
@@ -241,7 +241,7 @@ function NavNewChatLink({
       icon="edit_square"
       label="New chat"
       open={open}
-      layoutClassName="mt-[0.5rem]"
+      layoutClassName="mt-2"
       onClick={event => {
         if (!isModifiedClick(event)) onNewChat();
       }}
@@ -250,7 +250,7 @@ function NavNewChatLink({
 }
 
 const SIDE_HEADING_CLASSES =
-  'mx-0 mt-[1.15rem] mb-[0.55rem] px-[0.75rem] text-[0.875rem] font-medium text-cosci-fg';
+  'mx-0 mt-[1.15rem] mb-[0.55rem] px-3 text-[0.875rem] font-medium text-cosci-fg';
 
 // Row height and gap must stay in rem: hooks/dom.ts FALLBACK_ROW_PITCH_PX is
 // the 2.35rem link line-height plus this 0.35rem gap at a 16px root.
@@ -265,7 +265,7 @@ const CHAT_LIST_SCROLLABLE_CLASSES =
   'above-phone:overflow-x-hidden above-phone:overflow-y-auto';
 
 const CHAT_HISTORY_LINK_CLASSES =
-  'flex min-h-[2.35rem] min-w-0 items-center rounded-full px-[0.75rem] text-[0.875rem] leading-[2.35rem] no-underline';
+  'flex min-h-[2.35rem] min-w-0 items-center rounded-full px-3 text-[0.875rem] leading-[2.35rem] no-underline';
 
 const CHAT_HISTORY_LINK_IDLE_CLASSES =
   'text-cosci-shell-icon hover:bg-cosci-shell-hover-bg hover:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg';

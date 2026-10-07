@@ -64,7 +64,7 @@ function EditableListRow({
     ? `Remove "${value}" from ${label}`
     : `Remove empty ${label} entry`;
   return (
-    <div className="flex items-center gap-[0.5rem]">
+    <div className="flex items-center gap-2">
       <TextField
         type="text"
         aria-label={`${label} item ${index + 1}`}
@@ -136,7 +136,7 @@ function SpecFieldsFormFields({
   const goalId = useId();
   return (
     <>
-      <div className="grid gap-[0.5rem]">
+      <div className="grid gap-2">
         <label
           htmlFor={goalId}
           className="text-[1.18rem] font-bold text-cosci-fg"

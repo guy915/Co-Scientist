@@ -102,7 +102,7 @@ export function Composer({
     >
       {aboveInput}
       <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
-      <label className="relative block min-h-[3.6rem] pb-[3rem]">
+      <label className="relative block min-h-[3.6rem] pb-12">
         <span
           className={joinClasses(
             'absolute top-0 left-[0.4rem] z-1 flex h-6 items-center gap-[0.45rem] pointer-events-none text-base text-cosci-composer-label',
@@ -575,7 +575,7 @@ function ConnectorMenuRow({
 function ConnectorsNote({text}: {text: string}) {
   return (
     <p
-      className="ui-motion-enter m-0 grid min-h-[2.5rem] items-center px-[0.75rem] text-[0.875rem] text-cosci-muted"
+      className="ui-motion-enter m-0 grid min-h-[2.5rem] items-center px-3 text-[0.875rem] text-cosci-muted"
       role="note"
     >
       {text}
@@ -627,7 +627,7 @@ function ConnectorsMenu({
       anchorRefs={anchorRefs}
       layoutClassName="pointer-events-auto absolute bottom-[2.45rem] left-[2.35rem] z-10 w-56 origin-bottom-left"
     >
-      <div className="grid min-h-[2.5rem] items-center border-b border-cosci-menu-divider px-[0.75rem] text-[0.875rem] font-medium">
+      <div className="grid min-h-[2.5rem] items-center border-b border-cosci-menu-divider px-3 text-[0.875rem] font-medium">
         <span>Connectors</span>
       </div>
       <ConnectorsMenuState

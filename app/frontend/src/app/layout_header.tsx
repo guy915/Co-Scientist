@@ -18,11 +18,11 @@ import type {SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 const HEADER_CLASSES =
-  'ucs-header-action-bar sticky top-0 z-header flex min-h-[4rem] items-center justify-between gap-[1rem] [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
-  'phone:min-w-0 phone:gap-[0.35rem] phone:px-[0.5rem]';
+  'ucs-header-action-bar sticky top-0 z-header flex min-h-[4rem] items-center justify-between gap-4 [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
+  'phone:min-w-0 phone:gap-[0.35rem] phone:px-2';
 
 const PRODUCT_LOCKUP_CLASSES =
-  'inline-flex cursor-pointer items-center gap-[0.5rem] [border:0] bg-transparent p-0 font-gsans text-[1.25rem] font-medium tracking-[-0.6px] text-cosci-fg no-underline';
+  'inline-flex cursor-pointer items-center gap-2 [border:0] bg-transparent p-0 font-gsans text-[1.25rem] font-medium tracking-[-0.6px] text-cosci-fg no-underline';
 
 const HEADER_TITLE_CLASSES =
   'ucs-header-title absolute top-1/2 left-1/2 min-w-0 max-w-[min(52rem,44vw)] overflow-hidden text-center text-[1rem] font-medium text-cosci-fg [transform:translate(-50%,-50%)] phone:hidden';
@@ -72,7 +72,7 @@ function ProductLockup({
       className={tooltipClassNames({
         className: joinClasses(
           PRODUCT_LOCKUP_CLASSES,
-          hasSession ? 'phone:mr-auto' : 'phone:mr-[0.5rem]',
+          hasSession ? 'phone:mr-auto' : 'phone:mr-2',
         ),
         placement: 'right',
       })}

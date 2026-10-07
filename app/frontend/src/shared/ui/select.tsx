@@ -161,7 +161,7 @@ export function Select<T extends string>({
           >
             {section.label && (
               <div
-                className="px-[0.75rem] pt-[0.4rem] pb-[0.1rem] text-[0.75rem] text-cosci-muted"
+                className="px-3 pt-[0.4rem] pb-[0.1rem] text-[0.75rem] text-cosci-muted"
                 aria-hidden="true"
               >
                 {section.label}

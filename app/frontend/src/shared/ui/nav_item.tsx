@@ -11,11 +11,11 @@ const ITEM_CLASSES =
   'hover:bg-cosci-shell-hover-bg hover:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
   'phone:h-[2.75rem] phone:min-h-[2.75rem] phone:w-full ' +
   'phone:grid-cols-[1.5rem_minmax(0,1fr)] phone:[justify-items:start] phone:gap-x-[0.72rem] ' +
-  'phone:px-[0.75rem] phone:text-left';
+  'phone:px-3 phone:text-left';
 
 const ITEM_OPEN_CLASSES =
   'above-phone:h-[2.45rem] above-phone:min-h-[2.45rem] above-phone:w-full above-phone:grid-cols-[1.5rem_minmax(0,1fr)] ' +
-  'above-phone:[justify-content:stretch] above-phone:[justify-items:start] above-phone:gap-x-[0.72rem] above-phone:px-[0.75rem] ' +
+  'above-phone:[justify-content:stretch] above-phone:[justify-items:start] above-phone:gap-x-[0.72rem] above-phone:px-3 ' +
   'above-phone:text-left above-phone:leading-none';
 
 const ITEM_COLLAPSED_CLASSES =
