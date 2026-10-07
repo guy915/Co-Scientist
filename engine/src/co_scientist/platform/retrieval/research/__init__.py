@@ -1,4 +1,4 @@
-from co_scientist.science.research.artifacts import (
+from co_scientist.platform.retrieval.research.artifacts import (
     DEFAULT_BREADTH_FLOOR,
     CallStatus,
     Document,
@@ -19,12 +19,12 @@ from co_scientist.science.research.artifacts import (
     content_id,
     dedupe_findings,
 )
-from co_scientist.science.research.loop import SEED_STANCE, conduct_research
-from co_scientist.science.research.serialization import (
+from co_scientist.platform.retrieval.research.loop import SEED_STANCE, conduct_research
+from co_scientist.platform.retrieval.research.serialization import (
     result_from_dict,
     result_to_dict,
 )
-from co_scientist.science.research.strings import string_items, stripped_string_items
+from co_scientist.platform.retrieval.research.strings import string_items, stripped_string_items
 
 __all__ = [
     "DEFAULT_BREADTH_FLOOR",
