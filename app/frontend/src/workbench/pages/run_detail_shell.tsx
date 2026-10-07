@@ -2,7 +2,7 @@ import {useCallback, useState, type ReactNode} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {isCancelledStatus, type TerminalNonCompletedStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
-import {Card, TabNav, TabNavLink} from '@/shared/ui';
+import {Card, TabNav, TabNavLink, Toast} from '@/shared/ui';
 import {TruncatedLabel} from '../components/truncated_label';
 import {useIsMobile} from '../hooks/dom';
 import {tabPath, type TabName} from '../run_tabs';
@@ -161,14 +161,11 @@ export function ReportErrorAlert({message}: {message: string | null}) {
   );
 }
 
-export function RunToast({message}: {message: string}) {
+export function RunToast({message}: {message: string | null}) {
   return (
-    <div
-      role="status"
-      className="reference-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg"
-    >
+    <Toast tone="danger" placement="end">
       {message}
-    </div>
+    </Toast>
   );
 }
 
