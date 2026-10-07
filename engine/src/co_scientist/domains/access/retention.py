@@ -5,8 +5,7 @@ import os
 import time
 
 from co_scientist.domains.documents import repository as store
-from co_scientist.orchestration.repository import runs as store_runs
-from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.platform.db import runs as store_runs
 
 logger = logging.getLogger(__name__)
 
@@ -51,12 +50,12 @@ def sweep_expired_runs(*, now: float | None = None) -> list[str]:
         (
             "COSCIENTIST_RUN_RETENTION_DAYS",
             _DEFAULT_RUN_RETENTION_DAYS,
-            views.list_expired_terminal_runs,
+            store_runs.list_expired_terminal_runs,
         ),
         (
             "COSCIENTIST_DRAFT_RETENTION_DAYS",
             _DEFAULT_DRAFT_RETENTION_DAYS,
-            views.list_expired_draft_runs,
+            store_runs.list_expired_draft_runs,
         ),
     ):
         days = _retention_days(env_var, default)
@@ -65,7 +64,8 @@ def sweep_expired_runs(*, now: float | None = None) -> list[str]:
         for run in lookup(now - days * _SECONDS_PER_DAY):
             cutoff = now - days * _SECONDS_PER_DAY
             counts = store_runs.delete_run(
-                run.id, draft_before=cutoff if lookup is views.list_expired_draft_runs else None
+                run.id,
+                draft_before=cutoff if lookup is store_runs.list_expired_draft_runs else None,
             )
             if not counts:
                 continue

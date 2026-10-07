@@ -9,8 +9,8 @@ import pytest
 from co_scientist.domains.research_state.drain.matches import retrieval_call_rows
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewEvidence
-from co_scientist.orchestration.repository import runs
 from co_scientist.platform.db import retrieval_calls as store
+from co_scientist.platform.db import runs
 from co_scientist.platform.retrieval.research import (
     CallStatus,
     Question,

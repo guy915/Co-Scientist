@@ -27,7 +27,7 @@ from co_scientist.orchestration.engine_tasks.support import (
     _successor_task_type,
     _task_commit,
 )
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
 
 if TYPE_CHECKING:

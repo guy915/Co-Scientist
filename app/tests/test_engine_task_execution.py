@@ -20,9 +20,9 @@ from co_scientist.orchestration.engine_tasks import ranking as engine_tasks_rank
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
 from co_scientist.orchestration.engine_tasks.support import TaskCommit
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.platform.llm import (
     current_run_call_count,

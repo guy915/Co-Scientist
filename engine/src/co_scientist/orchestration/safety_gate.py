@@ -9,8 +9,8 @@ from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
 from co_scientist.domains.safety.types import SafetyDecision, redact_matched_spans
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
 from co_scientist.platform import db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 
 logger = logging.getLogger(__name__)

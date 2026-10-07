@@ -9,10 +9,10 @@ from typing import Any
 
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.chat.seed import is_current_demo_run
-from co_scientist.orchestration.repository import runs
-from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
+from co_scientist.platform.db.runs import RunCreateOptions
 from co_scientist.platform.db.storage_admission import current_peer, reserve_write
 
 # Copy scientific artifacts only. No credentials, tasks or logs.

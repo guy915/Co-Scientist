@@ -21,10 +21,10 @@ from co_scientist.orchestration.engine_tasks import node as engine_tasks_node
 from co_scientist.orchestration.engine_tasks import report_finalize
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs as store
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.platform import db
+from co_scientist.platform.db import runs as store
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from fastapi import FastAPI
 from httpx import ASGITransport
@@ -509,7 +509,7 @@ def _seed(db_path: str) -> None:
 
 
 def _demo_runs(db_path: str) -> list[RunRow]:
-    return views.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
+    return store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
 
 
 def test_seed_demo_runs_loads_three_marked_runs_with_their_rows(

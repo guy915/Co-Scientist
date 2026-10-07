@@ -21,9 +21,8 @@ from co_scientist.orchestration.engine_tasks.support import (
     NODE_TASK_PREFIX,
 )
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import tasks as store
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client

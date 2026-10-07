@@ -7,11 +7,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.orchestration.repository.runs_views import _ACTIVE_RUN_STATUSES
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.admission import capacity_available
 from co_scientist.platform.db.logs import count_logs_for_run, delete_logs_for_run
 from co_scientist.platform.db.models import (
+    _ACTIVE_RUN_STATUSES,
     DEMO_CLIENT_ID,
     TERMINAL_STATUSES,
     RunRow,
@@ -467,3 +467,111 @@ def has_run_capacity_in_transaction(
     return _count_other_active_runs(conn, run_id, client_id) < limit and capacity_available(
         conn, run_id, limit
     )
+
+
+_TOP_HYPOTHESES_CAP = 3
+
+# Curated seeds emit these stages; durable live progress instead comes from
+# leased tasks, and cross-cutting events are excluded.
+_STAGE_EVENT_TYPES: tuple[str, ...] = (
+    "supervisor.plan",
+    "literature_review",
+    "generate",
+    "reflection",
+    "proximity",
+    "ranking",
+    "evolve",
+    "meta_review",
+    "deep_verification",
+    "research_overview",
+)
+
+
+def _top_hypotheses_by_run(conn: sqlite3.Connection, run_ids: list[str]) -> dict[str, list[str]]:
+    if not run_ids:
+        return {}
+    placeholders = ",".join("?" for _ in run_ids)
+    rows = conn.execute(
+        "SELECT run_id, title FROM ("
+        " SELECT h.run_id AS run_id, h.title AS title, ROW_NUMBER() OVER ("
+        "  PARTITION BY h.run_id"
+        "  ORDER BY s.elo_rating DESC, h.created_at ASC, h.id"
+        " ) AS rn"
+        " FROM hypotheses h"
+        " JOIN hypothesis_state s ON s.hypothesis_id = h.id"
+        f" WHERE h.run_id IN ({placeholders})"
+        ") WHERE rn <= ? ORDER BY run_id, rn",
+        (*run_ids, _TOP_HYPOTHESES_CAP),
+    ).fetchall()
+    by_run: dict[str, list[str]] = {}
+    for row in rows:
+        by_run.setdefault(row["run_id"], []).append(row["title"])
+    return by_run
+
+
+def _latest_stage_by_run(conn: sqlite3.Connection, run_ids: list[str]) -> dict[str, str]:
+    if not run_ids:
+        return {}
+    # One indexed newest-first probe per run; a window over every matching
+    # event grows with each run's whole history.
+    stage_placeholders = ",".join("?" for _ in _STAGE_EVENT_TYPES)
+    query = (
+        "SELECT type FROM run_events"
+        f" WHERE run_id = ? AND type IN ({stage_placeholders})"
+        " ORDER BY seq DESC LIMIT 1"
+    )
+    latest: dict[str, str] = {}
+    for run_id in run_ids:
+        row = conn.execute(query, (run_id, *_STAGE_EVENT_TYPES)).fetchone()
+        if row is not None:
+            latest[run_id] = row["type"]
+    return latest
+
+
+def list_expired_terminal_runs(cutoff: float, db_path: str | None = None) -> list[RunRow]:
+    placeholders = ",".join("?" for _ in TERMINAL_STATUSES)
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM runs WHERE status IN "
+            f"({placeholders}) AND COALESCE(completed_at, updated_at) < ? "
+            "ORDER BY COALESCE(completed_at, updated_at) ASC",
+            (*(status.value for status in TERMINAL_STATUSES), cutoff),
+        ).fetchall()
+    return [row_to_run(row) for row in rows]
+
+
+def list_expired_draft_runs(cutoff: float, db_path: str | None = None) -> list[RunRow]:
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM runs r WHERE status='draft' AND updated_at<? "
+            "AND NOT EXISTS (SELECT 1 FROM scientific_tasks t WHERE t.run_id=r.id "
+            "AND t.status IN ('queued','leased')) ORDER BY updated_at ASC",
+            (cutoff,),
+        ).fetchall()
+    return [row_to_run(row) for row in rows]
+
+
+def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None) -> list[RunRow]:
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            # A correlated MAX touches only listed runs; a grouped join
+            # aggregates every hypothesis in the store.
+            "SELECT r.*, ("
+            " SELECT MAX(s.elo_rating) FROM hypotheses h "
+            " JOIN hypothesis_state s ON s.hypothesis_id = h.id "
+            " WHERE h.run_id = r.id) AS top_elo "
+            "FROM runs r "
+            "WHERE r.client_id = ? "
+            "ORDER BY r.created_at DESC LIMIT ?",
+            (client_id, limit),
+        ).fetchall()
+        runs = [row_to_run(r) for r in rows]
+        run_ids = [run.id for run in runs]
+        top_hypotheses = _top_hypotheses_by_run(conn, run_ids)
+        latest_stage = _latest_stage_by_run(conn, run_ids)
+    for run in runs:
+        # Listed runs without hypotheses use []; single reads retain the
+        # unenriched None default.
+        run.top_hypotheses = top_hypotheses.get(run.id, [])
+        run.latest_stage = latest_stage.get(run.id)
+    return runs

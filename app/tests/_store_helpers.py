@@ -6,13 +6,13 @@ from typing import Any, TypedDict
 
 from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
-from co_scientist.orchestration.repository import events, runs, tasks
-from co_scientist.orchestration.repository.runs import RunCreateOptions
+from co_scientist.orchestration.repository import events, tasks
 from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.platform import db as store_db
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 from co_scientist.platform.db.checkpoints import NewCheckpoint
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
+from co_scientist.platform.db.runs import RunCreateOptions
 from typing_extensions import Unpack
 
 

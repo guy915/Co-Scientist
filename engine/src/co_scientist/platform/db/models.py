@@ -22,6 +22,12 @@ class RunStatus(str, enum.Enum):
     PAUSED = "paused"
 
 
+_ACTIVE_RUN_STATUSES: tuple[str, str, str] = (
+    RunStatus.QUEUED.value,
+    RunStatus.RUNNING.value,
+    RunStatus.SYNTHESIZING.value,
+)
+
 TERMINAL_STATUSES: tuple[RunStatus, ...] = (
     RunStatus.COMPLETED,
     RunStatus.FAILED,
