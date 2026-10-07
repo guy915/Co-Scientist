@@ -130,3 +130,18 @@ def clear_checkpoints(run_id: str, conn: sqlite3.Connection | None = None) -> No
     """
     with _use_conn(conn, None) as conn:
         conn.execute("DELETE FROM checkpoints WHERE run_id=?", (run_id,))
+
+
+def live_pool_sizes(run_id: str, conn: sqlite3.Connection) -> tuple[int, int] | None:
+    """Run detail polls need two lengths of the latest state; SQLite counts
+    them without building the whole state in Python.
+    """
+    row = conn.execute(
+        "SELECT json_array_length(state_json, '$.state.hypotheses') AS hypotheses, "
+        "json_array_length(state_json, '$.state.articles') AS articles "
+        "FROM checkpoints WHERE run_id=? ORDER BY seq DESC LIMIT 1",
+        (run_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return int(row["hypotheses"] or 0), int(row["articles"] or 0)
