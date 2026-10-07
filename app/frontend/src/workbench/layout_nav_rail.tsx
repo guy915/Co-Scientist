@@ -83,7 +83,7 @@ const NAV_RAIL_VARIANTS = {
       NAV_PANEL_CLASSES,
       'min-[701px]:items-stretch min-[701px]:px-[0.75rem] min-[701px]:py-[1rem]',
       '[@media(max-width:700px)]:visible [@media(max-width:700px)]:[transform:translateX(0)]',
-      '[@media(max-width:700px)]:[box-shadow:0.75rem_0_2.5rem_rgb(0_0_0/38%)]',
+      '[@media(max-width:700px)]:shadow-drawer',
       '[@media(max-width:700px)]:[transition:transform_240ms_cubic-bezier(0.2,0,0,1)]',
     ),
     group: joinClasses(

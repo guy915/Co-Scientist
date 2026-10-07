@@ -129,7 +129,7 @@ function DrawerScrim({
   if (!navOpen) return null;
   return (
     <div
-      className="fixed inset-0 z-[55] hidden bg-[rgb(0_0_0/45%)] [@media(max-width:700px)]:block"
+      className="fixed inset-0 z-[55] hidden bg-scrim [@media(max-width:700px)]:block"
       aria-hidden="true"
       onClick={onDismiss}
     />
@@ -142,7 +142,6 @@ interface ShellOverlaysProps {
 
 function ShellOverlays({chrome}: ShellOverlaysProps) {
   const {settingsSection, setSettingsSection} = chrome;
-  if (!settingsSection) return null;
   return (
     <SettingsDialog
       section={settingsSection}
