@@ -56,7 +56,7 @@ setup: check-tools $(VENV)/bin/activate
 	@cd "$(FRONTEND)" && "$(BUN)" install --frozen-lockfile
 	@test -f "$(ROOT)/.env" || cp "$(ROOT)/.env.example" "$(ROOT)/.env"
 	@# dev-api runs with cwd=app/, and Settings loads ".env" relative to cwd
-	@# (app/app/config.py), so a root-only .env is invisible to it. Symlink
+	@# (engine/src/co_scientist/core/config.py), so a root-only .env is invisible to it. Symlink
 	@# app/.env at the root file so there is one file, not two to keep in
 	@# sync -- and it happens to be exactly where docker-compose's own
 	@# `env_file: .env` (relative to its app/ context) already looks.

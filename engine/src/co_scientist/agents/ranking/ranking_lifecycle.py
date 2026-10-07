@@ -4,7 +4,7 @@ from typing import Any, NamedTuple
 from co_scientist.agents.ranking.ranking_debate import (
     _build_ranking_delta,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     INITIAL_ELO_RATING,
     PROGRESS_TOURNAMENT_COMPLETE,
     PROGRESS_TOURNAMENT_START,

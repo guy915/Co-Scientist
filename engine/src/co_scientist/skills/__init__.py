@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import yaml
 
-from co_scientist._context import _bind_contextvar
+from co_scientist.core._context import _bind_contextvar
 
 logger = logging.getLogger(__name__)
 

@@ -217,7 +217,7 @@ def _assess_grouped_batches(
         )
 
     if parallel and len(groups) > 1:
-        from app.async_bridge import propagate_context
+        from co_scientist.core.async_bridge import propagate_context
 
         with ThreadPoolExecutor(max_workers=min(ASSESSMENT_CONCURRENCY, len(groups))) as pool:
             return list(pool.map(propagate_context(_assess_one), groups))
@@ -248,7 +248,7 @@ def _assess_flat_claims(
         return assess_claim(item[1], passages, assessor=assessor, assessor_id=assessor_id)
 
     if parallel:
-        from app.async_bridge import propagate_context
+        from co_scientist.core.async_bridge import propagate_context
 
         # ThreadPoolExecutor does not copy contextvars; each call carries caller
         # budget

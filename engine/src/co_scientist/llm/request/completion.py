@@ -4,7 +4,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Final
 
-from co_scientist.config.env_vars import parse_timeout_env
+from co_scientist.core.env_vars import parse_timeout_env
 from co_scientist.llm.admission.free_policy import (
     api_key_for_model,
     current_api_key,

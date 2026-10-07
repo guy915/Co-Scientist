@@ -24,7 +24,7 @@ def configure_live_environment(model: str | None = None) -> str:
 
 
 def _explicit_model(selected: str | None) -> str:
-    if "app.config" in sys.modules:
+    if "co_scientist.core.config" in sys.modules:
         raise RuntimeError("live evaluation requires a fresh process")
     model = (selected if selected is not None else os.getenv("MODEL_NAME", "")).strip()
     if not model.startswith("openrouter/") or model == "openrouter/":

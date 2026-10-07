@@ -13,6 +13,7 @@ from co_scientist.agents.ranking.ranking_debate import (
     _MatchupPrompt,
     build_matchup,
 )
+from co_scientist.core.config import settings
 from co_scientist.models import Hypothesis
 
 import app.citations as citation_resolver
@@ -23,7 +24,6 @@ from app.citations import (
     Resolver,
 )
 from app.claims.grounding import evidence_passages
-from app.config import settings
 from app.engine_adapter.drain.matches import _persist_engine_matches
 from app.hypothesis import screen_hypotheses
 from app.report import markdown as report_markdown

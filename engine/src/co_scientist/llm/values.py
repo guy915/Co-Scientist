@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.constants import DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE
+from co_scientist.core.constants import DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE
 
 
 @dataclass(frozen=True)

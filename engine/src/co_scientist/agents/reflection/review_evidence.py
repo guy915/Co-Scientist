@@ -11,16 +11,16 @@ from co_scientist.agents.reflection.deep_verification_evidence import (
     _retrieve_probe_evidence,
 )
 from co_scientist.agents.reflection.review_gate import ReviewType
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEFAULT_MAX_TOKENS,
     LITERATURE_REVIEW_MAX_QUERIES,
     LOW_TEMPERATURE,
 )
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.evidence.article_support import (
     build_articles_from_metadata,
     records_from_findings,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

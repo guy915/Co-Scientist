@@ -6,8 +6,9 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
+from co_scientist.core.config import settings
+
 from app.claims.gate import ClaimRole
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,8 @@ async def _assess_gate_claims(
     """Gate and drain share one bounded assessment policy, preserving claim
     ordering and provenance.
     """
-    from app.async_bridge import run_off_loop
+    from co_scientist.core.async_bridge import run_off_loop
+
     from app.claims.grounding import assess_claim_groups
     from app.engine_adapter import offline_mode
 
@@ -315,8 +317,8 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
 def _fold_gate_telemetry(state: dict[str, Any], usage: Mapping[str, Mapping[str, Any]]) -> None:
     if not usage:
         return
+    from co_scientist.core.metrics import merge_metrics
     from co_scientist.models import MetricDeltas, create_metrics_update
-    from co_scientist.models.metrics import merge_metrics
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
     delta = create_metrics_update(

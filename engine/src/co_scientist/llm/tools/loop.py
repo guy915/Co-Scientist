@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import Any, NoReturn
 
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     FreeModelEligibilityError,
     LLMCallBudgetExceededError,
 )

@@ -10,7 +10,7 @@ from co_scientist import config as config_mod
 from co_scientist.agents.generation import literature_tools
 from co_scientist.agents.generation.generate import generate_node
 from co_scientist.agents.generation.literature_tools import draft, validate
-from co_scientist.exceptions import ResponseParseError
+from co_scientist.core.exceptions import ResponseParseError
 from tests._mcp import make_tool_results_client
 from tests._state import make_article, make_generation_response, make_state
 

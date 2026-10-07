@@ -13,7 +13,7 @@ from co_scientist.agents.meta_review import (
     research_overview_knowledge_base as kbc,
 )
 from co_scientist.agents.meta_review import research_overview_review as ror
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS,
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,

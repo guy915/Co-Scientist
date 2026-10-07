@@ -11,7 +11,7 @@ from co_scientist.agents.generation.citations import (
 from co_scientist.agents.generation.literature_tools.draft import (
     _setup_tool_provider,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEEP_HYPOTHESIS_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
     GENERATE_LIT_TOOL_MAX_PAPERS,
@@ -25,7 +25,7 @@ from co_scientist.constants import (
     strip_citation_markers,
     truncate_for_prompt,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

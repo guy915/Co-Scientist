@@ -52,7 +52,7 @@ from evaluations._run_driver import configure_environment
 configure_environment("/tmp/eval.db", live=True)
 from dotenv import load_dotenv
 load_dotenv(".env")
-from app.config import settings
+from co_scientist.core.config import settings
 assert "GEMINI_API_KEY" not in os.environ
 assert os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] == "1"
 assert os.environ["PYTHON_DOTENV_DISABLED"] == "1"
@@ -106,10 +106,10 @@ import httpx
 import litellm
 from evaluations._run_driver import configure_environment
 configure_environment("/tmp/eval.db", live=True)
-from app.config import settings
+from co_scientist.core.config import settings
 from co_scientist.llm.admission import free_policy as free_catalog
 from co_scientist.llm import call_llm, CompletionSpec
-from co_scientist.exceptions import FreeModelEligibilityError
+from co_scientist.core.exceptions import FreeModelEligibilityError
 
 async def check():
     for price in ("0.01", "0"):

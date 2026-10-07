@@ -7,7 +7,8 @@ import sqlite3
 from email.message import EmailMessage
 from typing import Any
 
-from app.config import settings
+from co_scientist.core.config import settings
+
 from app.store import runs, tasks
 from app.store.tasks import NewTask
 

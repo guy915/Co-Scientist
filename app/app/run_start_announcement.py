@@ -6,14 +6,15 @@ from collections.abc import AsyncGenerator
 from time import perf_counter
 from typing import Any
 
-from app import credentials, offline_guard
-from app.config import (
+from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
     settings,
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+
+from app import credentials, offline_guard
 from app.diagnostic_events import log_chat_turn
 from app.llm_scope import budgeted_stream, stream_chunks
 from app.sse import sse_frame

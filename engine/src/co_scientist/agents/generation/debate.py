@@ -9,14 +9,14 @@ from co_scientist.agents.generation.citations import (
     ReferenceIndex,
     hypothesis_from_llm_output,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
     DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     scaled_max_tokens,
 )
-from co_scientist.exceptions import GenerationError
+from co_scientist.core.exceptions import GenerationError
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

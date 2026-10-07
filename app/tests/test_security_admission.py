@@ -6,10 +6,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi import HTTPException
 
 from app import credentials, llm_request, logs_api, offline_guard, provider_usage
-from app.config import settings
 from app.store import db, messages
 from tests._client import create_run, fake_litellm, make_client
 from tests._llm_fake_backend import install_completion_backend

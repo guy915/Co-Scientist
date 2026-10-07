@@ -4,10 +4,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT, settings
 from fastapi.testclient import TestClient
 
 import app.interviews.questions as question_repair
-from app.config import CONVERSATIONAL_REASONING_EFFORT, settings
 from app.interviews import model as interviews_model
 from app.main import app
 from app.store import interviews as store

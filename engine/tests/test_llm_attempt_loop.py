@@ -10,7 +10,7 @@ from jsonschema.exceptions import ValidationError
 from litellm.exceptions import APIError, BadRequestError, RateLimitError
 from litellm.exceptions import ContextWindowExceededError as ContextWindow
 
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     FreeModelEligibilityError,
     LLMBudgetExhaustedError,
     LLMCallBudgetExceededError,

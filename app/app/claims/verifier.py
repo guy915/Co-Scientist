@@ -7,7 +7,8 @@ from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Any, cast
 
-from co_scientist.exceptions import (
+from co_scientist.core.async_bridge import run_coroutine_sync
+from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
@@ -23,7 +24,6 @@ from co_scientist.llm import (
 )
 from co_scientist.schemas.builders import obj
 
-from app.async_bridge import run_coroutine_sync
 from app.claims import (
     Assessor,
     BatchAssessor,

@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.constants import truncate
+from co_scientist.core.constants import truncate
 
 
 @dataclass(frozen=True)

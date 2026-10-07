@@ -4,12 +4,12 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any, Final
 
-from co_scientist._context import _bind_contextvar
-from co_scientist.config.env_vars import parse_list_env
-from co_scientist.constants import (
+from co_scientist.core._context import _bind_contextvar
+from co_scientist.core.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
+from co_scientist.core.env_vars import parse_list_env
 from co_scientist.llm.profile import ModelProfile, Thinking, model_profile
 
 logger = logging.getLogger(__name__)

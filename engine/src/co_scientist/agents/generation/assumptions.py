@@ -11,7 +11,7 @@ from co_scientist.agents.generation.citations import (
 from co_scientist.agents.generation.expansion_research import (
     build_expansion_section,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEEP_HYPOTHESIS_MAX_TOKENS,
     DEFAULT_MAX_TOKENS,
     LOW_TEMPERATURE,

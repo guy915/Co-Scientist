@@ -4,9 +4,9 @@ import pathlib
 from collections.abc import Iterator
 
 import pytest
+from co_scientist.core.config import PROVIDER_CREDENTIAL_ENV
 
 from app import process_mode
-from app.config import PROVIDER_CREDENTIAL_ENV
 
 from ._process_mode_helpers import FakeProcessMode
 
@@ -24,7 +24,7 @@ def _offline_router() -> None:
 
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    from co_scientist.constants import MODEL_PRICING
+    from co_scientist.core.constants import MODEL_PRICING
     from co_scientist.llm.admission import free_policy as free_catalog
 
     catalog = {
@@ -52,7 +52,7 @@ def _apply_offline_env(monkeypatch: pytest.MonkeyPatch, db_path: str) -> None:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "0")
-    from app.config import settings
+    from co_scientist.core.config import settings
 
     monkeypatch.setattr(settings, "evidence_resolver", "offline")
 

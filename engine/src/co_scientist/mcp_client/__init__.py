@@ -10,9 +10,9 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
-from co_scientist.config.env_vars import parse_timeout_env
-from co_scientist.constants import truncate
-from co_scientist.exceptions import MCPToolTimeoutError
+from co_scientist.core.constants import truncate
+from co_scientist.core.env_vars import parse_timeout_env
+from co_scientist.core.exceptions import MCPToolTimeoutError
 
 logger = logging.getLogger(__name__)
 

@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
+from co_scientist.core.run_modes import resolved_run_config
 from starlette.datastructures import Headers
 
 from app import credentials
-from app.config import settings
 from app.engine_adapter.opts import build_generator
-from app.run_modes import resolved_run_config
 from tests._store_helpers import seed_run
 
 _KEY = "sk-model-choice-123456"

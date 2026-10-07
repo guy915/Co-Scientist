@@ -12,7 +12,7 @@ from typing import Any
 
 _ROOT = Path(__file__).resolve().parents[1]
 _POLICY_FILES = (
-    "constants/__init__.py",
+    "core/constants/__init__.py",
     "llm/values.py",
     "llm/profile/__init__.py",
     "llm/request/backend.py",
@@ -51,7 +51,7 @@ def validate_identity(value: Any) -> dict[str, Any]:
 
 
 def _configured_models() -> dict[str, str | None]:
-    from app.config import settings
+    from co_scientist.core.config import settings
 
     return {
         "worker": settings.model_name,
@@ -67,7 +67,7 @@ def _tools_identity() -> dict[str, str | None]:
 
 
 def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
-    from app.run_modes import resolved_run_config, setup_config
+    from co_scientist.core.run_modes import resolved_run_config, setup_config
 
     baseline: dict[str, Any] = resolved_run_config(
         {"setup": setup_config(research_goal=goal, tier=tier), "tier": tier}
@@ -102,7 +102,7 @@ def arm_identity(
     """Hash paths/endpoints because they may contain credentials; declared
     controls do not prove served evidence.
     """
-    from app.run_modes import RUN_TIER_DEFAULTS
+    from co_scientist.core.run_modes import RUN_TIER_DEFAULTS
 
     tier = config["tier"]
     manifest = {

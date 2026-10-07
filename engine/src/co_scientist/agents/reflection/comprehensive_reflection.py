@@ -34,11 +34,11 @@ from co_scientist.agents.reflection.review_gate import (
 from co_scientist.agents.reflection.simulation_execution import (
     simulation_observations,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

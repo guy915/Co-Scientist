@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from co_scientist.core import run_modes
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -12,7 +13,6 @@ from co_scientist.scheduling.policy import (
 )
 from fastapi.testclient import TestClient
 
-from app import run_modes
 from app.engine_adapter.opts import _generator_kwargs
 from app.store import logs, runs
 from app.store.models import DEMO_CLIENT_ID, RunStatus

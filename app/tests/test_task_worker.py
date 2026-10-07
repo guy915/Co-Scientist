@@ -5,7 +5,7 @@ import time
 from typing import Any
 
 import pytest
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )

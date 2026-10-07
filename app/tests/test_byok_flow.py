@@ -5,10 +5,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi.testclient import TestClient
 
 from app import credentials, engine_tasks
-from app.config import settings
 from app.main import app
 from app.store import checkpoints, runs
 from tests._client import create_run as _create_run
@@ -110,11 +110,12 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
     assert row.config.get("byok_provider") == "deepseek"
     assert _KEY not in json.dumps(row.config)
 
+    from co_scientist.core.run_modes import resolved_run_config
+
     from app.engine_adapter import (
         resolve_offline_backend,
         sync_engine_llm_backend,
     )
-    from app.run_modes import resolved_run_config
 
     cfg = resolved_run_config(row.config)
     assert cfg.get("byok_provider") == "deepseek"

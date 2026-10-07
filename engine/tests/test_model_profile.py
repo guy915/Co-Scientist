@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.constants import MODEL_PRICING
+from co_scientist.core.constants import MODEL_PRICING
 from co_scientist.generator.core import HypothesisGenerator
 from co_scientist.generator.run_setup import GeneratorOptions
 from co_scientist.llm import (

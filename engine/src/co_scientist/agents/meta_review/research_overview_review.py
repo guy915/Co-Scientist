@@ -4,7 +4,7 @@ the round cap, publish the last revision without another unusable verdict."""
 from dataclasses import dataclass
 from typing import Any, Final
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
     RESEARCH_OVERVIEW_MAX_TOKENS,
 )

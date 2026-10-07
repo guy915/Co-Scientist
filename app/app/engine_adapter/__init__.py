@@ -4,7 +4,8 @@ import os
 import sys
 from typing import Any
 
-from app.config import any_provider_credential, byok_enabled, settings
+from co_scientist.core.config import any_provider_credential, byok_enabled, settings
+
 from app.engine_adapter.tools import (
     connectors_report as connectors_report,
 )

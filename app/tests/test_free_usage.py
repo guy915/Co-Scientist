@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi.testclient import TestClient
 
-from app.config import settings
 from app.main import app
 from tests._process_mode_helpers import FakeProcessMode
 

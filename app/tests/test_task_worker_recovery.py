@@ -8,12 +8,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from co_scientist.exceptions import (
+from co_scientist.core.config import settings
+from co_scientist.core.exceptions import (
     LLMTimeoutError,
 )
 
 from app import credentials, engine_tasks, task_worker
-from app.config import settings
 from app.store import checkpoints, runs, tasks
 from app.store import db as _store_db
 from app.store import db as store_db

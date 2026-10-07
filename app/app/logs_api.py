@@ -6,12 +6,12 @@ import sqlite3
 import time
 from typing import Annotated, Any
 
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.core.config import settings
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from app.async_bridge import off_loop
 from app.auth import client_id
-from app.config import settings
 from app.logging_setup import level_to_number
 from app.operator_access import is_operator
 from app.store import db, logs

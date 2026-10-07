@@ -11,11 +11,11 @@ import httpx
 import pytest
 import tiktoken
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.exceptions import FreeModelEligibilityError
+from co_scientist.core.exceptions import FreeModelEligibilityError
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

@@ -11,7 +11,7 @@ from co_scientist.agents.generation.citations import (
     format_experiment_plan,
     resolve_citation_keys,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DUPLICATE_SIMILARITY_THRESHOLD,
     INITIAL_ELO_RATING,
 )

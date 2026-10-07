@@ -10,7 +10,7 @@ from typing import Any, Final, NamedTuple
 from co_scientist.agents.reflection.review_gate import (
     mature_review_summary,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     ELO_K_ANNEALED_MINIMUM,
     ELO_K_ANNEALING_HALF_LIFE,
     ELO_K_FACTOR,

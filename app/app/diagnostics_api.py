@@ -1,5 +1,6 @@
 from typing import Any
 
+from co_scientist.core.config import settings
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field
 
@@ -8,7 +9,6 @@ from app import (
     diagnostics,
     engine_adapter,
 )
-from app.config import settings
 from app.notifications import email_notifications_configured
 from app.operator_access import is_operator
 

@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
-
-from app.run_modes import (
+from co_scientist.core.run_modes import (
     RUN_FOCUS_PATTERN,
     RUN_TIER_PATTERN,
     PlanningLists,
@@ -13,6 +11,7 @@ from app.run_modes import (
     resolved_run_config,
     setup_config,
 )
+from pydantic import BaseModel, Field
 
 
 class CreateRunRequest(BaseModel):

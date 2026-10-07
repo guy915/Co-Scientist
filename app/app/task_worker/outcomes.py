@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
     LLMTimeoutError,

@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
     PROMPT_PAPER_MAX_CHARS,
     strip_citation_markers,
