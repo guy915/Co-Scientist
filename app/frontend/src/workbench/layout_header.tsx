@@ -108,7 +108,10 @@ export function ShellHeader({
     <header className={HEADER_CLASSES}>
       <HamburgerButton navOpen={navOpen} onClick={toggleNav} />
       <ProductLockup onNewChat={startNewChat} hasSession={session !== null} />
-      <div id="header-landing-tabs" className="ucs-header-landing-tabs" />
+      <div
+        id="header-landing-tabs"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      />
       {/* Session controls replace the title; the run/transcript already presents it. */}
       <div className={joinClasses(HEADER_TITLE_CLASSES, session && 'hidden')}>
         {headerTitle && (
