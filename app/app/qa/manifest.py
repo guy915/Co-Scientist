@@ -598,30 +598,6 @@ class _PromptSections:
     conversation: str
 
 
-def _summarize_run_context(context: QaRunContext) -> _PromptSections:
-    """Bound histories and artifacts while retaining the title index needed to
-    discover ideas.
-    """
-    return _PromptSections(
-        ideas=render_idea_index(context.hypotheses),
-        reviews="\n".join(
-            f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"
-            for r in context.reviews[-5:]
-        ),
-        matches="\n".join(
-            f"- Winner {str(m.get('winner_id') or 'undecided')[:8]} "
-            f"(Elo {m.get('winner_elo_after')}) — "
-            f"{(m.get('rationale') or '')[:100]}"
-            for m in context.matches[-3:]
-        ),
-        evidence=_format_manifest_for_prompt(context.manifest),
-        conversation="\n".join(
-            f"{'User' if m.sender == 'user' else 'Assistant'}: {_clip(m.content, 800)}"
-            for m in context.history[-10:]
-        ),
-    )
-
-
 _ANSWER_RULES = (
     "Claims about this run -- what the ideas say, how they were reviewed "
     "or ranked, how far the run has got, and what the evidence shows -- "
@@ -670,7 +646,25 @@ def _artifact_sections(sections: _PromptSections) -> list[str]:
 
 
 def build_system_prompt(context: QaRunContext) -> str:
-    sections = _summarize_run_context(context)
+    # Bound histories and artifacts while retaining the title index needed to discover ideas.
+    sections = _PromptSections(
+        ideas=render_idea_index(context.hypotheses),
+        reviews="\n".join(
+            f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"
+            for r in context.reviews[-5:]
+        ),
+        matches="\n".join(
+            f"- Winner {str(m.get('winner_id') or 'undecided')[:8]} "
+            f"(Elo {m.get('winner_elo_after')}) — "
+            f"{(m.get('rationale') or '')[:100]}"
+            for m in context.matches[-3:]
+        ),
+        evidence=_format_manifest_for_prompt(context.manifest),
+        conversation="\n".join(
+            f"{'User' if m.sender == 'user' else 'Assistant'}: {_clip(m.content, 800)}"
+            for m in context.history[-10:]
+        ),
+    )
     blocks = [
         "You are a concise research assistant helping the user understand "
         "an AI-driven hypothesis generation run.",

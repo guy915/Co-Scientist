@@ -19,26 +19,18 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _count_used_articles(articles: list[Any]) -> int:
-    return sum(1 for art in articles if art.used_in_analysis)
-
-
-def _count_used_articles_with_pdfs(articles: list[Any]) -> int:
-    return sum(1 for art in articles if art.used_in_analysis and art.pdf_links)
-
-
 def _log_warm_start_diagnostics(articles: list[Any] | None) -> None:
     if not articles:
         return
 
-    used_count = _count_used_articles(articles)
+    used_count = sum(1 for art in articles if art.used_in_analysis)
     logger.debug(
         "state.articles contains %s total articles, %s with used_in_analysis=True",
         len(articles),
         used_count,
     )
     if used_count > 0:
-        articles_with_pdfs = _count_used_articles_with_pdfs(articles)
+        articles_with_pdfs = sum(1 for art in articles if art.used_in_analysis and art.pdf_links)
         logger.info(
             "Including %s analyzed articles in prompt (%s with PDFs, %s abstract-only)",
             used_count,

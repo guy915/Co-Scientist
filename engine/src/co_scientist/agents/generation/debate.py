@@ -76,17 +76,6 @@ def _append_diversity_instruction(preferences: str | None, instruction: str | No
     return instruction
 
 
-def _debate_final_turn_max_tokens(count: int) -> int:
-    """Each debate generates one hypothesis, so this budget is fixed despite
-    the shared scaling helper."""
-    return scaled_max_tokens(
-        EXTENDED_MAX_TOKENS,
-        count,
-        per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
-        cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
-    )
-
-
 # Accept standalone conclusion markers, never quoted instructions or list
 # labels.
 
@@ -112,29 +101,6 @@ class DebateBatchPosition:
     total_debates: int
 
 
-async def _call_final_debate_turn(
-    state: WorkflowState,
-    ctx: "_DebateContext",
-    prompt: str,
-    schema: Any,
-) -> dict[str, Any]:
-    final_max_tokens = _debate_final_turn_max_tokens(ctx.count)
-
-    return await call_llm_json(
-        prompt=prompt,
-        spec=CompletionSpec(
-            model_name=state["model_name"],
-            max_tokens=final_max_tokens,
-            temperature=HIGH_TEMPERATURE,
-            json_schema=schema,
-        ),
-        options=LLMCallOptions(
-            run_id=state.get("run_id"),
-            prompt_name=f"generate_debate_{ctx.debate_id}_final",
-        ),
-    )
-
-
 def _first_debate_hypothesis_data(response: dict[str, Any], debate_label: str) -> dict[str, Any]:
     """A single debate still uses the list-wrapped schema shared by batch
     generation paths."""
@@ -151,7 +117,25 @@ async def _run_final_debate_turn(
     prompt: str,
     schema: Any,
 ) -> Hypothesis:
-    response = await _call_final_debate_turn(state, ctx, prompt, schema)
+    # Each debate generates one hypothesis, so this budget is fixed despite the shared scaling.
+    response = await call_llm_json(
+        prompt=prompt,
+        spec=CompletionSpec(
+            model_name=state["model_name"],
+            max_tokens=scaled_max_tokens(
+                EXTENDED_MAX_TOKENS,
+                ctx.count,
+                per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
+                cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
+            ),
+            temperature=HIGH_TEMPERATURE,
+            json_schema=schema,
+        ),
+        options=LLMCallOptions(
+            run_id=state.get("run_id"),
+            prompt_name=f"generate_debate_{ctx.debate_id}_final",
+        ),
+    )
     hyp_data = _first_debate_hypothesis_data(response, ctx.debate_label)
 
     return hypothesis_from_llm_output(
@@ -191,19 +175,6 @@ def _build_debate_turn_prompt(
     )
 
 
-async def _run_intermediate_debate_turn(state: WorkflowState, prompt: str) -> str:
-
-    return await call_llm(
-        prompt=prompt,
-        spec=CompletionSpec(
-            model_name=state["model_name"],
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=HIGH_TEMPERATURE,
-        ),
-        options=LLMCallOptions(),
-    )
-
-
 @dataclass
 class _DebateContext:
     ref_idx: ReferenceIndex
@@ -218,27 +189,6 @@ class _DebateContext:
     count: int = 1
 
 
-def _build_debate_context(
-    state: WorkflowState,
-    debate_id: int | None,
-    total_debates: int,
-    articles_with_reasoning: str | None,
-    reference_index: ReferenceIndex | None,
-) -> _DebateContext:
-    diversity_instruction = _debate_diversity_instruction(debate_id, total_debates)
-    return _DebateContext(
-        ref_idx=reference_index or ReferenceIndex(text="", sources={}),
-        debate_id=debate_id,
-        debate_label=(f"debate {debate_id}" if debate_id is not None else "debate"),
-        supervisor_guidance=state.get("supervisor_guidance"),
-        meta_review=state.get("meta_review"),
-        preferences=_append_diversity_instruction(state.get("preferences"), diversity_instruction),
-        attributes=state.get("attributes"),
-        articles_with_reasoning=articles_with_reasoning,
-        criteria=state.get("criteria"),
-    )
-
-
 async def _run_debate_turns(
     state: WorkflowState,
     ctx: _DebateContext,
@@ -249,7 +199,15 @@ async def _run_debate_turns(
     turns_run = 0
     for turn in range(1, _DEBATE_MAX_DISCUSSION_TURNS + 1):
         prompt, _ = _build_debate_turn_prompt(state, ctx, transcript, is_final=False)
-        response_text = await _run_intermediate_debate_turn(state, prompt)
+        response_text = await call_llm(
+            prompt=prompt,
+            spec=CompletionSpec(
+                model_name=state["model_name"],
+                max_tokens=EXTENDED_MAX_TOKENS,
+                temperature=HIGH_TEMPERATURE,
+            ),
+            options=LLMCallOptions(),
+        )
         transcript += f"\n\nTurn {turn}:\n{response_text}"
         turns_run = turn
         if _debate_converged(response_text):
@@ -289,19 +247,27 @@ def _build_debate_tasks(
     reference_index: ReferenceIndex | None,
     batch_position: DebateBatchPosition,
 ) -> list[Coroutine[Any, Any, tuple[Hypothesis, str, int]]]:
-    return [
-        _run_debate_turns(
-            state,
-            _build_debate_context(
-                state,
-                batch_position.debate_index + i,
-                batch_position.total_debates,
-                articles_with_reasoning,
-                reference_index,
-            ),
+    tasks = []
+    for i in range(count):
+        debate_id = batch_position.debate_index + i
+        diversity_instruction = _debate_diversity_instruction(
+            debate_id, batch_position.total_debates
         )
-        for i in range(count)
-    ]
+        ctx = _DebateContext(
+            ref_idx=reference_index or ReferenceIndex(text="", sources={}),
+            debate_id=debate_id,
+            debate_label=f"debate {debate_id}",
+            supervisor_guidance=state.get("supervisor_guidance"),
+            meta_review=state.get("meta_review"),
+            preferences=_append_diversity_instruction(
+                state.get("preferences"), diversity_instruction
+            ),
+            attributes=state.get("attributes"),
+            articles_with_reasoning=articles_with_reasoning,
+            criteria=state.get("criteria"),
+        )
+        tasks.append(_run_debate_turns(state, ctx))
+    return tasks
 
 
 async def generate_with_debate(

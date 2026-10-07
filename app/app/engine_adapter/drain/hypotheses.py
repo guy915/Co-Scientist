@@ -48,10 +48,6 @@ class ResolvedArticle:
     source_type: str = SourceType.UNKNOWN.value
 
 
-def _article_doi(art: dict[str, Any]) -> str:
-    return str(art.get("doi") or "").strip()
-
-
 def _article_pmid(art: dict[str, Any]) -> str:
     if str(art.get("source") or "").lower() == "pubmed":
         source_id = str(art.get("source_id") or "").strip()
@@ -74,35 +70,10 @@ def _article_year(art: dict[str, Any]) -> int | None:
         return None
 
 
-def _article_metadata(art: dict[str, Any]) -> CitationMetadata:
-    return CitationMetadata(
-        url=str(art.get("url") or ""),
-        doi=_article_doi(art),
-        pmid=_article_pmid(art),
-        retracted=_article_retracted(art),
-        source=str(art.get("source") or ""),
-        publication_type=str(art.get("publication_type") or ""),
-        year=_article_year(art),
-    )
-
-
 def _configured_resolver() -> Resolver:
     if settings.evidence_resolver == "live":
         return citation_resolver.live_resolver
     return offline_resolver
-
-
-def _resolved_article(meta: CitationMetadata, verdict: Resolvability) -> ResolvedArticle:
-    """Both metadata and independent resolver retractions retain their
-    explicit provenance rather than becoming plain unavailability.
-    """
-    return ResolvedArticle(
-        doi=meta.doi or None,
-        pmid=meta.pmid or None,
-        available=verdict is Resolvability.RESOLVABLE,
-        retracted=verdict is Resolvability.RETRACTED,
-        source_type=classify_source_type(meta).value,
-    )
 
 
 def resolve_articles(
@@ -111,9 +82,31 @@ def resolve_articles(
     """Offline resolution uses metadata only; live resolution must finish
     before a write transaction opens.
     """
-    metas = [_article_metadata(art) for art in articles]
+    metas = [
+        CitationMetadata(
+            url=str(art.get("url") or ""),
+            doi=str(art.get("doi") or "").strip(),
+            pmid=_article_pmid(art),
+            retracted=_article_retracted(art),
+            source=str(art.get("source") or ""),
+            publication_type=str(art.get("publication_type") or ""),
+            year=_article_year(art),
+        )
+        for art in articles
+    ]
     verdicts = citation_resolver.resolve_many(metas, resolver=_configured_resolver())
-    return [_resolved_article(meta, verdict) for meta, verdict in zip(metas, verdicts, strict=True)]
+    # Both metadata and independent resolver retractions retain their explicit
+    # provenance rather than becoming plain unavailability.
+    return [
+        ResolvedArticle(
+            doi=meta.doi or None,
+            pmid=meta.pmid or None,
+            available=verdict is Resolvability.RESOLVABLE,
+            retracted=verdict is Resolvability.RETRACTED,
+            source_type=classify_source_type(meta).value,
+        )
+        for meta, verdict in zip(metas, verdicts, strict=True)
+    ]
 
 
 @dataclass(frozen=True)
@@ -183,19 +176,15 @@ def _persist_engine_evidence(
         abstract_by_title[art.get("title", "")] = abstract
 
 
-class ResolvedEvidenceBatch(NamedTuple):
-    articles: list[dict[str, Any]]
-    resolved: list[ResolvedArticle]
-
-
 def _persist_evidence_and_hypotheses(
     run_id: str,
-    evidence: ResolvedEvidenceBatch,
+    articles: list[dict[str, Any]],
+    resolved: list[ResolvedArticle],
     hyps_parents_first: list[dict[str, Any]],
     sink: _HypothesisSink,
     conn: sqlite3.Connection,
 ) -> None:
-    _persist_engine_evidence(run_id, evidence.articles, evidence.resolved, sink.citations, conn)
+    _persist_engine_evidence(run_id, articles, resolved, sink.citations, conn)
     for h in hyps_parents_first:
         _persist_engine_hypothesis(run_id, h, sink, conn)
 
@@ -254,26 +243,19 @@ def _payload_parent_ids(h: dict[str, Any]) -> list[str] | None:
 DEDUPLICATED_REVIEW_DISPOSITION = "duplicate"
 
 
-def _payload_is_rankable(h: dict[str, Any]) -> bool:
-    """Use the engine's admission predicate so tournament eligibility and
-    persisted publication status cannot drift.
-    """
-    return bool(
-        Hypothesis(
-            text="",
-            review_disposition=h.get("review_disposition"),
-            deep_verification_verdict=h.get("deep_verification_verdict"),
-        ).is_rankable()
-    )
-
-
 def _hypothesis_status(h: dict[str, Any]) -> str:
     """Deduplication is not merit rejection; undermined published ideas
     retain an explicit verification verdict beside active status.
     """
     if h.get("review_disposition") == DEDUPLICATED_REVIEW_DISPOSITION:
         return "duplicate"
-    if not _payload_is_rankable(h):
+    # Use the engine's admission predicate so tournament eligibility and
+    # persisted publication status cannot drift.
+    if not Hypothesis(
+        text="",
+        review_disposition=h.get("review_disposition"),
+        deep_verification_verdict=h.get("deep_verification_verdict"),
+    ).is_rankable():
         return "rejected"
     return "active"
 
@@ -290,21 +272,6 @@ def _mean_review_novelty(h: dict[str, Any]) -> float | None:
         if isinstance(value, (int, float)) and value
     ]
     return sum(scores) / len(scores) if scores else None
-
-
-def _persist_hypothesis_state(hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection) -> None:
-    store.update_hypothesis_state(
-        hyp_id,
-        HypothesisStateChanges(
-            elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
-            win_delta=int(h.get("win_count", 0)),
-            loss_delta=int(h.get("loss_count", 0)),
-            novelty=_mean_review_novelty(h),
-            status=_hypothesis_status(h),
-            verification_verdict=h.get("deep_verification_verdict"),
-        ),
-        conn=conn,
-    )
 
 
 def _resolve_persisted_parent_id(
@@ -375,7 +342,18 @@ def _persist_engine_hypothesis_row(
         ),
         conn=conn,
     )
-    _persist_hypothesis_state(hyp_id, h, conn)
+    store.update_hypothesis_state(
+        hyp_id,
+        HypothesisStateChanges(
+            elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
+            win_delta=int(h.get("win_count", 0)),
+            loss_delta=int(h.get("loss_count", 0)),
+            novelty=_mean_review_novelty(h),
+            status=_hypothesis_status(h),
+            verification_verdict=h.get("deep_verification_verdict"),
+        ),
+        conn=conn,
+    )
     return hyp_id, identity.engine_id
 
 

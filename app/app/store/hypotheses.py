@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.elo import INITIAL_ELO
-from app.store.db import _now, _use_conn
+from app.store.db import _now, _use_conn, connect
 
 
 @dataclass(frozen=True)
@@ -240,12 +240,8 @@ def list_hypotheses(
         return [_decode_parent_ids(dict(r)) for r in rows]
 
 
-def get_hypothesis(
-    hypothesis_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> dict[str, Any] | None:
-    with _use_conn(conn, db_path) as conn:
+def get_hypothesis(hypothesis_id: str, db_path: str | None = None) -> dict[str, Any] | None:
+    with connect(db_path) as conn:
         row = conn.execute(
             _HYP_SELECT + "WHERE h.id=?",
             (hypothesis_id,),

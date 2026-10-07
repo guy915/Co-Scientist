@@ -379,14 +379,6 @@ async def _invoke_draft_llm(
         raise
 
 
-async def _call_draft_agent(
-    state: WorkflowState,
-    call: _DraftCall,
-) -> tuple[str, int]:
-    draft_max_tokens = _compute_draft_max_tokens(call.count, call.max_iterations)
-    return await _invoke_draft_llm(state, call, draft_max_tokens)
-
-
 def _log_draft_completion(tool_call_counts: dict[str, int]) -> None:
     total_calls = sum(tool_call_counts.values())
     calls_summary = ", ".join(f"{name}={count}" for name, count in tool_call_counts.items())
@@ -449,17 +441,16 @@ async def _run_draft_pipeline(
 
     draft_tracked_executor, tool_call_counts = skills.provider.tracked_executor("Draft")
 
-    final_response, llm_calls = await _call_draft_agent(
-        state,
-        _DraftCall(
-            prompt=prompt,
-            openai_tools=skills.tools,
-            executor=draft_tracked_executor,
-            count=count,
-            max_iterations=max_iterations,
-            max_prompt_tokens=skills.max_prompt_tokens,
-        ),
+    call = _DraftCall(
+        prompt=prompt,
+        openai_tools=skills.tools,
+        executor=draft_tracked_executor,
+        count=count,
+        max_iterations=max_iterations,
+        max_prompt_tokens=skills.max_prompt_tokens,
     )
+    draft_max_tokens = _compute_draft_max_tokens(call.count, call.max_iterations)
+    final_response, llm_calls = await _invoke_draft_llm(state, call, draft_max_tokens)
 
     return final_response, tool_call_counts, llm_calls
 

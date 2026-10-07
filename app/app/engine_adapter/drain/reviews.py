@@ -22,14 +22,6 @@ class _CitationSink:
     citation_summary: dict[str, int]
 
 
-@dataclass(frozen=True)
-class _CitationTarget:
-    run_id: str
-    hyp_id: str
-    grounding: str
-    conn: sqlite3.Connection
-
-
 def _ensure_citation_evidence_id(
     run_id: str,
     cite_title: str,
@@ -54,10 +46,6 @@ def _ensure_citation_evidence_id(
         )
         ev_id_by_title[cite_title] = cite_ev_id
     return cite_ev_id
-
-
-def _hypothesis_grounding_text(h: dict[str, Any]) -> str:
-    return str(h.get("literature_grounding") or h.get("text") or "")
 
 
 def _claim_cited_by(grounding: str, cite_key: str) -> str:
@@ -97,7 +85,10 @@ def _citation_available(cite_info: dict[str, Any], cite_url: str) -> bool:
 
 
 def _persist_one_citation(
-    target: _CitationTarget,
+    run_id: str,
+    hyp_id: str,
+    grounding: str,
+    conn: sqlite3.Connection,
     cite_key: str,
     cite_info: dict[str, Any],
     sink: _CitationSink,
@@ -107,31 +98,27 @@ def _persist_one_citation(
     cite_title = cite_info.get("title") or cite_info.get("display") or cite_key
     cite_url = _citation_url(cite_info)
     cite_ev_id = _ensure_citation_evidence_id(
-        target.run_id,
-        cite_title,
-        cite_info,
-        sink.ev_id_by_title,
-        target.conn,
+        run_id, cite_title, cite_info, sink.ev_id_by_title, conn
     )
     claim = f"[{cite_key}] cited in hypothesis"
     state = classify_citation(
         CitationRecord(
             url=cite_url,
             abstract=sink.abstract_by_title.get(cite_title, ""),
-            claim=_claim_cited_by(target.grounding, cite_key),
+            claim=_claim_cited_by(grounding, cite_key),
             available=_citation_available(cite_info, cite_url),
         )
     )
     sink.citation_summary[state] += 1
     store.add_citation(
         NewCitation(
-            run_id=target.run_id,
-            hypothesis_id=target.hyp_id,
+            run_id=run_id,
+            hypothesis_id=hyp_id,
             evidence_id=cite_ev_id,
             claim=claim,
             state=state,
         ),
-        conn=target.conn,
+        conn=conn,
     )
 
 
@@ -142,9 +129,9 @@ def _persist_engine_citations(
     sink: _CitationSink,
     conn: sqlite3.Connection,
 ) -> None:
-    target = _CitationTarget(run_id, hyp_id, _hypothesis_grounding_text(h), conn)
+    grounding = str(h.get("literature_grounding") or h.get("text") or "")
     for cite_key, cite_info in _citation_map(h).items():
-        _persist_one_citation(target, cite_key, cite_info, sink)
+        _persist_one_citation(run_id, hyp_id, grounding, conn, cite_key, cite_info, sink)
 
 
 # Bound malformed schema-less responses without clipping genuine structured

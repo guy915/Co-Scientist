@@ -342,6 +342,24 @@ _NOVELTY_REVIEW_SCHEMA: dict[str, Any] = obj(
     }
 )
 
+_REVIEW_BODY_PROPS: dict[str, Any] = {
+    "review_summary": {
+        "type": "string",
+        "description": "Overall assessment (2-3 sentences)",
+    },
+    "scores": _SCORES_SCHEMA,
+    "detailed_feedback": _DETAILED_FEEDBACK_SCHEMA,
+    "constructive_feedback": {
+        "type": "string",
+        "description": "Specific, actionable suggestions for improvement",
+    },
+    "safety_ethical_concerns": {
+        "type": "string",
+        "description": "Any ethical or safety concerns",
+    },
+    "novelty_review": _NOVELTY_REVIEW_SCHEMA,
+}
+
 REVIEW_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_review",
     "strict": False,
@@ -351,21 +369,7 @@ REVIEW_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "description": "The hypothesis being reviewed",
             },
-            "review_summary": {
-                "type": "string",
-                "description": "Overall assessment (2-3 sentences)",
-            },
-            "scores": _SCORES_SCHEMA,
-            "detailed_feedback": _DETAILED_FEEDBACK_SCHEMA,
-            "constructive_feedback": {
-                "type": "string",
-                "description": ("Specific, actionable suggestions for improvement"),
-            },
-            "safety_ethical_concerns": {
-                "type": "string",
-                "description": "Any ethical or safety concerns",
-            },
-            "novelty_review": _NOVELTY_REVIEW_SCHEMA,
+            **_REVIEW_BODY_PROPS,
             "overall_score": {
                 "type": "number",
                 "description": "Calculated as average of criterion scores",
@@ -392,21 +396,7 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                                 " Hypothesis 2, and so on"
                             ),
                         },
-                        "review_summary": {
-                            "type": "string",
-                            "description": "Overall assessment (2-3 sentences)",
-                        },
-                        "scores": _SCORES_SCHEMA,
-                        "detailed_feedback": _DETAILED_FEEDBACK_SCHEMA,
-                        "constructive_feedback": {
-                            "type": "string",
-                            "description": ("Specific, actionable suggestions for improvement"),
-                        },
-                        "safety_ethical_concerns": {
-                            "type": "string",
-                            "description": "Any ethical or safety concerns",
-                        },
-                        "novelty_review": _NOVELTY_REVIEW_SCHEMA,
+                        **_REVIEW_BODY_PROPS,
                         "comparative_notes": {
                             "type": "string",
                             "description": (

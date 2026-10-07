@@ -45,20 +45,6 @@ class _TournamentContext(NamedTuple):
     prompt: RankingPromptContext
 
 
-def _build_tournament_context(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-    guidance: _TournamentGuidance,
-) -> _TournamentContext:
-    prompt = prepare_ranking_prompt_context(state, preferences=state.get("preferences"))
-    return _TournamentContext(
-        hypotheses,
-        state["research_goal"],
-        state.get("current_iteration", 0),
-        replace(prompt, guidance=guidance),
-    )
-
-
 def _select_next_pairing(
     ctx: _TournamentContext,
     index: int,
@@ -128,19 +114,6 @@ async def _execute_tournament_rounds(
     return details, total_llm_calls
 
 
-async def _run_tournament_matchups(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-    tournament_rounds: int,
-    guidance: _TournamentGuidance,
-) -> tuple[
-    list[dict[str, Any]],
-    int,
-]:
-    ctx = _build_tournament_context(state, hypotheses, guidance)
-    return await _execute_tournament_rounds(state, tournament_rounds, ctx)
-
-
 def _filter_eligible_hypotheses(
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
@@ -167,8 +140,15 @@ async def _run_tournament(
 ) -> dict[str, Any]:
     tournament_rounds, guidance = await prepare_ranking_round(state, eligible)
 
-    matchup_details, total_llm_calls = await _run_tournament_matchups(
-        state, eligible, tournament_rounds, guidance
+    prompt = prepare_ranking_prompt_context(state, preferences=state.get("preferences"))
+    ctx = _TournamentContext(
+        eligible,
+        state["research_goal"],
+        state.get("current_iteration", 0),
+        replace(prompt, guidance=guidance),
+    )
+    matchup_details, total_llm_calls = await _execute_tournament_rounds(
+        state, tournament_rounds, ctx
     )
 
     return await finalize_ranking(
