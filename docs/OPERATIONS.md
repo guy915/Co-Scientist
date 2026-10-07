@@ -322,3 +322,16 @@ query strings or payloads), modal opens, and engine-stage execution spans
 retain their existing WARNING level. Chat text and tool arguments/results are
 not added to these metadata records. Existing ten-minute duplicate suppression
 and the WARNING floor for per-call HTTP dependency chatter still apply.
+
+## Legacy data migration
+
+`app/dev/migrate_legacy_data.py` upgrades old persisted formats (M01-M08: retired tier
+names, NULL backend/retraction/passage/verdict, bare-string spans and recommendations,
+interviews without `lab_constraints`) and deletes non-engine checkpoints of finished runs.
+It is idempotent, runs in one transaction, never creates a database and never touches
+`runs.updated_at`, stored report markdown or `__demo__` runs. Owner steps, with the API
+stopped for the prod run: `python app/dev/backup_db.py PROD.db backup.db`; copy the backup;
+`--db copy.db --census`, then `--apply`, then `--census` on the copy and open the old runs;
+repeat census, apply, census on prod after a fresh backup; paste the final `deletable:` and
+`must_stay:` lines into the deletion PR. `--apply` refuses queued, running, paused or
+failed-with-checkpoint runs and open tasks unless `--allow-in-flight`; schema drift exits 2.
