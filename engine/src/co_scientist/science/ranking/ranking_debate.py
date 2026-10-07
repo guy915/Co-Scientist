@@ -36,6 +36,10 @@ from co_scientist.platform.llm import (
     indexed_prompt_name,
     record_deterministic_fallback,
 )
+from co_scientist.platform.llm.decisions import Question, SystemOneClient, decision_or_fallback
+from co_scientist.platform.llm.decisions.cascade import combine_swapped
+from co_scientist.platform.llm.decisions.settings import calibrated_threshold
+from co_scientist.platform.llm.decisions.types import DecisionResult
 from co_scientist.science.prompts import (
     PromptRunContext,
     RankingSide,
@@ -660,9 +664,68 @@ async def judge_matchup(
     ctx = ctx._replace(debate=turns > SINGLE_TURN_DEBATE_TURNS)
     base = _render_ordered_prompt(ctx.hypothesis_a, ctx.hypothesis_b, ctx)
     fallback = _balanced_invalid_fallback(ctx.hypothesis_a, ctx.hypothesis_b, ctx.matchup_index)
-    votes, run, response = await _run_debate_turns(ctx, turns, base, fallback)
-    winner = _finalize_debate_response(response, votes, run, ctx.model_name)
-    return winner, response
+    attempts = 0
+
+    async def llm() -> tuple[str, dict[str, Any]]:
+        votes, run, response = await _run_debate_turns(ctx, turns, base, fallback)
+        winner = _finalize_debate_response(response, votes, run, ctx.model_name)
+        if attempts:
+            response["physical_calls"] = int(response["debate_turns"]) + attempts
+        return winner, response
+
+    if ctx.debate:
+        return await llm()
+
+    question = Question(
+        "choice",
+        "Which hypothesis best meets the scientific criteria in the state?",
+        {"A": "Hypothesis 1", "B": "Hypothesis 2"},
+    )
+    questions = {"winner": question}
+
+    async def decide(client: SystemOneClient) -> DecisionResult:
+        nonlocal attempts
+        try:
+            async with _get_ranking_semaphore():
+                forward = await client.decide(base.prompt, questions)
+                reverse_prompt = _render_ordered_prompt(ctx.hypothesis_b, ctx.hypothesis_a, ctx)
+                reverse = await client.decide(reverse_prompt.prompt, questions)
+                return combine_swapped(forward, reverse)
+        finally:
+            attempts = client.requests
+
+    def accept(result: DecisionResult) -> tuple[str, dict[str, Any]]:
+        answer = result.answers["winner"]
+        winner = str(answer.value).lower()
+        note = result.note("winner")
+        entry = {
+            "turn": 1,
+            "winner": winner,
+            "winner_id": (ctx.hypothesis_a.id if winner == "a" else ctx.hypothesis_b.id),
+            "reasoning": note,
+            "presentation_order": "ab",
+            "valid_output": True,
+            "decision_provider": "liquid",
+            "decision_model": "d1:free",
+            "probabilities": answer.probabilities,
+            "physical_requests": attempts,
+        }
+        return winner, {
+            "decision_summary": note,
+            "confidence_level": "high" if answer.confidence >= 0.9 else "medium",
+            "debate_turns": 1,
+            "debate_transcript": [entry],
+            "debate_verdict": _verdict_number(winner),
+            "judge_model": "liquid/d1:free",
+            "consensus_votes": [winner],
+            "position_balanced": True,
+            "invalid_output_fallback": False,
+            "physical_calls": attempts,
+        }
+
+    return await decision_or_fallback(
+        base.prompt, questions, calibrated_threshold("RANKING"), accept, llm, decide=decide
+    )
 
 
 def _median_elo(hypotheses: list[Hypothesis]) -> float:

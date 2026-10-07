@@ -110,5 +110,9 @@ def apply_ranking_matchup(
         k_factor=k_factor,
         iteration=current_iteration,
     ).to_dict()
-    calls = int(judgement.response.get("debate_turns", judgement.budgeted_turns))
+    calls = int(
+        judgement.response.get(
+            "physical_calls", judgement.response.get("debate_turns", judgement.budgeted_turns)
+        )
+    )
     return RankingMatchResult(detail, calls)

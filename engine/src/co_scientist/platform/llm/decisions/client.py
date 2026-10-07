@@ -46,6 +46,11 @@ class SystemOneClient:
     ) -> None:
         self.settings = settings
         self._transport = transport
+        self.requests = 0
+
+    def estimate_tokens(self, state: str | dict[str, Any], questions: dict[str, Question]) -> int:
+        self.settings.validate()
+        return _body_and_tokens(state, questions, self.settings)[1]
 
     async def decide(
         self, state: str | dict[str, Any], questions: dict[str, Question]
@@ -59,6 +64,7 @@ class SystemOneClient:
         body, tokens = _body_and_tokens(state, questions, settings)
         reserve_decision_physical(tokens, settings.max_calls_per_day, settings.max_tokens_per_day)
         record_provider_request()
+        self.requests += 1
         start = time.monotonic()
         try:
             result = await asyncio.wait_for(self._send(body, questions), settings.timeout_seconds)

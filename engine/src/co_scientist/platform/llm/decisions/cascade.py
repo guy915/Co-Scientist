@@ -22,8 +22,12 @@ async def swapped_pair(
     reverse = await client.decide(
         {"goal": goal, "A": hypothesis_b, "B": hypothesis_a}, {"winner": question}
     )
+    return combine_swapped(forward, reverse)
+
+
+def combine_swapped(forward: DecisionResult, reverse: DecisionResult) -> DecisionResult:
     a, b = forward.answers["winner"], reverse.answers["winner"]
-    if a.kind != "choice" or set(a.probabilities) != {"A", "B"}:
+    if any(answer.kind != "choice" or set(answer.probabilities) != {"A", "B"} for answer in (a, b)):
         raise ValueError("pairwise decisions require A/B choices")
     yes = (a.probabilities["A"] + b.probabilities["B"]) / 2
     confidence = min(a.confidence, b.confidence, max(yes, 1 - yes))
@@ -35,7 +39,7 @@ async def swapped_pair(
         else None
     )
     answer = Answer("choice", "A" if yes >= 0.5 else "B", confidence, {"A": yes, "B": 1 - yes})
-    return DecisionResult(forward.model, {"winner": answer}, tokens)
+    return DecisionResult(forward.model, {"winner": answer}, tokens, reverse.rate_limits)
 
 
 async def decision_or_fallback(
@@ -46,12 +50,15 @@ async def decision_or_fallback(
     fallback: Callable[[], Awaitable[T]],
     *,
     client: SystemOneClient | None = None,
+    decide: Callable[[SystemOneClient], Awaitable[DecisionResult]] | None = None,
 ) -> T:
     if threshold is None or not math.isfinite(threshold) or not 0.5 < threshold <= 1:
         return await fallback()
     try:
         active = client or SystemOneClient(DecisionSettings.from_env())
-        result = await active.decide(state, questions)
+        result = (
+            await decide(active) if decide is not None else await active.decide(state, questions)
+        )
         if all(answer.confidence >= threshold for answer in result.answers.values()):
             return accept(result)
     except DecisionQuotaExceededError:

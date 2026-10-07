@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import dataclasses
+import itertools
 import json
 import os
 import statistics
@@ -9,13 +10,18 @@ from typing import Any
 
 import httpx
 from co_scientist.platform.llm import CompletionSpec, call_llm_json
-from co_scientist.platform.llm.decisions import DecisionSettings, SystemOneClient
+from co_scientist.platform.llm.decisions import (
+    DecisionSettings,
+    DecisionUnavailableError,
+    SystemOneClient,
+)
 from co_scientist.platform.llm.decisions.calibration import (
     LabeledDecision,
     agreement_lower_bound,
     choose_threshold,
     expected_calibration_error,
 )
+from co_scientist.platform.llm.decisions.cascade import combine_swapped
 from co_scientist.platform.llm.decisions.types import DecisionResult
 from co_scientist.platform.llm.telemetry import scoped_telemetry
 
@@ -84,26 +90,45 @@ async def _decide(client: SystemOneClient, case: DecisionCase, delay: float) -> 
         return forward
     await asyncio.sleep(delay)
     reverse = await client.decide(case.reverse_prompt, case.questions)
-    a, b = forward.answers["winner"], reverse.answers["winner"]
-    probability = (a.probabilities["A"] + b.probabilities["B"]) / 2
-    confidence = min(a.confidence, b.confidence, max(probability, 1 - probability))
-    if a.value == b.value:
-        confidence = 0
-    answer = dataclasses.replace(
-        a,
-        value="A" if probability >= 0.5 else "B",
-        confidence=confidence,
-        probabilities={"A": probability, "B": 1 - probability},
-    )
-    return dataclasses.replace(
-        forward,
-        answers={"winner": answer},
-        input_tokens=(
-            forward.input_tokens + reverse.input_tokens
-            if forward.input_tokens is not None and reverse.input_tokens is not None
-            else None
-        ),
-    )
+    return combine_swapped(forward, reverse)
+
+
+def elo_order_agreement(
+    rows: list[dict[str, Any]], *, threshold: float | None = None, cascade: bool = False
+) -> float | None:
+    from co_scientist.core.constants import ELO_K_FACTOR, INITIAL_ELO_RATING
+    from co_scientist.science.ranking.ranking_debate import calculate_elo_update
+
+    reference: dict[str, dict[str, int]] = {}
+    candidate: dict[str, dict[str, int]] = {}
+    for row in rows:
+        sides = row.get("side_ids")
+        if not sides:
+            continue
+        group = row.get("group_id") or "default"
+        reference.setdefault(group, {})
+        candidate.setdefault(group, {})
+        candidate_winner = (
+            row["reference"]["winner"]
+            if cascade and (threshold is None or row["confidence"] < threshold)
+            else row["decision"]["winner"]
+        )
+        for ratings, winner in (
+            (reference[group], row["reference"]["winner"]),
+            (candidate[group], candidate_winner),
+        ):
+            a, b = sides if winner == "A" else reversed(sides)
+            ratings[a], ratings[b] = calculate_elo_update(
+                ratings.get(a, INITIAL_ELO_RATING), ratings.get(b, INITIAL_ELO_RATING), ELO_K_FACTOR
+            )
+    agreements = []
+    for group, ratings in reference.items():
+        for a, b in itertools.combinations(ratings, 2):
+            difference = ratings[a] - ratings[b]
+            if difference:
+                other = candidate[group][a] - candidate[group][b]
+                agreements.append(other * difference > 0)
+    return statistics.mean(agreements) if agreements else None
 
 
 def summarize(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -145,8 +170,16 @@ def summarize(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
             "risk-domain coverage and independent safety labels require separate validation"
         )
     if site == "ranking_pairwise":
+        summary["raw_elo_order_agreement"] = elo_order_agreement(completed)
+        summary["cascade_elo_order_agreement"] = elo_order_agreement(
+            completed, threshold=threshold, cascade=True
+        )
+        summary["recorded_review_context_cases"] = sum(
+            row.get("context_basis") == "recorded checkpoint reviews" for row in completed
+        )
         summary["limitation"] = (
-            "recorded hypothesis text without mature reviews; owner spot checks required"
+            "Checkpoint reviews where available; cross-run pairs need owner spot checks. "
+            "Elo replay uses default K, excludes reference ties and keeps a fixed match order."
         )
     if site == "proximity":
         summary["limitation"] = "pair subsets do not establish full-pool deduplication equivalence"
@@ -165,7 +198,12 @@ async def run_panel(
     output.parent.mkdir(parents=True, exist_ok=True)
     with scoped_telemetry(f"decision_bakeoff.{site}") as telemetry:
         for case in cases:
-            row: dict[str, Any] = {"id": case.identifier, "side_ids": case.side_ids}
+            row: dict[str, Any] = {
+                "id": case.identifier,
+                "side_ids": case.side_ids,
+                "context_basis": case.context_basis,
+                "group_id": case.group_id,
+            }
             try:
                 reference = await call_llm_json(
                     case.prompt, CompletionSpec(model, json_schema=case.schema), max_attempts=1
@@ -227,10 +265,24 @@ async def account_limits() -> dict[str, Any]:
 async def run_live(
     site: str, cases: list[DecisionCase], settings: DecisionSettings, output: Path
 ) -> dict[str, Any]:
+    client = SystemOneClient(settings)
+    selected = []
+    oversized = []
+    for case in cases:
+        try:
+            client.estimate_tokens(case.prompt, case.questions)
+            if case.reverse_prompt is not None:
+                client.estimate_tokens(case.reverse_prompt, case.questions)
+        except DecisionUnavailableError as error:
+            if str(error) not in {"decision context limit exceeded", "decision input is too large"}:
+                raise
+            oversized.append(case.identifier)
+            continue
+        selected.append(case)
     before = await account_limits()
-    report = await run_panel(
-        site, cases, SystemOneClient(settings), os.environ["MODEL_NAME"], 4, output
-    )
+    report = await run_panel(site, selected, client, os.environ["MODEL_NAME"], 4, output)
+    report["preflight_oversized_ids"] = oversized
+    report["summary"]["preflight_oversized_fallbacks"] = len(oversized)
     report["openrouter_account_before"] = before
     report["openrouter_account_after"] = await account_limits()
     output.write_text(json.dumps(report, indent=2))

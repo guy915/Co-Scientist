@@ -1,3 +1,4 @@
+import dataclasses
 import hashlib
 import itertools
 import json
@@ -17,10 +18,44 @@ class DecisionCase:
     questions: dict[str, Question]
     reverse_prompt: str | None = None
     side_ids: tuple[str, str] | None = None
+    context_basis: str = "recorded text"
+    group_id: str | None = None
 
 
 def _identifier(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _checkpoint_sides(conn: sqlite3.Connection, run_id: str) -> dict[str, dict[str, Any]]:
+    from co_scientist.domains.research_state.models import Hypothesis
+    from co_scientist.science.ranking.ranking_debate import _ranking_side
+
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE name='checkpoints'").fetchone():
+        return {}
+    sides: dict[str, dict[str, Any]] = {}
+    for row in conn.execute(
+        "SELECT state_json FROM checkpoints WHERE run_id=? ORDER BY seq DESC LIMIT 300", (run_id,)
+    ):
+        state = json.loads(row["state_json"]).get("state", {})
+        for hyp in state.get("hypotheses", []):
+            text = hyp.get("text")
+            if not isinstance(text, str) or not text.strip() or text in sides:
+                continue
+            # Never copy a checkpoint's credentials, owner identifiers or runtime settings.
+            selected = {
+                key: hyp[key]
+                for key in (
+                    "text",
+                    "reviews",
+                    "reflection_notes",
+                    "deep_verification_probes",
+                    "deep_verification_verdict",
+                    "enrichments",
+                )
+                if key in hyp
+            }
+            sides[text] = dataclasses.asdict(_ranking_side(Hypothesis.from_dict(selected)))
+    return sides
 
 
 def read_corpus(directory: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -33,18 +68,15 @@ def read_corpus(directory: Path) -> tuple[list[dict[str, Any]], list[dict[str, A
                 if row["llm_backend"] != "real":
                     continue
                 goal = str(row["research_goal"])
+                sides = _checkpoint_sides(conn, row["id"])
                 for hyp in conn.execute("SELECT * FROM hypotheses WHERE run_id=?", (row["id"],)):
-                    text = "\n".join(
-                        str(hyp[key] or "")
-                        for key in (
-                            "statement",
-                            "mechanism",
-                            "expected_effect",
-                            "experimental_context",
-                        )
-                    )
+                    text = str(hyp["statement"] or "")
                     if text.strip():
-                        hypotheses[_identifier(goal + text)] = {"goal": goal, "text": text}
+                        hypotheses[_identifier(goal + text)] = {
+                            "goal": goal,
+                            "text": text,
+                            "side": sides.get(text),
+                        }
                 for paper in conn.execute(
                     "SELECT title,abstract FROM evidence WHERE run_id=?", (row["id"],)
                 ):
@@ -70,10 +102,10 @@ def _ranking_cases(hypotheses: list[dict[str, Any]]) -> list[DecisionCase]:
     for a, b in itertools.combinations(hypotheses, 2):
         if a["goal"] != b["goal"]:
             continue
-        prompt, schema = get_ranking_prompt(
-            a["goal"], RankingSide(a["text"]), RankingSide(b["text"])
-        )
-        reverse, _ = get_ranking_prompt(a["goal"], RankingSide(b["text"]), RankingSide(a["text"]))
+        side_a = RankingSide(**a["side"]) if a.get("side") else RankingSide(a["text"])
+        side_b = RankingSide(**b["side"]) if b.get("side") else RankingSide(b["text"])
+        prompt, schema = get_ranking_prompt(a["goal"], side_a, side_b)
+        reverse, _ = get_ranking_prompt(a["goal"], side_b, side_a)
         assert schema is not None
         cases.append(
             DecisionCase(
@@ -83,6 +115,10 @@ def _ranking_cases(hypotheses: list[dict[str, Any]]) -> list[DecisionCase]:
                 {"winner": question},
                 reverse,
                 (_identifier(a["text"]), _identifier(b["text"])),
+                "recorded checkpoint reviews"
+                if side_a.review and side_b.review
+                else "recorded text",
+                _identifier(a["goal"]),
             )
         )
     return cases

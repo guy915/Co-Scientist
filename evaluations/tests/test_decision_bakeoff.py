@@ -87,6 +87,57 @@ def test_calibration_and_heldout_are_separate_and_errors_are_counted() -> None:
     assert result["adoption_ready"] is False
 
 
+def test_elo_replay_aligns_the_same_matchups_and_cascade_escalation() -> None:
+    rows = [
+        {
+            "side_ids": ("first", "second"),
+            "reference": {"winner": "A"},
+            "decision": {"winner": "B"},
+            "confidence": 0.6,
+        }
+    ]
+    assert decision_bakeoff.elo_order_agreement(rows) == 0
+    assert decision_bakeoff.elo_order_agreement(rows, threshold=0.9, cascade=True) == 1
+    rows[0]["decision"] = {"winner": "A"}
+    assert decision_bakeoff.elo_order_agreement(rows) == 1
+
+
+def test_checkpoint_context_contains_review_data_without_credentials(tmp_path: Path) -> None:
+    from evaluations.decision_cases import _checkpoint_sides
+
+    review = {
+        "review_summary": "review",
+        "scores": {"novelty": 8},
+        "safety_ethical_concerns": "none",
+        "detailed_feedback": {},
+        "constructive_feedback": "test",
+        "overall_score": 8,
+    }
+    state = {
+        "api_key": "credential-must-not-appear",
+        "client_id": "owner-must-not-appear",
+        "hypotheses": [
+            {
+                "text": "hypothesis",
+                "reviews": [review],
+                "reflection_notes": "recorded reflection",
+                "api_key": "credential-must-not-appear",
+                "owner": "owner-must-not-appear",
+            }
+        ],
+    }
+    with sqlite3.connect(tmp_path / "snapshots.db") as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute("CREATE TABLE checkpoints(run_id TEXT,seq INT,state_json TEXT)")
+        conn.execute("INSERT INTO checkpoints VALUES ('run',1,?)", (json.dumps({"state": state}),))
+        sides = _checkpoint_sides(conn, "run")
+    assert sides["hypothesis"]["review"]["overall_score"] == 8
+    assert sides["hypothesis"]["reflection_notes"] == "recorded reflection"
+    serialized = json.dumps(sides)
+    assert "credential-must-not-appear" not in serialized
+    assert "owner-must-not-appear" not in serialized
+
+
 @pytest.mark.asyncio
 async def test_panel_records_fresh_reference_and_fake_decision_without_network(
     tmp_path: Path,
@@ -168,3 +219,33 @@ async def test_account_metadata_excludes_key_and_identifying_fields(
         "is_free_tier": False,
         "free_model_daily_requests": 7,
     }
+
+
+@pytest.mark.asyncio
+async def test_live_panel_marks_oversize_as_fallback_without_sending_or_truncating(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    questions = {"winner": Question("choice", "Pick", {"A": "first", "B": "second"})}
+    cases = [
+        DecisionCase("oversize", "full text " * 5000, {}, questions),
+        DecisionCase("normal", "short state", {}, questions),
+    ]
+    seen = []
+
+    async def panel(*args: Any) -> dict[str, Any]:
+        seen.extend(args[1])
+        return {"summary": {"completed_cases": len(args[1])}}
+
+    async def limits() -> dict[str, Any]:
+        return {"is_free_tier": False}
+
+    monkeypatch.setenv("MODEL_NAME", "offline/deterministic")
+    monkeypatch.setattr(decision_bakeoff, "run_panel", panel)
+    monkeypatch.setattr(decision_bakeoff, "account_limits", limits)
+    report = await decision_bakeoff.run_live(
+        "ranking_pairwise", cases, DecisionSettings(), tmp_path / "result.json"
+    )
+    assert [case.identifier for case in seen] == ["normal"]
+    assert report["preflight_oversized_ids"] == ["oversize"]
+    assert cases[0].prompt == "full text " * 5000

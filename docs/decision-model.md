@@ -31,6 +31,7 @@ that the provider's actual tokenizer would accept.
 | `DECISION_MAX_TOKENS_PER_DAY` | 4,000,000 | Durable conservative input-token ceiling |
 | `DECISION_MAX_INPUT_BYTES` | 131,072 | Maximum serialized request bytes |
 | `DECISION_MAX_QUESTIONS` | 32 | Maximum questions per request |
+| `DECISION_RANKING_THRESHOLD` | unset | Enables single-turn pairs only after calibration and owner spot checks |
 
 These are application ceilings, not published Liquid free-tier allowances.
 The provider's free RPM/RPD and question/token limits remain unconfirmed.
@@ -56,6 +57,14 @@ do not enter production telemetry. Site integrations must preserve stored
 schemas and add model/probability provenance with a short generated decision
 note. Keep unvalidated sites on the existing LLM.
 
+Single-turn ranking renders the complete existing prompt twice with A/B swapped,
+including the hypotheses' review context. Disagreement or low confidence invokes
+the unchanged LLM prompt/position protocol. Top-pair debates always retain the
+LLM. An accepted pair stores one combined verdict, a short generated note and
+Liquid model/probability provenance in its transcript; both physical requests
+remain charged. Rejected attempts also count alongside the original LLM work.
+An unset or invalid ranking threshold always uses today's path.
+
 ## Manual bake-off
 
 `decision-bakeoff.yml` is workflow_dispatch-only. It downloads completed real
@@ -77,8 +86,9 @@ No production setting is changed.
 Results distinguish judge agreement from correctness. The paired one-sided
 lower bound is `mean(d) - 1.645 * stdev(d) / sqrt(n)`, with a provisional -0.02
 agreement tolerance. Fewer than 100 labels yield no threshold. Thresholds are
-not adoption approval: ranking requires owner spot checks and mature-review
-inputs; relevance also requires score/order agreement; proximity requires
+not adoption approval: ranking requires owner spot checks and review-context
+inputs; its panel uses recorded checkpoints where available and reports fixed-
+order Elo replay agreement. Relevance also requires score/order agreement; proximity requires
 full-pool equivalence and false-deduplication validation; safety needs risk-domain
 coverage and class-specific false-allow checks. The initial report marks all
 sites unadopted. The docs lane publishes the accepted training-use disclosure.
