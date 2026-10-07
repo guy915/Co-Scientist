@@ -31,7 +31,7 @@ class Submission:
 
 
 def submit(owner: str, host_key: str, submission: Submission) -> str:
-    now = db._now()
+    now = db.current_time()
     identity = str(uuid.uuid4())
     size = (
         sum(

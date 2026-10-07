@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.platform.db import _now, _use_conn, connect
+from co_scientist.platform.db import connect, current_time, use_conn
 
 # Interview excerpts need enough scope for planning; full-text corpus retrieval
 # belongs to the research run.
@@ -39,7 +39,7 @@ def add_staged_document(document: NewStagedDocument) -> str:
                 document.sha256,
                 document.byte_size,
                 document.extraction_tool,
-                _now(),
+                current_time(),
             ),
         )
     return document_id
@@ -61,7 +61,7 @@ def get_staged_documents(
     if not document_ids:
         return []
     placeholders = ",".join("?" for _ in document_ids)
-    with _use_conn(conn, None) as active:
+    with use_conn(conn, None) as active:
         rows = active.execute(
             f"SELECT * FROM staged_documents WHERE id IN ({placeholders}) AND client_id=?",
             (*document_ids, client_id),
@@ -177,7 +177,7 @@ def mark_documents_used_by_run(
     if not document_ids:
         return
     placeholders = ",".join("?" for _ in document_ids)
-    with _use_conn(conn, None) as active:
+    with use_conn(conn, None) as active:
         active.execute(
             f"UPDATE staged_documents SET run_id=? WHERE id IN ({placeholders})",
             (run_id, *document_ids),

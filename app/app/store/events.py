@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from typing import Any
 
-from co_scientist.platform.db import _now, _use_conn, connect
+from co_scientist.platform.db import connect, current_time, use_conn
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +188,8 @@ def append_event(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    with _use_conn(conn, db_path) as active:
-        return _append_event(active, run_id, type_, payload, _now())
+    with use_conn(conn, db_path) as active:
+        return _append_event(active, run_id, type_, payload, current_time())
 
 
 def append_event_deferred_log(
@@ -201,7 +201,7 @@ def append_event_deferred_log(
     """Keep external logging after the caller's commit so rolled-back events
     never appear in the application log.
     """
-    return _append_event(conn, run_id, type_, payload, _now(), mirror_log=False)
+    return _append_event(conn, run_id, type_, payload, current_time(), mirror_log=False)
 
 
 def latest_event_seq(
@@ -209,7 +209,7 @@ def latest_event_seq(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT COALESCE(MAX(seq), 0) FROM run_events WHERE run_id=?",
             (run_id,),
@@ -221,7 +221,7 @@ def latest_status_event(
     run_id: str,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    with _use_conn(conn, None) as active:
+    with use_conn(conn, None) as active:
         row = active.execute(
             "SELECT payload_json FROM run_events "
             "WHERE run_id=? AND type='status' ORDER BY seq DESC LIMIT 1",
@@ -262,7 +262,7 @@ def recent_events(
     """Bound the decoded Q&A context tail rather than loading the run's
     entire event history.
     """
-    with _use_conn(conn, None) as active:
+    with use_conn(conn, None) as active:
         rows = active.execute(
             "SELECT seq, type, payload_json, created_at FROM run_events "
             "WHERE run_id=? ORDER BY seq DESC LIMIT ?",
@@ -283,7 +283,7 @@ def run_execution_started_at(run_id: str, conn: sqlite3.Connection | None = None
     """Draft creation is not compute start; elapsed execution begins with
     the first queued lifecycle event.
     """
-    with _use_conn(conn, None) as active:
+    with use_conn(conn, None) as active:
         row = active.execute(
             "SELECT MIN(created_at) AS started FROM run_events WHERE run_id=? AND type='lifecycle'",
             (run_id,),

@@ -3,14 +3,14 @@ from __future__ import annotations
 import logging
 import sqlite3
 
-from co_scientist.platform.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.checkpoints import has_checkpoint
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,
     RunRow,
     RunStatus,
     TaskFailure,
-    _row_to_run,
+    row_to_run,
 )
 
 from app.store.events import _append_event
@@ -96,7 +96,7 @@ def _settle_run_for_failed_task(
         conn,
         run_id,
         reason,
-        _now(),
+        current_time(),
         failure_kind=failure.failure_kind,
     ):
         logger.info("Run %s failed: no claimable work remains (%s)", run_id, reason)
@@ -129,7 +129,7 @@ def reconcile_interrupted_runs(
     """Startup has no live previous-process workers; checkpoints make
     interrupted runs resumable rather than permanently failed.
     """
-    now = _now()
+    now = current_time()
     reason = "Run interrupted by a server restart."
     failed: list[str] = []
     resumable: list[str] = []
@@ -247,7 +247,7 @@ def list_expired_terminal_runs(cutoff: float, db_path: str | None = None) -> lis
             "ORDER BY COALESCE(completed_at, updated_at) ASC",
             (*(status.value for status in TERMINAL_STATUSES), cutoff),
         ).fetchall()
-    return [_row_to_run(row) for row in rows]
+    return [row_to_run(row) for row in rows]
 
 
 def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None) -> list[RunRow]:
@@ -264,7 +264,7 @@ def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None)
             "ORDER BY r.created_at DESC LIMIT ?",
             (client_id, limit),
         ).fetchall()
-        runs = [_row_to_run(r) for r in rows]
+        runs = [row_to_run(r) for r in rows]
         run_ids = [run.id for run in runs]
         top_hypotheses = _top_hypotheses_by_run(conn, run_ids)
         latest_stage = _latest_stage_by_run(conn, run_ids)
@@ -333,7 +333,7 @@ def clear_run_derived_data(
         "safety_decisions",
         *_REPLAYABLE_ARTIFACT_TABLES,
     )
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         _delete_agent_derived_rows(conn, run_id)
         for table in run_scoped:
             if table == "run_events":
@@ -357,7 +357,7 @@ def clear_publication_artifacts(
     """Finalizer replay retains tasks, checkpoints, lifecycle/safety audit,
     reports and scientist input while rebuilding only derived rows.
     """
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         _delete_agent_derived_rows(active, run_id)
         for table in _REPLAYABLE_ARTIFACT_TABLES:
             active.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))

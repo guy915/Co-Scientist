@@ -105,7 +105,7 @@ class MessageRow:
         return dataclasses.asdict(self)
 
 
-def _row_to_run(row: sqlite3.Row) -> RunRow:
+def row_to_run(row: sqlite3.Row) -> RunRow:
     keys = row.keys()
     return RunRow(
         id=row["id"],
@@ -137,7 +137,7 @@ def _parse_message_meta(row: sqlite3.Row) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-def _row_to_message(row: sqlite3.Row) -> MessageRow:
+def row_to_message(row: sqlite3.Row) -> MessageRow:
     keys = row.keys()
     return MessageRow(
         id=row["id"],
@@ -194,7 +194,7 @@ class ScientificTask:
     available_at: float | None = None
 
 
-def _decode(row: sqlite3.Row) -> ScientificTask:
+def row_to_task(row: sqlite3.Row) -> ScientificTask:
     return ScientificTask(
         id=str(row["id"]),
         run_id=str(row["run_id"]),

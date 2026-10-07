@@ -397,7 +397,7 @@ async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
     queued = tasks.get_task(task.id, db_path=isolated_db)
     assert queued is not None and queued.status == "queued"
     assert queued.attempt == 1
-    assert queued.available_at is not None and queued.available_at > store_db._now()
+    assert queued.available_at is not None and queued.available_at > store_db.current_time()
     assert not await task_worker.run_once("free-timeout-worker", db_path=isolated_db)
     assert accepted == [1]
 

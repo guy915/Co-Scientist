@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.platform.db import _now, _use_conn, connect
+from co_scientist.platform.db import connect, current_time, use_conn
 
 
 def create_interview(
@@ -17,7 +17,7 @@ def create_interview(
     db_path: str | None = None,
 ) -> dict[str, Any]:
     interview_id = str(uuid.uuid4())
-    now = _now()
+    now = current_time()
     fields: dict[str, Any] = {
         "research_challenge": challenge.strip(),
         "focus_area": [],
@@ -60,7 +60,7 @@ def get_interview(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         row = active.execute("SELECT * FROM interviews WHERE id=?", (interview_id,)).fetchone()
         if row is None:
             return None
@@ -163,7 +163,7 @@ def append_interview_turn(
     *,
     db_path: str | None = None,
 ) -> None:
-    now = _now()
+    now = current_time()
     with connect(db_path) as active:
         active.execute(
             "INSERT INTO interview_turns (interview_id, role, content, "
@@ -197,7 +197,7 @@ def rewind_interview(interview_id: str, turn_id: int) -> int:
     """Edits and retries invalidate downstream derivations; callers
     reconstruct interview fields from the retained transcript.
     """
-    now = _now()
+    now = current_time()
     with connect() as conn:
         removed = conn.execute(
             "DELETE FROM interview_turns WHERE interview_id=? AND id>=?",
@@ -218,7 +218,7 @@ def update_interview(
     *,
     completed: bool = False,
 ) -> None:
-    now = _now()
+    now = current_time()
     status = "completed" if completed else "active"
     with connect() as conn:
         conn.execute(

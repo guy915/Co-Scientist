@@ -52,7 +52,7 @@ def _stamped_run_with_expired_lease(
         "restarted-worker", run_id=run.id, lease_seconds=1, db_path=isolated_db
     )
     assert leased is not None
-    now = store_db._now()
+    now = store_db.current_time()
     monkeypatch.setattr("co_scientist.platform.db.time.time", lambda: now + 2)
     return run.id, task.id
 
@@ -123,7 +123,7 @@ async def test_expired_standard_lease_without_the_stamp_fails_closed(
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
     task = enqueue_task(run.id, "engine.node.generate", "generate:seed", db_path=isolated_db)
     assert store.claim_task("restarted-worker", run_id=run.id, lease_seconds=1, db_path=isolated_db)
-    now = store_db._now()
+    now = store_db.current_time()
     monkeypatch.setattr("co_scientist.platform.db.time.time", lambda: now + 2)
 
     assert not await task_worker.run_once("new-worker", db_path=isolated_db)

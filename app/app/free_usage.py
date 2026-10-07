@@ -70,9 +70,9 @@ def claim_free_run(conn: sqlite3.Connection, owner: str, run_id: str) -> None:
     """Count and admission share the create transaction; deleting a run
     never refunds its independent usage-ledger slot.
     """
-    from co_scientist.platform.db import _now
+    from co_scientist.platform.db import current_time
 
-    now = _now()
+    now = current_time()
     limit = daily_limit()
     if limit is not None and used_today(conn, owner, now) >= limit:
         raise FreeUsageExhaustedError
@@ -97,9 +97,9 @@ def usage_payload(owner: str) -> dict[str, Any]:
     """Offline deterministic execution spends no deployment free-model
     allowance.
     """
-    from co_scientist.platform.db import _now, connect
+    from co_scientist.platform.db import connect, current_time
 
-    now = _now()
+    now = current_time()
     with connect() as conn:
         used = used_today(conn, owner, now)
     limit = daily_limit()

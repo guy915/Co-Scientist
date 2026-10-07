@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from co_scientist.platform.db import _list_by_run, _now, _use_conn, connect
+from co_scientist.platform.db import connect, current_time, list_by_run, use_conn
 
 if TYPE_CHECKING:
     from co_scientist.research import ResearchResult
@@ -18,8 +18,8 @@ def save_run_metrics(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    now = _now()
-    with _use_conn(conn, db_path) as conn:
+    now = current_time()
+    with use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO run_metrics (run_id, metrics_json, created_at, "
             "updated_at) VALUES (?,?,?,?) "
@@ -93,9 +93,9 @@ def add_retrieval_calls(
 ) -> int:
     if not calls:
         return 0
-    now = _now()
+    now = current_time()
     rows = [_row(call, now) for call in calls]
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         # Connection-local total_changes counts only this batch's inserts,
         # excluding ignored duplicates and concurrent workers.
         before = active.total_changes
@@ -110,7 +110,7 @@ def add_retrieval_calls(
 
 
 def list_retrieval_calls(run_id: str, *, db_path: str | None = None) -> list[dict[str, Any]]:
-    return _list_by_run(
+    return list_by_run(
         "retrieval_calls",
         run_id,
         db_path,

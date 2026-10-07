@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.platform.db import _use_conn, connect
+from co_scientist.platform.db import connect, use_conn
 
 
 @dataclass(frozen=True)
@@ -27,7 +27,7 @@ def append_log(
     conn: sqlite3.Connection | None = None,
 ) -> int:
     created_at = record.created_at
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         cursor = active.execute(
             "INSERT INTO app_logs (created_at, level, levelno, logger, "
             "message, run_id, exc_text, client_id) VALUES (?,?,?,?,?,?,?,?)",
@@ -87,7 +87,7 @@ def list_logs(
     """Keep the newest capped window but return it chronologically so the
     last row is the polling cursor.
     """
-    with _use_conn(conn, db_path) as c:
+    with use_conn(conn, db_path) as c:
         return _fetch_log_page(c, filters or LogFilters(), limit)
 
 
@@ -97,7 +97,7 @@ def count_logs(*, filters: LogFilters | None = None, conn: sqlite3.Connection | 
     """
     where, params = _log_filters(filters or LogFilters())
     query = "SELECT COUNT(*) AS n FROM app_logs WHERE " + where
-    with _use_conn(conn, None) as c:
+    with use_conn(conn, None) as c:
         row = c.execute(query, params).fetchone()
     return int(row["n"])
 
@@ -117,7 +117,7 @@ def prune_logs(*, max_rows: int, db_path: str | None = None) -> int:
 
 
 def latest_log_id(*, conn: sqlite3.Connection | None = None) -> int:
-    with _use_conn(conn, None) as c:
+    with use_conn(conn, None) as c:
         row = c.execute("SELECT MAX(id) AS max_id FROM app_logs").fetchone()
     return int(row["max_id"] or 0)
 
@@ -131,12 +131,12 @@ def count_logs_for_run(
     """Logs intentionally lack a run FK so ordinary run deletion preserves
     history; permanent deletion accounts for them explicitly.
     """
-    with _use_conn(conn, db_path) as c:
+    with use_conn(conn, db_path) as c:
         row = c.execute("SELECT COUNT(*) AS n FROM app_logs WHERE run_id=?", (run_id,)).fetchone()
     return int(row["n"])
 
 
 def delete_logs_for_run(run_id: str, *, conn: sqlite3.Connection | None = None) -> int:
-    with _use_conn(conn, None) as c:
+    with use_conn(conn, None) as c:
         cur = c.execute("DELETE FROM app_logs WHERE run_id=?", (run_id,))
         return int(cur.rowcount or 0)

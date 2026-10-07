@@ -449,7 +449,7 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
 
 
 def _advance_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
-    real_now = store_db._now()
+    real_now = store_db.current_time()
     monkeypatch.setattr("co_scientist.platform.db.time.time", lambda: real_now + seconds)
 
 
@@ -468,7 +468,7 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
     assert leased.attempt == 1
-    resume_at = store_db._now() + 3600
+    resume_at = store_db.current_time() + 3600
     error = LLMRateLimitParkError(resume_at=resume_at, reason="message_per_day")
 
     task_worker_outcomes._handle_task_failure(leased, "worker", error, isolated_db)
@@ -504,7 +504,7 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
     task = enqueue_task(run.id, "engine.node.generate", "generate:seed", db_path=isolated_db)
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
-    resume_at = store_db._now() + 3600
+    resume_at = store_db.current_time() + 3600
     ok = lifecycle.park_task_for_rate_limit(
         task.id, "worker", "rate limited", resume_at, db_path=isolated_db
     )

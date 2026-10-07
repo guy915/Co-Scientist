@@ -5,7 +5,7 @@ import sqlite3
 import uuid
 from typing import Any
 
-from co_scientist.platform.db import _list_by_run, _now, _use_conn
+from co_scientist.platform.db import current_time, list_by_run, use_conn
 
 
 def replace_knowledge_facts(
@@ -18,9 +18,9 @@ def replace_knowledge_facts(
     """Re-finalization reconstructs the graph wholesale; replacement
     prevents duplicate facts after resume.
     """
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         conn.execute("DELETE FROM knowledge_facts WHERE run_id = ?", (run_id,))
-        now = _now()
+        now = current_time()
         conn.executemany(
             "INSERT INTO knowledge_facts (run_id, hypothesis_id, "
             "evidence_id, kind, statement, entities_json, state, "
@@ -47,7 +47,7 @@ def list_knowledge_facts(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    return _list_by_run("knowledge_facts", run_id, db_path, conn, json_fields=("entities",))
+    return list_by_run("knowledge_facts", run_id, db_path, conn, json_fields=("entities",))
 
 
 def save_report(
@@ -58,7 +58,7 @@ def save_report(
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, str]:
     report_id = str(uuid.uuid4())
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO reports "
             "(id, run_id, payload_json, markdown_text, "
@@ -68,7 +68,7 @@ def save_report(
                 run_id,
                 json.dumps(payload),
                 markdown,
-                _now(),
+                current_time(),
             ),
         )
     return {"id": report_id}
@@ -79,7 +79,7 @@ def get_latest_report(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT * FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1",
             (run_id,),

@@ -7,10 +7,10 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from co_scientist.platform.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.models import ScientificTask as ScientificTask
 from co_scientist.platform.db.models import TaskFailure as TaskFailure
-from co_scientist.platform.db.models import _decode as _decode
+from co_scientist.platform.db.models import row_to_task as row_to_task
 
 import app.store.tasks_lifecycle as tasks_recovery
 from app.store.runs_views import (
@@ -108,8 +108,8 @@ def enqueue_task(
         raise ValueError("idempotency_key must not be empty")
     if task.max_attempts < 1:
         raise ValueError("max_attempts must be positive")
-    values = _task_row_values(str(uuid.uuid4()), task, _now())
-    with _use_conn(conn, db_path) as active:
+    values = _task_row_values(str(uuid.uuid4()), task, current_time())
+    with use_conn(conn, db_path) as active:
         _insert_task_row(active, values)
         row: sqlite3.Row | None = active.execute(
             "SELECT * FROM scientific_tasks WHERE run_id=? AND idempotency_key=?",
@@ -117,7 +117,7 @@ def enqueue_task(
         ).fetchone()
     if row is None:
         raise RuntimeError("task enqueue did not persist a row")
-    return _decode(row)
+    return row_to_task(row)
 
 
 def list_tasks(
@@ -126,12 +126,12 @@ def list_tasks(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[ScientificTask]:
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         rows = active.execute(
             "SELECT * FROM scientific_tasks WHERE run_id=? ORDER BY created_at ASC",
             (run_id,),
         ).fetchall()
-    return [_decode(row) for row in rows]
+    return [row_to_task(row) for row in rows]
 
 
 def list_active_engine_task_run_ids(
@@ -170,7 +170,7 @@ def task_progress(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         row = active.execute(
             _PROGRESS_QUERY,
             (run_id, run_id),
@@ -196,9 +196,9 @@ def get_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> ScientificTask | None:
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         row = active.execute("SELECT * FROM scientific_tasks WHERE id=?", (task_id,)).fetchone()
-    return _decode(row) if row is not None else None
+    return row_to_task(row) if row is not None else None
 
 
 def _dependencies_complete(conn: sqlite3.Connection, task: ScientificTask) -> bool:
@@ -268,7 +268,7 @@ def _try_lease_task(
     if not changed:
         return None
     leased = conn.execute("SELECT * FROM scientific_tasks WHERE id=?", (task.id,)).fetchone()
-    return _decode(leased)
+    return row_to_task(leased)
 
 
 def claim_task(
@@ -283,11 +283,11 @@ def claim_task(
     if not _has_claimable_task(run_id, db_path):
         return None
     with transaction(db_path) as conn:
-        now = _now()
+        now = current_time()
         _rescue_expired_leases(conn, now)
         query, params = _queued_tasks_query(run_id, now)
         for row in conn.execute(query, params).fetchall():
-            leased = _try_lease_task(conn, _decode(row), worker_id, now, lease_seconds)
+            leased = _try_lease_task(conn, row_to_task(row), worker_id, now, lease_seconds)
             if leased is not None:
                 return leased
     return None
@@ -317,7 +317,7 @@ def fail_task(
         ).fetchone()
         if row is None:
             return False
-        task = _decode(row)
+        task = row_to_task(row)
         status = _persist_failed_attempt(conn, task, worker_id, failure.error, retryable, retry_at)
         if status == "failed":
             if stop_run:

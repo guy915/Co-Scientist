@@ -5,8 +5,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.platform.db import _now, _use_conn, connect, transaction
-from co_scientist.platform.db.models import MessageRow, _row_to_message
+from co_scientist.platform.db import connect, current_time, transaction, use_conn
+from co_scientist.platform.db.models import MessageRow, row_to_message
 
 
 @dataclass(frozen=True)
@@ -19,7 +19,7 @@ class NewMessage:
 
 
 def append_message(message: NewMessage, db_path: str | None = None) -> MessageRow:
-    now = _now()
+    now = current_time()
     with connect(db_path) as conn:
         cursor = conn.execute(
             "INSERT INTO messages (run_id, sender, content, kind, "
@@ -57,12 +57,12 @@ def list_messages(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[MessageRow]:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         rows = conn.execute(
             f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE run_id=? ORDER BY id ASC",
             (run_id,),
         ).fetchall()
-        return [_row_to_message(r) for r in rows]
+        return [row_to_message(r) for r in rows]
 
 
 def claim_start_prompt(run_id: str, prompt: str) -> tuple[MessageRow, bool]:
@@ -81,7 +81,7 @@ def claim_start_prompt(run_id: str, prompt: str) -> tuple[MessageRow, bool]:
             cursor = conn.execute(
                 "INSERT INTO messages (run_id,sender,content,kind,created_at,applied) "
                 "VALUES (?,'user',?,'start',?,0)",
-                (run_id, prompt, _now()),
+                (run_id, prompt, current_time()),
             )
             row = conn.execute(
                 f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE id=?",
@@ -89,7 +89,7 @@ def claim_start_prompt(run_id: str, prompt: str) -> tuple[MessageRow, bool]:
             ).fetchone()
         if row is None:
             raise ValueError("announcement prompt is missing")
-        message = _row_to_message(row)
+        message = row_to_message(row)
         conn.execute(
             "INSERT OR IGNORE INTO run_announcements VALUES (?,?)",
             (run_id, message.id),
@@ -110,7 +110,7 @@ def append_qa_reply(message: NewMessage, question_id: int) -> None:
                 message.run_id,
                 message.sender,
                 message.content,
-                _now(),
+                current_time(),
                 json.dumps(message.meta) if message.meta is not None else None,
                 message.run_id,
                 question_id,
@@ -151,13 +151,13 @@ def rewind_qa(run_id: str, message_id: int, question: str | None) -> MessageRow:
             "INSERT INTO messages "
             "(run_id,sender,content,kind,created_at,applied) "
             "VALUES (?,'user',?,'qa',?,0)",
-            (run_id, text, _now()),
+            (run_id, text, current_time()),
         )
         row = conn.execute(
             f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE id=?",
             (cursor.lastrowid,),
         ).fetchone()
-        return _row_to_message(row)
+        return row_to_message(row)
 
 
 def get_pending_steering(run_id: str, db_path: str | None = None) -> list[MessageRow]:
@@ -167,7 +167,7 @@ def get_pending_steering(run_id: str, db_path: str | None = None) -> list[Messag
             "WHERE run_id=? AND kind='steering' AND applied=0 ORDER BY id ASC",
             (run_id,),
         ).fetchall()
-        return [_row_to_message(r) for r in rows]
+        return [row_to_message(r) for r in rows]
 
 
 def mark_steering_applied(
@@ -182,9 +182,9 @@ def mark_steering_applied(
     if not ids:
         return
     placeholders = ",".join("?" * len(ids))
-    with _use_conn(conn, None) as conn:
+    with use_conn(conn, None) as conn:
         conn.execute(
             "UPDATE messages SET applied=1, applied_at=?, applied_decision=? "
             f"WHERE id IN ({placeholders})",
-            (_now(), decision, *ids),
+            (current_time(), decision, *ids),
         )

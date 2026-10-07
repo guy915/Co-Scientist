@@ -223,9 +223,9 @@ def store_run_credential(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    from co_scientist.platform.db import _now, _use_conn
+    from co_scientist.platform.db import current_time, use_conn
 
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO run_credentials (run_id, client_id, provider, "
             "model, supervisor_model, encrypted_key, created_at, "
@@ -245,7 +245,7 @@ def store_run_credential(
                 credential.model,
                 credential.supervisor_model,
                 encrypt_api_key(credential.api_key),
-                _now(),
+                current_time(),
                 credential.supervisor_provider,
                 encrypt_api_key(credential.supervisor_api_key)
                 if credential.supervisor_api_key

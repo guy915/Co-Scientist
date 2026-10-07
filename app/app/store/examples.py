@@ -92,7 +92,7 @@ def open_example_chat(source_id: str, owner: str) -> dict[str, Any]:
             existing_config = json.loads(existing["config_json"])
             result = interviews.get_interview(existing_config["interview_id"], conn=conn)
             if result:
-                opened_at = db._now()
+                opened_at = db.current_time()
                 conn.execute(
                     "UPDATE interviews SET updated_at=? WHERE id=?",
                     (opened_at, result["id"]),

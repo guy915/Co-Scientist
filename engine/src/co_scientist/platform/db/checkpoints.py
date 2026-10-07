@@ -7,7 +7,7 @@ from typing import Any
 
 from app.store.supervisor_plan import sync_supervisor_ledger_from_checkpoint
 
-from co_scientist.platform.db import _now, _use_conn, checkpoint_wal, connect
+from co_scientist.platform.db import checkpoint_wal, connect, current_time, use_conn
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ def _insert_checkpoint_row(conn: sqlite3.Connection, run_id: str, checkpoint: Ne
             checkpoint.schema_version,
             checkpoint.last_event_seq,
             json.dumps(checkpoint.state),
-            _now(),
+            current_time(),
         ),
     ).fetchone()
     return int(row["seq"])
@@ -53,7 +53,7 @@ def save_checkpoint(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         seq = _insert_checkpoint_row(conn, run_id, checkpoint)
         _prune_older_checkpoints(conn, run_id, seq)
         # Checkpoint commits preserve scheduling audit even when failure,
@@ -67,7 +67,7 @@ def get_latest_checkpoint(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT seq, stage, schema_version, last_event_seq, state_json "
             "FROM checkpoints WHERE run_id=? ORDER BY seq DESC LIMIT 1",
@@ -100,7 +100,7 @@ def has_checkpoint(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT 1 FROM checkpoints WHERE run_id=? LIMIT 1",
             (run_id,),
@@ -140,7 +140,7 @@ def clear_checkpoints(run_id: str, conn: sqlite3.Connection | None = None) -> No
     """Rebootstrap expects sequence zero; true engine resume instead retains
     its latest checkpoint.
     """
-    with _use_conn(conn, None) as conn:
+    with use_conn(conn, None) as conn:
         conn.execute("DELETE FROM checkpoints WHERE run_id=?", (run_id,))
 
 

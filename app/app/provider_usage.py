@@ -39,7 +39,7 @@ def reserve(request: dict[str, Any]) -> None:
     # failures and interrupted streams never refund potentially billed usage.
     tokens = input_bytes + 1024 + output
     owner = _client.get()
-    day = int(db._now() // 86400)
+    day = int(db.current_time() // 86400)
     with db.transaction() as conn:
         conn.execute("DELETE FROM app_llm_usage WHERE day<?", (day,))
         global_calls, global_tokens = conn.execute(
