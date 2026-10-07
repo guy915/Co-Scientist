@@ -6,15 +6,6 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
-from app.hypothesis import (
-    persist_escalated_verdicts,
-    screen_hypotheses,
-)
-from app.hypothesis.safety import (
-    POLICY_VERSION,
-    HypothesisSafetyOutcome,
-    escalate_held_hypotheses,
-)
 from app.store import supervisor_plan as plans
 from app.store.supervisor_plan import NewSupervisorPlan
 
@@ -43,6 +34,15 @@ from co_scientist.domains.research_state.drain.reviews import _CitationSink
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store_records
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
+from co_scientist.domains.safety.hypothesis import (
+    persist_escalated_verdicts,
+    screen_hypotheses,
+)
+from co_scientist.domains.safety.hypothesis.safety import (
+    POLICY_VERSION,
+    HypothesisSafetyOutcome,
+    escalate_held_hypotheses,
+)
 from co_scientist.platform import db
 from co_scientist.platform.retrieval.citations import empty_citation_summary
 
@@ -312,7 +312,7 @@ def _screen_and_collect_grounding_inputs(
     """The app boundary repeats deterministic safety admission before lock-
     free model escalation.
     """
-    from app.report.gates import EXCLUDED_HYPOTHESIS_STATUSES
+    from co_scientist.domains.report.gates import EXCLUDED_HYPOTHESIS_STATUSES
 
     persisted = hypotheses.list_hypotheses(run_id, conn=conn)
     screening_result = screen_hypotheses(run_id, persisted, conn=conn)

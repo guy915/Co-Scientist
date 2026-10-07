@@ -1,8 +1,8 @@
 from typing import Any
 
 import pytest
+from co_scientist.domains.report.markdown.overview import render_research_overview_markdown
 
-from app.report.markdown.overview import render_research_overview_markdown
 from tests._report_helpers import render_markdown
 
 

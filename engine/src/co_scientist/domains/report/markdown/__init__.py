@@ -4,7 +4,7 @@ import dataclasses
 import json
 from typing import Any, Final, NamedTuple
 
-from app.report.markdown.document import (
+from co_scientist.domains.report.markdown.document import (
     _render_about_disclosure,
     _render_data_sources_section,
     _render_knowledge_base_markdown,
@@ -14,13 +14,13 @@ from app.report.markdown.document import (
     _render_table_of_contents,
     _render_title_and_provider,
 )
-from app.report.markdown.hypothesis import (
+from co_scientist.domains.report.markdown.hypothesis import (
     _render_hypothesis_entry,
     _render_references_section,
     group_by_hypothesis,
     references_by_hypothesis,
 )
-from app.report.markdown.overview import (
+from co_scientist.domains.report.markdown.overview import (
     _render_main_research_directions_markdown,
     _render_meta_review_overview_markdown,
     _render_meta_review_ranking_markdown,

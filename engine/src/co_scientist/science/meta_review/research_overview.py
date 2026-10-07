@@ -21,12 +21,12 @@ from co_scientist.domains.research_state.models import (
     rank_for_publication,
 )
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.domains.safety.rules import is_blocking_status
 from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm_json,
 )
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.safety import is_blocking_status
 from co_scientist.science.meta_review.research_overview_direction_calls import (
     DirectionWaveContext,
     develop_directions_into,

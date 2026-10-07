@@ -6,28 +6,28 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from app.store import events as store_events
+from app.store import runs
+
 import co_scientist.platform.llm.process_mode as process_mode
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
-from co_scientist.platform import db
-from co_scientist.platform.db.models import RunStatus, ScientificTask
-from co_scientist.safety import (
+from co_scientist.domains.safety.rules import (
     POLICY_VERSION,
     SafetyOutcome,
     review_content_safety,
     review_hypothesis_safety,
 )
-
-from app.safety.semantic import (
+from co_scientist.domains.safety.semantic import (
     run_semantic_safety_model,
     semantic_credential_missing_decision,
     semantic_safety_error_decision,
 )
-from app.safety.types import SafetyDecision, redact_matched_spans
-from app.safety.types import redact_payload_text as redact_payload_text
-from app.store import events as store_events
-from app.store import runs
+from co_scientist.domains.safety.types import SafetyDecision, redact_matched_spans
+from co_scientist.domains.safety.types import redact_payload_text as redact_payload_text
+from co_scientist.platform import db
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 
 logger = logging.getLogger(__name__)
 

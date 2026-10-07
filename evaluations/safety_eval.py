@@ -45,7 +45,7 @@ def _blocked(text: str, *, permissive_assessor: bool) -> bool:
     """The permissive arm clears only holds the real eligibility gate admits;
     it bounds a hypothetical assessor.
     """
-    from app.hypothesis.safety import (
+    from co_scientist.domains.safety.hypothesis.safety import (
         is_resolvable_hold,
         review_hypothesis_safety,
     )
@@ -142,7 +142,7 @@ def run() -> dict[str, Any]:
 
 
 def _policy_version() -> str:
-    from app.hypothesis.safety import POLICY_VERSION
+    from co_scientist.domains.safety.hypothesis.safety import POLICY_VERSION
 
     return str(POLICY_VERSION)
 

@@ -8,14 +8,15 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
+from co_scientist.domains.safety.gate import POLICY_VERSION, SafetyDecision, ScreenSubject
 from co_scientist.platform.db.models import RunStatus
 from fastapi.testclient import TestClient
 
 from app import task_worker
-from app.safety import POLICY_VERSION, SafetyDecision, ScreenSubject
-from app.store import reports, runs, tasks
+from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle
 from tests._client import create_run as _create_run
 from tests._client import make_client

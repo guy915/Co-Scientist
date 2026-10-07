@@ -9,16 +9,16 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.safety import SafetyOutcome
-
-from app import safety as app_safety
-from app.hypothesis.safety import (
+from co_scientist.domains.safety import gate as app_safety
+from co_scientist.domains.safety.hypothesis.safety import (
     HypothesisSafetyReview,
     escalate_review,
     resolve_hold,
     review_hypothesis_safety,
 )
-from app.safety.types import SafetyDecision
+from co_scientist.domains.safety.rules import SafetyOutcome
+from co_scientist.domains.safety.types import SafetyDecision
+
 from tests._llm_fake_backend import semantic_response
 from tests._process_mode_helpers import FakeProcessMode
 

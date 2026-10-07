@@ -15,7 +15,7 @@ from co_scientist.domains.research_state.state import (
     WorkflowState,
     deduplicate_hypotheses,
 )
-from co_scientist.safety import (
+from co_scientist.domains.safety.rules import (
     POLICY_VERSION,
     REDACTED_PLACEHOLDER,
     SafetyOutcome,

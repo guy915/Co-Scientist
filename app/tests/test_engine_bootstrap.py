@@ -5,14 +5,15 @@ from typing import Any
 
 import pytest
 from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.safety import gate as safety
+from co_scientist.domains.safety.types import SafetyDecision
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 
-from app import engine_tasks, safety, task_worker
+from app import engine_tasks, task_worker
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import support as engine_tasks_support
-from app.safety.types import SafetyDecision
 from app.store import events as store_events
 from app.store import runs
 from app.store import tasks as store

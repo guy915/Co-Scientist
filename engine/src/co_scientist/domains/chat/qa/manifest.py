@@ -8,8 +8,9 @@ from collections.abc import Iterator
 from typing import Any
 
 from app.store import events as store
-from app.store import reports, tasks
+from app.store import tasks
 
+from co_scientist.domains.report import repository as reports
 from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow
 from co_scientist.platform.retrieval.citations import STATE_RANK
 

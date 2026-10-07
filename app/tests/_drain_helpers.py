@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from co_scientist.domains.report import build as report_build
+from co_scientist.domains.report import finalize as report_finalize
 from co_scientist.orchestration import drain as drain_final_state
 
-from app.report import build as report_build
-from app.report import finalize as report_finalize
 from tests._client import drain as _drain
 
 

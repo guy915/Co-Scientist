@@ -4,34 +4,30 @@ import json
 from typing import Any
 
 import pytest
+from co_scientist.domains.report import ReportRequest, finalize_report
+from co_scientist.domains.report import repository as reports
+from co_scientist.domains.report.gates import exclude_unsafe_hypotheses
 from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
-from co_scientist.safety import (
-    review_hypothesis_safety as _parity_review_hypothesis_safety,
-)
-from co_scientist.science.meta_review import meta_review as meta_review_module
-from fastapi.testclient import TestClient
-
-from app import safety
-from app.hypothesis import ScreeningResult, screen_hypotheses
-from app.hypothesis.safety import (
+from co_scientist.domains.safety import gate as safety
+from co_scientist.domains.safety.gate import SafetyDecision, screen_final, screen_intake
+from co_scientist.domains.safety.hypothesis import ScreeningResult, screen_hypotheses
+from co_scientist.domains.safety.hypothesis.safety import (
     REDACTED_PLACEHOLDER,
     HypothesisSafetyOutcome,
     review_hypothesis_safety,
 )
-from app.report import ReportRequest, finalize_report
-from app.report.gates import exclude_unsafe_hypotheses
-from app.run_events import make_emitter
-from app.safety import (
-    SafetyDecision,
-    screen_final,
-    screen_intake,
+from co_scientist.domains.safety.rules import (
+    review_hypothesis_safety as _parity_review_hypothesis_safety,
 )
-from app.safety.semantic import _build_semantic_decision
-from app.safety.types import redact_matched_spans
+from co_scientist.domains.safety.semantic import _build_semantic_decision
+from co_scientist.domains.safety.types import redact_matched_spans
+from co_scientist.science.meta_review import meta_review as meta_review_module
+from fastapi.testclient import TestClient
+
+from app.run_events import make_emitter
 from app.store import events as store_events
-from app.store import reports
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._client import wait_for_status as _wait_status

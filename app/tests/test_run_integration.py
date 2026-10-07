@@ -12,6 +12,9 @@ from co_scientist.core.config import settings
 from co_scientist.domains.chat import seed
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
+from co_scientist.domains.report import build as report_build
+from co_scientist.domains.report import finalize as report_finalize
+from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
@@ -22,10 +25,7 @@ from httpx import ASGITransport
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
-from app.report import build as report_build
-from app.report import finalize as report_finalize
 from app.store import events as store_events
-from app.store import reports
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
