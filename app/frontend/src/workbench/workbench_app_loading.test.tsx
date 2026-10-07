@@ -8,7 +8,7 @@ const imports = vi.hoisted(() => ({run: 0}));
 
 vi.mock('@/shared/lib/ui_logging', () => ({logUiError: vi.fn()}));
 
-vi.mock('./pages/run_detail', () => {
+vi.mock('@/features/report/run_detail', () => {
   imports.run += 1;
   throw new Error('The run page chunk could not be downloaded');
 });
