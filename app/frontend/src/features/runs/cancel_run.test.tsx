@@ -8,7 +8,9 @@ const cancelRun = vi.hoisted(() => vi.fn());
 
 vi.mock('@/shared/api/runs', async () => {
   const actual =
-    await vi.importActual<typeof import('@/shared/api/runs')>('@/shared/api/runs');
+    await vi.importActual<typeof import('@/shared/api/runs')>(
+      '@/shared/api/runs',
+    );
   return {...actual, cancelRun};
 });
 
