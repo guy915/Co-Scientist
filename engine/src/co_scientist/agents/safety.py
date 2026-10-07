@@ -41,12 +41,6 @@ def _screen_text(h: Hypothesis) -> str:
     return " ".join(parts)
 
 
-def _meta_review_context(state: WorkflowState) -> str:
-    """Critique informs human adjudication only; deterministic safety
-    outcomes remain conservative and cannot be changed by model context."""
-    return _format_meta_review_context(state.get("meta_review"))
-
-
 def _build_safety_decision(
     review: Any, h: Hypothesis, meta_review_context: str = ""
 ) -> dict[str, Any] | None:
@@ -188,7 +182,10 @@ async def safety_screen_node(
         hypotheses_count=len(hypotheses),
     )
 
-    outcome = _screen_hypothesis_pool(hypotheses, _meta_review_context(state))
+    # Critique informs human adjudication only; it cannot change safety outcomes.
+    outcome = _screen_hypothesis_pool(
+        hypotheses, _format_meta_review_context(state.get("meta_review"))
+    )
     safe = outcome.safe
     blocked_count = len(hypotheses) - len(safe)
     held_count = len(outcome.held)

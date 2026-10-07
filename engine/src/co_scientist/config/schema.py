@@ -73,10 +73,6 @@ class ServerConfig:
     transport: str = "streamable_http"
     enabled: bool = True
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ServerConfig":
-        return cls(**_tolerant_field_kwargs(cls, data, "url"))
-
 
 @dataclass
 class ResponseFormat:
@@ -85,10 +81,6 @@ class ResponseFormat:
     is_dict: bool = False
     field_mapping: dict[str, str] = field(default_factory=dict)
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ResponseFormat":
-        return cls(**_declared_field_kwargs(cls, data))
-
 
 @dataclass
 class ParameterConfig:
@@ -96,10 +88,6 @@ class ParameterConfig:
     default: Any | None = None
     required: bool = False
     description: str = ""
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ParameterConfig":
-        return cls(**_declared_field_kwargs(cls, data))
 
 
 def _recency_years_to_starting_year(value: int) -> int | None:
@@ -133,7 +121,9 @@ class ToolConfig:
         parameters = {}
         for param_name, param_data in params_data.items():
             if isinstance(param_data, dict):
-                parameters[param_name] = ParameterConfig.from_dict(param_data)
+                parameters[param_name] = ParameterConfig(
+                    **_declared_field_kwargs(ParameterConfig, param_data)
+                )
             else:
                 parameters[param_name] = ParameterConfig(default=param_data)
 
@@ -155,7 +145,9 @@ class ToolConfig:
             server=data.get("server", "default"),
             mcp_tool_name=data.get("mcp_tool_name", tool_id),
             display_name=data.get("display_name", tool_id),
-            response_format=ResponseFormat.from_dict(data.get("response_format", {})),
+            response_format=ResponseFormat(
+                **_declared_field_kwargs(ResponseFormat, data.get("response_format", {}))
+            ),
             parameters=parameters,
             **kwargs,
         )
@@ -294,10 +286,6 @@ class EnrichmentConfig:
     results_path: str = ""
     workflow: str = "generation"
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EnrichmentConfig":
-        return cls(**_tolerant_field_kwargs(cls, data, "tool"))
-
 
 @dataclass
 class PromptsConfig:
@@ -306,10 +294,6 @@ class PromptsConfig:
     review_guidance: str = ""
     evolution_guidance: str = ""
     reflection_guidance: str = ""
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PromptsConfig":
-        return cls(**_declared_field_kwargs(cls, data))
 
 
 __all__ = [
@@ -329,7 +313,9 @@ __all__ = [
 def _parse_servers(data: dict[str, Any]) -> dict[str, ServerConfig]:
     servers = {}
     for server_id, server_data in data.get("servers", {}).items():
-        servers[server_id] = ServerConfig.from_dict(server_data)
+        servers[server_id] = ServerConfig(
+            **_tolerant_field_kwargs(ServerConfig, server_data, "url")
+        )
     return servers
 
 
@@ -367,8 +353,11 @@ class ToolsConfig:
         servers = _parse_servers(data)
         tools = _parse_tools_by_category(data)
         workflows = _parse_workflows(data)
-        prompts = PromptsConfig.from_dict(data.get("prompts", {}))
-        enrichments = [EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])]
+        prompts = PromptsConfig(**_declared_field_kwargs(PromptsConfig, data.get("prompts", {})))
+        enrichments = [
+            EnrichmentConfig(**_tolerant_field_kwargs(EnrichmentConfig, e, "tool"))
+            for e in data.get("enrichments", [])
+        ]
 
         kwargs = _declared_field_kwargs(
             cls,

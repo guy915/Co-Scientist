@@ -1,4 +1,3 @@
-import dataclasses
 import logging
 from typing import Any
 
@@ -120,38 +119,38 @@ async def _prepare_review(
     return config, mcp_client
 
 
-@dataclasses.dataclass(frozen=True)
-class _ReviewOutput:
-    config: SearchConfig
-    collected: _CollectionResult
-    query_result: QueryPhaseResult
-    reviewed: _ReviewSynthesis
-    research: ResearchOutcome | None
-
-
-def _merge_research(output: _ReviewOutput) -> str:
+def _merge_research(
+    reviewed: _ReviewSynthesis,
+    collected: _CollectionResult,
+    research: ResearchOutcome | None,
+) -> str:
     """Keep analyzed records over fresh research hits. Preserve the exact
     failure sentinel even when research finds new evidence."""
-    research = output.research
     if research is None:
-        return output.reviewed.text
-    pool = output.collected.all_paper_metadata
+        return reviewed.text
+    pool = collected.all_paper_metadata
     for locator, record in research.records.items():
         if locator not in pool:
             pool[locator] = record
-    if output.reviewed.text == LITERATURE_REVIEW_FAILED:
-        return output.reviewed.text
-    return output.reviewed.text + research.section
+    if reviewed.text == LITERATURE_REVIEW_FAILED:
+        return reviewed.text
+    return reviewed.text + research.section
 
 
-async def _finalize_review(state: WorkflowState, output: _ReviewOutput) -> dict[str, Any]:
-    collected = output.collected
-    queries = output.query_result.queries
+async def _finalize_review(
+    state: WorkflowState,
+    config: SearchConfig,
+    collected: _CollectionResult,
+    query_result: QueryPhaseResult,
+    reviewed: _ReviewSynthesis,
+    research: ResearchOutcome | None,
+) -> dict[str, Any]:
+    queries = query_result.queries
     synthesis, articles = _finalize_synthesis_and_articles(
-        _merge_research(output),
+        _merge_research(reviewed, collected, research),
         collected.all_paper_metadata,
         collected.context_enrichment_sources,
-        output.config.source_name,
+        config.source_name,
     )
 
     await _emit_and_log_completion(state, queries, articles, collected.search_errors, synthesis)
@@ -159,9 +158,9 @@ async def _finalize_review(state: WorkflowState, output: _ReviewOutput) -> dict[
     result = make_success_result(synthesis, queries, articles)
     if collected.context_enrichment_sources:
         result["context_enrichment_sources"] = collected.context_enrichment_sources
-    if output.research is not None:
-        result["research_ledgers"] = [output.research.ledger]
-    return _with_llm_call_metrics(result, output.query_result.llm_calls + output.reviewed.llm_calls)
+    if research is not None:
+        result["research_ledgers"] = [research.ledger]
+    return _with_llm_call_metrics(result, query_result.llm_calls + reviewed.llm_calls)
 
 
 async def _run_search_phases(
@@ -200,13 +199,4 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     )
     research = await run_research_phase(state, config, mcp_client, reviewed.analyses)
 
-    return await _finalize_review(
-        state,
-        _ReviewOutput(
-            config=config,
-            collected=collected,
-            query_result=query_result,
-            reviewed=reviewed,
-            research=research,
-        ),
-    )
+    return await _finalize_review(state, config, collected, query_result, reviewed, research)

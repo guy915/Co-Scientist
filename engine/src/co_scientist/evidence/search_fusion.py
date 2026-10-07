@@ -82,10 +82,6 @@ def select_within_budget(
     return selected
 
 
-def _normalize_title(metadata: dict[str, Any]) -> str:
-    return str(metadata.get("title") or "").lower().strip()
-
-
 # RRF uses source rank because raw scores are incomparable; k=2 follows
 # qdrant position_score (Apache-2.0; Cormack, Clarke & Buettcher 2009).
 _RRF_K = 2
@@ -152,7 +148,7 @@ def _rank_search_results(
             key=lambda pair: (
                 pair[0] in retracted_ids,
                 -float(pair[1]["retrieval_score"]),
-                _normalize_title(pair[1]),
+                str(pair[1].get("title") or "").lower().strip(),
                 pair[0],
             ),
         )
@@ -169,7 +165,7 @@ def _duplicate_owner_id(
     first-owner metadata/provenance while adding duplicate ranks."""
     if not deduplicate or not isinstance(metadata, dict):
         return None
-    title = _normalize_title(metadata)
+    title = str(metadata.get("title") or "").lower().strip()
     if not title:
         return None
     owner_id = seen_titles.get(title)

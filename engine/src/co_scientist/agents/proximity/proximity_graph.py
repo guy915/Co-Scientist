@@ -10,17 +10,13 @@ from typing import Any
 _SIMILARITY_DECIMALS = 3
 
 
-def _tokens(text: str) -> set[str]:
-    return set(text.lower().split())
-
-
 def token_coverage(text: str, reference: str) -> float:
     """Union denominators hide contained short ideas; divide by the derived
     text tokens so true coverage remains detectable across lengths."""
-    words = _tokens(text)
+    words = set(text.lower().split())
     if not words:
         return 0.0
-    return len(words & _tokens(reference)) / len(words)
+    return len(words & set(reference.lower().split())) / len(words)
 
 
 def pair_similarity(text_a: str, text_b: str) -> float:
