@@ -11,7 +11,6 @@ import co_scientist.domains.documents.staged as staged_documents
 import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
-from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.domains.chat.goal_text import (
     clean_title,
     generate_goal_restatement,
@@ -23,7 +22,6 @@ from co_scientist.domains.documents import repository as documents
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
-from co_scientist.platform.db.admission import claim_run, connecting_host
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from co_scientist.platform.llm.execution_policy import (
     ZERO_COST_CONFIG_KEY,
@@ -338,13 +336,6 @@ def _persist_setup_transaction(
         )
         if setup.free_usage:
             free_usage.claim_free_run(conn, admission.owner, run.id)
-        claim_run(
-            conn,
-            run.id,
-            admission.owner,
-            connecting_host(request.client.host if request.client else None),
-            free=setup.free_usage,
-        )
         return run
 
     try:
@@ -361,8 +352,6 @@ def _persist_setup_transaction(
         raise HTTPException(status_code=404, detail="attached document not found") from exc
     except free_usage.FreeUsageExhaustedError as exc:
         raise free_usage.exhausted_error() from exc
-    except ProviderAdmissionError as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
     return run, receipt
 
 
