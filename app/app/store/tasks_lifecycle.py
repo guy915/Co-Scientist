@@ -286,9 +286,12 @@ def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool, fl
     with connect(db_path) as conn:
         row = conn.execute(query, (run_id, now, run_id, now, run_id, now, run_id, now)).fetchone()
     parked_until = row["parked_until"]
+    from app import dbos_proto
+
+    active = bool(row["active"]) or dbos_proto.has_pending_review(run_id, db_path)
     return (
         bool(row["claimable"]),
-        bool(row["active"]),
+        active,
         float(parked_until) if parked_until is not None else None,
     )
 

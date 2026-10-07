@@ -143,6 +143,13 @@ async def _dispatch_node_fanout(
         await _apply_pre_ranking_evidence_gate(state)
         return await _schedule_ranking_chain(task, state, current_seq, db_path=db_path)
     handler = _SYNC_FANOUT_HANDLERS.get(node_name)
+    if node_name == "review":
+        from app import dbos_proto
+
+        if dbos_proto.enabled():
+            from app.dbos_proto.review import start_review_fanout
+
+            handler = start_review_fanout
     if handler is None:
         return None
     return handler(task, state, current_seq, db_path=db_path)

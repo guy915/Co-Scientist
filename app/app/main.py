@@ -192,6 +192,12 @@ async def lifespan(
     _reclaim_disk_space()
 
     reconciled = _reconcile_and_log_interrupted_runs()
+    from app import dbos_proto
+
+    if dbos_proto.enabled():
+        # A thread with no running loop: DBOS then runs workflows on its own
+        # loop rather than adopting this API loop.
+        await asyncio.to_thread(dbos_proto.launch)
     recovery, recovery_workers = _start_recovery_task(reconciled)
 
     await seed_demo_runs()
@@ -200,6 +206,7 @@ async def lifespan(
         yield
     finally:
         await _shutdown_recovery(recovery, recovery_workers)
+        await asyncio.to_thread(dbos_proto.shutdown)
         logger.info("Shutting down Co-Scientist server...")
         # Drain queued logging before the shutdown WAL merge.
         shutdown_log_capture()
