@@ -29,7 +29,7 @@ Railway deploy settings, read back on 7 October 2026 (unset fields take Railway'
 |---|---|---|
 | Railway healthcheck | `/health`, timeout unset (default 300 s) | none |
 | Restart policy | `ON_FAILURE`, 10 retries | `ON_FAILURE`, 10 retries |
-| Draining (`RAILWAY_DEPLOYMENT_DRAINING_SECONDS`) | unset (default 0 s: SIGKILL right after SIGTERM) | unset |
+| Draining (`RAILWAY_DEPLOYMENT_DRAINING_SECONDS`) | 30 s, so in-flight requests finish; adds up to 30 s to each deploy's gap | unset (default 0 s: SIGKILL right after SIGTERM) |
 | Overlap, sleep | unset, off | unset, off |
 | Replicas | 1 (`sfo`) | 1 (`sfo`) |
 
