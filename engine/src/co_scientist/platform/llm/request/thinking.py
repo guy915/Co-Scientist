@@ -5,7 +5,6 @@ from contextvars import ContextVar
 from typing import Any, Final
 
 from co_scientist.core._context import _bind_contextvar
-from co_scientist.core.config import THINKING_FLOOR_TIMEOUT_SECONDS
 from co_scientist.core.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
@@ -283,6 +282,10 @@ def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:
     """The conservative 75-token/s clock funds reasoning floors; streaming
     silence is bounded separately.
     """
+    # Importing config reads settings; the gateway must stay importable before
+    # an evaluation configures its environment.
+    from co_scientist.core.config import THINKING_FLOOR_TIMEOUT_SECONDS
+
     if not model_reasons(model_name):
         return answer_seconds
     return max(answer_seconds, THINKING_FLOOR_TIMEOUT_SECONDS)
