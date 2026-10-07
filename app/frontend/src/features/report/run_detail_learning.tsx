@@ -339,8 +339,8 @@ function learningTitle(title: string, index: number): string {
 const REFERENCE_LIST_ITEM_CLASSES =
   'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center ' +
   'gap-[0.8rem] border-b border-cosci-border py-[0.7rem] text-[0.86rem] ' +
-  'max-[700px]:grid-cols-[2rem_minmax(0,1fr)] max-[700px]:gap-y-[0.55rem] ' +
-  'max-[700px]:py-[0.9rem]';
+  'phone:grid-cols-[2rem_minmax(0,1fr)] phone:gap-y-[0.55rem] ' +
+  'phone:py-[0.9rem]';
 
 const REFERENCE_UNAVAILABLE_TEXT = 'Unavailable';
 
@@ -471,7 +471,7 @@ function ReferenceSourceState({item}: {item: Evidence}) {
         tone="danger"
         tooltip={REFERENCE_RETRACTED_TITLE}
         aria-label={REFERENCE_RETRACTED_TITLE}
-        layoutClassName="reference-retracted-pill max-[700px]:col-start-2"
+        layoutClassName="reference-retracted-pill phone:col-start-2"
       >
         {REFERENCE_RETRACTED_TEXT}
       </Chip>
@@ -483,7 +483,7 @@ function ReferenceSourceState({item}: {item: Evidence}) {
         variant="outlined"
         tooltip={REFERENCE_UNAVAILABLE_TITLE}
         aria-label={REFERENCE_UNAVAILABLE_TITLE}
-        layoutClassName="reference-unavailable-pill max-[700px]:col-start-2"
+        layoutClassName="reference-unavailable-pill phone:col-start-2"
       >
         {REFERENCE_UNAVAILABLE_TEXT}
       </Chip>
@@ -493,7 +493,7 @@ function ReferenceSourceState({item}: {item: Evidence}) {
     <ExternalLink
       className={joinClasses(
         chipClasses({variant: 'outlined', interactive: true}),
-        'reference-open-pill max-[700px]:col-start-2',
+        'reference-open-pill phone:col-start-2',
       )}
       href={item.url}
     >

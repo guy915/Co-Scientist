@@ -29,7 +29,7 @@ const IDEA_DETAIL_PANE_CLASSES =
   // Stack below the three-column fit threshold so detail can grow; the separate
   // phone breakpoint controls interaction and gutters.
   'pt-[1.45rem] pb-14 max-[1023px]:flex-none ' +
-  'max-[1023px]:overflow-y-visible max-[700px]:px-4';
+  'max-[1023px]:overflow-y-visible phone:px-4';
 
 const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +
@@ -568,7 +568,7 @@ function DetailSection({
 }) {
   return (
     <section
-      className="idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 [&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] [&_h2]:leading-10 [&_h2]:font-normal max-[700px]:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] max-[700px]:[&_h2]:leading-[1.2] [&_h2]:text-cosci-idea-title-text [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case [&_h3]:text-cosci-idea-title-text [&_p]:m-0 [&_p]:[overflow-wrap:anywhere] [&_p]:text-base [&_p]:leading-6 [&_p]:text-cosci-idea-detail-text"
+      className="idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 [&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] [&_h2]:leading-10 [&_h2]:font-normal phone:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] phone:[&_h2]:leading-[1.2] [&_h2]:text-cosci-idea-title-text [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case [&_h3]:text-cosci-idea-title-text [&_p]:m-0 [&_p]:[overflow-wrap:anywhere] [&_p]:text-base [&_p]:leading-6 [&_p]:text-cosci-idea-detail-text"
       id={sectionSlug(title)}
     >
       <h2>{title}</h2>

@@ -31,7 +31,7 @@ type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
 const WORKSPACE_CLASSES =
   'ucs-workspace relative z-[1] grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
-  '[@media(max-width:700px)]:rounded-none';
+  'phone:rounded-none';
 
 const REPORT_WORKSPACE_CLASSES =
   WORKSPACE_CLASSES + ' min-h-[100vh] supports-[height:100dvh]:min-h-[100dvh]';
@@ -45,7 +45,7 @@ const DEFAULT_PAGE_CLASSES = PAGE_CLASSES + ' overflow-auto';
 
 const HOME_PAGE_CLASSES =
   PAGE_CLASSES +
-  ' ucs-page--home overflow-auto min-[1181px]:overflow-hidden ' +
+  ' ucs-page--home overflow-auto desktop:overflow-hidden ' +
   '[@media(max-width:1180px)]:overflow-x-hidden [@media(max-width:1180px)]:overflow-y-auto';
 
 // Narrow report overflow must remain reachable horizontally; vertical scroll
@@ -56,15 +56,15 @@ const REPORT_PAGE_CLASSES =
 const SHELL_CLASSES =
   'ucs-app-shell grid min-h-[100vh] bg-cosci-rail supports-[height:100dvh]:min-h-[100dvh] ' +
   '[transition:grid-template-columns_240ms_cubic-bezier(0.2,0,0,1)] motion-reduce:[transition:none] ' +
-  '[@media(max-width:700px)]:grid-cols-[minmax(0,1fr)]';
+  'phone:grid-cols-[minmax(0,1fr)]';
 
 const SHELL_OPEN_GRID_CLASSES =
-  'nav-open min-[701px]:grid-cols-[17.25rem_minmax(0,1fr)]';
+  'nav-open above-phone:grid-cols-[17.25rem_minmax(0,1fr)]';
 
 // Keep the collapsed icon on the open rail's 24px gutter so toggling cannot
 // shift it.
 const SHELL_COLLAPSED_GRID_CLASSES =
-  'nav-collapsed min-[701px]:grid-cols-[4.5rem_minmax(0,1fr)]';
+  'nav-collapsed above-phone:grid-cols-[4.5rem_minmax(0,1fr)]';
 
 function pageClassesFor(pathname: string, isRunRoute: boolean): string {
   if (isRunRoute) return REPORT_PAGE_CLASSES;
@@ -130,7 +130,7 @@ function DrawerScrim({
     <div
       {...presenceProps(state)}
       data-motion="long"
-      className="ui-motion-fade fixed inset-0 z-[55] hidden bg-scrim [@media(max-width:700px)]:block"
+      className="ui-motion-fade fixed inset-0 z-[55] hidden bg-scrim phone:block"
       aria-hidden="true"
       onClick={onDismiss}
     />

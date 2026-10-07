@@ -81,7 +81,7 @@ const SR_ONLY_CLASSES =
   'absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)]';
 
 const RAIL_CLASSES =
-  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
+  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] phone:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
 
 const RAIL_NAV_CLASSES =
   'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-full bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
@@ -379,7 +379,7 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
         className={joinClasses(
           RAIL_NAV_CLASSES,
           more &&
-            '[@media(max-width:700px)]:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
+            'phone:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
         )}
       >
         <SlidingPill box={pill} className={SLIDER_CLASSES} />

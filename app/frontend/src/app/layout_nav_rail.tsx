@@ -17,15 +17,15 @@ import {displayTitle} from '@/shared/lib/titles';
 
 const RAIL_MENU_LAYOUT_CLASSES =
   'absolute z-[35] origin-bottom-left bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] ' +
-  '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:right-auto ' +
-  '[@media(max-width:700px)]:bottom-[1.15rem] [@media(max-width:700px)]:left-[0.5rem] ' +
-  '[@media(max-width:700px)]:w-[min(13.5rem,calc(100vw-1rem))]';
+  'phone:fixed phone:right-auto ' +
+  'phone:bottom-[1.15rem] phone:left-[0.5rem] ' +
+  'phone:w-[min(13.5rem,calc(100vw-1rem))]';
 
 const SETTINGS_CONTROL_CLASSES =
-  'relative grid w-auto justify-items-center [@media(max-width:700px)]:w-full';
+  'relative grid w-auto justify-items-center phone:w-full';
 
 // Rail rules resolve per width band: bare classes are the base,
-// `min-[701px]:` the desktop rail and `[@media(max-width:700px)]:` the phone
+// `above-phone:` the desktop rail and `phone:` the phone
 // drawer. Fractional widths between the two bands keep the base.
 // The panel stacks above the workspace so navigation popups are not covered.
 // Phones stretch it to the inset edges: iOS Safari vh would hide the drawer's
@@ -33,24 +33,24 @@ const SETTINGS_CONTROL_CLASSES =
 // `ucs-nav-panel` scopes the shell tones for its buttons (tokens.css).
 const NAV_PANEL_CLASSES =
   'ucs-nav-panel relative z-[70] box-border flex h-[100vh] w-full flex-col items-center justify-between [border-right:0] bg-cosci-rail py-[1.25rem] ' +
-  '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:[inset:0_auto_0_0] [@media(max-width:700px)]:z-[60] ' +
-  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:w-[21rem] [@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:max-w-[85vw] ' +
-  '[@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:px-[0.75rem] [@media(max-width:700px)]:py-[1rem] ' +
-  '[@media(max-width:700px)]:rounded-r-workspace';
+  'phone:fixed phone:[inset:0_auto_0_0] phone:z-[60] ' +
+  'phone:h-auto phone:w-[21rem] phone:min-w-0 phone:max-w-[85vw] ' +
+  'phone:items-stretch phone:px-[0.75rem] phone:py-[1rem] ' +
+  'phone:rounded-r-workspace';
 
 const NAV_GROUP_PHONE_CLASSES =
-  '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:flex-1 ' +
-  '[@media(max-width:700px)]:flex-col [@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:[justify-items:stretch] [@media(max-width:700px)]:gap-[0.3rem] [@media(max-width:700px)]:overflow-hidden';
+  'phone:flex phone:min-h-0 phone:w-full phone:flex-1 ' +
+  'phone:flex-col phone:items-stretch phone:[justify-items:stretch] phone:gap-[0.3rem] phone:overflow-hidden';
 
 const NAV_BOTTOM_CLASSES =
   'relative grid items-center justify-items-center gap-[0.8rem] p-0 ' +
-  '[@media(max-width:700px)]:w-full [@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:[justify-items:stretch] [@media(max-width:700px)]:gap-[0.3rem]';
+  'phone:w-full phone:items-stretch phone:[justify-items:stretch] phone:gap-[0.3rem]';
 
 const SIDE_CONTENT_CLASSES =
   'transition-[opacity,visibility] duration-medium ease-standard mt-[1rem] grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
-  'min-[701px]:flex min-[701px]:min-h-0 min-[701px]:max-h-none min-[701px]:flex-1 min-[701px]:flex-col ' +
-  '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:flex-1 ' +
-  '[@media(max-width:700px)]:flex-col [@media(max-width:700px)]:overflow-hidden';
+  'above-phone:flex above-phone:min-h-0 above-phone:max-h-none above-phone:flex-1 above-phone:flex-col ' +
+  'phone:flex phone:min-h-0 phone:max-h-none phone:flex-1 ' +
+  'phone:flex-col phone:overflow-hidden';
 
 // Children inherit the closed phone drawer's visibility:hidden, which keeps its
 // chat links out of the tab order; none may set `visible` on phones.
@@ -58,39 +58,39 @@ const NAV_RAIL_VARIANTS = {
   open: {
     panel: joinClasses(
       NAV_PANEL_CLASSES,
-      'min-[701px]:items-stretch min-[701px]:px-[0.75rem] min-[701px]:py-[1rem]',
-      '[@media(max-width:700px)]:visible [@media(max-width:700px)]:[transform:translateX(0)]',
-      '[@media(max-width:700px)]:shadow-drawer',
-      '[@media(max-width:700px)]:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard)] [@media(max-width:700px)]:motion-reduce:[transition:none]',
+      'above-phone:items-stretch above-phone:px-[0.75rem] above-phone:py-[1rem]',
+      'phone:visible phone:[transform:translateX(0)]',
+      'phone:shadow-drawer',
+      'phone:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard)] phone:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
-      'grid gap-[0.85rem] min-[701px]:flex min-[701px]:min-h-0 min-[701px]:w-full min-[701px]:flex-1 min-[701px]:flex-col',
-      'min-[701px]:items-stretch min-[701px]:gap-[0.25rem] min-[701px]:mt-[0.25rem]',
+      'grid gap-[0.85rem] above-phone:flex above-phone:min-h-0 above-phone:w-full above-phone:flex-1 above-phone:flex-col',
+      'above-phone:items-stretch above-phone:gap-[0.25rem] above-phone:mt-[0.25rem]',
       NAV_GROUP_PHONE_CLASSES,
     ),
     bottom: NAV_BOTTOM_CLASSES,
     sideContent: SIDE_CONTENT_CLASSES,
-    settingsControl: `${SETTINGS_CONTROL_CLASSES} min-[701px]:w-full`,
+    settingsControl: `${SETTINGS_CONTROL_CLASSES} above-phone:w-full`,
   },
   collapsed: {
     // Hidden after the slide-out so the closed drawer leaves the tab order
     // and the accessibility tree.
     panel: joinClasses(
       NAV_PANEL_CLASSES,
-      'min-[701px]:py-[1rem] [@media(max-width:700px)]:invisible [@media(max-width:700px)]:[transform:translateX(-100%)]',
-      '[@media(max-width:700px)]:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard),visibility_0s_linear_var(--motion-duration-long)] [@media(max-width:700px)]:motion-reduce:[transition:none]',
+      'above-phone:py-[1rem] phone:invisible phone:[transform:translateX(-100%)]',
+      'phone:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard),visibility_0s_linear_var(--motion-duration-long)] phone:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
-      'grid w-full items-center justify-items-center gap-[0.74rem] min-[701px]:gap-[0.25rem] min-[701px]:mt-[0.25rem]',
+      'grid w-full items-center justify-items-center gap-[0.74rem] above-phone:gap-[0.25rem] above-phone:mt-[0.25rem]',
       NAV_GROUP_PHONE_CLASSES,
     ),
     bottom: joinClasses(
       NAV_BOTTOM_CLASSES,
-      'min-[701px]:w-full min-[701px]:gap-[0.74rem]',
+      'above-phone:w-full above-phone:gap-[0.74rem]',
     ),
     sideContent: joinClasses(
       SIDE_CONTENT_CLASSES,
-      'min-[701px]:mt-0 min-[701px]:opacity-0 min-[701px]:invisible',
+      'above-phone:mt-0 above-phone:opacity-0 above-phone:invisible',
     ),
     settingsControl: SETTINGS_CONTROL_CLASSES,
   },
@@ -255,14 +255,14 @@ const SIDE_HEADING_CLASSES =
 // Row height and gap must stay in rem: hooks/dom.ts FALLBACK_ROW_PITCH_PX is
 // the 2.35rem link line-height plus this 0.35rem gap at a 16px root.
 const CHAT_LIST_CLASSES =
-  'ucs-chat-list ui-motion-enter-items grid min-w-0 gap-[0.35rem] min-[701px]:min-h-0 ' +
-  '[@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:[align-content:start] [@media(max-width:700px)]:min-h-0 ' +
-  '[@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:overflow-x-hidden [@media(max-width:700px)]:overflow-y-auto';
+  'ucs-chat-list ui-motion-enter-items grid min-w-0 gap-[0.35rem] above-phone:min-h-0 ' +
+  'phone:grid-cols-[minmax(0,1fr)] phone:[align-content:start] phone:min-h-0 ' +
+  'phone:flex-1 phone:overflow-x-hidden phone:overflow-y-auto';
 
 // Scroll containers clip tooltips even without visible scrollbars; enable
 // scrolling only when needed.
 const CHAT_LIST_SCROLLABLE_CLASSES =
-  'min-[701px]:overflow-x-hidden min-[701px]:overflow-y-auto';
+  'above-phone:overflow-x-hidden above-phone:overflow-y-auto';
 
 const CHAT_HISTORY_LINK_CLASSES =
   'flex min-h-[2.35rem] min-w-0 items-center rounded-full px-[0.75rem] text-[0.875rem] leading-[2.35rem] no-underline';

@@ -90,7 +90,7 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
             className={joinClasses(HEADER_CONTROL_ICON_CLASSES, 'flex-none')}
             name={icon}
           />
-          <span className="[@media(max-width:700px)]:hidden">{label}</span>
+          <span className="phone:hidden">{label}</span>
         </TabNavLink>
       ))}
     </TabNav>

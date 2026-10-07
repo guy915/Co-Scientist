@@ -10,17 +10,17 @@ import {tooltipClassNames} from './tooltip';
 const ITEM_CLASSES =
   'ucs-nav-item grid size-[2.5rem] min-h-[2.5rem] min-w-[2.5rem] cursor-pointer place-items-center [border:0] rounded-full bg-transparent p-0 text-cosci-shell-icon no-underline ' +
   '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
-  '[@media(max-width:700px)]:h-[2.75rem] [@media(max-width:700px)]:min-h-[2.75rem] [@media(max-width:700px)]:w-full ' +
-  '[@media(max-width:700px)]:grid-cols-[1.5rem_minmax(0,1fr)] [@media(max-width:700px)]:[justify-items:start] [@media(max-width:700px)]:gap-x-[0.72rem] ' +
-  '[@media(max-width:700px)]:px-[0.75rem] [@media(max-width:700px)]:text-left';
+  'phone:h-[2.75rem] phone:min-h-[2.75rem] phone:w-full ' +
+  'phone:grid-cols-[1.5rem_minmax(0,1fr)] phone:[justify-items:start] phone:gap-x-[0.72rem] ' +
+  'phone:px-[0.75rem] phone:text-left';
 
 const ITEM_OPEN_CLASSES =
-  'min-[701px]:h-[2.45rem] min-[701px]:min-h-[2.45rem] min-[701px]:w-full min-[701px]:grid-cols-[1.5rem_minmax(0,1fr)] ' +
-  'min-[701px]:[justify-content:stretch] min-[701px]:[justify-items:start] min-[701px]:gap-x-[0.72rem] min-[701px]:px-[0.75rem] ' +
-  'min-[701px]:text-left min-[701px]:leading-none';
+  'above-phone:h-[2.45rem] above-phone:min-h-[2.45rem] above-phone:w-full above-phone:grid-cols-[1.5rem_minmax(0,1fr)] ' +
+  'above-phone:[justify-content:stretch] above-phone:[justify-items:start] above-phone:gap-x-[0.72rem] above-phone:px-[0.75rem] ' +
+  'above-phone:text-left above-phone:leading-none';
 
 const ITEM_COLLAPSED_CLASSES =
-  'grid-cols-[1fr] justify-self-center min-[701px]:h-[2.45rem] min-[701px]:min-h-[2.45rem]';
+  'grid-cols-[1fr] justify-self-center above-phone:h-[2.45rem] above-phone:min-h-[2.45rem]';
 
 const LABEL_CLASSES =
   'text-[0.875rem] font-medium tracking-[0.01em] whitespace-nowrap starting:opacity-0 ' +
@@ -30,7 +30,7 @@ const LABEL_CLASSES =
 // the icon. Width and overflow persist on phones, where labels show.
 const LABEL_COLLAPSED_CLASSES =
   'hidden invisible w-0 max-w-0 overflow-hidden opacity-0 ' +
-  '[@media(max-width:700px)]:block [@media(max-width:700px)]:max-w-none [@media(max-width:700px)]:opacity-100 [@media(max-width:700px)]:[visibility:inherit]';
+  'phone:block phone:max-w-none phone:opacity-100 phone:[visibility:inherit]';
 
 const ICON_CLASSES =
   'grid size-[1.5rem] min-h-[1.5rem] min-w-[1.5rem] place-items-center justify-self-center text-[1.25rem] leading-none';

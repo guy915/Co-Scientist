@@ -141,7 +141,7 @@ export function SectionNav<T extends string>({
     <nav
       // Auto margins collapse on overflow; flex-end would spill sections
       // beyond the unreachable left edge on narrow phones.
-      className="grid gap-[0.35rem] [align-content:start] max-[700px]:flex max-[700px]:overflow-x-auto max-[700px]:pb-[0.15rem] max-[700px]:[scrollbar-width:none] max-[700px]:[&>:first-child]:ml-auto"
+      className="grid gap-[0.35rem] [align-content:start] phone:flex phone:overflow-x-auto phone:pb-[0.15rem] phone:[scrollbar-width:none] phone:[&>:first-child]:ml-auto"
       aria-label={label}
     >
       {items.map(item => (
@@ -156,8 +156,8 @@ export function SectionNav<T extends string>({
             'text-cosci-fg hover:bg-cosci-menu-row-hover',
             'aria-[current=true]:bg-segmented-thumb aria-[current=true]:text-segmented-selected-fg',
             'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring',
-            'max-[700px]:min-h-10 max-[700px]:flex-none max-[700px]:gap-[0.4rem]',
-            'max-[700px]:px-[0.7rem] max-[700px]:text-[0.82rem] max-[360px]:!px-3',
+            'phone:min-h-10 phone:flex-none phone:gap-[0.4rem]',
+            'phone:px-[0.7rem] phone:text-[0.82rem] max-[360px]:!px-3',
           )}
         >
           {item.icon && (

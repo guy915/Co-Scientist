@@ -107,6 +107,12 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/* Breakpoints. MOBILE_MEDIA_QUERY (shared/hooks/dom.ts) must equal phone's. */
+@custom-variant phone (@media (max-width: 700px));
+@custom-variant above-phone (@media (min-width: 701px));
+@custom-variant tablet (@media (min-width: 701px) and (max-width: 1180px));
+@custom-variant desktop (@media (min-width: 1181px));
+
 @theme {
   /* MD3 bridge values are derived at runtime from the shared seed. */
   --color-th-bg: var(--md-sys-color-background, hsl(0 0% 100%));
