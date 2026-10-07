@@ -1,0 +1,11 @@
+{
+  "park_seconds": 20.0,
+  "jitter_upper_s": 15.0,
+  "killed_during_park_s_after_park": 2.01,
+  "h000_calls": 2,
+  "second_call_after_park_s": 30.08,
+  "second_call_pid_is_restarted_process": true,
+  "workflow_done": true,
+  "reviewed_after_commit": 4,
+  "workdir": "/tmp/dbos-c2p-rahwe7uo"
+}
