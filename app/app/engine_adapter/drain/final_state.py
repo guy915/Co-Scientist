@@ -18,7 +18,6 @@ from app.claims.grounding import (
 )
 from app.config import settings
 from app.engine_adapter.drain.hypotheses import (
-    ResolvedEvidenceBatch,
     _hypotheses_with_proximity_archive,
     _HypothesisSink,
     _persist_evidence_and_hypotheses,
@@ -325,29 +324,6 @@ def _screen_and_collect_grounding_inputs(
     return screening_result, passages, grounding_candidates
 
 
-def _build_drain_result(
-    final_state: dict[str, Any],
-    citation_summary: dict[str, int],
-    screening_result: Any,
-    grounding_result: Any,
-    grounding_candidates: list[dict[str, Any]],
-) -> DrainResult:
-    return DrainResult(
-        report_inputs={
-            "citation_summary": citation_summary,
-            "meta_review": final_state.get("meta_review") or {},
-            "research_overview": final_state.get("research_overview") or {},
-            "degraded_sections": degraded_sections(final_state),
-            "retrieval_degradation": retrieval_degradation(final_state),
-            "skills_used": skills_used(final_state),
-            "attributes": stratification_attributes(final_state),
-            "critical_criteria": critical_criteria(final_state),
-        },
-        safety_counts=safety_counts(screening_result),
-        grounding_counts=grounding_counts(grounding_result, grounding_candidates),
-    )
-
-
 def _prepare_final_state_inputs(
     final_state: dict[str, Any],
 ) -> FinalStateInputs:
@@ -383,7 +359,6 @@ async def _persist_evidence_hypotheses_and_screen(
     from app.async_bridge import run_off_loop
 
     resolved = await run_off_loop(functools.partial(resolve_articles, inputs.articles))
-    evidence = ResolvedEvidenceBatch(articles=inputs.articles, resolved=resolved)
     sink = _HypothesisSink(
         citations=_CitationSink(
             ev_id_by_title={},
@@ -399,14 +374,28 @@ async def _persist_evidence_hypotheses_and_screen(
         _persist_retrieval_calls(run_id, inputs.final_state, conn)
         _persist_evidence_and_hypotheses(
             run_id,
-            evidence,
+            inputs.articles,
+            resolved,
             inputs.hyps_parents_first,
             sink,
             conn,
         )
         result = _screen_and_collect_grounding_inputs(run_id, conn)
         _persist_held_for_review(run_id, inputs.final_state, conn)
-        _persist_supervisor_plan(run_id, inputs.final_state, conn)
+        final_state = inputs.final_state
+        plans.save_supervisor_plan(
+            NewSupervisorPlan(
+                run_id=run_id,
+                guidance=final_state.get("supervisor_guidance") or {},
+                termination_reason=final_state.get("termination_reason"),
+                decision_provenance=final_state.get("supervisor_decision_provenance"),
+                orchestrator_state=final_state.get("orchestrator_state") or {},
+            ),
+            conn=conn,
+        )
+        plans.replace_supervisor_allocations(
+            run_id, final_state.get("task_history") or [], conn=conn
+        )
         return result
 
 
@@ -466,26 +455,17 @@ async def persist_final_state(
     grounding_result = _persist_grounding_matches_proximity_txn(
         run_id, (assessed, escalated), inputs, store_id_by_engine_id, db_path
     )
-    return _build_drain_result(
-        final_state,
-        citation_summary,
-        screening_result,
-        grounding_result,
-        grounding_candidates,
+    return DrainResult(
+        report_inputs={
+            "citation_summary": citation_summary,
+            "meta_review": final_state.get("meta_review") or {},
+            "research_overview": final_state.get("research_overview") or {},
+            "degraded_sections": degraded_sections(final_state),
+            "retrieval_degradation": retrieval_degradation(final_state),
+            "skills_used": skills_used(final_state),
+            "attributes": stratification_attributes(final_state),
+            "critical_criteria": critical_criteria(final_state),
+        },
+        safety_counts=safety_counts(screening_result),
+        grounding_counts=grounding_counts(grounding_result, grounding_candidates),
     )
-
-
-def _persist_supervisor_plan(
-    run_id: str, final_state: dict[str, Any], conn: sqlite3.Connection
-) -> None:
-    plans.save_supervisor_plan(
-        NewSupervisorPlan(
-            run_id=run_id,
-            guidance=final_state.get("supervisor_guidance") or {},
-            termination_reason=final_state.get("termination_reason"),
-            decision_provenance=final_state.get("supervisor_decision_provenance"),
-            orchestrator_state=final_state.get("orchestrator_state") or {},
-        ),
-        conn=conn,
-    )
-    plans.replace_supervisor_allocations(run_id, final_state.get("task_history") or [], conn=conn)

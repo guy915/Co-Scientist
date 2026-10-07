@@ -153,13 +153,6 @@ def _report_literature_start(counts: GenerationCounts, total_count: int) -> str:
     return f"Generating {total_count} hypotheses with debate-with-literature..."
 
 
-@dataclass(frozen=True)
-class _ResolvedEnrichment:
-    enrichment: EnrichmentConfig
-    tool_config: ToolConfig
-    output_key: str
-
-
 def _extract_enrichment_payload(parsed: Any, enrichment: EnrichmentConfig) -> Any:
     if enrichment.results_path and isinstance(parsed, dict):
         return parsed.get(enrichment.results_path, parsed)
@@ -186,18 +179,19 @@ async def _call_enrichment_tool(
 
 async def _enrich_one_hypothesis(
     hyp: Hypothesis,
-    resolved: _ResolvedEnrichment,
+    enrichment: EnrichmentConfig,
+    tool_config: ToolConfig,
+    output_key: str,
     mcp_client: Any,
     semaphore: asyncio.Semaphore,
 ) -> None:
     """Enrichment is supplementary; its failure must not reject the generated
     hypothesis."""
-    output_key = resolved.output_key
     try:
         hyp.enrichments[output_key] = await _call_enrichment_tool(
             hyp,
-            resolved.enrichment,
-            resolved.tool_config,
+            enrichment,
+            tool_config,
             mcp_client,
             semaphore,
         )
@@ -218,20 +212,19 @@ async def _run_one_enrichment(
         logger.warning("enrichment tool '%s' not found in registry", enrichment.tool)
         return
 
-    resolved = _ResolvedEnrichment(
-        enrichment=enrichment,
-        tool_config=tool_config,
-        output_key=enrichment.output_key or enrichment.tool,
-    )
+    output_key = enrichment.output_key or enrichment.tool
     logger.info(
         "running enrichment '%s' via %s for %s hypotheses",
-        resolved.output_key,
+        output_key,
         tool_config.mcp_tool_name,
         len(hypotheses),
     )
 
     await asyncio.gather(
-        *(_enrich_one_hypothesis(hyp, resolved, mcp_client, semaphore) for hyp in hypotheses)
+        *(
+            _enrich_one_hypothesis(hyp, enrichment, tool_config, output_key, mcp_client, semaphore)
+            for hyp in hypotheses
+        )
     )
 
 

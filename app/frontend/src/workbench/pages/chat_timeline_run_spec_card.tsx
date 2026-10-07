@@ -4,10 +4,6 @@ import {conciseTitle} from '@/lib/text';
 import {Link} from 'react-router-dom';
 import {
   joinClasses,
-  OPTION_GROUP_CLASSES,
-  OPTION_GROUP_LEGEND_CLASSES,
-  OPTION_INPUT_CLASSES,
-  OPTION_LABEL_CLASSES,
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
   SETUP_ACTIONS_CLASSES,
@@ -392,7 +388,7 @@ function OptionCard(props: OptionCardProps) {
     >
       <input
         type="radio"
-        className={OPTION_INPUT_CLASSES}
+        className="absolute pointer-events-none opacity-0"
         name={name}
         value={option.id}
         checked={selected}
@@ -406,7 +402,9 @@ function OptionCard(props: OptionCardProps) {
         )}
         aria-hidden="true"
       />
-      <strong className={OPTION_LABEL_CLASSES}>{option.label}</strong>
+      <strong className="min-w-0 text-base leading-[1.2] font-bold">
+        {option.label}
+      </strong>
       <small className="col-start-2 text-[0.92rem] leading-[1.3] text-cosci-muted">
         {option.description}
         {option.hint && (
@@ -433,8 +431,13 @@ function RunOptionGroup({
   onChange: (value: string) => void;
 }) {
   return (
-    <fieldset className={OPTION_GROUP_CLASSES} aria-label={label}>
-      <legend className={OPTION_GROUP_LEGEND_CLASSES}>{label}</legend>
+    <fieldset
+      className="reference-option-group m-0 grid min-w-0 gap-[0.9rem] border-0 p-0"
+      aria-label={label}
+    >
+      <legend className="text-[1.18rem] font-bold text-cosci-fg">
+        {label}
+      </legend>
       <div className="grid grid-cols-2 gap-[0.85rem] max-[720px]:grid-cols-1">
         {options.map(option => (
           <OptionCard
@@ -495,13 +498,6 @@ function RecoveryLookupStatus({
   return null;
 }
 
-const EMAIL_ROW_CLASSES = 'mt-3 grid gap-1 text-sm';
-
-const EMAIL_LABEL_CLASSES = 'text-cosci-fg';
-
-const EMAIL_INPUT_CLASSES =
-  'w-full rounded-xl border border-cosci-border bg-transparent p-3';
-
 // Offer email opt-in only with SMTP transport; otherwise the durable
 // notification cannot deliver the promised message.
 export function CompletionNotification({
@@ -516,8 +512,10 @@ export function CompletionNotification({
   const {status} = useSystemStatus();
   const available = status?.email_notifications_available ?? false;
   return (
-    <fieldset className={OPTION_GROUP_CLASSES}>
-      <legend className={OPTION_GROUP_LEGEND_CLASSES}>Notification</legend>
+    <fieldset className="reference-option-group m-0 grid min-w-0 gap-[0.9rem] border-0 p-0">
+      <legend className="text-[1.18rem] font-bold text-cosci-fg">
+        Notification
+      </legend>
       <NotificationEmail
         spec={spec}
         disabled={disabled}
@@ -550,15 +548,15 @@ function NotificationEmail({
   onChange: (enabled: boolean, email: string) => void;
 }) {
   return (
-    <label className={EMAIL_ROW_CLASSES}>
-      <span className={EMAIL_LABEL_CLASSES}>
+    <label className="mt-3 grid gap-1 text-sm">
+      <span className="text-cosci-fg">
         Email me when the Goal Report is ready
       </span>
       <input
         type="email"
         disabled={disabled || !available}
         placeholder="you@example.com — leave blank for no email"
-        className={EMAIL_INPUT_CLASSES}
+        className="w-full rounded-xl border border-cosci-border bg-transparent p-3"
         value={spec.completionEmail || ''}
         onChange={event => {
           const email = event.currentTarget.value;
