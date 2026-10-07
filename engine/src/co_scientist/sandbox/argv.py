@@ -32,6 +32,7 @@ def _landlock_argv(argv: list[str], policy: SandboxPolicy) -> list[str]:
 
     return [
         sys.executable,
+        "-I",
         "-m",
         "co_scientist.sandbox.confine_exec",
         policy_to_json(policy),

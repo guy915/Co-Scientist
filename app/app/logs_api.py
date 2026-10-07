@@ -176,6 +176,16 @@ def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     # record.
     with db.transaction() as conn:
         for record in batch.records:
+            if record.run_id is not None and (
+                not owner
+                or conn.execute(
+                    "SELECT 1 FROM runs WHERE id=? AND client_id=?",
+                    (record.run_id, owner),
+                ).fetchone()
+                is None
+            ):
+                raise HTTPException(status_code=404, detail="run not found")
+        for record in batch.records:
             levelno = level_to_number(record.level) or logging.INFO
             logger_name = _sanitize(
                 record.logger if record.logger.startswith("ui") else f"ui.{record.logger}"

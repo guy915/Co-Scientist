@@ -4,6 +4,7 @@ establishment.
 
 import asyncio
 import time
+from collections.abc import Callable
 from contextvars import copy_context
 from typing import Any
 
@@ -88,6 +89,7 @@ async def complete_request(
     byok: bool,
     timeout_seconds: float | None,
     timeout_grace_seconds: float = 0.0,
+    before_dispatch: Callable[[], None] | None = None,
 ) -> Any:
     """No retry occurs at this physical-call seam; stream clocks remain
     caller-owned.
@@ -95,6 +97,8 @@ async def complete_request(
     apply_provider_constraints(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
+    if before_dispatch is not None:
+        before_dispatch()
     start = time.monotonic()
     try:
         response = await _await_provider(

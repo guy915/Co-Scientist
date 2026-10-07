@@ -274,7 +274,10 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     ownership_response = await _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response
-    return cast(Response, await call_next(request))
+    from app.provider_usage import scoped_client
+
+    with scoped_client(principal.subject):
+        return cast(Response, await call_next(request))
 
 
 # Register CORS outside ownership so denied responses still carry the
