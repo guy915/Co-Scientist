@@ -17,7 +17,8 @@ imports like any other, and reports every broken contract with its import
 chain.
 
 **`make arch`** runs `lint-imports` against the root `.importlinter`
-configuration. `make lint` runs it, and CI runs it in the typecheck job, which
+configuration, from `app/` so that `app` imports as the package rather than
+the directory. `make lint` runs it, and CI runs it in the typecheck job, which
 already installs the backend. It needs no network and no keys.
 
 **Contracts:**
@@ -30,13 +31,31 @@ already installs the backend. It needs no network and no keys.
    exception.
 2. **Independence** of the science agents.
 3. **Domain layering**: `chat` > `report` > `safety` > `research_state` >
-   `documents` | `access` | `feedback`.
+   `documents` | `access` | `feedback`, as part of contract 1.
 4. **Forbidden third parties**: `fastapi`/`starlette` outside `api` and
    `main`; `litellm` outside `platform/llm`; `httpx` outside `platform/llm`
-   and `platform/retrieval`; `sqlite3` in `core`, `science`, and the
-   `platform` adapters other than `db`.
+   and `platform/retrieval`; `sqlite3` outside `platform/db`, the domains and
+   `orchestration`.
 5. **Acyclic siblings** within `co_scientist`, so the "0 cycles" target is
-   checked rather than measured once.
+   checked rather than measured once. Added after phase 4: its cycle breakers
+   are chosen per parent package, so they change as modules move, which a
+   shrink-only list cannot absorb. Until then contract 1 forbids every cycle
+   that crosses a layer.
+
+Sibling groups that are not yet single packages (`documents` | `access` |
+`feedback`; `llm` | `sandbox` | `db`) share one layer until they move; an
+import-linter layer can only declare whole modules independent. Their
+independence contracts are added when the packages exist. Five imports
+cross those groups today and are fixed before then:
+`provider_usage → store.db`, `retention → store.documents`,
+`llm.tools.transcript → workspace.tool_schemas` and
+`workspace.{session,tools} → tool_effects`.
+
+Package `__init__` modules whose children belong to different layers
+(`app.engine_adapter`, `app.engine_adapter.drain`, `co_scientist.agents`,
+`co_scientist.config`, `co_scientist.models`) cannot be named in a layer
+without their children. They join their layer when they move; the ignore
+list already holds the imports that reach through them.
 
 **Every current violation is an `ignore_imports` entry**, grouped under the
 contract it breaks. import-linter fails on an entry that no longer matches,

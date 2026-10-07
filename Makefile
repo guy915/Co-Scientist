@@ -1,4 +1,4 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
+.PHONY: arch help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
 
 ROOT := $(CURDIR)
 ENGINE := $(ROOT)/engine
@@ -36,7 +36,8 @@ help:
 	@echo "  make e2e-production Test built frontend assets and anonymous ownership"
 	@echo "  make test-evaluations Run evaluation harness tests"
 	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
-	@echo "  make lint         Lint backend (ruff) + frontend (gts)"
+	@echo "  make lint         Lint backend (ruff) + frontend (gts) + import contracts"
+	@echo "  make arch         Check the import contracts in .importlinter"
 	@echo "  make typecheck    Typecheck backend (mypy: app, engine, evaluations)"
 	@echo "  make build        Build frontend (tsc + vite build + prerender)"
 	@echo "  make clean        Remove .venv, caches, frontend dist"
@@ -257,6 +258,11 @@ lint: check-tools
 	@test -d "$(FRONTEND)/node_modules" || { echo ">> Frontend deps missing — run 'make setup' first"; exit 1; }
 	@echo ">> Linting frontend (gts)"
 	@cd "$(FRONTEND)" && "$(BUN)" run lint
+	@$(MAKE) arch
+
+# From app/, `app` imports as the package rather than the app/ directory.
+arch:
+	@cd "$(APP)" && "$(PY)" -c "import sys; from importlinter.cli import lint_imports_command; sys.exit(lint_imports_command())" --config ../.importlinter --no-cache
 
 typecheck:
 	@cd "$(APP)" && "$(PY)" -m mypy .
