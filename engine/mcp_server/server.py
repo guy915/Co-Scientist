@@ -2,16 +2,12 @@ import logging
 import os
 from pathlib import Path
 
-import fastmcp
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
-
-# Stateless HTTP avoids restart/replica session affinity.
-fastmcp.settings.stateless_http = True
 
 # Load the server's co-located .env before importing tools that read it.
 # Deployments can also supply these variables directly.
@@ -142,7 +138,8 @@ logger.info(
 
 # Reuse FastMCP lifespan so mounting beneath FastAPI preserves initialization
 # and cleanup.
-mcp_http_app = mcp.http_app()
+# Stateless HTTP avoids restart/replica session affinity.
+mcp_http_app = mcp.http_app(stateless_http=True)
 app = FastAPI(lifespan=mcp_http_app.lifespan)
 
 # Only server callers use MCP; browsers need no trusted origin or credentialed
