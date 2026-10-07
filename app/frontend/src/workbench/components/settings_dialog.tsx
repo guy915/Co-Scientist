@@ -606,8 +606,16 @@ export function useAnchoredMenu(
       el.style.maxHeight = '';
       const box = trigger.getBoundingClientRect();
       el.style.minWidth = `${box.width}px`;
-      const origin = el.getBoundingClientRect();
-      const left = align === 'end' ? box.right - origin.width : box.left;
+      // The menu may be mid scale-in (origin top centre). Offset sizes ignore
+      // the scale, and the measured left edge is shifted by half the shrink.
+      const rect = el.getBoundingClientRect();
+      const width = el.offsetWidth;
+      const origin = {
+        top: rect.top,
+        left: rect.left - (width - rect.width) / 2,
+        height: el.offsetHeight,
+      };
+      const left = align === 'end' ? box.right - width : box.left;
       // A long menu flips above its trigger when that side has more room, and
       // scrolls rather than running off the window.
       const below =
