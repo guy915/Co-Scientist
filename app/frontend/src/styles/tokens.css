@@ -11,7 +11,8 @@
   --cosci-panel: #f0f4f9;
   --cosci-border: #c4c7c5;
   --cosci-text: #1f1f1f;
-  --cosci-muted: #747775;
+  /* At least 4.5:1 on every light surface it sits on (panel, rail, chips). */
+  --cosci-muted: #686b69;
   --cosci-subtle: #9aa0a6;
   --cosci-blue: #0b57d0;
   --cosci-hover: #e9eef6;

@@ -74,6 +74,7 @@ function updatedInterview(over: Partial<Interview['fields']> = {}): Interview {
       research_challenge: 'Study liver fibrosis, revised',
       focus_area: ['Attr A'],
       preferences: ['Req A'],
+      lab_constraints: [],
       title: null,
       ...over,
     },

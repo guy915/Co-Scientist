@@ -19,6 +19,7 @@ function asking(questions: InterviewQuestion[]): Interview {
       research_challenge: 'Reverse cardiac fibrosis',
       focus_area: [],
       preferences: [],
+      lab_constraints: [],
       title: null,
     },
     current_question: MODEL_SYSTEM.question,
