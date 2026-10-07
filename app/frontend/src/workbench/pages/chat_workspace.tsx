@@ -105,7 +105,7 @@ export function ChatWorkspace() {
 
   return (
     <div className="reference-workspace">
-      <main className="reference-workspace-main">
+      <div className="reference-workspace-main">
         {session.hasConversation || awaitingTranscript ? (
           <ConversationView
             scrollRef={scrollRef}
@@ -135,7 +135,7 @@ export function ChatWorkspace() {
           </>
         )}
         <ToastPortal toast={toast} />
-      </main>
+      </div>
     </div>
   );
 }
