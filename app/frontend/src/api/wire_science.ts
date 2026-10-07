@@ -6,8 +6,8 @@ export interface ClaimEvidenceRow {
   claim: string;
   label: string;
   claim_role?: string;
-  supporting: (SupportSpan | string)[];
-  contradicting: (SupportSpan | string)[];
+  supporting: SupportSpan[];
+  contradicting: SupportSpan[];
   assessor: string;
   verification_method?: string;
 }

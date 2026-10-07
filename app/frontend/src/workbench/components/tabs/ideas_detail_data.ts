@@ -166,21 +166,16 @@ export function claimEvidenceSummary(
   return describeClaimCounts(claims.length, tallyClaimCounts(claims));
 }
 
-// Legacy support spans may be bare strings rather than quoted-source objects.
 export interface NormalizedSpan {
   quote: string;
   url?: string;
 }
 
 export function normalizeSpans(
-  items: (SupportSpan | string)[] | undefined,
+  items: SupportSpan[] | undefined,
 ): NormalizedSpan[] {
   if (!items) return [];
-  return items.map(item =>
-    typeof item === 'string'
-      ? {quote: item}
-      : {quote: item.quote, url: item.url || undefined},
-  );
+  return items.map(item => ({quote: item.quote, url: item.url || undefined}));
 }
 
 export function reviewSummaryText(review: Review | undefined): string {

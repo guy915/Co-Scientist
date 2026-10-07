@@ -35,7 +35,7 @@ export interface InterviewFields {
   research_challenge: string;
   focus_area: string[];
   preferences: string[];
-  lab_constraints?: string[];
+  lab_constraints: string[];
   title: string | null;
 }
 

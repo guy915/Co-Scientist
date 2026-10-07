@@ -345,16 +345,12 @@ async def screen_contextual(
     return _more_severe(assessment, baseline)
 
 
-def _should_escalate_to_semantic(
-    run_id: str, stage: str, provider: str, *, db_path: str | None
-) -> bool:
+def _should_escalate_to_semantic(run_id: str, stage: str, *, db_path: str | None) -> bool:
     """Historical eligibility follows the persisted run backend, not current
-    process mode; a deleted row uses the provider fallback.
+    process mode.
     """
     approved = records.safety_stage_is_approved(run_id, stage, POLICY_VERSION, db_path=db_path)
-    offline = runs.run_offline_backed(
-        run_id, missing_run_fallback=provider == "mock", db_path=db_path
-    )
+    offline = runs.run_offline_backed(run_id, db_path=db_path)
     return not offline and not approved
 
 
@@ -368,7 +364,7 @@ async def assess_hold_contextually(
     """Tier B needs a verdict distinct from absence: disabled, offline,
     missing credentials or provider failure must never become an allow.
     """
-    if not _should_escalate_to_semantic(run_id, stage, "engine", db_path=db_path):
+    if not _should_escalate_to_semantic(run_id, stage, db_path=db_path):
         return None
     model = settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
     assert model is not None
@@ -400,7 +396,7 @@ async def screen_with_escalation(
     """Already human-approved stages and offline runs retain their
     deterministic verdict; historical backend comes from the run row.
     """
-    if _should_escalate_to_semantic(run_id, subject.stage, provider, db_path=db_path):
+    if _should_escalate_to_semantic(run_id, subject.stage, db_path=db_path):
         return ensure_redactable(
             await screen_contextual(
                 subject.text,
