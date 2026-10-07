@@ -11,8 +11,9 @@ list every task. The campaign finds them, ranks them and works through them.
 **Status:** in progress since 6 October 2026. The audit is recorded in
 `docs/optimization/findings.md`, whose Progress table lists each fix and its
 numbers: CI 5:51 → 2:43 wall, store and API latency, request handlers off the
-event loop, bundle size and caching, error tracking and launch files. Findings
-judged not worth their risk are listed there with the reason. Standard and
+event loop, bundle size and caching, typing latency, contrast and focus, error
+tracking and launch files. Every delivery finding is fixed, judged not worth
+its risk (listed with the reason) or an owner action on the board. Standard and
 Express baselines with per-stage timings are recorded; of the first two model
 batches one is rejected and the other is re-run with a third that funds Ling's
 claim-check reasoning, next after the daily request reset.
