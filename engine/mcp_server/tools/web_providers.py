@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from mcp_server.http_client import make_client
+
 logger = logging.getLogger(__name__)
 
 # Clean snippets like fetched pages so source markup never reaches the agent.
@@ -185,7 +187,7 @@ async def search_brave(query: str, max_results: int, recency_days: int) -> dict[
         "X-Subscription-Token": os.environ.get("BRAVE_API_KEY", ""),
     }
     try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+        async with make_client(_REQUEST_TIMEOUT) as client:
             resp = await client.get(_BRAVE_URL, params=params, headers=headers)
             resp.raise_for_status()
             results = normalize_brave(resp.json(), max_results)
@@ -208,7 +210,7 @@ async def search_tavily(query: str, max_results: int, recency_days: int) -> dict
         "Content-Type": "application/json",
     }
     try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+        async with make_client(_REQUEST_TIMEOUT) as client:
             resp = await client.post(_TAVILY_URL, json=payload, headers=headers)
             resp.raise_for_status()
             results = normalize_tavily(resp.json(), max_results)

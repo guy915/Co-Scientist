@@ -10,6 +10,8 @@ from typing import Any
 
 import httpx
 
+from mcp_server.http_client import make_client
+
 logger = logging.getLogger(__name__)
 
 _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
@@ -149,7 +151,7 @@ async def _collect_openalex_works(
     params: dict[str, str], per_page: int, max_papers: int
 ) -> dict[str, Any]:
     collected: dict[str, Any] = {}
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with make_client(30) as client:
         while len(collected) < max(max_papers, 0):
             params["per_page"] = str(min(per_page, max_papers - len(collected)))
             resp = await client.get(_OPENALEX_WORKS_URL, params=params)

@@ -10,6 +10,8 @@ from xml.etree.ElementTree import Element, ParseError
 import defusedxml.ElementTree as ElementTree
 import httpx
 
+from mcp_server.http_client import make_client
+
 logger = logging.getLogger(__name__)
 
 _ARXIV_API_URL = "https://export.arxiv.org/api/query"
@@ -101,7 +103,7 @@ async def search_arxiv(query: str, max_results: int = 10) -> dict[str, Any]:
         "max_results": str(limit),
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with make_client(30) as client:
             response = await client.get(_ARXIV_API_URL, params=params)
             response.raise_for_status()
         records = _parse_feed(response.text)[:limit]
