@@ -10,7 +10,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {rehypeHighlightKnownLanguages} from './highlight_code';
 import {IconButton} from '@/shared/ui';
-import {copyText} from '../lib/clipboard';
+import {copyText} from '@/shared/lib/clipboard';
 import {fromMarkdown} from 'mdast-util-from-markdown';
 import {gfm} from 'micromark-extension-gfm';
 import {gfmFromMarkdown} from 'mdast-util-gfm';

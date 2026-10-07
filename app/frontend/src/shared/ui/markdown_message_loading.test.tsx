@@ -3,7 +3,7 @@ import {act, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, expect, it, vi} from 'vitest';
 import {ErrorBoundary} from './error_boundary';
 
-vi.mock('../lib/ui_logging', () => ({logUiError: vi.fn()}));
+vi.mock('@/shared/lib/ui_logging', () => ({logUiError: vi.fn()}));
 
 interface RendererModule {
   MarkdownMessageRenderer: ComponentType<{

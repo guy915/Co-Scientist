@@ -1,14 +1,14 @@
 import {useCallback, useState, type ReactNode} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {isCancelledStatus, type TerminalNonCompletedStatus} from '@/api/runs';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from '@/shared/ui/icon';
 import {Card, TabNav, TabNavLink, Toast} from '@/shared/ui';
-import {TruncatedLabel} from '../components/truncated_label';
-import {useIsMobile} from '../hooks/dom';
-import {tabPath, type TabName} from '../run_tabs';
+import {TruncatedLabel} from '@/shared/ui/truncated_label';
+import {useIsMobile} from '@/shared/hooks/dom';
+import {tabPath, type TabName} from '@/shared/lib/run_tabs';
 import {runFailureGuidance} from './run_detail_data';
-import {capitalizeTerm} from '@/lib/text';
-import {joinClasses} from '../classes';
+import {capitalizeTerm} from '@/shared/lib/text';
+import {joinClasses} from '@/shared/ui/classes';
 
 const TAB_META: Record<
   TabName,

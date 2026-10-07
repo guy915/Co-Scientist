@@ -7,7 +7,7 @@ import {
   type Ref,
   type RefObject,
 } from 'react';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from './icon';
 import {useDismiss} from '@/shared/hooks/use_dismiss';
 import {joinClasses} from './cx';
 import {fieldClasses} from './text_field';

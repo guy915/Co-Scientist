@@ -7,7 +7,7 @@ import * as runsApi from '@/api/runs';
 import {
   ChatHistoryProvider,
   RunHistoryProvider,
-} from '@/workbench/hooks/history_context';
+} from '@/shared/hooks/history_context';
 import {render, screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {MemoryRouter, Route, Routes, useNavigate} from 'react-router-dom';

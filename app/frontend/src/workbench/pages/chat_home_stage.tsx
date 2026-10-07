@@ -5,22 +5,22 @@ import {
   isCompletedStatus,
   type ChatSummary,
 } from '@/api/runs';
-import {joinClasses} from '../classes';
-import {useIsMobile} from '../hooks/dom';
+import {joinClasses} from '@/shared/ui/classes';
+import {useIsMobile} from '@/shared/hooks/dom';
 import {Composer, type ConnectorToggleProps} from './chat_composer';
-import {useChatHistoryContext} from '../hooks/history_context';
-import {GoogleLabsIcon} from '../layout_primitives';
-import {Icon, type IconName} from '@/components/icon';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {useChatHistoryContext} from '@/shared/hooks/history_context';
+import {GoogleLabsIcon} from '@/shared/ui/layout_primitives';
+import {Icon, type IconName} from '@/shared/ui/icon';
+import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {Button, CardButton, Chip} from '@/shared/ui';
-import {TruncatedLabel} from '../components/truncated_label';
+import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {Link} from 'react-router-dom';
 import {
   firstSentenceClause,
   formatDurationPhrase,
   capitalizeTerm,
-} from '@/lib/text';
-import {useNowTick} from '@/workbench/hooks/timers';
+} from '@/shared/lib/text';
+import {useNowTick} from '@/shared/hooks/timers';
 import {preferredSessionSide} from '../layout_session_switch';
 
 export interface HomeStageProps {

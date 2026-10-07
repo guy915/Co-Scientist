@@ -1,7 +1,7 @@
 import {useEffect, useRef} from 'react';
 import {getAppLogs, postAppLogs, type AppLogsPayload} from '@/api/logs';
 import {useLocation} from 'react-router-dom';
-import {DIAGNOSTIC_EVENT} from './dom_events';
+import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
 import {
   EXPORT_LIMIT,
   browserExportContext,

@@ -85,8 +85,6 @@ module.exports = defineConfig([
       'src/shared/ui/**',
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
-      // Derives the Material palette tokens at runtime.
-      'src/workbench/md3_scheme.ts',
     ],
     rules: {
       'no-restricted-syntax': ['error', ...uiBuildingBlockRules()],

@@ -1,6 +1,6 @@
-import type {IconName} from '@/components/icon';
+import type {IconName} from '@/shared/ui/icon';
 import {IconButton} from '@/shared/ui';
-import {copyText} from '@/lib/clipboard';
+import {copyText} from '@/shared/lib/clipboard';
 
 export interface MessageAction {
   icon: IconName;
