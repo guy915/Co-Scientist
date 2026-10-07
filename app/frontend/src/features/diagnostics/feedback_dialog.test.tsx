@@ -10,7 +10,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {submitFeedback} from '@/api/feedback';
 import {postAppLogs} from '@/api/logs';
-import {sessionDiagnosticExport} from '../layout_diagnostics';
+import {sessionDiagnosticExport} from './diagnostics';
 import {FeedbackControl} from './feedback_dialog';
 
 vi.mock('@/api/feedback', async importOriginal => ({
@@ -20,7 +20,7 @@ vi.mock('@/api/feedback', async importOriginal => ({
 vi.mock('@/api/logs', () => ({
   postAppLogs: vi.fn().mockResolvedValue({added: 1, last_id: 1}),
 }));
-vi.mock('../layout_diagnostics', () => ({sessionDiagnosticExport: vi.fn()}));
+vi.mock('./diagnostics', () => ({sessionDiagnosticExport: vi.fn()}));
 
 beforeEach(() => {
   vi.mocked(submitFeedback)

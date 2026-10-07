@@ -3,7 +3,10 @@ import type {ChatSummary} from '@/api/runs';
 import {makeRun} from '../test_fixtures';
 import {installLayoutMocks} from './layout_test_support';
 import {withExamples} from './layout_nav_rail';
-import {preferredSessionSide, writeSessionSide} from './layout_session_switch';
+import {
+  preferredSessionSide,
+  writeSessionSide,
+} from '@/features/runs/session_switch';
 
 const ownChat: ChatSummary = {
   id: 'chat-1',

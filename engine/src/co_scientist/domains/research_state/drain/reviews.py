@@ -6,7 +6,6 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.domains.report import format_deep_verification_critique
 from co_scientist.domains.research_state.claims.assessor import SENTENCE_SPLIT
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.records import (
@@ -17,6 +16,26 @@ from co_scientist.domains.research_state.repository.records import (
 from co_scientist.platform.retrieval.citations import CitationRecord, classify_citation
 
 _BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
+
+
+def format_deep_verification_critique(
+    probes: list[dict[str, Any]], verdict: str | None
+) -> tuple[str, str]:
+    summary = f"Deep verification verdict: {verdict or 'unspecified'}"
+    lines = [summary, ""]
+    for idx, probe in enumerate(probes, start=1):
+        flag = "fundamental" if probe.get("assumption_is_fundamental") else "non-fundamental"
+        lines.append(f"Probe {idx} ({flag} assumption):")
+        for label, key in (
+            ("Question", "question"),
+            ("Answer", "answer"),
+            ("Reasoning", "reasoning"),
+        ):
+            value = str(probe.get(key, "")).strip()
+            if value:
+                lines.append(f"  {label}: {value}")
+        lines.append("")
+    return summary, "\n".join(lines).strip()
 
 
 @dataclass(frozen=True)

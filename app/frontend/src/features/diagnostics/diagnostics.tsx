@@ -12,7 +12,7 @@ import {
   type DiagnosticLogEntry,
   type DiagnosticLogEventDetail,
   type PersistedAppLogs,
-} from './layout_diagnostics_data';
+} from './diagnostics_data';
 
 // The feedback export is scoped to records after this anchor, so it must be
 // taken when the shell mounts, not when feedback is first submitted.
