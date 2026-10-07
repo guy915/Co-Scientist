@@ -12,10 +12,15 @@ import {
   type FeedbackCategory,
 } from '@/api/feedback';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
-import {Button, Dialog, DIALOG_TITLE_CLASSES, TextArea} from '@/shared/ui';
+import {
+  Button,
+  Dialog,
+  DIALOG_TITLE_CLASSES,
+  Select,
+  TextArea,
+} from '@/shared/ui';
 
 import {sessionDiagnosticExport} from './diagnostics';
-import {SettingsSelect} from '@/features/access/settings_dialog';
 
 export function FeedbackControl({runId}: {runId?: string}) {
   const [open, setOpen] = useState(false);
@@ -125,7 +130,7 @@ function FeedbackForm({
         >
           Category
         </label>
-        <SettingsSelect
+        <Select
           value={category}
           options={FEEDBACK_CATEGORIES}
           optionLabel={option => option}

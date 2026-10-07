@@ -28,9 +28,9 @@ from co_scientist.domains.chat.repository.examples import open_example_chat
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
-from co_scientist.orchestration import engine_adapter
 from co_scientist.platform import db
 from co_scientist.platform.db.models import MessageRow, RunRow, RunStatus
+from co_scientist.platform.llm.process_mode import offline_mode
 
 router = APIRouter()
 
@@ -206,7 +206,7 @@ def ask_question(run_id: str, req: AskRequest, request: Request) -> StreamingRes
     question_msg = _persist_question(run_id, req.question)
 
     context = _gather_qa_context(run)
-    if engine_adapter.offline_mode() and byok is None:
+    if offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)
     return _live_qa_response(req, run, question_msg, context, byok)
 
@@ -226,7 +226,7 @@ def revise_question(
 
     log_chat_turn("user", question_msg.content, run_id=run_id)
     context = _gather_qa_context(run)
-    if engine_adapter.offline_mode() and byok is None:
+    if offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)
     return _live_qa_response(
         AskRequest(question=question_msg.content),

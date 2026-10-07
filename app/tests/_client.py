@@ -44,10 +44,15 @@ def create_run(
 
 
 def make_operator_client() -> TestClient:
-    # Loopback operator access differs from remote client scope.
+    from co_scientist.core.config import settings
+
     from app.main import app
 
-    return TestClient(app, client=("127.0.0.1", 50000), headers=_DEFAULT_HEADERS)
+    return TestClient(
+        app,
+        client=("127.0.0.1", 50000),
+        headers={**_DEFAULT_HEADERS, "X-Logs-Token": settings.logs_admin_token or ""},
+    )
 
 
 def append_log_row(db_path: str, message: str, **fields: Any) -> int:

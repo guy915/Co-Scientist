@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from tests._client import create_run as _create_run
+from tests._client import make_operator_client
 from tests._llm_fake_backend import (
     completion_response,
     install_completion_backend,
@@ -203,7 +204,7 @@ def test_diagnostics_never_report_key_material(
     with TestClient(app) as client:
         _create_byok_run(client)
         status = client.get("/status")
-    with TestClient(app, client=("127.0.0.1", 50000)) as operator:
+    with make_operator_client() as operator:
         operator_status = operator.get("/status")
 
     assert status.status_code == 200
