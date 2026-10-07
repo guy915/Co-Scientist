@@ -25,67 +25,6 @@ export function reportSectionLabel(tab: TabName): string {
   return TAB_META[tab].label;
 }
 
-const REPORT_TITLEBAR_CLASSES =
-  'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 ' +
-  'border-b border-cosci-border px-9 max-[700px]:gap-[0.35rem] ' +
-  'max-[700px]:px-[0.7rem]';
-
-const REPORT_TITLE_LEFT_CLASSES =
-  'cosci-report-title-left flex min-w-0 items-center gap-4 ' +
-  'max-[700px]:gap-[0.45rem]';
-
-const REPORT_BACK_CLASSES =
-  'cosci-report-back grid h-10 w-10 shrink-0 ' +
-  'place-items-center rounded-full text-cosci-muted ' +
-  'no-underline hover:bg-cosci-hover';
-
-const REPORT_TITLE_CLASSES =
-  'm-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] ' +
-  'font-normal tracking-normal max-[700px]:text-[0.9rem]';
-
-const REPORT_TITLE_TEXT_CLASSES =
-  'block min-w-0 overflow-hidden whitespace-nowrap';
-
-const REPORT_TABS_CLASSES =
-  'reference-report-tabs grid grid-cols-4 border-b border-cosci-border ' +
-  'max-[700px]:min-w-0 max-[700px]:overflow-x-hidden';
-
-// Keep the reference-report-tab hook so link-based tabs retain hover and focus
-// styling.
-const REPORT_TAB_BUTTON_BASE_CLASSES =
-  'reference-report-tab relative grid min-w-0 cursor-pointer content-center ' +
-  'justify-items-center gap-[0.35rem] border-0 bg-transparent ' +
-  'font-[inherit] text-sm no-underline max-[700px]:gap-[0.2rem] ' +
-  'max-[700px]:text-[0.68rem]';
-
-const REPORT_TAB_SELECTED_CLASSES =
-  'text-cosci-blue after:absolute after:right-[1.1rem] after:bottom-0 ' +
-  'after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full ' +
-  "after:bg-cosci-blue-strong after:content-['']";
-
-const REPORT_TAB_ICON_CLASSES =
-  'text-[1.35rem] max-[700px]:text-[1.12rem] ' +
-  '[@media(max-height:500px)]:hidden';
-
-// Constrain width and overflow for TruncatedLabel; otherwise there is no axis
-// against which to measure.
-const REPORT_TAB_LABEL_CLASSES =
-  'min-w-0 overflow-hidden whitespace-nowrap max-[700px]:text-[0.75rem]';
-
-const REPORT_ALERT_CLASSES =
-  'cosci-report-alert mx-8 mt-4 rounded-xl border border-cosci-danger-border ' +
-  'bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg';
-
-const REPORT_TOAST_CLASSES =
-  'reference-report-toast fixed right-4 bottom-4 z-50 rounded-xl border ' +
-  'border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 ' +
-  'text-cosci-danger-fg';
-
-const REPORT_SKELETON_CLASSES =
-  'cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 ' +
-  'max-[700px]:mt-5 max-[700px]:mb-12 ' +
-  'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
-
 // Retapping Ideas resets mobile detail to the list because that detail has no
 // back control of its own.
 export function useTabNavigation(id: string | undefined, activeTab: TabName) {
@@ -131,17 +70,20 @@ export function ReportTitlebar({
     isMobile && activeTab === 'ideas' ? searchParams.get('idea') : null;
   const back = reportBackTarget(id, selectedIdeaId);
   return (
-    <header className={REPORT_TITLEBAR_CLASSES}>
-      <div className={REPORT_TITLE_LEFT_CLASSES}>
+    <header className="cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 max-[700px]:gap-[0.35rem] max-[700px]:px-[0.7rem]">
+      <div className="cosci-report-title-left flex min-w-0 items-center gap-4 max-[700px]:gap-[0.45rem]">
         <Link
           to={back.to}
-          className={REPORT_BACK_CLASSES}
+          className="cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-cosci-muted no-underline hover:bg-cosci-hover"
           aria-label={back.label}
         >
           <Icon aria-hidden="true" name="arrow_back" />
         </Link>
-        <h1 className={REPORT_TITLE_CLASSES}>
-          <TruncatedLabel className={REPORT_TITLE_TEXT_CLASSES} text={title} />
+        <h1 className="m-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[700px]:text-[0.9rem]">
+          <TruncatedLabel
+            className="block min-w-0 overflow-hidden whitespace-nowrap"
+            text={title}
+          />
         </h1>
       </div>
     </header>
@@ -161,7 +103,10 @@ export function ReportTabNav({
 }) {
   const {id} = useParams<{id: string}>();
   return (
-    <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
+    <nav
+      className="reference-report-tabs grid grid-cols-4 border-b border-cosci-border max-[700px]:min-w-0 max-[700px]:overflow-x-hidden"
+      aria-label="Goal report sections"
+    >
       {tabs.map(tabName => (
         <Link
           key={tabName}
@@ -172,17 +117,23 @@ export function ReportTabNav({
           onClick={() => onTabChange(tabName)}
         >
           <Icon
-            className={REPORT_TAB_ICON_CLASSES}
+            className="text-[1.35rem] max-[700px]:text-[1.12rem] [@media(max-height:500px)]:hidden"
             aria-hidden="true"
             name={TAB_META[tabName].icon}
           />
           <TruncatedLabel
-            className={`${REPORT_TAB_LABEL_CLASSES} max-[420px]:hidden`}
+            // Constrain width and overflow for TruncatedLabel; otherwise there is no axis
+            // against which to measure.
+            className={
+              'min-w-0 overflow-hidden whitespace-nowrap max-[700px]:text-[0.75rem] max-[420px]:hidden'
+            }
             text={TAB_META[tabName].label}
           />
           <span
             aria-hidden="true"
-            className={`${REPORT_TAB_LABEL_CLASSES} min-[421px]:hidden`}
+            className={
+              'min-w-0 overflow-hidden whitespace-nowrap max-[700px]:text-[0.75rem] min-[421px]:hidden'
+            }
           >
             {TAB_META[tabName].short}
           </span>
@@ -193,15 +144,22 @@ export function ReportTabNav({
 }
 
 function reportTabButtonClass(selected: boolean): string {
-  return `${REPORT_TAB_BUTTON_BASE_CLASSES} ${
-    selected ? REPORT_TAB_SELECTED_CLASSES : 'text-cosci-muted'
+  // Keep the reference-report-tab hook so link-based tabs retain hover and focus
+  // styling.
+  return `reference-report-tab relative grid min-w-0 cursor-pointer content-center justify-items-center gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm no-underline max-[700px]:gap-[0.2rem] max-[700px]:text-[0.68rem] ${
+    selected
+      ? "text-cosci-blue after:absolute after:right-[1.1rem] after:bottom-0 after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full after:bg-cosci-blue-strong after:content-['']"
+      : 'text-cosci-muted'
   }`;
 }
 
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
-    <div role="alert" className={REPORT_ALERT_CLASSES}>
+    <div
+      role="alert"
+      className="cosci-report-alert mx-8 mt-4 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg"
+    >
       {message}
     </div>
   );
@@ -209,7 +167,10 @@ export function ReportErrorAlert({message}: {message: string | null}) {
 
 export function RunToast({message}: {message: string}) {
   return (
-    <div role="status" className={REPORT_TOAST_CLASSES}>
+    <div
+      role="status"
+      className="reference-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg"
+    >
       {message}
     </div>
   );
@@ -233,16 +194,6 @@ const END_STATE_COPY: Record<
   },
 };
 
-const END_STATE_ERROR_CLASSES =
-  'mt-8 rounded-md bg-th-destructive-container px-4 py-3 ' +
-  'text-th-destructive-on-container';
-
-const END_STATE_NEUTRAL_ERROR_CLASSES =
-  'mt-8 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3';
-
-const FAILURE_GUIDANCE_CLASSES =
-  'mt-6 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3';
-
 // Failed, blocked and cancelled runs must not present partial output as a
 // completed report.
 export function RunEndState({
@@ -263,7 +214,7 @@ export function RunEndState({
       {guidance && (
         <section
           aria-labelledby="run-failure-guidance-title"
-          className={FAILURE_GUIDANCE_CLASSES}
+          className="mt-6 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3"
         >
           <h3
             id="run-failure-guidance-title"
@@ -279,8 +230,8 @@ export function RunEndState({
           role="status"
           className={
             isCancelledStatus(status)
-              ? END_STATE_NEUTRAL_ERROR_CLASSES
-              : END_STATE_ERROR_CLASSES
+              ? 'mt-8 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3'
+              : 'mt-8 rounded-md bg-th-destructive-container px-4 py-3 text-th-destructive-on-container'
           }
         >
           <strong>Recorded error</strong>
@@ -291,17 +242,14 @@ export function RunEndState({
   );
 }
 
-const UNGROUNDED_NOTICE_CLASSES =
-  'mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 rounded-md ' +
-  'bg-th-warning-container px-4 py-3 text-th-on-warning-container ' +
-  'max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] ' +
-  'max-[700px]:max-w-none';
-
 // A completed run without literature still needs an explicit ungrounded report
 // notice.
 export function ReportUngroundedNotice() {
   return (
-    <div role="note" className={UNGROUNDED_NOTICE_CLASSES}>
+    <div
+      role="note"
+      className="mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 rounded-md bg-th-warning-container px-4 py-3 text-th-on-warning-container max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none"
+    >
       <Icon
         aria-hidden="true"
         name="warning"
@@ -315,19 +263,16 @@ export function ReportUngroundedNotice() {
   );
 }
 
-const AWAITING_DECISION_NOTICE_CLASSES =
-  'mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 ' +
-  'rounded-md bg-th-warning-container px-4 py-3 ' +
-  'text-th-on-warning-container max-[700px]:mt-5 ' +
-  'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
-
 // Show pending safety review above every tab; intake holds can otherwise look
 // like an empty run.
 export function AwaitingDecisionNotice({count}: {count: number}) {
   if (count <= 0) return null;
   const decisions = count === 1 ? 'decision' : 'decisions';
   return (
-    <div role="note" className={AWAITING_DECISION_NOTICE_CLASSES}>
+    <div
+      role="note"
+      className="mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 rounded-md bg-th-warning-container px-4 py-3 text-th-on-warning-container max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none"
+    >
       <Icon
         aria-hidden="true"
         name="warning"
@@ -344,7 +289,10 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
 
 export function RunDetailSkeleton() {
   return (
-    <div className={REPORT_SKELETON_CLASSES} aria-busy="true">
+    <div
+      className="cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 max-[700px]:mt-5 max-[700px]:mb-12 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none"
+      aria-busy="true"
+    >
       <div className="wb-skeleton h-8 w-64" />
       <div className="wb-skeleton h-12 w-full" />
       <div className="wb-skeleton h-48 w-full" />
@@ -371,12 +319,6 @@ export const REPORT_H4_CLASSES = 'mt-4 mb-[0.35rem] text-base font-medium';
 export const REPORT_LIST_CLASSES = 'mt-[0.45rem] mb-0 pl-[1.35rem]';
 
 export const REPORT_SECTION_CLASSES = 'cosci-overview-section mt-8';
-
-export const REPORT_SECTION_LIST_ITEM_CLASSES =
-  'my-[0.6rem] grid gap-[0.15rem]';
-
-export const REPORT_SECTION_LIST_META_CLASSES =
-  'text-[0.88rem] text-cosci-muted';
 
 export function ReportDocument({
   title,

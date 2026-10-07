@@ -2,13 +2,13 @@ import asyncio
 import json
 import logging
 import re
-import threading
-import time
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
 
 import httpx
+
+from mcp_server.tools._pacing import RequestPacer
 
 logger = logging.getLogger(__name__)
 
@@ -31,24 +31,7 @@ _MAX_EDGES = 50
 _MAX_RESPONSE_BYTES = 1_000_000
 _REQUEST_TIMEOUT_SECONDS = 10
 _TOTAL_TIMEOUT_SECONDS = 30
-_REQUEST_INTERVAL_SECONDS = 1.0
-_request_pacing_lock = threading.Lock()
-_next_request_at = 0.0
-
-
-def _reserve_request_at(now: float) -> float:
-    global _next_request_at
-    with _request_pacing_lock:
-        reserved = max(now, _next_request_at)
-        _next_request_at = reserved + _REQUEST_INTERVAL_SECONDS
-    return reserved
-
-
-async def _wait_for_request_slot() -> None:
-    now = time.monotonic()
-    delay = _reserve_request_at(now) - now
-    if delay > 0:
-        await asyncio.sleep(delay)
+_wait_for_request_slot = RequestPacer(1.0).wait
 
 
 async def _response_json(client: httpx.AsyncClient, url: str) -> Any:

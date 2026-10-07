@@ -424,13 +424,6 @@ function useScrolledAwayFromBottom(
   return away;
 }
 
-const JUMP_TO_BOTTOM_CLASSES =
-  'reference-jump-to-bottom absolute top-0 left-1/2 flex size-9 ' +
-  '-translate-x-1/2 items-center justify-center rounded-full border ' +
-  'border-cosci-border bg-cosci-bg text-cosci-fg shadow-md ' +
-  'hover:bg-cosci-hover focus-visible:outline focus-visible:outline-2 ' +
-  'focus-visible:outline-offset-2 focus-visible:outline-th-primary';
-
 function JumpToBottomButton({
   scrollRef,
 }: {
@@ -443,7 +436,7 @@ function JumpToBottomButton({
       type="button"
       aria-label="Jump to latest message"
       title="Jump to latest message"
-      className={JUMP_TO_BOTTOM_CLASSES}
+      className="reference-jump-to-bottom absolute top-0 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-cosci-border bg-cosci-bg text-cosci-fg shadow-md hover:bg-cosci-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-primary"
       onClick={() => {
         const scroller = scrollRef.current;
         scroller?.scrollTo({top: scroller.scrollHeight, behavior: 'smooth'});

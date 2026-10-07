@@ -118,10 +118,6 @@ def clean_title(raw: str) -> str | None:
     return _clean_text(raw, _MAX_TITLE_CHARS, ".!?,;:")
 
 
-def clean_restatement(raw: str) -> str | None:
-    return _clean_text(raw, _MAX_RESTATEMENT_CHARS)
-
-
 async def _request_completion(
     goal: str, request: _TextRequest, *, thinking_enabled: bool = True
 ) -> Any:
@@ -182,7 +178,7 @@ async def generate_run_title(goal: str) -> str | None:
 @budgeted("goal_restatement")
 async def generate_goal_restatement(goal: str) -> str | None:
     content = await _generate_text(goal, _RESTATEMENT)
-    return clean_restatement(content) if content is not None else None
+    return _clean_text(content, _MAX_RESTATEMENT_CHARS) if content is not None else None
 
 
 def _response_content(response: Any) -> str:

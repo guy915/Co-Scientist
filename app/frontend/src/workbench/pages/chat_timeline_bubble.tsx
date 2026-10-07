@@ -48,10 +48,12 @@ export interface ChatEntry {
 
 export const FALLBACK_NOTICE_TEXT = 'Guided questions (no model available)';
 
-const FALLBACK_NOTICE_CLASSES = 'mb-1 text-xs font-medium text-cosci-muted';
-
 export function FallbackTurnNotice() {
-  return <p className={FALLBACK_NOTICE_CLASSES}>{FALLBACK_NOTICE_TEXT}</p>;
+  return (
+    <p className="mb-1 text-xs font-medium text-cosci-muted">
+      {FALLBACK_NOTICE_TEXT}
+    </p>
+  );
 }
 
 export function MessageAttachment({children}: {children: ReactNode}) {
@@ -214,19 +216,6 @@ export function ChatBubble(props: ChatBubbleProps) {
   );
 }
 
-// Do not compose flex and block classes: Tailwind output order, not class
-// string order, decides which wins.
-const EDITOR_BUBBLE_CLASSES =
-  'reference-user-bubble-editor block w-[36rem] max-w-full ' +
-  'rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] ' +
-  'bg-cosci-user-bubble-bg px-4 py-3 text-base leading-[1.45] text-cosci-fg';
-
-const EDITOR_TEXTAREA_CLASSES =
-  'block w-full resize-none border-0 bg-transparent p-0 text-base ' +
-  'leading-[1.45] text-cosci-fg outline-none';
-
-const EDITOR_ACTIONS_CLASSES = 'mt-3 flex justify-end gap-2';
-
 const EDITOR_BUTTON_CLASSES =
   'min-h-[2.1rem] cursor-pointer rounded-full border px-4 text-sm font-medium';
 
@@ -284,12 +273,14 @@ export function BubbleEditor({
   }
 
   return (
-    <div className={EDITOR_BUBBLE_CLASSES}>
+    // Do not compose flex and block classes: Tailwind output order, not class
+    // string order, decides which wins.
+    <div className="reference-user-bubble-editor block w-[36rem] max-w-full rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] bg-cosci-user-bubble-bg px-4 py-3 text-base leading-[1.45] text-cosci-fg">
       <textarea
         ref={ref}
         rows={1}
         aria-label="Edit prompt"
-        className={EDITOR_TEXTAREA_CLASSES}
+        className="block w-full resize-none border-0 bg-transparent p-0 text-base leading-[1.45] text-cosci-fg outline-none"
         value={value}
         onChange={event => {
           setValue(event.currentTarget.value);
@@ -297,7 +288,7 @@ export function BubbleEditor({
         }}
         onKeyDown={handleKeyDown}
       />
-      <div className={EDITOR_ACTIONS_CLASSES}>
+      <div className="mt-3 flex justify-end gap-2">
         {/* Labelled past their visible text because a plan card's Cancel and
             the composer's Send sit on the same page. */}
         <button

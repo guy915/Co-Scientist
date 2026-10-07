@@ -114,14 +114,6 @@ class _SearchRunContext:
     errors: list[str] | None = None
 
 
-@dataclass(frozen=True)
-class _QueryTarget:
-    tool_name: str
-    tool_config: ToolConfig | None
-    label: str
-    max_papers: int
-
-
 def _build_query_tool_params(
     query: str,
     slug: str,
@@ -155,19 +147,24 @@ def _tag_source_name(
 async def _search_target_for_query(
     query: str,
     ctx: _SearchRunContext,
-    target: _QueryTarget,
+    tool_name: str,
+    tool_config: ToolConfig | None,
+    label: str,
+    max_papers: int,
 ) -> dict[str, dict[str, Any]]:
     """Empty results may reflect an overconstrained query; broaden until a hit.
     Failed retrieval is not an empty result and must not trigger broadening."""
     for attempt_query in broadened_queries(query):
-        normalized = await _attempt_query(attempt_query, ctx, target)
+        normalized = await _attempt_query(
+            attempt_query, ctx, tool_name, tool_config, label, max_papers
+        )
         if normalized is None:
             return {}
         if normalized:
             if attempt_query != query:
                 logger.info(
                     "Broadened %s from %r to %r after no results",
-                    target.label,
+                    label,
                     query,
                     attempt_query,
                 )
@@ -178,25 +175,26 @@ async def _search_target_for_query(
 async def _attempt_query(
     query: str,
     ctx: _SearchRunContext,
-    target: _QueryTarget,
+    tool_name: str,
+    tool_config: ToolConfig | None,
+    label: str,
+    max_papers: int,
 ) -> dict[str, dict[str, Any]] | None:
     """One query failure must not abort siblings; record it so broken
     retrieval stays distinguishable from zero hits."""
     try:
-        tool_params = _build_query_tool_params(
-            query, ctx.slug, ctx.run_id, target.max_papers, target.tool_config
-        )
+        tool_params = _build_query_tool_params(query, ctx.slug, ctx.run_id, max_papers, tool_config)
         result_data = await _call_search_tool(
             ctx.mcp_client,
-            target.tool_name,
+            tool_name,
             tool_params,
         )
-        return normalize_search_response(result_data, target.tool_config)
+        return normalize_search_response(result_data, tool_config)
     except Exception as e:
         detail = describe_exception(e)
-        logger.error("Search failed for %s: %s", target.label, detail)
+        logger.error("Search failed for %s: %s", label, detail)
         if ctx.errors is not None:
-            ctx.errors.append(f"{target.label}: {detail}")
+            ctx.errors.append(f"{label}: {detail}")
         return None
 
 
@@ -207,13 +205,9 @@ async def _search_source_for_query(
     src_name: str,
     papers_per_query: int,
 ) -> dict[str, dict[str, Any]]:
-    target = _QueryTarget(
-        tool_name=tool_config.mcp_tool_name,
-        tool_config=tool_config,
-        label=src_name,
-        max_papers=papers_per_query,
+    normalized = await _search_target_for_query(
+        query, ctx, tool_config.mcp_tool_name, tool_config, src_name, papers_per_query
     )
-    normalized = await _search_target_for_query(query, ctx, target)
     return _tag_source_name(normalized, src_name)
 
 
@@ -225,14 +219,14 @@ async def _search_single_query(
     config: SearchConfig,
 ) -> dict[str, dict[str, Any]]:
     logger.debug("Searching query %s (%s papers): %s...", index, papers_count, query[:80])
-    target = _QueryTarget(
-        tool_name=config.search_tool_name,
-        tool_config=config.search_tool_config,
-        label=f"query {index}",
-        max_papers=papers_count,
+    normalized = await _search_target_for_query(
+        query,
+        ctx,
+        config.search_tool_name,
+        config.search_tool_config,
+        f"query {index}",
+        papers_count,
     )
-
-    normalized = await _search_target_for_query(query, ctx, target)
 
     logger.debug("Query %s: found %s papers", index, len(normalized))
     return normalized
