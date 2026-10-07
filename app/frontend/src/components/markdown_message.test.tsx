@@ -95,6 +95,21 @@ describe('markdown message code', () => {
       );
     });
 
+    it('highlights registered languages and leaves others as plain code', () => {
+      const {container} = render(
+        <MarkdownMessage
+          content={
+            '```python\nimport os\n```\n\n```haskell\nmain = pure ()\n```'
+          }
+        />,
+      );
+
+      const [py, hs] = Array.from(container.querySelectorAll('code'));
+      expect(py.querySelector('.hljs-keyword')).not.toBeNull();
+      expect(hs.querySelector('[class^="hljs-"]')).toBeNull();
+      expect(hs.textContent).toBe('main = pure ()\n');
+    });
+
     it('does not crash or leave an unhandled rejection when the clipboard rejects', async () => {
       const writeText = vi.fn().mockRejectedValue(new Error('denied'));
       stubClipboard(writeText);
