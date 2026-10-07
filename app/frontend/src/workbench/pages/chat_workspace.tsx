@@ -1,5 +1,6 @@
 import {
   lazy,
+  memo,
   Suspense,
   useCallback,
   useEffect,
@@ -40,8 +41,11 @@ import {
 } from './chat_workspace_timeline';
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 
-// Lazy-load the landing page so chat first paint does not wait for it.
-const HomeLanding = lazy(() => import('./home_landing'));
+// Lazy-load the landing page so chat first paint does not wait for it; it takes
+// no props, so memo keeps composer keystrokes from re-rendering it.
+const HomeLanding = lazy(() =>
+  import('./home_landing').then(m => ({default: memo(m.default)})),
+);
 
 interface ChatWorkspaceLocationState {
   cosciAction?: 'new-chat' | 'focus-composer';
