@@ -1,6 +1,6 @@
 import {screen} from '@testing-library/react';
 import {expect, it, describe} from 'vitest';
-import type {Hypothesis} from '@/api/runs';
+import type {Hypothesis} from '@/shared/api/runs';
 import {makeHypothesis, makeMatch} from '@/test_fixtures';
 import {
   renderFullReport,

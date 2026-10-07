@@ -11,7 +11,7 @@ import {
   getRunMessages,
   retryInterviewTurn,
   stageDocument,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {copyText} from '@/shared/lib/clipboard';
 import type {FormEvent} from 'react';
 import type {ChatEntry} from './chat_timeline_bubble';
@@ -172,7 +172,7 @@ async function copyMessagePrompt({
   services: {setToast, focusComposer},
 }: CopyMessagePromptDeps): Promise<void> {
   const promptText = message.content;
-  await copyText(promptText);
+  if (!(await copyText(promptText))) return;
   // Only the explicit toast action starts a new chat; retain no runtime or Files.
   setToast({
     message: 'Prompt copied',

@@ -1,7 +1,7 @@
 import {render} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
-import type {ChatSummary, Run} from '@/api/runs';
+import type {ChatSummary, Run} from '@/shared/api/runs';
 import {makeHypothesis, makeRunWithSummary} from '@/test_fixtures';
 import {ChatHistoryProvider} from '@/shared/hooks/history_context';
 import {RunHistoryProvider} from '@/shared/hooks/history_context';
@@ -41,8 +41,8 @@ const apiMock = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/api/runs', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/api/runs')>()),
+vi.mock('@/shared/api/runs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/api/runs')>()),
   ...apiMock,
 }));
 

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import litellm as litellm
 
 if TYPE_CHECKING:
+    from co_scientist.core.metrics import ModelCallStats
     from co_scientist.platform.llm.admission.call_budget import (
         current_run_call_count,
         release_run_call_budget,
@@ -38,7 +39,6 @@ if TYPE_CHECKING:
         parse_tool_loop_json,
     )
     from co_scientist.platform.llm.telemetry import (
-        ModelCallStats,
         record_call,
         record_deterministic_fallback,
         scoped_telemetry,
@@ -95,7 +95,7 @@ _EXPORTS: dict[str, str] = {
     "DEFAULT_TOOL_LOOP_TOKEN_BUDGET": "co_scientist.platform.llm.tools.policy",
     "CompletionSpec": "co_scientist.platform.llm.values",
     "LLMCallOptions": "co_scientist.platform.llm.values",
-    "ModelCallStats": "co_scientist.platform.llm.telemetry",
+    "ModelCallStats": "co_scientist.core.metrics",
     "ModelProfile": "co_scientist.platform.llm.profile",
     "ToolLoop": "co_scientist.platform.llm.tools.loop",
     "api_key_for_model": "co_scientist.platform.llm.admission.free_policy",

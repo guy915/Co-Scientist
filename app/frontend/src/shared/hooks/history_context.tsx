@@ -13,7 +13,7 @@ import {
   loadRunHistory,
   type ChatSummary,
   type Run,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import {useLocation} from 'react-router-dom';
 

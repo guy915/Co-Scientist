@@ -6,8 +6,8 @@ import {
 } from './diagnostics';
 
 const logsApiMock = vi.hoisted(() => ({getAppLogs: vi.fn()}));
-vi.mock('@/api/logs', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/api/logs')>()),
+vi.mock('@/shared/api/logs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/api/logs')>()),
   ...logsApiMock,
 }));
 

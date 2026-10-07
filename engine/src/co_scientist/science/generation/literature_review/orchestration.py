@@ -6,8 +6,8 @@ from typing import Any, NamedTuple, cast
 from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
 )
-from co_scientist.domains.research_state.models import Article
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.platform.retrieval.evidence.article_support import (
     _has_fulltext,
     build_articles_from_metadata,

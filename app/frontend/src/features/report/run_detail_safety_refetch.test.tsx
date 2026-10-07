@@ -1,6 +1,6 @@
 import {resetRunDetailMocks, setStream} from './run_detail_api_test_support';
-import * as runsApi from '@/api/runs';
-import {type SafetyDecision} from '@/api/runs';
+import * as runsApi from '@/shared/api/runs';
+import {type SafetyDecision} from '@/shared/api/runs';
 import {
   ChatHistoryProvider,
   RunHistoryProvider,

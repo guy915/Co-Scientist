@@ -1,4 +1,4 @@
-import type {RunFocus, RunTier} from '@/api/runs';
+import type {RunFocus, RunTier} from '@/shared/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {Link} from 'react-router-dom';
 import {Button, buttonClasses, IconButton, TextField} from '@/shared/ui';

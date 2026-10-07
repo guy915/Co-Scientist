@@ -5,8 +5,9 @@ from typing import TYPE_CHECKING, Any
 
 from co_scientist.core.constants import strip_citation_markers
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.domains.research_state.models import Article, Hypothesis
+from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.science.prompts._common import _format_meta_review_context
 
 logger = logging.getLogger(__name__)

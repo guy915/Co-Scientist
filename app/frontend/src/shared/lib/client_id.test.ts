@@ -1,12 +1,28 @@
-import {describe, it, expect, beforeEach, afterEach} from 'vitest';
+import {describe, it, expect, beforeEach, afterEach, vi} from 'vitest';
 import {
   getClientId,
   getStoredApiKey,
   keyedProviders,
+  makePrefixedId,
   setStoredApiKey,
 } from './client_id';
 
 describe('client id', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    localStorage.removeItem('co_scientist_client_id');
+  });
+
+  it('uses a secure UUID when available', () => {
+    const randomUUID = vi.fn(() => '00000000-0000-4000-8000-000000000001');
+    vi.stubGlobal('crypto', {randomUUID});
+    expect(makePrefixedId('client')).toBe(
+      'client-00000000-0000-4000-8000-000000000001',
+    );
+    expect(randomUUID).toHaveBeenCalledOnce();
+  });
+
   describe('getClientId', () => {
     beforeEach(() => localStorage.removeItem('co_scientist_client_id'));
 
@@ -14,6 +30,44 @@ describe('client id', () => {
       const id = getClientId();
       expect(id).toBeTruthy();
       expect(localStorage.getItem('co_scientist_client_id')).toBe(id);
+    });
+
+    it('persists and reuses 128 secure random bits when UUIDs are unavailable', () => {
+      const getRandomValues = vi.fn((bytes: Uint8Array) => {
+        expect(bytes).toHaveLength(16);
+        bytes.set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255]);
+        return bytes;
+      });
+      vi.stubGlobal('crypto', {getRandomValues});
+      const insecureRandom = vi.spyOn(Math, 'random');
+
+      const id = getClientId();
+      expect(id).toBe('client-000102030405060708090a0b0c0d0eff');
+      expect(localStorage.getItem('co_scientist_client_id')).toBe(id);
+      expect(getClientId()).toBe(id);
+      expect(getRandomValues).toHaveBeenCalledOnce();
+      expect(insecureRandom).not.toHaveBeenCalled();
+    });
+
+    it('does not persist an ownership ID without secure randomness', () => {
+      vi.stubGlobal('crypto', undefined);
+      expect(() => getClientId()).toThrow('Secure randomness is required');
+      expect(localStorage.getItem('co_scientist_client_id')).toBeNull();
+    });
+
+    it('keeps one id for the page when storage is blocked', () => {
+      const blocked = vi
+        .spyOn(window, 'localStorage', 'get')
+        .mockImplementation(() => {
+          throw new DOMException('blocked', 'SecurityError');
+        });
+      try {
+        const first = getClientId();
+        expect(first).toMatch(/^client-/);
+        expect(getClientId()).toBe(first);
+      } finally {
+        blocked.mockRestore();
+      }
     });
   });
 });
