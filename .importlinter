@@ -29,8 +29,6 @@ layers =
     co_scientist.platform.telemetry
     co_scientist.core
 ignore_imports =
-    co_scientist.domains.access.free_usage -> co_scientist.api.auth
-    co_scientist.domains.access.free_usage -> co_scientist.api.runs.models
     co_scientist.domains.chat.interviews -> co_scientist.api.contracts.interviews
     co_scientist.domains.chat.interviews -> co_scientist.api.auth
     co_scientist.domains.chat.interviews.turns -> co_scientist.api.auth
@@ -94,9 +92,6 @@ forbidden_modules =
     starlette
 allow_indirect_imports = True
 ignore_imports =
-    co_scientist.domains.access.byok_models -> fastapi
-    co_scientist.domains.documents.ingest -> fastapi
-    co_scientist.domains.access.free_usage -> fastapi
     co_scientist.domains.chat.interviews -> fastapi
     co_scientist.domains.chat.interviews.model -> fastapi
     co_scientist.domains.chat.interviews.stream -> fastapi

@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
-
-from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import BYOK_PROVIDER_DEFAULT_MODELS
 
 WORKER_MODEL_HEADER = "X-LLM-Model"
@@ -26,8 +23,6 @@ _EXTRA_PROVIDER_MODELS: dict[str, tuple[str, ...]] = {
         "openrouter/deepseek/deepseek-v4-pro",
     ),
 }
-
-router = APIRouter(tags=["byok-models"])
 
 
 class ByokModelError(ValueError):
@@ -58,10 +53,3 @@ def resolve_model_choice(provider: str, requested: str | None) -> str:
     if choice not in offered:
         raise ByokModelError(f"model {choice!r} is not offered for provider {provider}")
     return choice
-
-
-@router.get("/api/byok-models")
-@off_loop
-def get_byok_models() -> dict[str, dict[str, list[str]]]:
-    """Return the models each BYOK provider offers, default first."""
-    return {"providers": model_catalog()}

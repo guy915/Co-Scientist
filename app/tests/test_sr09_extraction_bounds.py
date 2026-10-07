@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.api import uploads
 from co_scientist.domains.documents import ingest
 from co_scientist.platform.db.storage_admission import scoped_peer
 from fastapi import HTTPException, UploadFile
@@ -62,11 +63,11 @@ async def test_upload_jobs_are_admitted_before_reading_and_parsing(
         return ingest.ExtractedDocument("notes", mime, "synthetic", len(data), "synthetic")
 
     monkeypatch.setattr(ingest, "extract_document", extract)
-    first = asyncio.create_task(ingest.extract_upload(_upload()))
+    first = asyncio.create_task(uploads.extract_upload(_upload()))
     try:
         await asyncio.wait_for(started.wait(), 2)
         with pytest.raises(HTTPException) as denied:
-            await ingest.extract_upload(_upload())
+            await uploads.extract_upload(_upload())
         assert denied.value.status_code == 429
         assert len(calls) == 1
     finally:
@@ -94,19 +95,19 @@ async def test_cancelled_request_keeps_its_parsers_admission_until_worker_exit(
             loop.call_soon_threadsafe(finished.set)
 
     monkeypatch.setattr(ingest, "extract_document", extract)
-    first = asyncio.create_task(ingest.extract_upload(_upload()))
+    first = asyncio.create_task(uploads.extract_upload(_upload()))
     try:
         await asyncio.wait_for(started.wait(), 2)
         first.cancel()
         with pytest.raises(asyncio.CancelledError):
             await first
         with pytest.raises(HTTPException) as denied:
-            await ingest.extract_upload(_upload())
+            await uploads.extract_upload(_upload())
         assert denied.value.status_code == 429
     finally:
         release.set()
         await asyncio.wait_for(finished.wait(), 2)
-    assert (await ingest.extract_upload(_upload())).text == "notes"
+    assert (await uploads.extract_upload(_upload())).text == "notes"
 
 
 def test_image_dimensions_are_rejected_before_ocr(
@@ -169,7 +170,7 @@ async def test_identity_rotation_cannot_bypass_extraction_admission(
 
     async def upload(owner: str, peer: str) -> ingest.ExtractedDocument:
         with scoped_peer(peer):
-            return await ingest.extract_upload(_upload(), owner=owner)
+            return await uploads.extract_upload(_upload(), owner=owner)
 
     monkeypatch.setattr(ingest, "extract_document", extract)
     tasks = [asyncio.create_task(upload("owner-1", "peer-1"))]

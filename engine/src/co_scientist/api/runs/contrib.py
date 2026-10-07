@@ -18,6 +18,7 @@ from co_scientist.api.runs.models import (
     HumanAttachmentRequest,
 )
 from co_scientist.api.runs.support import _require_run, _steer_and_continue
+from co_scientist.api.uploads import extract_upload
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewEvidence
@@ -112,7 +113,7 @@ async def upload_attachment(
     uploader = client_id(request)
     if not consent:
         raise HTTPException(status_code=422, detail="consent is required to index a document")
-    extracted = await document_ingest.extract_upload(file, owner=uploader or "")
+    extracted = await extract_upload(file, owner=uploader or "")
     title = (file.filename or "Uploaded document").strip()
     evidence_id, continuation = _persist_and_notify_upload(run_id, title, extracted, uploader)
     return {

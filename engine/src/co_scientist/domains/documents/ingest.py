@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import csv
 import dataclasses
@@ -16,11 +15,6 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any
-
-from fastapi import HTTPException, UploadFile
-
-from co_scientist.domains.documents import extraction_admission
-from co_scientist.platform.db.storage_admission import current_peer
 
 _TEXT_TYPES = {
     "text/plain",
@@ -89,32 +83,6 @@ class _PdfBudgetExceededError(ValueError):
 
 class _PdfOcrTimeoutError(ValueError):
     pass
-
-
-async def extract_upload(file: UploadFile, *, owner: str = "") -> ExtractedDocument:
-    peer = current_peer()
-    if not extraction_admission.acquire(owner, peer):
-        raise HTTPException(status_code=429, detail="document extraction capacity reached")
-    submitted = False
-    try:
-        data = await file.read(MAX_UPLOAD_BYTES + 1)
-
-        def extract() -> ExtractedDocument:
-            try:
-                return extract_document(data, file.content_type or "application/octet-stream")
-            finally:
-                # Cancelling the HTTP await does not stop a running parser.
-                extraction_admission.release(owner, peer)
-
-        future = asyncio.get_running_loop().run_in_executor(None, extract)
-        submitted = True
-        future.add_done_callback(lambda done: done.exception() if not done.cancelled() else None)
-        return await asyncio.shield(future)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    finally:
-        if not submitted:
-            extraction_admission.release(owner, peer)
 
 
 def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:

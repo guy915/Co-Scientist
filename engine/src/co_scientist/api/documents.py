@@ -17,8 +17,8 @@ from fastapi import (
 )
 
 from co_scientist.api.auth import client_id, require_client_scope
+from co_scientist.api.uploads import extract_upload
 from co_scientist.core.async_bridge import off_loop
-from co_scientist.domains.documents import ingest as document_ingest
 from co_scientist.domains.documents import repository as store
 from co_scientist.domains.documents.repository import NewStagedDocument
 from co_scientist.domains.documents.staged import document_summary as document_summary
@@ -53,7 +53,7 @@ async def stage_document(
     owner = require_client_scope(request)
     if not consent:
         raise HTTPException(status_code=422, detail="consent is required to index a document")
-    extracted = await document_ingest.extract_upload(file, owner=owner)
+    extracted = await extract_upload(file, owner=owner)
     title = (file.filename or "Uploaded document").strip()
     document_id = store.add_staged_document(
         NewStagedDocument(
