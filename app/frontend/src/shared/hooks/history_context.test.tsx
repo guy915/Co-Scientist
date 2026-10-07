@@ -10,7 +10,11 @@ import {
   vi,
   type MockedFunction,
 } from 'vitest';
-import {listInterviews, loadRunHistory, type ChatSummary} from '@/shared/api/runs';
+import {
+  listInterviews,
+  loadRunHistory,
+  type ChatSummary,
+} from '@/shared/api/runs';
 import {deferred} from '@/shared/testing/deferred';
 import {makeChat, makeRun} from '@/shared/testing/fixtures';
 import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
