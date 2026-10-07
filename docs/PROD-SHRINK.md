@@ -4,11 +4,29 @@ Bring the code that stays after `docs/PROD-CUTS.md` down to the size its
 features need. Behavior does not change; only how the code is written does.
 The owner approved every lever below on 6 October 2026.
 
-**Status:** not started. It starts on day 1 of `docs/CAMPAIGNS.md` with the
-format change; work on a folder starts once that folder's cuts in
-`docs/PROD-CUTS.md` are merged. The whole cuts plan leaves about 96k lines.
-The expected result is about 80k, plus about 4k from the line-length change,
-reported separately.
+**Status (7 October 2026): done for v0.** Every lever is merged, deferred or
+reported as not worth its risk; board #240 holds each decision and its
+evidence. The format change removed 7,510 lines, reported separately. The
+levers removed 3,729 more: 884 in Python and 2,845 in the frontend, net of
+the markup the styling moves added.
+
+| # | Result | PRs | Net lines |
+|---|---|---|---:|
+| 1 | Merged | #239 | −7,510 |
+| 2 | Merged; the durable-task commit path stays as is | #269, #275, #281 | −642 |
+| 3 | Not worth its risk: the five phases already share their machinery | — | — |
+| 4 | Reduced: never-passed store parameters removed; an ambient connection is not worth its risk | #282 | −114 |
+| 5 | Merged (app groups land inside #281); test-fixture clones are left | #276 | −43 |
+| 6 | Merged outside the benchmark-hashed files; `log_failures` and `_JsonCallSpec` wait for the model lane | #320 | −85 |
+| 7 | Merged; the remaining `index.css` tidy is not worth its own PR | #277, #299, #301, #305–#308, #317, #318 | −2,845 |
+| 8 | Already done before the campaign | — | 0 |
+| 9 | Not worth its risk (library weight and a dropped-reload hazard) | — | — |
+| 10 | Deferred to after v0: unchanged tests force a dict adapter, so the pilot grew | — | — |
+| 11 | Not worth its risk for v0 | — | — |
+
+Every styling PR was checked against its base with a computed-style and
+screenshot comparison in light and dark, at the breakpoint edges each one
+touches.
 
 ## Why the code is large
 
