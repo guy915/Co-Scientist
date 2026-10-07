@@ -49,12 +49,13 @@ def main() -> int:
     db, log = f"{workdir}/co.db", f"{workdir}/calls.jsonl"
     legacy = procs.seed(workdir, N, config=CONFIG)
     new = procs.seed(workdir, N, config={**CONFIG, "durable_runtime": "dbos"})
-    server = procs.Server(workdir, 18900, DELAY, tag="a")
+    env = {"COSCIENTIST_DBOS_REVIEW": "stamped"}
+    server = procs.Server(workdir, 18900, DELAY, tag="a", env=env)
     server.wait_healthy()
     procs.wait_for(lambda: sum(1 for r in harness.read_log(log) if r["event"] == "end") >= 6, 60)
     server.kill9()
     drain_mid = procs.query(db, DRAIN_QUERY)[0][0]
-    restarted = procs.Server(workdir, 18901, DELAY, tag="b")
+    restarted = procs.Server(workdir, 18901, DELAY, tag="b", env=env)
     restarted.wait_healthy()
     procs.wait_for(lambda: _first_commit(db, legacy[0], legacy[2])["committed"]
                    and _first_commit(db, new[0], new[2])["committed"], 420)

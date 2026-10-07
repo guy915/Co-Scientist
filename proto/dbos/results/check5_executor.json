@@ -1,0 +1,4 @@
+{
+  "before_cohort_exit": 2,
+  "after_cohort_exit": "RuntimeError: cannot schedule new futures after shutdown"
+}

@@ -21,7 +21,8 @@ def configure(db_path: str, *, dbos: bool = True) -> None:
     os.environ["COSCIENTIST_DB_PATH"] = db_path
     os.environ["COSCIENTIST_FORCE_OFFLINE"] = "1"
     os.environ["FORCE_LITERATURE_REVIEW"] = "0"
-    os.environ["COSCIENTIST_DBOS_REVIEW"] = "1" if dbos else "0"
+    if os.environ.get("COSCIENTIST_DBOS_REVIEW") != "stamped" or not dbos:
+        os.environ["COSCIENTIST_DBOS_REVIEW"] = "1" if dbos else "0"
     for key in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
         os.environ.pop(key, None)
 

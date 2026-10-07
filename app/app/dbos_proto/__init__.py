@@ -25,8 +25,30 @@ _launch_lock = threading.Lock()
 _launched_for: str | None = None
 
 
+RUNTIME_CONFIG_KEY = "durable_runtime"
+
+
+def _mode() -> str:
+    return os.getenv(ENABLED_ENV, "").strip().lower()
+
+
 def enabled() -> bool:
-    return os.getenv(ENABLED_ENV, "").strip().lower() in {"1", "true", "yes"}
+    return _mode() in {"1", "true", "yes", "stamped"}
+
+
+def routes_run(run_id: str, db_path: str | None = None) -> bool:
+    """Cutover routes per run, never per process: in `stamped` mode only runs
+    created with `durable_runtime: dbos` use DBOS; older runs drain on the
+    hand-built queue for their whole life.
+    """
+    if not enabled():
+        return False
+    if _mode() != "stamped":
+        return True
+    from app.store import runs
+
+    run = runs.get_run(run_id, db_path=db_path)
+    return run is not None and (run.config or {}).get(RUNTIME_CONFIG_KEY) == "dbos"
 
 
 def _db_path(db_path: str | None = None) -> str:

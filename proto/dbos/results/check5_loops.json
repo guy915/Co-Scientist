@@ -1,0 +1,40 @@
+{
+  "mode": "launched off-loop (prototype lifespan)",
+  "workflow_statuses": {
+    "review:0664aa5b-d1d4-4e6d-b74d-caa21cada196:1": "SUCCESS",
+    "review:fc5480c4-8012-4c0e-b507-d6ccf70a30f3:1": "SUCCESS",
+    "review:eb79ce88-58da-4c34-a0ad-5ebc47465252:1": "SUCCESS"
+  },
+  "successor_enqueued_per_run": [
+    1,
+    1,
+    1
+  ],
+  "elapsed_s": 5.54,
+  "provider_calls": 30,
+  "call_threads": {
+    "Thread-1 (_run_event_loop)": 30
+  },
+  "distinct_call_loops": 1,
+  "dbos_loop_id": 140128405488272,
+  "api_loop_id": null,
+  "calls_on_dbos_loop": 30,
+  "cohort_threads": [
+    "cohort-0",
+    "cohort-1",
+    "cohort-2"
+  ],
+  "cross_loop_errors": [],
+  "error_records": [
+    "co_scientist.llm.attempts.retry: LLM call failed on attempt 5 (full_review, max_tokens 8000, call site asked for 8000): litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed m",
+    "co_scientist.agents.reflection.comprehensive_reflection: full review failed for c69ded35-4a80-4d46-b5e8-9211b075a05c: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=fixture\n Pass model a",
+    "co_scientist.llm.attempts.retry: LLM call failed on attempt 5 (simulation_review, max_tokens 8000, call site asked for 8000): litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You pa",
+    "co_scientist.agents.reflection.comprehensive_reflection: simulation review failed for c69ded35-4a80-4d46-b5e8-9211b075a05c: litellm.BadRequestError: LLM Provider NOT provided. Pass in the LLM provider you are trying to call. You passed model=fixture\n Pass m"
+  ],
+  "dbos_loop_lag_ms": {
+    "samples": 43,
+    "p50": 22.28,
+    "p99": 392.38,
+    "max": 392.38
+  }
+}

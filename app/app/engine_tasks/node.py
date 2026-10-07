@@ -146,7 +146,7 @@ async def _dispatch_node_fanout(
     if node_name == "review":
         from app import dbos_proto
 
-        if dbos_proto.enabled():
+        if dbos_proto.routes_run(task.run_id, db_path):
             from app.dbos_proto.review import start_review_fanout
 
             handler = start_review_fanout
