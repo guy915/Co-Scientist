@@ -1,5 +1,5 @@
 import type {Interview} from '@/api/runs';
-import {setStoredApiKey} from '@/lib/client_id';
+import {setStoredApiKey} from './client_id';
 import {afterEach, describe, expect, it} from 'vitest';
 import {availableTierOptions, interviewToRunSpec} from './run_spec';
 

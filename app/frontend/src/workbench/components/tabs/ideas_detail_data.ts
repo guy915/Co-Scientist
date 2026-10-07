@@ -5,7 +5,7 @@ import type {
   Review,
   SupportSpan,
 } from '@/api/runs';
-import {isRecord, readableText, readableTextList} from '@/lib/text';
+import {isRecord, readableText, readableTextList} from '@/shared/lib/text';
 
 export function findHypothesisReview(
   hypothesis: Hypothesis,

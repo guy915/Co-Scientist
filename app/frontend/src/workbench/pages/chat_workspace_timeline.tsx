@@ -5,7 +5,7 @@ import {
   type LinkedDraftRecovery,
   type SpecStage,
 } from '../hooks/use_chat_session';
-import {type InferredRunSpec} from '../run_spec';
+import {type InferredRunSpec} from '@/shared/lib/run_spec';
 import {
   type ChatEntry,
   AssistantMessage,

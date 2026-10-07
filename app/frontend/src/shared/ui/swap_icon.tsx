@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from './icon';
 import {joinClasses} from './cx';
 
 // An icon that cross-fades when its name changes (copy → check, stop →

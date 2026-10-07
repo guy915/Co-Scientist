@@ -1,6 +1,6 @@
 import {useMemo, useState} from 'react';
 import type {Evidence, KnowledgeBaseTopic, Report} from '@/api/runs';
-import {Icon} from '@/components/icon';
+import {Icon} from '@/shared/ui/icon';
 import {
   Button,
   Chip,
@@ -9,8 +9,8 @@ import {
   chipIconClasses,
   joinClasses,
 } from '@/shared/ui';
-import {splitAbstractSections, capitalizeTerm} from '@/lib/text';
-import {renderInlineHtml} from '@/lib/sanitize_html';
+import {splitAbstractSections, capitalizeTerm} from '@/shared/lib/text';
+import {renderInlineHtml} from '@/shared/lib/sanitize_html';
 import {
   REPORT_H3_CLASSES,
   REPORT_H4_CLASSES,

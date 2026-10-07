@@ -1,5 +1,5 @@
 import * as runsApi from '@/api/runs';
-import type {StreamConnectionState} from '@/hooks/use_run_stream';
+import type {StreamConnectionState} from '@/shared/hooks/use_run_stream';
 import {vi} from 'vitest';
 import {makeRun} from './run_detail_test_support';
 
@@ -15,11 +15,10 @@ const stream = vi.hoisted(() => ({
   connection: undefined as StreamConnectionState | undefined,
 }));
 
-vi.mock('@/hooks/use_run_stream', () => ({useRunStream: () => stream}));
+vi.mock('@/shared/hooks/use_run_stream', () => ({useRunStream: () => stream}));
 
-vi.mock('@/workbench/hooks/timers', async importOriginal => {
-  const actual =
-    await importOriginal<typeof import('@/workbench/hooks/timers')>();
+vi.mock('@/shared/hooks/timers', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/shared/hooks/timers')>();
   const timer = {schedule: (run: () => void) => run(), cancel: vi.fn()};
   return {...actual, useResetTimer: () => timer};
 });

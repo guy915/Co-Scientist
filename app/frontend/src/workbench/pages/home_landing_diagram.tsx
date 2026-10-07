@@ -1,5 +1,5 @@
 import {useState, useEffect, useMemo, useRef} from 'react';
-import {joinClasses} from '../classes';
+import {joinClasses} from '@/shared/ui/classes';
 import {
   LANDING_AGENTS,
   type LandingAgent,

@@ -1,18 +1,18 @@
 import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import type {RunStatus} from '@/api/runs';
-import type {IconName} from '@/components/icon';
-import {isModifiedClick} from '@/workbench/dom_events';
+import type {IconName} from '@/shared/ui/icon';
+import {isModifiedClick} from '@/shared/lib/dom_events';
 import {Chip, IconButton} from '@/shared/ui';
-import {GoogleLabsIcon} from './layout_primitives';
-import {TruncatedLabel} from './components/truncated_label';
+import {GoogleLabsIcon} from '@/shared/ui/layout_primitives';
+import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {CancelRunControl} from './layout_cancel_run';
 import {SessionDiagnostics} from './layout_diagnostics';
 import {FeedbackControl} from './components/feedback_dialog';
 import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
-import {joinClasses, tooltipClassNames} from './classes';
+import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {SystemStatus} from '@/api/system';
-import {useSystemStatus} from './hooks/system_status_context';
+import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 const HEADER_CLASSES =
   'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4rem] items-center justify-between gap-[1rem] [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +

@@ -3,7 +3,7 @@ import {
   setStoredApiKey,
   setStoredApiProvider,
   setStoredModel,
-} from '@/lib/client_id';
+} from '@/shared/lib/client_id';
 import {
   getPendingCreateIntent,
   readPendingCreateIntent,

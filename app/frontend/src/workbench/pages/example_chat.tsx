@@ -5,7 +5,7 @@ import {Button} from '@/shared/ui';
 import {
   useChatHistoryContext,
   useRunHistoryContext,
-} from '../hooks/history_context';
+} from '@/shared/hooks/history_context';
 
 export function ExampleChat() {
   const {id} = useParams<{id: string}>();
