@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from co_scientist.core.json_schema import obj
 from co_scientist.domains.safety.types import SafetyDecision
 from co_scientist.platform.llm import (
     CompletionSpec,
@@ -10,7 +11,6 @@ from co_scientist.platform.llm import (
     call_llm_json,
     coerce_json_list,
 )
-from co_scientist.science.schemas.builders import obj
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
-import {resetSessionBaselineForTest} from './layout_diagnostics';
+import {resetSessionBaselineForTest} from '@/features/diagnostics/diagnostics';
 import {ChatHistoryProvider} from '@/shared/hooks/history_context';
 import {RunHistoryProvider} from '@/shared/hooks/history_context';
 import {Layout} from './layout';

@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator
 from time import perf_counter
 from typing import Any
 
-from co_scientist.api.sse import sse_frame
 from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -14,6 +13,7 @@ from co_scientist.core.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.core.sse import sse_frame
 from co_scientist.domains.access import credentials
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
