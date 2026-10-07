@@ -4,7 +4,7 @@ import contextlib
 import json
 import logging
 import sqlite3
-from typing import Any, cast
+from typing import Any
 
 from app.store.db import _now, _use_conn, connect
 
@@ -57,12 +57,10 @@ _TYPE_TO_NODE_ALIASES: dict[str, str] = {"supervisor.plan": "supervisor"}
 
 
 def _node_to_agent() -> dict[str, str]:
-    """Import lazily to keep store initialization independent of the engine;
-    mypy does not follow the engine registry's dynamic shape.
-    """
+    """Import lazily to keep store initialization independent of the engine."""
     from co_scientist.agents import NODE_TO_AGENT
 
-    return cast("dict[str, str]", NODE_TO_AGENT)
+    return NODE_TO_AGENT
 
 
 def _activity_for_node(node_name: str) -> str:

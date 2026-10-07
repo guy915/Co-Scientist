@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import app.engine_tasks.runtime as engine_tasks_runtime
 from app.engine_adapter.opts import (
@@ -120,10 +120,7 @@ def merge_usage_snapshots(
         if not snapshot:
             continue
         merged = merge_metrics(merged, create_metrics_update(model_usage=dict(snapshot)))
-    # Unfollowed engine imports arrive as Any; assert the declared telemetry
-    # field type at this boundary.
-    usage: dict[str, dict[str, Any]] = merged.model_usage
-    return usage
+    return merged.model_usage
 
 
 @dataclass(frozen=True)
@@ -572,10 +569,7 @@ def restore_checkpoint_state(
     from co_scientist.checkpoint import restore_workflow_state
 
     generator = engine_tasks_runtime.active().generator_for_restore(task, db_path)
-    return cast(
-        dict[str, Any],
-        restore_workflow_state(checkpoint["state"], tool_registry=generator.tool_registry),
-    )
+    return restore_workflow_state(checkpoint["state"], tool_registry=generator.tool_registry)
 
 
 def leased_state(
