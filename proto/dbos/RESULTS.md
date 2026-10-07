@@ -48,7 +48,7 @@ port:
 
 | # | Check | Result | Evidence |
 |---|---|---|---|
-| 1 | Kill mid-fan-out, resume with no duplicate calls and no lost results | **Pass** (only with the port's issuance marker) | 5 kill points, unstamped run: 0 duplicate calls, 0 lost recorded results; resume to commit 1.2–5.8 s (hand-built: 293 s). DBOS alone: 4 duplicate calls |
+| 1 | Kill mid-fan-out, resume with no duplicate calls and no lost results | **Pass** (only with the port's issuance marker) | 5 kill points, unstamped run: 0 duplicate calls, 0 lost recorded results; resume to commit 1.1–5.8 s (hand-built: 293 s). DBOS alone: 4 duplicate calls |
 | 2 | Leases, retry budgets, future-due tasks, steering as OPERATIONS requires | **Pass** for a single process | 8 scenarios match today's rules. Under process overlap DBOS re-executes live workflows (4 duplicate calls). Railway cannot overlap volume-backed deploys, so production is safe today |
 | 3 | Shares the SQLite file safely | **Fail** | Idle with no workflows: 118 write transactions in 60 s (2/s) from two DBOS threads; hand-built: 0. No long write locks, no VACUUM or checkpoint, WAL kept |
 | 4 | Startup cheap, recovery off the port path | **Pass** | `DBOS.launch()` 0.03–0.13 s; spawn-to-healthy +0.7–0.9 s (mostly the 0.75–0.91 s `import dbos`); recovered calls start 1.06 s after `/health` answers, on DBOS's loop |
@@ -59,7 +59,7 @@ port:
 ### 1. Kill mid-fan-out (`check1_kill.py`)
 
 The real app process (lifespan, startup recovery, cohorts) runs a seeded run
-at the review node: 12 hypotheses, 4 slots, 2 s per call. It is SIGKILLed
+at the review node: 12 hypotheses, 4 slots, 2 s per call. Rows are the final rerun on commit `d39b812`. It is SIGKILLed
 after K calls finish, then restarted, and the script waits for the review
 workflow to finish. "Lost result" means a step output DBOS had durably
 recorded before the kill that is missing from the committed checkpoint.
@@ -67,12 +67,12 @@ recorded before the kill that is missing from the committed checkpoint.
 | Run | K | In flight at kill | Calls | Duplicates | Lost | Reviewed | Failed closed | Resume to commit |
 |---|---|---|---|---|---|---|---|---|
 | unstamped | 1 | 3 | 12 | 0 | 0 | 8 | 4 | 5.8 s |
-| unstamped | 4 | 3 | 11 | 0 | 0 | 8 | 4 | 3.8 s |
-| unstamped | 6 | 3 | 11 | 0 | 0 | 8 | 4 | 3.3 s |
-| unstamped | 9 | 3 | 12 | 0 | 0 | 9 | 3 | 1.2 s |
-| unstamped | 11 | 1 | 12 | 0 | 0 | 11 | 1 | 1.2 s |
-| zero-cost | 6 | 3 | 16 | 4 (allowed: lost leases may retry under zero-price admission) | 0 | 12 | 0 | 5.6 s |
-| unstamped, **no marker** (DBOS alone) | 6 | 3 | 16 | **4** | 0 | 12 | 0 | |
+| unstamped | 4 | 3 | 12 | 0 | 0 | 8 | 4 | 5.7 s |
+| unstamped | 6 | 3 | 12 | 0 | 0 | 8 | 4 | 3.7 s |
+| unstamped | 9 | 3 | 12 | 0 | 0 | 9 | 3 | 1.1 s |
+| unstamped | 11 | 1 | 12 | 0 | 0 | 11 | 1 | 1.1 s |
+| zero-cost | 6 | 3 | 15 | 3 (allowed: lost leases may retry under zero-price admission) | 0 | 12 | 0 | 5.7 s |
+| unstamped, **no marker** (DBOS alone) | 6 | 3 | 16 | **4** | 0 | 12 | 0 | 5.7 s |
 | hand-built baseline | 6 | 6 | 12 | 0 | — | 6 | 6 | **293 s** (waits for lease expiry) |
 
 - **Failed closed** counts the items in flight at the kill. It also counts

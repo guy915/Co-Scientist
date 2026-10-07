@@ -1,6 +1,6 @@
 [
   {
-    "workdir": "/tmp/dbos-c1-dem77gs_",
+    "workdir": "/tmp/dbos-c1-vmik82b7",
     "runtime": "dbos",
     "env": {
       "COSCIENTIST_DBOS_NO_MARKER": "1"
@@ -8,6 +8,8 @@
     "zero_cost": false,
     "overlap": false,
     "kill_after_ended": 6,
+    "provider_delay_s": 2.0,
+    "second_process_healthy_at_rel_s": null,
     "ended_before_kill": 6,
     "in_flight_at_kill": [
       "h006",
@@ -18,9 +20,9 @@
     "ended_but_unrecorded_at_kill": [
       "h005"
     ],
-    "restart_healthy_s": 8.15,
+    "restart_healthy_s": 8.6,
     "workflow_done": true,
-    "resume_to_commit_s": 5.56,
+    "resume_to_commit_s": 5.66,
     "calls_total": 16,
     "duplicate_calls": {
       "h005": 2,
@@ -32,7 +34,7 @@
     "final": {
       "committed": true,
       "seq": 2,
-      "stage": "engine_task:5b5e251c-f4cb-4385-9cc7-33f614f6bd19",
+      "stage": "engine_task:69dfef01-800c-44f0-a296-9d3cc1bed9af",
       "review_failed": []
     },
     "reviewed_count": 12,
@@ -47,6 +49,6 @@
         "attempt": 1
       }
     ],
-    "killed_at": 1791376313.410435
+    "killed_at": 1791378081.797133
   }
 ]
