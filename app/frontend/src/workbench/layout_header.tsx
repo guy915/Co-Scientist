@@ -86,7 +86,10 @@ export function ShellHeader({
     <header className={HEADER_CLASSES}>
       <HamburgerButton navOpen={navOpen} onClick={toggleNav} />
       <ProductLockup onNewChat={startNewChat} />
-      <div id="header-landing-tabs" className="ucs-header-landing-tabs" />
+      <div
+        id="header-landing-tabs"
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+      />
       <div className={HEADER_TITLE_CLASSES}>
         {headerTitle && (
           <TruncatedLabel
