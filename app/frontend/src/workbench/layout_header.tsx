@@ -3,7 +3,8 @@ import {Link} from 'react-router-dom';
 import type {RunStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {isModifiedClick} from '@/workbench/dom_events';
-import {GoogleLabsIcon, NAV_ICON_CLASSES} from './layout_primitives';
+import {IconButton} from '@/shared/ui';
+import {GoogleLabsIcon} from './layout_primitives';
 import {TruncatedLabel} from './components/truncated_label';
 import {CancelRunControl} from './layout_cancel_run';
 import {SessionDiagnostics} from './layout_diagnostics';
@@ -29,13 +30,6 @@ const HEADER_ACTIONS_CLASSES =
   'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-[0.55rem] [transform:translateY(-50%)] ' +
   '[@media(max-width:700px)]:[&>:not(.ucs-session-switch)]:hidden';
 
-// Its transition stays in shell_surface.css: the unlayered global button
-// transition outranks utilities.
-const HAMBURGER_CLASSES =
-  'ucs-nav-hamburger hidden size-[2.5rem] flex-none cursor-pointer place-items-center [border:0] rounded-[9999px] bg-transparent p-0 text-cosci-shell-icon ' +
-  '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
-  '[@media(max-width:700px)]:inline-grid';
-
 function HamburgerButton({
   navOpen,
   onClick,
@@ -44,16 +38,18 @@ function HamburgerButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={HAMBURGER_CLASSES}
-      aria-label="Open navigation"
-      aria-expanded={navOpen}
-      aria-controls="primary-navigation"
-      onClick={onClick}
-    >
-      <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name="menu" />
-    </button>
+    // Phones only; the wrapper owns display so the button keeps its own.
+    <span className="hidden flex-none [@media(max-width:700px)]:inline-flex">
+      <IconButton
+        icon="menu"
+        size="md"
+        label="Open navigation"
+        tooltip={null}
+        aria-expanded={navOpen}
+        aria-controls="primary-navigation"
+        onClick={onClick}
+      />
+    </span>
   );
 }
 

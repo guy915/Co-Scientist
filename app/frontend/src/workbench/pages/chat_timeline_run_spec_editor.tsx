@@ -1,6 +1,5 @@
 import {editInterviewFields} from '@/api/runs';
-import {Icon} from '@/components/icon';
-import {Button} from '@/shared/ui';
+import {Button, IconButton} from '@/shared/ui';
 import {type ReactNode, useId, useState} from 'react';
 import {SETUP_ACTIONS_CLASSES} from '../classes';
 import {
@@ -72,14 +71,7 @@ function EditableListRow({
         value={value}
         onChange={e => onChange(e.target.value)}
       />
-      <button
-        type="button"
-        className="size-[2.1rem] shrink-0 grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg"
-        aria-label={removeLabel}
-        onClick={onRemove}
-      >
-        <Icon aria-hidden="true" name="close" className="text-[1.15rem]" />
-      </button>
+      <IconButton icon="close" label={removeLabel} onClick={onRemove} />
     </div>
   );
 }

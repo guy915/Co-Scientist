@@ -39,10 +39,8 @@ const SETTINGS_MENU_ICON_CLASSES = 'flex-none text-[1.25rem] text-cosci-muted';
 // The panel stacks above the workspace so navigation popups are not covered.
 // Phones stretch it to the inset edges: iOS Safari vh would hide the drawer's
 // bottom under its toolbar.
-// The rail is a tinted surface, so its buttons take the shell icon and hover
-// tones.
+// `ucs-nav-panel` scopes the shell tones for its buttons (tokens.css).
 const NAV_PANEL_CLASSES =
-  '[--button-text-fg:var(--cosci-shell-icon)] [--button-text-hover-bg:var(--cosci-shell-hover-bg)] ' +
   'ucs-nav-panel relative z-[70] box-border flex h-[100vh] w-full flex-col items-center justify-between [border-right:0] bg-cosci-rail py-[1.25rem] ' +
   '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:[inset:0_auto_0_0] [@media(max-width:700px)]:z-[60] ' +
   '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:w-[21rem] [@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:max-w-[85vw] ' +

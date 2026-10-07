@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
+import {IconButton} from '@/shared/ui';
 import {joinClasses, tooltipClassNames} from '../classes';
 import type {Connector, SystemStatus} from '@/api/system';
 import {useSystemStatus} from '../hooks/system_status_context';
@@ -133,24 +134,15 @@ export function Composer({
           onFilesChanged={onFilesChanged}
           connectors={connectors}
         />
-        <button
+        <IconButton
           type={stoppable ? 'button' : 'submit'}
-          className={tooltipClassNames({
-            className:
-              'pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 transition-colors enabled:hover:bg-cosci-icon-button-hover-bg enabled:focus-visible:bg-cosci-icon-button-hover-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring disabled:cursor-default size-8 text-cosci-source-button enabled:hover:text-cosci-source-button-hover enabled:focus-visible:text-cosci-source-button-hover disabled:text-cosci-composer-submit-disabled',
-            placement: 'top',
-          })}
-          aria-label={stoppable ? 'Stop' : 'Send'}
-          data-tooltip={stoppable ? 'Stop' : 'Submit'}
+          icon={stoppable ? 'stop' : 'send'}
+          label={stoppable ? 'Stop' : 'Send'}
+          tooltip={stoppable ? 'Stop' : 'Submit'}
+          layoutClassName="pointer-events-auto"
           disabled={!stoppable && submitDisabled}
           onClick={stoppable ? onStop : undefined}
-        >
-          <Icon
-            aria-hidden="true"
-            className="text-xl"
-            name={stoppable ? 'stop' : 'send'}
-          />
-        </button>
+        />
       </div>
     </form>
   );
@@ -341,19 +333,14 @@ function AttachmentRemoveButton({
   onRemove: (id: string) => void;
 }) {
   return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className:
-          'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] cursor-pointer place-items-center rounded-full border-0 bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 hover:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring',
-        placement: 'top',
-      })}
-      aria-label={`Remove ${attachment.name}`}
-      data-tooltip={`Remove ${attachment.name}`}
+    // Revealed on hover or focus within the card; always shown on touch.
+    <IconButton
+      variant="elevated"
+      icon="close"
+      label={`Remove ${attachment.name}`}
+      layoutClassName="absolute top-[0.62rem] right-[0.62rem] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100"
       onClick={() => onRemove(attachment.id)}
-    >
-      <Icon aria-hidden="true" className="text-[1.35rem]" name="close" />
-    </button>
+    />
   );
 }
 
@@ -507,20 +494,13 @@ function SourceToolbarButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className:
-          'pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 transition-colors enabled:hover:bg-cosci-icon-button-hover-bg enabled:focus-visible:bg-cosci-icon-button-hover-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring reference-composer-source-button size-8 text-cosci-source-button enabled:hover:text-cosci-source-button-hover enabled:focus-visible:text-cosci-source-button-hover aria-expanded:bg-cosci-icon-button-hover-bg aria-expanded:text-cosci-source-button-hover',
-        placement: 'top',
-      })}
-      aria-label={label}
+    <IconButton
+      icon={icon}
+      label={label}
+      layoutClassName="reference-composer-source-button pointer-events-auto"
       aria-expanded={expanded}
-      data-tooltip={label}
       onClick={onClick}
-    >
-      <Icon aria-hidden="true" className="text-xl" name={icon} />
-    </button>
+    />
   );
 }
 
