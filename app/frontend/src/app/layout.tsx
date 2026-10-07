@@ -6,6 +6,7 @@ import {
   useState,
   type Dispatch,
   type SetStateAction,
+  type RefObject,
 } from 'react';
 import {useLocation} from 'react-router-dom';
 import type {RunStatus} from '@/shared/api/runs';
@@ -17,7 +18,14 @@ import {
   type SettingsSection,
 } from '@/features/access/settings_dialog';
 import {NEW_CHAT_EVENT, HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
-import {closeDrawerIfMobile, useEscapeKey} from '@/shared/hooks/dom';
+import {
+  closeDrawerIfMobile,
+  useBackgroundInert,
+  useEscapeKey,
+  useFocusTrap,
+  useIsMobile,
+  useRestoreFocusOnClose,
+} from '@/shared/hooks/dom';
 import {ShellHeader} from './layout_header';
 import {NavRail, withExamples, type ChatRailData} from './layout_nav_rail';
 import {
@@ -158,9 +166,34 @@ interface ShellNavProps {
   rail: ChatRailData;
 }
 
+// The phone drawer covers the page, so while it is open it behaves as a modal:
+// focus moves in and stays, the page behind is inert, and closing returns focus.
+function DrawerModality({
+  containerRef,
+}: {
+  containerRef: RefObject<HTMLDivElement | null>;
+}) {
+  useRestoreFocusOnClose();
+  useFocusTrap(containerRef);
+  useBackgroundInert(containerRef, 'Navigation drawer');
+  useEffect(() => {
+    containerRef.current
+      ?.querySelector<HTMLElement>('a[href], button:not([disabled])')
+      ?.focus();
+  }, [containerRef]);
+  return null;
+}
+
+// `contents` keeps the rail and scrim as shell grid items while giving the
+// modal one container, so the scrim stays clickable when the page is inert.
 function ShellNav({chrome, startNewChat, rail}: ShellNavProps) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   return (
-    <>
+    <div ref={drawerRef} className="contents">
+      {isMobile && chrome.navOpen && (
+        <DrawerModality containerRef={drawerRef} />
+      )}
       <NavRail
         navOpen={chrome.navOpen}
         toggleNav={chrome.toggleNav}
@@ -175,7 +208,7 @@ function ShellNav({chrome, startNewChat, rail}: ShellNavProps) {
         navOpen={chrome.navOpen}
         onDismiss={() => chrome.setNavOpen(false)}
       />
-    </>
+    </div>
   );
 }
 
