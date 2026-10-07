@@ -126,6 +126,7 @@ def idempotency_secret_fingerprint(api_key: str) -> str:
         raise ByokNotConfiguredError("bring-your-own-key support requires BYOK_ENCRYPTION_KEY")
     return hmac.new(
         secret.encode("utf-8"),
+        # codeql[py/weak-sensitive-data-hashing] Server-secret HMAC for idempotency, not passwords.
         b"co-scientist/run-create-idempotency/v1\0" + api_key.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
