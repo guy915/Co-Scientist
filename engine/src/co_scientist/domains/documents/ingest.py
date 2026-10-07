@@ -19,6 +19,9 @@ from typing import Any
 
 from fastapi import HTTPException, UploadFile
 
+from co_scientist.domains.documents import extraction_admission
+from co_scientist.platform.db.storage_admission import current_peer
+
 _TEXT_TYPES = {
     "text/plain",
     "text/markdown",
@@ -88,16 +91,30 @@ class _PdfOcrTimeoutError(ValueError):
     pass
 
 
-async def extract_upload(file: UploadFile) -> ExtractedDocument:
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+async def extract_upload(file: UploadFile, *, owner: str = "") -> ExtractedDocument:
+    peer = current_peer()
+    if not extraction_admission.acquire(owner, peer):
+        raise HTTPException(status_code=429, detail="document extraction capacity reached")
+    submitted = False
     try:
-        # PDF parsing and per-figure OCR take seconds; off the loop, other
-        # requests and run streams keep flowing.
-        return await asyncio.to_thread(
-            extract_document, data, file.content_type or "application/octet-stream"
-        )
+        data = await file.read(MAX_UPLOAD_BYTES + 1)
+
+        def extract() -> ExtractedDocument:
+            try:
+                return extract_document(data, file.content_type or "application/octet-stream")
+            finally:
+                # Cancelling the HTTP await does not stop a running parser.
+                extraction_admission.release(owner, peer)
+
+        future = asyncio.get_running_loop().run_in_executor(None, extract)
+        submitted = True
+        future.add_done_callback(lambda done: done.exception() if not done.cancelled() else None)
+        return await asyncio.shield(future)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        if not submitted:
+            extraction_admission.release(owner, peer)
 
 
 def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
@@ -121,6 +138,9 @@ def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
 
 def _extract_by_type(data: bytes, normalized_type: str) -> tuple[str, str]:
     if normalized_type in _TEXT_TYPES:
+        if normalized_type in {"text/csv", "application/json"}:
+            tool = "csv-table-v1" if normalized_type == "text/csv" else "json-structure-v1"
+            return _extract_in_worker(data, normalized_type), tool
         return _extract_text_document(data, normalized_type)
     if normalized_type == "application/pdf":
         return _extract_pdf(data), "pypdf-layout+tesseract-fallback-v4"
@@ -172,45 +192,54 @@ def _extract_text_document(data: bytes, mime_type: str) -> tuple[str, str]:
 
 
 def _extract_pdf(data: bytes) -> str:
+    return _extract_in_worker(data, "application/pdf")
+
+
+def _extract_in_worker(data: bytes, mime_type: str) -> str:
+    is_pdf = mime_type == "application/pdf"
+    label = "PDF" if is_pdf else "document"
+    module = "pdf_worker" if is_pdf else "document_worker"
+    args = [] if is_pdf else [mime_type]
     with tempfile.TemporaryFile() as output:
         try:
             process = subprocess.Popen(
-                [sys.executable, "-m", "co_scientist.domains.documents.pdf_worker"],
+                [sys.executable, "-m", f"co_scientist.domains.documents.{module}", *args],
                 stdin=subprocess.PIPE,
                 stdout=output,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
                 cwd=Path(os.path.abspath(__file__)).parents[3],
+                env={**os.environ, "OMP_THREAD_LIMIT": "1"},
             )
         except OSError as exc:
-            raise ValueError("PDF extraction is unavailable") from exc
+            raise ValueError(f"{label} extraction is unavailable") from exc
         try:
             process.communicate(data, timeout=MAX_PDF_WALL_SECONDS)
         except BaseException as exc:
             _kill_pdf_worker_group(process.pid)
             process.communicate()
             if isinstance(exc, subprocess.TimeoutExpired):
-                raise ValueError("PDF extraction exceeded its 120 second limit") from exc
+                raise ValueError(f"{label} extraction exceeded its 120 second limit") from exc
             raise
         finally:
             _kill_pdf_worker_group(process.pid)
         if process.returncode != 0:
-            raise ValueError("PDF extraction failed")
+            raise ValueError(f"{label} extraction failed within worker resource limits")
         output.seek(0, os.SEEK_END)
         if output.tell() > MAX_PDF_RESPONSE_BYTES:
-            raise ValueError("PDF exceeds the 8 MiB worker response limit")
+            raise ValueError(f"{label} exceeds the 8 MiB worker response limit")
         output.seek(0)
         response = output.read(MAX_PDF_RESPONSE_BYTES + 1)
     try:
         result = json.loads(response)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError("PDF extraction failed") from exc
+        raise ValueError(f"{label} extraction failed") from exc
     if not isinstance(result, dict) or result.get("ok") is not True:
         message = result.get("error") if isinstance(result, dict) else None
-        raise ValueError(str(message or "PDF extraction failed"))
+        raise ValueError(str(message or f"{label} extraction failed"))
     text = result.get("text")
     if not isinstance(text, str):
-        raise ValueError("PDF extraction failed")
+        raise ValueError(f"{label} extraction failed")
     return text
 
 
@@ -367,26 +396,79 @@ def _extract_pdf_page_figures(index: int, page: Any, budget: _PdfBudget | None =
 
 
 def _extract_image_ocr(data: bytes, *, timeout: float = 60, pdf_worker: bool = False) -> str:
+    if not pdf_worker:
+        return _extract_in_worker(data, "image/ocr")
+    _verify_image_dimensions(data)
     executable = shutil.which("tesseract")
     if not executable:
         raise ValueError("image OCR is unavailable")
     try:
-        completed = subprocess.run(
-            [executable, "stdin", "stdout", "--psm", "6"],
-            input=data,
-            capture_output=True,
-            check=False,
-            timeout=timeout,
-        )
+        with tempfile.TemporaryFile() as output:
+            completed = subprocess.run(
+                [executable, "stdin", "stdout", "--psm", "6"],
+                input=data,
+                stdout=output,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=timeout,
+                env={**os.environ, "OMP_THREAD_LIMIT": "1"},
+            )
+            if completed.returncode != 0:
+                raise ValueError("image could not be decoded or OCR failed")
+            output.seek(0, os.SEEK_END)
+            if output.tell() > MAX_PDF_OUTPUT_BYTES:
+                raise _PdfBudgetExceededError("image exceeds the 5 MiB OCR output limit")
+            output.seek(0)
+            text = output.read(MAX_PDF_OUTPUT_BYTES + 1)
     except subprocess.TimeoutExpired as exc:
         if pdf_worker:
             raise _PdfOcrTimeoutError("PDF image OCR exceeded its time budget") from exc
         raise ValueError("image OCR is unavailable") from exc
     except OSError as exc:
         raise ValueError("image OCR is unavailable") from exc
-    if completed.returncode != 0:
-        raise ValueError("image could not be decoded or OCR failed")
-    return completed.stdout.decode("utf-8", errors="replace").strip()
+    return text.decode("utf-8", errors="replace").strip()
+
+
+def _verify_image_dimensions(data: bytes) -> None:
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            if getattr(image, "n_frames", 1) > 16:
+                raise ValueError("image exceeds the 16 frame limit")
+            pixels = 0
+            for frame in range(getattr(image, "n_frames", 1)):
+                image.seek(frame)
+                pixels += image.width * image.height
+                if pixels > MAX_PDF_IMAGE_PIXELS_PER_IMAGE:
+                    raise ValueError("image exceeds the 20 megapixel decoded dimension limit")
+    except (OSError, Image.DecompressionBombError) as exc:
+        raise ValueError("image dimensions could not be safely verified") from exc
+
+
+def _document_worker_main(mime_type: str) -> int:
+    data = sys.stdin.buffer.read(MAX_UPLOAD_BYTES + 1)
+    try:
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise ValueError("uploaded document exceeds the 25 MB limit")
+        if mime_type == "image/ocr":
+            text = _extract_image_ocr(data, pdf_worker=True)
+        elif mime_type in {"text/csv", "application/json"}:
+            text, _ = _extract_text_document(data, mime_type)
+        else:
+            raise ValueError("unsupported worker document type")
+        if len(text.encode("utf-8")) > MAX_PDF_OUTPUT_BYTES:
+            raise ValueError("document exceeds the 5 MiB extracted text limit")
+        payload = {"ok": True, "text": text}
+    except ValueError as exc:
+        payload = {"ok": False, "error": str(exc)}
+    except Exception:
+        payload = {"ok": False, "error": "document extraction failed"}
+    encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    if len(encoded) > MAX_PDF_RESPONSE_BYTES:
+        encoded = b'{"ok":false,"error":"document exceeds the worker response limit"}'
+    sys.stdout.buffer.write(encoded)
+    return 0
 
 
 def _pdf_worker_main() -> int:

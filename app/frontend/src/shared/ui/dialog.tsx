@@ -17,23 +17,23 @@ import {presenceProps, usePresence} from './use_presence';
 
 export type DialogSize = 'md' | 'lg';
 
-const SCRIM_CLASSES = 'ui-motion-fade fixed inset-0 z-[70] bg-scrim';
+const SCRIM_CLASSES = 'ui-motion-fade fixed inset-0 z-dialog-scrim bg-scrim';
 
 // Centred with translate so the motion can scale without fighting it. The
 // panel background equals the default hover tone in dark mode, so the panel
 // re-points the hover tokens.
 const PANEL_CLASSES =
   '[--button-outlined-hover:var(--cosci-menu-row-hover)] ' +
-  '[--icon-button-hover-bg:var(--cosci-menu-row-hover)] ui-motion-pop fixed top-1/2 left-1/2 z-[71] flex -translate-1/2 flex-col ' +
+  '[--icon-button-hover-bg:var(--cosci-menu-row-hover)] ui-motion-pop fixed top-1/2 left-1/2 z-dialog flex -translate-1/2 flex-col ' +
   'rounded-[1.75rem] bg-cosci-menu-bg text-cosci-fg shadow-overlay ' +
-  'outline-none max-[700px]:rounded-[1.25rem]';
+  'outline-none phone:rounded-[1.25rem]';
 
 const SIZE_CLASSES: Record<DialogSize, string> = {
   md: 'max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] gap-5 overflow-y-auto p-6',
   lg:
     'h-[min(34rem,calc(100dvh-3rem))] w-[min(52rem,calc(100vw-2rem))] px-7 py-6 ' +
-    'max-[700px]:h-[calc(100dvh-1.5rem)] max-[700px]:w-[calc(100vw-1.5rem)] ' +
-    'max-[700px]:px-4 max-[700px]:py-[1.1rem]',
+    'phone:h-[calc(100dvh-1.5rem)] phone:w-[calc(100vw-1.5rem)] ' +
+    'phone:px-4 phone:py-[1.1rem]',
 };
 
 export const DIALOG_TITLE_CLASSES =

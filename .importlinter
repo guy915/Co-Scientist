@@ -178,11 +178,6 @@ forbidden_modules =
     sqlite3
 allow_indirect_imports = True
 ignore_imports =
-    co_scientist.api.logs_api -> sqlite3
-    app.main -> sqlite3
-    co_scientist.api.runs.crud -> sqlite3
-    co_scientist.api.runs.lifecycle -> sqlite3
-    co_scientist.api.runs.support -> sqlite3
     co_scientist.platform.telemetry.logs -> sqlite3
     co_scientist.platform.telemetry.retrieval_calls -> sqlite3
 

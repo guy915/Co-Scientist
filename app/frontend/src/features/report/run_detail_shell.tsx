@@ -5,7 +5,7 @@ import {
   type TerminalNonCompletedStatus,
 } from '@/shared/api/runs';
 import {Icon, type IconName} from '@/shared/ui/icon';
-import {Card, TabNav, TabNavLink, Toast} from '@/shared/ui';
+import {Card, TabNav, TabNavLink, Toast, ErrorNotice} from '@/shared/ui';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {useIsMobile} from '@/shared/hooks/dom';
 import {tabPath, type TabName} from '@/shared/lib/run_tabs';
@@ -74,16 +74,16 @@ export function ReportTitlebar({
     isMobile && activeTab === 'ideas' ? searchParams.get('idea') : null;
   const back = reportBackTarget(id, selectedIdeaId);
   return (
-    <header className="cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 max-[700px]:gap-[0.35rem] max-[700px]:px-[0.7rem]">
-      <div className="cosci-report-title-left flex min-w-0 items-center gap-4 max-[700px]:gap-[0.45rem]">
+    <header className="cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 phone:gap-[0.35rem] phone:px-[0.7rem]">
+      <div className="cosci-report-title-left flex min-w-0 items-center gap-4 phone:gap-[0.45rem]">
         <Link
           to={back.to}
           className="cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-cosci-muted no-underline hover:bg-cosci-hover"
           aria-label={back.label}
         >
-          <Icon aria-hidden="true" name="arrow_back" />
+          <Icon name="arrow_back" />
         </Link>
-        <h1 className="m-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[700px]:text-[0.9rem]">
+        <h1 className="m-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] font-normal tracking-normal phone:text-[0.9rem]">
           <TruncatedLabel
             className="block min-w-0 overflow-hidden whitespace-nowrap"
             text={title}
@@ -111,7 +111,7 @@ export function ReportTabNav({
       label="Goal report sections"
       variant="underline"
       current={activeTab}
-      layoutClassName="reference-report-tabs grid-cols-4 max-[700px]:min-w-0 max-[700px]:overflow-x-hidden"
+      layoutClassName="reference-report-tabs grid-cols-4 phone:min-w-0 phone:overflow-x-hidden"
     >
       {tabs.map(tabName => (
         <TabNavLink
@@ -120,27 +120,26 @@ export function ReportTabNav({
           to={tabPath(id ?? '', tabName)}
           current={tabName === activeTab}
           // Keeps the hover and focus state layer (index.css).
-          className="reference-report-tab max-[700px]:gap-[0.2rem] max-[700px]:text-[0.68rem]"
+          className="reference-report-tab phone:gap-[0.2rem] phone:text-[0.68rem]"
           aria-label={TAB_META[tabName].label}
           onClick={() => onTabChange(tabName)}
         >
           <Icon
-            className="text-[1.35rem] max-[700px]:text-[1.12rem] [@media(max-height:500px)]:hidden"
-            aria-hidden="true"
+            className="text-[1.35rem] phone:text-[1.12rem] [@media(max-height:500px)]:hidden"
             name={TAB_META[tabName].icon}
           />
           <TruncatedLabel
             // Constrain width and overflow for TruncatedLabel; otherwise there is no axis
             // against which to measure.
             className={
-              'min-w-0 overflow-hidden whitespace-nowrap max-[700px]:text-[0.75rem] max-[420px]:hidden'
+              'min-w-0 overflow-hidden whitespace-nowrap phone:text-[0.75rem] max-[420px]:hidden'
             }
             text={TAB_META[tabName].label}
           />
           <span
             aria-hidden="true"
             className={
-              'min-w-0 overflow-hidden whitespace-nowrap max-[700px]:text-[0.75rem] min-[421px]:hidden'
+              'min-w-0 overflow-hidden whitespace-nowrap phone:text-[0.75rem] min-[421px]:hidden'
             }
           >
             {TAB_META[tabName].short}
@@ -154,13 +153,9 @@ export function ReportTabNav({
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
-    <Card
-      role="alert"
-      tone="danger"
-      layoutClassName="cosci-report-alert ui-motion-enter mx-8 mt-4"
-    >
+    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4">
       {message}
-    </Card>
+    </ErrorNotice>
   );
 }
 
@@ -241,18 +236,14 @@ export function RunEndState({
 }
 
 const NOTICE_LAYOUT_CLASSES =
-  'ui-motion-enter mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
+  'ui-motion-enter mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 phone:mt-5 phone:w-[min(100%_-_1.2rem,100%)] phone:max-w-none';
 
 // A completed run without literature still needs an explicit ungrounded report
 // notice.
 export function ReportUngroundedNotice() {
   return (
     <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
-      <Icon
-        aria-hidden="true"
-        name="warning"
-        className="mt-[0.1rem] shrink-0 text-[1.25rem]"
-      />
+      <Icon name="warning" className="mt-[0.1rem] shrink-0 text-[1.25rem]" />
       <p className="m-0">
         No literature was retrieved for this run. The content below is not
         grounded in retrieved sources.
@@ -268,11 +259,7 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
   const decisions = count === 1 ? 'decision' : 'decisions';
   return (
     <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
-      <Icon
-        aria-hidden="true"
-        name="warning"
-        className="mt-[0.1rem] shrink-0 text-[1.25rem]"
-      />
+      <Icon name="warning" className="mt-[0.1rem] shrink-0 text-[1.25rem]" />
       <p className="m-0">
         This run is paused, waiting on {count} safety {decisions} to be
         reviewed. Resolve {count === 1 ? 'it' : 'them'} on the Goal Details tab
@@ -285,29 +272,29 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
 export function RunDetailSkeleton() {
   return (
     <div
-      className="cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 max-[700px]:mt-5 max-[700px]:mb-12 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none"
+      className="cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 phone:mt-5 phone:mb-12 phone:w-[min(100%_-_1.2rem,100%)] phone:max-w-none"
       aria-busy="true"
     >
-      <div className="rounded-md bg-(--cosci-icon-button-hover-bg) h-8 w-64" />
-      <div className="rounded-md bg-(--cosci-icon-button-hover-bg) h-12 w-full" />
-      <div className="rounded-md bg-(--cosci-icon-button-hover-bg) h-48 w-full" />
+      <div className="rounded-md bg-cosci-icon-button-hover-bg h-8 w-64" />
+      <div className="rounded-md bg-cosci-icon-button-hover-bg h-12 w-full" />
+      <div className="rounded-md bg-cosci-icon-button-hover-bg h-48 w-full" />
     </div>
   );
 }
 
 export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] ' +
-  'text-base leading-[1.5] max-[700px]:mt-5 max-[700px]:mb-12 ' +
-  'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
+  'text-base leading-[1.5] phone:mt-5 phone:mb-12 ' +
+  'phone:w-[min(100%_-_1.2rem,100%)] phone:max-w-none';
 
 export const REPORT_H2_CLASSES =
   'font-gsans mt-9 mb-6 text-[2rem] leading-10 font-normal tracking-normal ' +
-  'max-[700px]:mt-6 max-[700px]:mb-4 ' +
-  'max-[700px]:text-[clamp(1.5rem,6.8vw,2rem)] max-[700px]:leading-[1.2]';
+  'phone:mt-6 phone:mb-4 ' +
+  'phone:text-[clamp(1.5rem,6.8vw,2rem)] phone:leading-[1.2]';
 
 export const REPORT_H3_CLASSES =
   'font-gsans mt-[1.4rem] mb-3 text-[1.75rem] leading-9 font-normal ' +
-  'max-[700px]:text-[clamp(1.35rem,6.5vw,1.75rem)] max-[700px]:leading-[1.2]';
+  'phone:text-[clamp(1.35rem,6.5vw,1.75rem)] phone:leading-[1.2]';
 
 export const REPORT_H4_CLASSES = 'mt-4 mb-[0.35rem] text-base font-medium';
 

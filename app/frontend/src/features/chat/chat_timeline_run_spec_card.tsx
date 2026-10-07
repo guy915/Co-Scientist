@@ -1,7 +1,13 @@
 import type {RunFocus, RunTier} from '@/shared/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {Link} from 'react-router-dom';
-import {Button, buttonClasses, IconButton, TextField} from '@/shared/ui';
+import {
+  Button,
+  buttonClasses,
+  IconButton,
+  TextField,
+  StatusText,
+} from '@/shared/ui';
 import {
   joinClasses,
   OPTION_MARKER_CLASSES,
@@ -124,7 +130,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
       anchorId={props.anchorId}
       attachment={
         <MessageAttachment>
-          <p className={`reference-review-copy ${'m-0 text-base leading-6'}`}>
+          <p className="reference-review-copy m-0 text-base leading-6">
             {planInstructions(props.recoveryAction, locked)}
           </p>
           <RecoveryLookupStatus
@@ -436,32 +442,20 @@ function RecoveryLookupStatus({
   onRetry?: () => void;
 }) {
   if (status === 'checking') {
-    return (
-      <p
-        role="status"
-        aria-live="polite"
-        className="ui-motion-enter text-sm text-cosci-muted"
-      >
-        Checking saved research session status…
-      </p>
-    );
+    return <StatusText>Checking saved research session status…</StatusText>;
   }
   if (status === 'error') {
     return (
-      <div role="alert" className="ui-motion-enter text-sm text-th-destructive">
+      <StatusText tone="danger" as="div">
         <p>Could not verify the saved run status.</p>
         <Button variant="outlined" onClick={onRetry}>
           Retry status check
         </Button>
-      </div>
+      </StatusText>
     );
   }
   if (status === 'cancelled') {
-    return (
-      <p role="status" className="ui-motion-enter text-sm text-cosci-muted">
-        The linked research session was cancelled.
-      </p>
-    );
+    return <StatusText>The linked research session was cancelled.</StatusText>;
   }
   return null;
 }
@@ -606,7 +600,7 @@ function SessionLinkCard({
   return (
     <Link
       to={href}
-      className={`${'reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-started-card-fg'} no-underline`}
+      className="reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-started-card-fg no-underline"
     >
       <span className="block min-w-0">
         <strong className="block min-w-0 text-[1.18rem] leading-[1.25]">
@@ -619,7 +613,7 @@ function SessionLinkCard({
           Research session
         </small>
       </span>
-      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-started-card-fg/75 px-[1.25rem] py-[0.65rem] text-center font-semibold text-started-card-fg/90 hover:bg-started-card-fg/12 focus-visible:bg-started-card-fg/12">
+      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-started-card-fg/75 px-5 py-[0.65rem] text-center font-semibold text-started-card-fg/90 hover:bg-started-card-fg/12 focus-visible:bg-started-card-fg/12">
         Open
       </span>
     </Link>

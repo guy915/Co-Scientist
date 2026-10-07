@@ -1,6 +1,6 @@
 import {expect, it} from 'vitest';
 
-import {makeHypothesis} from '@/test_fixtures';
+import {makeHypothesis} from '@/shared/testing/fixtures';
 
 import {presentedHypotheses, ratingLabel, sortByEloDesc} from './hypotheses';
 

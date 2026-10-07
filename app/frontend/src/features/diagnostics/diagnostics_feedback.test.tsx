@@ -1,4 +1,4 @@
-import {exportedRecords} from '@/test_fixtures';
+import {exportedRecords} from '@/shared/testing/fixtures';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {
   resetSessionBaselineForTest,

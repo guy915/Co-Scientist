@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import sqlite3
 import threading
 import time
 from typing import Annotated, Any
@@ -15,6 +14,7 @@ from co_scientist.api.operator_access import is_operator
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.platform import db
+from co_scientist.platform.db import Connection
 from co_scientist.platform.telemetry import logs
 from co_scientist.platform.telemetry.logging_setup import level_to_number
 from co_scientist.platform.telemetry.logs import LogFilters, NewLogRecord
@@ -124,7 +124,7 @@ class LogQuery(BaseModel):
 
 
 def _query_logs_payload(
-    conn: sqlite3.Connection,
+    conn: Connection,
     filters: LogFilters,
     limit: int,
 ) -> dict[str, Any]:

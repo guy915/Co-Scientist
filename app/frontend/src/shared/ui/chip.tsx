@@ -106,9 +106,7 @@ export function Chip({
       data-tooltip={tooltip}
       {...rest}
     >
-      {icon && (
-        <Icon aria-hidden="true" className={ICON_CLASSES[size]} name={icon} />
-      )}
+      {icon && <Icon className={ICON_CLASSES[size]} name={icon} />}
       {children}
     </span>
   );
