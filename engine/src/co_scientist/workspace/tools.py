@@ -154,14 +154,6 @@ def _resolve_seconds(raw: Any, default: float, floor: float = 0.0) -> float:
     return min(float(raw), DEFAULT_COMMAND_TIMEOUT_SECONDS)
 
 
-def _resolve_yield(args: dict[str, Any]) -> float:
-    return _resolve_seconds(args.get("yield_seconds"), DEFAULT_YIELD_SECONDS, floor=0.001)
-
-
-def _resolve_wait(args: dict[str, Any]) -> float:
-    return _resolve_seconds(args.get("wait_seconds"), DEFAULT_YIELD_SECONDS)
-
-
 def _full_output_paths(
     streams: dict[str, BoundedOutput],
 ) -> dict[str, str]:
@@ -216,7 +208,9 @@ async def _handle_run_command(context: "_ToolContext", args: dict[str, Any]) -> 
         cwd=context.session.root,
         env_extra=env_extra,
     )
-    await session.wait_for(_resolve_yield(args))
+    await session.wait_for(
+        _resolve_seconds(args.get("yield_seconds"), DEFAULT_YIELD_SECONDS, floor=0.001)
+    )
     payload = _session_payload(context, session.read())
     payload["required_approval"] = not is_known_safe(argv)
     return payload
@@ -252,7 +246,7 @@ async def _handle_poll_command(context: "_ToolContext", args: dict[str, Any]) ->
     if args.get("kill"):
         await session.close()
     else:
-        await session.wait_for(_resolve_wait(args))
+        await session.wait_for(_resolve_seconds(args.get("wait_seconds"), DEFAULT_YIELD_SECONDS))
     cursor = args.get("cursor") if isinstance(args.get("cursor"), dict) else {}
     return _session_payload(context, session.read(cursor))
 
