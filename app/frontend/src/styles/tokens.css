@@ -313,7 +313,7 @@ body {
   --segmented-track: var(--cosci-settings-segment-bg);
   --segmented-border: var(--cosci-border);
   --segmented-thumb: var(--cosci-toggle-on-track);
-  --segmented-fg: var(--cosci-text);
+  --segmented-fg: var(--cosci-shell-icon);
   --segmented-selected-fg: var(--cosci-selected-row-fg);
   --segmented-hover: var(--cosci-menu-row-hover);
 
