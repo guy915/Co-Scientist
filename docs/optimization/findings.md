@@ -7,8 +7,8 @@ Folder ownership and timing follow `docs/CAMPAIGNS.md`: a finding in a folder
 waits for that folder's cuts.
 
 **Status:** audit done 6 October 2026 (backend, frontend, infrastructure, CI,
-launch readiness). Model usage measured from the two Express baselines; their
-claim scores are invalid (M1) and are being re-run.
+launch readiness). Fixes are listed under Progress; findings judged not worth
+their risk are at the end with the reason.
 
 ## Order of work
 
@@ -17,6 +17,33 @@ claim scores are invalid (M1) and are being re-run.
 3. Infrastructure quick wins in files this campaign owns (I3–I6).
 4. Backend and frontend fixes, folder by folder after their cuts.
 5. Model lane, after the engine cuts merge.
+
+## Progress
+
+| Finding | PR | Result |
+|---|---|---|
+| C1–C3 | #247 | CI wall 5:51 → 3:49 |
+| C4 | #279 | e2e as three parallel jobs; CI wall 3:40 → 2:54 |
+| L3, L4 | #244 | `SECURITY.md`, `CONTRIBUTING.md`, code of conduct, issue forms, README quick start |
+| L5 | #289 | Unlicensed Google Sans Text files removed; OFL Google Sans serves body text |
+| L9 | #290 | Broken MCP README link and stale default-model comments fixed |
+| L10 | — | Gone: the cuts removed the results file |
+| I2 | #265, #286, #287 | Monitoring guide; API and frontend error tracking, off without a DSN |
+| I3, I6, I12 | #268 | API image rebuild after a source edit 18 s → 8 s; graceful shutdown; unbuffered logs |
+| I4 | #254 | MCP image −374 MB |
+| I5 | #255 | Vercel immutable asset cache and security headers |
+| B1, B3 | #273 | Run delete 1133 → 25 ms |
+| B2 | #278 | `GET /api/runs` 187 → 20 ms at 3,000 runs |
+| B4 | #292 | Idle claim write transactions 145/s → 0; write p99 24 → 9 ms while idle |
+| B5 | #284 | Checkpoint guard 0.91 → 0.004 ms per commit |
+| B7 | #280 | Upload loop stall 350 → 24 ms |
+| B8 | #285 | Run detail 2.19 → 0.81 ms (finished runs) |
+| B9 | #293 | Keepalive every 15 s; stream polling off the event loop |
+| B10 | #288 | Report 185 → 19 KB on the wire |
+| B13 | #291 | Status polls 381 → 0 ms after the first |
+| F1, F4 | #274 | Markdown chunk 103 → 70 KB gzip; stale-chunk reload |
+| F6 | #294 | Closed mobile drawer out of the tab order; one `main` landmark |
+| M1 | #243 | Benchmark retrieval enabled |
 
 ## CI and development
 
@@ -146,6 +173,15 @@ Two Express baselines on `main` at `df08134` (Ling 3.1 Flash default):
 | M5 | Ling is slow per call | Ranking: Ling 61 s/call (6.4k completion), Nemotron Super 13 s/call (1.4k), Ultra 87 s/call; per-token rate about 105 tok/s on both Ling and Super, so time follows tokens | M | — | — |
 | M6 | Ling's output cap is 32,768 tokens | Endpoint `max_completion_tokens` 32,768; the largest engine budget is 24k (`BUDGET_ESCALATION_MAX_TOKENS`), so escalation stays within it | — | — | — |
 
+With retrieval on (#243), Express
+[37540122229](https://github.com/guy915/Co-Scientist/actions/runs/37540122229)
+at `bb27400`: 49.5 min, 86 physical calls, 568k prompt / 359k completion
+tokens (64% reasoning), 13.0k cached (2.3%), Ling served 19 of 86 calls (22%),
+28 claims with 10 supported (unsupported rate 0.64), unverified idea rate
+0.33. Literature review, reflection, claim gate and claim grounding calls now
+appear. Ling retried and then fell back on comprehensive reflection, claim
+gate, directions and ranking, which supports M2.
+
 Starting evidence re-check (measured on Nemotron): the tool-loop and
 reasoning-exhaustion findings need a run with retrieval on (M1) before they
 can be confirmed on Ling; each run had one retry. Caching remains near
@@ -155,4 +191,9 @@ zero (M4).
 
 | # | Change | Why not |
 |---|---|---|
+| M7 | Stable-first prompt order (ranking, review, evolution) for prefix caching | The routes are free, so cached tokens save no money, and the daily cap counts requests, not tokens. Wall time is generation-bound: 5–9k reasoning tokens per call at about 105 tok/s is 50 s or more, while prefill of a 3–4k-token prompt is under 1 s. Reordering prompt text can change answers |
+| M8 | Compact JSON schemas and move the debate angle line | Same reason as M7: prefill-only savings on free routes, at the risk of changing answers |
+| M9 | Stop echoing `reasoning_content` back for non-DeepSeek models | Prefill-only saving; some OpenRouter providers need reasoning continuity across tool calls, so dropping it risks breaking tool loops |
+| B12 | Batch the persisted-log writes | Records are already written on a background `QueueListener` thread, off the request path; batching would rework that thread's drain and shutdown for a few milliseconds of writer time per second |
+| I10 | `--no-install-recommends` for tesseract | `tesseract-ocr` has no Recommends of its own in Debian; only transitive font recommends could drop, and OCR must keep working |
 | B11/I8 | `LITELLM_LOCAL_MODEL_COST_MAP=True` (0.9 s faster import, no boot fetch) | litellm's bundled map has 2,426 entries against 4,481 remote; six newer BYOK models (Gemini 3.x, GPT-6) lose `json_schema` support under it, changing their structured-output path |

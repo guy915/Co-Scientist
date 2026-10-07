@@ -38,32 +38,6 @@
     format('woff2');
 }
 
-/* Gemini Enterprise uses Google Sans Text for body/UI and Google Sans for
-   display; retain the vendored face split. */
-@font-face {
-  font-family: 'Google Sans Text';
-  font-display: swap;
-  font-style: normal;
-  font-weight: 400;
-  src: url('./assets/fonts/google-sans-text-latin-400.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Google Sans Text';
-  font-display: swap;
-  font-style: normal;
-  font-weight: 500;
-  src: url('./assets/fonts/google-sans-text-latin-500.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Google Sans Text';
-  font-display: swap;
-  font-style: normal;
-  font-weight: 700;
-  src: url('./assets/fonts/google-sans-text-latin-700.woff2') format('woff2');
-}
-
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {

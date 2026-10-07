@@ -61,7 +61,7 @@ export function ActiveRunView(props: ActiveRunViewProps) {
     [events],
   );
   return (
-    <main className="min-h-0 overflow-auto px-8 py-7 max-[700px]:px-4">
+    <div className="min-h-0 overflow-auto px-8 py-7 max-[700px]:px-4">
       {/* The section's three children are the progress header, the metric
           cards, and the activity log, so this gap *is* the space above and
           below the cards. 24px rather than 28: the cards sit 12px apart
@@ -80,7 +80,7 @@ export function ActiveRunView(props: ActiveRunViewProps) {
           nowSeconds={nowSeconds}
         />
       </section>
-    </main>
+    </div>
   );
 }
 

@@ -23,6 +23,8 @@ dependencies = [
     "pypdf>=5.0.0,<7.0.0",
     # Run credentials require cryptography for encryption at rest.
     "cryptography>=43.0.0",
+    # Error reports stay off unless SENTRY_DSN is set.
+    "sentry-sdk>=2.0.0,<3",
     "co-scientist-engine>=0.2.0",
 ]
 

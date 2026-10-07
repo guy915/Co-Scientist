@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import dataclasses
 import hashlib
@@ -64,7 +65,11 @@ class ExtractedDocument:
 async def extract_upload(file: UploadFile) -> ExtractedDocument:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     try:
-        return extract_document(data, file.content_type or "application/octet-stream")
+        # PDF parsing and per-figure OCR take seconds; off the loop, other
+        # requests and run streams keep flowing.
+        return await asyncio.to_thread(
+            extract_document, data, file.content_type or "application/octet-stream"
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
