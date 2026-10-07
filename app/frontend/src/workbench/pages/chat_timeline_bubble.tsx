@@ -1,6 +1,6 @@
 import type {QaSource} from '@/api/runs';
 import {MarkdownMessage} from '@/components/markdown_message';
-import {Button, IconButton} from '@/shared/ui';
+import {Button, IconButton, TextArea} from '@/shared/ui';
 import {
   useEffect,
   useLayoutEffect,
@@ -260,11 +260,12 @@ export function BubbleEditor({
     // Do not compose flex and block classes: Tailwind output order, not class
     // string order, decides which wins.
     <div className="reference-user-bubble-editor block w-[36rem] max-w-full rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] bg-cosci-user-bubble-bg px-4 py-3 text-base leading-[1.45] text-cosci-fg">
-      <textarea
+      <TextArea
         ref={ref}
         rows={1}
         aria-label="Edit prompt"
-        className="block w-full resize-none border-0 bg-transparent p-0 text-base leading-[1.45] text-cosci-fg outline-none"
+        variant="bare"
+        layoutClassName="block resize-none text-base leading-[1.45]"
         value={value}
         onChange={event => {
           setValue(event.currentTarget.value);

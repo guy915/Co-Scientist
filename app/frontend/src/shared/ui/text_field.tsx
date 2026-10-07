@@ -10,8 +10,8 @@ const VARIANT_CLASSES: Record<FieldVariant, string> = {
     'rounded-xl border border-field-border bg-transparent px-[0.9rem] ' +
     'py-[0.65rem] text-[0.9rem] text-cosci-fg focus-visible:border-field-focus ' +
     'focus-visible:outline-1 focus-visible:outline-offset-0 ' +
-    'focus-visible:outline-field-focus disabled:text-cosci-muted',
-  bare: 'border-0 bg-transparent p-0 text-inherit outline-none',
+    'focus-visible:outline-field-focus disabled:cursor-default disabled:opacity-60',
+  bare: 'border-0 bg-transparent p-0 text-cosci-fg outline-none',
 };
 
 export function fieldClasses(variant: FieldVariant = 'outlined'): string {

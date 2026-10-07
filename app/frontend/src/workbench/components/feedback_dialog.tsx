@@ -16,11 +16,10 @@ import {
   joinClasses,
   SETTINGS_DIALOG_CLASSES,
   SETTINGS_DIALOG_TITLE_CLASSES,
-  SETTINGS_FIELD_CLASSES,
   SETTINGS_FIELD_LABEL_CLASSES,
   SETTINGS_SCRIM_CLASSES,
 } from '../classes';
-import {Button} from '@/shared/ui';
+import {Button, TextArea} from '@/shared/ui';
 
 import {sessionDiagnosticExport} from '../layout_diagnostics';
 import {SettingsSelect} from './settings_dialog';
@@ -151,14 +150,9 @@ export function FeedbackDialog({
           className={joinClasses('grid gap-2', SETTINGS_FIELD_LABEL_CLASSES)}
         >
           Message
-          <textarea
+          <TextArea
             ref={messageRef}
-            // The important size outranks the unlayered coarse-pointer font
-            // floor, as the field class did before it moved to utilities.
-            className={joinClasses(
-              SETTINGS_FIELD_CLASSES,
-              'min-h-32 resize-y !text-[0.9rem]',
-            )}
+            layoutClassName="min-h-32 resize-y"
             rows={6}
             maxLength={8000}
             value={message}

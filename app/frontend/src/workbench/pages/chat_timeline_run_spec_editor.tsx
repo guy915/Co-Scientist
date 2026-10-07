@@ -1,5 +1,5 @@
 import {editInterviewFields} from '@/api/runs';
-import {Button, IconButton} from '@/shared/ui';
+import {Button, IconButton, TextArea, TextField} from '@/shared/ui';
 import {type ReactNode, useId, useState} from 'react';
 import {SETUP_ACTIONS_CLASSES} from '../classes';
 import {
@@ -64,9 +64,8 @@ function EditableListRow({
     : `Remove empty ${label} entry`;
   return (
     <div className="flex items-center gap-[0.5rem]">
-      <input
+      <TextField
         type="text"
-        className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg"
         aria-label={`${label} item ${index + 1}`}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -143,9 +142,9 @@ function SpecFieldsFormFields({
         >
           Research Challenge
         </label>
-        <textarea
+        <TextArea
           id={goalId}
-          className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg min-h-[6rem] resize-y leading-[1.45]"
+          layoutClassName="min-h-[6rem] resize-y leading-[1.45]"
           value={values.goal}
           onChange={e => onChange({goal: e.target.value})}
         />

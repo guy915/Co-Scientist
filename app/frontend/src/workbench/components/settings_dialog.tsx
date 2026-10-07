@@ -8,7 +8,7 @@ import {
   useLayoutEffect,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {IconButton} from '@/shared/ui';
+import {IconButton, TextField} from '@/shared/ui';
 import {
   type ByokProvider,
   type ModelChoice,
@@ -296,9 +296,8 @@ export function ModelSection({
         >
           {PROVIDER_LABELS[provider]} API key
         </label>
-        <input
+        <TextField
           id="cosci-settings-api-key"
-          className={SETTINGS_FIELD_CLASSES}
           type="password"
           autoComplete="off"
           placeholder={`Paste your ${PROVIDER_LABELS[provider]} API key`}
