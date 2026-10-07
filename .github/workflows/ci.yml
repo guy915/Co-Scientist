@@ -4,12 +4,14 @@ name: CI
 
 on:
   pull_request:
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
   workflow_call:
   workflow_dispatch:
 
-# Private repositories require pull-requests: read for paths-filter to list changed files.
+# PR diffs use the API; merge groups use their base/head git diff.
 permissions:
   contents: read
   pull-requests: read
@@ -44,13 +46,16 @@ jobs:
       python_lint: ${{ steps.select.outputs.python_lint || steps.all.outputs.python_lint }}
     steps:
       - name: Checkout
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Detect changed paths (presubmit only)
         id: filter
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          # A merge group contains the queued PR diff against its synthetic base.
+          base: ${{ github.event.merge_group.base_sha }}
+          ref: ${{ github.event.merge_group.head_sha }}
           list-files: json
           # App imports the engine.
           filters: |
@@ -146,7 +151,7 @@ jobs:
               - '.github/workflows/ci.yml'
       - name: Exclude documentation-only test targets
         id: select
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         env:
           FILTERS: ${{ toJSON(steps.filter.outputs) }}
         run: |
@@ -170,7 +175,7 @@ jobs:
           PYSELECT
       - name: Select all targets (postsubmit / nightly)
         id: all
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
         run: |
           for target in engine app frontend evaluations mcp_server e2e \
             docker root_config python_lint; do
