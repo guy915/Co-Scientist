@@ -314,51 +314,9 @@
     0 4px 8px 3px rgb(0 0 0 / 15%), 0 1px 3px 0 rgb(0 0 0 / 30%);
 }
 
-.ucs-popover,
-.reference-connectors-menu {
-  box-shadow: var(--md-elevation-2);
-}
-
 .reference-toast,
 .reference-report-toast {
   box-shadow: var(--md-elevation-3);
-}
-
-/* MD3 content-color state layers use specification opacities of 8% hover and
-   10% focus/press. */
-.md-state {
-  position: relative;
-  isolation: isolate;
-}
-
-.md-state::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  background: currentColor;
-  opacity: 0;
-  transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
-  pointer-events: none;
-}
-
-.md-state:hover::after {
-  opacity: 0.08;
-}
-
-.md-state:focus-visible::after {
-  opacity: 0.1;
-}
-
-.md-state:active::after {
-  opacity: 0.1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .md-state::after {
-    transition: none;
-  }
 }
 
 /* Tabs reserve after for their underline; use before for state layers and

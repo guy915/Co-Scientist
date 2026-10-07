@@ -29,27 +29,27 @@ pipeline, using GitHub's scanning infrastructure.
 
 ## Main ruleset at launch
 
-GitHub merge queues require organization ownership. This public repository is
-currently owned by a personal account; the owner must transfer it to an
-organization or defer queue activation. The queue-enabled import file is for
-launch once the repository is eligible. See [GitHub availability](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/merging-a-pull-request-with-a-merge-queue).
+The repository has no merge queue: GitHub merge queues require organization
+ownership, and this repository stays on a personal account. PRs squash-merge
+directly once `Required checks` passes; without the up-to-date rule a PR does
+not need re-running after every merge to `main`. The `merge_group` trigger in
+`ci.yml` is kept so a queue can be turned on later without a workflow change.
 
 Import `rulesets/main.json` through GitHub's ruleset import UI. It requires a
 PR and `Required checks`, forbids deletion/force pushes, resolves review
-threads, allows squash only, and enables the merge queue. It has no bypass
+threads, allows squash only. It has no bypass
 actors and no up-to-date rule. Approval count is zero for the current solo
 maintainer; CODEOWNERS routes review without requiring self-approval.
 
 Replace or disable the overlapping `Default` ruleset (17522178): leaving it
 active retains its ten legacy required contexts and strict/up-to-date rule.
 Enable squash merges and disable merge/rebase methods in repository settings
-as well. Set the queue's merge method to squash and require `Required checks`.
+as well.
 These are owner actions; committing these files does not change settings.
 
-Queue validation uses a throwaway branch to replay base/head payloads through
-the pinned production paths-filter action and target selector. An actual
-`merge_group` event is emitted only after the owner enables the queue; its
-first queued merge is the final platform integration check.
+The `merge_group` target selection was validated on a throwaway branch by
+replaying base/head payloads through the pinned paths-filter action and target
+selector; no real `merge_group` event occurs while the queue is off.
 
 Before launch, also enable private vulnerability reporting and confirm CodeQL
 results appear under Security. The campaign's complete owner list and handoffs

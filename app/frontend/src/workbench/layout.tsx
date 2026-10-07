@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   type Dispatch,
-  type RefObject,
   type SetStateAction,
 } from 'react';
 import {useLocation} from 'react-router-dom';
@@ -340,29 +339,6 @@ function useEscapeClosesDrawer(
   useEscapeKey(closeDrawer, navOpen);
 }
 
-// Subscribe globally only while a popover is open, so idle shell renders carry
-// no outside-pointer listener.
-function useDismissPanelOnOutsideClick(
-  activePanel: ShellPanel | null,
-  setActivePanel: (panel: ShellPanel | null) => void,
-  settingsControlRef: RefObject<HTMLDivElement | null>,
-  headerActionsRef: RefObject<HTMLDivElement | null>,
-) {
-  useEffect(() => {
-    if (!activePanel) return;
-    function onPointerDown(event: PointerEvent) {
-      const target = event.target as Node;
-      const settingsContains = settingsControlRef.current?.contains(target);
-      const headerActionsContains = headerActionsRef.current?.contains(target);
-      if (!settingsContains && !headerActionsContains) setActivePanel(null);
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [activePanel]);
-}
-
 function useChromeActions(
   setNavOpen: Dispatch<SetStateAction<boolean>>,
   setActivePanel: Dispatch<SetStateAction<ShellPanel | null>>,
@@ -421,12 +397,6 @@ export function useLayoutChrome(pathname: string) {
 
   useDismissChromeOnNavigate(pathname, setActivePanel, setNavOpen);
   useEscapeClosesDrawer(navOpen, setNavOpen);
-  useDismissPanelOnOutsideClick(
-    activePanel,
-    setActivePanel,
-    settingsControlRef,
-    headerActionsRef,
-  );
 
   return {
     navOpen,
