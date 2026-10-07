@@ -52,4 +52,8 @@ and HTTP-client integrations would attach prompts and model output.
 - Uptime monitors: owner action (accounts and alert contacts).
 - Error tracking, API: in the code; set `SENTRY_DSN` and
   `SENTRY_ENVIRONMENT` on the Railway api service to turn it on.
-- Error tracking, frontend: the `VITE_SENTRY_DSN` hook is next.
+- Error tracking, frontend: in the code (`src/lib/error_tracking.ts`, loaded
+  as its own chunk only when built with a DSN); set `VITE_SENTRY_DSN` for
+  Vercel production builds to turn it on. Reports carry no PII or console
+  breadcrumbs, and the browser's client ID and saved provider keys are
+  redacted.
