@@ -6,7 +6,7 @@ import {
 } from '@/shared/api/runs';
 import {makePrefixedId} from '@/shared/lib/client_id';
 import type {Dispatch} from 'react';
-import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
+import {emitDiagnostic} from '@/shared/lib/diagnostic_events';
 import {type ChatEntry} from './chat_timeline_bubble';
 import {interviewToRunSpec} from '@/shared/lib/run_spec';
 import {
@@ -164,24 +164,13 @@ export function runStartAnnouncement(
 
 export type DiagnosticStage = 'LIFECYCLE' | 'CHAT';
 
-export function emitDiagnosticEvent({
-  stage,
-  runId,
-  level = 'info',
-  payload = {},
-}: {
+export function emitDiagnosticEvent(detail: {
   stage: DiagnosticStage;
-  // Diagnostics persist run_id: use the real ID, never a goal-derived title that
-  // would disclose research content.
   runId?: string;
   level?: 'info' | 'warning' | 'error';
   payload?: Record<string, unknown>;
 }) {
-  window.dispatchEvent(
-    new CustomEvent(DIAGNOSTIC_EVENT, {
-      detail: {stage, runId, level, payload},
-    }),
-  );
+  emitDiagnostic(detail);
 }
 
 export interface NewChatMessage {

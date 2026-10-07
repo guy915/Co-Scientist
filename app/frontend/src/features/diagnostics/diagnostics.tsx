@@ -1,16 +1,14 @@
 import {useEffect, useRef} from 'react';
-import {getAppLogs, postAppLogs, type AppLogsPayload} from '@/shared/api/logs';
+import {getAppLogs, type AppLogsPayload} from '@/shared/api/logs';
 import {useLocation} from 'react-router-dom';
-import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
+import {logNavigation} from '@/shared/lib/ui_logging';
 import {
   EXPORT_LIMIT,
   browserExportContext,
   buildAppLogEntry,
-  detailToClientRecord,
   formatDiagnosticExport,
   summarizeDiagnosticEntries,
   type DiagnosticLogEntry,
-  type DiagnosticLogEventDetail,
   type PersistedAppLogs,
 } from './diagnostics_data';
 import {
@@ -36,7 +34,6 @@ function useSessionLogAnchor() {
 // Mounted for the shell lifetime; renders nothing.
 export function SessionDiagnostics() {
   useSessionLogAnchor();
-  useDiagnosticIngest();
   useNavigationLog();
   return null;
 }
@@ -154,23 +151,6 @@ function buildLoadedLogs(
   };
 }
 
-// Ingest throughout the shell lifetime so no diagnostic event is lost.
-export function useDiagnosticIngest() {
-  useEffect(() => {
-    function onDiagnosticEvent(event: Event) {
-      const custom = event as CustomEvent<DiagnosticLogEventDetail>;
-      if (!custom.detail?.stage) return;
-      postAppLogs([detailToClientRecord(custom.detail)]).catch(() => {
-        // Failed diagnostic ingestion must not break the page.
-      });
-    }
-    window.addEventListener(DIAGNOSTIC_EVENT, onDiagnosticEvent);
-    return () => {
-      window.removeEventListener(DIAGNOSTIC_EVENT, onDiagnosticEvent);
-    };
-  }, []);
-}
-
 export function useNavigationLog() {
   const {pathname} = useLocation();
   const lastLogged = useRef<string | null>(null);
@@ -182,8 +162,6 @@ export function useNavigationLog() {
         ? `page loaded at ${pathname}`
         : `navigated to ${pathname}`;
     lastLogged.current = pathname;
-    postAppLogs([{message, logger: 'navigation'}]).catch(() => {
-      // Navigation logging must remain best-effort when the API is down.
-    });
+    logNavigation(message);
   }, [pathname]);
 }

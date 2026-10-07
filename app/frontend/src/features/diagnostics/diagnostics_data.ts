@@ -1,7 +1,8 @@
-import {type AppLogRecord, type ClientLogRecord} from '@/shared/api/logs';
+import {type AppLogRecord} from '@/shared/api/logs';
+import {type DiagnosticLevel} from '@/shared/lib/diagnostic_events';
 import {formatClockTime} from '@/shared/lib/time';
 
-export type DiagnosticLogLevel = 'info' | 'warning' | 'error';
+export type DiagnosticLogLevel = DiagnosticLevel;
 
 export interface DiagnosticLogEntry {
   id: number;
@@ -22,37 +23,9 @@ export const SERVER_LOG_SOURCE = 'Server';
 
 export const EXPORT_LIMIT = 100;
 
-export interface DiagnosticLogEventDetail {
-  // Use the actual run ID, never a goal-derived title: this field is persisted
-  // and served through the API.
-  runId?: string;
-  stage: string;
-  level?: DiagnosticLogLevel;
-  payload?: Record<string, unknown>;
-}
-
 export interface PersistedAppLogs {
   entries: DiagnosticLogEntry[];
   total: number;
-}
-
-function clientLevel(level: DiagnosticLogLevel | undefined): string {
-  return level === 'error' || level === 'warning' ? level : 'info';
-}
-
-export function detailToClientRecord(
-  detail: DiagnosticLogEventDetail,
-): ClientLogRecord {
-  const payload = detail.payload || {};
-  const suffix = Object.keys(payload).length
-    ? ` ${JSON.stringify(payload)}`
-    : '';
-  return {
-    message: `${detail.stage}${suffix}`,
-    level: clientLevel(detail.level),
-    logger: 'session',
-    ...(detail.runId ? {run_id: detail.runId} : {}),
-  };
 }
 
 function appLogLevel(record: AppLogRecord): DiagnosticLogLevel {

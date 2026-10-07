@@ -11,7 +11,7 @@ import type {
   Review,
   SafetyDecision,
 } from './wire_science';
-import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
+import {emitDiagnostic} from '@/shared/lib/diagnostic_events';
 
 export type * from './wire_common';
 export type * from './wire_interviews';
@@ -568,15 +568,11 @@ function logFetchFailure(
   }
   // A failed diagnostic write must not recursively generate another one.
   if (path.startsWith('/api/logs')) return;
-  window.dispatchEvent(
-    new CustomEvent(DIAGNOSTIC_EVENT, {
-      detail: {
-        stage: 'fetch_failed',
-        level: 'warning',
-        payload: {method: init?.method ?? 'GET', path, status},
-      },
-    }),
-  );
+  emitDiagnostic({
+    stage: 'fetch_failed',
+    level: 'warning',
+    payload: {method: init?.method ?? 'GET', path, status},
+  });
 }
 
 export async function parseJson<T>(res: Response): Promise<T> {
