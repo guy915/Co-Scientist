@@ -592,7 +592,7 @@ function SourcesMarquee() {
     <div className="mt-[64px]">
       <p className={LABEL_CLASSES}>Built on the literature</p>
       <div
-        className="ucs-landing-marquee-window mt-[16px] overflow-hidden border-y border-(--l-line) py-[22px] [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
+        className="ucs-landing-marquee-window mt-[16px] overflow-hidden border-y border-y-(--l-line) py-[22px] [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
         aria-hidden="true"
       >
         <div className="flex w-max gap-[56px] motion-safe:[animation:ucs-landing-slide_40s_linear_infinite] motion-safe:[.ucs-landing-marquee-window:hover_&]:[animation-play-state:paused]">
