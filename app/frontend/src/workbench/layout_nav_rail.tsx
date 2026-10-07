@@ -40,15 +40,21 @@ const NAV_LABEL_OPEN_CLASSES = 'nav-label nav-label--open';
 
 const NAV_LABEL_COLLAPSED_CLASSES = 'nav-label nav-label--collapsed';
 
-const RAIL_POPOVER_CLASSES = 'ucs-popover--rail';
+const RAIL_POPOVER_CLASSES =
+  'bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] p-[0.5rem] ' +
+  '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:right-auto ' +
+  '[@media(max-width:700px)]:bottom-[1.15rem] [@media(max-width:700px)]:left-[0.5rem] ' +
+  '[@media(max-width:700px)]:w-[min(13.5rem,calc(100vw-1rem))]';
 
-const SETTINGS_CONTROL_CLASSES = 'ucs-settings-control';
+const SETTINGS_CONTROL_CLASSES =
+  'relative grid w-auto justify-items-center [@media(max-width:700px)]:w-full';
 
-const SETTINGS_MENU_CLASSES = 'ucs-settings-menu';
+const SETTINGS_MENU_CLASSES = 'grid gap-[0.15rem]';
 
-const SETTINGS_MENU_ITEM_CLASSES = 'ucs-settings-menu-item';
+const SETTINGS_MENU_ITEM_CLASSES =
+  'flex min-h-[2.6rem] cursor-pointer items-center gap-[0.72rem] [border:0] rounded-[0.75rem] bg-transparent px-[0.75rem] text-left text-[0.875rem] font-medium text-cosci-fg no-underline [&:hover]:bg-cosci-menu-row-hover focus-visible:bg-cosci-menu-row-hover';
 
-const SETTINGS_MENU_ICON_CLASSES = 'ucs-settings-menu-icon';
+const SETTINGS_MENU_ICON_CLASSES = 'flex-none text-[1.25rem] text-cosci-muted';
 
 const SIDE_CONTENT_CLASSES = 'ucs-side-content';
 
@@ -65,7 +71,7 @@ const NAV_RAIL_VARIANTS = {
     item: NAV_ITEM_OPEN_CLASSES,
     label: NAV_LABEL_OPEN_CLASSES,
     sideContent: `${SIDE_CONTENT_CLASSES} ${SIDE_CONTENT_OPEN_CLASSES}`,
-    settingsControl: `${SETTINGS_CONTROL_CLASSES} ucs-settings-control--open`,
+    settingsControl: `${SETTINGS_CONTROL_CLASSES} min-[701px]:w-full`,
   },
   collapsed: {
     panel: NAV_PANEL_COLLAPSED_CLASSES,
@@ -75,8 +81,7 @@ const NAV_RAIL_VARIANTS = {
     item: NAV_ITEM_COLLAPSED_CLASSES,
     label: NAV_LABEL_COLLAPSED_CLASSES,
     sideContent: `${SIDE_CONTENT_CLASSES} ${SIDE_CONTENT_COLLAPSED_CLASSES}`,
-    settingsControl:
-      `${SETTINGS_CONTROL_CLASSES} ` + 'ucs-settings-control--collapsed',
+    settingsControl: SETTINGS_CONTROL_CLASSES,
   },
 } as const;
 
@@ -172,7 +177,7 @@ function SettingsPopoverMenu({
   onOpenSettings: (section: SettingsSection) => void;
 }) {
   return (
-    <ShellPopover className={`${RAIL_POPOVER_CLASSES} ucs-popover--menu`}>
+    <ShellPopover className={RAIL_POPOVER_CLASSES}>
       <div className={SETTINGS_MENU_CLASSES} role="menu">
         {SETTINGS_SECTIONS.map(({label, icon, section}) => (
           <SettingsMenuButton
