@@ -8,6 +8,7 @@ from co_scientist.agents.generation import assumptions as assumptions_mod
 from co_scientist.agents.generation.assumptions import (
     generate_with_assumptions,
 )
+from co_scientist.agents.generation.citations import resolve_citation_keys
 from co_scientist.agents.generation.generate import (
     generate_hypotheses,
 )
@@ -121,3 +122,34 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
         assert hyp.literature_grounding.startswith("No literature review available.")
     assert "debate-only" in result["message"]
     assert result["hypothesis_count"] == 2
+
+
+_CITATION_SOURCES = {
+    "C1": {"type": "paper", "title": "Aldolase depletion"},
+    "C2": {"type": "paper", "title": "mTOR suppression"},
+    "C3": {"type": "paper", "title": "Autophagic flux"},
+}
+
+
+@pytest.mark.parametrize(
+    ("grounding", "expected"),
+    [
+        ("Separate markers [C1][C2] and [C3].", ["C1", "C2", "C3"]),
+        # The prompt asks for separate markers, but models group them, and a
+        # grounding that cites only in groups used to resolve nothing.
+        ("As shown [C1, C2] and [C3].", ["C1", "C2", "C3"]),
+        ("Grouped without spaces [C2,C3].", ["C2", "C3"]),
+        ("First mention [C1] repeated [C1, C2].", ["C1", "C2"]),
+        ("Hallucinated keys are dropped [C9] but [C1] stays.", ["C1"]),
+        ("Prose brackets [see methods] cite nothing.", []),
+    ],
+)
+def test_citation_keys_resolve_whether_or_not_the_model_groups_them(
+    grounding: str, expected: list[str]
+) -> None:
+    resolved = resolve_citation_keys(grounding, _CITATION_SOURCES)
+
+    assert list(resolved) == expected
+    assert [source["title"] for source in resolved.values()] == [
+        _CITATION_SOURCES[key]["title"] for key in expected
+    ]
