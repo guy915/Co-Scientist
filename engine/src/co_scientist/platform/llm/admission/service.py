@@ -6,7 +6,6 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
-from co_scientist.core.config import settings
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db.admission import UNKNOWN_HOST, reserve_provider
 
@@ -41,6 +40,8 @@ def scoped_client(
 
 
 def _token_reservation(request: dict[str, Any], *, app: bool) -> int:
+    from co_scientist.core.config import settings
+
     output = request.get("max_completion_tokens", request.get("max_tokens"))
     output_limit = (
         settings.app_llm_max_output_tokens if app else settings.provider_max_output_tokens

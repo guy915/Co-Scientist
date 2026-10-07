@@ -4,7 +4,6 @@ import hashlib
 import ipaddress
 import sqlite3
 
-from co_scientist.core.config import settings
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, transaction
 
@@ -32,6 +31,8 @@ def connecting_host(host: str | None) -> str:
 
 
 def claim_session(conn: sqlite3.Connection, owner: str, host: str, day: int) -> None:
+    from co_scientist.core.config import settings
+
     if conn.execute(
         "SELECT 1 FROM anonymous_admissions WHERE day=? AND host=? AND client_id=?",
         (day, host, owner),
@@ -51,6 +52,8 @@ def claim_session(conn: sqlite3.Connection, owner: str, host: str, day: int) -> 
 
 
 def claim_run(conn: sqlite3.Connection, run_id: str, owner: str, host: str, *, free: bool) -> None:
+    from co_scientist.core.config import settings
+
     day = int(current_time() // 86400)
     claim_session(conn, owner, host, day)
     total, same_host, free_total, free_host = conn.execute(
@@ -82,6 +85,8 @@ def run_host(run_id: str, *, db_path: str | None = None) -> str:
 
 
 def capacity_available(conn: sqlite3.Connection, run_id: str, limit: int) -> bool:
+    from co_scientist.core.config import settings
+
     # The status transition and all three counts occur under the same writer.
     host = conn.execute("SELECT host FROM run_admissions WHERE run_id=?", (run_id,)).fetchone()
     host = str(host[0]) if host else UNKNOWN_HOST
@@ -95,6 +100,8 @@ def capacity_available(conn: sqlite3.Connection, run_id: str, limit: int) -> boo
 
 
 def _reserve_app(conn: sqlite3.Connection, owner: str, day: int, tokens: int) -> None:
+    from co_scientist.core.config import settings
+
     row = conn.execute(
         "SELECT calls,tokens FROM app_llm_usage WHERE day=? AND client_id=?", (day, owner)
     ).fetchone()
@@ -113,6 +120,8 @@ def _reserve_app(conn: sqlite3.Connection, owner: str, day: int, tokens: int) ->
 
 
 def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: str | None) -> None:
+    from co_scientist.core.config import settings
+
     # A future EUR reservation belongs before this commit, alongside these
     # ceilings. The provider dispatch must remain outside the transaction.
     day = int(current_time() // 86400)
