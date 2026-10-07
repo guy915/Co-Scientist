@@ -3,7 +3,21 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
+
 import co_scientist.domains.chat.qa.manifest as qa_run_state
+from co_scientist.api.auth import require_client_scope
+from co_scientist.api.contracts import MessagesResponse
+from co_scientist.api.contracts.interviews import Interview
+from co_scientist.api.contracts.runs import RunMessage
+from co_scientist.api.runs.models import (
+    AskRequest,
+    QaRevisionRequest,
+    SendMessageRequest,
+    StartAnnouncementRequest,
+)
+from co_scientist.api.runs.support import _require_run, _run_or_404
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import qa, run_start_announcement
@@ -16,20 +30,6 @@ from co_scientist.domains.research_state.repository import records
 from co_scientist.orchestration import engine_adapter, engine_tasks
 from co_scientist.platform import db
 from co_scientist.platform.db.models import MessageRow, RunRow, RunStatus
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
-
-from app.api_contracts import MessagesResponse
-from app.api_contracts.interviews import Interview
-from app.api_contracts.runs import RunMessage
-from app.auth import require_client_scope
-from app.runs.models import (
-    AskRequest,
-    QaRevisionRequest,
-    SendMessageRequest,
-    StartAnnouncementRequest,
-)
-from app.runs.support import _require_run, _run_or_404
 
 router = APIRouter()
 

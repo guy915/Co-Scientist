@@ -1,13 +1,14 @@
 from typing import Any
 
-from co_scientist.core.config import settings
-from co_scientist.orchestration import engine_adapter
-from co_scientist.orchestration.notifications import email_notifications_configured
+from app import API_VERSION
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field
 
-from app import API_VERSION, diagnostics
-from app.operator_access import is_operator
+from co_scientist.api import diagnostics
+from co_scientist.api.operator_access import is_operator
+from co_scientist.core.config import settings
+from co_scientist.orchestration import engine_adapter
+from co_scientist.orchestration.notifications import email_notifications_configured
 
 router = APIRouter()
 

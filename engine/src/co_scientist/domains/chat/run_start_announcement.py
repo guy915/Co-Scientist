@@ -6,8 +6,7 @@ from collections.abc import AsyncGenerator
 from time import perf_counter
 from typing import Any
 
-from app.sse import sse_frame
-
+from co_scientist.api.sse import sse_frame
 from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
