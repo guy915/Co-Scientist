@@ -45,7 +45,6 @@ dev = [
 packages = [
     "mcp_server",
     "mcp_server.tools",
-    "mcp_server.tools.indra_cogex",
     "mcp_server.tools.lit_review",
 ]
 

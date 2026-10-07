@@ -131,13 +131,13 @@ Key state fields relevant to hypothesis output:
 | `hypotheses` | Generate, Evolve | List of `Hypothesis` objects; each has `text`, `explanation`, `literature_grounding`, `experiment`, `citation_map`, `enrichments` |
 | `articles` | Literature Review | Retrieved papers with `used_in_analysis` flag |
 | `articles_with_reasoning` | Literature Review | Formatted literature summary used by Generate and Reflection nodes |
-| `context_enrichment_sources` | Literature Review | Structured items from knowledge graph tools (e.g., INDRA statements); merged into citation index alongside papers |
+| `context_enrichment_sources` | Literature Review | Structured items from context-enrichment tools (e.g., STRING interactions); merged into citation index alongside papers |
 
 See `state/__init__.py` for the full `WorkflowState` type definition.
 
 ## Citations
 
-When a literature review runs, each hypothesis receives structured citations. The Generate node builds a `ReferenceIndex` from papers (`used_in_analysis=True`) and any knowledge graph enrichment sources (e.g., INDRA statements), assigning sequential `[C1]`, `[C2]`, ... keys. The LLM uses these keys in `literature_grounding`, and `citation_map` resolves each key to full source metadata (title, URL, authors, year for papers; display label and structured data for knowledge graph entries).
+When a literature review runs, each hypothesis receives structured citations. The Generate node builds a `ReferenceIndex` from papers (`used_in_analysis=True`) and any context-enrichment sources (e.g., STRING interactions), assigning sequential `[C1]`, `[C2]`, ... keys. The LLM uses these keys in `literature_grounding`, and `citation_map` resolves each key to full source metadata (title, URL, authors, year for papers; display label and structured data for knowledge graph entries).
 
 ## Parallel Execution
 
@@ -282,7 +282,7 @@ The summary of the review is stored in `state["articles_with_reasoning"]` and us
 - Generate node (Mode 2: pre-processed summaries, Mode 3: direct tool access)
 - Reflection node (compares hypotheses to literature findings)
 
-The articles used are stored in `state["articles"]`, which contains all articles from the search, with `used_in_analysis=True` on articles that were analyzed. Any knowledge graph enrichment sources (e.g., INDRA statements) are stored in `state["context_enrichment_sources"]`.
+The articles used are stored in `state["articles"]`, which contains all articles from the search, with `used_in_analysis=True` on articles that were analyzed. Any context-enrichment sources (e.g., STRING interactions) are stored in `state["context_enrichment_sources"]`.
 
 At generation time, a `ReferenceIndex` is built from analyzed articles and enrichment sources, assigning sequential `[C1]`, `[C2]`, ... keys. The LLM uses these keys in `literature_grounding`, and `citation_map` on each hypothesis resolves the keys to full source metadata.
 

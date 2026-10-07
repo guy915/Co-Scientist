@@ -65,7 +65,7 @@ State flows through the `WorkflowState` typed dictionary and its declared reduce
 
 ## Literature review and MCP server
 
-Literature review requires a running MCP server. The bundled reference server (`mcp_server/`) is built on FastMCP and provides PubMed search + fulltext extraction (via Biopython), OpenAlex search, ChEMBL/UniProt lookups, INDRA CoGex knowledge-graph queries, a local paper-corpus fetch, and open-web search/read tools.
+Literature review requires a running MCP server. The bundled reference server (`mcp_server/`) is built on FastMCP and provides PubMed search + fulltext extraction (via Biopython), OpenAlex search, ChEMBL/UniProt and systems-biology lookups, a local paper-corpus fetch, and open-web search/read tools.
 
 ### Starting the reference server
 
