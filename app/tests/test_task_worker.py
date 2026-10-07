@@ -263,9 +263,11 @@ async def test_worker_heartbeats_long_workflow_lease(
 
     monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
     running = asyncio.create_task(
-        task_worker.run_once("worker-a", db_path=isolated_db, lease_seconds=0.06)
+        task_worker.run_once("worker-a", db_path=isolated_db, lease_seconds=0.15)
     )
-    await asyncio.sleep(0.1)
+    # Past the first lease, so only a renewal keeps it; renewals have a 0.05s
+    # floor, which a 0.06s lease left 10ms of scheduling margin around.
+    await asyncio.sleep(0.2)
     assert tasks.claim_task("worker-b", db_path=isolated_db) is None
     release.set()
     assert await running
