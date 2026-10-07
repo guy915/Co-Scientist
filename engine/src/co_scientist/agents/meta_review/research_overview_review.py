@@ -8,6 +8,7 @@ from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
     RESEARCH_OVERVIEW_MAX_TOKENS,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm_json,
@@ -19,7 +20,6 @@ from co_scientist.prompts import (
     get_research_overview_review_prompt,
     get_research_overview_revise_prompt,
 )
-from co_scientist.state import WorkflowState
 
 _MAX_OVERVIEW_REVISION_ROUNDS: Final = 2
 # The last revision publishes at the cap; another verdict cannot change its

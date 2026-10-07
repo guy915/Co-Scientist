@@ -29,7 +29,7 @@ from app.store import events, runs
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 if TYPE_CHECKING:
-    from co_scientist.state import WorkflowState
+    from co_scientist.domains.research_state.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +261,7 @@ def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
     """Engine admission and peer-review predicates stay authoritative,
     including newcomers admitted before a retried ranking task.
     """
-    from co_scientist.models import has_peer_review
+    from co_scientist.domains.research_state.models import has_peer_review
 
     return [
         hypothesis
@@ -474,7 +474,7 @@ def _fold_ranking_telemetry(update: dict[str, Any], model_usage: dict[str, dict[
     """Wave telemetry accumulates across match checkpoints and folds into
     scientific metrics once at tournament finalization.
     """
-    from co_scientist.models import create_metrics_update, merge_metrics
+    from co_scientist.domains.research_state.models import create_metrics_update, merge_metrics
 
     if not model_usage:
         return

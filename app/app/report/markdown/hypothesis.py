@@ -4,7 +4,9 @@ import json
 import re
 from typing import Any
 
-from co_scientist.models import HypothesisOrigin
+from co_scientist.domains.research_state.claims.gate import ClaimEdge
+from co_scientist.domains.research_state.models import HypothesisOrigin
+from co_scientist.domains.research_state.text_utils import hypothesis_statement, hypothesis_title
 from co_scientist.platform.retrieval.citations import (
     CitationMetadata,
     DateState,
@@ -13,9 +15,7 @@ from co_scientist.platform.retrieval.citations import (
     classify_source_type,
 )
 
-from app.claims.gate import ClaimEdge
 from app.report.markdown.document import _ABOUT_DISCLOSURE, _SYSTEM_NAME
-from app.text_utils import hypothesis_statement, hypothesis_title
 
 # Anchor the drain citation prefix so unrelated seeded claims remain unresolved
 # rather than mismatched.

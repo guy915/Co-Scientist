@@ -16,6 +16,7 @@ from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -31,7 +32,6 @@ from co_scientist.schemas.synthesis import (
     KNOWLEDGE_BASE_MAX_SECTIONS,
     KNOWLEDGE_BASE_MAX_THEMES,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

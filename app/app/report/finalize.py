@@ -4,6 +4,8 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.records import NewSafetyDecision
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 
@@ -23,9 +25,8 @@ from app.safety import (
     redact_payload_text,
     screen_final,
 )
-from app.store import events, records, runs
+from app.store import events, runs
 from app.store import reports as store
-from app.store.records import NewSafetyDecision
 
 logger = logging.getLogger(__name__)
 

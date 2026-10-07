@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     ExecutionMetrics,
     Hypothesis,
     HypothesisReview,

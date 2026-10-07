@@ -11,7 +11,7 @@ from co_scientist.core.constants import (
     strip_citation_markers,
     truncate_for_prompt,
 )
-from co_scientist.models import Article, phase_message
+from co_scientist.domains.research_state.models import Article, phase_message
 from co_scientist.research import Finding, ResearchResult
 
 if TYPE_CHECKING:

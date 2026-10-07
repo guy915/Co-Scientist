@@ -4,7 +4,7 @@ import asyncio
 from typing import Any
 
 import pytest
-from co_scientist.models import Article, Hypothesis
+from co_scientist.domains.research_state.models import Article, Hypothesis
 from co_scientist.platform.db import checkpoints
 
 import app.engine_tasks.fanout as engine_tasks_fanout_items
@@ -189,7 +189,7 @@ def _assert_fingerprints_survive_the_checkpoint(run_id: str, db_path: str) -> No
     from co_scientist.agents.reflection.deep_verification import (
         verification_fingerprint,
     )
-    from co_scientist.models import Hypothesis
+    from co_scientist.domains.research_state.models import Hypothesis
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert latest is not None

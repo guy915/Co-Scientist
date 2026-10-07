@@ -14,9 +14,9 @@ from co_scientist.agents.reflection.owed_review import (
 )
 from co_scientist.agents.supervisor import orchestrator
 from co_scientist.agents.supervisor.orchestrator import orchestrator_node
-from co_scientist.models import ExecutionMetrics, Hypothesis
+from co_scientist.domains.research_state.models import ExecutionMetrics, Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.scheduling import SupervisorDecision, TaskType
-from co_scientist.state import WorkflowState
 from tests._state import make_hypothesis, make_review, make_state
 
 

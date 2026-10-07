@@ -6,6 +6,11 @@ import sqlite3
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from co_scientist.domains.research_state.repository import hypotheses as store
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.hypotheses import HypothesisStateChanges
+from co_scientist.domains.research_state.repository.records import NewSafetyDecision
+
 from app.hypothesis.safety import (
     EscalatedVerdict,
     HeldHypothesis,
@@ -15,10 +20,6 @@ from app.hypothesis.safety import (
     redact_fields,
     review_hypothesis_safety,
 )
-from app.store import hypotheses as store
-from app.store import records
-from app.store.hypotheses import HypothesisStateChanges
-from app.store.records import NewSafetyDecision
 
 logger = logging.getLogger(__name__)
 

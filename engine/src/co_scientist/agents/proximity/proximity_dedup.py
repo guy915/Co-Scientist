@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from co_scientist.agents.proximity.proximity_graph import member_match_key
-from co_scientist.models import Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
 
 logger = logging.getLogger(__name__)
 

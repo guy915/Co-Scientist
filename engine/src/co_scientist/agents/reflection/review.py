@@ -23,7 +23,7 @@ from co_scientist.core.constants import (
     scaled_max_tokens,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Hypothesis,
     HypothesisReview,
     MetricDeltas,
@@ -31,6 +31,7 @@ from co_scientist.models import (
     has_peer_review,
     phase_message,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -47,7 +48,6 @@ from co_scientist.schemas.review import (
     REVIEW_SCORE_MAXIMUM,
     REVIEW_SCORE_MINIMUM,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

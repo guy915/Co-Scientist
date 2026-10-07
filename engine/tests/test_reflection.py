@@ -37,8 +37,8 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
+from co_scientist.domains.research_state.models import Article
 from co_scientist.generator import run_setup
-from co_scientist.models import Article
 from co_scientist.platform.sandbox.workspace.session import WorkspaceSession
 from tests._llm_fake import mock_call_llm_json
 from tests._state import make_article, make_hypothesis, make_review, make_state

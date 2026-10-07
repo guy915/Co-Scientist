@@ -3,8 +3,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from co_scientist.domains.research_state.text_utils import hypothesis_id, hypothesis_title
+
 from app.store import events as store
-from app.text_utils import hypothesis_id, hypothesis_title
 
 EmitFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 

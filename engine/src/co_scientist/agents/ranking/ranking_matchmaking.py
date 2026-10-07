@@ -5,7 +5,7 @@ import hashlib
 import random
 
 from co_scientist.core.constants import TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS
-from co_scientist.models import Hypothesis
+from co_scientist.domains.research_state.models import Hypothesis
 
 
 def _build_match_candidates(

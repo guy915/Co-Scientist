@@ -13,14 +13,14 @@ from co_scientist.agents.generation import (
     generate as coordinator,
 )
 from co_scientist.checkpoint import restore_workflow_state
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Article,
     GenerationMethod,
     Hypothesis,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus, ScientificTask
-from co_scientist.state import WorkflowState
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 import app.engine_tasks.fanout as fanout

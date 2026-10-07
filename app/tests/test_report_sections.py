@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.platform.telemetry import retrieval_calls as retrieval
 from co_scientist.platform.telemetry.retrieval_calls import NewRetrievalCall
 
-from app.claims.gate import ClaimEdge
 from app.report import build as report_build
 from app.report import content as report_content
 from app.report import gates as report_gates

@@ -187,9 +187,10 @@ def run_arm(
     overrides: dict[str, Any],
     invocation: ArmInvocation,
 ) -> dict[str, Any]:
-    from app.store import hypotheses as store
-    from app.store import records, tasks
     from app.store import runs as store_runs
+    from app.store import tasks
+    from co_scientist.domains.research_state.repository import hypotheses as store
+    from co_scientist.domains.research_state.repository import records
 
     db_path = invocation.db_path
     run_id = persist_arm_run(goal, tier, overrides, invocation)

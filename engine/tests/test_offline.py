@@ -7,12 +7,13 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist import models
 from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
-from co_scientist.models import ExecutionMetrics
+from co_scientist.domains.research_state import models
+from co_scientist.domains.research_state.models import ExecutionMetrics
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm.offline.llm import (
     _GENERATED_VOCABULARY,
     leaf_text,
@@ -20,7 +21,6 @@ from co_scientist.platform.llm.offline.llm import (
 )
 from co_scientist.platform.llm.structured.validate import get_fallback_response
 from co_scientist.platform.telemetry.progress import _ACTIVE_WORKFLOW_STATE, emit_progress
-from co_scientist.state import WorkflowState
 from tests._mcp import isolate_offline_router
 
 

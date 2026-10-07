@@ -2,11 +2,11 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from co_scientist.models import ExecutionMetrics
+from co_scientist.domains.research_state.models import ExecutionMetrics
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.degradation import (
     resolve_retrieval_degradation,
 )
-from co_scientist.state import WorkflowState
 
 ProgressCallback = Callable[[str, dict[str, Any]], Awaitable[None]] | None
 

@@ -24,14 +24,14 @@ from co_scientist.core.constants import (
     THINKING_MAX_TOKENS,
     truncate,
 )
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     ExecutionMetrics,
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
     phase_message,
 )
-from co_scientist.models.matchup import Matchup
+from co_scientist.domains.research_state.models.matchup import Matchup
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,

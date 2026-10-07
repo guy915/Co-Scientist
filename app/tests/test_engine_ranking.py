@@ -4,19 +4,19 @@ import types
 from typing import Any
 
 import pytest
-from co_scientist.models import (
+from co_scientist.domains.research_state.claims import (
+    ClaimAssessment,
+    EntailmentLabel,
+    deterministic_assessor,
+)
+from co_scientist.domains.research_state.claims import grounding as claim_grounding
+from co_scientist.domains.research_state.claims.gate import SupportSpan
+from co_scientist.domains.research_state.models import (
     Article,
     Hypothesis,
 )
 from co_scientist.platform.db.models import RunStatus
 
-from app.claims import (
-    ClaimAssessment,
-    EntailmentLabel,
-    deterministic_assessor,
-)
-from app.claims import grounding as claim_grounding
-from app.claims.gate import SupportSpan
 from app.engine_tasks import gate as engine_tasks_gate
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support

@@ -5,7 +5,7 @@ import functools
 import re
 from collections.abc import Callable, Sequence
 
-from app.claims.gate import EntailmentLabel
+from co_scientist.domains.research_state.claims.gate import EntailmentLabel
 
 RETRIEVAL_STOPWORDS = frozenset(
     {

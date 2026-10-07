@@ -5,6 +5,9 @@ from typing import Any
 
 import pytest
 from co_scientist.agents.meta_review import meta_review as meta_review_module
+from co_scientist.domains.research_state.repository import hypotheses as store
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.safety import (
     review_hypothesis_safety as _parity_review_hypothesis_safety,
 )
@@ -27,9 +30,7 @@ from app.safety import (
 from app.safety.semantic import _build_semantic_decision
 from app.safety.types import redact_matched_spans
 from app.store import events as store_events
-from app.store import hypotheses as store
-from app.store import records, reports
-from app.store.hypotheses import NewHypothesis
+from app.store import reports
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._client import wait_for_status as _wait_status

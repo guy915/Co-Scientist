@@ -3,7 +3,7 @@ import logging
 import re
 from typing import Any
 
-from co_scientist.models import Article
+from co_scientist.domains.research_state.models import Article
 from co_scientist.platform.retrieval.config.schema import ToolConfig
 from co_scientist.platform.retrieval.tools.provider import parse_mcp_result as parse_mcp_result
 

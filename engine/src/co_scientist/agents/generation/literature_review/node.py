@@ -34,7 +34,8 @@ from co_scientist.agents.generation.literature_review.research_phase import (
     run_research_phase,
 )
 from co_scientist.core.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.models import MetricDeltas, create_metrics_update
+from co_scientist.domains.research_state.models import MetricDeltas, create_metrics_update
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.degradation import (
     resolve_retrieval_degradation,
 )
@@ -54,7 +55,6 @@ from co_scientist.platform.retrieval.mcp_client import (
     get_mcp_client,
 )
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

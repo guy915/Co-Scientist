@@ -7,13 +7,14 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
 
 from app import engine_tasks, task_worker
 from app.engine_tasks import inputs
 from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
-from app.store import records, reports, runs, tasks
+from app.store import reports, runs, tasks
 from app.store.runs import RunCreateOptions
 from app.task_worker.outcomes import _LeaseLostError
 from tests._client import create_run as _create_run

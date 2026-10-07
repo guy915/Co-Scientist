@@ -37,7 +37,7 @@ def _predict(
     assessor_id: str,
 ) -> list[tuple[str, str, str]]:
     """Assess once per item: semantic judgments incur a provider call."""
-    from app.claims import as_passages, assess_claim
+    from co_scientist.domains.research_state.claims import as_passages, assess_claim
 
     rows: list[tuple[str, str, str]] = []
     for item in items:
@@ -166,7 +166,7 @@ def run(
 def _selected_assessor(use_llm: bool) -> tuple[Any, str]:
     if use_llm:
         return _build_llm_assessor()
-    from app.claims import deterministic_assessor
+    from co_scientist.domains.research_state.claims import deterministic_assessor
 
     return deterministic_assessor, "deterministic-v1"
 
@@ -175,7 +175,7 @@ def _build_llm_assessor() -> tuple[Any, str]:
     from evaluations._live_config import configure_live_environment
 
     model = configure_live_environment()
-    from app.claims.verifier import make_llm_assessor
+    from co_scientist.domains.research_state.claims.verifier import make_llm_assessor
 
     assessor, assessor_id = make_llm_assessor(model)
     return assessor, str(assessor_id)

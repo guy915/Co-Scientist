@@ -9,7 +9,7 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from app.claims import (
+from co_scientist.domains.research_state.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
     BatchAssessor,
@@ -23,15 +23,18 @@ from app.claims import (
     publication_gate,
     retrieve_passages,
 )
-from app.claims.assessor import _DEFAULT_RETRIEVAL_TOP_K
-from app.claims.gate import (
+from co_scientist.domains.research_state.claims.assessor import _DEFAULT_RETRIEVAL_TOP_K
+from co_scientist.domains.research_state.claims.gate import (
     ClaimAssessment,
     ClaimRole,
     EntailmentLabel,
     SupportSpan,
 )
-from app.store import records as store
-from app.store.records import NewClaimEvidence, NewSafetyDecision
+from co_scientist.domains.research_state.repository import records as store
+from co_scientist.domains.research_state.repository.records import (
+    NewClaimEvidence,
+    NewSafetyDecision,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +334,7 @@ def build_assessor(model: str) -> tuple[Assessor, str]:
     from app.engine_adapter import offline_mode
 
     if not offline_mode():
-        from app.claims.verifier import make_llm_assessor
+        from co_scientist.domains.research_state.claims.verifier import make_llm_assessor
 
         return make_llm_assessor(model)
     return deterministic_assessor, _ASSESSOR_DETERMINISTIC
@@ -346,7 +349,7 @@ def build_batch_assessor(
     from app.engine_adapter import offline_mode
 
     if not offline_mode():
-        from app.claims.verifier import make_llm_batch_assessor
+        from co_scientist.domains.research_state.claims.verifier import make_llm_batch_assessor
 
         batch_assessor, _ = make_llm_batch_assessor(model, call_counter=call_counter)
         return batch_assessor

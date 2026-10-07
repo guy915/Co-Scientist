@@ -3,14 +3,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.claims.gate import ClaimEdge
+from co_scientist.domains.research_state.claims.gate import ClaimEdge
+from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.domains.research_state.repository import records as store
+
 from app.hypothesis import record_hypothesis_block
 from app.hypothesis.safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
-from app.store import hypotheses
-from app.store import records as store
 
 logger = logging.getLogger(__name__)
 

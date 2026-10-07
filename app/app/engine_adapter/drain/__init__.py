@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from app.engine_adapter.drain.final_state import (
+from co_scientist.orchestration.drain import (
     DrainResult as DrainResult,
 )
-from app.engine_adapter.drain.final_state import (
+from co_scientist.orchestration.drain import (
     FinalStateInputs as FinalStateInputs,
 )
-from app.engine_adapter.drain.final_state import (
+from co_scientist.orchestration.drain import (
     persist_final_state as persist_final_state,
 )
 

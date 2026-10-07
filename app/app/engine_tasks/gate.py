@@ -7,8 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
 from co_scientist.core.config import settings
-
-from app.claims.gate import ClaimRole
+from co_scientist.domains.research_state.claims.gate import ClaimRole
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +33,8 @@ async def _assess_gate_claims(
     ordering and provenance.
     """
     from co_scientist.core.async_bridge import run_off_loop
+    from co_scientist.domains.research_state.claims.grounding import assess_claim_groups
 
-    from app.claims.grounding import assess_claim_groups
     from app.engine_adapter import offline_mode
 
     call = functools.partial(
@@ -53,7 +52,8 @@ def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
     """Full text is chunked for passage-specific grounding; title and
     abstract retain their single evidence span.
     """
-    from app.claims import EvidencePassage
+    from co_scientist.domains.research_state.claims import EvidencePassage
+
     from app.evidence_chunking import chunk_evidence_passage
 
     passages: list[EvidencePassage] = []
@@ -90,7 +90,7 @@ def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
 def _harvest_hypothesis_claims(
     hypothesis: Any,
 ) -> tuple[list[str], dict[str, str]]:
-    from app.claims import extract_atomic_claims
+    from co_scientist.domains.research_state.claims import extract_atomic_claims
 
     claim_roles: dict[str, str] = {}
     ordered_claims: list[str] = []
@@ -120,7 +120,7 @@ def _per_claim_fingerprints(
     """Only evidence shown to a claim can invalidate its cached verdict;
     reuse the same digests at both cache levels.
     """
-    from app.claims.grounding import ClaimRecord, claim_fingerprint
+    from co_scientist.domains.research_state.claims.grounding import ClaimRecord, claim_fingerprint
 
     return {
         claim: claim_fingerprint(ClaimRecord(claim, claim_roles[claim]), passages, assessor_id)
@@ -136,7 +136,7 @@ def _permanently_unrankable(hypothesis: Any) -> bool:
         return False
     if hypothesis.review_disposition != "evidence_blocked":
         return True
-    from co_scientist.models import BLOCKING_REVIEW_DISPOSITIONS
+    from co_scientist.domains.research_state.models import BLOCKING_REVIEW_DISPOSITIONS
 
     gate_history = hypothesis.enrichments.get("claim_gate") or {}
     underlying = gate_history.get("prior_review_disposition")
@@ -148,13 +148,13 @@ def _plan_hypothesis_gate(
     passages: Sequence[Any],
     assessor_id: str,
 ) -> _GatePlan | None:
-    from app.claims import GateDecision
+    from co_scientist.domains.research_state.claims import GateDecision
 
     gate_history = hypothesis.enrichments.get("claim_gate") or {}
     prior_disposition = str(
         gate_history.get("prior_review_disposition") or hypothesis.review_disposition or "viable"
     )
-    from app.claims.grounding import combined_fingerprint
+    from co_scientist.domains.research_state.claims.grounding import combined_fingerprint
 
     ordered_claims, claim_roles = _harvest_hypothesis_claims(hypothesis)
     claim_fingerprints = _per_claim_fingerprints(assessor_id, ordered_claims, claim_roles, passages)
@@ -218,7 +218,7 @@ def _apply_gate_verdict(
     """Missing support does not withhold speculative proposals;
     contradictions still block ranking and publication.
     """
-    from app.claims import GateDecision, publication_gate
+    from co_scientist.domains.research_state.claims import GateDecision, publication_gate
 
     hypothesis = plan.hypothesis
     gate = publication_gate(
@@ -289,13 +289,12 @@ def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
 
 
 async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
-    from co_scientist.platform.llm import scoped_telemetry
-
-    from app.claims.grounding import (
+    from co_scientist.domains.research_state.claims.grounding import (
         AssessorSpec,
         build_assessor,
         build_batch_assessor,
     )
+    from co_scientist.platform.llm import scoped_telemetry
 
     passages = _build_evidence_passages(state)
     model = settings.claim_verifier_model or settings.model_name
@@ -318,7 +317,7 @@ def _fold_gate_telemetry(state: dict[str, Any], usage: Mapping[str, Mapping[str,
     if not usage:
         return
     from co_scientist.core.metrics import merge_metrics
-    from co_scientist.models import MetricDeltas, create_metrics_update
+    from co_scientist.domains.research_state.models import MetricDeltas, create_metrics_update
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
     delta = create_metrics_update(

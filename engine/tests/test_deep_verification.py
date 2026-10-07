@@ -8,8 +8,8 @@ import pytest
 import co_scientist.agents.reflection.deep_verification as leaf
 from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.agents.reflection import deep_verification_evidence as dve
-from co_scientist.models import Hypothesis
-from co_scientist.state import WorkflowState
+from co_scientist.domains.research_state.models import Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 from tests._llm_fake import mock_call_llm_json
 from tests._state import (
     make_article,

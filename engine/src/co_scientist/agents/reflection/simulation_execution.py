@@ -12,7 +12,8 @@ from co_scientist.core.constants import (
     truncate_for_prompt,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.models import Hypothesis
+from co_scientist.domains.research_state.models import Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -26,7 +27,6 @@ from co_scientist.platform.sandbox.workspace.tools import (
     workspace_tool_schemas,
 )
 from co_scientist.prompts import load_prompt
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

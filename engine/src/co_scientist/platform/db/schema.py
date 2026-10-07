@@ -196,8 +196,9 @@ CREATE INDEX IF NOT EXISTS idx_hyp_parent ON hypotheses(parent_id);
 -- append-only `hypotheses` table so the original record is never overwritten.
 CREATE TABLE IF NOT EXISTS hypothesis_state (
     hypothesis_id TEXT PRIMARY KEY,
-    -- DEFAULT mirrors app.elo.INITIAL_ELO; rows are always inserted with an
-    -- explicit rating, so this is only a belt-and-suspenders fallback.
+    -- DEFAULT mirrors co_scientist.domains.research_state.elo.INITIAL_ELO; rows are
+    -- always inserted with an explicit rating, so this is only a belt-and-suspenders
+    -- fallback.
     elo_rating INTEGER NOT NULL DEFAULT 1200,
     win_count INTEGER NOT NULL DEFAULT 0,
     loss_count INTEGER NOT NULL DEFAULT 0,

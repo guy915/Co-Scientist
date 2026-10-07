@@ -4,10 +4,7 @@ from typing import Any
 
 import litellm
 import pytest
-from co_scientist.models import ExecutionMetrics
-from co_scientist.platform.llm import scoped_telemetry
-
-from app.claims import (
+from co_scientist.domains.research_state.claims import (
     AssessorDraft,
     EntailmentLabel,
     EvidencePassage,
@@ -15,7 +12,7 @@ from app.claims import (
     assess_claim,
     assess_claims_batch,
 )
-from app.claims.grounding import (
+from co_scientist.domains.research_state.claims.grounding import (
     AssessorSpec,
     ClaimRecord,
     GroundingResult,
@@ -26,12 +23,18 @@ from app.claims.grounding import (
     persist_grounding,
     reusable_assessments,
 )
-from app.claims.verifier import make_llm_assessor, make_llm_batch_assessor
+from co_scientist.domains.research_state.claims.verifier import (
+    make_llm_assessor,
+    make_llm_batch_assessor,
+)
+from co_scientist.domains.research_state.models import ExecutionMetrics
+from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.domains.research_state.repository import records as store
+from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
+from co_scientist.domains.research_state.repository.records import NewEvidence
+from co_scientist.platform.llm import scoped_telemetry
+
 from app.engine_tasks import gate as engine_tasks_gate
-from app.store import hypotheses
-from app.store import records as store
-from app.store.hypotheses import NewHypothesis
-from app.store.records import NewEvidence
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add, seed_run
 
@@ -520,7 +523,7 @@ def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
     import threading
     import time as _time
 
-    from app.claims.grounding import assess_hypothesis_claims
+    from co_scientist.domains.research_state.claims.grounding import assess_hypothesis_claims
 
     active = 0
     peak = 0
@@ -537,7 +540,7 @@ def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
         return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
 
     hyps = [{"id": f"h{i}", "title": f"H{i}", "statement": _SUPPORTED} for i in range(8)]
-    from app.claims.grounding import AssessorSpec
+    from co_scientist.domains.research_state.claims.grounding import AssessorSpec
 
     assess_hypothesis_claims(hyps, as_passages([_SUPPORTED]), AssessorSpec(_slow_assessor))
 

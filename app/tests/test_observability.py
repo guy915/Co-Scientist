@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist import models
+from co_scientist.domains.research_state import models
 from co_scientist.platform.telemetry import logs
 from co_scientist.platform.telemetry import retrieval_calls as retrieval
 from co_scientist.platform.telemetry.logging_setup import (

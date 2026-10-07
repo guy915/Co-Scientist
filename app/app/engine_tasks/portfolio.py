@@ -11,7 +11,7 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.tasks import NewTask
 
 if TYPE_CHECKING:
-    from co_scientist.state import WorkflowState
+    from co_scientist.domains.research_state.state import WorkflowState
 
 
 def _cascade_cancel_downstream(

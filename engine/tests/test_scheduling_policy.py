@@ -9,6 +9,7 @@ from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -20,7 +21,6 @@ from co_scientist.scheduling import (
     validate_decision,
 )
 from co_scientist.scheduling.policy import stack_companions
-from co_scientist.state import WorkflowState
 from co_scientist.workflow_topology import route_after_meta_review
 from tests._state import BUDGET, healthy_stats, make_state
 

@@ -13,11 +13,16 @@ from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     ExecutionMetrics,
     Hypothesis,
     HypothesisOrigin,
     HypothesisReview,
+)
+from co_scientist.domains.research_state.state import (
+    AppendHypotheses,
+    accumulate_matchups,
+    deduplicate_hypotheses,
 )
 from co_scientist.platform.sandbox.patch import (
     Patch,
@@ -25,11 +30,6 @@ from co_scientist.platform.sandbox.patch import (
     apply_patch,
     parse_patch,
     seek_anchor,
-)
-from co_scientist.state import (
-    AppendHypotheses,
-    accumulate_matchups,
-    deduplicate_hypotheses,
 )
 from tests._state import make_hypothesis
 
@@ -353,7 +353,7 @@ def _matchup(
 def test_matchups_from_later_tournaments_do_not_erase_earlier_ones() -> None:
     """Last-write-wins would erase every earlier cycle of persisted Elo
     history."""
-    from co_scientist.state import accumulate_matchups
+    from co_scientist.domains.research_state.state import accumulate_matchups
 
     first = [_matchup("a", "b")]
     second = [_matchup("c", "d")]
@@ -366,7 +366,7 @@ def test_matchups_from_later_tournaments_do_not_erase_earlier_ones() -> None:
 def test_a_replayed_task_does_not_double_its_own_ledger() -> None:
     """Research ledgers are content, not events; replay must not multiply
     them."""
-    from co_scientist.state import accumulate_research_ledgers
+    from co_scientist.domains.research_state.state import accumulate_research_ledgers
 
     ledger = {"goal": "reverse fibrosis", "calls": []}
 

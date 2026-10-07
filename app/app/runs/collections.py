@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.domains.research_state.repository import records as store
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 
@@ -11,8 +13,7 @@ from app.api_contracts.reports import Report
 from app.report import unverified_hypothesis_ids
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
-from app.store import hypotheses, reports, runs
-from app.store import records as store
+from app.store import reports, runs
 
 router = APIRouter()
 
@@ -87,8 +88,8 @@ def get_claim_evidence(run_id: str) -> dict[str, Any]:
     """Return the run's claim-level entailment graph (Milestone 5).
 
     Each edge is one atomic claim of a hypothesis with its assessed label
-    (an ``EntailmentLabel`` value; ``app.claims.gate`` says what each
-    means) and the exact supporting/contradicting passages that drove the
+    (an ``EntailmentLabel`` value; ``co_scientist.domains.research_state.claims.gate``
+    says what each means) and the exact supporting/contradicting passages that drove the
     verdict.
     """
     _require_run(run_id)
