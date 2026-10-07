@@ -192,3 +192,27 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
         if task is not asyncio.current_task() and not task.done()
     ]
     assert pending == []
+
+
+def test_a_fields_edit_keeps_lab_constraints_it_does_not_send(
+    isolated_db: str,
+) -> None:
+    created = store.create_interview(HEADERS["X-Client-ID"], "Map MCT1 in astrocytes")
+    store.update_interview(
+        created["id"],
+        {**created["fields"], "lab_constraints": ["No animal work"]},
+        "Which mechanism?",
+    )
+    edit = {
+        "research_challenge": "Map MCT1 in astrocytes",
+        "focus_area": ["Lactate shuttle"],
+        "preferences": [],
+    }
+    with TestClient(app) as client:
+        url = f"/api/interviews/{created['id']}/fields"
+        kept = client.put(url, headers=HEADERS, json=edit)
+        cleared = client.put(url, headers=HEADERS, json={**edit, "lab_constraints": []})
+
+    assert kept.json()["fields"]["lab_constraints"] == ["No animal work"]
+    assert kept.json()["fields"]["focus_area"] == ["Lactate shuttle"]
+    assert cleared.json()["fields"]["lab_constraints"] == []

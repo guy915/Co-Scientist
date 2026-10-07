@@ -374,8 +374,8 @@ export function getInterview(interviewId: string): Promise<Interview> {
   });
 }
 
-// The request's lab_constraints is optional (the server defaults it), unlike the
-// response's.
+// The request's lab_constraints is optional (the server keeps the stored list),
+// unlike the response's.
 export type InterviewFieldsEdit = Omit<
   Interview['fields'],
   'title' | 'lab_constraints'

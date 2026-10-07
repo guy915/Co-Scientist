@@ -121,8 +121,8 @@ class InterviewTurnRequest(BaseModel):
 class InterviewFieldsRequest(BaseModel):
     """Scientist-authored edits to the five structured fields.
 
-    ``lab_constraints`` (K5) defaults to empty so clients that predate
-    the field keep validating; omitting it records "no constraints".
+    Omitted ``title`` and ``lab_constraints`` keep their stored values, so a
+    client that does not edit them cannot erase them.
     """
 
     research_challenge: str = Field(..., min_length=1, max_length=20_000)
