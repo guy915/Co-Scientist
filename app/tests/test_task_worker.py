@@ -9,17 +9,17 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
+from co_scientist.orchestration.task_worker import outcomes as task_worker_outcomes
 from co_scientist.platform import db as _store_db
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.platform.llm import current_run_call_count, scoped_llm_call_budget
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 
-from app import engine_tasks, task_worker
-from app.store import events as store_events
-from app.store import runs, tasks
-from app.store import tasks_lifecycle as lifecycle
-from app.task_worker import outcomes as task_worker_outcomes
 from tests._engine_tasks_helpers import _enqueue, make_cancellable_executor
 from tests._store_helpers import enqueue_task, seed_run
 
@@ -515,7 +515,7 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
     async def _fake_sleep(seconds: float) -> None:
         slept.append(seconds)
 
-    monkeypatch.setattr("app.task_worker.asyncio.sleep", _fake_sleep)
+    monkeypatch.setattr("co_scientist.orchestration.task_worker.asyncio.sleep", _fake_sleep)
 
     policy = task_worker.WorkerPolicy(db_path=isolated_db)
     keep_going = await task_worker._cohort_worker_step(run.id, "worker2", policy)

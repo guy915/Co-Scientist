@@ -9,11 +9,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core.config import any_provider_credential, settings
+from co_scientist.orchestration.engine_adapter import engine_importable
+from co_scientist.orchestration.repository.tasks import queue_health_snapshot
 from co_scientist.platform import db
 from co_scientist.platform.db import default_db_path
-
-from app.engine_adapter import engine_importable
-from app.store.tasks import queue_health_snapshot
 
 logger = logging.getLogger(__name__)
 

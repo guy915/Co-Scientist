@@ -4,10 +4,6 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.notifications import enqueue_completion_notification
-from app.run_events import EmitFn
-from app.store import events, runs
-
 from co_scientist.domains.report import repository as store
 from co_scientist.domains.report.build import (
     ReportRequest,
@@ -25,6 +21,9 @@ from co_scientist.domains.safety.gate import (
     redact_payload_text,
     screen_final,
 )
+from co_scientist.orchestration.notifications import enqueue_completion_notification
+from co_scientist.orchestration.repository import events, runs
+from co_scientist.orchestration.run_events import EmitFn
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 
@@ -135,7 +134,7 @@ async def _screen_final_report(
     *,
     db_path: str | None,
 ) -> SafetyDecision:
-    from app.engine_tasks import runtime as engine_tasks_runtime
+    from co_scientist.orchestration.engine_tasks import runtime as engine_tasks_runtime
 
     return await engine_tasks_runtime.active().screen(
         run_id,
@@ -157,7 +156,7 @@ def _commit_leased_report_publication(
     """
     # Keep imports local: engine task support closes a cycle through
     # engine_adapter and co_scientist.domains.report.
-    from app.engine_tasks.support import assert_task_commit_allowed
+    from co_scientist.orchestration.engine_tasks.support import assert_task_commit_allowed
 
     with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
@@ -250,7 +249,7 @@ def _commit_empty_leaderboard_block(
     """Validate the finalize lease in the same transaction as readiness-block
     writes.
     """
-    from app.engine_tasks.support import assert_task_commit_allowed
+    from co_scientist.orchestration.engine_tasks.support import assert_task_commit_allowed
 
     payload = {"status": "blocked", "reason": decision.reason}
     with db.transaction(db_path) as conn:

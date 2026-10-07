@@ -11,14 +11,14 @@ from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.domains.safety.gate import SafetyDecision
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.orchestration.repository import tasks as store
 from co_scientist.platform.db.models import RunStatus
 
-from app import engine_tasks, task_worker
-from app.engine_tasks import support as engine_tasks_support
-from app.store import events as store_events
-from app.store import runs
-from app.store import runs_views as views
-from app.store import tasks as store
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (

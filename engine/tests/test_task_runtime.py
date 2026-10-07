@@ -7,6 +7,9 @@ from typing import Any
 
 import pytest
 
+from co_scientist.orchestration.task_runtime import (
+    plan_portfolio,
+)
 from co_scientist.platform.llm import tool_effects
 from co_scientist.platform.llm.tool_effects import (
     is_barrier,
@@ -16,9 +19,6 @@ from co_scientist.platform.llm.tool_effects import (
 from co_scientist.platform.llm.tools.loop import (
     _execute_logged_tool,
     _execute_tool_calls,
-)
-from co_scientist.task_runtime import (
-    plan_portfolio,
 )
 from tests._llm_fake import (
     make_tool_call,

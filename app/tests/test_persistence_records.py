@@ -16,6 +16,13 @@ from co_scientist.domains.report.content import derive_knowledge_facts
 from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewClaimEvidence
+from co_scientist.orchestration.repository import runs as store
+from co_scientist.orchestration.repository import tasks as store_tasks
+from co_scientist.orchestration.repository.events import (
+    ACTIVITY_OTHER,
+    ACTIVITY_VALUES,
+    activity_for_event,
+)
 from co_scientist.platform import db as _store_db
 from co_scientist.platform.db import checkpoints as store_checkpoints
 from co_scientist.platform.db.models import RunStatus
@@ -23,13 +30,6 @@ from co_scientist.platform.telemetry import logs
 from co_scientist.platform.telemetry.logs import NewLogRecord
 from fastapi.testclient import TestClient
 
-from app.store import runs as store
-from app.store import tasks as store_tasks
-from app.store.events import (
-    ACTIVITY_OTHER,
-    ACTIVITY_VALUES,
-    activity_for_event,
-)
 from tests._client import create_run as _create_run
 from tests._client import drain as _drain
 from tests._client import make_client, wait_for_status
@@ -373,7 +373,7 @@ def test_prune_batches_and_folds_the_wal_between_batches(
 
 
 def test_every_node_in_node_to_agent_has_an_activity() -> None:
-    from co_scientist.agents import NODE_TO_AGENT
+    from co_scientist.orchestration.registry import NODE_TO_AGENT
 
     for node_name in NODE_TO_AGENT:
         activity = activity_for_event(node_name, {})

@@ -23,11 +23,11 @@ from co_scientist.domains.safety.rules import (
 )
 from co_scientist.domains.safety.semantic import _build_semantic_decision
 from co_scientist.domains.safety.types import redact_matched_spans
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.science.meta_review import meta_review as meta_review_module
 from fastapi.testclient import TestClient
 
-from app.run_events import make_emitter
-from app.store import events as store_events
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._client import wait_for_status as _wait_status

@@ -6,9 +6,6 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from app.store import events as store_events
-from app.store import runs
-
 import co_scientist.platform.llm.process_mode as process_mode
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.repository import records
@@ -26,6 +23,8 @@ from co_scientist.domains.safety.semantic import (
 )
 from co_scientist.domains.safety.types import SafetyDecision, redact_matched_spans
 from co_scientist.domains.safety.types import redact_payload_text as redact_payload_text
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 
@@ -108,7 +107,7 @@ def _assert_bootstrap_intake_lease(
         conn, run_id, task.id, task.lease_owner, task.attempt
     ):
         return
-    from app.task_worker.outcomes import LeaseLostError
+    from co_scientist.orchestration.task_worker.outcomes import LeaseLostError
 
     raise LeaseLostError(f"bootstrap task {task.id} lost its lease before intake commit")
 
@@ -123,7 +122,7 @@ def _commit_task_safety_events(
     task: ScientificTask,
     db_path: str | None,
 ) -> list[dict[str, Any]]:
-    from app.engine_tasks.support import assert_task_commit_allowed
+    from co_scientist.orchestration.engine_tasks.support import assert_task_commit_allowed
 
     decision_payload = result.to_dict()
     event_type = f"safety.{result.stage}"
