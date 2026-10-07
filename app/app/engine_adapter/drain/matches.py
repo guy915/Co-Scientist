@@ -8,9 +8,9 @@ from typing import Any
 from co_scientist.agents.ranking.ranking_debate import (
     debate_transcript_document,
 )
+from co_scientist.models.matchup import Matchup
 from co_scientist.research import result_from_dict
 
-from app.elo import INITIAL_ELO
 from app.store import records as store
 from app.store import retrieval_calls as retrieval
 from app.store.records import NewMatch, NewProximityEdge
@@ -47,48 +47,33 @@ def _persist_retrieval_calls(
     return written
 
 
-def _debate_transcript_json(m: dict[str, Any]) -> str | None:
+def _debate_transcript_json(m: Matchup) -> str | None:
     """Missing historical transcripts remain null rather than being
     reconstructed from closing rationale.
     """
-    turns = m.get("debate_transcript") or []
-    if not turns:
+    if not m.debate_transcript:
         return None
-    # Historical matchups may lack verdict numbers; canonical side a still
-    # identifies idea 1.
-    verdict = str(m.get("debate_verdict") or ("2" if m.get("winner") == "b" else "1"))
-    document = debate_transcript_document(list(turns), verdict)
+    document = debate_transcript_document(list(m.debate_transcript), m.verdict)
     return json.dumps(document, ensure_ascii=False)
 
 
-def _matchup_loser_engine_id(
-    m: dict[str, Any], a_engine_id: str | None, winner_engine_id: str | None
-) -> str | None:
-    b_engine_id = m.get("hypothesis_b_id")
-    return b_engine_id if winner_engine_id == a_engine_id else a_engine_id
-
-
 def _resolve_match_sides(
-    m: dict[str, Any],
+    m: Matchup,
     store_id_by_engine_id: dict[str, str],
 ) -> tuple[str, str] | None:
     """Proximity pruning may remove a former tournament participant;
     unresolved match sides are expected and skipped.
     """
-    a_engine_id = m.get("hypothesis_a_id")
-    winner_engine_id = m.get("winner_id")
-    loser_engine_id = _matchup_loser_engine_id(m, a_engine_id, winner_engine_id)
-
-    winner_id = store_id_by_engine_id.get(winner_engine_id or "")
-    loser_id = store_id_by_engine_id.get(loser_engine_id or "")
+    winner_id = store_id_by_engine_id.get(m.winner_id or "")
+    loser_id = store_id_by_engine_id.get(m.loser_id or "")
     # Inline checks preserve mypy's flow-sensitive narrowing of both IDs.
     if not winner_id or not loser_id:
         logger.warning(
             "skipping matchup: unresolved hypothesis id "
             "(winner=%s, loser=%s) — likely a hypothesis dropped "
             "during evolution",
-            winner_engine_id,
-            loser_engine_id,
+            m.winner_id,
+            m.loser_id,
         )
         return None
     return winner_id, loser_id
@@ -100,7 +85,8 @@ def _persist_engine_matches(
     store_id_by_engine_id: dict[str, str],
     conn: sqlite3.Connection,
 ) -> None:
-    for m in matchups:
+    for raw in matchups:
+        m = Matchup.from_dict(raw)
         sides = _resolve_match_sides(m, store_id_by_engine_id)
         if sides is None:
             continue
@@ -110,16 +96,16 @@ def _persist_engine_matches(
                 run_id=run_id,
                 # Match rows retain authoring-cycle provenance; accumulated Elo
                 # history must not collapse into cycle zero.
-                iteration=int(m.get("iteration", 0)),
+                iteration=int(m.iteration),
                 winner_id=winner_id,
                 loser_id=loser_id,
-                winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
-                winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
-                loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
-                loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
-                rationale=m.get("reasoning", ""),
-                tier=m.get("tier") or None,
-                debate_turns=int(m.get("debate_turns", 1)),
+                winner_before=int(m.winner_elo_before),
+                winner_after=int(m.winner_elo_after),
+                loser_before=int(m.loser_elo_before),
+                loser_after=int(m.loser_elo_after),
+                rationale=m.reasoning or "",
+                tier=m.tier or None,
+                debate_turns=int(m.debate_turns),
                 debate_transcript=_debate_transcript_json(m),
             ),
             conn=conn,

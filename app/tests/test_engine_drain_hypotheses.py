@@ -8,11 +8,12 @@ from typing import Any
 
 import pytest
 from co_scientist.agents.ranking.ranking_debate import (
-    _debate_provenance_fields,
     _DebateRun,
     _finalize_debate_response,
     _MatchupPrompt,
+    build_matchup,
 )
+from co_scientist.models import Hypothesis
 
 import app.citations as citation_resolver
 from app import safety
@@ -614,13 +615,11 @@ def _judged_matchup() -> dict[str, Any]:
         start_parity=0,
     )
     winner = _finalize_debate_response(response, ["b", "b"], run, "model")
-    return {
-        "hypothesis_a_id": "e-a",
-        "hypothesis_b_id": "e-b",
-        "winner_id": "e-b",
-        "reasoning": "Idea 2 wins.",
-        **_debate_provenance_fields(response, winner),
-    }
+    pair = (Hypothesis("A", id="e-a"), Hypothesis("B", id="e-b"))
+    matchup: dict[str, Any] = build_matchup(
+        pair, winner, response, k_factor=None, iteration=0
+    ).to_dict()
+    return matchup
 
 
 def test_a_judged_debate_reaches_the_report(isolated_db: str) -> None:
