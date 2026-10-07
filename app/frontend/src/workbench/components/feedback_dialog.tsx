@@ -12,7 +12,15 @@ import {
   useFocusTrap,
   useRestoreFocusOnClose,
 } from '../hooks/dom';
-import {joinClasses, SETUP_PRIMARY_BUTTON_CLASSES} from '../classes';
+import {
+  joinClasses,
+  SETTINGS_DIALOG_CLASSES,
+  SETTINGS_DIALOG_TITLE_CLASSES,
+  SETTINGS_FIELD_CLASSES,
+  SETTINGS_FIELD_LABEL_CLASSES,
+  SETTINGS_SCRIM_CLASSES,
+  SETUP_PRIMARY_BUTTON_CLASSES,
+} from '../classes';
 
 import {sessionDiagnosticExport} from '../layout_diagnostics';
 import {HeaderControlTrigger} from '../layout_primitives';
@@ -109,22 +117,25 @@ export function FeedbackDialog({
   return (
     <div className="ucs-settings-dialog-root" ref={root}>
       <div
-        className="ucs-settings-dialog-scrim"
+        className={SETTINGS_SCRIM_CLASSES}
         aria-hidden="true"
         onClick={onClose}
       />
       <form
-        className="ucs-settings-dialog ucs-feedback-dialog"
+        className={joinClasses(
+          SETTINGS_DIALOG_CLASSES,
+          'h-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] gap-5 overflow-y-auto p-6',
+        )}
         role="dialog"
         aria-modal="true"
         aria-label="Feedback"
         onSubmit={event => void submit(event)}
       >
-        <h2 className="ucs-settings-dialog-title">Feedback</h2>
+        <h2 className={SETTINGS_DIALOG_TITLE_CLASSES}>Feedback</h2>
         <div>
           <label
             id="feedback-category-label"
-            className="ucs-settings-field-label"
+            className={joinClasses('grid gap-2', SETTINGS_FIELD_LABEL_CLASSES)}
             htmlFor="feedback-category"
           >
             Category
@@ -140,11 +151,18 @@ export function FeedbackDialog({
             onChange={setCategory}
           />
         </div>
-        <label className="ucs-settings-field-label">
+        <label
+          className={joinClasses('grid gap-2', SETTINGS_FIELD_LABEL_CLASSES)}
+        >
           Message
           <textarea
             ref={messageRef}
-            className="ucs-settings-field-input"
+            // The important size outranks the unlayered coarse-pointer font
+            // floor, as the field class did before it moved to utilities.
+            className={joinClasses(
+              SETTINGS_FIELD_CLASSES,
+              'min-h-32 resize-y !text-[0.9rem]',
+            )}
             rows={6}
             maxLength={8000}
             value={message}
@@ -154,7 +172,7 @@ export function FeedbackDialog({
           />
         </label>
         {error && <p role="alert">{error}</p>}
-        <div className="ucs-feedback-actions">
+        <div className="flex gap-3 [justify-content:end]">
           <button
             type="button"
             className="min-h-[2.6rem] cursor-pointer rounded-full border border-cosci-btn-secondary-border bg-transparent px-[1.45rem] font-medium text-cosci-btn-secondary-fg hover:bg-cosci-menu-row-hover focus-visible:bg-cosci-menu-row-hover"

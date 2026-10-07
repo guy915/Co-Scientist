@@ -12,6 +12,21 @@ export default defineConfig({
   },
   build: {
     outDir: process.env.COSCI_FRONTEND_DIST || 'dist',
+    rollupOptions: {
+      output: {
+        // React changes far less often than app code; a separate chunk keeps
+        // its immutable cache entry across deploys.
+        manualChunks(id) {
+          if (
+            /[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(
+              id,
+            )
+          ) {
+            return 'react';
+          }
+        },
+      },
+    },
   },
   test: {
     environment: 'jsdom',

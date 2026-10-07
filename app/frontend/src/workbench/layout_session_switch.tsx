@@ -67,20 +67,29 @@ const SWITCH_TRACK_CLASSES = joinClasses(
   HEADER_PILL_SHAPE_CLASSES,
 );
 
+// Transform travel stays compositor-owned rather than laying out the header on
+// every animation frame.
+const SWITCH_THUMB_CLASSES =
+  'absolute inset-y-0 left-0 z-0 w-1/2 rounded-[9999px] bg-cosci-accent ' +
+  '[transition:transform_220ms_cubic-bezier(0.2,0,0,1)] ' +
+  'motion-reduce:[transition:none]';
+
 // Set link color directly because visited-link browser rules beat inherited
 // color; one moving highlight owns the fill.
 const SWITCH_SIDE_BASE_CLASSES =
   'ucs-session-switch-side relative z-[1] flex h-full min-w-0 items-center ' +
   'justify-center gap-[0.45rem] rounded-full px-[0.72rem] no-underline';
 
+// Unselected hover needs its own tint: the menu-row value equals the track and
+// would show no state.
 const SWITCH_SIDE_CLASSES = joinClasses(
   SWITCH_SIDE_BASE_CLASSES,
-  'text-cosci-shell-icon',
+  'text-cosci-shell-icon [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover',
 );
 
 const SWITCH_SIDE_ACTIVE_CLASSES = joinClasses(
   SWITCH_SIDE_BASE_CLASSES,
-  'ucs-session-switch-side--active text-cosci-logs-accent-fg',
+  'text-cosci-logs-accent-fg',
 );
 
 // Results use the default tab; the run page owns live-progress/report selection.
@@ -102,7 +111,13 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
       data-active={session.active}
     >
       {/* A single highlight can travel between sides; independent backgrounds can only reappear. */}
-      <span className="ucs-session-switch-thumb" aria-hidden="true" />
+      <span
+        className={joinClasses(
+          SWITCH_THUMB_CLASSES,
+          session.active === 'results' && '[transform:translateX(100%)]',
+        )}
+        aria-hidden="true"
+      />
       {SWITCH_SIDES.map(({side, icon, label, tooltip}) => {
         const active = side === session.active;
         return (
@@ -124,7 +139,7 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
               className={joinClasses(HEADER_CONTROL_ICON_CLASSES, 'flex-none')}
               name={icon}
             />
-            <span className="ucs-session-switch-label">{label}</span>
+            <span className="[@media(max-width:700px)]:hidden">{label}</span>
           </Link>
         );
       })}

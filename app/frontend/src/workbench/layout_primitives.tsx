@@ -2,7 +2,11 @@ import type {ReactNode, SVGProps} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {tooltipClassNames} from './classes';
 
-const SHELL_POPOVER_CLASSES = 'ucs-popover';
+// Width and padding come from the call site: Tailwind stylesheet order, not
+// class order, decides conflicting utilities. `ucs-popover` carries the shadow
+// (index.css).
+const SHELL_POPOVER_CLASSES =
+  'ucs-popover absolute z-[35] grid gap-[0.35rem] rounded-[1rem] border border-cosci-border bg-cosci-menu-bg text-cosci-fg';
 
 export const NAV_ICON_CLASSES = 'ucs-nav-icon';
 

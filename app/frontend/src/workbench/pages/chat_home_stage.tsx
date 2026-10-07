@@ -80,7 +80,7 @@ const SUGGESTION_ROW_CLASSES =
 const SUGGESTION_BUTTON_CLASSES =
   'reference-suggestion-button flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full cursor-pointer items-center overflow-hidden rounded-[1rem] border border-cosci-border p-3 text-left leading-[1.35] text-cosci-fg [outline:0] [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:max-h-[3.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[3.9rem] ' +
-  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:rounded-[9999px] [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
+  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:rounded-[9999px] [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
 
 // A previewed phone row must beat the resting transparent background, so the
 // two states never share a background utility.
@@ -100,7 +100,7 @@ const SUGGESTION_PREVIEW_CLASSES =
 // Anchor edge previews inward so they cannot overflow the viewport.
 const SUGGESTION_PREVIEW_POSITION_CLASSES = [
   'left-0 text-left',
-  'left-1/2 -translate-x-1/2 text-center',
+  'left-1/2 text-center',
   'right-0 text-right',
 ] as const;
 
@@ -257,7 +257,7 @@ function SuggestionCard({
       <SuggestionPreviewBubble
         text={suggestion.preview}
         isPreviewed={isPreviewed}
-        positionClass={SUGGESTION_PREVIEW_POSITION_CLASSES[Math.min(index, 2)]}
+        position={Math.min(index, 2)}
       />
       <SuggestionTriggerButton
         suggestion={suggestion}
@@ -273,20 +273,26 @@ function SuggestionCard({
 function SuggestionPreviewBubble({
   text,
   isPreviewed,
-  positionClass,
+  position,
 }: {
   text: string;
   isPreviewed: boolean;
-  positionClass: string;
+  position: number;
 }) {
+  const centered = position === 1;
   return (
     <p
       className={joinClasses(
         SUGGESTION_PREVIEW_CLASSES,
-        positionClass,
+        SUGGESTION_PREVIEW_POSITION_CLASSES[position],
+        isPreviewed ? 'visible opacity-100' : 'invisible opacity-0',
         isPreviewed
-          ? 'visible opacity-100 translate-y-0'
-          : 'invisible opacity-0 translate-y-[0.2rem]',
+          ? centered
+            ? '[transform:translateX(-50%)_translateY(0)]'
+            : '[transform:translateY(0)]'
+          : centered
+            ? '[transform:translateX(-50%)_translateY(0.2rem)]'
+            : '[transform:translateY(0.2rem)]',
       )}
       aria-hidden={!isPreviewed}
     >
@@ -310,7 +316,9 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
       type="button"
       className={joinClasses(
         SUGGESTION_BUTTON_CLASSES,
-        isPreviewed ? 'bg-cosci-hover' : SUGGESTION_REST_CLASSES,
+        isPreviewed
+          ? 'bg-cosci-hover [@media(max-width:700px)]:[&&]:[border-color:transparent]'
+          : SUGGESTION_REST_CLASSES,
       )}
       onPointerEnter={() => onPreview(suggestion.preview)}
       onPointerLeave={() => onPreview(null)}
