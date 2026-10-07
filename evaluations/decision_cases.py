@@ -89,33 +89,31 @@ def _ranking_cases(hypotheses: list[dict[str, Any]]) -> list[DecisionCase]:
 
 
 def _relevance_cases(papers: list[dict[str, Any]]) -> list[DecisionCase]:
+    from co_scientist.platform.llm.decisions.relevance import relevance_questions
+    from co_scientist.platform.retrieval.evidence.relevance import _build_candidates_block
     from co_scientist.science.prompts.literature import get_literature_review_relevance_batch_prompt
     from co_scientist.science.schemas import LITERATURE_RELEVANCE_BATCH_SCHEMA
 
-    cases = []
+    by_goal: dict[str, list[dict[str, Any]]] = {}
     for paper in papers:
-        # The production scorer has the same per-paper abstract character boundary.
-        block = f"**Candidate 1:**\nTitle: {paper['title']}\nAbstract: {paper['abstract'][:1500]}"
-        prompt = get_literature_review_relevance_batch_prompt(paper["goal"], block)
-        question = Question(
-            "score",
-            "How relevant is Candidate 1 to the research goal?",
-            (
-                "Unrelated",
-                "Slightly related",
-                "Partially relevant",
-                "Strongly relevant",
-                "Directly on point",
-            ),
-        )
-        cases.append(
-            DecisionCase(
-                _identifier(prompt),
-                prompt,
-                LITERATURE_RELEVANCE_BATCH_SCHEMA,
-                {"relevance": question},
+        by_goal.setdefault(paper["goal"], []).append(paper)
+    cases = []
+    for goal, group in by_goal.items():
+        ordered = sorted(group, key=lambda paper: _identifier(json.dumps(paper, sort_keys=True)))
+        for start in range(0, len(ordered), 10):
+            batch = ordered[start : start + 10]
+            ranked = {str(i): paper for i, paper in enumerate(batch)}
+            prompt = get_literature_review_relevance_batch_prompt(
+                goal, _build_candidates_block(list(ranked), ranked)
             )
-        )
+            cases.append(
+                DecisionCase(
+                    _identifier(prompt),
+                    prompt,
+                    LITERATURE_RELEVANCE_BATCH_SCHEMA,
+                    relevance_questions(len(batch)),
+                )
+            )
     return cases
 
 

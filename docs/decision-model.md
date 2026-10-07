@@ -82,3 +82,22 @@ inputs; relevance also requires score/order agreement; proximity requires
 full-pool equivalence and false-deduplication validation; safety needs risk-domain
 coverage and class-specific false-allow checks. The initial report marks all
 sites unadopted. The docs lane publishes the accepted training-use disclosure.
+
+## Relevance draft
+
+`DECISION_LITERATURE_RELEVANCE_THRESHOLD` stays unset until the local quality
+panel passes. One ordered five-level question per candidate preserves the
+existing continuous semantic score and 50/50 lexical fusion. Every candidate
+must exceed the calibrated threshold to accept its batch; otherwise the
+original whole-batch LLM scorer runs. Accepted records carry a model/probability
+note and a distinct retriever version; LLM fallback clears prior decision
+provenance. Original abstract boundaries remain identical, with no extra
+truncation to fit Liquid.
+
+The manual site selector can evaluate one site without dispatching the others.
+Relevance cases are production-sized batches of up to ten unique papers. The
+first complete batches providing at least 100 paper labels calibrate the
+threshold; subsequent complete batches form the holdout. Reports distinguish
+paper agreement/calibration from batch acceptance, semantic ordering and
+request savings. Lexical-fusion selection needs separate validation before
+adoption. No threshold or production credential is supplied by the draft.

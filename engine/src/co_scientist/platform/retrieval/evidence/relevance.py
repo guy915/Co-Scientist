@@ -10,6 +10,10 @@ from typing import Any
 from co_scientist.core.constants import DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.platform.llm import CompletionSpec, call_llm_json
+from co_scientist.platform.llm.decisions import decision_or_fallback
+from co_scientist.platform.llm.decisions.relevance import relevance_questions
+from co_scientist.platform.llm.decisions.settings import calibrated_threshold
+from co_scientist.platform.llm.decisions.types import DecisionResult
 from co_scientist.science.prompts import get_literature_review_relevance_batch_prompt
 from co_scientist.science.schemas import LITERATURE_RELEVANCE_BATCH_SCHEMA
 
@@ -20,6 +24,7 @@ RETRIEVAL_METHOD = "hybrid-lexical-semantic"
 RETRIEVAL_METHOD_VERSION = "2"
 _LEXICAL_ONLY_VERSION = f"lexical-only/{RETRIEVAL_METHOD_VERSION}"
 _HYBRID_VERSION = f"{RETRIEVAL_METHOD}/{RETRIEVAL_METHOD_VERSION}"
+_DECISION_VERSION = f"{_HYBRID_VERSION};decider=liquid/d1:free;rubric=1"
 
 _LEXICAL_WEIGHT = 0.5
 _SEMANTIC_WEIGHT = 0.5
@@ -134,8 +139,9 @@ async def _judge_batch(
         research_goal=research_goal,
         candidates_block=_build_candidates_block(pool_ids, ranked),
     )
-    try:
-        result = await call_llm_json(
+
+    async def llm() -> dict[str, Any]:
+        return await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
                 model_name=model_name,
@@ -143,6 +149,28 @@ async def _judge_batch(
                 temperature=HIGH_TEMPERATURE,
                 json_schema=LITERATURE_RELEVANCE_BATCH_SCHEMA,
             ),
+        )
+
+    def accept(result: DecisionResult) -> dict[str, Any]:
+        judgments = [
+            {
+                "index": number,
+                "relevance": float(result.answers[f"relevance_{number}"].value) / 4,
+                "rationale": result.note(f"relevance_{number}"),
+            }
+            for number in range(1, len(pool_ids) + 1)
+        ]
+        for paper_id in pool_ids:
+            ranked[paper_id]["semantic_decision_model"] = "liquid/d1:free"
+        return {"judgments": judgments}
+
+    try:
+        result = await decision_or_fallback(
+            prompt,
+            relevance_questions(len(pool_ids)),
+            calibrated_threshold("LITERATURE_RELEVANCE"),
+            accept,
+            llm,
         )
     except TASK_CONTROL_FLOW_ERRORS:
         raise
@@ -167,9 +195,10 @@ def _stamp_hybrid_score(
     would double-weight semantic relevance."""
     metadata["retrieval_score"] = combine_hybrid_score(lexical_raw, semantic)
     metadata["retrieval_rationale"] = rationale
-    metadata["retriever_version"] = (
-        _HYBRID_VERSION if semantic is not None else _LEXICAL_ONLY_VERSION
-    )
+    version = _HYBRID_VERSION if semantic is not None else _LEXICAL_ONLY_VERSION
+    if semantic is not None and metadata.get("semantic_decision_model") == "liquid/d1:free":
+        version = _DECISION_VERSION
+    metadata["retriever_version"] = version
 
 
 def _lexical_raw_scores(
@@ -183,6 +212,7 @@ def _stamp_lexical_baseline(
     ranked: dict[str, dict[str, Any]], lexical_raw: dict[str, float]
 ) -> None:
     for paper_id, metadata in ranked.items():
+        metadata.pop("semantic_decision_model", None)
         _stamp_hybrid_score(metadata, lexical_raw[paper_id], None, "")
 
 

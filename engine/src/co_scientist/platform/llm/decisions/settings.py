@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
@@ -16,6 +17,14 @@ class DecisionUnavailableError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.rate_limits = rate_limits or {}
+
+
+def calibrated_threshold(site: str) -> float | None:
+    try:
+        value = float(os.getenv(f"DECISION_{site}_THRESHOLD", ""))
+    except ValueError:
+        return None
+    return value if math.isfinite(value) and 0.5 < value <= 1 else None
 
 
 def _flag(name: str, default: bool = False) -> bool:

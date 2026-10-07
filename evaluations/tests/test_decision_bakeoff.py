@@ -169,3 +169,45 @@ async def test_account_metadata_excludes_key_and_identifying_fields(
         "is_free_tier": False,
         "free_model_daily_requests": 7,
     }
+
+
+def test_relevance_calibration_preserves_whole_batches_and_reports_batch_risk() -> None:
+    rows = []
+    for batch, size in enumerate([8] + [10] * 13):
+        names = [f"relevance_{i}" for i in range(1, size + 1)]
+        reference = dict.fromkeys(names, 1.0)
+        decision = dict(reference)
+        if batch == 13:
+            decision[names[0]] = 0.0
+        rows.append(
+            {
+                "id": str(batch),
+                "reference": reference,
+                "decision": decision,
+                "confidence": 0.99,
+                "agrees": decision == reference,
+                "answers": {name: {"confidence": 0.99} for name in names},
+            }
+        )
+    summary = decision_bakeoff.summarize("literature_relevance", rows)
+    assert summary["calibration_cases"] == 108
+    assert summary["held_out_cases"] == 30
+    assert summary["held_out_batches"] == 3
+    assert summary["accepted_held_out_agreement"] == pytest.approx(29 / 30)
+    assert summary["accepted_batch_agreement"] == pytest.approx(2 / 3)
+    assert summary["adoption_ready"] is False
+
+
+def test_reference_batch_reorders_indices_and_rejects_missing_labels() -> None:
+    result = decision_bakeoff.reference_values(
+        "literature_relevance",
+        {"judgments": [{"index": 2, "relevance": 0.9}, {"index": 1, "relevance": 0.1}]},
+        ["relevance_1", "relevance_2"],
+    )
+    assert result == {"relevance_1": 0.1, "relevance_2": 0.9}
+    with pytest.raises(ValueError, match="incomplete"):
+        decision_bakeoff.reference_values(
+            "literature_relevance",
+            {"judgments": [{"index": 1, "relevance": 0.1}]},
+            ["relevance_1", "relevance_2"],
+        )

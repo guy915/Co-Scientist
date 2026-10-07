@@ -4,6 +4,11 @@ name: Decision bake-off
 on:
   workflow_dispatch:
     inputs:
+      site:
+        description: Call site to evaluate
+        type: choice
+        options: [all, literature_relevance, ranking_pairwise, proximity, semantic_safety]
+        default: all
       cases:
         description: Cases per site (5 for initial smoke, 150 for calibration and holdout)
         type: choice
@@ -31,7 +36,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        site: [literature_relevance, ranking_pairwise, proximity, semantic_safety]
+        site: ${{ fromJSON(inputs.site == 'literature_relevance' && '["literature_relevance"]' || inputs.site == 'ranking_pairwise' && '["ranking_pairwise"]' || inputs.site == 'proximity' && '["proximity"]' || inputs.site == 'semantic_safety' && '["semantic_safety"]' || '["literature_relevance","ranking_pairwise","proximity","semantic_safety"]') }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

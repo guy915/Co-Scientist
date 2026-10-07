@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import dataclasses
 import json
+import math
 import os
 import statistics
 from pathlib import Path
@@ -26,7 +27,9 @@ from co_scientist.platform.llm.telemetry import scoped_telemetry
 from evaluations.decision_cases import DecisionCase, build_cases
 
 
-def reference_values(site: str, response: dict[str, Any]) -> dict[str, Any]:
+def reference_values(
+    site: str, response: dict[str, Any], names: list[str] | None = None
+) -> dict[str, Any]:
     if site == "ranking_pairwise":
         from co_scientist.science.ranking.ranking_debate import _parse_matchup_winner
 
@@ -35,7 +38,19 @@ def reference_values(site: str, response: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("reference ranking has no valid winner")
         return {"winner": winner.upper()}
     if site == "literature_relevance":
-        return {"relevance": float(response["judgments"][0]["relevance"])}
+        from co_scientist.platform.retrieval.evidence.relevance import _match_batch_judgments
+
+        names = names or ["relevance"]
+        judgments = _match_batch_judgments(response.get("judgments") or [], names)
+        values = {}
+        for name, entry in zip(names, judgments, strict=True):
+            if not isinstance(entry, dict) or type(entry.get("relevance")) not in (int, float):
+                raise ValueError("reference relevance labels are incomplete")
+            value = float(entry["relevance"])
+            if not math.isfinite(value) or not 0 <= value <= 1:
+                raise ValueError("reference relevance score is outside its bounds")
+            values[name] = value
+        return values
     if site == "proximity":
         grade = "low"
         for cluster in response["similarity_clusters"]:
@@ -62,7 +77,7 @@ def reference_values(site: str, response: dict[str, Any]) -> dict[str, Any]:
 def decision_values(site: str, result: DecisionResult) -> dict[str, Any]:
     values = {key: answer.value for key, answer in result.answers.items()}
     if site == "literature_relevance":
-        values["relevance"] = float(values["relevance"]) / 4
+        values = {name: float(value) / 4 for name, value in values.items()}
     if site == "semantic_safety":
         values["offensive_score"] = float(values["offensive_score"]) + 1
     return values
@@ -70,8 +85,11 @@ def decision_values(site: str, result: DecisionResult) -> dict[str, Any]:
 
 def agrees(site: str, reference: dict[str, Any], decision: dict[str, Any]) -> bool:
     if site == "literature_relevance":
-        a, b = reference["relevance"], decision["relevance"]
-        return bool(abs(a - b) <= 0.15 and (a >= 0.5) == (b >= 0.5))
+        return set(reference) == set(decision) and all(
+            abs(reference[name] - decision[name]) <= 0.15
+            and (reference[name] >= 0.5) == (decision[name] >= 0.5)
+            for name in reference
+        )
     if site == "semantic_safety":
         return all(
             (reference[key] >= 4) == (decision[key] >= 4)
@@ -112,7 +130,31 @@ async def _decide(client: SystemOneClient, case: DecisionCase, delay: float) -> 
 
 def summarize(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
     completed = [row for row in rows if "reference" in row and "decision" in row]
-    calibration, held_out = completed[:100], completed[100:]
+    label_rows = completed
+    if site == "literature_relevance":
+        label_rows = [
+            {
+                "reference": {"relevance": row["reference"][name]},
+                "decision": {"relevance": row["decision"][name]},
+                "confidence": row.get("answers", {})
+                .get(name, {})
+                .get("confidence", row["confidence"]),
+                "agrees": agrees(
+                    site, {name: row["reference"][name]}, {name: row["decision"][name]}
+                ),
+                "batch_id": row["id"],
+            }
+            for row in completed
+            for name in row["decision"]
+        ]
+    calibration_count = 100
+    if site == "literature_relevance":
+        calibration_count = 0
+        for row in completed:
+            calibration_count += len(row["decision"])
+            if calibration_count >= 100:
+                break
+    calibration, held_out = label_rows[:calibration_count], label_rows[calibration_count:]
     labels = [LabeledDecision(row["confidence"], row["agrees"]) for row in calibration]
     threshold = choose_threshold(labels)
     accepted = [row for row in held_out if threshold is not None and row["confidence"] >= threshold]
@@ -124,7 +166,7 @@ def summarize(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         "calibration_cases": len(calibration),
         "held_out_cases": len(held_out),
         "threshold": threshold,
-        "agreement": statistics.mean(row["agrees"] for row in completed) if completed else None,
+        "agreement": statistics.mean(row["agrees"] for row in label_rows) if label_rows else None,
         "reference_ece": expected_calibration_error(labels),
         "accepted_held_out_agreement": statistics.mean(row["agrees"] for row in accepted)
         if accepted
@@ -137,8 +179,41 @@ def summarize(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         "adoption_ready": False,
     }
     if site == "literature_relevance" and completed:
+        summary["paper_labels"] = len(label_rows)
         summary["score_mae"] = statistics.mean(
-            abs(row["reference"]["relevance"] - row["decision"]["relevance"]) for row in completed
+            abs(row["reference"]["relevance"] - row["decision"]["relevance"]) for row in label_rows
+        )
+        held_ids = {row["batch_id"] for row in held_out}
+        calibration_ids = {row["batch_id"] for row in calibration}
+        batches = [row for row in completed if row["id"] in held_ids - calibration_ids]
+        accepted_batches = [
+            row for row in batches if threshold is not None and row["confidence"] >= threshold
+        ]
+        summary["held_out_batches"] = len(batches)
+        summary["held_out_batch_escalation"] = (
+            1 - len(accepted_batches) / len(batches) if batches else None
+        )
+        summary["accepted_batch_agreement"] = (
+            statistics.mean(row["agrees"] for row in accepted_batches) if accepted_batches else None
+        )
+        summary["held_out_batch_lower_bound"] = (
+            agreement_lower_bound(
+                [LabeledDecision(row["confidence"], row["agrees"]) for row in batches], threshold
+            )
+            if threshold is not None and batches
+            else None
+        )
+        ordering = [
+            (a - b) * (row["decision"][x] - row["decision"][y]) > 0
+            for row in completed
+            for x, a in row["reference"].items()
+            for y, b in row["reference"].items()
+            if x < y and a != b
+        ]
+        summary["semantic_order_agreement"] = statistics.mean(ordering) if ordering else None
+        summary["limitation"] = (
+            "paper calibration is grouped by disjoint batches; "
+            "lexical-fusion selection needs separate validation"
         )
     if site == "semantic_safety":
         summary["false_allow_count"] = sum(
@@ -174,7 +249,7 @@ async def run_panel(
                 reference = await call_llm_json(
                     case.prompt, CompletionSpec(model, json_schema=case.schema), max_attempts=1
                 )
-                row["reference"] = reference_values(site, reference)
+                row["reference"] = reference_values(site, reference, list(case.questions))
                 await asyncio.sleep(delay)
                 result = await _decide(client, case, delay)
                 row["decision"] = decision_values(site, result)
@@ -243,10 +318,24 @@ async def account_limits() -> dict[str, Any]:
 async def run_live(
     site: str, cases: list[DecisionCase], settings: DecisionSettings, output: Path
 ) -> dict[str, Any]:
+    client = SystemOneClient(settings)
+    eligible = []
+    oversized = []
+    for case in cases:
+        try:
+            client.estimate_tokens(case.prompt, case.questions)
+            if case.reverse_prompt:
+                client.estimate_tokens(case.reverse_prompt, case.questions)
+        except DecisionUnavailableError as error:
+            if str(error) not in {"decision input is too large", "decision context limit exceeded"}:
+                raise
+            oversized.append(case.identifier)
+        else:
+            eligible.append(case)
     before = await account_limits()
-    report = await run_panel(
-        site, cases, SystemOneClient(settings), os.environ["MODEL_NAME"], 4, output
-    )
+    report = await run_panel(site, eligible, client, os.environ["MODEL_NAME"], 4, output)
+    report["preflight_oversized_ids"] = oversized
+    report["summary"]["preflight_oversized_fallbacks"] = len(oversized)
     report["openrouter_account_before"] = before
     report["openrouter_account_after"] = await account_limits()
     output.write_text(json.dumps(report, indent=2))

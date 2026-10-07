@@ -75,6 +75,10 @@ class SystemOneClient:
         self.settings = settings
         self._transport = transport
 
+    def estimate_tokens(self, state: str | dict[str, Any], questions: dict[str, Question]) -> int:
+        self.settings.validate()
+        return _body_and_tokens(state, questions, self.settings)[1]
+
     async def decide(
         self, state: str | dict[str, Any], questions: dict[str, Question]
     ) -> DecisionResult:
