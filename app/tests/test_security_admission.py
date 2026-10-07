@@ -7,8 +7,8 @@ from typing import Any
 
 import pytest
 from co_scientist.api import logs_api
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
-from co_scientist.domains.access import credentials
 from co_scientist.domains.chat.repository import messages
 from co_scientist.platform import db
 from co_scientist.platform.llm import llm_request, offline_guard, provider_usage
@@ -102,7 +102,7 @@ async def test_budget_stops_dispatch_and_byok_keeps_its_own_billing(
         await llm_request.acompletion(model="gpt-4o-mini", max_tokens=100)
         with pytest.raises(HTTPException):
             await llm_request.acompletion(model="gpt-4o-mini", max_tokens=100)
-        monkeypatch.setattr(credentials, "current_byok", lambda: object())
+        monkeypatch.setattr(byok_scope, "current_byok", lambda: object())
         await llm_request.acompletion(model="gpt-4o-mini", max_tokens=100)
     assert len(fake.requests) == 2
 

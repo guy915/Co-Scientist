@@ -8,9 +8,9 @@ from fastapi import APIRouter, HTTPException, Request
 
 from co_scientist.api.auth import client_id
 from co_scientist.api.runs.models import CreateRunRequest
+from co_scientist.core import byok_scope
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
-from co_scientist.domains.access import credentials
 from co_scientist.orchestration import engine_adapter
 
 FREE_TIER = "express"
@@ -29,7 +29,7 @@ class FreeUsageExhaustedError(Exception):
     """The daily free-run allowance is exhausted."""
 
 
-def applies(byok: credentials.ByokCredential | None, llm_backend: str) -> bool:
+def applies(byok: byok_scope.ByokCredential | None, llm_backend: str) -> bool:
     return byok is None and llm_backend == "real"
 
 

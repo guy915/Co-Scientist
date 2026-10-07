@@ -33,7 +33,6 @@ ignore_imports =
     co_scientist.core.config -> co_scientist.platform.llm
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.ranking.ranking_debate
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.research
-    co_scientist.platform.telemetry.error_tracking -> co_scientist.domains.access.credentials
     co_scientist.domains.documents.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
     co_scientist.domains.access.free_usage -> co_scientist.api.auth
     co_scientist.domains.access.free_usage -> co_scientist.orchestration.engine_adapter
@@ -41,11 +40,7 @@ ignore_imports =
     co_scientist.domains.chat.interviews -> co_scientist.api.contracts.interviews
     co_scientist.domains.chat.interviews -> co_scientist.api.auth
     co_scientist.domains.chat.interviews.turns -> co_scientist.api.auth
-    co_scientist.platform.llm.llm_request -> co_scientist.domains.access.credentials
-    co_scientist.platform.telemetry.logging_setup -> co_scientist.domains.access.credentials
-    co_scientist.platform.llm.offline_guard -> co_scientist.domains.access.credentials
     co_scientist.platform.llm.offline_guard -> co_scientist.orchestration.engine_adapter
-    co_scientist.platform.llm.process_mode -> co_scientist.domains.access.credentials
     co_scientist.domains.chat.qa -> co_scientist.orchestration.repository.runs
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.events
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.tasks

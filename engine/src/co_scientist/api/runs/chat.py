@@ -18,6 +18,7 @@ from co_scientist.api.runs.models import (
     StartAnnouncementRequest,
 )
 from co_scientist.api.runs.support import _require_run, _run_or_404, request_continuation
+from co_scientist.core import byok_scope
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import qa, run_start_announcement
@@ -144,14 +145,14 @@ def _offline_qa_response(
 
 def _request_byok(
     request: Request,
-) -> credentials.ByokCredential | None:
+) -> byok_scope.ByokCredential | None:
     try:
         return credentials.credential_from_headers(request.headers)
     except credentials.ByokRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def _resolve_qa_byok(run: RunRow, request: Request) -> credentials.ByokCredential | None:
+def _resolve_qa_byok(run: RunRow, request: Request) -> byok_scope.ByokCredential | None:
     """Persisted run credentials take precedence so billing remains
     consistent across sessions.
     """
@@ -175,7 +176,7 @@ def _live_qa_response(
     run: RunRow,
     question_msg: MessageRow,
     context: qa.QaRunContext,
-    byok: credentials.ByokCredential | None,
+    byok: byok_scope.ByokCredential | None,
 ) -> StreamingResponse:
     return StreamingResponse(
         qa.stream_answer(

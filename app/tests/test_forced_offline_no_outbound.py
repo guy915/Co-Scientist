@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
-from co_scientist.domains.access import credentials
+from co_scientist.core import byok_scope
 from co_scientist.domains.chat import goal_text, run_start_announcement
 from co_scientist.domains.chat.repository import messages as store
 
@@ -74,11 +74,11 @@ async def test_byok_still_reaches_its_own_key(
 ) -> None:
     # Explicit owner credentials exempt BYOK from the deployment-key offline
     # guard.
-    credential = credentials.ByokCredential(
+    credential = byok_scope.ByokCredential(
         provider="deepseek", api_key="sk-scientist-own", model="deepseek/chat"
     )
     with (
-        credentials.scoped_byok(credential),
+        byok_scope.scoped_byok(credential),
         pytest.raises(AssertionError),
     ):
         await goal_text._request_completion(_GOAL, goal_text._TITLE)

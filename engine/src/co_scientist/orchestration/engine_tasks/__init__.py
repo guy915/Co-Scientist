@@ -91,7 +91,8 @@ async def execute_engine_task(
     """Credential and call-budget scopes cover the whole task, including
     nested retries, without mutating shared process state.
     """
-    from co_scientist.domains.access.credentials import get_run_credential, scoped_byok
+    from co_scientist.core.byok_scope import scoped_byok
+    from co_scientist.domains.access.credentials import get_run_credential
     from co_scientist.platform.db.admission import run_host
     from co_scientist.platform.llm import (
         scoped_api_key,
