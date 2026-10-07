@@ -23,14 +23,14 @@ aggregate rows.
 - **Commit step.** The parent's last step writes the checkpoint and enqueues
   the successor through the existing portfolio code, fenced by run liveness
   and an unchanged checkpoint.
-- **Hooks into the old queue** (27 lines):
+- **Hooks into the old queue** (25 lines):
   - The node dispatch routes review to DBOS.
   - `cohort_poll` and startup discovery count a pending review workflow as
     live work.
   - The lifespan launches DBOS from a worker thread.
   - Run cancel cancels the run's workflows.
 
-Code: `app/app/dbos_proto/__init__.py` (147 lines), `review.py` (471).
+Code: `app/app/dbos_proto/__init__.py` (169 lines), `review.py` (473).
 
 Everything the checks required beyond plain DBOS had to be written into the
 port:
@@ -191,8 +191,8 @@ together.
 | Tests net | about −460, plus ~1,150 lines to rewrite |
 
 These counts:
-- **Per-family growth:** the review port alone is 618 lines plus 27 lines of
-  hooks, and it grew by 47 lines while fixing what checks 1–2 found.
+- **Per-family growth:** the review port alone is 642 lines plus 25 lines of
+  hooks, and it grew by 71 lines while fixing what checks 1, 2 and 7 found.
 - **Where the bar is met:** about −1,550 only if ~650 contested lines
   (supervisor queue actions, safety-hold parking, pause and cancel
   semantics, run settlement) all count as deleted.
@@ -204,7 +204,26 @@ These counts:
 
 ### 7. Cutover (`check7_cutover.py`)
 
-CHECK7_RESULT
+One process held two runs at the review node, 8 hypotheses each, 2 s calls:
+a legacy run with no stamp, and a new run created with
+`durable_runtime: dbos`. Mode was `COSCIENTIST_DBOS_REVIEW=stamped`. The
+process was SIGKILLed after 6 calls finished, restarted, and both runs were
+followed to their review commit. The legacy run was then cancelled through
+the API.
+
+| | Legacy run | New run |
+|---|---|---|
+| Review ran on | 8 `engine.fanout.review.item` rows | DBOS workflow (`SUCCESS`); 0 item rows |
+| After kill | Waited for lease expiry; 2 reviewed, 6 failed closed | DBOS recovery; 4 reviewed, 4 failed closed |
+| Provider calls (both runs) | 16 in total, none repeated | |
+
+The drain query (live task rows of non-terminal, unstamped runs) read 7
+mid-cutover and 1 after both commits. It read **0** once the legacy run
+ended (cancel: HTTP 200).
+
+The new run's dispositions were read from DBOS's step outputs (4 `ok`,
+4 `unknown`): the run continued past review, so its first surviving
+checkpoint is a later node's.
 
 Cutover steps:
 

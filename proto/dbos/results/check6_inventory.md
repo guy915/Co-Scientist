@@ -34,11 +34,12 @@ fail-closed rules.
 
 ## Added adapter code
 
-Measured on the prototype: the review port is 618 lines
-(`dbos_proto/__init__.py` 147, `review.py` 471) plus 27 lines of hooks in
+Measured on the prototype: the review port is 642 lines
+(`dbos_proto/__init__.py` 169, `review.py` 473) plus 25 lines of hooks in
 `node.py`, `main.py`, `runs/lifecycle.py`, `store/tasks.py` and
-`store/tasks_lifecycle.py`. It grew from 571 to 618 lines while fixing what
-the checks found (park keys, outage backoff, cancel, preemption).
+`store/tasks_lifecycle.py` (`git diff --stat 35d68bf -- app/app`: 667
+insertions). It grew from 571 to 642 lines while fixing what the checks
+found: park keys, outage backoff, cancel, preemption, per-run routing.
 
 | Added | Lines |
 |---|---|
