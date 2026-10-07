@@ -12,7 +12,7 @@ import {useChatHistoryContext} from '../hooks/history_context';
 import {GoogleLabsIcon} from '../layout_primitives';
 import {Icon, type IconName} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
-import {Button, Chip} from '@/shared/ui';
+import {Button, CardButton, Chip} from '@/shared/ui';
 import {TruncatedLabel} from '../components/truncated_label';
 import {Link} from 'react-router-dom';
 import {
@@ -76,17 +76,10 @@ const STEP_BODY_CLASSES =
 const SUGGESTION_ROW_CLASSES =
   'mt-[clamp(3.2rem,7vh,4.35rem)] grid grid-cols-3 gap-[0.85rem] min-[701px]:row-5 min-[701px]:mt-0 min-[1181px]:row-6 min-[1181px]:[align-self:end] [@media(max-width:700px)]:mt-auto [@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:gap-[0.15rem]';
 
-// Its transition stays in home_surface.css: the global unlayered `button` rule
-// would beat a utility.
-const SUGGESTION_BUTTON_CLASSES =
-  'reference-suggestion-button flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full cursor-pointer items-center overflow-hidden rounded-2xl border border-cosci-border p-3 text-left leading-[1.35] text-cosci-fg [outline:0] [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
+const SUGGESTION_BUTTON_LAYOUT_CLASSES =
+  'flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full items-center overflow-hidden p-3 leading-[1.35] ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:max-h-[3.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[3.9rem] ' +
-  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:rounded-full [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
-
-// A previewed phone row must beat the resting transparent background, so the
-// two states never share a background utility.
-const SUGGESTION_REST_CLASSES =
-  'bg-(--cosci-suggestion-bg) [@media(max-width:700px)]:bg-transparent';
+  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
 
 // TruncatedLabel clips only at whole words; CSS text-overflow would cut
 // letters.
@@ -314,14 +307,9 @@ interface SuggestionTriggerButtonProps {
 function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
   const {suggestion, isMobile, isPreviewed, onPreview, onSelect} = props;
   return (
-    <button
-      type="button"
-      className={joinClasses(
-        SUGGESTION_BUTTON_CLASSES,
-        isPreviewed
-          ? 'bg-cosci-hover [@media(max-width:700px)]:[&&]:[border-color:transparent]'
-          : SUGGESTION_REST_CLASSES,
-      )}
+    <CardButton
+      highlighted={isPreviewed}
+      layoutClassName={SUGGESTION_BUTTON_LAYOUT_CLASSES}
       onPointerEnter={() => onPreview(suggestion.preview)}
       onPointerLeave={() => onPreview(null)}
       onFocus={() => onPreview(suggestion.preview)}
@@ -342,7 +330,7 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
         text={suggestion.preview}
         lines={isMobile ? 1 : 2}
       />
-    </button>
+    </CardButton>
   );
 }
 
