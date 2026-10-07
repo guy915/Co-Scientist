@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 import app.interviews.turns as support
 import app.staged_documents as staged_documents
 from app.api_contracts.interviews import ChatSummary, Interview
+from app.async_bridge import off_loop
 from app.auth import client_id, require_client_scope
 from app.interviews.model import (
     CreateInterviewRequest as CreateInterviewRequest,
@@ -110,7 +111,8 @@ def _rewind_and_restream(
 
 
 @_revision_router.put("/{interview_id}/turns/{turn_id}")
-async def edit_interview_turn(
+@off_loop
+def edit_interview_turn(
     interview_id: str,
     turn_id: int,
     body: InterviewTurnRequest,
@@ -131,9 +133,8 @@ async def edit_interview_turn(
 
 
 @_revision_router.post("/{interview_id}/turns/{turn_id}/retry")
-async def retry_interview_turn(
-    interview_id: str, turn_id: int, request: Request
-) -> StreamingResponse:
+@off_loop
+def retry_interview_turn(interview_id: str, turn_id: int, request: Request) -> StreamingResponse:
     """Discard one Agent turn and answer the same prompt again.
 
     Retry has to remove the answer it is replacing. Re-running the model
@@ -147,7 +148,8 @@ router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
 
 @router.post("")
-async def create_interview(body: CreateInterviewRequest, request: Request) -> StreamingResponse:
+@off_loop
+def create_interview(body: CreateInterviewRequest, request: Request) -> StreamingResponse:
     """Start a durable Agent interview and stream its opening turn.
 
     Any documents named in the body are attached before the opening turn is
@@ -170,7 +172,8 @@ async def create_interview(body: CreateInterviewRequest, request: Request) -> St
 
 
 @router.get("", response_model=list[ChatSummary])
-async def list_interviews(request: Request) -> list[dict[str, Any]]:
+@off_loop
+def list_interviews(request: Request) -> list[dict[str, Any]]:
     """List the caller's chats, newest first, without their transcripts.
 
     Scoped to the calling client exactly as ``_owned_interview`` is: a chat
@@ -183,7 +186,8 @@ async def list_interviews(request: Request) -> list[dict[str, Any]]:
 
 
 @router.get("/{interview_id}", response_model=Interview)
-async def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
+@off_loop
+def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
     """Resume an owned interview with its full transcript and progress.
 
     Carries ``run_id`` -- the run this chat started, when it started one.
@@ -198,7 +202,8 @@ async def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
 
 
 @router.delete("/{interview_id}")
-async def delete_interview(interview_id: str, request: Request) -> dict[str, Any]:
+@off_loop
+def delete_interview(interview_id: str, request: Request) -> dict[str, Any]:
     """Permanently delete an owned chat and its transcript.
 
     Unlike a run (see ``app.runs.crud``) a chat has no worker that
@@ -222,7 +227,8 @@ async def delete_interview(interview_id: str, request: Request) -> dict[str, Any
 
 
 @router.post("/{interview_id}/turns")
-async def add_interview_turn(
+@off_loop
+def add_interview_turn(
     interview_id: str, body: InterviewTurnRequest, request: Request
 ) -> StreamingResponse:
     """Append a scientist answer and stream the Agent's next turn."""
@@ -239,7 +245,8 @@ router.include_router(_revision_router)
 
 
 @router.put("/{interview_id}/fields", response_model=Interview)
-async def edit_interview_fields(
+@off_loop
+def edit_interview_fields(
     interview_id: str, body: InterviewFieldsRequest, request: Request
 ) -> dict[str, Any]:
     """Persist scientist edits and finalize when required fields are ready."""

@@ -17,6 +17,7 @@ from app import (
 from app.api_contracts import MessagesResponse
 from app.api_contracts.interviews import Interview
 from app.api_contracts.runs import RunMessage
+from app.async_bridge import off_loop
 from app.auth import require_client_scope
 from app.qa import snapshot
 from app.runs.models import (
@@ -37,7 +38,8 @@ router = APIRouter()
 
 
 @router.post("/{run_id}/messages", response_model=RunMessage)
-async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
+@off_loop
+def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue scientist steering and continue a completed engine run."""
     _require_run(run_id)
     # Steering acknowledgement shares the checkpoint transaction so a claimable
@@ -55,7 +57,8 @@ async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
 
 
 @router.get("/{run_id}/messages", response_model=MessagesResponse)
-async def list_messages(run_id: str) -> dict[str, Any]:
+@off_loop
+def list_messages(run_id: str) -> dict[str, Any]:
     """Return all messages for a run in chronological order."""
     _require_run(run_id)
     msgs = store.list_messages(run_id)
@@ -194,7 +197,8 @@ def _live_qa_response(
 
 
 @router.post("/{run_id}/messages/ask")
-async def ask_question(run_id: str, req: AskRequest, request: Request) -> StreamingResponse:
+@off_loop
+def ask_question(run_id: str, req: AskRequest, request: Request) -> StreamingResponse:
     """Answer a question about the run using a fast LLM.
 
     The response is streamed back to the caller.
@@ -210,7 +214,8 @@ async def ask_question(run_id: str, req: AskRequest, request: Request) -> Stream
 
 
 @router.post("/{run_id}/messages/{message_id}/revise")
-async def revise_question(
+@off_loop
+def revise_question(
     run_id: str, message_id: int, req: QaRevisionRequest, request: Request
 ) -> StreamingResponse:
     run = _run_or_404(run_id)
@@ -235,7 +240,8 @@ async def revise_question(
 
 
 @router.post("/{run_id}/messages/started")
-async def announce_start(
+@off_loop
+def announce_start(
     run_id: str, req: StartAnnouncementRequest, request: Request
 ) -> StreamingResponse:
     """Answer the scientist's start request in the Agent's own words.
@@ -258,7 +264,8 @@ async def announce_start(
 
 
 @router.post("/{run_id}/example-chat", response_model=Interview)
-async def open_example(run_id: str, request: Request) -> dict[str, Any]:
+@off_loop
+def open_example(run_id: str, request: Request) -> dict[str, Any]:
     try:
         return open_example_chat(run_id, require_client_scope(request))
     except ValueError as exc:

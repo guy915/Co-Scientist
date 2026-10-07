@@ -7,6 +7,7 @@ from fastapi.responses import PlainTextResponse
 
 import app.api_contracts as contracts
 from app.api_contracts.reports import Report
+from app.async_bridge import off_loop
 from app.report import unverified_hypothesis_ids
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
@@ -17,7 +18,8 @@ router = APIRouter()
 
 
 @router.get("/{run_id}/hypotheses", response_model=contracts.HypothesesResponse)
-async def get_hypotheses(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
     run = _run_or_404(run_id)
     hyps = hypotheses.list_hypotheses(run_id)
@@ -35,28 +37,32 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
 
 
 @router.get("/{run_id}/evidence", response_model=contracts.EvidenceResponse)
-async def get_evidence(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_evidence(run_id: str) -> dict[str, Any]:
     """Return the literature evidence retrieved for the run."""
     _require_run(run_id)
     return {"evidence": store.list_evidence(run_id)}
 
 
 @router.get("/{run_id}/matches", response_model=contracts.MatchesResponse)
-async def get_matches(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_matches(run_id: str) -> dict[str, Any]:
     """Return the run's tournament matches with Elo snapshots."""
     _require_run(run_id)
     return {"matches": store.list_matches(run_id)}
 
 
 @router.get("/{run_id}/reviews", response_model=contracts.ReviewsResponse)
-async def get_reviews(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_reviews(run_id: str) -> dict[str, Any]:
     """Return reviewer and meta-review notes for the run."""
     _require_run(run_id)
     return {"reviews": store.list_reviews(run_id)}
 
 
 @router.get("/{run_id}/safety", response_model=contracts.SafetyResponse)
-async def get_safety(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_safety(run_id: str) -> dict[str, Any]:
     """Return the run's intake/final safety-gate decisions."""
     _require_run(run_id)
     return {"safety": store.list_safety_decisions(run_id)}
@@ -68,14 +74,16 @@ router.post("/{run_id}/safety/{decision_id}/adjudicate")(adjudicate_safety)
 
 
 @router.get("/{run_id}/citations")
-async def get_citations(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_citations(run_id: str) -> dict[str, Any]:
     """Return the run's citation rows with classification states."""
     _require_run(run_id)
     return {"citations": store.list_citations(run_id)}
 
 
 @router.get("/{run_id}/claim-evidence", response_model=contracts.ClaimsResponse)
-async def get_claim_evidence(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_claim_evidence(run_id: str) -> dict[str, Any]:
     """Return the run's claim-level entailment graph (Milestone 5).
 
     Each edge is one atomic claim of a hypothesis with its assessed label
@@ -88,7 +96,8 @@ async def get_claim_evidence(run_id: str) -> dict[str, Any]:
 
 
 @router.get("/{run_id}/report", response_model=Report)
-async def get_report(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_report(run_id: str) -> dict[str, Any]:
     """Return the latest structured report, or 404 before synthesis."""
     _require_run(run_id)
     report = reports.get_latest_report(run_id)
@@ -98,7 +107,8 @@ async def get_report(run_id: str) -> dict[str, Any]:
 
 
 @router.get("/{run_id}/report.md", response_class=PlainTextResponse)
-async def get_report_markdown(run_id: str) -> PlainTextResponse:
+@off_loop
+def get_report_markdown(run_id: str) -> PlainTextResponse:
     """Return the rendered Goal Report document as a file download."""
     _require_run(run_id)
     md = reports.read_report_markdown(run_id)
