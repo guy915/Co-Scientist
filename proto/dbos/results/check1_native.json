@@ -1,0 +1,52 @@
+[
+  {
+    "workdir": "/tmp/dbos-c1-dem77gs_",
+    "runtime": "dbos",
+    "env": {
+      "COSCIENTIST_DBOS_NO_MARKER": "1"
+    },
+    "zero_cost": false,
+    "overlap": false,
+    "kill_after_ended": 6,
+    "ended_before_kill": 6,
+    "in_flight_at_kill": [
+      "h006",
+      "h007",
+      "h008"
+    ],
+    "recorded_ok_at_kill": 5,
+    "ended_but_unrecorded_at_kill": [
+      "h005"
+    ],
+    "restart_healthy_s": 8.15,
+    "workflow_done": true,
+    "resume_to_commit_s": 5.56,
+    "calls_total": 16,
+    "duplicate_calls": {
+      "h005": 2,
+      "h006": 2,
+      "h007": 2,
+      "h008": 2
+    },
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:5b5e251c-f4cb-4385-9cc7-33f614f6bd19",
+      "review_failed": []
+    },
+    "reviewed_count": 12,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376313.410435
+  }
+]

@@ -347,6 +347,9 @@ def cancel_run(run_id: str) -> dict[str, Any]:
         lifecycle.cancel_run_tasks(run_id, conn=conn)
         runs.update_run_status(run_id, RunStatus.CANCELLED, conn=conn)
         events.append_event(run_id, "status", {"status": "cancelled"}, conn=conn)
+    from app import dbos_proto
+
+    dbos_proto.cancel_run_workflows(run_id)
     return {"id": run_id, "status": "cancelled"}
 
 

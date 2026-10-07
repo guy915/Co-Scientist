@@ -1,0 +1,364 @@
+[
+  {
+    "scenario": "retry_budget",
+    "script": {
+      "h000": [
+        "value_error",
+        "value_error",
+        "value_error"
+      ],
+      "h001": [
+        "value_error",
+        "value_error",
+        "ok"
+      ]
+    },
+    "workflow_result": {
+      "checkpoint_seq": 2,
+      "successor_task_id": "ef18eb10-2cea-4018-bd19-31c8bff58494",
+      "successful_reviews": 3,
+      "failed_reviews": 1
+    },
+    "observed_during": null,
+    "calls_per_hypothesis": {
+      "h000": 3,
+      "h001": 3,
+      "h002": 1,
+      "h003": 1
+    },
+    "call_start_times": {
+      "h000": [
+        0.74,
+        1.07,
+        1.35
+      ],
+      "h001": [
+        0.9,
+        1.17,
+        1.43
+      ],
+      "h002": [
+        0.85
+      ],
+      "h003": [
+        0.96
+      ]
+    },
+    "cancelled_calls": {},
+    "committed": true,
+    "reviewed": [
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "review_failed": [
+      "h000"
+    ],
+    "run_status": "running",
+    "queued_successors": [
+      "engine.node.comprehensive_reflection"
+    ],
+    "pending_steering": 0
+  },
+  {
+    "scenario": "call_budget_exceeded",
+    "script": {
+      "h000": [
+        "budget"
+      ]
+    },
+    "workflow_result": {
+      "stopped": "llm_call_budget_exceeded"
+    },
+    "observed_during": null,
+    "calls_per_hypothesis": {
+      "h000": 1,
+      "h001": 1,
+      "h002": 1,
+      "h003": 1
+    },
+    "call_start_times": {
+      "h000": [
+        0.16
+      ],
+      "h001": [
+        0.24
+      ],
+      "h002": [
+        0.3
+      ],
+      "h003": [
+        0.37
+      ]
+    },
+    "cancelled_calls": {},
+    "committed": false,
+    "reviewed": [],
+    "review_failed": [],
+    "run_status": "failed",
+    "queued_successors": [],
+    "pending_steering": 0
+  },
+  {
+    "scenario": "rate_park",
+    "script": {
+      "h000": [
+        "park:2",
+        "value_error",
+        "value_error",
+        "value_error"
+      ]
+    },
+    "workflow_result": {
+      "checkpoint_seq": 2,
+      "successor_task_id": "6b59bfe5-799c-4ce8-bb7b-eaed89d5f619",
+      "successful_reviews": 3,
+      "failed_reviews": 1
+    },
+    "observed_during": {
+      "cohort_poll_during_park": {
+        "claimable": false,
+        "active": true,
+        "parked_until": null
+      },
+      "startup_lists_run": true
+    },
+    "calls_per_hypothesis": {
+      "h000": 4,
+      "h001": 1,
+      "h002": 1,
+      "h003": 1
+    },
+    "call_start_times": {
+      "h000": [
+        0.27,
+        8.99,
+        9.26,
+        9.53
+      ],
+      "h001": [
+        0.22
+      ],
+      "h002": [
+        0.38
+      ],
+      "h003": [
+        0.34
+      ]
+    },
+    "cancelled_calls": {},
+    "committed": true,
+    "reviewed": [
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "review_failed": [
+      "h000"
+    ],
+    "run_status": "running",
+    "queued_successors": [
+      "engine.node.comprehensive_reflection"
+    ],
+    "pending_steering": 0
+  },
+  {
+    "scenario": "unknown_provider_outcome",
+    "script": {
+      "h000": [
+        "timeout_unknown"
+      ]
+    },
+    "workflow_result": {
+      "checkpoint_seq": 2,
+      "successor_task_id": "1f5f2898-429b-47d1-95d5-732bc0864e47",
+      "successful_reviews": 3,
+      "failed_reviews": 1
+    },
+    "observed_during": null,
+    "calls_per_hypothesis": {
+      "h000": 1,
+      "h001": 1,
+      "h002": 1,
+      "h003": 1
+    },
+    "call_start_times": {
+      "h000": [
+        0.19
+      ],
+      "h001": [
+        0.28
+      ],
+      "h002": [
+        0.33
+      ],
+      "h003": [
+        0.39
+      ]
+    },
+    "cancelled_calls": {},
+    "committed": true,
+    "reviewed": [
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "review_failed": [
+      "h000"
+    ],
+    "run_status": "running",
+    "queued_successors": [
+      "engine.node.comprehensive_reflection"
+    ],
+    "pending_steering": 0
+  },
+  {
+    "scenario": "zero_cost_timeout",
+    "script": {
+      "h000": [
+        "timeout_free",
+        "ok"
+      ]
+    },
+    "workflow_result": {
+      "checkpoint_seq": 2,
+      "successor_task_id": "d5b8d351-ee58-4736-b5a0-b6a6125be821",
+      "successful_reviews": 4,
+      "failed_reviews": 0
+    },
+    "observed_during": null,
+    "calls_per_hypothesis": {
+      "h000": 2,
+      "h001": 1,
+      "h002": 1,
+      "h003": 1
+    },
+    "call_start_times": {
+      "h000": [
+        0.2,
+        24.51
+      ],
+      "h001": [
+        0.26
+      ],
+      "h002": [
+        0.42
+      ],
+      "h003": [
+        0.36
+      ]
+    },
+    "cancelled_calls": {},
+    "committed": true,
+    "reviewed": [
+      "h000",
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "review_failed": [],
+    "run_status": "running",
+    "queued_successors": [
+      "engine.node.comprehensive_reflection"
+    ],
+    "pending_steering": 0
+  },
+  {
+    "scenario": "cancel_run_with_port_hook",
+    "script": {},
+    "workflow_result": {
+      "raised": "DBOSAwaitedWorkflowCancelledError('Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1 was cancelled')"
+    },
+    "observed_during": {
+      "dbos_cancel_hook": false,
+      "calls_started_after_cancel": 0,
+      "calls_finished_after_cancel": 0,
+      "calls_cancelled_after_cancel": 4,
+      "first_end_after_cancel_s": 0.0
+    },
+    "calls_per_hypothesis": {
+      "h000": 1,
+      "h001": 1,
+      "h002": 1,
+      "h003": 1
+    },
+    "call_start_times": {
+      "h000": [
+        0.51
+      ],
+      "h001": [
+        0.58
+      ],
+      "h002": [
+        0.69
+      ],
+      "h003": [
+        0.78
+      ]
+    },
+    "cancelled_calls": {
+      "h000": 1,
+      "h001": 1,
+      "h002": 1,
+      "h003": 1
+    },
+    "committed": false,
+    "reviewed": [],
+    "review_failed": [],
+    "run_status": "cancelled",
+    "queued_successors": [],
+    "pending_steering": 0
+  },
+  {
+    "scenario": "steering_during_review",
+    "script": {},
+    "workflow_result": {
+      "checkpoint_seq": 2,
+      "successor_task_id": "68dce100-7351-497d-bb87-7f7949301502",
+      "successful_reviews": 4,
+      "failed_reviews": 0
+    },
+    "observed_during": {
+      "steering_message_id": 1
+    },
+    "calls_per_hypothesis": {
+      "h000": 1,
+      "h001": 1,
+      "h002": 1,
+      "h003": 1
+    },
+    "call_start_times": {
+      "h000": [
+        0.22
+      ],
+      "h001": [
+        0.3
+      ],
+      "h002": [
+        0.49
+      ],
+      "h003": [
+        0.4
+      ]
+    },
+    "cancelled_calls": {},
+    "committed": true,
+    "reviewed": [
+      "h000",
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "review_failed": [],
+    "run_status": "running",
+    "queued_successors": [
+      "engine.node.comprehensive_reflection"
+    ],
+    "pending_steering": 1
+  },
+  {
+    "reference": {
+      "provider_outage_backoff_seconds(1)": 15.906430784953407
+    }
+  }
+]

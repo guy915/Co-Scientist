@@ -1,0 +1,51 @@
+[
+  {
+    "workdir": "/tmp/dbos-c1-vywq9qrc",
+    "runtime": "hand-built",
+    "env": {},
+    "zero_cost": false,
+    "overlap": false,
+    "kill_after_ended": 6,
+    "provider_delay_s": 2.0,
+    "second_process_healthy_at_rel_s": null,
+    "ended_before_kill": 6,
+    "in_flight_at_kill": [
+      "h006",
+      "h007",
+      "h008",
+      "h009",
+      "h010",
+      "h011"
+    ],
+    "recorded_ok_at_kill": 0,
+    "ended_but_unrecorded_at_kill": null,
+    "restart_healthy_s": 6.81,
+    "workflow_done": true,
+    "resume_to_commit_s": 293.23,
+    "calls_total": 12,
+    "duplicate_calls": {},
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:6193afaf-a617-4cb8-b783-11655951f3e2",
+      "review_failed": [
+        "h006",
+        "h007",
+        "h008",
+        "h009",
+        "h010",
+        "h011"
+      ]
+    },
+    "reviewed_count": 6,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376537.4413674
+  }
+]

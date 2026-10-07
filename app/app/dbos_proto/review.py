@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import random
 import sqlite3
 import time
@@ -112,29 +113,34 @@ def _item_slots(run_id: str) -> asyncio.Semaphore:
 # --- issuance markers -----------------------------------------------------
 
 
-def _issue(workflow_id: str, attempt: int) -> bool:
+def _issue(workflow_id: str, invocation: int) -> bool:
     """False when this attempt was already issued and never settled: the
     process died mid-call, so the provider outcome is unknown.
     """
     with db.transaction() as conn:
         row = conn.execute(
             "SELECT settled_at FROM dbos_review_issuance WHERE workflow_id=? AND attempt=?",
-            (workflow_id, attempt),
+            (workflow_id, invocation),
         ).fetchone()
         if row is not None:
             return False
         conn.execute(
             "INSERT INTO dbos_review_issuance (workflow_id, attempt, issued_at) VALUES (?,?,?)",
-            (workflow_id, attempt, time.time()),
+            (workflow_id, invocation, time.time()),
         )
     return True
 
 
-def _settle(workflow_id: str, attempt: int) -> None:
+def _run_ended(run_id: str) -> bool:
+    run = runs.get_run(run_id)
+    return run is None or run.status in {status.value for status in TERMINAL_STATUSES}
+
+
+def _settle(workflow_id: str, invocation: int) -> None:
     with db.transaction() as conn:
         conn.execute(
             "UPDATE dbos_review_issuance SET settled_at=? WHERE workflow_id=? AND attempt=?",
-            (time.time(), workflow_id, attempt),
+            (time.time(), workflow_id, invocation),
         )
 
 
@@ -171,7 +177,7 @@ def _item_view(run_id: str, checkpoint_seq: int, hypothesis_id: str, index: int)
     )
 
 
-def _classify(exc: Exception) -> dict[str, Any]:
+def _classify(exc: Exception, attempt: int) -> dict[str, Any]:
     from co_scientist.exceptions import (
         LLMCallBudgetExceededError,
         LLMRateLimitParkError,
@@ -185,36 +191,47 @@ def _classify(exc: Exception) -> dict[str, Any]:
         return {"kind": "park", "resume_at": resume_at, "error": str(exc)}
     if isinstance(exc, LLMCallBudgetExceededError):
         return {"kind": "budget", "error": str(exc)}
-    if isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted:
-        return {"kind": "unknown", "error": UNKNOWN_PROVIDER_OUTCOME_ERROR}
+    if isinstance(exc, LLMTimeoutError):
+        if not exc.zero_cost_admitted:
+            return {"kind": "unknown", "error": UNKNOWN_PROVIDER_OUTCOME_ERROR}
+        from co_scientist.llm import provider_outage_backoff_seconds
+
+        return {"kind": "retryable", "error": str(exc), "backoff": provider_outage_backoff_seconds(attempt)}
     return {"kind": "retryable", "error": str(exc)}
 
 
-@DBOS.step(name="coscientist.review.attempt")
+@DBOS.step(name="coscientist.review.attempt", preemptible=True)
 async def review_attempt(
     run_id: str,
     checkpoint_seq: int,
     hypothesis_id: str,
     index: int,
-    attempt: int,
+    invocation: int,
     provably_free: bool,
 ) -> dict[str, Any]:
     from app.engine_tasks.fanout import execute_review_item
 
     workflow_id = str(DBOS.workflow_id)
-    fresh = await asyncio.to_thread(_issue, workflow_id, attempt)
-    if not fresh and not provably_free:
-        return {"kind": "unknown", "error": UNKNOWN_PROVIDER_OUTCOME_ERROR}
     async with _item_slots(run_id):
+        # A cancelled run starts no new call; preemption polls only once a
+        # second, so a freed slot would otherwise admit a queued item.
+        if await asyncio.to_thread(_run_ended, run_id):
+            return {"kind": "superseded", "error": "run ended before the call"}
+        # Issue inside the slot: a queued attempt has not reached the provider.
+        fresh = await asyncio.to_thread(_issue, workflow_id, invocation)
+        # Experiment switch: measure DBOS's own at-least-once step semantics.
+        native = os.getenv("COSCIENTIST_DBOS_NO_MARKER") == "1"
+        if not fresh and not provably_free and not native:
+            return {"kind": "unknown", "error": UNKNOWN_PROVIDER_OUTCOME_ERROR}
         try:
             result = await execute_review_item(
                 _item_view(run_id, checkpoint_seq, hypothesis_id, index)
             )
         except Exception as exc:  # The child workflow decides retry or settlement.
-            outcome = _classify(exc)
+            outcome = _classify(exc, invocation)
         else:
             outcome = {"kind": "ok", "result": result}
-    await asyncio.to_thread(_settle, workflow_id, attempt)
+    await asyncio.to_thread(_settle, workflow_id, invocation)
     return outcome
 
 
@@ -222,10 +239,14 @@ async def review_attempt(
 async def review_item(run_id: str, checkpoint_seq: int, hypothesis_id: str, index: int) -> dict[str, Any]:
     with _run_scopes(run_id) as provably_free:
         attempt = 0
+        # Issuance is keyed per invocation, not per retry attempt: a parked
+        # call is re-invoked without spending an attempt.
+        invocation = 0
         while True:
             attempt += 1
+            invocation += 1
             outcome = await review_attempt(
-                run_id, checkpoint_seq, hypothesis_id, index, attempt, provably_free
+                run_id, checkpoint_seq, hypothesis_id, index, invocation, provably_free
             )
             if outcome["kind"] == "park":
                 # A platform cap spends no retry; the durable sleep survives
@@ -234,6 +255,8 @@ async def review_item(run_id: str, checkpoint_seq: int, hypothesis_id: str, inde
                 attempt -= 1
                 continue
             if outcome["kind"] == "retryable" and attempt < MAX_ATTEMPTS:
+                if outcome.get("backoff"):
+                    await DBOS.sleep_async(outcome["backoff"])
                 continue
             return {"hypothesis_id": hypothesis_id, "attempts": attempt, **outcome}
 

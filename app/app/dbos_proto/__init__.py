@@ -62,7 +62,11 @@ def launch(db_path: str | None = None) -> None:
                 "log_level": "WARNING",
             }
         )
+        import time
+
+        started = time.perf_counter()
         DBOS.launch()
+        logger.info("dbos_launch seconds=%.3f", time.perf_counter() - started)
         _launched_for = path
 
 
@@ -121,3 +125,23 @@ def pending_review_run_ids(db_path: str | None = None) -> list[str]:
         db_path,
     )
     return sorted({row.split(":")[1] for row in rows})
+
+
+def cancel_run_workflows(run_id: str, db_path: str | None = None) -> int:
+    """Run cancellation must also stop DBOS work; call after the cancel
+    transaction commits, never inside it (DBOS writes on its own connection).
+    """
+    if not enabled():
+        return 0
+    from dbos import DBOS
+
+    prefix = f"{REVIEW_WORKFLOW_PREFIX}{run_id}:"
+    pending = _pending_rows(
+        "SELECT workflow_uuid FROM workflow_status WHERE status IN "
+        f"{_PENDING} AND substr(workflow_uuid,1,?)=?",
+        (len(prefix), prefix),
+        db_path,
+    )
+    for workflow_id in pending:
+        DBOS.cancel_workflow(workflow_id)
+    return len(pending)

@@ -1,0 +1,274 @@
+[
+  {
+    "workdir": "/tmp/dbos-c1-x47s0kln",
+    "runtime": "dbos",
+    "zero_cost": false,
+    "overlap": false,
+    "kill_after_ended": 1,
+    "ended_before_kill": 1,
+    "in_flight_at_kill": [
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "recorded_ok_at_kill": 0,
+    "ended_but_unrecorded_at_kill": [
+      "h000"
+    ],
+    "restart_healthy_s": 7.7,
+    "workflow_done": true,
+    "resume_to_commit_s": 5.84,
+    "calls_total": 12,
+    "duplicate_calls": {},
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:433c3818-71f6-426e-8169-4f13757e128c",
+      "review_failed": [
+        "h000",
+        "h001",
+        "h002",
+        "h003"
+      ]
+    },
+    "reviewed_count": 8,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376080.960403
+  },
+  {
+    "workdir": "/tmp/dbos-c1-4vdqrtz_",
+    "runtime": "dbos",
+    "zero_cost": false,
+    "overlap": false,
+    "kill_after_ended": 4,
+    "ended_before_kill": 4,
+    "in_flight_at_kill": [
+      "h004",
+      "h005",
+      "h006"
+    ],
+    "recorded_ok_at_kill": 4,
+    "ended_but_unrecorded_at_kill": [],
+    "restart_healthy_s": 8.82,
+    "workflow_done": true,
+    "resume_to_commit_s": 3.82,
+    "calls_total": 11,
+    "duplicate_calls": {},
+    "never_called": [
+      "h007"
+    ],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:bac19696-6a6a-4dfb-bf57-847aa45d363a",
+      "review_failed": [
+        "h004",
+        "h005",
+        "h006",
+        "h007"
+      ]
+    },
+    "reviewed_count": 8,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376113.7270992
+  },
+  {
+    "workdir": "/tmp/dbos-c1-vf89w0q3",
+    "runtime": "dbos",
+    "zero_cost": false,
+    "overlap": false,
+    "kill_after_ended": 6,
+    "ended_before_kill": 6,
+    "in_flight_at_kill": [
+      "h006",
+      "h007",
+      "h008"
+    ],
+    "recorded_ok_at_kill": 6,
+    "ended_but_unrecorded_at_kill": [],
+    "restart_healthy_s": 7.88,
+    "workflow_done": true,
+    "resume_to_commit_s": 3.28,
+    "calls_total": 11,
+    "duplicate_calls": {},
+    "never_called": [
+      "h009"
+    ],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:1dde51e4-24c6-406d-8193-49cdf6a92345",
+      "review_failed": [
+        "h006",
+        "h007",
+        "h008",
+        "h009"
+      ]
+    },
+    "reviewed_count": 8,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376147.754559
+  },
+  {
+    "workdir": "/tmp/dbos-c1-huyujj1s",
+    "runtime": "dbos",
+    "zero_cost": false,
+    "overlap": false,
+    "kill_after_ended": 9,
+    "ended_before_kill": 9,
+    "in_flight_at_kill": [
+      "h009",
+      "h010",
+      "h011"
+    ],
+    "recorded_ok_at_kill": 9,
+    "ended_but_unrecorded_at_kill": [],
+    "restart_healthy_s": 7.92,
+    "workflow_done": true,
+    "resume_to_commit_s": 1.2,
+    "calls_total": 12,
+    "duplicate_calls": {},
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:f7f388dd-54c1-4bf1-9661-6da2d363ddbb",
+      "review_failed": [
+        "h009",
+        "h010",
+        "h011"
+      ]
+    },
+    "reviewed_count": 9,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376181.167728
+  },
+  {
+    "workdir": "/tmp/dbos-c1-oodar4bd",
+    "runtime": "dbos",
+    "zero_cost": false,
+    "overlap": false,
+    "kill_after_ended": 11,
+    "ended_before_kill": 11,
+    "in_flight_at_kill": [
+      "h011"
+    ],
+    "recorded_ok_at_kill": 11,
+    "ended_but_unrecorded_at_kill": [],
+    "restart_healthy_s": 8.27,
+    "workflow_done": true,
+    "resume_to_commit_s": 1.15,
+    "calls_total": 12,
+    "duplicate_calls": {},
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:5f1557c5-35d2-4310-96b5-bc7befbf1a05",
+      "review_failed": [
+        "h011"
+      ]
+    },
+    "reviewed_count": 11,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376213.714086
+  },
+  {
+    "workdir": "/tmp/dbos-c1-lkswntoi",
+    "runtime": "dbos",
+    "zero_cost": true,
+    "overlap": false,
+    "kill_after_ended": 6,
+    "ended_before_kill": 6,
+    "in_flight_at_kill": [
+      "h006",
+      "h007",
+      "h008"
+    ],
+    "recorded_ok_at_kill": 5,
+    "ended_but_unrecorded_at_kill": [
+      "h005"
+    ],
+    "restart_healthy_s": 8.92,
+    "workflow_done": true,
+    "resume_to_commit_s": 5.62,
+    "calls_total": 16,
+    "duplicate_calls": {
+      "h005": 2,
+      "h006": 2,
+      "h007": 2,
+      "h008": 2
+    },
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:c586e824-29b9-4766-8357-944c390717a0",
+      "review_failed": []
+    },
+    "reviewed_count": 12,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": 1791376244.3895516
+  }
+]

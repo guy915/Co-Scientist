@@ -1,0 +1,21 @@
+{
+  "runtime": "hand-built",
+  "calls_started_after_cancel": 0,
+  "calls_finished_after_cancel": 4,
+  "calls_cancelled_after_cancel": 0,
+  "run_status": "cancelled",
+  "task_statuses": [
+    [
+      "engine.fanout.review.aggregate",
+      "cancelled"
+    ],
+    [
+      "engine.fanout.review.item",
+      "cancelled"
+    ],
+    [
+      "engine.node.review",
+      "completed"
+    ]
+  ]
+}

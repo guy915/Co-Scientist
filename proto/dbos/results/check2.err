@@ -1,0 +1,243 @@
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:f78785f4-5b43-4d01-9427-5c1e62717c29 was cancelled during execution. Waiting for the recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:f78785f4-5b43-4d01-9427-5c1e62717c29 was cancelled
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:0ef4cf45-ee68-44e6-9af5-ba3c17158902 is no longer owned by this execution. Waiting for the owner's recorded outcome
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1 is no longer owned by this execution. Waiting for the owner's recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1130) Exception encountered in background workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1123, in _execute_workflow_wthread
+    return Immediate[R](
+           ^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 213, in __call__
+    return self._func()
+           ^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 133, in <lambda>
+    return Immediate(lambda: resolve_deferred(next(self._func)))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 70, in resolve_deferred
+    return cast(R, value.resolve())
+                   ^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 60, in resolve
+    return self._sync_resolve()
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 154, in <lambda>
+    lambda: dbos._sys_db.await_workflow_result(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2273, in await_workflow_result
+    result = self.check_workflow_result(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1 was cancelled
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:0ef4cf45-ee68-44e6-9af5-ba3c17158902 was cancelled
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:2c37271c-3433-47c2-84cb-de793cfe6eb0 is no longer owned by this execution. Waiting for the owner's recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:2c37271c-3433-47c2-84cb-de793cfe6eb0 was cancelled
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:d207cdee-e651-4a65-9224-332f4dc04bf5 is no longer owned by this execution. Waiting for the owner's recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:d207cdee-e651-4a65-9224-332f4dc04bf5 was cancelled
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:4abc81aa-85da-41d8-8d6a-ad4e1e18367a is no longer owned by this execution. Waiting for the owner's recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:4abc81aa-85da-41d8-8d6a-ad4e1e18367a was cancelled
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:0bd1aaa1-25f4-41a4-8b78-f010401073db was cancelled during execution. Waiting for the recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:0bd1aaa1-25f4-41a4-8b78-f010401073db was cancelled
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:b6905e28-06b6-4e85-b2ab-03a09ab5271d was cancelled during execution. Waiting for the recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:b6905e28-06b6-4e85-b2ab-03a09ab5271d was cancelled
+12:41:15 [ WARNING] (dbos:_core.py:833) Workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:b205093e-ef30-4aae-93e9-eb34a83cdfe9 was cancelled during execution. Waiting for the recorded outcome
+12:41:15 [   ERROR] (dbos:_core.py:1174) Exception encountered in asynchronous workflow:
+Traceback (most recent call last):
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_core.py", line 1172, in _execute_workflow_async
+    return await result()
+           ^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 359, in __call__
+    return await self._func()
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 257, in _wrap
+    return cast(R, await result.resolve_async())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_outcome.py", line 63, in resolve_async
+    return await self._async_resolve()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2288, in await_workflow_result_async
+    result = await asyncio.to_thread(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/Co-Scientist/.venv/lib/python3.12/site-packages/dbos/_sys_db.py", line 2260, in check_workflow_result
+    raise DBOSAwaitedWorkflowCancelledError(workflow_id)
+dbos._error.DBOSAwaitedWorkflowCancelledError: DBOS Error 13: Awaited workflow review:1f07237a-8dce-4c9b-91c2-c1421970a976:1:b205093e-ef30-4aae-93e9-eb34a83cdfe9 was cancelled

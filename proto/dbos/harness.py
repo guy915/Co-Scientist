@@ -82,6 +82,9 @@ def seed_review(count: int, *, zero_cost: bool = False, config: dict[str, Any] |
             priority=90,
         )
     )
+    from app.store.models import RunStatus
+
+    runs.update_run_status(run.id, RunStatus.RUNNING)
     return run.id, task.id, seq
 
 
@@ -96,10 +99,23 @@ def install_fake_review(call_log: str, delay: float) -> None:
     from co_scientist.models import HypothesisReview
 
     async def fake_review(*, hypothesis_text: str, **_: Any) -> HypothesisReview:
-        _log(call_log, {"event": "start", "hypothesis": hypothesis_text})
+        import threading
+
+        _log(call_log, {
+            "event": "start",
+            "hypothesis": hypothesis_text,
+            "thread": threading.current_thread().name,
+            "loop": id(asyncio.get_running_loop()),
+        })
         record_call("fixture-model", ModelCallStats(calls=1, prompt_tokens=20, completion_tokens=10))
-        await asyncio.sleep(delay)
-        _log(call_log, {"event": "end", "hypothesis": hypothesis_text})
+        action = _scripted_action(call_log, hypothesis_text)
+        try:
+            await asyncio.sleep(float(action[6:]) if action.startswith("sleep:") else delay)
+        except asyncio.CancelledError:
+            _log(call_log, {"event": "cancelled", "hypothesis": hypothesis_text})
+            raise
+        _log(call_log, {"event": "end", "hypothesis": hypothesis_text, "action": action})
+        _raise_scripted(action)
         return HypothesisReview(
             review_summary=f"reviewed {hypothesis_text}",
             scores={"scientific_soundness": 8, "novelty": 8},
@@ -110,6 +126,36 @@ def install_fake_review(call_log: str, delay: float) -> None:
         )
 
     review_module.review_single_hypothesis = fake_review  # type: ignore[assignment]
+
+
+def _scripted_action(call_log: str, hypothesis: str) -> str:
+    """FAKE_SCRIPT={"h000": ["value_error", "ok"]} scripts the Nth call to a
+    hypothesis; the call log is the counter, so scripts survive restarts.
+    """
+    script = json.loads(os.environ.get("FAKE_SCRIPT") or "{}").get(hypothesis) or []
+    index = sum(
+        1 for r in read_log(call_log) if r["event"] == "start" and r["hypothesis"] == hypothesis
+    ) - 1
+    return str(script[index]) if index < len(script) else "ok"
+
+
+def _raise_scripted(action: str) -> None:
+    from co_scientist.exceptions import (
+        LLMCallBudgetExceededError,
+        LLMRateLimitParkError,
+        LLMTimeoutError,
+    )
+
+    if action == "value_error":
+        raise ValueError("scripted unparseable answer")
+    if action == "budget":
+        raise LLMCallBudgetExceededError(400, 400)
+    if action.startswith("park:"):
+        raise LLMRateLimitParkError(time.time() + float(action[5:]), "scripted platform cap")
+    if action == "timeout_unknown":
+        raise LLMTimeoutError("scripted timeout", zero_cost_admitted=False)
+    if action == "timeout_free":
+        raise LLMTimeoutError("scripted timeout", zero_cost_admitted=True)
 
 
 def _log(path: str, record: dict[str, Any]) -> None:

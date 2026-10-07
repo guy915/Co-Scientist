@@ -1,0 +1,98 @@
+[
+  {
+    "workdir": "/tmp/dbos-c1-xgy9xgdh",
+    "runtime": "dbos",
+    "env": {},
+    "zero_cost": false,
+    "overlap": true,
+    "kill_after_ended": 1,
+    "provider_delay_s": 6.0,
+    "second_process_healthy_at_rel_s": null,
+    "ended_before_kill": 1,
+    "in_flight_at_kill": [
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "recorded_ok_at_kill": 8,
+    "ended_but_unrecorded_at_kill": [],
+    "restart_healthy_s": null,
+    "workflow_done": true,
+    "resume_to_commit_s": 3.32,
+    "calls_total": 12,
+    "duplicate_calls": {},
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:89811001-5540-47b5-8258-6762e3866f4c",
+      "review_failed": [
+        "h008",
+        "h009",
+        "h010",
+        "h011"
+      ]
+    },
+    "reviewed_count": 8,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": null
+  },
+  {
+    "workdir": "/tmp/dbos-c1-yzfzl0c0",
+    "runtime": "dbos",
+    "env": {},
+    "zero_cost": true,
+    "overlap": true,
+    "kill_after_ended": 1,
+    "provider_delay_s": 6.0,
+    "second_process_healthy_at_rel_s": null,
+    "ended_before_kill": 1,
+    "in_flight_at_kill": [
+      "h001",
+      "h002",
+      "h003"
+    ],
+    "recorded_ok_at_kill": 8,
+    "ended_but_unrecorded_at_kill": [],
+    "restart_healthy_s": null,
+    "workflow_done": true,
+    "resume_to_commit_s": 10.85,
+    "calls_total": 16,
+    "duplicate_calls": {
+      "h008": 2,
+      "h009": 2,
+      "h010": 2,
+      "h011": 2
+    },
+    "never_called": [],
+    "final": {
+      "committed": true,
+      "seq": 2,
+      "stage": "engine_task:311b7832-1b9a-421a-a4f2-26c6acc84503",
+      "review_failed": []
+    },
+    "reviewed_count": 12,
+    "lost_recorded_results": [],
+    "review_node_rows": [
+      {
+        "status": "completed",
+        "attempt": 1
+      },
+      {
+        "status": "completed",
+        "attempt": 1
+      }
+    ],
+    "killed_at": null
+  }
+]
