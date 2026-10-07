@@ -58,7 +58,7 @@ def make_tool_results_client(
 
 
 def stub_mcp_availability(monkeypatch: pytest.MonkeyPatch, *, available: bool) -> None:
-    from co_scientist import mcp_client
+    from co_scientist.platform.retrieval import mcp_client
 
     async def fake(**_: Any) -> bool:
         return available

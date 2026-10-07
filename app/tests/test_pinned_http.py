@@ -5,8 +5,7 @@ from collections.abc import Iterator
 
 import httpx
 import pytest
-
-from app import pinned_http
+from co_scientist.platform.retrieval import pinned_http
 
 
 def _dns(_host: str, _port: object) -> list[tuple[object, ...]]:

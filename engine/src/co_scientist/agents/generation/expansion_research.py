@@ -4,21 +4,21 @@ import logging
 from typing import Any, NamedTuple
 
 from co_scientist.core.constants import truncate
-from co_scientist.evidence.article_support import (
+from co_scientist.platform.retrieval.evidence.article_support import (
     build_articles_from_metadata,
     records_from_findings,
 )
-from co_scientist.progress import emit_progress
+from co_scientist.platform.retrieval.research_adapter import (
+    LlmResearchModel,
+    McpRetrieval,
+    budget_for_tier,
+)
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.research import (
     ResearchBudget,
     ResearchResult,
     conduct_research,
     result_to_dict,
-)
-from co_scientist.research_adapter import (
-    LlmResearchModel,
-    McpRetrieval,
-    budget_for_tier,
 )
 from co_scientist.state import WorkflowState
 
@@ -175,7 +175,7 @@ async def _prepare(
 ) -> tuple[McpRetrieval, ResearchBudget] | None:
     """Check every research gate before opening a client so unfunded
     exploration spends nothing."""
-    from co_scientist.evidence.search_support import (
+    from co_scientist.platform.retrieval.evidence.search_support import (
         search_config_for,
     )
 

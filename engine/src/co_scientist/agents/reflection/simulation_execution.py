@@ -19,14 +19,14 @@ from co_scientist.platform.llm import (
     ToolLoop,
     call_llm_with_tools,
 )
-from co_scientist.prompts import load_prompt
-from co_scientist.state import WorkflowState
-from co_scientist.workspace.run_workspace import open_review_workspace
-from co_scientist.workspace.tool_schemas import RUN_COMMAND
-from co_scientist.workspace.tools import (
+from co_scientist.platform.sandbox.workspace.run_workspace import open_review_workspace
+from co_scientist.platform.sandbox.workspace.tool_schemas import RUN_COMMAND
+from co_scientist.platform.sandbox.workspace.tools import (
     WorkspaceToolProvider,
     workspace_tool_schemas,
 )
+from co_scientist.prompts import load_prompt
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

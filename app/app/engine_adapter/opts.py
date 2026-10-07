@@ -14,8 +14,8 @@ from co_scientist.core.run_modes import (
     setup_guidance,
 )
 from co_scientist.platform.db.models import MessageRow
+from co_scientist.platform.retrieval import run_corpus
 
-from app import run_corpus
 from app.store import interviews, records
 from app.store import messages as store
 

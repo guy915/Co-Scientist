@@ -179,7 +179,7 @@ async def _probe_literature_stack() -> tuple[ProbeResult, ProbeResult, ProbeResu
     key can leave a registered tool unable to search.
     """
     try:
-        from co_scientist.mcp_client import (
+        from co_scientist.platform.retrieval.mcp_client import (
             check_literature_source_available,
             check_mcp_available,
             check_web_search_available,

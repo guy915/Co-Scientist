@@ -39,7 +39,7 @@ from co_scientist.core.exceptions import (
 )
 from co_scientist.generator import run_setup
 from co_scientist.models import Article
-from co_scientist.workspace.session import WorkspaceSession
+from co_scientist.platform.sandbox.workspace.session import WorkspaceSession
 from tests._llm_fake import mock_call_llm_json
 from tests._state import make_article, make_hypothesis, make_review, make_state
 
@@ -245,7 +245,7 @@ class TestIsolation:
     ) -> None:
         """Concurrent leased reviews sharing a directory would report
         observations of each other's models."""
-        from co_scientist.workspace import run_workspace
+        from co_scientist.platform.sandbox.workspace import run_workspace
 
         monkeypatch.setattr(run_workspace, "workspaces_root", lambda: tmp_path)
 

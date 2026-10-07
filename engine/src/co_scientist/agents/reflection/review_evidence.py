@@ -17,15 +17,21 @@ from co_scientist.core.constants import (
     LOW_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.evidence.article_support import (
-    build_articles_from_metadata,
-    records_from_findings,
-)
 from co_scientist.models import Article, Hypothesis, rank_by_elo
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
+)
+from co_scientist.platform.retrieval.evidence.article_support import (
+    build_articles_from_metadata,
+    records_from_findings,
+)
+from co_scientist.platform.retrieval.research_adapter import (
+    LlmResearchModel,
+    McpRetrieval,
+    review_budget_for_tier,
+    reviewed_hypothesis_limit,
 )
 from co_scientist.prompts import (
     get_hypothesis_query_generation_prompt,
@@ -34,12 +40,6 @@ from co_scientist.research import (
     ResearchBudget,
     conduct_research,
     result_to_dict,
-)
-from co_scientist.research_adapter import (
-    LlmResearchModel,
-    McpRetrieval,
-    review_budget_for_tier,
-    reviewed_hypothesis_limit,
 )
 from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
 from co_scientist.state import WorkflowState

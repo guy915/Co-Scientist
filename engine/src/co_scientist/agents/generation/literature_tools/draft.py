@@ -28,28 +28,28 @@ from co_scientist.platform.llm import (
     call_llm_with_tools,
     parse_tool_loop_json,
 )
+from co_scientist.platform.retrieval.tools.provider import MCPToolProvider
+from co_scientist.platform.sandbox.skills import (
+    catalogue_section,
+    seed_licence_notices,
+)
+from co_scientist.platform.sandbox.workspace import (
+    WorkspaceToolProvider,
+    open_draft_workspace,
+)
+from co_scientist.platform.sandbox.workspace.tool_schemas import READ_SKILL
 from co_scientist.prompts import (
     DraftPromptRequest,
     PromptRunContext,
     get_draft_prompt_with_tools,
 )
-from co_scientist.skills import (
-    catalogue_section,
-    seed_licence_notices,
-)
 from co_scientist.state import WorkflowState
-from co_scientist.tools.provider import MCPToolProvider
-from co_scientist.workspace import (
-    WorkspaceToolProvider,
-    open_draft_workspace,
-)
-from co_scientist.workspace.tool_schemas import READ_SKILL
 
 logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
+    from co_scientist.platform.retrieval.config import ToolRegistry
 
 
 def _log_lit_review_context(articles_with_reasoning: str | None, articles: list[Any]) -> None:
@@ -151,7 +151,7 @@ def _invoke_draft_prompt_builder(
 
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
+    from co_scientist.platform.retrieval.config import ToolRegistry
 
 
 def _resolve_tool_registry_fallback(
@@ -160,7 +160,7 @@ def _resolve_tool_registry_fallback(
     if tool_registry is not None:
         return tool_registry
     try:
-        from co_scientist.config import get_tool_registry
+        from co_scientist.platform.retrieval.config import get_tool_registry
 
         tool_registry = get_tool_registry()
         log.info("Using global tool registry for %s", label)
@@ -300,7 +300,7 @@ def attach_skills(state: WorkflowState, provider: Any, tools: list[Any]) -> Draf
 
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
+    from co_scientist.platform.retrieval.config import ToolRegistry
 
 
 @dataclass(frozen=True)

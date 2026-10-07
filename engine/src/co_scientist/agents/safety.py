@@ -11,7 +11,7 @@ from co_scientist.core.constants import (
     PROGRESS_SAFETY_SCREEN_START,
 )
 from co_scientist.models import Hypothesis, create_metrics_update, phase_message
-from co_scientist.progress import emit_progress
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.safety import (
     ContentSafetyReview,

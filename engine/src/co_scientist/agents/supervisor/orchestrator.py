@@ -32,7 +32,7 @@ from co_scientist.models import (
     phase_message,
 )
 from co_scientist.platform.llm import current_run_call_count
-from co_scientist.progress import emit_progress
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,

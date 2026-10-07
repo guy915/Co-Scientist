@@ -7,10 +7,15 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.platform.telemetry import logs
+from co_scientist.platform.telemetry.logging_setup import (
+    configure_log_capture,
+    configure_logging,
+    shutdown_log_capture,
+)
 
 from app import credentials, qa, run_start_announcement
-from app.logging_setup import configure_log_capture, configure_logging, shutdown_log_capture
-from app.store import logs, messages
+from app.store import messages
 from app.store.messages import NewMessage
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode

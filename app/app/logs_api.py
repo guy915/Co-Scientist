@@ -9,14 +9,14 @@ from typing import Annotated, Any
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.platform import db
+from co_scientist.platform.telemetry import logs
+from co_scientist.platform.telemetry.logging_setup import level_to_number
+from co_scientist.platform.telemetry.logs import LogFilters, NewLogRecord
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.auth import client_id
-from app.logging_setup import level_to_number
 from app.operator_access import is_operator
-from app.store import logs
-from app.store.logs import LogFilters, NewLogRecord
 
 # Process-local limit; assumes one API replica and needs shared storage when
 # replicated.

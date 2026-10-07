@@ -43,7 +43,7 @@ def _call(name: str) -> SimpleNamespace:
 def test_resolve_treats_a_broken_registry_as_a_barrier(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import co_scientist.config.registry as registry
+    import co_scientist.platform.retrieval.config.registry as registry
 
     def _boom() -> Any:
         raise RuntimeError("config unreadable")

@@ -19,7 +19,7 @@ from co_scientist.models import (
     HypothesisOrigin,
     HypothesisReview,
 )
-from co_scientist.patch import (
+from co_scientist.platform.sandbox.patch import (
     Patch,
     PatchError,
     apply_patch,

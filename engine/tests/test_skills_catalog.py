@@ -7,14 +7,14 @@ import sys
 import pytest
 
 import co_scientist.agents.generation.literature_tools.draft as draft_skills
-import co_scientist.skills as catalog
+import co_scientist.platform.sandbox.skills as catalog
 from co_scientist.platform.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
-from co_scientist.sandbox import workspace_write
+from co_scientist.platform.sandbox import workspace_write
+from co_scientist.platform.sandbox.workspace.output import OutputRecorder
+from co_scientist.platform.sandbox.workspace.session import SessionRead, WorkspaceSession
+from co_scientist.platform.sandbox.workspace.tool_schemas import READ_SKILL
+from co_scientist.platform.sandbox.workspace.tools import _handle_run_command, _ToolContext
 from co_scientist.state import WorkflowState
-from co_scientist.workspace.output import OutputRecorder
-from co_scientist.workspace.session import SessionRead, WorkspaceSession
-from co_scientist.workspace.tool_schemas import READ_SKILL
-from co_scientist.workspace.tools import _handle_run_command, _ToolContext
 
 
 @pytest.fixture
@@ -252,13 +252,16 @@ class TestSkillsDraftPhase:
         )
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "skills"))
         monkeypatch.setattr(
-            "co_scientist.workspace.run_workspace.workspaces_root",
+            "co_scientist.platform.sandbox.workspace.run_workspace.workspaces_root",
             lambda: tmp_path / "ws",
         )
         monkeypatch.setattr(
-            "co_scientist.workspace.tools.command_lifecycle_available", lambda: True
+            "co_scientist.platform.sandbox.workspace.tools.command_lifecycle_available",
+            lambda: True,
         )
-        monkeypatch.setattr("co_scientist.workspace.tools.sandbox_backend", lambda: "test")
+        monkeypatch.setattr(
+            "co_scientist.platform.sandbox.workspace.tools.sandbox_backend", lambda: "test"
+        )
 
         attached = draft_skills.attach_skills(_STATE, _StubProvider(), _MCP_TOOLS)
 

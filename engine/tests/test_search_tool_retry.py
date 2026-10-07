@@ -4,8 +4,8 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.evidence import search_query
-from co_scientist.mcp_client import MCPToolClient, UnknownToolError
+from co_scientist.platform.retrieval.evidence import search_query
+from co_scientist.platform.retrieval.mcp_client import MCPToolClient, UnknownToolError
 
 
 class _Client:

@@ -9,7 +9,7 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.core.exceptions import ResponseParseError
-from co_scientist.progress import record_schema_degradation
+from co_scientist.platform.telemetry.progress import record_schema_degradation
 
 logger = logging.getLogger(__name__)
 

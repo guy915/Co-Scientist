@@ -4,13 +4,12 @@ import logging
 import logging.handlers
 
 import pytest
-
-from app.logging_setup import (
+from co_scientist.platform.telemetry import logs
+from co_scientist.platform.telemetry.logging_setup import (
     configure_log_capture,
     run_log_context,
     shutdown_log_capture,
 )
-from app.store import logs
 
 
 @pytest.fixture(autouse=True)
@@ -63,7 +62,7 @@ def test_store_failure_does_not_break_logging(
     def boom(**kwargs: object) -> int:
         raise RuntimeError("db exploded")
 
-    monkeypatch.setattr("app.logging_setup.store.append_log", boom)
+    monkeypatch.setattr("co_scientist.platform.telemetry.logging_setup.store.append_log", boom)
     configure_log_capture()
     test_logger = _test_logger()
     test_logger.info("first")

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from co_scientist.models import ExecutionMetrics
-from co_scientist.retrieval_degradation import (
+from co_scientist.platform.retrieval.degradation import (
     resolve_retrieval_degradation,
 )
 from co_scientist.state import WorkflowState

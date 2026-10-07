@@ -354,7 +354,7 @@ async def execute_generation_strategy(
     """
     from co_scientist.agents.generation.citations import ReferenceIndex
     from co_scientist.platform.llm import scoped_telemetry
-    from co_scientist.skills import scoped_skill_usage
+    from co_scientist.platform.sandbox.skills import scoped_skill_usage
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="generation strategy")
     strategy = str(task.inputs["strategy"])

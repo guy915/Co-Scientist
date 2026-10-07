@@ -19,7 +19,7 @@ from co_scientist.platform.llm.offline.llm import (
     subject_terms,
 )
 from co_scientist.platform.llm.structured.validate import get_fallback_response
-from co_scientist.progress import _ACTIVE_WORKFLOW_STATE, emit_progress
+from co_scientist.platform.telemetry.progress import _ACTIVE_WORKFLOW_STATE, emit_progress
 from co_scientist.state import WorkflowState
 from tests._mcp import isolate_offline_router
 

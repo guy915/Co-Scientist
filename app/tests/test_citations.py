@@ -5,12 +5,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+import co_scientist.platform.retrieval.citations as citation_resolver
 import httpx
 import pytest
-
-import app.citations as citation_resolver
-from app import retraction_set
-from app.citations import (
+from co_scientist.platform.retrieval import retraction_set
+from co_scientist.platform.retrieval.citations import (
     CitationMetadata,
     CitationRecord,
     CitationState,

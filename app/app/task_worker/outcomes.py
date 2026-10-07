@@ -89,7 +89,7 @@ def _park_held_task(
 
 def _log_rate_limit_park(run_id: str, resume_at: float, reason: str) -> None:
     """Import logging lazily to avoid the logging_setup/store cycle."""
-    from app.logging_setup import run_log_context
+    from co_scientist.platform.telemetry.logging_setup import run_log_context
 
     parked_until = datetime.fromtimestamp(resume_at, tz=timezone.utc).isoformat()
     with run_log_context(run_id):

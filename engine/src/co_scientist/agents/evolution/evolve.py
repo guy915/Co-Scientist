@@ -63,7 +63,7 @@ from co_scientist.platform.llm import (
     call_llm_json,
     indexed_prompt_name,
 )
-from co_scientist.progress import emit_progress
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

@@ -14,6 +14,13 @@ from co_scientist.core.config import settings
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
+from co_scientist.platform.telemetry.error_tracking import init_error_tracking
+from co_scientist.platform.telemetry.logging_setup import (
+    configure_log_capture,
+    configure_logging,
+    level_to_number,
+    shutdown_log_capture,
+)
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,16 +33,9 @@ from app.auth import Principal, principal_for_request
 from app.byok_models import router as byok_models_router
 from app.diagnostics_api import router as diagnostics_api_router
 from app.documents import router as documents_router
-from app.error_tracking import init_error_tracking
 from app.feedback_api import router as feedback_router
 from app.free_usage import router as free_usage_router
 from app.interviews import router as interviews_router
-from app.logging_setup import (
-    configure_log_capture,
-    configure_logging,
-    level_to_number,
-    shutdown_log_capture,
-)
 from app.logs_api import router as logs_router
 from app.runs import router as runs_router
 from app.seed import is_current_demo_run, seed_demo_runs
