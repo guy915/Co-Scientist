@@ -12,8 +12,7 @@ import sys
 from pathlib import Path
 
 import httpx
-
-from app.retraction_set import (
+from co_scientist.platform.retrieval.retraction_set import (
     DEFAULT_RETRACTIONS_PATH,
     _load_doi_set,
     normalize_doi,

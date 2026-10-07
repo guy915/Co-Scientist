@@ -12,7 +12,6 @@ from co_scientist.agents.generation.citations import (
 from co_scientist.agents.meta_review.research_overview import (
     format_interim_overview,
 )
-from co_scientist.config.schema import EnrichmentConfig, ToolConfig
 from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
     MAX_CONCURRENT_LLM_CALLS,
@@ -20,11 +19,12 @@ from co_scientist.core.constants import (
     PROGRESS_GENERATE_START,
 )
 from co_scientist.core.exceptions import GenerationError
-from co_scientist.mcp_client import get_mcp_client
 from co_scientist.models import GenerationMethod, Hypothesis
-from co_scientist.progress import emit_progress
+from co_scientist.platform.retrieval.config.schema import EnrichmentConfig, ToolConfig
+from co_scientist.platform.retrieval.mcp_client import get_mcp_client
+from co_scientist.platform.retrieval.tools.response_parser import parse_mcp_result
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.state import AppendHypotheses, WorkflowState
-from co_scientist.tools.response_parser import parse_mcp_result
 
 logger = logging.getLogger(__name__)
 

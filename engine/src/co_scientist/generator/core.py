@@ -146,7 +146,7 @@ class HypothesisGenerator:
         if self._mcp_available is not None and self._pubmed_available is not None:
             return self._mcp_available, self._pubmed_available
 
-        from co_scientist.mcp_client import (
+        from co_scientist.platform.retrieval.mcp_client import (
             check_literature_source_available,
             check_mcp_available,
         )

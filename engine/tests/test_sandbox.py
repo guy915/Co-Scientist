@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from co_scientist.sandbox import (
+from co_scientist.platform.sandbox import (
     HARNESS_METADATA_NAME,
     PROTECTED_METADATA_NAMES,
     SandboxKind,
@@ -25,10 +25,10 @@ from co_scientist.sandbox import (
     workspace_write,
     wrap_argv,
 )
-from co_scientist.sandbox import argv as sandbox_argv
-from co_scientist.sandbox.command_safety import is_known_safe
-from co_scientist.sandbox.confine_exec import policy_from_json, policy_to_json
-from co_scientist.sandbox.runner import (
+from co_scientist.platform.sandbox import argv as sandbox_argv
+from co_scientist.platform.sandbox.command_safety import is_known_safe
+from co_scientist.platform.sandbox.confine_exec import policy_from_json, policy_to_json
+from co_scientist.platform.sandbox.runner import (
     DEFAULT_ENV_ALLOWLIST,
     ExecRequest,
     ExecResult,
@@ -78,7 +78,7 @@ def test_writable_roots_are_resolved(tmp_path: Path) -> None:
 
 
 def test_default_read_roots_exclude_host_root_and_workspace() -> None:
-    from co_scientist.sandbox.policy import runtime_read_roots
+    from co_scientist.platform.sandbox.policy import runtime_read_roots
 
     roots = runtime_read_roots()
     assert Path("/") not in roots
@@ -304,7 +304,7 @@ class TestRealConfinement:
 def test_landlock_refuses_a_policy_it_cannot_express(tmp_path: Path) -> None:
     """Landlock only adds access; protected metadata under writable roots
     needs refusal."""
-    from co_scientist.sandbox.confine_exec import EXIT_POLICY_REFUSED
+    from co_scientist.platform.sandbox.confine_exec import EXIT_POLICY_REFUSED
 
     (tmp_path / ".git").mkdir()
 
@@ -416,7 +416,7 @@ def test_cross_process_read_syscalls_are_denied() -> None:
 
 @pytest.mark.asyncio
 async def test_an_exited_parent_still_kills_its_cgroup_descendants(tmp_path: Path) -> None:
-    from co_scientist.sandbox.cgroups import CommandCgroup
+    from co_scientist.platform.sandbox.cgroups import CommandCgroup
 
     group = CommandCgroup(tmp_path / "command")
     calls: list[str] = []
@@ -431,7 +431,7 @@ async def test_an_exited_parent_still_kills_its_cgroup_descendants(tmp_path: Pat
 
 @pytest.mark.asyncio
 async def test_cancellation_still_cleans_the_command_cgroup(tmp_path: Path) -> None:
-    from co_scientist.sandbox.cgroups import CommandCgroup
+    from co_scientist.platform.sandbox.cgroups import CommandCgroup
 
     group = CommandCgroup(tmp_path / "command")
     calls: list[str] = []
@@ -613,7 +613,7 @@ async def test_orphaned_children_die_with_the_group(tmp_path: Path) -> None:
 async def test_a_command_ignoring_sigterm_is_still_killed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import co_scientist.sandbox.runner as runner_module
+    import co_scientist.platform.sandbox.runner as runner_module
 
     monkeypatch.setattr(runner_module, "_SIGTERM_GRACE_SECONDS", 0.5)
 

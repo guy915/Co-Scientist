@@ -8,8 +8,8 @@ from typing import Any, cast
 
 import pytest
 from co_scientist.platform import db as store_db
+from co_scientist.platform.retrieval.citations import CitationState
 
-from app.citations import CitationState
 from app.store import events as store_events
 from app.store import hypotheses as store
 from app.store import records

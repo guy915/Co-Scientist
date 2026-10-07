@@ -6,7 +6,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.citations import CitationRecord, classify_citation
+from co_scientist.platform.retrieval.citations import CitationRecord, classify_citation
+
 from app.claims.assessor import SENTENCE_SPLIT
 from app.report import format_deep_verification_critique
 from app.store import records as store

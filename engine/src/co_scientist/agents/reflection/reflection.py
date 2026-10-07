@@ -18,7 +18,7 @@ from co_scientist.platform.llm import (
     call_llm_json,
     indexed_prompt_name,
 )
-from co_scientist.progress import emit_progress
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.prompts import PromptRunContext, get_reflection_prompt
 from co_scientist.schemas.review import (
     REFLECTION_MAX_POSITIVE_OBSERVATIONS,

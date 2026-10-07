@@ -8,8 +8,8 @@ from dataclasses import dataclass, fields
 from typing import Any
 
 from co_scientist.platform.db import connect, current_time, list_by_run, use_conn
+from co_scientist.platform.retrieval.citations import CitationState
 
-from app.citations import CitationState
 from app.claims.gate import DEFAULT_CLAIM_ROLE, ClaimEdge
 
 

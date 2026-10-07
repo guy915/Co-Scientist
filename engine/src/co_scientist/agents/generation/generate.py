@@ -21,7 +21,7 @@ from co_scientist.agents.generation.operations import (
     prepare_generation,
 )
 from co_scientist.models import MetricDeltas, create_metrics_update
-from co_scientist.skills import scoped_skill_usage
+from co_scientist.platform.sandbox.skills import scoped_skill_usage
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

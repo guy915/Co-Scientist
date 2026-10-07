@@ -35,6 +35,8 @@ from co_scientist.platform.llm import (
     call_llm_with_tools,
     parse_tool_loop_json,
 )
+from co_scientist.platform.retrieval.tools.provider import MCPToolProvider
+from co_scientist.platform.retrieval.tools.response_parser import ResponseParser, parse_mcp_result
 from co_scientist.prompts import (
     ValidationSynthesisRequest,
     get_hypothesis_novelty_analysis_prompt,
@@ -42,14 +44,12 @@ from co_scientist.prompts import (
 )
 from co_scientist.schemas import HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA
 from co_scientist.state import WorkflowState
-from co_scientist.tools.provider import MCPToolProvider
-from co_scientist.tools.response_parser import ResponseParser, parse_mcp_result
 
 logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolConfig, ToolRegistry
+    from co_scientist.platform.retrieval.config import ToolConfig, ToolRegistry
 
 
 @dataclass(frozen=True)
@@ -274,7 +274,7 @@ async def _run_novelty_analysis_stage(
 
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
+    from co_scientist.platform.retrieval.config import ToolRegistry
 
 
 _SynthesisCaller = Callable[
@@ -522,7 +522,7 @@ def _build_hypotheses_from_synthesis(
 
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
+    from co_scientist.platform.retrieval.config import ToolRegistry
 
 
 def _build_paper_metadata(paper_id: str, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -600,7 +600,7 @@ def _build_synthesis_context(
 
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolRegistry
+    from co_scientist.platform.retrieval.config import ToolRegistry
 
 
 async def _analyze_paper_novelty(

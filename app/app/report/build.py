@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
+from co_scientist.platform.telemetry import retrieval_calls as retrieval
+
 from app.claims.gate import ClaimEdge
 from app.elo import live_leaderboard, rank_for_publication
 from app.report.content import (
@@ -21,7 +23,6 @@ from app.report.gates import (
 from app.report.markdown import ReportMarkdownInputs, render_report_markdown
 from app.store import hypotheses
 from app.store import records as store
-from app.store import retrieval_calls as retrieval
 
 
 class ReportRequest(NamedTuple):

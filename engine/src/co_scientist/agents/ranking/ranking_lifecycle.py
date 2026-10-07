@@ -17,7 +17,7 @@ from co_scientist.models import (
     has_peer_review,
     rank_for_publication,
 )
-from co_scientist.progress import emit_progress
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

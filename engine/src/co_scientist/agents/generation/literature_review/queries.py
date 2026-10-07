@@ -9,19 +9,19 @@ from co_scientist.core.constants import (
     LITERATURE_REVIEW_MAX_QUERIES,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.evidence.retrieval_support import (
-    describe_exception,
-)
-from co_scientist.evidence.search_support import (
-    SearchConfig,
-    determine_query_source_type,
-    parse_mcp_query_result,
-)
-from co_scientist.mcp_client import MCPToolClient
 from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm_json,
 )
+from co_scientist.platform.retrieval.evidence.retrieval_support import (
+    describe_exception,
+)
+from co_scientist.platform.retrieval.evidence.search_support import (
+    SearchConfig,
+    determine_query_source_type,
+    parse_mcp_query_result,
+)
+from co_scientist.platform.retrieval.mcp_client import MCPToolClient
 from co_scientist.prompts import (
     LiteratureQueryInputs,
     get_literature_review_query_generation_prompt,
@@ -30,7 +30,7 @@ from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
 from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
-    from co_scientist.config import WorkflowConfig
+    from co_scientist.platform.retrieval.config import WorkflowConfig
 
 logger = logging.getLogger(__name__)
 

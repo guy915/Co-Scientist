@@ -93,7 +93,7 @@ def build_evidence_context(
 
 
 if TYPE_CHECKING:
-    from co_scientist.evidence.search_support import (
+    from co_scientist.platform.retrieval.evidence.search_support import (
         SearchConfig,
     )
 
@@ -204,7 +204,7 @@ async def _retrieve_probe_evidence(
     if not state.get("mcp_available"):
         return _corpus_probe_evidence(state, queries)
 
-    from co_scientist.evidence.article_support import (
+    from co_scientist.platform.retrieval.evidence.article_support import (
         build_articles_from_metadata,
     )
 
@@ -225,7 +225,7 @@ async def _retrieve_probe_evidence(
 def _probe_search_config(state: WorkflowState) -> "SearchConfig":
     """Semantic scoring would multiply calls by idea, cycle and caller; the
     run-level pass already paid that cost."""
-    from co_scientist.evidence.search_support import (
+    from co_scientist.platform.retrieval.evidence.search_support import (
         search_config_for,
     )
 
@@ -241,10 +241,10 @@ async def _collect_probe_papers(
 ) -> tuple[dict[str, Any], list[str], list[str] | None]:
     """Search failure becomes retrieval data, allowing verification to
     degrade safely."""
-    from co_scientist.evidence.search import (
+    from co_scientist.platform.retrieval.evidence.search import (
         collect_papers,
     )
-    from co_scientist.mcp_client import get_mcp_client
+    from co_scientist.platform.retrieval.mcp_client import get_mcp_client
 
     errors: list[str] = []
     try:

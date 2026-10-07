@@ -12,17 +12,17 @@ from typing import Any
 
 import pytest
 
-from co_scientist.patch import PatchError
 from co_scientist.platform.llm import ToolLoop
 from co_scientist.platform.llm.tool_effects import batch_by_effects
-from co_scientist.sandbox import (
+from co_scientist.platform.sandbox import (
     SandboxKind,
     SandboxPolicy,
     command_lifecycle_available,
     sandbox_backend,
     workspace_write,
 )
-from co_scientist.workspace import (
+from co_scientist.platform.sandbox.patch import PatchError
+from co_scientist.platform.sandbox.workspace import (
     APPLY_PATCH,
     LIST_FILES,
     READ_FILE,
@@ -41,8 +41,12 @@ from co_scientist.workspace import (
     workspace_tool_schemas,
     workspaces_root,
 )
-from co_scientist.workspace import tools as workspace_tools
-from co_scientist.workspace.checks import MAX_CHECKED_BYTES, MAX_FINDINGS, check_paths
+from co_scientist.platform.sandbox.workspace import tools as workspace_tools
+from co_scientist.platform.sandbox.workspace.checks import (
+    MAX_CHECKED_BYTES,
+    MAX_FINDINGS,
+    check_paths,
+)
 from tests._llm_fake import make_tool_call
 
 _requires_sandbox = pytest.mark.skipif(
