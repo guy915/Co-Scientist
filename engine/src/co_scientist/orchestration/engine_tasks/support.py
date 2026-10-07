@@ -19,6 +19,7 @@ from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
+from co_scientist.platform.db import retrieval_calls as retrieval
 from co_scientist.platform.db.checkpoints import NewCheckpoint
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,
@@ -26,7 +27,6 @@ from co_scientist.platform.db.models import (
     RunStatus,
     ScientificTask,
 )
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 
 @dataclass(frozen=True)

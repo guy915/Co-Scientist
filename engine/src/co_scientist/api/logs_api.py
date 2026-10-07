@@ -14,10 +14,9 @@ from co_scientist.api.operator_access import is_operator
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.platform import db
-from co_scientist.platform.db import Connection
-from co_scientist.platform.telemetry import logs
+from co_scientist.platform.db import Connection, logs
+from co_scientist.platform.db.logs import LogFilters, NewLogRecord
 from co_scientist.platform.telemetry.logging_setup import level_to_number
-from co_scientist.platform.telemetry.logs import LogFilters, NewLogRecord
 
 # Process-local limit; assumes one API replica and needs shared storage when
 # replicated. Ingestion runs on the handler thread pool, so the window needs a

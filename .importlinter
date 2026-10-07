@@ -53,8 +53,6 @@ ignore_imports =
     co_scientist.domains.chat.seed -> co_scientist.orchestration.repository.runs_views
     co_scientist.platform.db.checkpoints -> co_scientist.orchestration.repository.supervisor_plan
     co_scientist.domains.chat.repository.examples -> co_scientist.orchestration.repository.runs
-    co_scientist.platform.telemetry.logs -> co_scientist.platform.db
-    co_scientist.platform.telemetry.retrieval_calls -> co_scientist.platform.db
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
     co_scientist.platform.llm.tool_effects -> co_scientist.platform.retrieval.config.registry
@@ -172,9 +170,6 @@ source_modules =
 forbidden_modules =
     sqlite3
 allow_indirect_imports = True
-ignore_imports =
-    co_scientist.platform.telemetry.logs -> sqlite3
-    co_scientist.platform.telemetry.retrieval_calls -> sqlite3
 
 [importlinter:contract:engine-app]
 name = Modules that began in the engine do not import app

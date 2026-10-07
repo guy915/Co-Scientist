@@ -21,7 +21,7 @@ from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.elo import live_leaderboard, rank_for_publication
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
+from co_scientist.platform.db import retrieval_calls as retrieval
 
 
 class ReportRequest(NamedTuple):

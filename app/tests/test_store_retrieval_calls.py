@@ -10,6 +10,7 @@ from co_scientist.domains.research_state.drain.matches import retrieval_call_row
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewEvidence
 from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import retrieval_calls as store
 from co_scientist.platform.retrieval.research import (
     CallStatus,
     Question,
@@ -20,7 +21,6 @@ from co_scientist.platform.retrieval.research import (
     ThreadRecord,
     ThreadStatus,
 )
-from co_scientist.platform.telemetry import retrieval_calls as store
 
 from tests._store_helpers import seed_run
 

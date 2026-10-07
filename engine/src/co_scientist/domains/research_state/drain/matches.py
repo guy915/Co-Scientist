@@ -8,8 +8,8 @@ from typing import Any, NamedTuple
 from co_scientist.domains.research_state.models.matchup import Matchup, debate_transcript_document
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.records import NewMatch, NewProximityEdge
+from co_scientist.platform.db import retrieval_calls as retrieval
 from co_scientist.platform.retrieval.research import ResearchResult, result_from_dict
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 logger = logging.getLogger(__name__)
 

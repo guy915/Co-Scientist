@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform.db.logs import NewLogRecord, append_log
 from co_scientist.platform.sandbox.workspace.run_workspace import open_draft_workspace
-from co_scientist.platform.telemetry.logs import NewLogRecord, append_log
 from fastapi.testclient import TestClient
 
 from app.main import app
