@@ -1,11 +1,9 @@
-import {render} from '@testing-library/react';
-import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
+import {Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/shared/api/runs';
-import {makeHypothesis, makeRunWithSummary} from '@/test_fixtures';
+import {makeHypothesis, makeRunWithSummary} from '@/shared/testing/fixtures';
 import {jsonResponse} from '@/shared/api/testing';
-import {ChatHistoryProvider} from '@/shared/hooks/history_context';
-import {RunHistoryProvider} from '@/shared/hooks/history_context';
+import {renderWithProviders} from '@/shared/testing/render';
 import {ChatWorkspace} from './chat_workspace';
 
 const apiMock = vi.hoisted(() => {
@@ -50,18 +48,15 @@ vi.mock('@/shared/api/runs', async importOriginal => ({
 export {apiMock};
 
 export function renderWorkspace(path = '/') {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <RunHistoryProvider>
-        <ChatHistoryProvider>
-          <Routes>
-            <Route path="/" element={<ChatWorkspace />} />
-            <Route path="/chats/:id" element={<ChatWorkspace />} />
-          </Routes>
-          <LocationProbe />
-        </ChatHistoryProvider>
-      </RunHistoryProvider>
-    </MemoryRouter>,
+  return renderWithProviders(
+    <>
+      <Routes>
+        <Route path="/" element={<ChatWorkspace />} />
+        <Route path="/chats/:id" element={<ChatWorkspace />} />
+      </Routes>
+      <LocationProbe />
+    </>,
+    {path},
   );
 }
 
@@ -81,20 +76,6 @@ export function stubStatusConnectors(
     'fetch',
     vi.fn(async () => jsonResponse({connectors})),
   );
-}
-
-export function minimalRun(overrides = {}) {
-  return makeRunWithSummary({
-    id: 'run-1',
-    research_goal: 'Investigate glucose homeostasis.',
-    provider: 'mock',
-    created_at: 1,
-    updated_at: 2,
-    completed_at: 3,
-    top_elo: 1200,
-    summary: {events: 4, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
-    ...overrides,
-  });
 }
 
 export const hypothesis = makeHypothesis({
@@ -121,7 +102,9 @@ export const ANNOUNCEMENT_TEXT =
 export function installChatWorkspaceMocks() {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  apiMock.createRun.mockResolvedValue(minimalRun({status: 'draft'}));
+  apiMock.createRun.mockResolvedValue(
+    makeRunWithSummary({status: 'draft'}, 'chat'),
+  );
   apiMock.createInterview.mockImplementation(async (goal: string) => ({
     id: 'interview-1',
     client_id: 'client-1',
@@ -179,14 +162,17 @@ export function installChatWorkspaceMocks() {
   // changes rehydration.
   apiMock.listInterviews.mockResolvedValue([]);
   apiMock.listDemoRuns.mockResolvedValue([
-    minimalRun({
-      id: 'demo-ferroptosis',
-      is_demo: true,
-      research_goal:
-        'What are the key molecular regulators of ferroptosis in pancreatic ' +
-        'cancer cells, and how might their modulation enhance chemotherapy ' +
-        'sensitivity?',
-    }),
+    makeRunWithSummary(
+      {
+        id: 'demo-ferroptosis',
+        is_demo: true,
+        research_goal:
+          'What are the key molecular regulators of ferroptosis in pancreatic ' +
+          'cancer cells, and how might their modulation enhance chemotherapy ' +
+          'sensitivity?',
+      },
+      'chat',
+    ),
   ]);
   apiMock.listRuns.mockResolvedValue([]);
   apiMock.startRun.mockResolvedValue({id: 'run-1', status: 'queued'});

@@ -8,7 +8,6 @@ import type {
   RunWithSummary,
 } from '@/shared/api/runs';
 import type {InferredRunSpec} from '@/shared/lib/run_spec';
-import {type ChatEntry} from '@/features/chat/chat_timeline_bubble';
 
 export function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
   return {
@@ -53,14 +52,62 @@ export function makeRun(over: Partial<Run> = {}): Run {
   };
 }
 
+const RUN_PRESETS = {
+  blank: {},
+  overview: {
+    id: 'run-1',
+    research_goal: 'Study pathway X',
+    created_at: 1_700_000_000,
+    completed_at: 1_700_000_000 + 3 * 3600,
+  },
+  listed: {
+    provider: 'mock',
+    created_at: 1,
+    updated_at: 2,
+    completed_at: 3,
+    summary: {events: 1, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
+  },
+  chat: {
+    id: 'run-1',
+    research_goal: 'Investigate glucose homeostasis.',
+    provider: 'mock',
+    created_at: 1,
+    updated_at: 2,
+    completed_at: 3,
+    top_elo: 1200,
+    summary: {events: 4, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
+  },
+} satisfies Record<string, Partial<RunWithSummary>>;
+
 export function makeRunWithSummary(
   over: Partial<RunWithSummary> = {},
+  preset: keyof typeof RUN_PRESETS = 'blank',
 ): RunWithSummary {
   return {
     ...makeRun(),
     summary: {events: 0, hypotheses: 0, evidence: 0, matches: 0, reviews: 0},
+    ...RUN_PRESETS[preset],
     ...over,
   };
+}
+
+export function makeRunWithSetup(
+  goal: string,
+  over: Partial<RunWithSummary> = {},
+): RunWithSummary {
+  return makeRunWithSummary({
+    id: 'run-1',
+    research_goal: goal,
+    config: {
+      setup: makeSpec({
+        goal,
+        requirements: ['Testable'],
+        attributes: ['Novel'],
+        criteria: ['Feasible'],
+      }),
+    },
+    ...over,
+  });
 }
 
 export function makeSpec(over: Partial<InferredRunSpec> = {}): InferredRunSpec {
@@ -75,22 +122,12 @@ export function makeSpec(over: Partial<InferredRunSpec> = {}): InferredRunSpec {
   };
 }
 
-export function makeMessage(over: Partial<ChatEntry> = {}): ChatEntry {
-  return {
-    id: 'm1',
-    role: 'user',
-    content: 'Hello',
-    created_at: 1,
-    ...over,
-  };
-}
-
 export function makeMatch(id: number, over: Partial<MatchRow> = {}): MatchRow {
   return {id, ...over} as unknown as MatchRow;
 }
 
-export function makeChatSummary(over: Partial<ChatSummary> = {}): ChatSummary {
-  return {
+const CHAT_PRESETS = {
+  completed: {
     id: 'interview-1',
     title: 'Cold-stress glucose homeostasis',
     challenge: 'Investigate glucose homeostasis.',
@@ -98,8 +135,23 @@ export function makeChatSummary(over: Partial<ChatSummary> = {}): ChatSummary {
     run_id: 'run-1',
     created_at: 1,
     updated_at: 3,
-    ...over,
-  };
+  },
+  active: {
+    id: 'interview-1',
+    title: null,
+    challenge: 'Investigate glucose homeostasis.',
+    status: 'active',
+    run_id: null,
+    created_at: 1,
+    updated_at: 2,
+  },
+} satisfies Record<string, ChatSummary>;
+
+export function makeChat(
+  over: Partial<ChatSummary> = {},
+  preset: keyof typeof CHAT_PRESETS = 'completed',
+): ChatSummary {
+  return {...CHAT_PRESETS[preset], ...over};
 }
 
 export function makeRunMessage(over: Partial<RunMessage> = {}): RunMessage {

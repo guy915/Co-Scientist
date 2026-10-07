@@ -10,12 +10,9 @@ import {
   vi,
   type MockedFunction,
 } from 'vitest';
-import {
-  listInterviews,
-  loadRunHistory,
-  type ChatSummary,
-} from '@/shared/api/runs';
-import {makeRun} from '@/test_fixtures';
+import {listInterviews, loadRunHistory, type ChatSummary} from '@/shared/api/runs';
+import {deferred} from '@/shared/testing/deferred';
+import {makeChat, makeRun} from '@/shared/testing/fixtures';
 import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import {
   ChatHistoryProvider,
@@ -29,23 +26,8 @@ vi.mock('@/shared/api/runs', async importActual => {
   return {...actual, listInterviews: vi.fn(), loadRunHistory: vi.fn()};
 });
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(settle => {
-    resolve = settle;
-  });
-  return {promise, resolve};
-}
-
-const chat = (id: string): ChatSummary => ({
-  id,
-  title: id,
-  challenge: id,
-  status: 'active',
-  run_id: null,
-  created_at: 1,
-  updated_at: 1,
-});
+const chat = (id: string): ChatSummary =>
+  makeChat({id, title: id, challenge: id, updated_at: 1}, 'active');
 
 function RunProbe() {
   const {history} = useRunHistoryContext();

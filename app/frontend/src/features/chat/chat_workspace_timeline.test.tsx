@@ -5,7 +5,8 @@ import {
   buildTimelineItems,
   type BuildTimelineItemsArgs,
 } from './chat_workspace_timeline';
-import {makeMessage, makeSpec} from '@/test_fixtures';
+import {makeSpec} from '@/shared/testing/fixtures';
+import {makeMessage} from './chat_message_fixture';
 import {MemoryRouter, type NavigateFunction} from 'react-router-dom';
 
 vi.mock('@/shared/hooks/system_status_context', () => ({

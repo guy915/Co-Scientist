@@ -1,5 +1,5 @@
 import type {ClaimEvidenceRow, MatchRow, Review} from '@/shared/api/runs';
-import {makeHypothesis} from '@/test_fixtures';
+import {makeHypothesis} from '@/shared/testing/fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';
 import {HypothesisDetail} from './ideas_detail_pane';
