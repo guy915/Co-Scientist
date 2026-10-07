@@ -284,10 +284,22 @@ One concept per PR. Each removes its ignore-list entries.
   phase, open PRs, decisions taken, owner requests, blockers.
 - **Merging.** Squash-merge with the GitHub merge tool once CI is green on
   the latest commit, as for the earlier campaigns.
-- **Lanes.** Three agents on separate accounts. The lead owns the board and
-  phases 0–2, 4–6 and 8. Lane F owns `app/frontend/` and `e2e/`: the
-  transitions work first, then phase 7. Lane P runs phase 3 on
-  `proto/dbos` and reports; the lead writes ADR-003.
+- **Lanes.** Four agents on separate accounts. The lead owns the board and
+  phases 0–2, 4–6 and 8. Lane F owns `app/frontend/` and `e2e/`: shared UI
+  building blocks first, then transitions, then phase 7. Lane P runs
+  phase 3 on `proto/dbos` and reports; the lead writes ADR-003. Lane X
+  fixes the backend severity-A audit findings, one per PR, each with a
+  reproducing test, and posts on the board before it starts each one.
+- **Audit findings.** `rearchitecture/duplication-audit.md` assigns each
+  finding. A-01 to A-09: lane X fixes the "separate fix" part, and the
+  consolidation then goes to phase 5. A-10 to A-13 and the frontend B and C
+  findings: lane F. Other findings marked phase 5: the lead. PRs cite the
+  finding ID. Stale doc references under "Other observations" go to
+  phase 8.
+- **A-02 decision.** The engine and the app both screen every free-text
+  hypothesis field (statement, mechanism, expected effect, experimental
+  context). On REDACT both hide every field except the statement, which
+  keeps the hypothesis rankable. Screened sets only grow.
 - **Subagents.** Sonnet only. Moves are serial; the parallel work is the
   survey, the DBOS prototype, tracing, the frontend and docs. For gateway,
   runtime and research-state work the lead gives small, precise tasks or
