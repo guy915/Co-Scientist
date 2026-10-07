@@ -11,7 +11,6 @@ _KNOWN_CONNECTORS: tuple[tuple[str, str], ...] = (
     ("pubmed", "PubMed"),
     ("arxiv", "arXiv"),
     ("biorxiv", "BioRxiv"),
-    ("indra", "INDRA"),
 )
 
 

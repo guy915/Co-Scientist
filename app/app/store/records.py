@@ -74,13 +74,10 @@ def list_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Legacy NULL retraction markers read as false, preserving what older
-    runs could know.
-    """
     rows = _list_by_run("evidence", run_id, db_path, conn, json_fields=("authors",))
     for row in rows:
         row["available"] = bool(row["available"])
-        row["retracted"] = bool(row.get("retracted"))
+        row["retracted"] = bool(row["retracted"])
     return rows
 
 

@@ -29,7 +29,6 @@ Important: if observations are expected regardless of the hypothesis, and don't 
 Article: each analysis below is one article from the literature review, with that review's own reasoning. Run steps 1 and 2 for every article in turn, then steps 3 to 5 once across all of them.
 {{articles_with_reasoning}}
 
-{{indra_evidence}}
 {{meta_review_context}}
 Hypothesis:
 {{hypothesis}}
