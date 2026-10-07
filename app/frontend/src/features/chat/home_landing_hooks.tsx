@@ -4,27 +4,6 @@ export interface MotionProps {
   reduceMotion: boolean;
 }
 
-const REDUCE_QUERY = '(prefers-reduced-motion: reduce)';
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia(REDUCE_QUERY).matches
-  );
-}
-
-export function useReducedMotion(): boolean {
-  const [reduce, setReduce] = useState(prefersReducedMotion);
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia(REDUCE_QUERY);
-    const onChange = () => setReduce(query.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-  return reduce;
-}
-
 // Without IntersectionObserver, report off screen so animations cannot run
 // unobserved.
 export function useInView(
