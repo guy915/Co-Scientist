@@ -13,7 +13,7 @@ from app.citations import (
     classify_date,
     classify_source_type,
 )
-from app.claims.gate import claim_status, role_of
+from app.claims.gate import ClaimEdge
 from app.report.markdown.document import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.text_utils import hypothesis_statement, hypothesis_title
 
@@ -548,8 +548,8 @@ def _render_claim_evidence(edges: list[dict[str, Any]]) -> list[str]:
         return []
     lines = ["**Claim evidence:**", ""]
     for edge in edges:
-        claim = str(edge.get("claim") or "")
-        lines.append(f"- **{claim_status(edge)} · {role_of(edge)}** — {claim}")
+        typed = ClaimEdge.from_row(edge)
+        lines.append(f"- **{typed.status} · {typed.role}** — {typed.claim}")
         method = _ASSESSMENT_METHODS.get(str(edge.get("verification_method")), "not recorded")
         lines.append(f"  Assessment method: {method}.")
         for span in edge.get("supporting") or []:

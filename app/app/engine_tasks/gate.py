@@ -6,7 +6,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from app.claims.gate import ClaimRole, is_speculative
+from app.claims.gate import ClaimRole
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ def _harvest_hypothesis_claims(
             if claim not in claim_roles:
                 ordered_claims.append(claim)
                 claim_roles[claim] = role
-            elif not is_speculative(role):
+            elif role != ClaimRole.SPECULATIVE:
                 # The strict role wins when a sentence occurs under both claim
                 # roles.
                 claim_roles[claim] = role
@@ -223,7 +223,7 @@ def _apply_gate_verdict(
         assessments,
         allow_speculative=True,
         explicitly_speculative_claims={
-            claim for claim, role in plan.roles.items() if is_speculative(role)
+            claim for claim, role in plan.roles.items() if role == ClaimRole.SPECULATIVE
         },
         require_supported_claim=False,
     )

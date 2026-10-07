@@ -8,7 +8,7 @@ from dataclasses import dataclass, fields
 from typing import Any
 
 from app.citations import CitationState
-from app.claims.gate import DEFAULT_CLAIM_ROLE
+from app.claims.gate import DEFAULT_CLAIM_ROLE, ClaimEdge
 from app.store.db import _list_by_run, _now, _use_conn, connect
 
 
@@ -153,6 +153,14 @@ def list_claim_evidence(
         conn,
         json_fields=("supporting", "contradicting"),
     )
+
+
+def list_claim_edges(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[ClaimEdge]:
+    return [ClaimEdge.from_row(row) for row in list_claim_evidence(run_id, db_path, conn)]
 
 
 @dataclass(frozen=True)

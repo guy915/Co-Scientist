@@ -207,9 +207,6 @@ def publication_gate(
     )
 
 
-Edge = Mapping[str, Any]
-
-
 class ClaimRole(str, enum.Enum):
     CATEGORICAL = "categorical"
     SPECULATIVE = "speculative"
@@ -218,68 +215,66 @@ class ClaimRole(str, enum.Enum):
 # Legacy missing roles default to strict categorical treatment.
 DEFAULT_CLAIM_ROLE = ClaimRole.CATEGORICAL.value
 
-KNOWLEDGE_FACT = "fact"
-KNOWLEDGE_CONTRADICTION = "contradiction"
-
-_KNOWLEDGE_KIND = {
-    EntailmentLabel.SUPPORTS: KNOWLEDGE_FACT,
-    EntailmentLabel.CONTRADICTS: KNOWLEDGE_CONTRADICTION,
-}
-
 _STATUS = {
     EntailmentLabel.SUPPORTS: "Supported",
     EntailmentLabel.PARTIAL: "Partially supported",
     EntailmentLabel.CONTRADICTS: "Contradicted",
 }
-_STATUS_EXCUSED = "Speculative — evidence insufficient"
-_STATUS_UNSUPPORTED = "Unsupported categorical claim"
 
 
-def label_of(edge: Edge) -> EntailmentLabel | None:
-    try:
-        return EntailmentLabel(edge.get("label"))
-    except ValueError:
-        return None
-
-
-def role_of(edge: Edge) -> str:
-    return str(edge.get("claim_role") or DEFAULT_CLAIM_ROLE)
-
-
-def is_speculative(role: str | None) -> bool:
-    return role == ClaimRole.SPECULATIVE
-
-
-def is_supporting(edge: Edge) -> bool:
-    label = label_of(edge)
-    return label is not None and label.is_supporting
-
-
-def is_contradicting(edge: Edge) -> bool:
-    return label_of(edge) is EntailmentLabel.CONTRADICTS
-
-
-def is_categorical_contradiction(edge: Edge) -> bool:
-    return is_contradicting(edge) and not is_speculative(role_of(edge))
-
-
-def is_excused(edge: Edge) -> bool:
-    """Unknown historical labels are not equivalent to explicitly
-    insufficient evidence.
+@dataclasses.dataclass(frozen=True)
+class ClaimEdge:
+    """Stored claim_evidence rows are the only place unknown labels and missing
+    roles appear; ``row`` keeps the original JSON for report output.
     """
-    return label_of(edge) is EntailmentLabel.INSUFFICIENT and is_speculative(role_of(edge))
 
+    hypothesis_id: str
+    claim: str
+    label: EntailmentLabel | None
+    role: str
+    row: Mapping[str, Any] = dataclasses.field(repr=False, compare=False)
 
-def claim_status(edge: Edge) -> str:
-    label = label_of(edge)
-    if label is not None and label in _STATUS:
-        return _STATUS[label]
-    if is_speculative(role_of(edge)):
-        return _STATUS_EXCUSED
-    return _STATUS_UNSUPPORTED
+    @classmethod
+    def from_row(cls, row: Mapping[str, Any]) -> ClaimEdge:
+        try:
+            label = EntailmentLabel(row.get("label"))
+        except ValueError:
+            label = None
+        return cls(
+            str(row.get("hypothesis_id") or ""),
+            str(row.get("claim") or ""),
+            label,
+            str(row.get("claim_role") or DEFAULT_CLAIM_ROLE),
+            row,
+        )
 
+    @property
+    def is_speculative(self) -> bool:
+        return self.role == ClaimRole.SPECULATIVE
 
-def knowledge_kind(edge: Edge) -> str | None:
-    """Partial support is not a settled fact."""
-    label = label_of(edge)
-    return None if label is None else _KNOWLEDGE_KIND.get(label)
+    @property
+    def is_supporting(self) -> bool:
+        return self.label is not None and self.label.is_supporting
+
+    @property
+    def is_contradicting(self) -> bool:
+        return self.label is EntailmentLabel.CONTRADICTS
+
+    @property
+    def is_categorical_contradiction(self) -> bool:
+        return self.is_contradicting and not self.is_speculative
+
+    @property
+    def is_excused(self) -> bool:
+        """Unknown historical labels are not equivalent to explicitly
+        insufficient evidence.
+        """
+        return self.label is EntailmentLabel.INSUFFICIENT and self.is_speculative
+
+    @property
+    def status(self) -> str:
+        if self.label in _STATUS:
+            return _STATUS[self.label]
+        if self.is_speculative:
+            return "Speculative — evidence insufficient"
+        return "Unsupported categorical claim"
