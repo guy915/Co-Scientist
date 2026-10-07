@@ -8,8 +8,8 @@ from typing import Any, NamedTuple
 
 from co_scientist.core.config import settings
 from co_scientist.platform import db
+from co_scientist.platform.retrieval.citations import empty_citation_summary
 
-from app.citations import empty_citation_summary
 from app.claims import EvidencePassage
 from app.claims.grounding import (
     AssessorSpec,

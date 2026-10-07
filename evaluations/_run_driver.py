@@ -164,7 +164,7 @@ def run_completion_status(run: Any) -> tuple[bool, bool]:
 def compute_arm_metrics(
     run_id: str, db_path: str, wall_clock_seconds: float, tasks_count: int
 ) -> dict[str, Any]:
-    from app.store import retrieval_calls as store
+    from co_scientist.platform.telemetry import retrieval_calls as store
 
     metrics = store.get_run_metrics(run_id, db_path=db_path) or {}
     model_usage = metrics.get("model_usage") or {}

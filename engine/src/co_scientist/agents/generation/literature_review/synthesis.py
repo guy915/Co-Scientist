@@ -11,16 +11,16 @@ from co_scientist.core.constants import (
     truncate,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.evidence.article_support import (
-    get_paper_content_for_analysis,
-    get_papers_with_content,
-    parse_year_from_metadata,
-)
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm,
     call_llm_json,
+)
+from co_scientist.platform.retrieval.evidence.article_support import (
+    get_paper_content_for_analysis,
+    get_papers_with_content,
+    parse_year_from_metadata,
 )
 from co_scientist.prompts import (
     get_literature_review_paper_analysis_prompt,

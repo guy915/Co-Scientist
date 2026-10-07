@@ -14,14 +14,15 @@ from co_scientist.agents.generation.literature_review.synthesis import (
 from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
 )
-from co_scientist.evidence.article_support import (
+from co_scientist.models import Article
+from co_scientist.platform.retrieval.evidence.article_support import (
     _has_fulltext,
     build_articles_from_metadata,
     count_papers_with_fulltext,
     get_papers_with_content,
     make_failure_result,
 )
-from co_scientist.evidence.retrieval_support import (
+from co_scientist.platform.retrieval.evidence.retrieval_support import (
     ContentToolConfig,
     build_content_config,
     build_pdf_discovery_config,
@@ -30,12 +31,11 @@ from co_scientist.evidence.retrieval_support import (
     parse_content_result,
     parse_pdf_discovery_result,
 )
-from co_scientist.evidence.search_support import (
+from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
 )
-from co_scientist.mcp_client import MCPToolClient
-from co_scientist.models import Article
-from co_scientist.progress import emit_progress
+from co_scientist.platform.retrieval.mcp_client import MCPToolClient
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -178,7 +178,7 @@ async def _collect_papers_with_diagnostics(
     mcp_client: MCPToolClient,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str], list[str]]:
     # Resolve at call time so installed operation patches reach this consumer.
-    from co_scientist.evidence.search import (
+    from co_scientist.platform.retrieval.evidence.search import (
         collect_papers,
     )
 
@@ -315,7 +315,7 @@ def _prepare_content_call_args(
 ) -> dict[str, Any]:
     # Local import avoids the config.schema/nodes package cycle.
 
-    from co_scientist.config.schema import (
+    from co_scientist.platform.retrieval.config.schema import (
         resolve_content_params,
     )
 

@@ -9,7 +9,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from co_scientist.workspace.tool_schemas import WRITE_FILE
+from co_scientist.platform.sandbox.workspace.tool_schemas import WRITE_FILE
 
 logger = logging.getLogger(__name__)
 

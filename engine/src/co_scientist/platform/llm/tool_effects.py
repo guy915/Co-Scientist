@@ -79,7 +79,7 @@ def resolve_tool_effects(mcp_tool_name: str) -> ToolEffect:
         return local
 
     try:
-        from co_scientist.config.registry import get_tool_registry
+        from co_scientist.platform.retrieval.config.registry import get_tool_registry
 
         tool = get_tool_registry().get_tool_by_mcp_name(mcp_tool_name)
     except Exception:  # Lookup failure must degrade to serial execution, never break a run.

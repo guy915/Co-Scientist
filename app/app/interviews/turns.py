@@ -93,7 +93,7 @@ async def advance_turn(
         _resolved_turn(response, used_fallback, "".join(fragments))
     )
     _persist_interview_turn(interview_id, turn)
-    from app.diagnostic_events import log_chat_turn
+    from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 
     log_chat_turn(
         "agent",

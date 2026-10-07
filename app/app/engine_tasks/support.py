@@ -15,6 +15,7 @@ from co_scientist.platform.db.models import (
     RunStatus,
     ScientificTask,
 )
+from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 import app.engine_tasks.runtime as engine_tasks_runtime
 from app.engine_adapter.opts import (
@@ -25,7 +26,6 @@ from app.engine_adapter.opts import (
 from app.engine_tasks.portfolio import _enqueue_node_portfolio
 from app.run_events import make_emitter
 from app.store import events, messages, runs, tasks
-from app.store import retrieval_calls as retrieval
 from app.store.tasks import NewTask
 
 

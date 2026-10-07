@@ -6,11 +6,10 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
+import co_scientist.platform.retrieval.citations as citation_resolver
 from co_scientist.core.config import settings
 from co_scientist.models import Hypothesis
-
-import app.citations as citation_resolver
-from app.citations import (
+from co_scientist.platform.retrieval.citations import (
     CitationMetadata,
     Resolvability,
     Resolver,
@@ -18,6 +17,7 @@ from app.citations import (
     classify_source_type,
     offline_resolver,
 )
+
 from app.elo import INITIAL_ELO
 from app.engine_adapter.drain.reviews import (
     _CitationSink,

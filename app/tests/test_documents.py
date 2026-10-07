@@ -7,11 +7,11 @@ import types
 from typing import Any, cast
 
 import pytest
-from fastapi.testclient import TestClient
-
-from app.run_corpus import (
+from co_scientist.platform.retrieval.run_corpus import (
     engine_context_sources,
 )
+from fastapi.testclient import TestClient
+
 from app.store import messages, records
 from tests._client import create_run as _create_run
 from tests._client import make_client

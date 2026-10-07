@@ -16,10 +16,10 @@ from co_scientist.core.config import (
 from co_scientist.platform.db.models import MessageRow, RunRow
 from co_scientist.platform.llm import offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
+from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
+from co_scientist.platform.telemetry.logging_setup import run_log_context
 
 from app import credentials
-from app.diagnostic_events import log_chat_turn
-from app.logging_setup import run_log_context
 from app.sse import sse_frame
 from app.store import messages as store
 from app.store.messages import NewMessage

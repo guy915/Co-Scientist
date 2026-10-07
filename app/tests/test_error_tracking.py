@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 import sentry_sdk
+from co_scientist.platform.telemetry import error_tracking
 
-from app import error_tracking
 from app.credentials import ByokCredential, scoped_byok
 
 

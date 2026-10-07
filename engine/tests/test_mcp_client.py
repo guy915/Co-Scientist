@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-import co_scientist.mcp_client as mcp_client_module
+import co_scientist.platform.retrieval.mcp_client as mcp_client_module
 from co_scientist.core.exceptions import MCPToolTimeoutError
-from co_scientist.mcp_client import (
+from co_scientist.platform.retrieval.mcp_client import (
     MCP_AUTH_HEADER,
     MCP_SHARED_SECRET_ENV,
     MCPToolClient,

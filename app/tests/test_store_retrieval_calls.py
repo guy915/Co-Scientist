@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 
 import pytest
+from co_scientist.platform.telemetry import retrieval_calls as store
 from co_scientist.research import (
     CallStatus,
     Question,
@@ -18,7 +19,6 @@ from co_scientist.research import (
 )
 
 from app.store import records, runs
-from app.store import retrieval_calls as store
 from app.store.records import NewEvidence
 from tests._store_helpers import seed_run
 

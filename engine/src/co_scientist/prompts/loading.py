@@ -60,7 +60,7 @@ def substitute_variables(template: str, variables: dict[str, Any]) -> str:
 
 def _resolve_default_tool_registry() -> Any | None:
     try:
-        from co_scientist.config import (
+        from co_scientist.platform.retrieval.config import (
             get_tool_registry,
         )
 

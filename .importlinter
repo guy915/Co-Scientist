@@ -4,7 +4,7 @@
 # evaluations/tests/test_import_contracts.py pins the count, so it only shrinks.
 # Package __init__ modules whose children belong to different layers stay out of
 # the layers until they move: app.engine_adapter, app.engine_adapter.drain,
-# co_scientist.agents, co_scientist.config and co_scientist.models.
+# co_scientist.agents and co_scientist.models.
 # Run from app/ (make arch): from the repository root, `app` resolves to the
 # app/ directory instead of the package.
 
@@ -27,9 +27,9 @@ layers =
     (co_scientist.domains.safety) : co_scientist.safety : app.safety : app.hypothesis
     (co_scientist.domains.research_state) : co_scientist.models.matchup : co_scientist.state : app.elo : app.text_utils : app.claims : app.store.hypotheses : app.store.records : app.engine_adapter.drain.hypotheses : app.engine_adapter.drain.reviews : app.engine_adapter.drain.matches
     (co_scientist.domains.documents) : app.document_ingest : app.pdf : app.pdf_worker : app.evidence_chunking : app.staged_documents : app.store.documents : (co_scientist.domains.access) : app.credentials : app.byok_models : app.free_usage : app.retention : (co_scientist.domains.feedback) : app.store.feedback
-    (co_scientist.platform.retrieval) : co_scientist.mcp_client : co_scientist.tools : co_scientist.config.registry : co_scientist.config.schema : co_scientist.evidence : co_scientist.retrieval_degradation : co_scientist.research_adapter : app.pinned_http : app.retraction_set : app.citations : app.run_corpus : app.engine_adapter.tools
-    co_scientist.platform.llm : (co_scientist.platform.sandbox) : co_scientist.sandbox : co_scientist.workspace : co_scientist.skills : co_scientist.patch : co_scientist.platform.db
-    (co_scientist.platform.telemetry) : co_scientist.progress : app.logging_setup : app.error_tracking : app.diagnostic_events : app.store.logs : app.store.retrieval_calls
+    co_scientist.platform.retrieval
+    co_scientist.platform.llm : co_scientist.platform.sandbox : co_scientist.platform.db
+    co_scientist.platform.telemetry
     co_scientist.core
 ignore_imports =
     app.claims.grounding -> app.engine_adapter
@@ -38,7 +38,7 @@ ignore_imports =
     app.engine_adapter.drain.matches -> co_scientist.agents.ranking.ranking_debate
     app.engine_adapter.drain.matches -> co_scientist.research
     app.engine_adapter.drain.reviews -> app.report
-    app.error_tracking -> app.credentials
+    co_scientist.platform.telemetry.error_tracking -> app.credentials
     app.evidence_chunking -> app.claims.assessor
     app.free_usage -> app.auth
     app.free_usage -> app.engine_adapter
@@ -49,7 +49,7 @@ ignore_imports =
     app.interviews.stream -> app.sse
     app.interviews.turns -> app.auth
     co_scientist.platform.llm.llm_request -> app.credentials
-    app.logging_setup -> app.credentials
+    co_scientist.platform.telemetry.logging_setup -> app.credentials
     co_scientist.platform.llm.offline_guard -> app.credentials
     co_scientist.platform.llm.offline_guard -> app.engine_adapter
     co_scientist.platform.llm.process_mode -> app.credentials
@@ -79,23 +79,23 @@ ignore_imports =
     co_scientist.platform.db.checkpoints -> app.store.supervisor_plan
     app.store.documents -> app.store.records
     app.store.examples -> app.store.runs
-    app.store.logs -> co_scientist.platform.db
-    app.store.retrieval_calls -> co_scientist.platform.db
-    app.store.retrieval_calls -> co_scientist.research
+    co_scientist.platform.telemetry.logs -> co_scientist.platform.db
+    co_scientist.platform.telemetry.retrieval_calls -> co_scientist.platform.db
+    co_scientist.platform.telemetry.retrieval_calls -> co_scientist.research
     co_scientist.core.constants -> co_scientist.platform.llm.profile
-    co_scientist.evidence.article_support -> co_scientist.models
-    co_scientist.evidence.article_support -> co_scientist.research
-    co_scientist.evidence.relevance -> co_scientist.prompts
-    co_scientist.evidence.relevance -> co_scientist.schemas
-    co_scientist.evidence.search -> co_scientist.state
-    co_scientist.evidence.search_support -> co_scientist.state
+    co_scientist.platform.retrieval.evidence.article_support -> co_scientist.models
+    co_scientist.platform.retrieval.evidence.article_support -> co_scientist.research
+    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.prompts
+    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.schemas
+    co_scientist.platform.retrieval.evidence.search -> co_scientist.state
+    co_scientist.platform.retrieval.evidence.search_support -> co_scientist.state
     co_scientist.core.metrics -> co_scientist.platform.llm
-    co_scientist.progress -> co_scientist.state
-    co_scientist.research_adapter -> co_scientist.prompts
-    co_scientist.research_adapter -> co_scientist.research
-    co_scientist.platform.llm.tool_effects -> co_scientist.config.registry
-    co_scientist.tools.response_parser -> co_scientist.models
-    co_scientist.workspace.tools -> co_scientist.tools.provider
+    co_scientist.platform.telemetry.progress -> co_scientist.state
+    co_scientist.platform.retrieval.research_adapter -> co_scientist.prompts
+    co_scientist.platform.retrieval.research_adapter -> co_scientist.research
+    co_scientist.platform.llm.tool_effects -> co_scientist.platform.retrieval.config.registry
+    co_scientist.platform.retrieval.tools.response_parser -> co_scientist.models
+    co_scientist.platform.sandbox.workspace.tools -> co_scientist.platform.retrieval.tools.provider
 
 [importlinter:contract:agents]
 name = Science agents are independent
@@ -193,30 +193,11 @@ source_modules =
     app.free_usage
     app.retention
     app.store.feedback
-    co_scientist.mcp_client
-    co_scientist.tools
-    co_scientist.config.registry
-    co_scientist.config.schema
-    co_scientist.evidence
-    co_scientist.retrieval_degradation
-    co_scientist.research_adapter
-    app.pinned_http
-    app.retraction_set
-    app.citations
-    app.run_corpus
-    app.engine_adapter.tools
+    co_scientist.platform.retrieval
     co_scientist.platform.llm
-    co_scientist.sandbox
-    co_scientist.workspace
-    co_scientist.skills
-    co_scientist.patch
+    co_scientist.platform.sandbox
     co_scientist.platform.db
-    co_scientist.progress
-    app.logging_setup
-    app.error_tracking
-    app.diagnostic_events
-    app.store.logs
-    app.store.retrieval_calls
+    co_scientist.platform.telemetry
     co_scientist.core
 forbidden_modules =
     fastapi
@@ -313,29 +294,10 @@ source_modules =
     app.free_usage
     app.retention
     app.store.feedback
-    co_scientist.mcp_client
-    co_scientist.tools
-    co_scientist.config.registry
-    co_scientist.config.schema
-    co_scientist.evidence
-    co_scientist.retrieval_degradation
-    co_scientist.research_adapter
-    app.pinned_http
-    app.retraction_set
-    app.citations
-    app.run_corpus
-    app.engine_adapter.tools
-    co_scientist.sandbox
-    co_scientist.workspace
-    co_scientist.skills
-    co_scientist.patch
+    co_scientist.platform.retrieval
+    co_scientist.platform.sandbox
     co_scientist.platform.db
-    co_scientist.progress
-    app.logging_setup
-    app.error_tracking
-    app.diagnostic_events
-    app.store.logs
-    app.store.retrieval_calls
+    co_scientist.platform.telemetry
     co_scientist.core
 forbidden_modules =
     litellm
@@ -343,7 +305,7 @@ allow_indirect_imports = True
 ignore_imports =
     co_scientist.core.async_bridge -> litellm
     app.credentials -> litellm
-    app.logging_setup -> litellm
+    co_scientist.platform.telemetry.logging_setup -> litellm
 
 [importlinter:contract:httpx]
 name = httpx only in the LLM gateway and retrieval
@@ -425,17 +387,9 @@ source_modules =
     app.free_usage
     app.retention
     app.store.feedback
-    co_scientist.sandbox
-    co_scientist.workspace
-    co_scientist.skills
-    co_scientist.patch
+    co_scientist.platform.sandbox
     co_scientist.platform.db
-    co_scientist.progress
-    app.logging_setup
-    app.error_tracking
-    app.diagnostic_events
-    app.store.logs
-    app.store.retrieval_calls
+    co_scientist.platform.telemetry
     co_scientist.core
 forbidden_modules =
     httpx
@@ -469,29 +423,10 @@ source_modules =
     co_scientist.prompts
     co_scientist.schemas
     co_scientist.research
-    co_scientist.mcp_client
-    co_scientist.tools
-    co_scientist.config.registry
-    co_scientist.config.schema
-    co_scientist.evidence
-    co_scientist.retrieval_degradation
-    co_scientist.research_adapter
-    app.pinned_http
-    app.retraction_set
-    app.citations
-    app.run_corpus
-    app.engine_adapter.tools
+    co_scientist.platform.retrieval
     co_scientist.platform.llm
-    co_scientist.sandbox
-    co_scientist.workspace
-    co_scientist.skills
-    co_scientist.patch
-    co_scientist.progress
-    app.logging_setup
-    app.error_tracking
-    app.diagnostic_events
-    app.store.logs
-    app.store.retrieval_calls
+    co_scientist.platform.sandbox
+    co_scientist.platform.telemetry
     co_scientist.core
 forbidden_modules =
     sqlite3
@@ -502,8 +437,8 @@ ignore_imports =
     app.runs.crud -> sqlite3
     app.runs.lifecycle -> sqlite3
     app.runs.support -> sqlite3
-    app.store.logs -> sqlite3
-    app.store.retrieval_calls -> sqlite3
+    co_scientist.platform.telemetry.logs -> sqlite3
+    co_scientist.platform.telemetry.retrieval_calls -> sqlite3
 
 [importlinter:contract:engine-app]
 name = Modules that began in the engine do not import app
@@ -511,8 +446,8 @@ type = forbidden
 source_modules =
     co_scientist.agents
     co_scientist.checkpoint
-    co_scientist.config
-    co_scientist.evidence
+    co_scientist.platform.retrieval.config
+    co_scientist.platform.retrieval.evidence
     co_scientist.generator
     co_scientist.platform.llm.admission
     co_scientist.platform.llm.attempts
@@ -526,24 +461,24 @@ source_modules =
     co_scientist.platform.llm.values
     co_scientist.platform.llm.offline
     co_scientist.platform.llm.tool_effects
-    co_scientist.mcp_client
+    co_scientist.platform.retrieval.mcp_client
     co_scientist.models
-    co_scientist.patch
-    co_scientist.progress
+    co_scientist.platform.sandbox.patch
+    co_scientist.platform.telemetry.progress
     co_scientist.prompts
     co_scientist.research
-    co_scientist.research_adapter
-    co_scientist.retrieval_degradation
+    co_scientist.platform.retrieval.research_adapter
+    co_scientist.platform.retrieval.degradation
     co_scientist.safety
-    co_scientist.sandbox
+    co_scientist.platform.sandbox
     co_scientist.scheduling
     co_scientist.schemas
-    co_scientist.skills
+    co_scientist.platform.sandbox.skills
     co_scientist.state
     co_scientist.task_runtime
-    co_scientist.tools
+    co_scientist.platform.retrieval.tools
     co_scientist.workflow_topology
-    co_scientist.workspace
+    co_scientist.platform.sandbox.workspace
     co_scientist.core.exceptions
     co_scientist.core._context
     co_scientist.core.backoff

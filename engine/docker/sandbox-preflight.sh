@@ -3,7 +3,7 @@
 # pass.
 set -e
 
-BACKEND=$(python -c 'from co_scientist.sandbox import sandbox_backend; print(sandbox_backend() or "")')
+BACKEND=$(python -c 'from co_scientist.platform.sandbox import sandbox_backend; print(sandbox_backend() or "")')
 
 if [ -z "$BACKEND" ]; then
   echo "PREFLIGHT FAILED: no usable sandbox backend in this container." >&2

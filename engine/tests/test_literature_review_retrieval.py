@@ -8,21 +8,21 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import co_scientist.evidence as evidence
+import co_scientist.platform.retrieval.evidence as evidence
 from co_scientist.agents.reflection import deep_verification_evidence as probes
-from co_scientist.config import ToolRegistry
-from co_scientist.evidence import search
 from co_scientist.generator.initial_state import (
     RunCapabilities,
     RunIdentity,
     _build_initial_state,
 )
-from co_scientist.retrieval_degradation import (
+from co_scientist.platform.retrieval.config import ToolRegistry
+from co_scientist.platform.retrieval.degradation import (
     CAPABILITIES_LOST_WITHOUT_MCP,
     FLOOR_NONE,
     FLOOR_RUN_ATTACHMENTS,
     MCP_UNREACHABLE,
 )
+from co_scientist.platform.retrieval.evidence import search
 from tests._llm_fake import install_fake_llm
 from tests._mcp import make_tool_lookup_registry
 from tests._research_fakes import (
@@ -57,11 +57,11 @@ async def test_probe_search_preserves_sources_and_excludes_retractions(
         return records, {}
 
     monkeypatch.setattr(
-        "co_scientist.evidence.search.collect_papers",
+        "co_scientist.platform.retrieval.evidence.search.collect_papers",
         collect,
     )
     monkeypatch.setattr(
-        "co_scientist.mcp_client.get_mcp_client",
+        "co_scientist.platform.retrieval.mcp_client.get_mcp_client",
         AsyncMock(return_value=object()),
     )
     articles, errors = await probes._retrieve_probe_evidence(

@@ -19,7 +19,6 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.mcp_client import MCPToolClient
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -29,7 +28,8 @@ from co_scientist.platform.llm import (
 )
 from co_scientist.platform.llm.request import backend
 from co_scientist.platform.llm.structured.validate import attempt_json_repair
-from co_scientist.tools.provider import MCPToolProvider
+from co_scientist.platform.retrieval.mcp_client import MCPToolClient
+from co_scientist.platform.retrieval.tools.provider import MCPToolProvider
 from tests._llm_fake import (
     FakeBackend,
     install_fake_backend,

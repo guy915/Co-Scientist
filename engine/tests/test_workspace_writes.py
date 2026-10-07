@@ -4,9 +4,15 @@ from pathlib import Path
 
 import pytest
 
-import co_scientist.patch as patch_module
-from co_scientist.patch import FileOp, PatchError, PlannedWrite, apply_patch, parse_patch
-from co_scientist.workspace import WorkspaceSession
+import co_scientist.platform.sandbox.patch as patch_module
+from co_scientist.platform.sandbox.patch import (
+    FileOp,
+    PatchError,
+    PlannedWrite,
+    apply_patch,
+    parse_patch,
+)
+from co_scientist.platform.sandbox.workspace import WorkspaceSession
 
 
 def _patch(*lines: str) -> str:

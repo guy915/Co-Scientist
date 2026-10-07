@@ -17,7 +17,7 @@ from co_scientist.platform.llm import (
     LLMCallOptions,
     call_llm_json,
 )
-from co_scientist.progress import emit_progress
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.prompts import (
     PromptRunContext,
     SupervisorPromptInputs,

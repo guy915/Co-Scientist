@@ -174,7 +174,7 @@ def _resolve_tool_registry(
 ) -> tuple[Any | None, list[str]]:
     if tool_registry is None:
         try:
-            from co_scientist.config import (
+            from co_scientist.platform.retrieval.config import (
                 get_tool_registry,
             )
 

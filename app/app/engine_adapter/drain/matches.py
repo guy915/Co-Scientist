@@ -9,10 +9,10 @@ from co_scientist.agents.ranking.ranking_debate import (
     debate_transcript_document,
 )
 from co_scientist.models.matchup import Matchup
+from co_scientist.platform.telemetry import retrieval_calls as retrieval
 from co_scientist.research import result_from_dict
 
 from app.store import records as store
-from app.store import retrieval_calls as retrieval
 from app.store.records import NewMatch, NewProximityEdge
 
 logger = logging.getLogger(__name__)

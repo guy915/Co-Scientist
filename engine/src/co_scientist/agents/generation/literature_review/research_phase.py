@@ -1,23 +1,23 @@
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.evidence.article_support import records_from_findings
-from co_scientist.evidence.search_support import (
+from co_scientist.platform.retrieval.evidence.article_support import records_from_findings
+from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
 )
-from co_scientist.mcp_client import MCPToolClient
-from co_scientist.progress import emit_progress
+from co_scientist.platform.retrieval.mcp_client import MCPToolClient
+from co_scientist.platform.retrieval.research_adapter import (
+    LlmResearchModel,
+    McpRetrieval,
+    ResearchRun,
+    budget_for_tier,
+)
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.research import (
     ResearchBudget,
     ResearchResult,
     conduct_research,
     result_to_dict,
-)
-from co_scientist.research_adapter import (
-    LlmResearchModel,
-    McpRetrieval,
-    ResearchRun,
-    budget_for_tier,
 )
 from co_scientist.state import WorkflowState
 

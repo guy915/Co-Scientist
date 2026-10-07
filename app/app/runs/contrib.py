@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.platform.db.models import ScientificTask
 from fastapi import (
@@ -14,7 +15,6 @@ from fastapi import (
 )
 
 import app.document_ingest as document_ingest
-import app.run_corpus as run_corpus
 from app.auth import client_id
 from app.runs.models import (
     HumanAttachmentRequest,

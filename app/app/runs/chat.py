@@ -168,7 +168,7 @@ def _persist_question(run_id: str, content: str) -> MessageRow:
     message = store.append_message(
         NewMessage(run_id=run_id, sender="user", content=content, kind="qa")
     )
-    from app.diagnostic_events import log_chat_turn
+    from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 
     log_chat_turn("user", content, run_id=run_id)
     return message
@@ -225,7 +225,7 @@ def revise_question(
         question_msg = store.rewind_qa(run_id, message_id, req.question)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    from app.diagnostic_events import log_chat_turn
+    from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 
     log_chat_turn("user", question_msg.content, run_id=run_id)
     context = _gather_qa_context(run)
@@ -263,7 +263,7 @@ def announce_start(
             run_start_announcement.replay_announcement(run_id, prompt_msg.id),
             media_type="text/event-stream",
         )
-    from app.diagnostic_events import log_chat_turn
+    from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 
     log_chat_turn("user", req.prompt, run_id=run_id)
     return StreamingResponse(
