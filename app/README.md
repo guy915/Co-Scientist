@@ -103,7 +103,7 @@ This starts three containers:
 |---|---|---|
 | `api` | 8008 | FastAPI backend |
 | `ui` | 5173 | Vite dev server |
-| `mcp` | 8888 | Reference MCP server (PubMed, OpenAlex, ChEMBL/UniProt, INDRA, web fetch/search) |
+| `mcp` | 8888 | Reference MCP server (PubMed, OpenAlex, ChEMBL/UniProt, web fetch/search) |
 
 The `api` container mounts the engine from `../engine`. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere; set `COSCIENTIST_ENGINE_REPO` only when you want the entrypoint to clone a checkout instead of using a local mount.
 
@@ -224,7 +224,7 @@ Every run executes on the real engine; the engine is a hard runtime dependency. 
 
 ## Literature review (MCP)
 
-The literature review and reflection nodes connect to an MCP server that provides PubMed and OpenAlex search, full-text retrieval, ChEMBL/UniProt lookups, INDRA CoGex queries, URL fetching, and web search (registered only when `BRAVE_API_KEY` or `TAVILY_API_KEY` is set on the MCP server). Without a running MCP server the nodes fall back to LLM-only mode — hypothesis quality is reduced but the workflow still completes.
+The literature review and reflection nodes connect to an MCP server that provides PubMed and OpenAlex search, full-text retrieval, ChEMBL/UniProt lookups, URL fetching, and web search (registered only when `BRAVE_API_KEY` or `TAVILY_API_KEY` is set on the MCP server). Without a running MCP server the nodes fall back to LLM-only mode — hypothesis quality is reduced but the workflow still completes.
 
 The reference MCP server lives in `../engine/mcp_server/`. Run it separately or let Docker Compose manage it:
 

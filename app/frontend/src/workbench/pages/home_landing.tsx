@@ -62,6 +62,52 @@ const HOME_SCROLLER = '.ucs-page--home';
 
 const RAIL_OFFSET = 72;
 
+const LANDING_WIDTH = 'mx-auto w-[min(100%_-_32px,1240px)]';
+
+const LABEL_CLASSES =
+  'm-0 font-(family-name:--l-body) text-[14px] font-medium text-(--l-muted)';
+
+const H2_CLASSES =
+  'm-0 font-(family-name:--l-display) text-[clamp(2.2rem,4.6vw,3.8rem)] leading-[1.05] font-normal tracking-[-0.01em] text-balance';
+
+const LEDE_CLASSES =
+  'm-[16px_0_0] max-w-[36rem] text-[1.15rem] leading-[1.55] text-(--l-muted)';
+
+const SR_ONLY_CLASSES =
+  'absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)]';
+
+// `ucs-landing-pill` is a CSS hook: the transition stays in home_landing.css.
+const PILL_CLASSES =
+  'ucs-landing-pill inline-flex h-[48px] cursor-pointer items-center gap-[8px] rounded-[9999px] px-[24px] [font:500_16px_var(--l-body)]';
+const PILL_INK_CLASSES = `${PILL_CLASSES} [border:0] bg-(--l-ink) text-(--l-bg)`;
+const PILL_TEAL_CLASSES = `${PILL_CLASSES} [border:0] bg-(--l-o-teal) text-(--l-c-teal)`;
+const PILL_LINE_CLASSES = `${PILL_CLASSES} border border-(--l-line) bg-transparent text-(--l-ink) [&:hover]:bg-(--l-surface)`;
+
+const RAIL_CLASSES =
+  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
+
+const RAIL_NAV_CLASSES =
+  'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-[9999px] bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
+
+const RAIL_TAB_CLASSES =
+  'relative z-[1] grid h-[38px] flex-none place-items-center rounded-[9999px] px-[16px] text-[14px] font-medium no-underline';
+
+const SLIDER_CLASSES =
+  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-[9999px] bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
+
+const CARD_H3_CLASSES = 'm-0 font-(family-name:--l-display) font-normal';
+
+const FEATURE_P_CLASSES = 'leading-[1.5] text-(--l-muted)';
+
+const OV_ITEM_CLASSES = 'bg-(--l-surface) px-[18px] py-[14px]';
+
+const OV_PANEL_CLASSES =
+  'm-0 flex list-none flex-col gap-[6px] rounded-[24px] bg-(--l-bg) p-[12px]';
+
+const SEC_CLASSES = 'scroll-mt-[72px] py-[clamp(44px,5.5vw,76px)]';
+
+const CHIPS_CLASSES = 'flex flex-wrap items-center gap-[8px]';
+
 export function scrollToLandingSection(id: string, reduceMotion: boolean) {
   smoothScrollToSection(
     id,
@@ -99,24 +145,32 @@ function LandingHero({
 }) {
   const cookie = shapePath('cookie12');
   return (
-    <section className="ucs-landing-hero" aria-labelledby="ucs-landing-word">
-      <h2 id="ucs-landing-word" className="ucs-landing-word">
+    <section
+      className={`${LANDING_WIDTH} border-t border-t-(--l-line) pt-[72px] pb-[40px]`}
+      aria-labelledby="ucs-landing-word"
+    >
+      <h2
+        id="ucs-landing-word"
+        className="relative z-[1] m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
+      >
         Co-Scientist
       </h2>
-      <div className="ucs-landing-hero-grid">
-        <div className="ucs-landing-hero-copy">
-          <p>A multi-agent partner for scientific discovery.</p>
-          <div className="ucs-landing-pills">
+      <div className="mt-[32px] grid grid-cols-[6fr_5fr] [align-items:start] gap-[32px] [@media(max-width:900px)]:mt-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
+        <div className="grid gap-[28px] pt-[8px]">
+          <p className="m-0 font-(family-name:--l-display) text-[clamp(1.4rem,2.2vw,2rem)] leading-[1.25] tracking-[-0.01em]">
+            A multi-agent partner for scientific discovery.
+          </p>
+          <div className="flex flex-wrap gap-[12px]">
             <button
               type="button"
-              className="ucs-landing-pill is-solid"
+              className={PILL_INK_CLASSES}
               onClick={onStart}
             >
               Start a research goal
             </button>
             <button
               type="button"
-              className="ucs-landing-pill is-line"
+              className={PILL_LINE_CLASSES}
               onClick={() =>
                 scrollToLandingSection('landing-how', reduceMotion)
               }
@@ -125,7 +179,7 @@ function LandingHero({
             </button>
           </div>
           <iframe
-            className="ucs-landing-trailer"
+            className="block aspect-[16/9] w-full rounded-[12px] [border:0] bg-(--l-surface)"
             title="Co-Scientist trailer"
             src="https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0"
             loading="lazy"
@@ -135,7 +189,7 @@ function LandingHero({
           />
         </div>
         <svg
-          className="ucs-landing-hero-art tone-teal"
+          className="tone-teal w-[min(100%,440px)] [align-self:center] [justify-self:end] overflow-visible [&>path]:fill-(--tone-c) [@media(max-width:900px)]:justify-self-center"
           viewBox="0 0 100 100"
           role="img"
           aria-label="3D render of a DNA double helix whose base pairs are blue, red, yellow and green, inside a scalloped cookie shape."
@@ -294,7 +348,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   return (
     <div
       ref={anchorRef}
-      className={joinClasses('ucs-landing-rail-anchor', sticky && 'is-sticky')}
+      className={joinClasses('min-h-[66px]', sticky && 'sticky top-0 z-[5]')}
     >
       <div inert={inHeader} aria-hidden={inHeader || undefined}>
         <LandingTabs reduceMotion={reduceMotion} />
@@ -303,7 +357,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
         createPortal(
           <div
             ref={copyRef}
-            className="ucs-landing ucs-landing-header-tabs"
+            className="ucs-landing ucs-landing-header-tabs absolute top-0 left-0 [transform:translateY(-200%)]"
             inert={!inHeader}
             aria-hidden={!inHeader || undefined}
           >
@@ -325,19 +379,26 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
     scrollToLandingSection(id, reduceMotion);
   };
   return (
-    <div className="ucs-landing-rail">
+    <div className={RAIL_CLASSES}>
       <nav
         ref={navRef}
         aria-label="Landing sections"
-        className={joinClasses(more && 'has-more')}
+        className={joinClasses(
+          RAIL_NAV_CLASSES,
+          more &&
+            '[@media(max-width:700px)]:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
+        )}
       >
-        <SlidingPill box={pill} className="ucs-landing-slider" />
+        <SlidingPill box={pill} className={SLIDER_CLASSES} />
         {LANDING_SECTIONS.map(({id, label}) => (
           <a
             key={id}
             href={`#${id}`}
             data-section={id}
-            className={joinClasses(active === id && 'is-active')}
+            className={joinClasses(
+              RAIL_TAB_CLASSES,
+              active === id ? 'is-active text-(--l-bg)' : 'text-(--l-muted)',
+            )}
             aria-current={active === id ? 'true' : undefined}
             onClick={e => go(e, id)}
           >
@@ -371,7 +432,7 @@ export default function HomeLanding() {
     <div ref={rootRef} id={LANDING_ID} className="ucs-landing">
       <LandingHero onStart={onStart} reduceMotion={reduceMotion} />
       <LandingRail reduceMotion={reduceMotion} />
-      <div className="ucs-landing-body">
+      <div className={LANDING_WIDTH}>
         <OverviewSection />
         <HowSection reduceMotion={reduceMotion} />
         <TournamentSection reduceMotion={reduceMotion} />
@@ -388,8 +449,8 @@ export default function HomeLanding() {
 function SectionHeading({title, lede}: {title: string; lede?: string}) {
   return (
     <>
-      <h2 className="ucs-landing-h2">{title}</h2>
-      {lede && <p className="ucs-landing-lede">{lede}</p>}
+      <h2 className={H2_CLASSES}>{title}</h2>
+      {lede && <p className={LEDE_CLASSES}>{lede}</p>}
     </>
   );
 }
@@ -399,18 +460,37 @@ function ShapeBadge({
   tone,
   icon,
   pathRef,
+  compact,
 }: {
   shape: ShapeName;
   tone: LandingTone;
   icon: IconName;
   pathRef?: Ref<SVGPathElement>;
+  compact?: boolean;
 }) {
   return (
-    <span className={joinClasses('ucs-landing-badge', `tone-${tone}`)}>
-      <svg viewBox="0 0 100 100" aria-hidden="true">
+    <span
+      className={joinClasses(
+        'relative block text-(--tone-o)',
+        compact ? 'w-[88px]' : 'w-[104px]',
+        `tone-${tone}`,
+      )}
+    >
+      <svg
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+        className="block h-auto w-full overflow-visible [&_path]:fill-(--tone-c)"
+      >
         <path ref={pathRef} d={shapePath(shape)} />
       </svg>
-      <Icon aria-hidden="true" name={icon} />
+      <Icon
+        aria-hidden="true"
+        name={icon}
+        className={joinClasses(
+          'absolute inset-0 m-auto',
+          compact ? 'h-[34px] w-[34px]' : 'h-[40px] w-[40px]',
+        )}
+      />
     </span>
   );
 }
@@ -427,7 +507,10 @@ function AgentCard({
   const morph = useShapeMorph(agent.shape, reduceMotion);
   return (
     <article
-      className={joinClasses('ucs-landing-agent', wide && 'is-wide')}
+      className={joinClasses(
+        'grid grid-cols-[104px_1fr] items-center gap-[24px] rounded-[32px] bg-(--l-surface) p-[28px] outline-offset-[3px]',
+        wide && '[grid-column:span_3] [@media(max-width:900px)]:col-auto',
+      )}
       tabIndex={0}
       onPointerEnter={morph.toCircle}
       onPointerLeave={morph.toRest}
@@ -441,8 +524,10 @@ function AgentCard({
         pathRef={morph.pathRef}
       />
       <div>
-        <h3>{agent.name}</h3>
-        <p>{agent.summary}</p>
+        <h3 className={`${CARD_H3_CLASSES} text-[28px] tracking-[-0.01em]`}>
+          {agent.name}
+        </h3>
+        <p className={`${FEATURE_P_CLASSES} m-[6px_0_0]`}>{agent.summary}</p>
       </div>
     </article>
   );
@@ -450,13 +535,13 @@ function AgentCard({
 
 export function HowSection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-how">
+    <section className={SEC_CLASSES} id="landing-how">
       <SectionHeading
         title="How it works"
         lede="A Supervisor plans the run and hands work to six specialist agents. The loop repeats until the rankings settle, then you get a research overview back."
       />
       <LandingDiagram />
-      <div className="ucs-landing-agents">
+      <div className="mt-[16px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         {LANDING_AGENTS.map((agent, i) => (
           <AgentCard
             key={agent.name}
@@ -472,18 +557,18 @@ export function HowSection({reduceMotion}: MotionProps) {
 
 export function TournamentSection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-tournament">
+    <section className={SEC_CLASSES} id="landing-tournament">
       <SectionHeading
         title="Tournament"
         lede="Ideas meet in pairwise debates. Every win and loss moves their Elo rating, so the ranking reflects many arguments, not one score."
       />
       <LandingBracket reduceMotion={reduceMotion} />
-      <div className="ucs-landing-duo">
+      <div className="mt-[16px] grid grid-cols-[7fr_5fr] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <LandingEloChart reduceMotion={reduceMotion} />
-        <div className="ucs-landing-panel ucs-landing-podium">
+        <div className="relative grid [align-content:space-between] gap-[16px] overflow-hidden rounded-[32px] bg-(--l-c-blue) p-[32px] text-(--l-o-blue)">
           <div>
-            <h3>Ranked ideas</h3>
-            <p>
+            <h3 className={`${CARD_H3_CLASSES} text-[28px]`}>Ranked ideas</h3>
+            <p className="m-[8px_0_0] max-w-[26rem] leading-[1.5] opacity-80">
               Every hypothesis comes back with its Elo rating, its reviews, and
               the ideas it was bred from.
             </p>
@@ -492,6 +577,7 @@ export function TournamentSection({reduceMotion}: MotionProps) {
             src={podiumArt}
             width={1300}
             height={1027}
+            className="block h-auto w-[min(100%,420px)] justify-self-center"
             loading="lazy"
             decoding="async"
             alt="3D render: seven pedestals of falling height, the top three crowned with blue, teal and yellow spheres."
@@ -505,29 +591,35 @@ export function TournamentSection({reduceMotion}: MotionProps) {
 function SourcesMarquee() {
   const items = [...LANDING_SOURCES, ...LANDING_SOURCES];
   return (
-    <div className="ucs-landing-marquee">
-      <p className="ucs-landing-label">Built on the literature</p>
-      <div className="ucs-landing-marquee-window" aria-hidden="true">
-        <div className="ucs-landing-marquee-track">
+    <div className="mt-[64px]">
+      <p className={LABEL_CLASSES}>Built on the literature</p>
+      <div
+        className="ucs-landing-marquee-window mt-[16px] overflow-hidden border-y border-y-(--l-line) py-[22px] [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
+        aria-hidden="true"
+      >
+        <div className="flex w-max gap-[56px] motion-safe:[animation:ucs-landing-slide_40s_linear_infinite] motion-safe:[.ucs-landing-marquee-window:hover_&]:[animation-play-state:paused]">
           {items.map((source, i) => (
-            <span key={i}>{source}</span>
+            <span
+              key={i}
+              className="font-(family-name:--l-display) text-[clamp(2.4rem,5.6vw,4.8rem)] tracking-[-0.01em] whitespace-nowrap text-(--l-ink)"
+            >
+              {source}
+            </span>
           ))}
         </div>
       </div>
-      <p className="ucs-landing-sr-only">
-        Sources: {LANDING_SOURCES.join(', ')}.
-      </p>
+      <p className={SR_ONLY_CLASSES}>Sources: {LANDING_SOURCES.join(', ')}.</p>
     </div>
   );
 }
 
 export function EvidenceSection() {
   return (
-    <section className="ucs-landing-sec" id="landing-evidence">
+    <section className={SEC_CLASSES} id="landing-evidence">
       <SectionHeading title="Evidence" />
-      <div className="ucs-landing-evidence">
+      <div className="mt-[40px] grid grid-cols-[4fr_7fr] items-center gap-[48px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <svg
-          className="ucs-landing-specimen tone-green"
+          className="tone-green block h-auto w-full overflow-visible [&>path]:fill-(--tone-c)"
           viewBox="0 0 100 100"
           role="img"
           aria-label="3D render of a small-molecule drug inside a flower shape."
@@ -549,15 +641,18 @@ export function EvidenceSection() {
           />
         </svg>
         <div>
-          <p className="ucs-landing-lede">
+          <p className={LEDE_CLASSES}>
             Each hypothesis is split into atomic claims. Passages from the
             literature are matched to every claim and judged before the idea may
             enter the tournament.
           </p>
-          <div className="ucs-landing-verdicts">
+          <div className="mt-[28px] grid gap-[12px]">
             {LANDING_VERDICTS.map(v => (
-              <div key={v.label} className={`tone-${v.tone}`}>
-                <b>{v.label}</b>
+              <div
+                key={v.label}
+                className={`tone-${v.tone} grid grid-cols-[120px_1fr] items-center gap-[16px] rounded-[24px] bg-(--tone-c) px-[22px] py-[18px] text-[15px] leading-[1.45] text-(--tone-o) [@media(max-width:900px)]:grid-cols-[1fr] [@media(max-width:900px)]:gap-[4px]`}
+              >
+                <b className="font-medium">{v.label}</b>
                 <span>{v.body}</span>
               </div>
             ))}
@@ -579,6 +674,7 @@ function SafetyCard({
   const morph = useShapeMorph(layer.shape, reduceMotion);
   return (
     <article
+      className="grid [align-content:start] gap-[12px] rounded-[32px] border border-(--l-line) p-[28px]"
       tabIndex={0}
       onPointerEnter={morph.toCircle}
       onPointerLeave={morph.toRest}
@@ -590,18 +686,19 @@ function SafetyCard({
         tone={layer.tone}
         icon={layer.icon}
         pathRef={morph.pathRef}
+        compact
       />
-      <h3>{layer.title}</h3>
-      <p>{layer.body}</p>
+      <h3 className={`${CARD_H3_CLASSES} text-[24px]`}>{layer.title}</h3>
+      <p className={`${FEATURE_P_CLASSES} m-0`}>{layer.body}</p>
     </article>
   );
 }
 
 export function SafetySection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-safety">
+    <section className={SEC_CLASSES} id="landing-safety">
       <SectionHeading title="Safety" />
-      <div className="ucs-landing-safety">
+      <div className="mt-[48px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         {LANDING_SAFETY.map(layer => (
           <SafetyCard
             key={layer.title}
@@ -616,7 +713,7 @@ export function SafetySection({reduceMotion}: MotionProps) {
 
 export function TiersSection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-tiers">
+    <section className={SEC_CLASSES} id="landing-tiers">
       <SectionHeading
         title="Tiers"
         lede="Choose a tier when you start. It sets how many ideas are seeded, how many evolution cycles run, and how large the pool can grow."
@@ -628,16 +725,25 @@ export function TiersSection({reduceMotion}: MotionProps) {
 
 export function FaqSection() {
   return (
-    <section className="ucs-landing-sec" id="faq">
+    <section className={SEC_CLASSES} id="faq">
       <SectionHeading title="Questions" />
-      <div className="ucs-landing-faq">
+      <div className="mt-[32px] grid">
         {FAQ.map(entry => (
-          <details key={entry.question}>
-            <summary>
+          <details
+            key={entry.question}
+            className="border-b border-b-(--l-line)"
+          >
+            <summary className="flex cursor-pointer items-center justify-between gap-[16px] py-[22px] text-[19px] [list-style:none] [&::-webkit-details-marker]:hidden">
               <span>{entry.question}</span>
-              <Icon aria-hidden="true" name="expand_more" />
+              <Icon
+                aria-hidden="true"
+                name="expand_more"
+                className="size-[24px] flex-none fill-(--l-muted) [transition:transform_0.3s_var(--l-ease)] [details[open]_&]:[transform:rotate(180deg)]"
+              />
             </summary>
-            <p>{entry.answer}</p>
+            <p className="m-[0_0_22px] max-w-[60rem] leading-[1.6] text-(--l-muted)">
+              {entry.answer}
+            </p>
           </details>
         ))}
       </div>
@@ -647,20 +753,16 @@ export function FaqSection() {
 
 export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
   return (
-    <section className="ucs-landing-sec ucs-landing-sec--tight">
-      <div className="ucs-landing-cta">
+    <section className="scroll-mt-[72px] pt-0 pb-[clamp(44px,5.5vw,76px)]">
+      <div className="grid grid-cols-[1fr_340px] items-center gap-[32px] rounded-[48px] bg-(--l-c-teal) p-[clamp(28px,5vw,72px)] text-(--l-o-teal) [@media(max-width:900px)]:grid-cols-[1fr]">
         <div>
-          <h2 className="ucs-landing-h2">Start with a question.</h2>
-          <p>
+          <h2 className={H2_CLASSES}>Start with a question.</h2>
+          <p className="m-[16px_0_28px] max-w-[30rem] text-[1.15rem] leading-[1.55] opacity-80">
             Describe what you want to find out.{' '}
-            <span className="ucs-landing-nowrap">Co-Scientist</span> asks what a
+            <span className="whitespace-nowrap">Co-Scientist</span> asks what a
             strong answer needs, then sends its agents to work.
           </p>
-          <button
-            type="button"
-            className="ucs-landing-pill is-solid"
-            onClick={onStart}
-          >
+          <button type="button" className={PILL_TEAL_CLASSES} onClick={onStart}>
             Start a research goal
           </button>
         </div>
@@ -668,6 +770,7 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
           src={flaskArt}
           width={774}
           height={1069}
+          className="block h-auto max-h-[440px] w-full justify-self-center object-contain"
           loading="lazy"
           decoding="async"
           alt="3D render of a glass Erlenmeyer flask holding a glowing teal liquid."
@@ -700,85 +803,134 @@ const RANKED: readonly {title: string; elo: number}[] = [
   {title: 'Disulfiram–copper targets ALDH+ cells', elo: 1226},
 ];
 
+function OverviewCard({
+  title,
+  sub,
+  children,
+}: {
+  title: string;
+  sub: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="ucs-landing-ov-card grid [grid-row:span_3] grid-rows-subgrid gap-[8px] rounded-[32px] bg-(--l-surface) p-[28px]">
+      <h3 className={`${CARD_H3_CLASSES} text-[26px]`}>{title}</h3>
+      <p className="m-[0_0_12px] text-[15px] leading-[1.5] text-(--l-muted)">
+        {sub}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function Chip({tone, children}: {tone: LandingTone; children: string}) {
+  return (
+    <span
+      className={`tone-${tone} rounded-[9999px] bg-(--tone-c) px-[12px] py-[4px] text-[13px] font-medium text-(--tone-o)`}
+    >
+      {children}
+    </span>
+  );
+}
+
 function InputCard() {
   return (
-    <div className="ucs-landing-ov-card">
-      <h3>You write</h3>
-      <p className="ucs-landing-ov-sub">
-        A research goal in plain language. Add your own papers and choose the
-        sources to search if you like.
-      </p>
-      <div className="ucs-landing-ov-panel">
-        <div className="ucs-landing-ov-item ucs-landing-ov-goal">
-          <b>{GOAL_TITLE}</b>
-          <p>{GOAL_BODY}</p>
+    <OverviewCard
+      title="You write"
+      sub="A research goal in plain language. Add your own papers and choose the sources to search if you like."
+    >
+      <div className={OV_PANEL_CLASSES}>
+        <div className={`${OV_ITEM_CLASSES} flex-1 rounded-[18px]`}>
+          <b className="mb-[8px] block font-(family-name:--l-display) text-[18px] leading-[1.35] font-normal">
+            {GOAL_TITLE}
+          </b>
+          <p className="m-0 text-[15px] leading-[1.55] text-(--l-muted)">
+            {GOAL_BODY}
+          </p>
         </div>
-        <div className="ucs-landing-ov-chips">
-          <span className="tone-blue">PubMed</span>
-          <span className="tone-blue">Europe PMC</span>
-          <span className="tone-teal">Standard tier</span>
+        <div className={`${CHIPS_CLASSES} p-[6px_6px_2px]`}>
+          <Chip tone="blue">PubMed</Chip>
+          <Chip tone="blue">Europe PMC</Chip>
+          <Chip tone="teal">Standard tier</Chip>
         </div>
       </div>
-    </div>
+    </OverviewCard>
   );
 }
 
 function RunCard() {
   return (
-    <div className="ucs-landing-ov-card">
-      <h3>The agents</h3>
-      <p className="ucs-landing-ov-sub">
-        Work through the goal in a loop, as many cycles as the tier allows.
-      </p>
-      <ol className="ucs-landing-ov-panel ucs-landing-ov-steps">
+    <OverviewCard
+      title="The agents"
+      sub="Work through the goal in a loop, as many cycles as the tier allows."
+    >
+      <ol className={OV_PANEL_CLASSES}>
         {STAGES.map(stage => (
-          <li key={stage.label} className="ucs-landing-ov-item">
-            <Icon aria-hidden="true" name={stage.icon} />
+          <li
+            key={stage.label}
+            className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-[12px] rounded-[9999px] text-[14px] leading-[1.35]`}
+          >
+            <Icon
+              aria-hidden="true"
+              name={stage.icon}
+              className="size-[20px] flex-none fill-(--l-accent)"
+            />
             <span>{stage.label}</span>
           </li>
         ))}
       </ol>
-    </div>
+    </OverviewCard>
   );
 }
 
 function OutputCard() {
   return (
-    <div className="ucs-landing-ov-card">
-      <h3>You get</h3>
-      <p className="ucs-landing-ov-sub">
-        Ranked hypotheses, each with its reviews, Elo rating, and claims checked
-        against sources, plus a report you can share.
-      </p>
-      <ol className="ucs-landing-ov-panel ucs-landing-ov-ranks">
+    <OverviewCard
+      title="You get"
+      sub="Ranked hypotheses, each with its reviews, Elo rating, and claims checked against sources, plus a report you can share."
+    >
+      <ol className={OV_PANEL_CLASSES}>
         {RANKED.map((idea, i) => (
-          <li key={idea.title} className="ucs-landing-ov-item">
-            <span className="ucs-landing-ov-meta">
+          <li
+            key={idea.title}
+            className={`${OV_ITEM_CLASSES} flex flex-col justify-center rounded-[18px] ${
+              i === 0 ? 'gap-[10px] [flex:1.7_1_0%]' : 'flex-1 gap-[6px]'
+            }`}
+          >
+            <span className="text-[13px] text-(--l-muted) tabular-nums">
               #{i + 1} · Elo {idea.elo}
             </span>
-            <b>{idea.title}</b>
+            <b
+              className={
+                i === 0
+                  ? 'font-(family-name:--l-display) text-[20px] leading-[1.3] font-normal'
+                  : 'text-[15px] leading-[1.35] font-medium'
+              }
+            >
+              {idea.title}
+            </b>
             {i === 0 && (
-              <div className="ucs-landing-ov-chips">
-                <span className="tone-green">Supports 3</span>
-                <span className="tone-yellow">Partial 1</span>
+              <div className={CHIPS_CLASSES}>
+                <Chip tone="green">Supports 3</Chip>
+                <Chip tone="yellow">Partial 1</Chip>
               </div>
             )}
           </li>
         ))}
       </ol>
-    </div>
+    </OverviewCard>
   );
 }
 
 export function OverviewSection() {
   return (
-    <section className="ucs-landing-sec" id="landing-overview">
-      <h2 className="ucs-landing-h2">From a question to ranked ideas</h2>
-      <p className="ucs-landing-lede">
+    <section className={SEC_CLASSES} id="landing-overview">
+      <h2 className={H2_CLASSES}>From a question to ranked ideas</h2>
+      <p className={LEDE_CLASSES}>
         One run, end to end. The example uses the first suggestion on the home
         screen; the output shown is illustrative.
       </p>
-      <div className="ucs-landing-ov">
+      <div className="mt-[40px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <InputCard />
         <RunCard />
         <OutputCard />
@@ -805,24 +957,43 @@ const GENERATIONS = [
   {label: 'Cycle 4', generation: 4},
 ];
 
+const DOT_CLASSES = [
+  '[--dot:var(--l-muted)]',
+  '[--dot:#4285f4]',
+  '[--dot:#34a853]',
+  '[--dot:#fbbc04]',
+  '[--dot:#ea4335]',
+];
+
 function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
   return (
     <div>
-      <div className="ucs-landing-field" aria-hidden="true">
+      <div
+        className="grid grid-cols-[repeat(24,1fr)] gap-[8px] [@media(max-width:900px)]:grid-cols-[repeat(12,1fr)]"
+        aria-hidden="true"
+      >
         {Array.from({length: MAX_POOL}, (_, i) => {
           const generation = dotGeneration(tier, i);
           return (
             <i
               key={i}
-              className={generation === null ? undefined : `g${generation}`}
+              className={joinClasses(
+                'aspect-square rounded-[9999px] [transition:transform_500ms_var(--l-ease),background-color_500ms] motion-reduce:[transition:none]',
+                generation === null
+                  ? 'bg-(--l-line) [transform:scale(0.35)]'
+                  : `${DOT_CLASSES[generation]} bg-(--dot) [transform:scale(1)]`,
+              )}
               style={{transitionDelay: reduceMotion ? '0ms' : `${i * 6}ms`}}
             />
           );
         })}
       </div>
-      <div className="ucs-landing-gens">
+      <div className="mt-[18px] flex flex-wrap gap-[14px] text-[13px] text-(--l-muted)">
         {GENERATIONS.filter(g => g.generation <= tier.cycles).map(g => (
-          <span key={g.label} className={`g${g.generation}`}>
+          <span
+            key={g.label}
+            className={`${DOT_CLASSES[g.generation]} before:mr-[6px] before:inline-block before:size-[10px] before:rounded-[9999px] before:bg-(--dot) before:[vertical-align:-1px] before:content-['']`}
+          >
             {g.label}
           </span>
         ))}
@@ -831,23 +1002,29 @@ function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
   );
 }
 
+function TierStat({value, label}: {value: number; label: string}) {
+  return (
+    <div className="grid">
+      <b className="font-(family-name:--l-display) text-[56px] leading-none font-normal tracking-[-0.01em] tabular-nums [@media(max-width:900px)]:text-[44px]">
+        {value}
+      </b>
+      <span className="text-[14px] text-(--l-muted)">{label}</span>
+    </div>
+  );
+}
+
 function TierStats({tier}: {tier: LandingTier}) {
   return (
-    <div className="ucs-landing-tier-stats" aria-live="polite">
-      <div>
-        <b>{tier.maxIdeas}</b>
-        <span>ideas at most</span>
-      </div>
-      <div>
-        <b>{tier.seeds}</b>
-        <span>seed ideas</span>
-      </div>
-      <div>
-        <b>{tier.cycles}</b>
-        <span>
-          {tier.cycles === 1 ? 'evolution cycle' : 'evolution cycles'}
-        </span>
-      </div>
+    <div
+      className="grid gap-[18px] [@media(max-width:900px)]:grid-cols-[repeat(3,1fr)]"
+      aria-live="polite"
+    >
+      <TierStat value={tier.maxIdeas} label="ideas at most" />
+      <TierStat value={tier.seeds} label="seed ideas" />
+      <TierStat
+        value={tier.cycles}
+        label={tier.cycles === 1 ? 'evolution cycle' : 'evolution cycles'}
+      />
     </div>
   );
 }
@@ -861,23 +1038,24 @@ export function LandingTiers({reduceMotion}: MotionProps) {
     <>
       <div
         ref={trackRef}
-        className="ucs-landing-seg"
+        className="ucs-landing-seg relative mt-[32px] inline-flex max-w-full gap-[4px] overflow-x-auto rounded-[9999px] bg-(--l-surface) p-[4px] [scrollbar-width:none]"
         role="group"
         aria-label="Run tier"
       >
-        <SlidingPill box={pill} className="ucs-landing-slider" />
+        <SlidingPill box={pill} className={SLIDER_CLASSES} />
         {LANDING_TIERS.map(t => (
           <button
             key={t.name}
             type="button"
             aria-pressed={t.name === name}
+            className="relative z-[1] h-[40px] flex-none cursor-pointer [border:0] rounded-[9999px] bg-transparent px-[20px] [font:500_15px_var(--l-body)] text-(--l-muted) aria-pressed:text-(--l-bg) [@media(max-width:900px)]:px-[14px]"
             onClick={() => setName(t.name)}
           >
             {t.name}
           </button>
         ))}
       </div>
-      <div className="ucs-landing-tierbox">
+      <div className="mt-[20px] grid grid-cols-[1fr_260px] items-center gap-[32px] rounded-[32px] bg-(--l-surface) p-[clamp(20px,3vw,40px)] [@media(max-width:900px)]:grid-cols-[1fr]">
         <TierField tier={tier} reduceMotion={reduceMotion} />
         <TierStats tier={tier} />
       </div>

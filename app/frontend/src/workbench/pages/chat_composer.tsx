@@ -70,6 +70,8 @@ export function Composer({
     textarea.style.height = `${Math.min(textarea.scrollHeight, large ? 146 : 120)}px`;
   }, [input, large]);
 
+  // Composer elevation is light-only in the reference, so its shadow stays a
+  // themed token.
   return (
     <form
       onSubmit={event => {
@@ -80,9 +82,10 @@ export function Composer({
         if (input.trim()) clearAttachments();
       }}
       className={joinClasses(
-        'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem]',
+        'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem] [box-shadow:var(--cosci-composer-shadow)]',
         input.trim() && 'has-input',
-        large && 'reference-home-composer',
+        large &&
+          'min-[701px]:row-6 min-[1181px]:row-7 min-[1181px]:mt-[clamp(1.25rem,2.4vh,1.9rem)] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[6.35rem] [@media(max-width:700px)]:mt-[0.9rem] [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:pt-[0.9rem] [@media(max-width:700px)]:pb-[0.65rem]',
         attachments.length > 0 && 'has-attachments !min-h-[13.5rem] !pt-4',
       )}
     >
@@ -109,7 +112,8 @@ export function Composer({
           autoFocus={autoFocus}
           className={joinClasses(
             'relative z-[2] block min-h-[2.85rem] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 font-[inherit] leading-6 text-cosci-composer-text outline-none',
-            large && 'reference-home-composer-textarea',
+            large &&
+              '[@media(min-width:1181px)_and_(max-height:760px)]:min-h-[2.65rem]',
           )}
           onChange={event => setInput(event.target.value)}
           onKeyDown={event => {
@@ -133,7 +137,7 @@ export function Composer({
           type={stoppable ? 'button' : 'submit'}
           className={tooltipClassNames({
             className:
-              'pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 transition-colors enabled:hover:bg-cosci-icon-button-hover-bg enabled:focus-visible:bg-cosci-icon-button-hover-bg focus-visible:outline-none disabled:cursor-default size-8 text-cosci-source-button enabled:hover:text-cosci-source-button-hover enabled:focus-visible:text-cosci-source-button-hover disabled:text-cosci-composer-submit-disabled',
+              'pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 transition-colors enabled:hover:bg-cosci-icon-button-hover-bg enabled:focus-visible:bg-cosci-icon-button-hover-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring disabled:cursor-default size-8 text-cosci-source-button enabled:hover:text-cosci-source-button-hover enabled:focus-visible:text-cosci-source-button-hover disabled:text-cosci-composer-submit-disabled',
             placement: 'top',
           })}
           aria-label={stoppable ? 'Stop' : 'Send'}
@@ -341,7 +345,7 @@ function AttachmentRemoveButton({
       type="button"
       className={tooltipClassNames({
         className:
-          'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] cursor-pointer place-items-center rounded-full border-0 bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 hover:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-none',
+          'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] cursor-pointer place-items-center rounded-full border-0 bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 hover:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring',
         placement: 'top',
       })}
       aria-label={`Remove ${attachment.name}`}
@@ -507,7 +511,7 @@ function SourceToolbarButton({
       type="button"
       className={tooltipClassNames({
         className:
-          'pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 transition-colors enabled:hover:bg-cosci-icon-button-hover-bg enabled:focus-visible:bg-cosci-icon-button-hover-bg focus-visible:outline-none reference-composer-source-button size-8 text-cosci-source-button enabled:hover:text-cosci-source-button-hover enabled:focus-visible:text-cosci-source-button-hover aria-expanded:bg-cosci-icon-button-hover-bg aria-expanded:text-cosci-source-button-hover',
+          'pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 transition-colors enabled:hover:bg-cosci-icon-button-hover-bg enabled:focus-visible:bg-cosci-icon-button-hover-bg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring reference-composer-source-button size-8 text-cosci-source-button enabled:hover:text-cosci-source-button-hover enabled:focus-visible:text-cosci-source-button-hover aria-expanded:bg-cosci-icon-button-hover-bg aria-expanded:text-cosci-source-button-hover',
         placement: 'top',
       })}
       aria-label={label}
@@ -581,7 +585,7 @@ function ConnectorMenuRow({
       type="button"
       role="menuitemcheckbox"
       aria-checked={checked}
-      className="reference-connectors-menu-row md-state grid min-h-[2.6rem] w-full cursor-pointer grid-cols-[1.35rem_1fr_auto] items-center gap-3 border-0 bg-transparent px-[0.9rem] py-[0.45rem] text-left font-[inherit] text-[0.9rem] text-inherit focus-visible:outline-none"
+      className="reference-connectors-menu-row md-state grid min-h-[2.6rem] w-full cursor-pointer grid-cols-[1.35rem_1fr_auto] items-center gap-3 border-0 bg-transparent px-[0.9rem] py-[0.45rem] text-left font-[inherit] text-[0.9rem] text-inherit focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring"
       onClick={toggle}
     >
       <Icon

@@ -76,12 +76,6 @@ def apply_observation_result(hypothesis: Hypothesis, result: dict[str, Any] | No
     hypothesis.enrichments["observation"] = observation
 
 
-def store_indra_enrichment(hypothesis: Hypothesis, result: dict[str, Any]) -> None:
-    enrichment_items = result.get("indra_enrichment_items", [])
-    if enrichment_items:
-        hypothesis.enrichments["indra_evidence"] = enrichment_items
-
-
 @dataclasses.dataclass(frozen=True)
 class _ReflectionContext:
     articles_with_reasoning: str
@@ -95,7 +89,6 @@ class _ReflectionContext:
 class _ReflectionCall:
     prompt: str
     schema: dict[str, Any] | None
-    indra_data: dict[str, Any]
 
 
 async def observe_hypothesis(
@@ -148,7 +141,7 @@ async def _run_reflection_llm_or_none(
                 prompt_name=indexed_prompt_name("reflection", hypothesis_index),
             ),
         )
-        return _format_reflection_result(response, call.indra_data, hypothesis_index)
+        return _format_reflection_result(response, hypothesis_index)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
@@ -161,30 +154,21 @@ async def _prepare_reflection_call(
     context: _ReflectionContext,
     hypothesis_index: int,
 ) -> _ReflectionCall:
-    indra_data = await _fetch_indra_for_hypothesis(
-        hypothesis.text,
-        context.tool_registry,
-        hypothesis_index,
-    )
     prompt, schema = get_reflection_prompt(
         articles_with_reasoning=context.articles_with_reasoning,
         hypothesis_text=hypothesis.text,
-        indra_evidence=indra_data.get("prompt_text", ""),
         context=PromptRunContext(
             meta_review=context.meta_review,
             tool_registry=context.tool_registry,
         ),
     )
-    return _ReflectionCall(prompt=prompt, schema=schema, indra_data=indra_data)
+    return _ReflectionCall(prompt=prompt, schema=schema)
 
 
 def _format_reflection_result(
     response: dict[str, Any],
-    indra_data: dict[str, Any],
     hypothesis_index: int,
 ) -> dict[str, Any]:
-    """INDRA evidence is persisted separately from prose feedback and the
-    verdict."""
     # Schema-optional keys may be absent even after validation.
     classification = response.get("classification", "neutral")
     reasoning = response.get("reasoning", "")
@@ -195,7 +179,6 @@ def _format_reflection_result(
         "classification": classification,
         "reasoning": reasoning,
         "positive_observations": response.get("positive_observations", []),
-        "indra_enrichment_items": indra_data.get("enrichment_items", []),
     }
 
 
@@ -309,39 +292,3 @@ def _apply_reflection_results(
 ) -> None:
     for hypothesis, result in zip(hypotheses, analysis_results, strict=True):
         apply_observation_result(hypothesis, result)
-        if result:
-            store_indra_enrichment(hypothesis, result)
-
-
-async def _fetch_indra_for_hypothesis(
-    hypothesis_text: str,
-    tool_registry: Any | None,
-    hypothesis_index: int,
-) -> dict[str, Any]:
-    """Optional enrichment must not prevent reflection when MCP or INDRA
-    fails."""
-    empty: dict[str, Any] = {"prompt_text": "", "enrichment_items": []}
-    try:
-        # Import inside the guard so a broken optional dependency degrades this
-        # lookup rather than preventing reflection from importing.
-        from co_scientist.agents.reflection.reflection_helpers import (
-            fetch_indra_evidence,
-        )
-
-        result = await fetch_indra_evidence(
-            hypothesis_text=hypothesis_text,
-            tool_registry=tool_registry,
-            max_statements=5,
-        )
-        prompt_text = result.get("prompt_text", "")
-        if prompt_text:
-            logger.debug(
-                "hypothesis %s: fetched INDRA evidence (%s chars, %s items)",
-                hypothesis_index,
-                len(prompt_text),
-                len(result.get("enrichment_items", [])),
-            )
-        return result
-    except Exception as e:
-        logger.debug("hypothesis %s: INDRA fetch skipped: %s", hypothesis_index, e)
-        return empty

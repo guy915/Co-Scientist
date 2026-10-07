@@ -20,6 +20,7 @@ function activeInterview(extra: Partial<Interview> = {}): Interview {
       research_challenge: GOAL,
       focus_area: [],
       preferences: [],
+      lab_constraints: [],
       title: null,
     },
     current_question: QUESTION,

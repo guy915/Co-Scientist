@@ -119,8 +119,6 @@ it('flags a completed run with no retrieved evidence as ungrounded', async () =>
 it.each([
   ['the run retrieved evidence', 'engine', 'real', [EVIDENCE_ROW]],
   ['it is offline-backed', 'engine', 'offline', []],
-  // Pre-llm_backend rows use provider to identify offline provenance.
-  ['it is a legacy mock-provider run', 'mock', undefined, []],
 ])(
   'omits the ungrounded notice when %s',
   async (_name, provider, llm_backend, evidence) => {

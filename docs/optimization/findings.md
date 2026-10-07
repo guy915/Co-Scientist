@@ -28,6 +28,8 @@ their risk are at the end with the reason.
 | L5 | #289 | Unlicensed Google Sans Text files removed; OFL Google Sans serves body text |
 | L9 | #290 | Broken MCP README link and stale default-model comments fixed |
 | L10 | — | Gone: the cuts removed the results file |
+| L2 | — | Gone: the cuts removed the log-report email setting |
+| I7 | — | Gone: the cuts made JSON the only log format |
 | I2 | #265, #286, #287 | Monitoring guide; API and frontend error tracking, off without a DSN |
 | I3, I6, I12 | #268 | API image rebuild after a source edit 18 s → 8 s; graceful shutdown; unbuffered logs |
 | I4 | #254 | MCP image −374 MB |
@@ -35,15 +37,23 @@ their risk are at the end with the reason.
 | B1, B3 | #273 | Run delete 1133 → 25 ms |
 | B2 | #278 | `GET /api/runs` 187 → 20 ms at 3,000 runs |
 | B4 | #292 | Idle claim write transactions 145/s → 0; write p99 24 → 9 ms while idle |
+| B6 | #296 | Trivial-request latency under 8 readers p50 35 → 5 ms; with a held write lock p99 250 → 7 ms |
 | B5 | #284 | Checkpoint guard 0.91 → 0.004 ms per commit |
 | B7 | #280 | Upload loop stall 350 → 24 ms |
 | B8 | #285 | Run detail 2.19 → 0.81 ms (finished runs) |
 | B9 | #293 | Keepalive every 15 s; stream polling off the event loop |
 | B10 | #288 | Report 185 → 19 KB on the wire |
 | B13 | #291 | Status polls 381 → 0 ms after the first |
+| F2 | #303 | Entry script 80.8 → 63.4 KB gzip; throttled LCP 4.32 → 3.94 s |
+| F3 | #313, #315 | Keystroke to frame at 4× CPU: home page p50 66–76 → 48–51 ms; 60-turn chat 276–293 → 27–28 ms |
 | F1, F4 | #274 | Markdown chunk 103 → 70 KB gzip; stale-chunk reload |
+| F5 | #297 | API refusals shown as their message, not `409 {"detail":…}` |
 | F6 | #294 | Closed mobile drawer out of the tab order; one `main` landmark |
+| F8 | #298 | Re-download after an app-only deploy 161 → 79 KB gzip |
+| F10 | #311 | Light-mode muted text 4.10:1 → at least 4.5:1 on every surface it sits on |
+| F11 | #312 | Keyboard focus stops without a visible ring 10 → 3 (two textareas with a caret, one iframe) |
 | M1 | #243 | Benchmark retrieval enabled |
+| M10 | #302 | Searches against an unregistered MCP tool fail once: 135 wasted calls and about 118 s of backoff per Express run → 0 |
 
 ## CI and development
 
@@ -172,6 +182,10 @@ Two Express baselines on `main` at `df08134` (Ling 3.1 Flash default):
 | M4 | Almost no prompt caching | 5.1k of 377k prompt tokens cached (1.4%), all on ranking | M | M | low |
 | M5 | Ling is slow per call | Ranking: Ling 61 s/call (6.4k completion), Nemotron Super 13 s/call (1.4k), Ultra 87 s/call; per-token rate about 105 tok/s on both Ling and Super, so time follows tokens | M | — | — |
 | M6 | Ling's output cap is 32,768 tokens | Endpoint `max_completion_tokens` 32,768; the largest engine budget is 24k (`BUDGET_ESCALATION_MAX_TOKENS`), so escalation stays within it | — | — | — |
+| M10 | Searches retry a tool the server never registered | Without a web-search key the MCP server has no `search_web`; the engine retried it as transient, four attempts with backoff per search (Express r2: 135 wasted calls). Production registers it | M (benchmark, self-hosting) | S | none |
+| M11 | Most fallbacks land on the slowest route | Ling's chain tries Nemotron Ultra before Super. Express r2 ([37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903)): Ultra served 71 of 150 calls at 104 s each (37 tok/s), 63% of all call time; Super 41 s (120 tok/s). Batch 1 tries Super first | H (time) | S | med (answer-changing; benchmarked) |
+| M12 | Ling ignores the minimal-reasoning cap | Claim checks request reasoning off; Ling gets a 2,048-token cap but reasoned 15.4k tokens per claim-gate call (154 s), exhausted its budget and retried 12 times, and 5 of 63 claims fell back to the lexical assessor. Super honors the cap (2.0k). Batch 2 sent Ling the low effort tier and was rejected (below); batch 3 funds those calls | M (time, quality) | S | med (answer-changing; benchmarked) |
+| M14 | OpenAlex refuses searches in long benchmarks | OpenAlex's keyless budget is shared per IP; GitHub runners exhausted it during the Standard baseline (16 refused searches). Production showed none. A free key as a repository secret is an owner action (on the board) | M (benchmark validity) | S | none |
 
 With retrieval on (#243), Express
 [37540122229](https://github.com/guy915/Co-Scientist/actions/runs/37540122229)
@@ -187,6 +201,32 @@ reasoning-exhaustion findings need a run with retrieval on (M1) before they
 can be confirmed on Ling; each run had one retry. Caching remains near
 zero (M4).
 
+M2–M6 describe the routes rather than defects with a fix of their own: M2's
+fallback pattern is measured as M11, M3's reasoning share is what the batches
+change, M4 is answered by M7 below, and M5 and M6 are properties of the free
+endpoint.
+
+Baselines at `a82eed8` with every fan-out stage timed: Express r2
+([37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903))
+and Standard
+([37558735897](https://github.com/guy915/Co-Scientist/actions/runs/37558735897):
+157 min, 283 calls, 19 ideas, unsupported claim rate 0.84, unverified idea
+rate 0.67). Model batches, each one Express run against r2:
+
+| | r2 | Batch 1: Super before Ultra (M11) | Batch 2: Ling's low tier for claim checks (M12) |
+|---|---|---|---|
+| Run | [37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903) | [37566987457](https://github.com/guy915/Co-Scientist/actions/runs/37566987457) | [37572259558](https://github.com/guy915/Co-Scientist/actions/runs/37572259558) |
+| Wall time | 92.3 min | 77.2 min | 135.1 min |
+| Unsupported claim rate | 0.76 | 0.97 | 0.76 |
+| Unverified idea rate | 0.20 | 0.83 | 0.20 |
+| Claim checks on the lexical fallback | 5 | 11 | 20 |
+
+Batch 2 is rejected: Ling still reasoned 15.4k tokens per claim check at the
+low tier, and Super's rose from 2.0k to 11.2k. Batch 1 is 16% faster, but its
+quality loss is not small; it tracks its claim-check fallbacks, so batch 1 is
+re-run together with batch 3, which funds Ling's reasoning-off calls instead of
+capping them.
+
 ## Not worth the risk
 
 | # | Change | Why not |
@@ -197,3 +237,19 @@ zero (M4).
 | B12 | Batch the persisted-log writes | Records are already written on a background `QueueListener` thread, off the request path; batching would rework that thread's drain and shutdown for a few milliseconds of writer time per second |
 | I10 | `--no-install-recommends` for tesseract | `tesseract-ocr` has no Recommends of its own in Debian; only transitive font recommends could drop, and OCR must keep working |
 | B11/I8 | `LITELLM_LOCAL_MODEL_COST_MAP=True` (0.9 s faster import, no boot fetch) | litellm's bundled map has 2,426 entries against 4,481 remote; six newer BYOK models (Gemini 3.x, GPT-6) lose `json_schema` support under it, changing their structured-output path |
+| B14 | One connection per thread, mmap | 0.67 ms per open, two or three per request, now off the event loop (#296); a shared connection changes snapshot and transaction scope across the store |
+| B15 | Resolve interview links in SQL | 4.1 → 0.33 ms at 200 runs, about 0.4 ms for a typical client with under 20 runs, and off the event loop since #296 |
+| B18 | Replace the `@app.middleware` ownership check with pure ASGI | Its per-request overhead is a fraction of a millisecond, and its store lookup already runs off the loop (#296); a rewrite risks the ownership 404/403 paths |
+| B16 | Schedule retention | It deletes researcher data; whether and when is the owner's decision (on the board) |
+| B17 | Restore less state per fan-out task | High risk on the commit path, and its memory effect is unmeasured; instrument first |
+| C5, C6 | mypy and Docker layer caches in CI | Not on the critical path: e2e shard 1 takes 2:28 of a 2:43 CI wall, typecheck 1:55 and Docker 1:43 run beside it |
+| I9 | Trim the Docker build context | Every `COPY` is explicit; excluding tests and frontend sources would only shrink an 11 MB context upload by 3 MB |
+| F13 | Memoize idea list rows | Runs hold a few dozen ideas at most and each row is cheap; lever 7 is restyling the file |
+| F5 (stack) | Hide the error boundary's component stack | It is collapsed behind `<details>` and is what a researcher pastes into a bug report |
+| F7 | Preload the body font and landing chunk | Throttled cold load (1.6 Mbps, 150 ms RTT, median of 5): preloading the 400 font moved FCP 3,736 → 3,828 ms and LCP 4,332 → 4,500 ms. On a bandwidth-bound link the font competes with the entry scripts, and LCP is text, so the hero image is not on the critical path |
+| F14 | A URL-aware pre-hydration skeleton | A deep link shows a landing-shaped placeholder until React mounts; fixing it is a visual change in lever 7's area for a brief placeholder |
+| I11 | Drop heavy transitive dependencies | `grpcio`, `tokenizers`, `huggingface-hub` and `hf-xet` are litellm's own requirements; only `watchfiles` (via `uvicorn[standard]`, used by `--reload`) could go: a few MB for a rewritten extras list and a regenerated hash-pinned lock |
+| F9 | Split the landing stylesheet out of the entry CSS | After shrink #308 the whole sheet is 117 KB (22.5 KB gzip), of which the landing's own rules are 5.3 KB gzip. The home route, where most visits start, needs them anyway, so splitting adds a render-blocking request there to save 5 KB elsewhere; lever 7 keeps moving these rules to utilities |
+| F12 | Pause polling in hidden tabs and resume streams mid-way | The campaigns leave frontend fetching and polling to shrink lever 9, which judged its rework not worth the risk (board #240) |
+| M13 | Run proximity beside the research overview | The overview does not read proximity's output, but the workflow commits one node per checkpoint; running two nodes at once means concurrent checkpoint writers for one run, an invariant change in `docs/OPERATIONS.md`, to save about 4 minutes of an Express run |
+| M15 | Count tool schemas and echoed reasoning in the tool-loop transcript budget | `transcript_tokens` counts message text and tool calls only, so an offline simulation sent 22% more than it counted (up to 64% if a route echoes reasoning). The 300k budget never binds: no loop reached it in the Express r2 or Standard job logs, whose largest call prompt was about 53k tokens. Counting more would only move when loops wrap up, which can change answers, for no measured gain |

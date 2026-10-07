@@ -143,7 +143,6 @@ export const LANDING_SOURCES: readonly string[] = [
   'OpenAlex',
   'ChEMBL',
   'UniProt',
-  'INDRA',
   'bioRxiv',
   'medRxiv',
   'The open web',
@@ -205,7 +204,7 @@ export const FAQ: readonly FaqEntry[] = [
     question: 'Where does the evidence come from?',
     answer:
       'From literature tools such as PubMed, Europe PMC, preprint servers, ' +
-      'OpenAlex, ChEMBL, UniProt, and INDRA, plus the web when search is on. ' +
+      'OpenAlex, ChEMBL and UniProt, plus the web when search is on. ' +
       'Turn sources on or off from Connectors in the composer.',
   },
   {

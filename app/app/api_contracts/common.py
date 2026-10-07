@@ -7,10 +7,7 @@ from typing_extensions import NotRequired, TypeAliasType, TypedDict
 
 from app.store.models import RunStatus as RunStatus
 
-RunMode: TypeAlias = Literal["standard", "advanced", "express", "extended", "ultra"]
-
-
-LegacyRunProfile: TypeAlias = RunMode | Literal["default"]
+RunMode: TypeAlias = Literal["standard", "express", "extended", "ultra"]
 
 
 RunFocus: TypeAlias = (

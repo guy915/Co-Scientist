@@ -384,8 +384,7 @@ additionally declared in the *default* `config/tools.yaml` as
 literature-review enrichment and reflection. They are entity-keyed, not
 free-text, which is why they sit on those paths rather than among the
 literature search sources. Declaring them in the default config is the
-load-bearing part: a tool absent from it is unreachable in production, which
-is what the 8 INDRA CoGex tools are.
+load-bearing part: a tool absent from it is unreachable in production.
 
 **The catalogue withholds what it cannot run** (`_withholding_reason`), for
 the same reason `run_command` is withheld with no sandbox backend: reading a
@@ -423,7 +422,7 @@ Engine architecture lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 [`../docs/OPERATIONS.md`](../docs/OPERATIONS.md) for operational invariants.
 
-**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt lookups, INDRA CoGex queries, and web search/fetch.
+**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt and systems-biology lookups, and web search/fetch.
 
 **Style conventions:**
 - Ruff formats and lints Python at 100 columns; config is in `pyproject.toml`.
@@ -436,11 +435,10 @@ Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 
 A separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors.
 
-The live manifest groups the sources into four families:
+The live manifest groups the sources into three families:
 - **Literature** — `search_pubmed`, `pubmed_search_with_fulltext`, `check_pubmed_available` (Biopython/Entrez), `search_openalex` (keyless, cross-disciplinary), `get_opencitations_citation_edges`, `search_europepmc` and its `search_preprints`/`search_biorxiv` preprint-restricted siblings, `search_arxiv` (arxiv.org's own export API, keyless).
 - **Open web** — `read_url` (always registered), `search_web` and `check_web_search_available` (both key-gated).
 - **Biomedical and systems lookups** — ChEMBL, UniProt, STRING, Reactome, Open Targets, Ensembl, gnomAD, GWAS Catalog and ClinicalTrials.
-- **8 INDRA CoGex knowledge-graph queries.**
 
 The `_MCP_TOOLS` tuple in `server.py` is the single source for both registration and the `mcp_tools` manifest at `GET /`. **Adding a tool takes two edits**: register it there, and declare it in the engine's `src/co_scientist/config/tools.yaml` with a matching `mcp_tool_name` (plus the `draft_generation` whitelist if the model should call it directly).
 
@@ -449,5 +447,5 @@ The `_MCP_TOOLS` tuple in `server.py` is the single source for both registration
 - **`search_web` is registered only when a provider key resolves** — `BRAVE_API_KEY` or `TAVILY_API_KEY`, with `WEB_SEARCH_PROVIDER=brave|tavily` selecting one (otherwise autodetect, brave first). Without a key the tool is *absent from the manifest*, not failing — so "the agent never searched the web" is a deployment question first. `curl http://localhost:8888/` returns the live `mcp_tools` list plus `integrations.web_search_provider`.
 - **`read_url` fetches a URL an LLM chose**, so every URL passes `web_fetch.check_fetchable`: http(s) only, cloud metadata hosts blocked, and the hostname resolved via `getaddrinfo` *before* the range check, so `nip.io`-style names pointing at loopback/private/link-local addresses are refused too. `web_fetch.py` follows redirects manually (`follow_redirects=False`, max 5), re-screening each hop, because httpx's own redirect handling would skip the check. In production this server sits on Railway's private network next to the api, so weakening the guard is a live SSRF. Page content is untrusted data, never instructions.
 - **Every tool is wrapped by `tool_logging.with_call_logging`** in the registration loop, emitting one INFO line per call (`tool search_pubmed(query='...') -> 2 items, 4102 chars in 812ms`). These tools degrade to an empty result rather than raising, so a missing key, a failed HTTP call, and a genuine zero-hit query are otherwise indistinguishable. Any wrapper added here **must copy `__signature__`** — FastMCP derives the advertised parameter schema from it, and a bare `*args, **kwargs` wrapper silently strips every parameter from what the agent sees.
-- **Its own env surface**, in `engine/mcp_server/.env.example`, loaded from a `.env` co-located in `mcp_server/` (not the engine's; a missing file only warns): `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `COSCIENTIST_LIT_REVIEW_DIR`, `COSCIENTIST_MCP_PORT`, `COSCIENTIST_MCP_LOG_LEVEL`, `COSCIENTIST_MCP_SHARED_SECRET` (optional shared-secret auth — see `docs/DEPLOYMENT.md`), `WEB_SEARCH_PROVIDER`/`BRAVE_API_KEY`/`TAVILY_API_KEY`, `INDRA_COGEX_URL`/`INDRA_COGEX_TIMEOUT`. Setting these in the app's `.env` does nothing. An inherited `DISABLE_SSL_VERIFY=true` is rejected; the service never disables TLS verification globally.
+- **Its own env surface**, in `engine/mcp_server/.env.example`, loaded from a `.env` co-located in `mcp_server/` (not the engine's; a missing file only warns): `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `COSCIENTIST_LIT_REVIEW_DIR`, `COSCIENTIST_MCP_PORT`, `COSCIENTIST_MCP_LOG_LEVEL`, `COSCIENTIST_MCP_SHARED_SECRET` (optional shared-secret auth — see `docs/DEPLOYMENT.md`), `WEB_SEARCH_PROVIDER`/`BRAVE_API_KEY`/`TAVILY_API_KEY`. Setting these in the app's `.env` does nothing. An inherited `DISABLE_SSL_VERIFY=true` is rejected; the service never disables TLS verification globally.
 - **Its own pytest suite.** `mcp_server/` is its own project; the engine's `testpaths = ["tests"]` does not reach it and the engine's mypy excludes it. Run `pytest` *and* `mypy .` from `engine/mcp_server/`.
