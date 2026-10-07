@@ -11,7 +11,7 @@ from co_scientist.api.runs.models import CreateRunRequest
 from co_scientist.core import byok_scope
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
-from co_scientist.orchestration import engine_adapter
+from co_scientist.platform.llm.process_mode import offline_mode
 
 FREE_TIER = "express"
 
@@ -105,7 +105,7 @@ def usage_payload(owner: str) -> dict[str, Any]:
         used = used_today(conn, owner, now)
     limit = daily_limit()
     return {
-        "enforced": not engine_adapter.offline_mode(),
+        "enforced": not offline_mode(),
         "tier": FREE_TIER,
         "limit": limit,
         "used": used,

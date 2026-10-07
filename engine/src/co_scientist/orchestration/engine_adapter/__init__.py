@@ -6,7 +6,7 @@ from typing import Any
 
 from co_scientist.core.config import any_provider_credential, byok_enabled, settings
 from co_scientist.orchestration.repository import runs
-from co_scientist.platform.llm.process_mode import offline_mode as offline_mode
+from co_scientist.platform.llm.process_mode import offline_mode
 from co_scientist.platform.retrieval.connectors import (
     connectors_report as connectors_report,
 )
