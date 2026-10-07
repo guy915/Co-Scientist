@@ -85,11 +85,11 @@ location makes redundant.
 | `platform/retrieval/` | engine `mcp_client/`, `tools/`, `config/` (registry, schema, `tools.yaml`), `evidence/`, `retrieval_degradation.py`, `research_adapter/`; app `pinned_http.py`, `retraction_set.py` (+ `data/retractions.txt.gz`), `citations/`, `run_corpus.py`, `engine_adapter/tools.py` |
 | `platform/sandbox/` | engine `sandbox/`, `workspace/`, `skills/`, `patch/` |
 | `platform/telemetry/` | engine `progress.py`; app `logging_setup.py`, `error_tracking.py`, `diagnostic_events.py`, `store/logs.py`, `store/retrieval_calls.py` |
-| `domains/research_state/` | engine `models/` (rest), `state/`; app `elo.py`, `text_utils.py`, `claims/`, `store/hypotheses.py`, `store/records.py`, `engine_adapter/drain/{hypotheses,reviews,matches}.py` |
+| `domains/research_state/` | engine `models/` (rest), `state/`; app `elo.py`, `text_utils.py`, `claims/` (with `evidence_chunking.py` as `claims/chunking.py`), `store/hypotheses.py`, `store/records.py`, `engine_adapter/drain/{hypotheses,reviews,matches}.py` |
 | `domains/safety/` | engine `safety.py`; app `safety/`, `hypothesis/` |
 | `domains/report/` | app `report/`, `store/reports.py` |
 | `domains/chat/` | app `qa/`, `interviews/`, `run_start_announcement.py`, `goal_text.py`, `seed/` (+ `data/demo_runs.json.gz`), `store/messages.py`, `store/interviews.py`, `store/examples.py` |
-| `domains/documents/` | app `document_ingest.py`, `pdf.py`, `pdf_worker.py`, `evidence_chunking.py`, `staged_documents.py`, `store/documents.py` |
+| `domains/documents/` | app `document_ingest.py`, `pdf.py`, `pdf_worker.py`, `staged_documents.py`, `store/documents.py` |
 | `domains/access/` | app `credentials.py`, `byok_models.py`, `free_usage.py`, `retention.py` |
 | `domains/feedback/` | app `store/feedback.py` |
 | `science/` | engine `agents/{generation,reflection,ranking,evolution,proximity,meta_review,supervisor}` → `science/<agent>`; `agents/safety.py` → `science/safety_screen`; `agents/node_degradation.py`; `scheduling/` → `science/scheduling` (meta-review and orchestration read it too, so it is not the supervisor's alone); `prompts/`, `schemas/`, `research/` |

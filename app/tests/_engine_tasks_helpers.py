@@ -49,10 +49,8 @@ def _seed_checkpoint(
     stage: str = "fixture",
     db_path: str | None = None,
 ) -> int:
-    from co_scientist.orchestration.checkpoint import (
-        CHECKPOINT_VERSION,
-        serialize_workflow_state,
-    )
+    from co_scientist.orchestration.checkpoint import serialize_workflow_state
+    from co_scientist.platform.db.checkpoints import CHECKPOINT_VERSION
 
     envelope = serialize_workflow_state(state, last_event_seq=0)
     return seed_checkpoint(

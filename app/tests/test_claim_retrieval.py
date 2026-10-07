@@ -3,10 +3,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import pytest
-from co_scientist.domains.documents.evidence_chunking import (
-    chunk_evidence_passage,
-    parent_evidence_id,
-)
 from co_scientist.domains.research_state.claims import (
     AssessorDraft,
     EntailmentLabel,
@@ -14,6 +10,10 @@ from co_scientist.domains.research_state.claims import (
     as_passages,
     assess_claim,
     extract_atomic_claims,
+)
+from co_scientist.domains.research_state.claims.chunking import (
+    chunk_evidence_passage,
+    parent_evidence_id,
 )
 
 

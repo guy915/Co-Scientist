@@ -19,11 +19,11 @@ from co_scientist.domains.research_state.state import (
     deduplicate_hypotheses,
 )
 from co_scientist.orchestration.checkpoint import (
-    CHECKPOINT_VERSION,
     CheckpointSchemaError,
     restore_workflow_state,
     serialize_workflow_state,
 )
+from co_scientist.platform.db.checkpoints import CHECKPOINT_VERSION
 from co_scientist.platform.sandbox.patch import (
     Patch,
     PatchError,
