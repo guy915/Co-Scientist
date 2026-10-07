@@ -144,11 +144,11 @@ async def _call_semantic_safety_model(text: str, stage: str, model: str) -> dict
     """Use shared structured parsing and physical-call metering; json_object
     gateways may fence or reshape otherwise valid JSON.
     """
-    from co_scientist.domains.access import credentials
+    from co_scientist.core import byok_scope
 
     # Scoped BYOK selects its own model and credential rather than using the
     # deployment's account.
-    resolved_model, api_key = credentials.byok_model_and_key(model)
+    resolved_model, api_key = byok_scope.byok_model_and_key(model)
     spec = CompletionSpec(
         model_name=resolved_model,
         max_tokens=1_000,

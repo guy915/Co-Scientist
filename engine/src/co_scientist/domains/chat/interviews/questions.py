@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import co_scientist.domains.access.credentials as credentials
 import co_scientist.platform.llm.offline_guard as offline_guard
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.core.json_schema import obj
 from co_scientist.platform.llm import CompletionSpec, LLMCallOptions, call_llm_json
@@ -114,7 +114,7 @@ The turn:
 async def repair_questions(message: str) -> list[dict[str, Any]]:
     if not message.strip() or not offline_guard.remote_chat_allowed():
         return []
-    model, api_key = credentials.byok_model_and_key(settings.effective_chat_model)
+    model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
     spec = CompletionSpec(
         model_name=model,
         max_tokens=_MAX_TOKENS,
