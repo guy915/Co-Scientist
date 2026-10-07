@@ -14,6 +14,14 @@ from co_scientist.platform.retrieval.config.schema import ToolConfig
 from co_scientist.platform.retrieval.evidence import search
 from co_scientist.platform.retrieval.evidence.search_support import SearchConfig
 from co_scientist.platform.retrieval.mcp_client import MCPToolClient
+from co_scientist.platform.retrieval.research import (
+    Document,
+    ExtractedFinding,
+    Extraction,
+    Finding,
+    ResearchBudget,
+    SourceHit,
+)
 from co_scientist.science.generation.literature_review import node as lr
 from co_scientist.science.generation.literature_review import (
     queries as lr_queries,
@@ -23,14 +31,6 @@ from co_scientist.science.generation.literature_review import (
 )
 from co_scientist.science.generation.literature_review import (
     synthesis as lr_synthesis,
-)
-from co_scientist.science.research import (
-    Document,
-    ExtractedFinding,
-    Extraction,
-    Finding,
-    ResearchBudget,
-    SourceHit,
 )
 
 

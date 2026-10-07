@@ -5,8 +5,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.platform.retrieval.research_adapter import McpRetrieval, ResearchRun
-from co_scientist.science.research import (
+from co_scientist.platform.retrieval.research import (
     CallStatus,
     Finding,
     Question,
@@ -20,6 +19,7 @@ from co_scientist.science.research import (
     result_from_dict,
     result_to_dict,
 )
+from co_scientist.platform.retrieval.research_adapter import McpRetrieval, ResearchRun
 from tests._research_fakes import (
     FakeResearchClient,
     research_registry,

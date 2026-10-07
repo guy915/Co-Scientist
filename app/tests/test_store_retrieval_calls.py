@@ -6,11 +6,11 @@ from __future__ import annotations
 import os
 
 import pytest
+from co_scientist.domains.research_state.drain.matches import retrieval_call_rows
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewEvidence
 from co_scientist.orchestration.repository import runs
-from co_scientist.platform.telemetry import retrieval_calls as store
-from co_scientist.science.research import (
+from co_scientist.platform.retrieval.research import (
     CallStatus,
     Question,
     ResearchResult,
@@ -20,6 +20,7 @@ from co_scientist.science.research import (
     ThreadRecord,
     ThreadStatus,
 )
+from co_scientist.platform.telemetry import retrieval_calls as store
 
 from tests._store_helpers import seed_run
 
@@ -81,7 +82,7 @@ def test_a_search_round_trips_with_its_question_and_ranking(db: str) -> None:
     run = seed_run("provenance")
     result = _result()
 
-    store.add_retrieval_calls(store.retrieval_call_rows(run.id, result))
+    store.add_retrieval_calls(retrieval_call_rows(run.id, result))
 
     rows = store.list_retrieval_calls(run.id)
     assert len(rows) == 1
@@ -100,7 +101,7 @@ def test_a_search_round_trips_with_its_question_and_ranking(db: str) -> None:
 
 def test_the_same_search_persisted_twice_is_one_row(db: str) -> None:
     run = seed_run("resume")
-    rows = store.retrieval_call_rows(run.id, _result())
+    rows = retrieval_call_rows(run.id, _result())
 
     assert store.add_retrieval_calls(rows) == 1
     assert store.add_retrieval_calls(rows) == 0
@@ -115,8 +116,8 @@ def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
     second = seed_run("goal")
     result = _result()
 
-    store.add_retrieval_calls(store.retrieval_call_rows(first.id, result))
-    store.add_retrieval_calls(store.retrieval_call_rows(second.id, result))
+    store.add_retrieval_calls(retrieval_call_rows(first.id, result))
+    store.add_retrieval_calls(retrieval_call_rows(second.id, result))
 
     assert len(store.list_retrieval_calls(first.id)) == 1
     assert len(store.list_retrieval_calls(second.id)) == 1
@@ -132,7 +133,7 @@ def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
 def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
     run = seed_run("link")
     result = _result()
-    rows = store.retrieval_call_rows(run.id, result)
+    rows = retrieval_call_rows(run.id, result)
     store.add_retrieval_calls(rows)
 
     ev_id = records.add_evidence(

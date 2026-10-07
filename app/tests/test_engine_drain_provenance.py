@@ -14,8 +14,7 @@ from co_scientist.orchestration.engine_tasks import inputs as engine_tasks_input
 from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.platform.db.models import RunStatus
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
-from co_scientist.science.research import (
+from co_scientist.platform.retrieval.research import (
     CallStatus,
     Finding,
     Question,
@@ -27,6 +26,7 @@ from co_scientist.science.research import (
     ThreadStatus,
     result_to_dict,
 )
+from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 from tests._drain_helpers import (
     _build_report,

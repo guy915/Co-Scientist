@@ -13,7 +13,7 @@ from co_scientist.core.constants import (
 )
 from co_scientist.core.metrics import phase_message
 from co_scientist.platform.retrieval.article import Article
-from co_scientist.science.research import Finding, ResearchResult
+from co_scientist.platform.retrieval.research import Finding, ResearchResult
 
 if TYPE_CHECKING:
     from co_scientist.platform.retrieval.research_adapter import McpRetrieval
