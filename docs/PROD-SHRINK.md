@@ -17,7 +17,7 @@ the markup the styling moves added.
 | 3 | Not worth its risk: the five phases already share their machinery | — | — |
 | 4 | Reduced: never-passed store parameters removed; an ambient connection is not worth its risk | #282 | −114 |
 | 5 | Merged (app groups land inside #281); test-fixture clones are left | #276 | −43 |
-| 6 | Merged outside the benchmark-hashed files; `log_failures` and `_JsonCallSpec` wait for the model lane | #320 | −85 |
+| 6 | Merged; the hashed-file part landed after the model lane closed | #320, #325 | −112 |
 | 7 | Merged; the remaining `index.css` tidy is not worth its own PR | #277, #299, #301, #305–#308, #317, #318 | −2,845 |
 | 8 | Already done before the campaign | — | 0 |
 | 9 | Not worth its risk (library weight and a dropped-reload hazard) | — | — |
