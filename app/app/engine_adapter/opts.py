@@ -74,7 +74,7 @@ def _lab_constraints_for_run(cfg: dict[str, Any], db_path: str | None) -> list[s
     interview = interviews.get_interview(str(interview_id), db_path=db_path)
     if interview is None:
         return []
-    raw = interview["fields"].get("lab_constraints") or []
+    raw = interview["fields"]["lab_constraints"]
     return clean_string_list([str(value) for value in raw])
 
 

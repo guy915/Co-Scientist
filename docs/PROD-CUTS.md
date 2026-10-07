@@ -4,10 +4,11 @@ Remove the features, modes and dev tooling the owner chose to give up on
 6 October 2026. This plan only deletes. Condensing what stays is a separate,
 later plan that starts from the size this one leaves.
 
-**Status:** every row in "What goes" merged on 6 October 2026 except stream 5's
-deletion of the legacy-reading code and branches, which waits for the owner to
-run the legacy migration (`app/dev/migrate_legacy_data.py`). Steps and the final
-report are on the `Campaign board: cuts` issue.
+**Status:** done. Every row in "What goes" merged on 6 October 2026; stream 5's
+deletion of the legacy readers for M01–M08 followed on 7 October, after the
+production census found no old-format rows. The resumable-state (C01–C09) and
+kept (C10, K01–K10) branches stay. The final report is on the
+`Campaign board: cuts` issue.
 
 ## Scope
 

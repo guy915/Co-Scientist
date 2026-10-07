@@ -518,10 +518,7 @@ _HYPOTHESIS_DISCLAIMER = _ABOUT_DISCLOSURE
 _SCIENTIST_REVIEWER = "scientist"
 
 
-def _render_evidence_span(span: Any, relation: str) -> str:
-    if not isinstance(span, dict):
-        quote = " ".join(str(span).split())
-        return f"  - {relation} span: “{quote}”"
+def _render_evidence_span(span: dict[str, Any], relation: str) -> str:
     quote = " ".join(str(span.get("quote") or "").split())
     source_title = str(
         span.get("source_title")

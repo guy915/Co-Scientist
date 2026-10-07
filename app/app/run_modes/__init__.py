@@ -266,18 +266,11 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
 }
 
 
-# Unknown persisted vocabulary normalizes to defaults so older rows and loosely
-# validated callers remain readable.
+# Unknown vocabulary normalizes to the default so loosely validated callers
+# remain readable.
 def normalize_run_tier(tier: str | None = None) -> str:
-    """Legacy advanced rows map to their equivalent ultra envelope,
-    preserving stored run behavior.
-    """
     if tier in RUN_TIER_DEFAULTS:
         return tier
-    if tier == "advanced":
-        return "ultra"
-    if tier == "default":
-        return "standard"
     return DEFAULT_RUN_TIER
 
 
