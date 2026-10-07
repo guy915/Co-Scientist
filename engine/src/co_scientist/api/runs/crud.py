@@ -45,6 +45,7 @@ from co_scientist.platform.llm.execution_policy import (
     ZERO_COST_CONFIG_KEY,
     deployment_routes_are_free,
 )
+from co_scientist.platform.llm.process_mode import offline_mode
 
 
 async def _resolve_byok(request: Request) -> byok_scope.ByokCredential | None:
@@ -126,10 +127,7 @@ def _resolve_run_settings(
     defaults; credentials never enter configuration.
     """
     provider = engine_adapter.select_provider()
-    if byok is not None:
-        llm_backend = "real"
-    else:
-        llm_backend = "offline" if engine_adapter.offline_mode() else "real"
+    llm_backend = "real" if byok is not None or not offline_mode() else "offline"
     config, focus, tier = _build_run_config(req, interview)
     if byok is not None:
         # Persist only a provider flag, never a key; both backend resolution and
@@ -525,7 +523,7 @@ def _apply_post_commit_effects(
     """Detached generation needs a committed run ID and must preserve the
     better-informed interview title.
     """
-    model_backed = byok is not None or not engine_adapter.offline_mode()
+    model_backed = byok is not None or not offline_mode()
     if run.title is None and model_backed:
         background_tasks.add_task(
             _populate_run_title,

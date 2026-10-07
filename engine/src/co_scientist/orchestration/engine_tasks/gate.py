@@ -34,7 +34,7 @@ async def _assess_gate_claims(
     """
     from co_scientist.core.async_bridge import run_off_loop
     from co_scientist.domains.research_state.claims.grounding import assess_claim_groups
-    from co_scientist.orchestration.engine_adapter import offline_mode
+    from co_scientist.platform.llm.process_mode import offline_mode
 
     call = functools.partial(
         assess_claim_groups,

@@ -29,18 +29,15 @@ layers =
     co_scientist.platform.telemetry
     co_scientist.core
 ignore_imports =
-    co_scientist.domains.research_state.claims.grounding -> co_scientist.orchestration.engine_adapter
     co_scientist.core.config -> co_scientist.platform.llm
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.ranking.ranking_debate
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.research
     co_scientist.domains.documents.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
     co_scientist.domains.access.free_usage -> co_scientist.api.auth
-    co_scientist.domains.access.free_usage -> co_scientist.orchestration.engine_adapter
     co_scientist.domains.access.free_usage -> co_scientist.api.runs.models
     co_scientist.domains.chat.interviews -> co_scientist.api.contracts.interviews
     co_scientist.domains.chat.interviews -> co_scientist.api.auth
     co_scientist.domains.chat.interviews.turns -> co_scientist.api.auth
-    co_scientist.platform.llm.offline_guard -> co_scientist.orchestration.engine_adapter
     co_scientist.domains.chat.qa -> co_scientist.orchestration.repository.runs
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.events
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.tasks
