@@ -70,6 +70,8 @@ export function Composer({
     textarea.style.height = `${Math.min(textarea.scrollHeight, large ? 146 : 120)}px`;
   }, [input, large]);
 
+  // Composer elevation is light-only in the reference, so its shadow stays a
+  // themed token.
   return (
     <form
       onSubmit={event => {
@@ -80,7 +82,7 @@ export function Composer({
         if (input.trim()) clearAttachments();
       }}
       className={joinClasses(
-        'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem]',
+        'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem] [box-shadow:var(--cosci-composer-shadow)]',
         input.trim() && 'has-input',
         large && 'reference-home-composer',
         attachments.length > 0 && 'has-attachments !min-h-[13.5rem] !pt-4',
