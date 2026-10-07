@@ -5,18 +5,15 @@ import itertools
 from collections.abc import Mapping
 from typing import Any
 
+from co_scientist.domains.research_state.proximity_edges import (
+    PROXIMITY_METHOD,
+    PROXIMITY_METHOD_VERSION,
+)
+from co_scientist.domains.research_state.text_utils import token_coverage
+
 # Round before admission so the stored similarity and floor decision agree, and
 # per-edge JSON cannot grow with full floating-point representations.
 _SIMILARITY_DECIMALS = 3
-
-
-def token_coverage(text: str, reference: str) -> float:
-    """Union denominators hide contained short ideas; divide by the derived
-    text tokens so true coverage remains detectable across lengths."""
-    words = set(text.lower().split())
-    if not words:
-        return 0.0
-    return len(words & set(reference.lower().split())) / len(words)
 
 
 def pair_similarity(text_a: str, text_b: str) -> float:
@@ -37,12 +34,6 @@ _DEGREE_WEIGHT: dict[str, float] = {
     "medium": 0.6,
     "low": 0.3,
 }
-
-
-# Change method/version for new metrics rather than redefining stored judgments.
-PROXIMITY_METHOD = "llm-cluster"
-
-PROXIMITY_METHOD_VERSION = "1"
 
 
 # Computed edges need distinct provenance and degree labels so readers cannot
@@ -129,12 +120,6 @@ def _accumulate_cluster_edges(
                 "cluster_id": cluster_id,
                 "method": PROXIMITY_METHOD,
             }
-
-
-def is_judged_edge(edge: Mapping[str, Any]) -> bool:
-    """Missing method denotes legacy model judgments; treating it as computed
-    on resume would silently withdraw real evidence."""
-    return bool(edge.get("method", PROXIMITY_METHOD) == PROXIMITY_METHOD)
 
 
 def _node_ids(survivors: SurvivorIndex) -> set[str]:

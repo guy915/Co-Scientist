@@ -14,15 +14,15 @@ from co_scientist.domains.research_state.models import (
     phase_message,
 )
 from co_scientist.domains.research_state.state import AppendHypotheses
+from co_scientist.science.citations import (
+    format_experiment_plan,
+    resolve_citation_keys,
+)
 from co_scientist.science.evolution.evolve_prompt import (
     _EvolutionOperation,
     find_nearest_peer,
 )
 from co_scientist.science.evolution.operations import EvolutionContext
-from co_scientist.science.generation.citations import (
-    format_experiment_plan,
-    resolve_citation_keys,
-)
 
 logger = logging.getLogger(__name__)
 
