@@ -73,3 +73,17 @@ def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> Non
     app = _app.get() if app is None else app
     tokens = _token_reservation(request, app=app)
     reserve_provider(_client.get(), _host.get(), tokens, app=app, db_path=_path.get())
+
+
+def reserve_decision_physical(tokens: int, call_limit: int, token_limit: int) -> None:
+    from co_scientist.platform.db.decision_usage import reserve_decision
+
+    db_path = current_db_path()
+    reserve_decision(tokens, call_limit, token_limit, db_path)
+    reserve_provider(_client.get(), _host.get(), tokens, app=_app.get(), db_path=db_path)
+
+
+def block_decision_provider(seconds: float) -> None:
+    from co_scientist.platform.db.decision_usage import block_decisions
+
+    block_decisions(seconds, current_db_path())
