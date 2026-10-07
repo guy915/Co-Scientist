@@ -43,6 +43,7 @@ def test_warning_capacity_is_reserved_and_drained_before_ordinary_chatter() -> N
         handler.handle(_record(f"ordinary-{index}"))
     handler.handle(_record("critical synthetic canary", logging.ERROR))
     first = listener.queue.get(False)
+    assert first is not None
     assert first.getMessage() == "critical synthetic canary"
 
 
@@ -53,6 +54,7 @@ def test_capture_does_not_retain_unbounded_message_exception_or_extra_payload() 
     record.arbitrary_payload = "x" * 100_000
     handler.handle(record)
     pending = listener.queue.get(False)
+    assert pending is not None
     assert len(pending.getMessage().encode()) <= 8192
     assert pending.exc_text is not None and len(pending.exc_text.encode()) <= 8192
     assert not hasattr(pending, "arbitrary_payload")
@@ -182,7 +184,7 @@ def test_global_ui_byte_admission_survives_a_fresh_process(
     from co_scientist.platform.db import log_admission
 
     minute = int(time.time() // 60)
-    monkeypatch.setattr(log_admission.time, "time", lambda: minute * 60 + 1)
+    monkeypatch.setattr(time, "time", lambda: minute * 60 + 1)
     with db.transaction(isolated_db) as conn:
         assert log_admission.claim(conn, 1, log_admission.MAX_GLOBAL_BYTES)
     code = (
