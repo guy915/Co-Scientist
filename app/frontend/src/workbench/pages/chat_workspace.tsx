@@ -105,7 +105,7 @@ export function ChatWorkspace() {
 
   return (
     <div className="reference-workspace grid h-full min-h-full grid-cols-[minmax(0,1fr)] gap-4 [@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:flex-col">
-      <main className="reference-workspace-main relative flex h-full min-h-0 min-w-0 flex-col [@media(max-width:700px)]:flex-1">
+      <div className="reference-workspace-main relative flex h-full min-h-0 min-w-0 flex-col [@media(max-width:700px)]:flex-1">
         {session.hasConversation || awaitingTranscript ? (
           <ConversationView
             scrollRef={scrollRef}
@@ -135,7 +135,7 @@ export function ChatWorkspace() {
           </>
         )}
         <ToastPortal toast={toast} />
-      </main>
+      </div>
     </div>
   );
 }
