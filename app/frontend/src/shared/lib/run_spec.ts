@@ -6,7 +6,7 @@ import type {
   RunCriterion,
   RunFocus,
   RunTier,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {keyedProviders} from './client_id';
 
 // The backend permits only express for keyless free runs.

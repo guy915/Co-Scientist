@@ -14,7 +14,7 @@ import {
   retiresStartIntent,
   startRun,
   type Run,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import type {StartedSession} from './chat_timeline_run_spec_card';

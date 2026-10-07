@@ -1,7 +1,7 @@
 import {render} from '@testing-library/react';
 import type {ComponentProps} from 'react';
 import {makeRunWithSummary} from '@/test_fixtures';
-import type {Report, ResearchOverview, RunWithSummary} from '@/api/runs';
+import type {Report, ResearchOverview, RunWithSummary} from '@/shared/api/runs';
 import {ResearchOverviewView} from './run_detail_overview';
 
 export function makeRun(

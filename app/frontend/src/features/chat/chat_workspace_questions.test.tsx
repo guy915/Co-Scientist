@@ -1,7 +1,7 @@
 import {makeQuestion} from '@/test_fixtures';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
-import type {Interview, InterviewQuestion} from '@/api/runs';
+import type {Interview, InterviewQuestion} from '@/shared/api/runs';
 import {
   apiMock,
   installChatWorkspaceMocks,

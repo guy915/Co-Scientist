@@ -10,10 +10,17 @@ export function getClientId(): string {
 }
 
 export function makePrefixedId(prefix: string): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+  if (typeof crypto === 'undefined') {
+    throw new Error('Secure randomness is required to create an ownership ID');
+  }
+  if (typeof crypto.randomUUID === 'function') {
     return `${prefix}-${crypto.randomUUID()}`;
   }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const id = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
+  return `${prefix}-${id}`;
 }
 
 // BYOK browser credentials travel only as headers; the backend validates and
@@ -73,6 +80,7 @@ function migrateLegacy(): void {
     store.removeItem(LEGACY_KEY_STORAGE);
     if (!store.getItem(KEYS_STORAGE) && legacyKey.trim()) {
       const keys = {[provider]: legacyKey.trim()};
+      // codeql[js/clear-text-storage-of-sensitive-data] Intentional BYOK browser vault; keys travel as headers.
       store.setItem(KEYS_STORAGE, JSON.stringify(keys));
     }
   }
@@ -129,6 +137,7 @@ export function setStoredApiKey(
       }
     }
   }
+  // codeql[js/clear-text-storage-of-sensitive-data] Intentional BYOK browser vault; keys travel as headers.
   window.localStorage.setItem(KEYS_STORAGE, JSON.stringify(keys));
 }
 

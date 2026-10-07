@@ -1,12 +1,12 @@
 import {render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import type {SystemStatus} from '@/api/system';
+import type {SystemStatus} from '@/shared/api/system';
 import {SystemStatusIndicator} from './layout_header';
 
 const apiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 
-vi.mock('@/api/system', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/api/system')>()),
+vi.mock('@/shared/api/system', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/api/system')>()),
   ...apiMock,
 }));
 

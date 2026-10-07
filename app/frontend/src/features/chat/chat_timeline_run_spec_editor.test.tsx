@@ -1,5 +1,5 @@
-import type {Interview} from '@/api/runs';
-import {editInterviewFields} from '@/api/runs';
+import type {Interview} from '@/shared/api/runs';
+import {editInterviewFields} from '@/shared/api/runs';
 import {makeSpec} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {beforeEach, expect, test, vi} from 'vitest';
@@ -10,8 +10,8 @@ import {
   useSpecFieldsEditor,
 } from './chat_timeline_run_spec_editor';
 
-vi.mock('@/api/runs', async importOriginal => {
-  const actual = await importOriginal<typeof import('@/api/runs')>();
+vi.mock('@/shared/api/runs', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/shared/api/runs')>();
   return {...actual, editInterviewFields: vi.fn()};
 });
 

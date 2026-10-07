@@ -11,7 +11,7 @@ import {
 import {Icon, type IconName} from '@/shared/ui/icon';
 import {IconButton, Menu, MenuItem, TextArea} from '@/shared/ui';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
-import type {Connector, SystemStatus} from '@/api/system';
+import type {Connector, SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 export interface ComposerProps {

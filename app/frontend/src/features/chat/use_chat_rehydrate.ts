@@ -14,7 +14,7 @@ import {
   type ChatSummary,
   type Run,
   type RunMessage,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {type InferredRunSpec} from '@/shared/lib/run_spec';
 import type {StartedSession} from './chat_timeline_run_spec_card';
