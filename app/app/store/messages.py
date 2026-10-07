@@ -65,6 +65,38 @@ def list_messages(
         return [_row_to_message(r) for r in rows]
 
 
+def claim_start_prompt(run_id: str, prompt: str) -> tuple[MessageRow, bool]:
+    with transaction() as conn:
+        claim = conn.execute(
+            "SELECT prompt_message_id FROM run_announcements WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+        row = conn.execute(
+            f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE run_id=? "
+            "AND kind='start' AND sender='user' ORDER BY id LIMIT 1",
+            (run_id,),
+        ).fetchone()
+        fresh = claim is None and row is None
+        if fresh:
+            cursor = conn.execute(
+                "INSERT INTO messages (run_id,sender,content,kind,created_at,applied) "
+                "VALUES (?,'user',?,'start',?,0)",
+                (run_id, prompt, _now()),
+            )
+            row = conn.execute(
+                f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE id=?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise ValueError("announcement prompt is missing")
+        message = _row_to_message(row)
+        conn.execute(
+            "INSERT OR IGNORE INTO run_announcements VALUES (?,?)",
+            (run_id, message.id),
+        )
+        return message, fresh
+
+
 def append_qa_reply(message: NewMessage, question_id: int) -> None:
     """A replaced question invalidates answers still streaming in other tabs."""
     with connect() as conn:

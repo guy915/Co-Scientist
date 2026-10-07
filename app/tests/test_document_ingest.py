@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 
+import pytest
+
+from app import document_ingest
 from app.document_ingest import _extract_pdf
 
 Line = tuple[str, str, float, float, float]
@@ -103,3 +106,20 @@ def test_larger_font_infers_a_heading_with_no_outline_or_numbering() -> None:
 
     assert "# Results" in text
     assert "The assay showed a clear effect." in text
+
+
+def test_pdf_page_budget_rejects_whole_upload() -> None:
+    pdf = build_pdf([[("Body text", "F1", 10, 50, 450)] for _ in range(251)])
+
+    with pytest.raises(ValueError, match="250 page limit"):
+        _extract_pdf(pdf)
+
+
+def test_pdf_extracted_text_budget_rejects_whole_upload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pdf = build_pdf([[("A sentence exceeding the configured limit.", "F1", 10, 50, 450)]])
+    monkeypatch.setattr(document_ingest, "MAX_PDF_OUTPUT_BYTES", 8)
+
+    with pytest.raises(ValueError, match="5 MiB extracted text limit"):
+        document_ingest._extract_pdf_in_process(pdf)

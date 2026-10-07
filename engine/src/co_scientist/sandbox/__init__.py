@@ -22,6 +22,7 @@ from co_scientist.sandbox.runner import (
     ExecRequest,
     ExecResult,
     build_env,
+    command_lifecycle_available,
     run_sandboxed,
 )
 
@@ -36,6 +37,7 @@ __all__ = [
     "SandboxPolicy",
     "UnsupportedSandboxError",
     "build_env",
+    "command_lifecycle_available",
     "is_known_safe",
     "read_only",
     "run_sandboxed",
