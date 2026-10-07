@@ -22,13 +22,13 @@ from app.task_worker.enqueue import (
     enqueue_run_workflow as enqueue_run_workflow,
 )
 from app.task_worker.outcomes import (
+    LeaseLostError as LeaseLostError,
+)
+from app.task_worker.outcomes import (
     UnsupportedTaskError as UnsupportedTaskError,
 )
 from app.task_worker.outcomes import (
     _handle_task_failure as _handle_task_failure,
-)
-from app.task_worker.outcomes import (
-    _LeaseLostError as _LeaseLostError,
 )
 from app.task_worker.outcomes import (
     _record_success as _record_success,
@@ -103,7 +103,7 @@ async def _execute_until_lease_lost(
         execution.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await execution
-        raise _LeaseLostError(f"task {task.id} no longer owns its lease")
+        raise LeaseLostError(f"task {task.id} no longer owns its lease")
     finally:
         if not execution.done():
             execution.cancel()
@@ -125,7 +125,7 @@ async def _execute_and_record(
         # tasks.
         with run_log_context(task.run_id):
             result = await _execute_until_lease_lost(task, lease_lost, db_path=db_path)
-    except _LeaseLostError:
+    except LeaseLostError:
         # Revoked workers must not overwrite already recorded cancellation,
         # pause or competing ownership.
         logger.info("Task %s stopped after lease revocation", task.id)

@@ -266,7 +266,7 @@ async def test_a_cancel_before_a_blocking_gate_leaves_no_gate_audit(
 
     monkeypatch.setattr(module, name, cancel_first)
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
@@ -400,7 +400,7 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
 
     _install_runtime(monkeypatch).screen = cancel_then_decide
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
@@ -475,7 +475,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
     )
     task = tasks.claim_task("cancel-during-drain-worker", run_id=run_id, db_path=isolated_db)
     assert task is not None
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     run = runs.get_run(run_id, db_path=isolated_db)

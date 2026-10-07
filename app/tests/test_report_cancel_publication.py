@@ -203,7 +203,7 @@ async def test_cancel_after_final_safety_withholds_report_publication(
     _install_report_stubs(hypothesis_id, monkeypatch)
     cancel_responses = _install_cancel_before_publication(owner, run_id, monkeypatch)
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     actual = _publication_snapshot(owner, run_id, task.id, cancel_responses, isolated_db)

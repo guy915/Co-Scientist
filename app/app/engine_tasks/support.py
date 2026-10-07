@@ -363,9 +363,9 @@ def assert_task_commit_allowed(task: ScientificTask, conn: sqlite3.Connection) -
     ):
         # Import below worker outcomes to avoid cycles; BEGIN IMMEDIATE fences
         # lease reads with checkpoint and successor writes.
-        from app.task_worker.outcomes import _LeaseLostError
+        from app.task_worker.outcomes import LeaseLostError
 
-        raise _LeaseLostError(
+        raise LeaseLostError(
             f"task {task.id} cannot commit after lease revocation or run termination"
         )
 

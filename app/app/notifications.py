@@ -66,7 +66,7 @@ async def deliver_completion_notification(
     return {"recipient": recipient, "status": "sent"}
 
 
-def _enqueue_completion_notification(
+def enqueue_completion_notification(
     run_id: str,
     research_goal: str,
     report_id: str,

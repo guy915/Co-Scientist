@@ -275,7 +275,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
     _replace_expired_bootstrap_lease(client, run_id, original, isolated_db)
     release.set()
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await bootstrap
 
     run = runs.get_run(run_id, db_path=isolated_db)
@@ -303,7 +303,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     _stub_bootstrap_providers(monkeypatch)
     monkeypatch.setattr(engine_tasks_inputs, "_prepare_bootstrap_state", fake_prepare)
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_bootstrap(original, db_path=isolated_db)
 
     assert prepared == []

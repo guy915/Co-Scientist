@@ -52,7 +52,7 @@ def _failure_error(exc: Exception) -> str | TaskFailure:
     return TaskFailure(str(exc), kind) if kind is not None else str(exc)
 
 
-class _LeaseLostError(RuntimeError):
+class LeaseLostError(RuntimeError):
     """Durable ownership ended while task code was running."""
 
 

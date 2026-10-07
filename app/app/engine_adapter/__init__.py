@@ -24,7 +24,7 @@ if os.path.isdir(_engine_src) and _engine_src not in sys.path:
 
 # find_spec avoids engine import side effects on repeatedly polled availability
 # probes.
-def _engine_importable() -> bool:
+def engine_importable() -> bool:
     try:
         import importlib.util
 
@@ -37,7 +37,7 @@ def select_provider() -> str:
     """The engine is a hard dependency; fail at startup rather than silently
     changing scientific behavior.
     """
-    if not _engine_importable():
+    if not engine_importable():
         raise RuntimeError(
             "co_scientist engine is not importable; it is a hard dependency "
             "of the app now that the mock provider has been retired"
@@ -69,7 +69,7 @@ def sync_engine_llm_backend(run_id: str, cfg: dict[str, Any], db_path: str | Non
 
 def system_status() -> dict[str, Any]:
     has_key = any_provider_credential()
-    engine = _engine_importable()
+    engine = engine_importable()
     provider = select_provider()
     return {
         "provider": provider,

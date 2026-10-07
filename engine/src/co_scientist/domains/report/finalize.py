@@ -4,7 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.notifications import _enqueue_completion_notification
+from app.notifications import enqueue_completion_notification
 from app.run_events import EmitFn
 from app.store import events, runs
 
@@ -174,7 +174,7 @@ def _commit_leased_report_publication(
         status_payload = {"status": "completed"}
         status_seq = events.append_event(run_id, "status", status_payload, conn=conn)
         runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path, conn=conn)
-        _enqueue_completion_notification(
+        enqueue_completion_notification(
             run_id, research_goal, saved["id"], db_path=db_path, conn=conn
         )
     return saved, report_seq, report_payload, status_seq, status_payload
@@ -197,7 +197,7 @@ async def _publish_report(
         store.replace_knowledge_facts(run_id, built.facts, db_path=db_path)
         yield await emit("report", {**payload, "report_id": saved["id"]})
         runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
-        _enqueue_completion_notification(run_id, research_goal, saved["id"], db_path=db_path)
+        enqueue_completion_notification(run_id, research_goal, saved["id"], db_path=db_path)
         yield await emit("status", {"status": "completed"})
     else:
         saved, report_seq, report_payload, status_seq, status_payload = (

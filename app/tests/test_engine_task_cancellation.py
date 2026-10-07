@@ -263,7 +263,7 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
         lambda: _control_run(client, run_id, "cancel", "cancelled"),
     )
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_node_task(task, db_path=isolated_db)
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
@@ -411,7 +411,7 @@ def test_a_revoked_task_cannot_commit_at_any_boundary(
     else:
         _re_lease_same_owner(run_id, task, isolated_db)
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         commit(task, seq, run_id, isolated_db)
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
