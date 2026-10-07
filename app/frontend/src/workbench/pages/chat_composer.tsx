@@ -84,7 +84,8 @@ export function Composer({
       className={joinClasses(
         'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem] [box-shadow:var(--cosci-composer-shadow)]',
         input.trim() && 'has-input',
-        large && 'reference-home-composer',
+        large &&
+          'min-[701px]:row-6 min-[1181px]:row-7 min-[1181px]:mt-[clamp(1.25rem,2.4vh,1.9rem)] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[6.35rem] [@media(max-width:700px)]:mt-[0.9rem] [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:pt-[0.9rem] [@media(max-width:700px)]:pb-[0.65rem]',
         attachments.length > 0 && 'has-attachments !min-h-[13.5rem] !pt-4',
       )}
     >
@@ -111,7 +112,8 @@ export function Composer({
           autoFocus={autoFocus}
           className={joinClasses(
             'relative z-[2] block min-h-[2.85rem] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 font-[inherit] leading-6 text-cosci-composer-text outline-none',
-            large && 'reference-home-composer-textarea',
+            large &&
+              '[@media(min-width:1181px)_and_(max-height:760px)]:min-h-[2.65rem]',
           )}
           onChange={event => setInput(event.target.value)}
           onKeyDown={event => {
