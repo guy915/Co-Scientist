@@ -98,6 +98,16 @@ def is_rate_limited(error: Exception) -> bool:
     return "rate limit" in text or "ratelimit" in text
 
 
+def is_credential_rejected(error: Exception) -> bool:
+    """Classify by name rather than importing the provider SDK, which the
+    layering keeps inside this gateway.
+    """
+    if type(error).__name__ in {"AuthenticationError", "PermissionDeniedError"}:
+        return True
+    text = str(error).lower()
+    return "invalid api key" in text or "incorrect api key" in text
+
+
 # Short caps fit ordinary backoff; daily caps require durable parking.
 _PLATFORM_PARK_THRESHOLD_SECONDS = 90.0
 
