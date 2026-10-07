@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 import app.engine_adapter as engine_adapter
 from app import API_VERSION
+from app.async_bridge import off_loop
 from app.auth import Principal, principal_for_request
 from app.byok_models import router as byok_models_router
 from app.config import settings
@@ -38,7 +39,7 @@ from app.seed import seed_demo_runs
 from app.store import checkpoints as store
 from app.store import db, runs, tasks
 from app.store import runs_views as views
-from app.store.models import DEMO_CLIENT_ID
+from app.store.models import DEMO_CLIENT_ID, RunRow
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +232,12 @@ def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:
 _allowed_origins, _allow_credentials = _resolve_cors_config(os.getenv("ALLOWED_ORIGINS", ""))
 
 
-def _run_ownership_response(request: Request, principal: Principal) -> Response | None:
+@off_loop
+def _lookup_run(run_id: str) -> RunRow | None:
+    return runs.get_run(run_id)
+
+
+async def _run_ownership_response(request: Request, principal: Principal) -> Response | None:
     """Empty subjects own nothing, including legacy empty-owner rows; non-
     owned run existence remains hidden.
     """
@@ -241,7 +247,7 @@ def _run_ownership_response(request: Request, principal: Principal) -> Response 
     run_id = parts[2]
     if run_id == "demo":
         return None
-    run = runs.get_run(run_id)
+    run = await _lookup_run(run_id)
     if run is None:
         return None
     if run.client_id == DEMO_CLIENT_ID:
@@ -265,7 +271,7 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     # Authorize routed ASGI paths, not URLs reconstructed from caller-controlled
     # Host headers.
     principal = principal_for_request(request)
-    ownership_response = _run_ownership_response(request, principal)
+    ownership_response = await _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response
     return cast(Response, await call_next(request))

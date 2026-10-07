@@ -17,6 +17,7 @@ from fastapi import (
 )
 
 from app import document_ingest
+from app.async_bridge import off_loop
 from app.auth import client_id, require_client_scope
 from app.staged_documents import document_summary as document_summary
 from app.staged_documents import (
@@ -76,7 +77,8 @@ async def stage_document(
 
 
 @router.delete("/{document_id}", status_code=204)
-async def delete_document(document_id: str, request: Request) -> Response:
+@off_loop
+def delete_document(document_id: str, request: Request) -> Response:
     """Permanently delete one document the caller staged (N3).
 
     Owner-scoped like every other read of ``staged_documents``: a document

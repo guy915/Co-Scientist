@@ -10,10 +10,12 @@ list every task. The campaign finds them, ranks them and works through them.
 
 **Status:** in progress since 6 October 2026. The audit is recorded in
 `docs/optimization/findings.md`, whose Progress table lists each fix and its
-numbers: CI 5:51 → 2:54 wall, store and API latency, event-loop stalls,
-bundle size, error tracking and launch files. The Standard and second Express
-baselines are running with per-stage timings; the first model batch follows.
-Prefill-only prompt changes were judged not worth their risk (findings M7–M9).
+numbers: CI 5:51 → 2:43 wall, store and API latency, request handlers off the
+event loop, bundle size and caching, error tracking and launch files. Findings
+judged not worth their risk are listed there with the reason. The Standard and
+second Express baselines are running with per-stage timings; the first model
+batch follows. Contrast and focus fixes (F10, F11) wait for shrink lever 7's
+stylesheet PRs.
 Live progress is on the `Campaign board: optimization` issue.
 
 ## Scope

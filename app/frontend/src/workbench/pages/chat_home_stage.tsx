@@ -368,6 +368,41 @@ export const SESSION_STEPS: readonly {
   },
 ];
 
+// 701-1180px keeps recents at natural height below the first screen rather
+// than a desktop-style scroller; 1181px+ fills the stage column. Mobile never
+// renders the panel.
+const RECENTS_PANEL_CLASSES =
+  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 ' +
+  'min-[701px]:mt-4 min-[701px]:min-h-auto min-[701px]:w-[min(100%,43rem)] min-[701px]:grid-rows-[auto_auto] min-[701px]:overflow-visible ' +
+  'min-[1181px]:mt-0 min-[1181px]:h-full min-[1181px]:min-h-0 min-[1181px]:w-full min-[1181px]:max-h-[calc(100vh-4.5rem)] min-[1181px]:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] min-[1181px]:grid-rows-[auto_minmax(0,1fr)] min-[1181px]:[justify-self:end] min-[1181px]:gap-[1.55rem] min-[1181px]:pt-[clamp(0.35rem,1vh,0.75rem)] min-[1181px]:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
+
+const RECENTS_PANEL_EMPTY_CLASSES = 'grid-rows-[auto_1fr] self-stretch pb-8';
+
+const RECENTS_LIST_CLASSES =
+  'm-0 grid min-h-0 list-none gap-[2.6rem] min-[1181px]:scroll-p-[0.55rem_0.55rem_2.15rem] min-[1181px]:gap-[2.65rem]';
+
+// Background-independent masks soften the scroll edge in both themes without
+// matching surface colors; symmetric 1181px+ insets leave scrollbar slack so
+// narrowed cards cannot overflow horizontally.
+const RECENTS_LIST_SCROLL_CLASSES =
+  'overflow-y-auto p-0 pr-[0.6rem] [mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] [-webkit-mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] ' +
+  'max-h-[calc(100vh-12rem)] supports-[height:100dvh]:max-h-[calc(100dvh-12rem)] min-[701px]:max-h-none min-[701px]:overflow-visible min-[1181px]:overflow-y-auto min-[1181px]:p-[0.55rem_0.55rem_2.15rem]';
+
+// The empty state is not a scroller; a mask would dim the card itself.
+const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
+
+// Its transition stays in home_surface.css: the global unlayered `a` rule
+// would beat a utility.
+const RECENT_CARD_CLASSES =
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline [box-shadow:0_1px_2px_rgb(0_0_0/15%),0_2px_10px_rgb(0_0_0/10%)] [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
+
+// Wrap whole chips rather than split duration labels inside their pills.
+const RECENT_META_CHIP_CLASSES =
+  'rounded-[0.3125rem] bg-cosci-recent-meta-bg px-2 py-1 text-[0.6875rem] font-medium tracking-[0.1px] whitespace-nowrap text-cosci-fg min-[1181px]:leading-[1.45]';
+
+const RECENT_CHIP_CLASSES =
+  'inline-flex items-center gap-1 rounded-[0.3125rem] bg-(--cosci-recent-chip-bg) px-2 py-1 text-[0.6875rem] font-medium tracking-[0.1px] text-cosci-fg min-[1181px]:min-h-[1.62rem] min-[1181px]:flex-none min-[1181px]:leading-[1.45] min-[1181px]:whitespace-nowrap';
+
 interface HomeRecentsPanelProps {
   runs: Run[];
   showAll: boolean;
@@ -385,28 +420,36 @@ export function HomeRecentsPanel({
   const empty = visibleRuns.length === 0;
   return (
     <aside
-      className={`reference-recents reference-recents-panel${empty ? ' reference-recents--empty' : ''}`}
+      className={joinClasses(
+        RECENTS_PANEL_CLASSES,
+        empty && RECENTS_PANEL_EMPTY_CLASSES,
+      )}
       aria-label="Recent runs"
     >
-      <div className="reference-recents-heading">
+      <div className="flex items-center gap-2 text-th-muted-fg">
         <Icon
           aria-hidden="true"
-          className="reference-recents-heading-icon"
+          className="size-5 min-[1181px]:size-[1.375rem]"
           name="history"
         />
-        <h2 className="reference-recents-heading-title">Recents</h2>
+        <h2 className="m-0 text-[1.15rem] font-semibold text-cosci-fg min-[1181px]:text-[1rem] min-[1181px]:leading-[1.5] min-[1181px]:font-medium">
+          Recents
+        </h2>
       </div>
       <ol
-        className={`reference-recents-list${empty ? ' reference-recents-list--empty' : ''}`}
+        className={joinClasses(
+          RECENTS_LIST_CLASSES,
+          empty ? RECENTS_LIST_EMPTY_CLASSES : RECENTS_LIST_SCROLL_CLASSES,
+        )}
       >
         {empty ? (
-          <li className="reference-recents-empty-item">
-            <div className="reference-recents-empty-state">
+          <li className="h-full min-h-0">
+            <div className="box-border grid h-full min-h-[25rem] w-full place-items-center content-center gap-4 rounded-[1.35rem] border-[1.5px] border-dashed border-cosci-border p-6 text-center text-cosci-muted">
               <GoogleLabsIcon
                 aria-hidden="true"
-                className="reference-recents-empty-icon"
+                className="block h-[1.95rem] w-[2.1rem] text-(--cosci-accent)"
               />
-              <strong className="reference-recents-empty-copy">
+              <strong className="max-w-[17rem] text-[1rem] leading-[1.35] font-[650] text-inherit">
                 You have not started any sessions yet.
               </strong>
             </div>
@@ -417,10 +460,10 @@ export function HomeRecentsPanel({
           ))
         )}
         {runs.length > 4 && (
-          <li className="reference-load-more-item">
+          <li className="flex justify-center pt-1 pb-2">
             <button
               type="button"
-              className="reference-load-more"
+              className="inline-flex cursor-pointer items-center gap-1 justify-self-center [border:0] bg-transparent px-2 py-1 text-[0.9rem] font-medium text-(--cosci-idea-ref-blue) focus-visible:underline dark:text-cosci-blue [&:hover]:underline"
               onClick={onToggleShowAll}
             >
               {showAll ? 'Show less' : 'Show more'}
@@ -439,11 +482,11 @@ export function HomeRecentsPanel({
 function RecentCardMeta({run}: {run: Run}) {
   const nowSeconds = useNowTick(1000);
   return (
-    <span className="reference-recent-meta">
-      <span className="reference-recent-meta-chip">
+    <span className="flex flex-wrap gap-[0.35rem]">
+      <span className={RECENT_META_CHIP_CLASSES}>
         {formatHomeRunDate(run.updated_at)}
       </span>
-      <span className="reference-recent-meta-chip">
+      <span className={RECENT_META_CHIP_CLASSES}>
         {formatHomeRunTimeChip(run, nowSeconds)}
       </span>
     </span>
@@ -472,12 +515,12 @@ function RecentRunCard({
               ? `/chats/${chat.id}`
               : `/runs/${run.id}/details`
         }
-        className={`reference-recent-card${active ? ' is-active-run' : ''}`}
+        className={joinClasses(RECENT_CARD_CLASSES, active && 'is-active-run')}
         title={run.research_goal}
       >
         <RecentCardMeta run={run} />
         <TruncatedLabel
-          className="reference-recent-title"
+          className="line-clamp-2 text-[1rem] leading-[1.5] font-medium"
           text={
             run.title ||
             firstSentenceClause(run.research_goal) ||
@@ -486,7 +529,7 @@ function RecentRunCard({
           lines={2}
         />
         <TruncatedLabel
-          className="reference-recent-description"
+          className="reference-recent-description line-clamp-3 text-[0.9rem] leading-[1.35] text-cosci-shell-icon min-[1181px]:text-[0.94rem] min-[1181px]:leading-[1.34]"
           text={run.research_goal}
           lines={3}
         />
@@ -505,33 +548,28 @@ function RecentRunResults({run}: {run: Run}) {
   const topScore = run.top_elo ?? null;
   return (
     <>
-      <span className="reference-recent-chips">
-        <span className="reference-recent-chip">
-          <Icon
-            aria-hidden="true"
-            className="reference-recent-chip-icon"
-            name="emoji_events"
-          />
+      <span className="flex flex-nowrap items-center gap-[0.35rem]">
+        <span className={RECENT_CHIP_CLASSES}>
+          <Icon aria-hidden="true" className="size-4" name="emoji_events" />
           Winning ideas
         </span>
         {topScore !== null && (
-          <span className="reference-recent-chip">
-            <Icon
-              aria-hidden="true"
-              className="reference-recent-chip-icon"
-              name="stars"
-            />
+          <span className={RECENT_CHIP_CLASSES}>
+            <Icon aria-hidden="true" className="size-4" name="stars" />
             Top score: {topScore}
           </span>
         )}
       </span>
       {topIdeas.length > 0 && (
-        <ol className="reference-winner-list">
+        <ol className="m-0 mt-[0.15rem] grid list-none gap-[0.65rem] p-0 text-[0.75rem] leading-[1.33] tracking-[0.1px] text-cosci-fg min-[1181px]:gap-2">
           {topIdeas.map((idea, index) => (
-            <li key={idea} className="reference-winner-list-item">
+            <li
+              key={idea}
+              className="grid grid-cols-[1.4rem_minmax(0,1fr)] gap-[0.2rem]"
+            >
               <span>{index + 1}.</span>
               <TruncatedLabel
-                className="reference-winner-list-text"
+                className="line-clamp-2 min-w-0"
                 text={idea}
                 lines={2}
               />
@@ -623,6 +661,12 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
   {icon: 'chess', label: 'Playing tournament'},
 ];
 
+const RUN_STEP_CLASSES =
+  'flex items-center gap-[0.6rem] text-[0.85rem] leading-[1.2] font-medium text-cosci-fg';
+
+const RUN_STEP_DELIMITER_CLASSES =
+  'm-[0.2rem_0_0.2rem_0.625rem] h-3 border-s border-s-cosci-border';
+
 // Show the latest phase, not the furthest: later cycles legitimately return to
 // generation and review.
 export function RunStepFlow({run}: {run: Run}) {
@@ -637,24 +681,21 @@ export function RunStepFlow({run}: {run: Run}) {
   const revealed = RUN_STEPS.slice(0, currentPhase);
 
   return (
-    <div className="reference-run-steps">
-      <div className="reference-run-step-list">
-        <div className="reference-run-step">
+    <div className="mt-[0.1rem] grid gap-[0.7rem]">
+      <div className="grid">
+        <div className={RUN_STEP_CLASSES}>
           <span
             aria-hidden="true"
-            className="reference-run-step-spinner reference-run-step-glyph"
+            className="size-5 shrink-0 animate-[reference-run-step-spin_0.8s_linear_infinite] rounded-[9999px] border-2 border-[color:color-mix(in_srgb,var(--color-th-primary)_28%,transparent)] border-t-th-primary motion-reduce:animate-none"
           />
-          <span className="reference-run-step-label">In Progress</span>
+          <span className="reference-run-step-label min-w-0">In Progress</span>
         </div>
-        <div aria-hidden="true" className="reference-run-step-delimiter" />
+        <div aria-hidden="true" className={RUN_STEP_DELIMITER_CLASSES} />
         {revealed.map((step, index) => (
           <Fragment key={step.label}>
             <RunStepItem icon={step.icon} label={step.label} />
             {index < revealed.length - 1 && (
-              <div
-                aria-hidden="true"
-                className="reference-run-step-delimiter"
-              />
+              <div aria-hidden="true" className={RUN_STEP_DELIMITER_CLASSES} />
             )}
           </Fragment>
         ))}
@@ -665,13 +706,13 @@ export function RunStepFlow({run}: {run: Run}) {
 
 function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   return (
-    <div className="reference-run-step">
+    <div className={RUN_STEP_CLASSES}>
       <Icon
         aria-hidden="true"
-        className="reference-run-step-icon"
+        className="reference-run-step-icon size-5 shrink-0 text-cosci-shell-icon"
         name={icon}
       />
-      <span className="reference-run-step-label">{label}</span>
+      <span className="reference-run-step-label min-w-0">{label}</span>
     </div>
   );
 }
