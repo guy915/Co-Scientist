@@ -34,7 +34,7 @@ async def test_an_unregistered_tool_fails_once_without_waiting(sleeps: list[floa
     client = _Client(UnknownToolError("tool 'search_web' not found"))
 
     with pytest.raises(UnknownToolError):
-        await search_query._call_search_tool(cast(MCPToolClient, client), "search_web", {})
+        await search_query.call_search_tool(cast(MCPToolClient, client), "search_web", {})
 
     assert client.calls == 1
     assert sleeps == []
@@ -44,7 +44,7 @@ async def test_a_transient_failure_is_still_retried(sleeps: list[float]) -> None
     client = _Client(ConnectionError("session reset"))
 
     with pytest.raises(ConnectionError):
-        await search_query._call_search_tool(cast(MCPToolClient, client), "search_pubmed", {})
+        await search_query.call_search_tool(cast(MCPToolClient, client), "search_pubmed", {})
 
     assert client.calls == search_query._SEARCH_ATTEMPTS
     assert len(sleeps) == search_query._SEARCH_ATTEMPTS - 1

@@ -12,7 +12,7 @@ import type {ChatSummary, Run} from '@/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {useFittingRows, useOverflowing} from '@/shared/hooks/dom';
-import {preferredSessionSide} from '@/features/runs/session_switch';
+import {preferredSessionSide} from '@/shared/hooks/session_side';
 import {tabPath} from '@/shared/lib/run_tabs';
 
 const RAIL_MENU_LAYOUT_CLASSES =
