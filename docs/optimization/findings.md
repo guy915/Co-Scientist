@@ -45,6 +45,7 @@ their risk are at the end with the reason.
 | B10 | #288 | Report 185 → 19 KB on the wire |
 | B13 | #291 | Status polls 381 → 0 ms after the first |
 | F2 | #303 | Entry script 80.8 → 63.4 KB gzip; throttled LCP 4.32 → 3.94 s |
+| F3 | #313, #315 | Keystroke to frame at 4× CPU: home page p50 66–76 → 48–51 ms; 60-turn chat 276–293 → 27–28 ms |
 | F1, F4 | #274 | Markdown chunk 103 → 70 KB gzip; stale-chunk reload |
 | F5 | #297 | API refusals shown as their message, not `409 {"detail":…}` |
 | F6 | #294 | Closed mobile drawer out of the tab order; one `main` landmark |
