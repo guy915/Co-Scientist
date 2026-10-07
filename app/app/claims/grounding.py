@@ -29,7 +29,6 @@ from app.claims.gate import (
     ClaimRole,
     EntailmentLabel,
     SupportSpan,
-    is_speculative,
 )
 from app.store import records as store
 from app.store.records import NewClaimEvidence, NewSafetyDecision
@@ -477,7 +476,7 @@ def _ground_one_hypothesis(
         [assessment for assessment, _role in assessments],
         allow_speculative=allow_speculative,
         explicitly_speculative_claims={
-            assessment.claim for assessment, role in assessments if is_speculative(role)
+            assessment.claim for assessment, role in assessments if role == ClaimRole.SPECULATIVE
         },
         require_supported_claim=not allow_speculative,
     )

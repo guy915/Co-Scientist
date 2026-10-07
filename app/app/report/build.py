@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
+from app.claims.gate import ClaimEdge
 from app.elo import live_leaderboard, rank_for_publication
 from app.report.content import (
     _agent_insights,
@@ -50,7 +51,7 @@ class ReportRequest(NamedTuple):
 class _ReportData(NamedTuple):
     hyps: list[dict[str, Any]]
     all_hyps: list[dict[str, Any]]
-    claim_edges: list[dict[str, Any]]
+    claim_edges: list[ClaimEdge]
     released_claim_edges: list[dict[str, Any]]
     evidence: list[dict[str, Any]]
     citations: list[dict[str, Any]]
@@ -125,7 +126,7 @@ def _resolve_knowledge_base(data: _ReportData, req: ReportRequest) -> list[dict[
 
 def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     all_hyps = hypotheses.list_hypotheses(run_id, db_path=db_path)
-    claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
+    claim_edges = store.list_claim_edges(run_id, db_path=db_path)
     # Order once after safety filtering so top ideas and standings open with the
     # same idea.
     hyps = rank_for_publication(exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges))
