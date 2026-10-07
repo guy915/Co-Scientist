@@ -32,8 +32,6 @@ ignore_imports =
     co_scientist.domains.chat.interviews -> co_scientist.api.contracts.interviews
     co_scientist.domains.chat.interviews -> co_scientist.api.auth
     co_scientist.domains.chat.interviews.turns -> co_scientist.api.auth
-    co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.events
-    co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.tasks
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
     co_scientist.platform.llm.tool_effects -> co_scientist.platform.retrieval.config.registry
