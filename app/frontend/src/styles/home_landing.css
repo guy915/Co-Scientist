@@ -157,7 +157,6 @@ html:has(.ucs-landing) body {
   --button-tonal-bg: var(--l-o-teal);
   --button-tonal-fg: var(--l-c-teal);
   --segmented-track: var(--l-surface);
-  --segmented-border: transparent;
   --segmented-thumb: var(--l-ink);
   --segmented-fg: var(--l-muted);
   --segmented-selected-fg: var(--l-bg);

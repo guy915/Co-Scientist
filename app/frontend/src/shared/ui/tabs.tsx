@@ -42,7 +42,7 @@ export interface SegmentOption<T extends string> {
 export type SegmentedSize = 'md' | 'lg';
 
 const SEGMENT_TRACK_CLASSES: Record<SegmentedSize, string> = {
-  md: 'grid auto-cols-fr grid-flow-col gap-[0.3rem] p-[0.18rem]',
+  md: 'grid auto-cols-fr grid-flow-col gap-[0.3rem] border border-segmented-border p-[0.18rem]',
   // Landing tiers size to their labels and scroll on narrow screens.
   lg: 'inline-flex max-w-full gap-1 overflow-x-auto p-1 [scrollbar-width:none]',
 };
@@ -82,7 +82,7 @@ export function SegmentedControl<T extends string>({
       role="group"
       aria-label={label}
       className={joinClasses(
-        'relative rounded-full border border-segmented-border bg-segmented-track',
+        'relative rounded-full bg-segmented-track',
         SEGMENT_TRACK_CLASSES[size],
         layoutClassName,
       )}
