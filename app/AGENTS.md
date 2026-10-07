@@ -126,6 +126,7 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 - Add paired light/dark tokens in `tokens.css`, never inline hardcoded `dark:[#hex]` overrides. Theme swaps must update both palettes; respect reduced-motion preferences and suppress transitions during swaps.
 - Use `rounded-md` (6px) for data blocks, `rounded-xl` (12px) for interactive containers, and `rounded-full` for pills/buttons/chips. Existing bare `rounded` utilities are 8px.
 - Cards and inputs use tonal layers rather than box shadows; reserve elevation for overlays.
+- Breakpoints are the variants in `index.css`: `phone:` (≤700px, equal to `MOBILE_MEDIA_QUERY` in `shared/hooks/dom.ts`, which a test checks), `above-phone:`, `tablet:` (701–1180px) and `desktop:` (≥1181px). Lint rejects a hand-written phone breakpoint.
 - Goal Report Markdown relies on browser-default paragraph/list spacing. Global margin resets or Tailwind preflight collapse that spacing and remove list markers; reset individual styled components instead.
 
 **UI building blocks** (`src/shared/ui/`, imported from `@/shared/ui`). New UI composes these. Shape, radius, colour, focus ring and motion live in the component; a call site passes only layout (`layoutClassName`: margins, width, grid placement, position).
