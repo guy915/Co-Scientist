@@ -282,9 +282,12 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     ownership_response = await _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response
+    from co_scientist.platform.db.admission import connecting_host
     from co_scientist.platform.llm.provider_usage import scoped_client
 
-    with scoped_client(principal.subject):
+    with scoped_client(
+        principal.subject, host=connecting_host(request.client.host if request.client else None)
+    ):
         return cast(Response, await call_next(request))
 
 
