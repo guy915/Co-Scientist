@@ -6,7 +6,7 @@ import {withExamples} from './layout_nav_rail';
 import {
   preferredSessionSide,
   writeSessionSide,
-} from '@/features/runs/session_switch';
+} from '@/shared/hooks/session_side';
 
 const ownChat: ChatSummary = {
   id: 'chat-1',

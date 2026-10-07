@@ -59,6 +59,8 @@ function uiBuildingBlockRules() {
   ];
 }
 
+const FEATURES = ['access', 'chat', 'diagnostics', 'report', 'runs'];
+
 module.exports = defineConfig([
   {
     ignores: [
@@ -88,6 +90,44 @@ module.exports = defineConfig([
     ],
     rules: {
       'no-restricted-syntax': ['error', ...uiBuildingBlockRules()],
+    },
+  },
+  // Phase 7 boundaries: a feature imports only shared/ and its own files, and
+  // shared/ imports no feature or the app shell.
+  ...FEATURES.map(feature => ({
+    files: [`src/features/${feature}/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: `^@/(app|features/(?!${feature}/))`,
+              message: `features/${feature} may import only @/shared and its own files.`,
+            },
+            {
+              regex: '^\\.\\./',
+              message: 'Reach outside this feature through @/shared only.',
+            },
+          ],
+        },
+      ],
+    },
+  })),
+  {
+    files: ['src/shared/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^@/(app|features)/',
+              message: 'shared/ must not depend on a feature or the app shell.',
+            },
+          ],
+        },
+      ],
     },
   },
   // Test null assertions fail clearly; empty functions are intentional mocks.
