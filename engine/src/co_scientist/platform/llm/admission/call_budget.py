@@ -14,6 +14,12 @@ from dataclasses import dataclass, field
 
 from co_scientist.core._context import _bind_contextvar
 from co_scientist.core.exceptions import LLMCallBudgetExceededError
+from co_scientist.platform.db.call_admission import (
+    ensure_run_counter,
+    read_run_count,
+    reserve_run_call,
+)
+from co_scientist.platform.llm.admission.service import current_db_path
 
 
 @dataclass
@@ -53,21 +59,30 @@ def scoped_completion_budget(ceiling: int) -> Iterator[CompletionBudget]:
 
 logger = logging.getLogger(__name__)
 
-# Bound process memory; evicting a tracked run forfeits its ceiling enforcement.
+# The cache is a task/scheduler view; durable rows enforce bounded dispatches.
 _MAX_TRACKED_RUNS = 500
 
-_current_run: ContextVar[str | None] = ContextVar("llm_call_budget_run", default=None)
+
+@dataclass(frozen=True)
+class _RunScope:
+    run_id: str
+    db_path: str
+    durable: bool
+
+
+_current_run: ContextVar[_RunScope | None] = ContextVar("llm_call_budget_run", default=None)
 
 
 @dataclass
 class _RunCounter:
     count: int
     ceiling: int | None
+    durable: bool = False
 
 
 _lock = threading.Lock()
 # Re-entered runs move last so eviction still identifies the oldest entry.
-_runs: OrderedDict[str, _RunCounter] = OrderedDict()
+_runs: OrderedDict[tuple[str, str], _RunCounter] = OrderedDict()
 
 
 @contextmanager
@@ -75,26 +90,23 @@ def scoped_llm_call_budget(run_id: str | None, ceiling: int | None) -> Iterator[
     """Tasks re-enter one persisted run counter without resetting it; the
     first ceiling remains binding.
     """
-    if run_id is not None:
-        _ensure_tracked(run_id, ceiling)
-    with _bind_contextvar(_current_run, run_id):
+    scope = _ensure_tracked(run_id, ceiling) if run_id is not None else None
+    with _bind_contextvar(_current_run, scope):
         yield
 
 
-def _ensure_tracked(run_id: str, ceiling: int | None) -> None:
+def _ensure_tracked(run_id: str, ceiling: int | None) -> _RunScope:
+    db_path = current_db_path()
+    scope = _RunScope(run_id, db_path, ensure_run_counter(run_id, ceiling, db_path=db_path))
+    key = (db_path, run_id)
     with _lock:
-        if run_id in _runs:
-            _runs.move_to_end(run_id)
-            return
-        _runs[run_id] = _RunCounter(count=0, ceiling=ceiling)
+        if key in _runs:
+            _runs.move_to_end(key)
+            return scope
+        _runs[key] = _RunCounter(count=0, ceiling=ceiling, durable=scope.durable)
         while len(_runs) > _MAX_TRACKED_RUNS:
-            evicted, _ = _runs.popitem(last=False)
-            logger.warning(
-                "Evicting llm-call counter for run %s (tracking cap %s"
-                " reached); its ceiling can no longer be enforced",
-                evicted,
-                _MAX_TRACKED_RUNS,
-            )
+            _runs.popitem(last=False)
+    return scope
 
 
 def record_provider_request() -> None:
@@ -105,27 +117,35 @@ def record_provider_request() -> None:
     if operation is not None:
         operation.reserve()
         return
-    run_id = _current_run.get()
-    if run_id is None:
+    scope = _current_run.get()
+    if scope is None:
         return
+    if scope.durable:
+        reserve_run_call(scope.run_id, db_path=scope.db_path)
+        return
+    key = (scope.db_path, scope.run_id)
     with _lock:
-        entry = _runs.setdefault(run_id, _RunCounter(count=0, ceiling=None))
+        entry = _runs.setdefault(key, _RunCounter(count=0, ceiling=None))
         entry.count += 1
         count, ceiling = entry.count, entry.ceiling
-        _runs.move_to_end(run_id)
+        _runs.move_to_end(key)
     if ceiling is not None and count > ceiling:
         raise LLMCallBudgetExceededError(count, ceiling)
 
 
 def current_run_call_count(run_id: str) -> int:
+    db_path = current_db_path()
     with _lock:
-        entry = _runs.get(run_id)
-        return entry.count if entry is not None else 0
+        entry = _runs.get((db_path, run_id))
+        scope = _current_run.get()
+        durable = (entry is not None and entry.durable) or (
+            scope is not None and scope.run_id == run_id and scope.durable
+        )
+        count = entry.count if entry is not None else 0
+    return (read_run_count(run_id, db_path=db_path) or 0) if durable else count
 
 
 def release_run_call_budget(run_id: str) -> None:
-    """Terminal cleanup bounds memory; eviction covers runs that never reach
-    that cleanup.
-    """
+    """Release process memory without refunding durable reservations."""
     with _lock:
-        _runs.pop(run_id, None)
+        _runs.pop((current_db_path(), run_id), None)
