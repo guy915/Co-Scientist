@@ -8,16 +8,14 @@ from pathlib import Path
 from typing import get_args
 
 import pytest
-from co_scientist.orchestration.repository.events import ACTIVITY_VALUES
-
-from app.api_contracts.common import RunEventActivity
-from app.api_contracts.generate import (
+from co_scientist.api.contracts.common import RunEventActivity
+from co_scientist.api.contracts.generate import (
     API_DIR,
     contracts,
     generated_files,
 )
+from co_scientist.orchestration.repository.events import ACTIVITY_VALUES
 
-_APP_DIR = Path(__file__).resolve().parents[1] / "app"
 _ENGINE_DIR = Path(__file__).resolve().parents[2] / "engine/src/co_scientist"
 _INTERVIEWS_DIR = _ENGINE_DIR / "domains/chat/interviews"
 _INTERVIEW_MODULES = {path.stem for path in _INTERVIEWS_DIR.glob("*.py")} - {"__init__"}
@@ -40,7 +38,7 @@ def _layering_imports(path: Path) -> list[str]:
 @pytest.mark.parametrize(
     "source",
     [
-        _APP_DIR / "operator_access.py",
+        _ENGINE_DIR / "api/operator_access.py",
         _ENGINE_DIR / "domains/documents/staged.py",
         _INTERVIEWS_DIR / "turns.py",
     ],
@@ -48,9 +46,9 @@ def _layering_imports(path: Path) -> list[str]:
 def test_shared_services_do_not_import_endpoint_owners(source: Path) -> None:
     forbidden = {
         "app.main",
-        "app.documents",
-        "app.logs_api",
-        "app.diagnostics_api",
+        "co_scientist.api.documents",
+        "co_scientist.api.logs_api",
+        "co_scientist.api.diagnostics_api",
     }
     assert forbidden.isdisjoint(_layering_imports(source)), source
 
@@ -187,7 +185,7 @@ def test_frontend_wire_types_are_generated_from_backend_contracts() -> None:
     generated = generated_files()
     for name, expected in generated.items():
         assert _tokens((API_DIR / name).read_text()) == _tokens(expected), (
-            f"Regenerate {name}: cd app && python -m app.api_contracts.generate"
+            f"Regenerate {name}: cd app && python -m co_scientist.api.contracts.generate"
         )
     exports = set(
         re.findall(

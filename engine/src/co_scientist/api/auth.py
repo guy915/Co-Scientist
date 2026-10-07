@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from co_scientist.platform.db.models import DEMO_CLIENT_ID
 from fastapi import HTTPException, Request
+
+from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
 
 @dataclass(frozen=True)

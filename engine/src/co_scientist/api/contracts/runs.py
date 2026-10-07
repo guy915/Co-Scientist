@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import ConfigDict, with_config
 from typing_extensions import NotRequired, TypedDict
 
-from app.api_contracts.common import (
+from co_scientist.api.contracts.common import (
     RunConfig,
     RunMode,
     RunStatus,

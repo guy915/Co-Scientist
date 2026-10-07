@@ -6,6 +6,10 @@ import time
 from typing import Any
 
 import pytest
+from co_scientist.api import diagnostics
+from co_scientist.api.diagnostics import (
+    HealthCheck,
+)
 from co_scientist.core.config import settings
 from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import runs_views as views
@@ -17,10 +21,7 @@ from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
-from app import API_VERSION, diagnostics
-from app.diagnostics import (
-    HealthCheck,
-)
+from app import API_VERSION
 from tests._client import make_client as _client
 from tests._client import make_operator_client
 from tests._client import make_operator_client as _operator_client
@@ -170,8 +171,9 @@ def test_startup_does_not_block_on_run_recovery(
 ) -> None:
     # Run recovery after binding traffic; provider work before lifespan yield
     # causes healthcheck restart spirals.
+    import co_scientist.api.runs as runs_module
+
     import app.main as main_module
-    import app.runs as runs_module
 
     resumed = threading.Event()
 
