@@ -62,7 +62,7 @@ def add_staged_document(document: NewStagedDocument) -> str:
 
 
 def _rows_to_documents(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
-    return [{key: row[key] for key in row.keys() if key != "peer_hash"} for row in rows]
+    return [{key: value for key, value in dict(row).items() if key != "peer_hash"} for row in rows]
 
 
 def get_staged_documents(

@@ -5,7 +5,6 @@ import tempfile
 import threading
 import time
 from collections import Counter
-from typing import BinaryIO
 
 from fastapi import HTTPException, Request
 from starlette.responses import JSONResponse
@@ -49,6 +48,8 @@ class RequestLimitsMiddleware:
         peer = connecting_host(request.client.host if request.client else None)
         upload = path == "/api/documents" or path.endswith("/attachments/upload")
         limit = _MAX_UPLOAD_BYTES if upload else _MAX_JSON_BYTES
+        if path.endswith("/attachments"):
+            limit = 1024 * 1024
         raw_length = request.headers.get("content-length")
         try:
             declared = int(raw_length) if raw_length is not None else 0
@@ -85,9 +86,6 @@ class RequestLimitsMiddleware:
                     return
                 if size is None:
                     return
-                # Release buffering slots before provider work or an SSE response.
-                self._release(keys)
-                admitted = False
                 if not path.endswith("/adjudicate"):
                     try:
                         await asyncio.to_thread(reserve_write, owner, peer, size)
@@ -96,6 +94,10 @@ class RequestLimitsMiddleware:
                             {"detail": "input admission exhausted"}, status_code=429
                         )(scope, receive, send)
                         return
+                # Keep the spool slot through admission so queued SQLite writers
+                # cannot grow an unbounded backlog.
+                self._release(keys)
+                admitted = False
                 body.seek(0)
                 with scoped_peer(peer):
                     await self.app(scope, _body_replay(body, receive, size), send)
@@ -112,7 +114,9 @@ class RequestLimitsMiddleware:
                     del _buffering[key]
 
 
-async def _read_body(body: BinaryIO, receive: Receive, limit: int) -> int | None:
+async def _read_body(
+    body: tempfile.SpooledTemporaryFile[bytes], receive: Receive, limit: int
+) -> int | None:
     size = 0
     deadline = time.monotonic() + 30
     while True:
@@ -131,7 +135,9 @@ async def _read_body(body: BinaryIO, receive: Receive, limit: int) -> int | None
             return size
 
 
-def _body_replay(body: BinaryIO, receive: Receive, size: int) -> Receive:
+def _body_replay(
+    body: tempfile.SpooledTemporaryFile[bytes], receive: Receive, size: int
+) -> Receive:
     replayed = False
 
     async def replay() -> Message:
