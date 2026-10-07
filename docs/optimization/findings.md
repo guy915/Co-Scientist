@@ -146,6 +146,15 @@ Two Express baselines on `main` at `df08134` (Ling 3.1 Flash default):
 | M5 | Ling is slow per call | Ranking: Ling 61 s/call (6.4k completion), Nemotron Super 13 s/call (1.4k), Ultra 87 s/call; per-token rate about 105 tok/s on both Ling and Super, so time follows tokens | M | — | — |
 | M6 | Ling's output cap is 32,768 tokens | Endpoint `max_completion_tokens` 32,768; the largest engine budget is 24k (`BUDGET_ESCALATION_MAX_TOKENS`), so escalation stays within it | — | — | — |
 
+With retrieval on (#243), Express
+[37540122229](https://github.com/guy915/Co-Scientist/actions/runs/37540122229)
+at `bb27400`: 49.5 min, 86 physical calls, 568k prompt / 359k completion
+tokens (64% reasoning), 13.0k cached (2.3%), Ling served 19 of 86 calls (22%),
+28 claims with 10 supported (unsupported rate 0.64), unverified idea rate
+0.33. Literature review, reflection, claim gate and claim grounding calls now
+appear. Ling retried and then fell back on comprehensive reflection, claim
+gate, directions and ranking, which supports M2.
+
 Starting evidence re-check (measured on Nemotron): the tool-loop and
 reasoning-exhaustion findings need a run with retrieval on (M1) before they
 can be confirmed on Ling; each run had one retry. Caching remains near
@@ -155,4 +164,7 @@ zero (M4).
 
 | # | Change | Why not |
 |---|---|---|
+| M7 | Stable-first prompt order (ranking, review, evolution) for prefix caching | The routes are free, so cached tokens save no money, and the daily cap counts requests, not tokens. Wall time is generation-bound: 5–9k reasoning tokens per call at about 105 tok/s is 50 s or more, while prefill of a 3–4k-token prompt is under 1 s. Reordering prompt text can change answers |
+| M8 | Compact JSON schemas and move the debate angle line | Same reason as M7: prefill-only savings on free routes, at the risk of changing answers |
+| M9 | Stop echoing `reasoning_content` back for non-DeepSeek models | Prefill-only saving; some OpenRouter providers need reasoning continuity across tool calls, so dropping it risks breaking tool loops |
 | B11/I8 | `LITELLM_LOCAL_MODEL_COST_MAP=True` (0.9 s faster import, no boot fetch) | litellm's bundled map has 2,426 entries against 4,481 remote; six newer BYOK models (Gemini 3.x, GPT-6) lose `json_schema` support under it, changing their structured-output path |
