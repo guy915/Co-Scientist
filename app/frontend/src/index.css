@@ -196,6 +196,7 @@
   --color-cosci-attach-fg: var(--cosci-text);
   --color-cosci-attach-meta: var(--cosci-shell-icon);
   --color-cosci-attach-badge: var(--cosci-attach-badge);
+  --color-cosci-attach-badge-fg: var(--cosci-attach-badge-fg);
   --color-cosci-toast-bg: var(--cosci-toast-bg);
   --color-cosci-toast-fg: var(--cosci-toast-fg);
   --color-cosci-toast-action: var(--cosci-toast-action);
@@ -259,7 +260,6 @@
   --color-cosci-idea-breadcrumb-bg: var(--cosci-panel);
   --color-cosci-idea-breadcrumb-text: var(--cosci-text);
   --color-cosci-idea-detail-text: var(--cosci-text);
-
 
   /* Elevation is reserved for overlays: menus and floating controls, then
      toasts and dialogs. */
