@@ -3,7 +3,30 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.platform.llm import ModelCallStats
+
+@dataclass(frozen=True)
+class ModelCallStats:
+    """Every field is an additive delta, not an independently cumulative
+    snapshot.
+    """
+
+    deterministic_fallbacks: dict[str, int] = field(default_factory=dict)
+    calls: int = 0
+    observed_model_calls: int = 0
+    reported_usage_calls: int = 0
+    priced_usage_calls: int = 0
+    requested_models: dict[str, int] = field(default_factory=dict)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    cached_prompt_tokens: int = 0
+    cost_usd: float = 0.0
+    latency_seconds: float = 0.0
+    retries: int = 0
+    errors: dict[str, int] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        return dataclasses.asdict(self)
 
 
 def _known_field_kwargs(cls: Any, data: dict[str, Any]) -> dict[str, Any]:
