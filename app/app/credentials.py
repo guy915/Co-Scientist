@@ -287,11 +287,6 @@ async def _acompletion(**kwargs: Any) -> object:
     return await llm_request.acompletion(**kwargs)
 
 
-def _sanitized_detail(credential: ByokCredential, exc: Exception) -> str:
-    """Provider error details must never echo the submitted credential."""
-    return _redact(str(exc), credential)
-
-
 @budgeted("credential_probe")
 async def validate_byok_credential(credential: ByokCredential) -> None:
     """Credential validation is provider I/O and must complete outside
@@ -316,9 +311,9 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
     except ByokValidationError:
         raise
     except Exception as exc:
+        # Provider error details must never echo the submitted credential.
         raise ByokValidationError(
-            "the API key could not be verified with the provider: "
-            f"{_sanitized_detail(credential, exc)}"
+            f"the API key could not be verified with the provider: {_redact(str(exc), credential)}"
         ) from exc
 
 
