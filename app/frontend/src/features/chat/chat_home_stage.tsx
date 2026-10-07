@@ -22,6 +22,8 @@ import {
 } from '@/shared/lib/text';
 import {useNowTick} from '@/shared/hooks/timers';
 import {preferredSessionSide} from '@/shared/hooks/session_side';
+import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
+import {displayTitle} from '@/shared/lib/titles';
 
 export interface HomeStageProps {
   input: string;
@@ -553,10 +555,10 @@ function RecentRunCard({
       <Link
         to={
           run.is_demo
-            ? `/examples/${run.id}`
+            ? examplePath(run.id)
             : chat
-              ? `/chats/${chat.id}`
-              : `/runs/${run.id}/details`
+              ? chatPath(chat.id)
+              : runPath(run.id, 'details')
         }
         className={joinClasses(RECENT_CARD_CLASSES, active && 'is-active-run')}
         title={run.research_goal}
@@ -565,8 +567,7 @@ function RecentRunCard({
         <TruncatedLabel
           className="line-clamp-2 text-[1rem] leading-[1.5] font-medium"
           text={
-            run.title ||
-            firstSentenceClause(run.research_goal) ||
+            displayTitle(run.title, run.research_goal, firstSentenceClause) ||
             'Untitled session'
           }
           lines={2}
