@@ -17,7 +17,7 @@ from co_scientist.evidence.search_support import (
     SearchConfig,
     normalize_search_response,
 )
-from co_scientist.mcp_client import MCPToolClient
+from co_scientist.mcp_client import MCPToolClient, UnknownToolError
 from co_scientist.tools.response_parser import parse_mcp_result
 
 # One-term broadening swamps the evidence budget with unrelated papers.
@@ -86,8 +86,8 @@ async def _call_search_tool(
         try:
             result = await mcp_client.call_tool(tool_name, **tool_params)
             return _decode_search_result(result)
-        # Tool errors repeat identically; do not retry them.
-        except ToolException:
+        # Tool errors and unregistered tools repeat identically; do not retry them.
+        except (ToolException, UnknownToolError):
             raise
         except Exception as exc:
             if attempt == _SEARCH_ATTEMPTS:
