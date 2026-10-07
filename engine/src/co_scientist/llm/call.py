@@ -21,31 +21,25 @@ from co_scientist.llm.attempts.retry import (
     Rejected,
     run_attempts,
 )
-from co_scientist.llm.precall import _prepare_llm_call
 from co_scientist.llm.request.thinking import scoped_minimal_reasoning
 from co_scientist.llm.structured.validate import (
     _handle_json_retries_exhausted,
     extract_response_json,
 )
-from co_scientist.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
+from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)
 
 
 def _call_for_attempt(
-    prompt: str, spec: CompletionSpec, opt: LLMCallOptions, temperature: float
+    prompt: str, spec: CompletionSpec, opt: LLMCallOptions
 ) -> Callable[[Attempt], Awaitable[str]]:
-    """The retry loop owns logging; every rung preserves the already-clamped
-    temperature.
-    """
-    inner_opt = LLMCallOptions(enable_thinking=opt.enable_thinking, log_failures=False)
+    inner_opt = LLMCallOptions(enable_thinking=opt.enable_thinking)
 
     async def _attempt(attempt: Attempt) -> str:
         escalation = attempt.rung
         attempt_spec = dataclasses.replace(
-            spec,
-            temperature=temperature,
-            max_tokens=escalated_max_tokens(spec.max_tokens, escalation),
+            spec, max_tokens=escalated_max_tokens(spec.max_tokens, escalation)
         )
         attempt_opt = inner_opt
         if escalation is BudgetEscalation.NO_THINKING:
@@ -70,17 +64,8 @@ async def call_llm(
     """
     opt = options if options is not None else LLMCallOptions()
     with scoped_api_key(spec.api_key):
-        request = LLMRequest(
-            prompt=prompt,
-            model_name=spec.model_name,
-            temperature=spec.temperature,
-            max_tokens=spec.max_tokens,
-            json_schema=spec.json_schema,
-            force_json=spec.force_json,
-        )
-        request = _prepare_llm_call(request)
         return await run_attempts(
-            _call_for_attempt(prompt, spec, opt, request.temperature),
+            _call_for_attempt(prompt, spec, opt),
             AttemptPlan(spec.model_name, max_attempts),
         )
 
@@ -96,15 +81,8 @@ async def _call_llm_for_json(prompt: str, spec: _JsonCallSpec, enable_thinking: 
             json_schema=spec.json_schema,
             force_json=not spec.json_schema,
         ),
-        LLMCallOptions(enable_thinking=enable_thinking, log_failures=False),
+        LLMCallOptions(enable_thinking=enable_thinking),
     )
-    if not response_text:
-        # The retry boundary logs once with attempt number and terminality.
-        raise ValueError(
-            "LLM returned None or empty response. "
-            "Check API keys, rate limits, and model availability."
-        )
-
     return extract_response_json(response_text)
 
 
@@ -155,19 +133,8 @@ async def call_llm_json(
     # Scope the explicit key over every attempt, without putting it in the
     # JSON spec.
     with scoped_api_key(spec.api_key):
-        request = LLMRequest(
-            prompt=prompt,
-            model_name=spec.model_name,
-            temperature=spec.temperature,
-            max_tokens=spec.max_tokens,
-            json_schema=spec.json_schema,
-        )
-        request = _prepare_llm_call(request)
         json_spec = _JsonCallSpec(
-            spec.model_name,
-            spec.max_tokens,
-            request.temperature,
-            spec.json_schema,
+            spec.model_name, spec.max_tokens, spec.temperature, spec.json_schema
         )
 
         judge = JsonJudge(prompt, json_spec)

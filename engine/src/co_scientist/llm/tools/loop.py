@@ -133,7 +133,6 @@ def _final_content(response: Any, model_name: str) -> str | None:
 async def _answered_completion(
     messages: list[dict[str, Any]],
     request: LLMRequest,
-    iteration: int,
 ) -> tuple[Any, str | None]:
     """Retries must stop before tool execution or repeat side effects.
     Reset rungs per turn to preserve the investigation step budget.
@@ -153,9 +152,9 @@ async def _run_tool_call_iteration(
     messages: list[dict[str, Any]],
     request: LLMRequest,
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
-    iteration: int = 0,
 ) -> tuple[bool, str | None]:
-    response, final = await _answered_completion(messages, request, iteration)
+    """The attempt boundary logs because it knows whether a retry follows."""
+    response, final = await _answered_completion(messages, request)
     message = response.choices[0].message
 
     if final is None:
@@ -168,16 +167,6 @@ async def _run_tool_call_iteration(
     # an empty message.
     messages.append(_message_to_history_dict(message))
     return True, final
-
-
-async def _run_iteration_logged(
-    messages: list[dict[str, Any]],
-    request: LLMRequest,
-    tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
-    iteration: int,
-) -> tuple[bool, str | None]:
-    """The attempt boundary logs because it knows whether a retry follows."""
-    return await _run_tool_call_iteration(messages, request, tool_executor, iteration)
 
 
 async def _answer_without_tools(
@@ -289,9 +278,7 @@ async def _run_tool_call_loop(
         if _handoff_due(iteration, handoff_at, spent, loop, handed_off):
             handed_off = True
             messages.append(_handoff_message(_turns_remaining(iteration, spent, loop, messages)))
-        done, final_content = await _run_iteration_logged(
-            messages, request, tool_executor, iteration
-        )
+        done, final_content = await _run_tool_call_iteration(messages, request, tool_executor)
         if done:
             assert final_content is not None
             logger.debug("llm finished after %s iterations", iteration + 1)
