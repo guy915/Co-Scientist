@@ -1,11 +1,10 @@
 // Generated from app.api_contracts; edit the backend models.
 
-
 export interface ChatSummary {
   id: string;
   title: string | null;
   challenge: string;
-  status: "active" | "completed" | "cancelled";
+  status: 'active' | 'completed' | 'cancelled';
   run_id: string | null;
   created_at: number;
   updated_at: number;
@@ -14,7 +13,7 @@ export interface ChatSummary {
 export interface Interview {
   id: string;
   client_id: string;
-  status: "active" | "completed" | "cancelled";
+  status: 'active' | 'completed' | 'cancelled';
   fields: InterviewFields;
   current_question: string | null;
   turns: InterviewTurn[];
@@ -54,7 +53,7 @@ export interface InterviewQuestionOption {
 
 export interface InterviewTurn {
   id: number;
-  role: "user" | "agent";
+  role: 'user' | 'agent';
   content: string;
   reasoning: string | null;
   fallback: boolean;

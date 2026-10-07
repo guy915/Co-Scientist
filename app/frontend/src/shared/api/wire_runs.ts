@@ -22,10 +22,10 @@ export interface Run {
   id: string;
   research_goal: string;
   title?: string | null;
-  run_mode?: "standard" | "express" | "extended" | "ultra";
-  profile: "standard" | "express" | "extended" | "ultra";
+  run_mode?: 'standard' | 'express' | 'extended' | 'ultra';
+  profile: 'standard' | 'express' | 'extended' | 'ultra';
   status: RunStatus;
-  provider: "mock" | "engine";
+  provider: 'mock' | 'engine';
   config: RunConfig;
   is_demo?: boolean;
   llm_backend?: string | null;
@@ -74,10 +74,10 @@ export interface RunWithSummary {
   id: string;
   research_goal: string;
   title?: string | null;
-  run_mode?: "standard" | "express" | "extended" | "ultra";
-  profile: "standard" | "express" | "extended" | "ultra";
+  run_mode?: 'standard' | 'express' | 'extended' | 'ultra';
+  profile: 'standard' | 'express' | 'extended' | 'ultra';
   status: RunStatus;
-  provider: "mock" | "engine";
+  provider: 'mock' | 'engine';
   config: RunConfig;
   is_demo?: boolean;
   llm_backend?: string | null;

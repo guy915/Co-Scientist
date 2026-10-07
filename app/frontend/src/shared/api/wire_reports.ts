@@ -57,7 +57,7 @@ export interface Report {
 
 export interface ReportPayload {
   research_goal?: string;
-  run_mode?: "standard" | "express" | "extended" | "ultra";
+  run_mode?: 'standard' | 'express' | 'extended' | 'ultra';
   provider?: string;
   hypothesis_count?: number;
   idea_count?: number;
