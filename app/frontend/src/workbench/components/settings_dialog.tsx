@@ -13,6 +13,8 @@ import {
   IconButton,
   Menu,
   MenuItem,
+  SectionNav,
+  SegmentedControl,
   SelectTrigger,
   TextField,
 } from '@/shared/ui';
@@ -37,10 +39,6 @@ import {
   fetchByokModelCatalog,
   fetchFreeUsage,
 } from '@/api/system';
-import {
-  SlidingPill,
-  useSlidingIndicator,
-} from '@/shared/hooks/use_sliding_indicator';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '../classes';
 
 const CARD_CLASSES =
@@ -179,43 +177,19 @@ export function AppearanceSection({
   mode: Mode;
   setMode: (mode: Mode) => void;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const pill = useSlidingIndicator(trackRef, '[aria-pressed="true"]', mode);
   return (
     <section className={CARD_CLASSES}>
       <h3 className={CARD_TITLE_CLASSES}>Theme</h3>
-      <div
-        ref={trackRef}
-        className="relative grid grid-cols-3 gap-[0.3rem] rounded-[9999px] border border-cosci-border bg-cosci-settings-segment-bg p-[0.18rem]"
-        role="group"
-        aria-label="Theme"
-      >
-        <SlidingPill
-          box={pill}
-          className="ucs-theme-slider pointer-events-none absolute top-[0.18rem] bottom-[0.18rem] left-0 rounded-[9999px] bg-cosci-toggle-on-track"
-        />
-        {THEME_MODES.map(option => (
-          <button
-            key={option.mode}
-            type="button"
-            className={joinClasses(
-              'relative flex min-h-[2.6rem] min-w-0 cursor-pointer items-center justify-center gap-[0.45rem] rounded-[9999px] bg-transparent px-[0.44rem] text-[0.875rem] font-semibold [border:0]',
-              mode === option.mode
-                ? 'text-cosci-selected-row-fg'
-                : 'text-cosci-shell-icon focus-visible:bg-cosci-menu-row-hover [&:hover]:bg-cosci-menu-row-hover',
-            )}
-            aria-pressed={mode === option.mode}
-            onClick={() => setMode(option.mode)}
-          >
-            <Icon
-              aria-hidden="true"
-              className="text-[1.15rem]"
-              name={option.icon}
-            />
-            <span>{option.label}</span>
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        label="Theme"
+        value={mode}
+        onChange={setMode}
+        options={THEME_MODES.map(option => ({
+          value: option.mode,
+          label: option.label,
+          icon: option.icon,
+        }))}
+      />
     </section>
   );
 }
@@ -313,37 +287,16 @@ export function SettingsNav({
   onSectionChange: (section: SettingsSection) => void;
 }) {
   return (
-    <nav
-      // Auto margins collapse on overflow; flex-end would spill sections
-      // beyond the unreachable left edge on narrow phones.
-      className="grid gap-[0.35rem] [align-content:start] [@media(max-width:700px)]:flex [@media(max-width:700px)]:overflow-x-auto [@media(max-width:700px)]:pb-[0.15rem] [@media(max-width:700px)]:[scrollbar-width:none] [@media(max-width:700px)]:[&>:first-child]:ml-auto"
-      aria-label="Settings sections"
-    >
-      {SETTINGS_SECTIONS.map(item => {
-        const active = item.section === section;
-        return (
-          <button
-            key={item.section}
-            type="button"
-            className={joinClasses(
-              'flex min-h-11 cursor-pointer items-center gap-[0.72rem] rounded-[9999px] px-4 text-left text-[0.875rem] font-medium [border:0] [@media(max-width:700px)]:min-h-10 [@media(max-width:700px)]:flex-none [@media(max-width:700px)]:gap-[0.4rem] [@media(max-width:700px)]:px-[0.7rem] [@media(max-width:700px)]:text-[0.82rem] [@media(max-width:360px)]:!px-3',
-              active
-                ? 'bg-cosci-toggle-on-track text-cosci-selected-row-fg'
-                : 'bg-transparent text-cosci-fg focus-visible:bg-cosci-menu-row-hover [&:hover]:bg-cosci-menu-row-hover',
-            )}
-            aria-current={active ? 'true' : undefined}
-            onClick={() => onSectionChange(item.section)}
-          >
-            <Icon
-              aria-hidden="true"
-              className="flex-none text-[1.25rem] [@media(max-width:360px)]:hidden"
-              name={item.icon}
-            />
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
+    <SectionNav
+      label="Settings sections"
+      value={section}
+      onChange={onSectionChange}
+      items={SETTINGS_SECTIONS.map(item => ({
+        value: item.section,
+        label: item.label,
+        icon: item.icon,
+      }))}
+    />
   );
 }
 

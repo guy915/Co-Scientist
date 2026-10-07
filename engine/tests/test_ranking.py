@@ -4,7 +4,13 @@ from typing import Any
 
 import pytest
 
-from co_scientist.domains.research_state.models import ExecutionMetrics, Hypothesis
+from co_scientist.domains.research_state.models import (
+    UNDERMINED_VERDICT,
+    ExecutionMetrics,
+    Hypothesis,
+    rank_by_elo,
+    rank_for_publication,
+)
 from co_scientist.science.ranking import (
     ranking_debate,
     remaining_ranking_rounds,
@@ -131,3 +137,49 @@ def test_remaining_budget_funds_only_peer_reviewed_coverage() -> None:
     for hypothesis in pool:
         hypothesis.reviews = []
     assert remaining_ranking_rounds(state, pool) == 0
+
+
+# One pool, read by both the engine's research overview and the app's report.
+_ORDER_POOL = (
+    # The audit's case: an unplayed baseline rating against a tested idea.
+    ("unplayed-high", 1200, 0, 0, False),
+    ("played-low", 1184, 3, 2, False),
+    ("played-high", 1230, 4, 1, False),
+    ("undermined-top", 1400, 5, 0, True),
+)
+
+PUBLICATION_ORDER = ["played-high", "played-low", "unplayed-high", "undermined-top"]
+
+
+def publication_order_pool() -> list[Hypothesis]:
+    return [
+        make_hypothesis(
+            f"idea {hyp_id}",
+            id=hyp_id,
+            elo_rating=elo,
+            win_count=wins,
+            loss_count=losses,
+            deep_verification_verdict=UNDERMINED_VERDICT if undermined else None,
+        )
+        for hyp_id, elo, wins, losses, undermined in _ORDER_POOL
+    ]
+
+
+def test_publication_order_ranks_tested_ideas_above_unplayed_baselines() -> None:
+    ordered = rank_for_publication(publication_order_pool())
+
+    assert [h.id for h in ordered] == PUBLICATION_ORDER
+
+
+def test_pair_selection_still_reads_raw_elo() -> None:
+    """Demoting an unplayed idea for the reader must not starve it of
+    matches, which is what would make its rating meaningful.
+    """
+    ordered = rank_by_elo(publication_order_pool())
+
+    assert [h.id for h in ordered] == [
+        "undermined-top",
+        "played-high",
+        "unplayed-high",
+        "played-low",
+    ]

@@ -15,34 +15,6 @@
   }
 }
 
-/* Label color travels with the highlight. Stays in CSS: the unlayered global
-   `a` transition outranks utilities. */
-.ucs-session-switch-side {
-  transition: color 220ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ucs-session-switch-side {
-    transition: none;
-  }
-}
-
-/* The selected theme's fill slides between options instead of jumping. */
-.ucs-theme-slider.is-animated,
-/* Theme switches suppress every transition (index.css); the slide is motion,
-   not a color change, so it stays. */
-.theme-switching .ucs-theme-slider.is-animated {
-  transition:
-    transform 0.3s ease,
-    width 0.3s ease !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ucs-theme-slider.is-animated {
-    transition: none;
-  }
-}
-
 /* Touch hover tooltips are unusable and their full-title pseudos widen the
    drawer. */
 @media (max-width: 700px) {

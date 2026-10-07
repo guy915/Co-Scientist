@@ -3,12 +3,6 @@ import type {SVGProps} from 'react';
 export const NAV_ICON_CLASSES =
   'grid size-[1.5rem] min-h-[1.5rem] min-w-[1.5rem] place-items-center justify-self-center text-[1.25rem] leading-none';
 
-// Exclude shared display/color/padding states: Tailwind stylesheet order
-// decides conflicting utilities, which can break a consumer’s grid sizing.
-export const HEADER_PILL_SHAPE_CLASSES =
-  'h-[2.35rem] min-w-max items-center rounded-full ' +
-  'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap';
-
 export const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
 
 // Official Google Labs science mark used in the Co-Scientist references.

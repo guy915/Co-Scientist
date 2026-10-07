@@ -5,6 +5,7 @@ from typing import Any
 
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
+from co_scientist.domains.research_state.elo import rank_for_publication
 from co_scientist.orchestration.run_events import hypothesis_stub
 from co_scientist.science.proximity.proximity_graph import is_judged_edge
 
@@ -48,15 +49,15 @@ def _proximity_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     return {"clusters": {cid: len(ids) for cid, ids in members.items()}}
 
 
-# Meta-review state has no explicit leaderboard; derive its slice from current
-# Elo ratings.
+# Meta-review state has no explicit leaderboard; derive its slice in the one
+# order every reader-facing surface uses.
 _META_REVIEW_TOP_K = 5
 
 
 def _meta_review_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     meta_review: dict[str, Any] = state.get("meta_review") or {}
     hyps: list[dict[str, Any]] = state.get("hypotheses") or []
-    ranked = sorted(hyps, key=lambda h: h.get("elo_rating", 0), reverse=True)
+    ranked = rank_for_publication(hyps)
     top_k_ids = [str(h["id"]) for h in ranked[:_META_REVIEW_TOP_K] if h.get("id")]
     return {
         "critique": str(meta_review.get("summary", "")),

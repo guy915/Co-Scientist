@@ -2,6 +2,7 @@ import {useCallback, useState, type ReactNode} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {isCancelledStatus, type TerminalNonCompletedStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
+import {TabNav, TabNavLink} from '@/shared/ui';
 import {TruncatedLabel} from '../components/truncated_label';
 import {useIsMobile} from '../hooks/dom';
 import {tabPath, type TabName} from '../run_tabs';
@@ -103,16 +104,20 @@ export function ReportTabNav({
 }) {
   const {id} = useParams<{id: string}>();
   return (
-    <nav
-      className="reference-report-tabs grid grid-cols-4 border-b border-cosci-border max-[700px]:min-w-0 max-[700px]:overflow-x-hidden"
-      aria-label="Goal report sections"
+    <TabNav
+      label="Goal report sections"
+      variant="underline"
+      current={activeTab}
+      layoutClassName="reference-report-tabs grid-cols-4 max-[700px]:min-w-0 max-[700px]:overflow-x-hidden"
     >
       {tabs.map(tabName => (
-        <Link
+        <TabNavLink
           key={tabName}
+          variant="underline"
           to={tabPath(id ?? '', tabName)}
-          className={reportTabButtonClass(tabName === activeTab)}
-          aria-current={tabName === activeTab ? 'page' : undefined}
+          current={tabName === activeTab}
+          // Keeps the hover and focus state layer (index.css).
+          className="reference-report-tab max-[700px]:gap-[0.2rem] max-[700px]:text-[0.68rem]"
           aria-label={TAB_META[tabName].label}
           onClick={() => onTabChange(tabName)}
         >
@@ -137,20 +142,10 @@ export function ReportTabNav({
           >
             {TAB_META[tabName].short}
           </span>
-        </Link>
+        </TabNavLink>
       ))}
-    </nav>
+    </TabNav>
   );
-}
-
-function reportTabButtonClass(selected: boolean): string {
-  // Keep the reference-report-tab hook so link-based tabs retain hover and focus
-  // styling.
-  return `reference-report-tab relative grid min-w-0 cursor-pointer content-center justify-items-center gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm no-underline max-[700px]:gap-[0.2rem] max-[700px]:text-[0.68rem] ${
-    selected
-      ? "text-cosci-blue after:absolute after:right-[1.1rem] after:bottom-0 after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full after:bg-cosci-blue-strong after:content-['']"
-      : 'text-cosci-muted'
-  }`;
 }
 
 export function ReportErrorAlert({message}: {message: string | null}) {
