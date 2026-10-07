@@ -5,10 +5,10 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.orchestration.repository.supervisor_plan import (
+from co_scientist.platform.db import checkpoint_wal, connect, current_time, use_conn
+from co_scientist.platform.db.supervisor_plan import (
     sync_supervisor_ledger_from_checkpoint,
 )
-from co_scientist.platform.db import checkpoint_wal, connect, current_time, use_conn
 
 # Bump incompatible envelope changes; mismatched versions fail closed.
 CHECKPOINT_VERSION = 1
