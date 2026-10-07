@@ -112,6 +112,13 @@ def runtime_read_roots() -> tuple[Path, ...]:
         Path("/etc/nsswitch.conf"),
         Path("/dev/null"),
     ]
+    # Shared Python builds load libpython beside, rather than within, stdlib.
+    libdir = sysconfig.get_config_var("LIBDIR")
+    libname = sysconfig.get_config_var("LDLIBRARY")
+    if isinstance(libname, str):
+        candidates.append(Path(sys.base_prefix) / "lib" / libname)
+        if isinstance(libdir, str):
+            candidates.append(Path(libdir) / libname)
     skills = os.getenv("COSCIENTIST_SKILLS_DIR")
     if skills:
         candidates.append(Path(skills).expanduser())

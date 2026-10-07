@@ -224,8 +224,23 @@ class TestRealConfinement:
         target = tmp_path / "private.txt"
         target.write_text("private")
         result = _run_confined([_bin("cat"), str(target)], read_only())
-        assert result.returncode != 0
+        assert result.returncode == 1, result.stderr
         assert result.stdout == ""
+
+    def test_a_single_readable_file_does_not_grant_its_parent(self, tmp_path: Path) -> None:
+        granted = tmp_path / "granted.txt"
+        sibling = tmp_path / "private.txt"
+        granted.write_text("public")
+        sibling.write_text("private")
+        policy = read_only(granted)
+
+        allowed = _run_confined([_bin("cat"), str(granted)], policy)
+        denied = _run_confined([_bin("cat"), str(sibling)], policy)
+
+        assert allowed.returncode == 0, allowed.stderr
+        assert allowed.stdout == "public"
+        assert denied.returncode == 1, denied.stderr
+        assert denied.stdout == ""
 
     @pytest.mark.skipif(sys.platform != "linux", reason="process inspection filter is Linux-only")
     def test_process_vm_reads_are_denied(self) -> None:
