@@ -21,6 +21,7 @@ import {
   type MessageAction,
 } from './chat_timeline_message_actions';
 import {ThoughtsDisclosure} from './chat_timeline_thoughts';
+import {prefersReducedMotion} from '@/shared/lib/reduced_motion';
 
 const CHAT_BUBBLE_USER_ROW_CLASSES =
   'reference-bubble-row user group/user relative flex flex-col items-end justify-end gap-[0.35rem]';
@@ -321,14 +322,6 @@ function measureBubbleHeights(element: HTMLSpanElement) {
   element.style.display = previousDisplay;
   element.style.whiteSpace = previousWhiteSpace;
   return {collapsed, full};
-}
-
-function prefersReducedMotion() {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
 }
 
 // Allow two pixels for subpixel rounding when deciding whether a bubble
