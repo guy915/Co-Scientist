@@ -605,13 +605,10 @@ def _render_hypothesis_safety(hyp: dict[str, Any]) -> list[str]:
     return ["#### Safety and toxicity", "", str(safety_and_toxicity), ""]
 
 
-def _reviews_by_hypothesis(
-    reviews: list[dict[str, Any]],
-) -> dict[str, list[dict[str, Any]]]:
+def group_by_hypothesis(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
-    for review in reviews:
-        key = str(review.get("hypothesis_id") or "")
-        grouped.setdefault(key, []).append(review)
+    for row in rows:
+        grouped.setdefault(str(row.get("hypothesis_id") or ""), []).append(row)
     return grouped
 
 
