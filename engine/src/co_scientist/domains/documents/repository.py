@@ -5,7 +5,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.platform.db import connect, current_time, use_conn
+from co_scientist.platform.db import connect, current_time, transaction, use_conn
+from co_scientist.platform.db.storage_admission import check_staged_storage, current_peer
 
 # Interview excerpts need enough scope for planning; full-text corpus retrieval
 # belongs to the research run.
@@ -25,11 +26,25 @@ class NewStagedDocument:
 
 def add_staged_document(document: NewStagedDocument) -> str:
     document_id = str(uuid.uuid4())
-    with connect() as conn:
+    with transaction() as conn:
+        existing = conn.execute(
+            "SELECT id FROM staged_documents WHERE client_id=? AND sha256=? "
+            "AND text=? AND mime_type=?",
+            (document.client_id, document.sha256, document.text, document.mime_type),
+        ).fetchone()
+        if existing:
+            return str(existing[0])
+        peer = current_peer()
+        check_staged_storage(
+            conn,
+            document.client_id,
+            peer,
+            len(document.text.encode()) + len(document.title.encode()),
+        )
         conn.execute(
             "INSERT INTO staged_documents (id, client_id, title, text, "
-            "mime_type, sha256, byte_size, extraction_tool, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "mime_type, sha256, byte_size, extraction_tool, created_at, peer_hash) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 document_id,
                 document.client_id,
@@ -40,6 +55,7 @@ def add_staged_document(document: NewStagedDocument) -> str:
                 document.byte_size,
                 document.extraction_tool,
                 current_time(),
+                peer,
             ),
         )
     return document_id

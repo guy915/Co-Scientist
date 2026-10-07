@@ -15,9 +15,11 @@ from co_scientist.api.diagnostics_api import router as diagnostics_api_router
 from co_scientist.api.documents import router as documents_router
 from co_scientist.api.feedback_api import router as feedback_router
 from co_scientist.api.logs_api import router as logs_router
+from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
+from co_scientist.core.exceptions import StorageAdmissionError
 from co_scientist.domains.access.byok_models import router as byok_models_router
 from co_scientist.domains.access.free_usage import router as free_usage_router
 from co_scientist.domains.chat.interviews import router as interviews_router
@@ -293,6 +295,8 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
 
 # Register CORS outside ownership so denied responses still carry the
 # appropriate CORS headers.
+app.add_exception_handler(StorageAdmissionError, storage_error_handler)
+app.add_middleware(RequestLimitsMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,

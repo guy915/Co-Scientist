@@ -4,11 +4,13 @@ import json
 import sqlite3
 import uuid
 from collections.abc import Iterable
+from contextlib import nullcontext
 from dataclasses import dataclass, fields
 from typing import Any
 
 from co_scientist.domains.research_state.claims.gate import DEFAULT_CLAIM_ROLE, ClaimEdge
-from co_scientist.platform.db import connect, current_time, list_by_run, use_conn
+from co_scientist.platform.db import connect, current_time, list_by_run, transaction, use_conn
+from co_scientist.platform.db.storage_admission import check_run_input_storage, current_peer
 from co_scientist.platform.retrieval.citations import CitationState
 
 
@@ -65,7 +67,16 @@ def add_evidence(
         source_type=evidence.source_type or None,
         passage_text=_evidence_passage_text(evidence),
     )
-    _insert_record("evidence", values, db_path, conn)
+    if evidence.source == "attachment":
+        with nullcontext(conn) if conn is not None else transaction(db_path) as active:
+            size = sum(
+                len(str(values[key]).encode()) for key in ("abstract", "passage_text", "title")
+            )
+            check_run_input_storage(active, evidence.run_id, "corpus", size)
+            values["peer_hash"] = current_peer()
+            _insert_record("evidence", values, db_path, active)
+    else:
+        _insert_record("evidence", values, db_path, conn)
     return ev_id
 
 

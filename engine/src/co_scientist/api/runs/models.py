@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from co_scientist.core.run_modes import (
     RUN_FOCUS_PATTERN,
@@ -18,18 +19,18 @@ from co_scientist.core.run_modes import (
 class CreateRunRequest(BaseModel):
     """Body for POST /api/runs; everything but the goal is optional."""
 
-    research_goal: str = Field(..., min_length=1)
-    interview_id: str | None = None
+    research_goal: str = Field(..., min_length=1, max_length=32_000)
+    interview_id: str | None = Field(None, max_length=128)
     # Staged and interview documents join the run atomically so private
     # grounding cannot
     # fail in a second write.
-    document_ids: list[str] = Field(default_factory=list)
-    requirements: list[str] | None = None
+    document_ids: list[str] = Field(default_factory=list, max_length=8)
+    requirements: list[str] | None = Field(None, max_length=64)
     # Attribute axes accept legacy prose and structured scale or categorical
     # forms.
-    attributes: list[str | dict[str, Any]] | None = None
+    attributes: list[str | dict[str, Any]] | None = Field(None, max_length=64)
     # Criteria accept legacy prose and structured name/value pairs.
-    criteria: list[str | dict[str, str]] | None = None
+    criteria: list[str | dict[str, str]] | None = Field(None, max_length=64)
     focus: str | None = Field(None, pattern=RUN_FOCUS_PATTERN)
     tier: str | None = Field(None, pattern=RUN_TIER_PATTERN)
     initial_hypotheses_count: int | None = None
@@ -43,6 +44,12 @@ class CreateRunRequest(BaseModel):
         pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
     )
     notify_on_completion: bool = False
+
+    @model_validator(mode="after")
+    def bound_planning_bytes(self) -> CreateRunRequest:
+        if len(json.dumps(self.model_dump(), ensure_ascii=False).encode()) > 64_000:
+            raise ValueError("run planning exceeds the 64000 byte limit")
+        return self
 
 
 class StartRunRequest(BaseModel):
@@ -69,17 +76,17 @@ class RenameRunRequest(BaseModel):
 class SendMessageRequest(BaseModel):
     """Body for POST /api/runs/{id}/messages (steering)."""
 
-    content: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1, max_length=16_000)
 
 
 class AskRequest(BaseModel):
     """Body for POST /api/runs/{id}/messages/ask (Q&A)."""
 
-    question: str = Field(..., min_length=1)
+    question: str = Field(..., min_length=1, max_length=16_000)
 
 
 class QaRevisionRequest(BaseModel):
-    question: str | None = Field(default=None, min_length=1)
+    question: str | None = Field(default=None, min_length=1, max_length=16_000)
 
 
 class StartAnnouncementRequest(BaseModel):
@@ -90,7 +97,7 @@ class StartAnnouncementRequest(BaseModel):
     server-side from a button press.
     """
 
-    prompt: str = Field(..., min_length=1)
+    prompt: str = Field(..., min_length=1, max_length=16_000)
 
 
 # Attachments are inert text, not executable or extracted archives; the cap
@@ -108,7 +115,7 @@ class HumanAttachmentRequest(BaseModel):
     into the run's private retrieval corpus.
     """
 
-    title: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1, max_length=512)
     text: str = Field(..., min_length=1, max_length=MAX_ATTACHMENT_CHARS)
     consent: bool = False
 

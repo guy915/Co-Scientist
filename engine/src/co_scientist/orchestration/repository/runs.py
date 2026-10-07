@@ -162,9 +162,19 @@ def count_run_rows(run_id: str, *, db_path: str | None = None) -> dict[str, int]
     return counts
 
 
-def delete_run(run_id: str) -> dict[str, int]:
+def delete_run(run_id: str, *, draft_before: float | None = None) -> dict[str, int]:
     before = count_run_rows(run_id)
-    with connect() as conn:
+    with transaction() if draft_before is not None else connect() as conn:
+        if (
+            draft_before is not None
+            and not conn.execute(
+                "SELECT 1 FROM runs r WHERE id=? AND status='draft' AND updated_at<? "
+                "AND NOT EXISTS (SELECT 1 FROM scientific_tasks t WHERE t.run_id=r.id "
+                "AND t.status IN ('queued','leased'))",
+                (run_id, draft_before),
+            ).fetchone()
+        ):
+            return {}
         conn.execute(
             "UPDATE staged_documents SET run_id=NULL WHERE run_id=?",
             (run_id,),

@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+import asyncio
+import tempfile
+import threading
+import time
+from collections import Counter
+from typing import BinaryIO
+
+from fastapi import HTTPException, Request
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from co_scientist.api.auth import principal_for_request
+from co_scientist.core.exceptions import StorageAdmissionError
+from co_scientist.platform.db.admission import connecting_host
+from co_scientist.platform.db.storage_admission import reserve_write, scoped_peer
+
+_lock = threading.Lock()
+_buffering: Counter[str] = Counter()
+_MAX_JSON_BYTES = 256_000
+_MAX_UPLOAD_BYTES = 26 * 1024 * 1024
+
+
+async def storage_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse({"detail": "storage admission exhausted"}, status_code=429)
+
+
+class RequestLimitsMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope["method"] not in {"POST", "PUT", "PATCH"}:
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path", "")
+        if not path.startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+        request = Request(scope)
+        try:
+            owner = principal_for_request(request).subject
+        except HTTPException as exc:
+            await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(
+                scope, receive, send
+            )
+            return
+        peer = connecting_host(request.client.host if request.client else None)
+        upload = path == "/api/documents" or path.endswith("/attachments/upload")
+        limit = _MAX_UPLOAD_BYTES if upload else _MAX_JSON_BYTES
+        raw_length = request.headers.get("content-length")
+        try:
+            declared = int(raw_length) if raw_length is not None else 0
+        except ValueError:
+            await JSONResponse({"detail": "invalid content length"}, status_code=400)(
+                scope, receive, send
+            )
+            return
+        if declared < 0 or declared > limit:
+            await JSONResponse({"detail": "request body is too large"}, status_code=413)(
+                scope, receive, send
+            )
+            return
+        keys = ("global", f"owner:{owner}", f"host:{peer}")
+        with _lock:
+            admitted = all(
+                _buffering[key] < ceiling for key, ceiling in zip(keys, (8, 2, 2), strict=True)
+            )
+            if admitted:
+                _buffering.update(keys)
+        if not admitted:
+            await JSONResponse({"detail": "request buffering limit reached"}, status_code=429)(
+                scope, receive, send
+            )
+            return
+        try:
+            with tempfile.SpooledTemporaryFile(max_size=65_536) as body:
+                try:
+                    size = await _read_body(body, receive, limit)
+                except HTTPException as exc:
+                    await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(
+                        scope, receive, send
+                    )
+                    return
+                if size is None:
+                    return
+                # Release buffering slots before provider work or an SSE response.
+                self._release(keys)
+                admitted = False
+                if not path.endswith("/adjudicate"):
+                    try:
+                        await asyncio.to_thread(reserve_write, owner, peer, size)
+                    except StorageAdmissionError:
+                        await JSONResponse(
+                            {"detail": "input admission exhausted"}, status_code=429
+                        )(scope, receive, send)
+                        return
+                body.seek(0)
+                with scoped_peer(peer):
+                    await self.app(scope, _body_replay(body, receive, size), send)
+        finally:
+            if admitted:
+                self._release(keys)
+
+    @staticmethod
+    def _release(keys: tuple[str, ...]) -> None:
+        with _lock:
+            for key in keys:
+                _buffering[key] -= 1
+                if not _buffering[key]:
+                    del _buffering[key]
+
+
+async def _read_body(body: BinaryIO, receive: Receive, limit: int) -> int | None:
+    size = 0
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            message = await asyncio.wait_for(receive(), max(0, deadline - time.monotonic()))
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=408, detail="request body timed out") from exc
+        if message["type"] == "http.disconnect":
+            return None
+        chunk = message.get("body", b"")
+        size += len(chunk)
+        if size > limit:
+            raise HTTPException(status_code=413, detail="request body is too large")
+        body.write(chunk)
+        if not message.get("more_body", False):
+            return size
+
+
+def _body_replay(body: BinaryIO, receive: Receive, size: int) -> Receive:
+    replayed = False
+
+    async def replay() -> Message:
+        nonlocal replayed
+        if replayed:
+            return await receive()
+        chunk = body.read(65_536)
+        more = body.tell() < size
+        replayed = not more
+        if replayed:
+            body.close()
+        return {"type": "http.request", "body": chunk, "more_body": more}
+
+    return replay
