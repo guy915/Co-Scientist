@@ -5,7 +5,7 @@ import {
   type TerminalNonCompletedStatus,
 } from '@/shared/api/runs';
 import {Icon, type IconName} from '@/shared/ui/icon';
-import {Card, TabNav, TabNavLink, Toast} from '@/shared/ui';
+import {Card, TabNav, TabNavLink, Toast, ErrorNotice} from '@/shared/ui';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {useIsMobile} from '@/shared/hooks/dom';
 import {tabPath, type TabName} from '@/shared/lib/run_tabs';
@@ -154,13 +154,9 @@ export function ReportTabNav({
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
-    <Card
-      role="alert"
-      tone="danger"
-      layoutClassName="cosci-report-alert ui-motion-enter mx-8 mt-4"
-    >
+    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4">
       {message}
-    </Card>
+    </ErrorNotice>
   );
 }
 

@@ -1,5 +1,5 @@
 import {editInterviewFields} from '@/shared/api/runs';
-import {Button, IconButton, TextArea, TextField} from '@/shared/ui';
+import {Button, IconButton, TextArea, TextField, StatusText} from '@/shared/ui';
 import {type ReactNode, useId, useState} from 'react';
 import {SETUP_ACTIONS_CLASSES} from '@/shared/ui/classes';
 import {
@@ -174,9 +174,7 @@ function SpecFieldsFormActions(
   const {onSave, onCancel, canSave, isSaving, error} = props;
   return (
     <>
-      {error && (
-        <p className="m-0 text-[0.9rem] text-th-destructive">{error}</p>
-      )}
+      {error && <StatusText tone="danger">{error}</StatusText>}
       <div className={SETUP_ACTIONS_CLASSES}>
         <Button variant="outlined" onClick={onCancel} disabled={isSaving}>
           Cancel

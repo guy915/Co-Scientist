@@ -453,7 +453,9 @@ body {
 /* Every keyboard-focused control shows a ring. Zero specificity, so a
    component's own focus style replaces it; text entry keeps its field border. */
 @layer base {
-  :where(:not(input, textarea, select, [contenteditable='true'])):focus-visible {
+  :where(
+    :not(input, textarea, select, [contenteditable='true'])
+  ):focus-visible {
     outline: 2px solid var(--color-th-ring);
     outline-offset: 2px;
   }

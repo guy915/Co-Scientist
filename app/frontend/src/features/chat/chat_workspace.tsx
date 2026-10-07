@@ -17,7 +17,7 @@ import {
   useParams,
   type NavigateFunction,
 } from 'react-router-dom';
-import {Button, IconButton, Toast} from '@/shared/ui';
+import {Button, IconButton, Toast, ErrorNotice} from '@/shared/ui';
 import {conciseTitle} from '@/shared/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '@/shared/lib/dom_events';
 import {useIsMobile} from '@/shared/hooks/dom';
@@ -407,14 +407,7 @@ function TimelineSection({
         {timelineItems.map(item => (
           <Fragment key={item.id}>{item.node}</Fragment>
         ))}
-        {error && (
-          <div
-            role="alert"
-            className="ui-motion-enter rounded-md border border-th-destructive p-3 text-sm text-th-destructive"
-          >
-            {error}
-          </div>
-        )}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
       </div>
     </section>
   );

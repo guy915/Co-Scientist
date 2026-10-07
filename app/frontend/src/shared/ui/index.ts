@@ -21,6 +21,8 @@ export {
   TabNavLink,
   tabLinkClasses,
 } from './tabs';
+export {ErrorNotice, PageStatus, StatusText} from './states';
+export type {StatusTone} from './states';
 export {TextArea, TextField, fieldClasses} from './text_field';
 export {Toast} from './toast';
 export type {ToastPlacement, ToastTone} from './toast';

@@ -1,7 +1,13 @@
 import type {RunFocus, RunTier} from '@/shared/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {Link} from 'react-router-dom';
-import {Button, buttonClasses, IconButton, TextField} from '@/shared/ui';
+import {
+  Button,
+  buttonClasses,
+  IconButton,
+  TextField,
+  StatusText,
+} from '@/shared/ui';
 import {
   joinClasses,
   OPTION_MARKER_CLASSES,
@@ -436,32 +442,20 @@ function RecoveryLookupStatus({
   onRetry?: () => void;
 }) {
   if (status === 'checking') {
-    return (
-      <p
-        role="status"
-        aria-live="polite"
-        className="ui-motion-enter text-sm text-cosci-muted"
-      >
-        Checking saved research session status…
-      </p>
-    );
+    return <StatusText>Checking saved research session status…</StatusText>;
   }
   if (status === 'error') {
     return (
-      <div role="alert" className="ui-motion-enter text-sm text-th-destructive">
+      <StatusText tone="danger" as="div">
         <p>Could not verify the saved run status.</p>
         <Button variant="outlined" onClick={onRetry}>
           Retry status check
         </Button>
-      </div>
+      </StatusText>
     );
   }
   if (status === 'cancelled') {
-    return (
-      <p role="status" className="ui-motion-enter text-sm text-cosci-muted">
-        The linked research session was cancelled.
-      </p>
-    );
+    return <StatusText>The linked research session was cancelled.</StatusText>;
   }
   return null;
 }
