@@ -16,6 +16,7 @@
 | [Production cuts](PROD-CUTS.md) | Agreed feature removals, next after the test campaign |
 | [Production shrink](PROD-SHRINK.md) | Behavior-preserving size reduction, folder by folder after the cuts |
 | [Optimization](OPTIMIZATION.md) | Performance, efficiency and launch readiness |
+| [Re-architecture](REARCHITECTURE.md) | Target structure, phases and rules for the next campaign |
 
 Retired audits, guides, incident records and screenshots remain in
 [immutable history at 33ec8984](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688/docs).
