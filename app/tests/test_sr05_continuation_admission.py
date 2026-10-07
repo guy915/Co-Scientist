@@ -21,6 +21,7 @@ from tests._client import create_run, make_client
 
 def _completed(client: TestClient) -> str:
     run_id = create_run(client, "Study molecular folding").json()["id"]
+    assert isinstance(run_id, str)
     save_checkpoint(run_id, NewCheckpoint("finalize", 1, 0, {"iteration": 2, "api_calls": 7}))
     runs.update_run_status(run_id, RunStatus.COMPLETED)
     return run_id
