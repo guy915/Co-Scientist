@@ -28,7 +28,11 @@ from co_scientist.domains.research_state.models import (
     create_metrics_update,
     phase_message,
 )
-from co_scientist.domains.research_state.models.matchup import Matchup
+from co_scientist.domains.research_state.models.matchup import (
+    Matchup,
+    presented_first,
+    verdict_number,
+)
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -113,43 +117,6 @@ _VERDICT_LINE_RE = re.compile(
 )
 
 
-# Strip only trailing verdicts; their numbers follow each turn's swapped order,
-# while mid-text mentions may be protocol quotations.
-_TRAILING_VERDICT_RE = re.compile(
-    r"\s*better\s+(?:idea|hypothesis)\s*:\s*[12ab]\W*$",
-    re.IGNORECASE,
-)
-
-
-def _verdict_number(side: str) -> str:
-    return "1" if side == "a" else "2"
-
-
-def _presented_first(entry: dict[str, Any]) -> str:
-    """Each turn's numbers follow its presentation order; old entries without
-    order metadata retain canonical order."""
-    return "2" if str(entry.get("presentation_order") or "ab") == "ba" else "1"
-
-
-def debate_transcript_document(transcript: list[dict[str, Any]], verdict: str) -> dict[str, Any]:
-    """Persist the readable exchange and one verdict, excluding loop
-    bookkeeping."""
-    return {
-        "verdict": verdict,
-        "turns": [
-            {
-                "turn": int(entry.get("turn") or index),
-                "favored": _verdict_number(str(entry.get("winner") or "a")),
-                "text": _TRAILING_VERDICT_RE.sub(
-                    "", str(entry.get("reasoning") or "").rstrip()
-                ).rstrip(),
-                "first": _presented_first(entry),
-            }
-            for index, entry in enumerate(transcript, 1)
-        ],
-    }
-
-
 def _parse_verdict_line(text: str) -> str | None:
     """The concluding verdict wins; quoted "1 or 2" is a format example, not
     a decision."""
@@ -195,7 +162,7 @@ def _presented_number(entry: dict[str, Any], swapped: bool) -> str:
 def _prior_turn_order_note(entry: dict[str, Any], swapped: bool) -> str:
     """Relabeling votes does not relabel quoted prose; state old presentation
     order so the judge does not mistake swapped labels for contradiction."""
-    if (_presented_first(entry) == "2") != swapped:
+    if (presented_first(entry) == "2") != swapped:
         return (
             " (that turn presented the two hypotheses in the opposite "
             "order to this turn, so where its text says 'hypothesis 1' it "
@@ -325,7 +292,7 @@ def _finalize_debate_response(
 
     response["debate_turns"] = turns
     response["debate_transcript"] = run.transcript
-    response["debate_verdict"] = _verdict_number(winner)
+    response["debate_verdict"] = verdict_number(winner)
     response["judge_model"] = model_name
     response["consensus_votes"] = votes
     response["position_balanced"] = turns > 1
@@ -497,7 +464,7 @@ def build_matchup(
         criteria_comparisons=_extract_criteria_comparisons(response),
         debate_turns=response.get("debate_turns", 1),
         debate_transcript=response.get("debate_transcript", []),
-        debate_verdict=response.get("debate_verdict") or _verdict_number(winner),
+        debate_verdict=response.get("debate_verdict") or verdict_number(winner),
         judge_model=response.get("judge_model"),
         consensus_votes=response.get("consensus_votes", [winner]),
         position_balanced=response.get("position_balanced", False),

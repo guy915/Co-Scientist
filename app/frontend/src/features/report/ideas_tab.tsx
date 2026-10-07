@@ -1,4 +1,9 @@
-import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {
+  ClaimEvidenceRow,
+  Hypothesis,
+  MatchRow,
+  Review,
+} from '@/shared/api/runs';
 import {Chip} from '@/shared/ui';
 import {
   UNDERMINED_VERDICT,

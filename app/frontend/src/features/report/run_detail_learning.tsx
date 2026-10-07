@@ -1,5 +1,5 @@
 import {useMemo, useState} from 'react';
-import type {Evidence, KnowledgeBaseTopic, Report} from '@/api/runs';
+import type {Evidence, KnowledgeBaseTopic, Report} from '@/shared/api/runs';
 import {Icon} from '@/shared/ui/icon';
 import {
   Button,

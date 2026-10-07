@@ -6,7 +6,7 @@ import {
   type RunActivity,
   type RunWithSummary,
   type TerminalNonCompletedStatus,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {useRunHistoryContext} from '@/shared/hooks/history_context';
 import {useParams} from 'react-router-dom';
 import {IdeasTab} from './ideas_tab';

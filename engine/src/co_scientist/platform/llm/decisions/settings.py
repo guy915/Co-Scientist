@@ -7,7 +7,16 @@ from urllib.parse import urlsplit
 
 
 class DecisionUnavailableError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        rate_limits: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.rate_limits = rate_limits or {}
 
 
 def calibrated_threshold(site: str) -> float | None:

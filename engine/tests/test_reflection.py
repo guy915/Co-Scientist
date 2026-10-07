@@ -11,8 +11,8 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.domains.research_state.models import Article
 from co_scientist.orchestration.generator import run_setup
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.platform.sandbox.workspace.session import WorkspaceSession
 from co_scientist.science.reflection import (
     ReviewRun,

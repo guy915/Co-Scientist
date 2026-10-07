@@ -104,3 +104,24 @@ it('setMode persists an explicit choice and updates resolvedMode', async () => {
   expect(localStorage.getItem(STORAGE_KEY)).toBe('dark');
   expect(document.documentElement.dataset.themePreference).toBe('dark');
 });
+
+it('renders with the system theme when storage is blocked', () => {
+  installFakeMatchMedia(false);
+  const blocked = vi
+    .spyOn(window, 'localStorage', 'get')
+    .mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+  try {
+    const {result} = renderHook(() => useTheme(), {
+      wrapper: ({children}: {children: ReactNode}) => (
+        <ThemeProvider>{children}</ThemeProvider>
+      ),
+    });
+    expect(result.current.mode).toBe('system');
+    act(() => result.current.setMode('dark'));
+    expect(result.current.resolvedMode).toBe('dark');
+  } finally {
+    blocked.mockRestore();
+  }
+});

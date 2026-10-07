@@ -9,9 +9,9 @@ from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
-from co_scientist.orchestration.checkpoint import CHECKPOINT_VERSION
 from co_scientist.orchestration.repository import supervisor_plan
 from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.checkpoints import CHECKPOINT_VERSION
 from co_scientist.platform.db.models import RunRow
 
 # Exclude runtime handles, credentials and model routing.

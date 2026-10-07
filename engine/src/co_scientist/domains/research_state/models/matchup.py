@@ -1,4 +1,5 @@
 import dataclasses
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -53,3 +54,40 @@ class Matchup:
     def verdict(self) -> str:
         # Historical matchups lack verdict numbers; side a is idea 1.
         return str(self.debate_verdict or ("2" if self.winner == "b" else "1"))
+
+
+# Strip only trailing verdicts; their numbers follow each turn's swapped order,
+# while mid-text mentions may be protocol quotations.
+_TRAILING_VERDICT_RE = re.compile(
+    r"\s*better\s+(?:idea|hypothesis)\s*:\s*[12ab]\W*$",
+    re.IGNORECASE,
+)
+
+
+def verdict_number(side: str) -> str:
+    return "1" if side == "a" else "2"
+
+
+def presented_first(entry: dict[str, Any]) -> str:
+    """Each turn's numbers follow its presentation order; old entries without
+    order metadata retain canonical order."""
+    return "2" if str(entry.get("presentation_order") or "ab") == "ba" else "1"
+
+
+def debate_transcript_document(transcript: list[dict[str, Any]], verdict: str) -> dict[str, Any]:
+    """Persist the readable exchange and one verdict, excluding loop
+    bookkeeping."""
+    return {
+        "verdict": verdict,
+        "turns": [
+            {
+                "turn": int(entry.get("turn") or index),
+                "favored": verdict_number(str(entry.get("winner") or "a")),
+                "text": _TRAILING_VERDICT_RE.sub(
+                    "", str(entry.get("reasoning") or "").rstrip()
+                ).rstrip(),
+                "first": presented_first(entry),
+            }
+            for index, entry in enumerate(transcript, 1)
+        ],
+    }

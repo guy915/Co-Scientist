@@ -12,7 +12,6 @@ from co_scientist.core.constants import (
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.domains.research_state.models import (
-    Article,
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
@@ -24,6 +23,7 @@ from co_scientist.platform.llm import (
     LLMCallOptions,
     call_llm_json,
 )
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.science.prompts import build_tool_instructions
 from co_scientist.science.prompts._common import _format_meta_review_context
 from co_scientist.science.prompts.loading import load_prompt_with_schema

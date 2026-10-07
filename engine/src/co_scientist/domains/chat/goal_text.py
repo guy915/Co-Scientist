@@ -6,15 +6,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core import byok_scope
-from co_scientist.core.config import (
+from co_scientist.core.config import settings
+from co_scientist.platform.llm import llm_request, offline_guard
+from co_scientist.platform.llm.llm_scope import budgeted
+from co_scientist.platform.llm.request.thinking import (
     deepseek_thinking_kwargs,
-    settings,
     thinking_off_kwargs,
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
-from co_scientist.platform.llm import llm_request, offline_guard
-from co_scientist.platform.llm.llm_scope import budgeted
 
 logger = logging.getLogger(__name__)
 

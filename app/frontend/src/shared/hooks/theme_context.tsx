@@ -10,6 +10,11 @@ import {
 } from 'react';
 import {flushSync} from 'react-dom';
 import {MD3_SCHEMES} from '@/shared/ui/md3_scheme';
+import {
+  readStorage,
+  STORAGE_KEYS,
+  writeStorage,
+} from '@/shared/lib/safe_storage';
 
 export type Mode = 'system' | 'light' | 'dark';
 type ResolvedMode = 'light' | 'dark';
@@ -25,7 +30,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function readStoredMode(): Mode {
   if (typeof window === 'undefined') return 'system';
-  const stored = window.localStorage.getItem('cosci-theme');
+  const stored = readStorage('local', STORAGE_KEYS.theme);
   return stored === 'light' || stored === 'dark' || stored === 'system'
     ? stored
     : 'system';
@@ -72,7 +77,7 @@ function useApplyTheme(mode: Mode, resolvedMode: ResolvedMode): void {
     root.dataset.theme = resolvedMode;
     root.dataset.themePreference = mode;
     root.classList.toggle('dark', resolvedMode === 'dark');
-    window.localStorage.setItem('cosci-theme', mode);
+    writeStorage('local', STORAGE_KEYS.theme, mode);
     // The first animation frame commits styles; the second lifts transition
     // suppression after they are visible.
     const id = window.requestAnimationFrame(() => {

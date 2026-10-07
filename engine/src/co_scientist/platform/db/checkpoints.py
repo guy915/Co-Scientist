@@ -10,6 +10,9 @@ from co_scientist.orchestration.repository.supervisor_plan import (
 )
 from co_scientist.platform.db import checkpoint_wal, connect, current_time, use_conn
 
+# Bump incompatible envelope changes; mismatched versions fail closed.
+CHECKPOINT_VERSION = 1
+
 
 @dataclass(frozen=True)
 class NewCheckpoint:

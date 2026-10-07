@@ -7,19 +7,18 @@ from time import perf_counter
 from typing import Any
 
 from co_scientist.core import byok_scope
-from co_scientist.core.config import (
-    THINKING_FLOOR_TIMEOUT_SECONDS,
-    deepseek_thinking_kwargs,
-    settings,
-    thinking_off_kwargs,
-    thinking_safe_max_tokens,
-)
+from co_scientist.core.config import THINKING_FLOOR_TIMEOUT_SECONDS, settings
 from co_scientist.core.sse import sse_frame
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.platform.db.models import MessageRow, RunRow
 from co_scientist.platform.llm import offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
+from co_scientist.platform.llm.request.thinking import (
+    deepseek_thinking_kwargs,
+    thinking_off_kwargs,
+    thinking_safe_max_tokens,
+)
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
 

@@ -1,5 +1,5 @@
 import {vi} from 'vitest';
-import {type StagedDocument} from '@/api/runs';
+import {type StagedDocument} from '@/shared/api/runs';
 import {
   type ChatSessionDeps,
   type SessionState,

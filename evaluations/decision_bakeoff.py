@@ -222,6 +222,9 @@ async def run_panel(
                 }
             except Exception as error:
                 row["error"] = type(error).__name__
+                if isinstance(error, DecisionUnavailableError):
+                    row["provider_status"] = error.status_code
+                    row["rate_limits"] = error.rate_limits
                 rows.append(row)
                 break
             rows.append(row)
@@ -247,17 +250,26 @@ async def account_limits() -> dict[str, Any]:
             if response.status_code != 200:
                 return {"status": response.status_code}
             data = response.json()["data"]
-            return {
+            result = {
                 key: data[key]
                 for key in (
                     "limit",
                     "limit_remaining",
                     "usage_daily",
                     "is_free_tier",
-                    "free_model_daily_requests",
                 )
-                if key in data
+                if key in data and (data[key] is None or isinstance(data[key], (bool, int, float)))
             }
+            daily = data.get("free_model_daily_requests")
+            if isinstance(daily, dict):
+                result["free_model_daily_requests"] = {
+                    key: daily[key]
+                    for key in ("used", "limit", "remaining")
+                    if type(daily.get(key)) in (int, float)
+                }
+            elif type(daily) in (int, float):
+                result["free_model_daily_requests"] = daily
+            return result
     except Exception as error:
         return {"error": type(error).__name__}
 
