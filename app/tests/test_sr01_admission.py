@@ -148,7 +148,7 @@ def test_free_host_allowance_survives_owner_rotation_and_run_deletion(
     async def no_title(goal: str) -> None:
         return None
 
-    monkeypatch.setattr("app.runs.crud.generate_run_title", no_title)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_run_title", no_title)
     client = make_client()
     run_id = create_run(client, "First", tier="express").json()["id"]
     assert client.delete(f"/api/runs/{run_id}").status_code == 200
