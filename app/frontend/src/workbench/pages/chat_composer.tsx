@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {IconButton} from '@/shared/ui';
+import {IconButton, TextArea} from '@/shared/ui';
 import {joinClasses, tooltipClassNames} from '../classes';
 import type {Connector, SystemStatus} from '@/api/system';
 import {useSystemStatus} from '../hooks/system_status_context';
@@ -106,13 +106,14 @@ export function Composer({
           />
           {referenceLabel}
         </span>
-        <textarea
+        <TextArea
           ref={textareaRef}
           rows={1}
           value={input}
           autoFocus={autoFocus}
-          className={joinClasses(
-            'relative z-[2] block min-h-[2.85rem] w-full resize-none overflow-y-auto border-0 bg-transparent p-0 font-[inherit] leading-6 text-cosci-composer-text outline-none',
+          variant="bare"
+          layoutClassName={joinClasses(
+            'relative z-[2] block min-h-[2.85rem] resize-none overflow-y-auto leading-6',
             large &&
               '[@media(min-width:1181px)_and_(max-height:760px)]:min-h-[2.65rem]',
           )}

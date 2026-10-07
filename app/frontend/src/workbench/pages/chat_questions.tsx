@@ -5,7 +5,7 @@ import {
 } from '@/api/runs';
 import {useState} from 'react';
 import {Icon} from '@/components/icon';
-import {Button, IconButton} from '@/shared/ui';
+import {Button, IconButton, TextField} from '@/shared/ui';
 import {joinClasses} from '../classes';
 import {
   OPTION_MARKER_CLASSES,
@@ -312,8 +312,7 @@ function OtherAnswerRow({
         multiSelect={multiSelect}
         selected={text.trim().length > 0}
       />
-      <input
-        className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-fg outline-none placeholder:text-cosci-composer-label focus:border-cosci-option-hover-border"
+      <TextField
         aria-label={OTHER_LABEL}
         placeholder={OTHER_PLACEHOLDER}
         value={text}

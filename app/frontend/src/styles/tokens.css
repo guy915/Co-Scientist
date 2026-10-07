@@ -344,6 +344,12 @@ body {
   --scrim: rgb(0 0 0 / 45%);
 }
 
+/* Dark muted text is nearly as bright as typed text, so placeholders take the
+   subtler grey there. */
+:root[data-theme='dark'] {
+  --field-placeholder: var(--cosci-subtle);
+}
+
 /* Surface scopes: a surface whose background equals a component's default
    tone re-points that component's tokens here, never at the call site. */
 .ucs-header-action-bar,

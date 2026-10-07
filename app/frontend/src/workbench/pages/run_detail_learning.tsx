@@ -4,6 +4,7 @@ import {Icon} from '@/components/icon';
 import {
   Button,
   Chip,
+  TextField,
   chipClasses,
   chipIconClasses,
   joinClasses,
@@ -401,10 +402,11 @@ function ReferenceSearchBox({
   onQueryChange: (value: string) => void;
 }) {
   return (
-    <label className="cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-cosci-muted">
+    <label className="cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-[0.86rem] text-cosci-muted">
       <Icon className="text-base" aria-hidden="true" name="search" />
-      <input
-        className="min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-[0.86rem] text-cosci-fg outline-0 placeholder:text-cosci-muted"
+      <TextField
+        variant="bare"
+        layoutClassName="min-w-0 flex-1"
         value={query}
         onChange={event => onQueryChange(event.currentTarget.value)}
         placeholder="Search references"
