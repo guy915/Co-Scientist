@@ -189,6 +189,16 @@ describe('error messages', () => {
       errorResponse(429, JSON.stringify({detail: 'You used your free runs.'})),
       /^You used your free runs\.$/,
     ],
+    [
+      'any other refusal by its detail',
+      errorResponse(409, JSON.stringify({detail: 'run already finished'})),
+      /^run already finished$/,
+    ],
+    [
+      'a validation list by its status only',
+      errorResponse(422, JSON.stringify({detail: [{msg: 'field required'}]})),
+      /^Request failed \(422 Error\)$/,
+    ],
   ])('reports %s', async (_name, response, expected) => {
     fetchMock().mockResolvedValue(response);
     await expect(getRun('r1')).rejects.toThrow(expected);
