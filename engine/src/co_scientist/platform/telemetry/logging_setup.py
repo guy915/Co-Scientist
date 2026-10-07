@@ -127,6 +127,8 @@ class _CaptureQueueHandler(logging.handlers.QueueHandler):
     before the listener crosses that boundary.
     """
 
+    queue: CaptureQueue
+
     def handle(self, record: logging.LogRecord) -> bool:
         if getattr(record, "_cosci_captured", False):
             return False
