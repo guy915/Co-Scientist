@@ -165,6 +165,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 **Fix:** Bound concurrent streams globally and per session/host and share polling/broadcast work between subscribers. Close idle draft subscriptions promptly and set explicit proxy connection/idle budgets compatible with SSE.
 
+**Fixing PR:** [#423](https://github.com/guy915/Co-Scientist/pull/423) caps GET run-event streams globally and per owner/connecting host, releases admission on disconnect/failure/cancellation and closes idle drafts without a persisted terminal event. Offline regressions retain history replay, live-run keepalives and JSON snapshots. Proxy-level connection/idle settings remain a hosting runbook item.
+
 ### SR-11 — MCP authentication depends on an optional deployment secret
 
 **Area:** SSRF and retrieval; auth. **Severity:** medium, conditional. **Owner:** launch runbook.

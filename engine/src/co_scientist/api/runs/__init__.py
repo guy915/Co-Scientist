@@ -6,9 +6,10 @@ from fastapi import (
     Request,
     Response,
 )
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 
 import co_scientist.api.runs.crud as runs_deletion
+from co_scientist.api.auth import client_id
 from co_scientist.api.contracts import RunsResponse
 from co_scientist.api.contracts.runs import Run, RunWithSummary
 from co_scientist.api.runs import chat as runs_chat
@@ -20,11 +21,13 @@ from co_scientist.api.runs.events import _event_stream
 from co_scientist.api.runs.lifecycle import (
     resume_interrupted_runs as resume_interrupted_runs,
 )
+from co_scientist.api.runs.stream_admission import AdmittedEventStream
 from co_scientist.api.runs.support import (
     _run_or_404 as _run_or_404,
 )
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.orchestration.repository import events as store
+from co_scientist.platform.db.storage_admission import current_peer
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -72,15 +75,10 @@ def stream_events(
     run = _run_or_404(run_id)
     if not stream:
         return JSONResponse({"events": store.list_events(run_id, after)})
-    return StreamingResponse(
+    return AdmittedEventStream(
         _event_stream(run_id, request, after, run),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            # Proxy buffering would prevent incremental SSE delivery.
-            "X-Accel-Buffering": "no",
-        },
+        client_id(request),
+        current_peer(),
     )
 
 
