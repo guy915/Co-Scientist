@@ -6,6 +6,7 @@ from urllib.parse import ParseResult, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from mcp_server.http_client import make_client
 from mcp_server.pdf_parser import extract_text_from_pdf
 from mcp_server.safe_http import UnsafeUrlError, get_with_screened_redirects, validate_http_url
 from mcp_server.text_extraction import truncate_markdown
@@ -143,9 +144,7 @@ def _render_response(response: httpx.Response) -> str:
 async def _fetch_and_render(url: str) -> str:
     """The caller screens the initial URL; this path screens redirects."""
     headers: dict[str, Any] = {"User-Agent": _USER_AGENT}
-    async with httpx.AsyncClient(
-        timeout=_REQUEST_TIMEOUT, headers=headers, trust_env=False
-    ) as client:
+    async with make_client(_REQUEST_TIMEOUT, headers=headers, honour_proxy_env=False) as client:
         response = await _get_with_screened_redirects(client, url)
         response.raise_for_status()
         # In a worker thread: BeautifulSoup/pypdf parsing is CPU-bound

@@ -1,5 +1,5 @@
 import type {ButtonHTMLAttributes, Ref} from 'react';
-import type {IconName} from '@/components/icon';
+import type {IconName} from './icon';
 import {joinClasses} from './cx';
 import {SwapIcon} from './swap_icon';
 import {tooltipClassNames, type TooltipPlacement} from './tooltip';

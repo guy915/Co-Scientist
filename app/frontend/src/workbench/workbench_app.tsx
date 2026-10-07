@@ -1,18 +1,20 @@
 import {lazy, type ReactElement, Suspense} from 'react';
 import {Navigate, Route, Routes} from 'react-router-dom';
-import {ErrorBoundary} from '@/components/error_boundary';
+import {ErrorBoundary} from '@/shared/ui/error_boundary';
 import {NoIndex} from '@/public/page';
 import {NotFoundPage} from '@/public/page';
-import {ChatHistoryProvider} from './hooks/history_context';
-import {RunHistoryProvider} from './hooks/history_context';
-import {SystemStatusProvider} from './hooks/system_status_context';
+import {ChatHistoryProvider} from '@/shared/hooks/history_context';
+import {RunHistoryProvider} from '@/shared/hooks/history_context';
+import {SystemStatusProvider} from '@/shared/hooks/system_status_context';
 import {Layout} from './layout';
-import {ChatWorkspace} from './pages/chat_workspace';
-import {ExampleChat} from './pages/example_chat';
-import {ThemeProvider} from './theme_context';
+import {ChatWorkspace} from '@/features/chat/chat_workspace';
+import {ExampleChat} from '@/features/chat/example_chat';
+import {ThemeProvider} from '@/shared/hooks/theme_context';
 
 const RunDetail = lazy(() =>
-  import('./pages/run_detail').then(module => ({default: module.RunDetail})),
+  import('@/features/report/run_detail').then(module => ({
+    default: module.RunDetail,
+  })),
 );
 
 function PageLoading() {

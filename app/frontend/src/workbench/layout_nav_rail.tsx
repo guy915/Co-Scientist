@@ -1,19 +1,19 @@
 import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {Button, Menu, MenuItem, NavItemButton, NavItemLink} from '@/shared/ui';
-import {isModifiedClick} from '@/workbench/dom_events';
+import {isModifiedClick} from '@/shared/lib/dom_events';
 import {
   SETTINGS_SECTIONS,
   type SettingsSection,
-} from './components/settings_dialog';
+} from '@/features/access/settings_dialog';
 import type {ShellPanel} from './layout';
-import {joinClasses, tooltipClassNames} from './classes';
+import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {ChatSummary, Run} from '@/api/runs';
-import {conciseTitle} from '@/lib/text';
-import {TruncatedLabel} from './components/truncated_label';
-import {useFittingRows, useOverflowing} from './hooks/dom';
-import {preferredSessionSide} from './layout_session_switch';
-import {tabPath} from './run_tabs';
+import {conciseTitle} from '@/shared/lib/text';
+import {TruncatedLabel} from '@/shared/ui/truncated_label';
+import {useFittingRows, useOverflowing} from '@/shared/hooks/dom';
+import {preferredSessionSide} from '@/features/runs/session_switch';
+import {tabPath} from '@/shared/lib/run_tabs';
 
 const RAIL_MENU_LAYOUT_CLASSES =
   'absolute z-[35] origin-bottom-left bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] ' +

@@ -27,7 +27,7 @@ The root and nested `AGENTS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`, and
 | SR-11 | Medium, conditional | SSRF and retrieval; auth | Unset MCP shared secret preserves unauthenticated tools if reachable | launch runbook | Middleware and deployment contract |
 | SR-12 | Medium, conditional | Abuse | Anonymous users can address completion mail to an unverified recipient | lane X | Notification configuration and SMTP trace; no delivery |
 | SR-13 | Medium | Denial of service; data | A botnet can overwhelm the unbounded diagnostic capture queue | lane X | Queue and admission trace |
-| SR-14 | Low | Data; dependencies; CI | Dependency audit reports advisories in installed packages; enabled attack surfaces differ | lane C | Required audit failed; reachability triage below |
+| SR-14 | Low | Data; dependencies; CI | Dependency audit reports advisories in installed packages; enabled attack surfaces differ | lane V | Required audit failed; remediation and reachability triage below |
 
 ## High findings
 
@@ -49,6 +49,8 @@ Conversational completions reserve durable per-client and global daily call/toke
 
 ### SR-02 — Run ownership grants safety-review authority
 
+**Fixing PR:** [#395 — Require an operator token to resolve safety holds](https://github.com/guy915/Co-Scientist/pull/395) (lane S).
+
 **Area:** auth and ownership; safety abuse. **Severity:** high. **Owner:** lane X.
 
 **Entry and path:** An owner reads their safety decision and posts `{"resolution":"approved"}` to `POST /api/runs/{run_id}/safety/{decision_id}/adjudicate`. The route requires a nonempty client identity, records it as the reviewer, and performs no operator or independent-reviewer authorization ([app/app/runs/lifecycle.py:199](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/runs/lifecycle.py#L199), [app/app/runs/collections.py:73](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/runs/collections.py#L73)). The resolution becomes a stage approval ([app/app/store/records.py:375](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/store/records.py#L375), [app/app/store/records.py:393](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/store/records.py#L393)); approved stages skip semantic escalation ([app/app/safety/__init__.py:348](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/safety/__init__.py#L348), [app/app/safety/__init__.py:389](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/safety/__init__.py#L389)). Intake/final approval can resume paused work ([app/app/runs/lifecycle.py:159](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/runs/lifecycle.py#L159)).
@@ -60,6 +62,8 @@ Conversational completions reserve durable per-client and global daily call/toke
 **Fix:** Require an independently authenticated reviewer or operator capability for adjudication, separate from run ownership. Continue to enforce non-overridable deterministic prohibitions and bind approval to the reviewed content and policy version.
 
 ### SR-03 — Cheap anonymous writes have no aggregate storage or transport budget
+
+**Fixing PR:** [#406](https://github.com/guy915/Co-Scientist/pull/406). Bounds bodies before parsing, planning/steering fields, durable ingress budgets and atomic staged/message/corpus storage; charges example-copy amplification and expires abandoned drafts. Regression tests include chunked/false lengths, identity rotation, concurrent staging, attachment copies, non-refunded admission and racing draft starts. Retention scheduling, physical volume/WAL headroom and operator recovery remain launch-runbook responsibilities.
 
 **Area:** data; denial of service. **Severity:** high. **Owner:** lane X.
 
@@ -88,6 +92,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 **Fix:** Execute generated programs in a separate service/network namespace with default-denied loopback, private, link-local and metadata destinations and an enforced public-egress gateway. Keep command tools disabled at launch until both confinement and network-boundary tests pass; remove loopback-only operator privilege from any namespace shared with untrusted programs.
 
 ### SR-05 — Steering queues work outside normal capacity admission
+
+**Fixing PR:** [#407](https://github.com/guy915/Co-Scientist/pull/407). Atomically admits capacity and durable daily continuation/shared run/free usage, status, lifecycle and enqueue; deduplicates replay and preserves accumulated checkpoints. Regression tests cover concurrent reopening, daily scope limits, unstored BYOK headers, failed-enqueue rollback and late-input finalization.
 
 **Area:** cost abuse; denial of service. **Severity:** high. **Owner:** lane X.
 
@@ -183,13 +189,18 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 ### SR-14 — Dependency audit is red; installed advisories need an explicit disposition
 
-**Area:** data; dependencies; CI. **Severity:** low for the exposed paths established here. **Owner:** lane C.
+**Area:** data; dependencies; CI. **Severity:** low for the exposed paths established here. **Owner:** lane V.
 
 **Entry and path:** `make audit-deps` audits the committed Python locks and both Bun lockfiles ([Makefile:306](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/Makefile#L306)). It returned exit 2 because the Python detector reported advisories: 35 advisory rows across two API packages and six rows across two MCP packages. Duplicate IDs/aliases remain part of the raw result; they are not 41 distinct vulnerabilities.
 
 **Impact / evidence:** API lock packages are `litellm==1.80.17` and `langgraph-sdk==0.3.15`; MCP packages are `diskcache==5.6.3` and `fastmcp==2.14.7` ([requirements/api.txt:1104](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/requirements/api.txt#L1104), [requirements/api.txt:1112](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/requirements/api.txt#L1112), [requirements/mcp.txt:293](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/requirements/mcp.txt#L293), [requirements/mcp.txt:321](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/requirements/mcp.txt#L321)). The app uses LiteLLM's completion library rather than mounting its Proxy API ([engine/src/co_scientist/llm/request/backend.py:38](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/engine/src/co_scientist/llm/request/backend.py#L38)). Retrieved LiteLLM advisories concern proxy auth/management, proxy MCP, guardrails, skills or routing. The LangGraph SDK advisory concerns resource-scoped auth callbacks, not the scheduler API here. FastMCP advisories concern OAuth proxy configuration and Windows installation CLI execution; neither configuration was established in this Linux MCP service ([engine/mcp_server/server.py:93](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/engine/mcp_server/server.py#L93)). Diskcache's pickle issue requires an attacker-writable cache artifact; no such remotely writable cache path was established. These are reachability dispositions, not claims that affected packages are safe in every future configuration.
 
 **Fix:** Record approved, version-specific advisory dispositions and upgrade affected pins where compatible. Make advisory triage visible in CI or a scheduled dependency gate so newly enabled proxy/auth/cache surfaces cannot silently inherit this audit backlog.
+
+
+**Dependency remediation:** LiteLLM is raised to 1.88.6 in [#391](https://github.com/guy915/Co-Scientist/pull/391). The FastMCP 3.2.4 migration in [#396](https://github.com/guy915/Co-Scientist/pull/396) removes `diskcache` from `requirements/mcp.txt`; no production lock now contains it. The MCP server does not import `diskcache`, instantiate `DiskStore`, enable the `py-key-value-aio[disk]` extra, or configure an OAuth proxy. Its production image installs only the hash-pinned MCP closure.
+
+**Diskcache disposition (#459 / GHSA-w8v5-vhqr-4h9v):** The advisory has no patched release and requires an attacker-writable pickle/cache artifact. Removal of the dependency addresses this deployment; no diskcache directory is configured or created by the reference server, so a shared/world-writable diskcache directory is not part of its current storage contract. This does not assert filesystem permissions on a live deployment. Any future introduction of a disk-backed key/value store must reassess deserialization and require a private directory that is neither shared with untrusted writers nor group/world-writable. The regenerated MCP lock passes `pip-audit==2.10.1` with no known vulnerabilities. LangGraph SDK remediation and the final all-lock audit remain separate work items.
 
 ## What was checked and found sound
 
