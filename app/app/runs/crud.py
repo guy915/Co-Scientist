@@ -13,6 +13,7 @@ import app.free_usage as free_usage
 import app.run_corpus as run_corpus
 import app.staged_documents as staged_documents
 import app.store.receipts as run_creation_receipts
+from app.async_bridge import off_loop
 from app.auth import client_id, require_client_scope
 from app.config import byok_enabled
 from app.execution_policy import ZERO_COST_CONFIG_KEY, deployment_routes_are_free
@@ -419,7 +420,8 @@ def _guard_deletable(run: RunRow) -> None:
 
 
 @router.delete("/{run_id}")
-async def delete_run(run_id: str) -> dict[str, Any]:
+@off_loop
+def delete_run(run_id: str) -> dict[str, Any]:
     """Permanently delete a run and every row scoped to it.
 
     The run must not be queued, running, or synthesizing -- an active run
@@ -565,7 +567,8 @@ def _runs_payload(runs: list[RunRow]) -> dict[str, Any]:
         }
 
 
-async def list_runs(
+@off_loop
+def list_runs(
     request: Request,
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
@@ -584,14 +587,20 @@ async def list_runs(
 
 
 # Literal demo paths precede /{run_id} for first-match routing.
-async def list_demo_runs() -> dict[str, Any]:
+@off_loop
+def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
     runs = views.list_runs(client_id=DEMO_CLIENT_ID)
     return _runs_payload(runs)
 
 
-async def get_run(run_id: str) -> dict[str, Any]:
+@off_loop
+def get_run(run_id: str) -> dict[str, Any]:
     """Return a run's details plus per-table summary counts."""
+    return _run_details(run_id)
+
+
+def _run_details(run_id: str) -> dict[str, Any]:
     with db.connect() as conn:
         run = _run_or_404(run_id, conn=conn)
         summary = store.summary_counts(run_id, conn=conn)
@@ -629,7 +638,8 @@ def _awaiting_decision_count(run: RunRow, *, conn: sqlite3.Connection) -> int:
     return records.count_unresolved_review_decisions(run.id, conn=conn)
 
 
-async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
+@off_loop
+def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
     """Rename an owned run, replacing its existing session title.
 
     The title is only ever a label: it comes from the run's interview, or
@@ -662,7 +672,7 @@ async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
     if not title:
         raise HTTPException(status_code=422, detail="title cannot be blank")
     store.set_run_title(run_id, title)
-    return await get_run(run_id)
+    return _run_details(run_id)
 
 
 __all__ = [
