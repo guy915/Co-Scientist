@@ -66,7 +66,7 @@ def isolated_db(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Iter
     yield db_path
     # Stop log capture before environment teardown so queued records cannot
     # spill into another test database.
-    from app.logging_setup import shutdown_log_capture
+    from co_scientist.platform.telemetry.logging_setup import shutdown_log_capture
 
     shutdown_log_capture()
 

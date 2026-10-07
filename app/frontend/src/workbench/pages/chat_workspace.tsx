@@ -19,6 +19,7 @@ import {
   type NavigateFunction,
 } from 'react-router-dom';
 import {Icon} from '@/components/icon';
+import {Button} from '@/shared/ui';
 import {conciseTitle} from '@/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useIsMobile} from '../hooks/dom';
@@ -174,18 +175,14 @@ function ToastPortal({toast}: {toast: ToastState | null}) {
   if (!toast) return null;
   return createPortal(
     <div
-      className="reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] font-medium text-cosci-toast-fg"
+      className="reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] font-medium text-cosci-toast-fg [--button-link-fg:var(--cosci-toast-action)]"
       role="status"
     >
       <span>{toast.message}</span>
       {toast.action && (
-        <button
-          type="button"
-          className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline"
-          onClick={toast.action.onClick}
-        >
+        <Button variant="link" onClick={toast.action.onClick}>
           {toast.action.label}
-        </button>
+        </Button>
       )}
     </div>,
     document.body,

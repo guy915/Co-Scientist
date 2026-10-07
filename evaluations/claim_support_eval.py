@@ -88,7 +88,7 @@ def _rate(part: int, total: int) -> float | None:
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     from app.store import hypotheses as store
     from app.store import records, runs
-    from app.store import retrieval_calls as retrieval
+    from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
     from evaluations._usage_evidence import summarize_usage
 

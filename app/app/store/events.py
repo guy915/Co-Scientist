@@ -133,7 +133,7 @@ def _log_stage(run_id: str, type_: str, payload: dict[str, Any]) -> None:
     """Lazy import avoids the logging/store cycle; bind run context because
     RunIdFilter would otherwise replace the explicit run ID.
     """
-    from app.logging_setup import run_log_context
+    from co_scientist.platform.telemetry.logging_setup import run_log_context
 
     summary = summarize_stage_payload(payload)
     message = f"{type_} {summary}".strip()

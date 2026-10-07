@@ -12,8 +12,8 @@ from co_scientist.agents.generation.literature_tools.draft import (
 from co_scientist.agents.generation.literature_tools.validate import (
     validate_hypotheses,
 )
-from co_scientist.mcp_client import get_mcp_client
 from co_scientist.models import Hypothesis
+from co_scientist.platform.retrieval.mcp_client import get_mcp_client
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

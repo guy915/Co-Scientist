@@ -5,14 +5,14 @@ import re
 from typing import Any
 
 from co_scientist.models import HypothesisOrigin
-
-from app.citations import (
+from co_scientist.platform.retrieval.citations import (
     CitationMetadata,
     DateState,
     SourceType,
     classify_date,
     classify_source_type,
 )
+
 from app.claims.gate import ClaimEdge
 from app.report.markdown.document import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.text_utils import hypothesis_statement, hypothesis_title

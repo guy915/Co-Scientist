@@ -16,15 +16,15 @@ from typing import Any
 
 import pytest
 
-import co_scientist.patch as patch_module
-from co_scientist.sandbox import (
+import co_scientist.platform.sandbox.patch as patch_module
+from co_scientist.platform.sandbox import (
     HARNESS_METADATA_NAME,
     METADATA_NAMES,
     PROTECTED_METADATA_NAMES,
     command_lifecycle_available,
     sandbox_backend,
 )
-from co_scientist.workspace import (
+from co_scientist.platform.sandbox.workspace import (
     LIST_FILES,
     MIN_SECRET_LENGTH,
     READ_FILE,
@@ -35,14 +35,14 @@ from co_scientist.workspace import (
     WorkspaceSession,
     WorkspaceToolProvider,
 )
-from co_scientist.workspace import RUN_COMMAND as _WORKSPACE_OUTPUT_RUN_COMMAND
-from co_scientist.workspace import output as workspace_output
-from co_scientist.workspace.session import (
+from co_scientist.platform.sandbox.workspace import RUN_COMMAND as _WORKSPACE_OUTPUT_RUN_COMMAND
+from co_scientist.platform.sandbox.workspace import output as workspace_output
+from co_scientist.platform.sandbox.workspace.session import (
     MAX_SESSION_OUTPUT_BYTES,
     SessionRegistry,
 )
-from co_scientist.workspace.tool_schemas import POLL_COMMAND
-from co_scientist.workspace.tool_schemas import (
+from co_scientist.platform.sandbox.workspace.tool_schemas import POLL_COMMAND
+from co_scientist.platform.sandbox.workspace.tool_schemas import (
     RUN_COMMAND as _WORKSPACE_SESSIONS_RUN_COMMAND,
 )
 from tests._llm_fake import make_tool_call

@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from co_scientist import models as engine_models
 from co_scientist.platform.db.models import RunStatus
+from co_scientist.platform.telemetry import retrieval_calls as retrieval
 from co_scientist.research import (
     CallStatus,
     Finding,
@@ -22,7 +23,6 @@ from co_scientist.research import (
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.report import gates as report_gates
 from app.store import hypotheses, records, reports, runs
-from app.store import retrieval_calls as retrieval
 from app.store import runs_views as views
 from app.store.hypotheses import NewHypothesis
 from app.store.records import NewClaimEvidence, NewReview

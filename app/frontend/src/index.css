@@ -39,6 +39,58 @@
     format('woff2');
 }
 
+/* Component roles resolve where they are used, so a surface can re-point them
+   in its own scope (inline keeps the var() out of the root-level variable). */
+@theme inline {
+  --color-button-filled-bg: var(--button-filled-bg);
+  --color-button-filled-fg: var(--button-filled-fg);
+  --color-button-filled-hover: var(--button-filled-hover);
+  --color-button-outlined-border: var(--button-outlined-border);
+  --color-button-outlined-fg: var(--button-outlined-fg);
+  --color-button-outlined-hover: var(--button-outlined-hover);
+  --color-button-tonal-bg: var(--button-tonal-bg);
+  --color-button-tonal-fg: var(--button-tonal-fg);
+  --color-button-tonal-hover: var(--button-tonal-hover);
+  --color-button-text-fg: var(--button-text-fg);
+  --color-button-text-hover-fg: var(--button-text-hover-fg);
+  --color-button-text-hover-bg: var(--button-text-hover-bg);
+  --color-button-link-fg: var(--button-link-fg);
+  --color-button-disabled-border: var(--button-disabled-border);
+  --color-button-disabled-bg: var(--button-disabled-bg);
+  --color-button-disabled-fg: var(--button-disabled-fg);
+  --color-icon-button-fg: var(--icon-button-fg);
+  --color-icon-button-hover-fg: var(--icon-button-hover-fg);
+  --color-icon-button-hover-bg: var(--icon-button-hover-bg);
+  --color-segmented-track: var(--segmented-track);
+  --color-segmented-border: var(--segmented-border);
+  --color-segmented-thumb: var(--segmented-thumb);
+  --color-segmented-fg: var(--segmented-fg);
+  --color-segmented-selected-fg: var(--segmented-selected-fg);
+  --color-segmented-hover: var(--segmented-hover);
+  --color-tab-pill-track: var(--tab-pill-track);
+  --color-tab-pill-thumb: var(--tab-pill-thumb);
+  --color-tab-pill-fg: var(--tab-pill-fg);
+  --color-tab-pill-selected-fg: var(--tab-pill-selected-fg);
+  --color-tab-pill-hover: var(--tab-pill-hover);
+  --color-chip-neutral-bg: var(--chip-neutral-bg);
+  --color-chip-neutral-fg: var(--chip-neutral-fg);
+  --color-chip-info-bg: var(--chip-info-bg);
+  --color-chip-info-fg: var(--chip-info-fg);
+  --color-chip-success-bg: var(--chip-success-bg);
+  --color-chip-success-fg: var(--chip-success-fg);
+  --color-chip-accent-bg: var(--chip-accent-bg);
+  --color-chip-accent-fg: var(--chip-accent-fg);
+  --color-chip-warning-bg: var(--chip-warning-bg);
+  --color-chip-warning-fg: var(--chip-warning-fg);
+  --color-chip-danger-bg: var(--chip-danger-bg);
+  --color-chip-danger-fg: var(--chip-danger-fg);
+  --color-chip-danger-border: var(--chip-danger-border);
+  --color-field-border: var(--field-border);
+  --color-field-focus: var(--field-focus);
+  --color-field-placeholder: var(--field-placeholder);
+  --color-scrim: var(--scrim);
+}
+
 @utility duration-short {
   transition-duration: var(--motion-duration-short);
 }
@@ -207,53 +259,6 @@
   --color-cosci-idea-breadcrumb-text: var(--cosci-text);
   --color-cosci-idea-detail-text: var(--cosci-text);
 
-  --color-button-filled-bg: var(--button-filled-bg);
-  --color-button-filled-fg: var(--button-filled-fg);
-  --color-button-filled-hover: var(--button-filled-hover);
-  --color-button-outlined-border: var(--button-outlined-border);
-  --color-button-outlined-fg: var(--button-outlined-fg);
-  --color-button-outlined-hover: var(--button-outlined-hover);
-  --color-button-tonal-bg: var(--button-tonal-bg);
-  --color-button-tonal-fg: var(--button-tonal-fg);
-  --color-button-tonal-hover: var(--button-tonal-hover);
-  --color-button-text-fg: var(--button-text-fg);
-  --color-button-text-hover-fg: var(--button-text-hover-fg);
-  --color-button-text-hover-bg: var(--button-text-hover-bg);
-  --color-button-link-fg: var(--button-link-fg);
-  --color-button-disabled-border: var(--button-disabled-border);
-  --color-button-disabled-bg: var(--button-disabled-bg);
-  --color-button-disabled-fg: var(--button-disabled-fg);
-  --color-icon-button-fg: var(--icon-button-fg);
-  --color-icon-button-hover-fg: var(--icon-button-hover-fg);
-  --color-icon-button-hover-bg: var(--icon-button-hover-bg);
-  --color-segmented-track: var(--segmented-track);
-  --color-segmented-border: var(--segmented-border);
-  --color-segmented-thumb: var(--segmented-thumb);
-  --color-segmented-fg: var(--segmented-fg);
-  --color-segmented-selected-fg: var(--segmented-selected-fg);
-  --color-segmented-hover: var(--segmented-hover);
-  --color-tab-pill-track: var(--tab-pill-track);
-  --color-tab-pill-thumb: var(--tab-pill-thumb);
-  --color-tab-pill-fg: var(--tab-pill-fg);
-  --color-tab-pill-selected-fg: var(--tab-pill-selected-fg);
-  --color-tab-pill-hover: var(--tab-pill-hover);
-  --color-chip-neutral-bg: var(--chip-neutral-bg);
-  --color-chip-neutral-fg: var(--chip-neutral-fg);
-  --color-chip-info-bg: var(--chip-info-bg);
-  --color-chip-info-fg: var(--chip-info-fg);
-  --color-chip-success-bg: var(--chip-success-bg);
-  --color-chip-success-fg: var(--chip-success-fg);
-  --color-chip-accent-bg: var(--chip-accent-bg);
-  --color-chip-accent-fg: var(--chip-accent-fg);
-  --color-chip-warning-bg: var(--chip-warning-bg);
-  --color-chip-warning-fg: var(--chip-warning-fg);
-  --color-chip-danger-bg: var(--chip-danger-bg);
-  --color-chip-danger-fg: var(--chip-danger-fg);
-  --color-chip-danger-border: var(--chip-danger-border);
-  --color-field-border: var(--field-border);
-  --color-field-focus: var(--field-focus);
-  --color-field-placeholder: var(--field-placeholder);
-  --color-scrim: var(--scrim);
 
   /* Elevation is reserved for overlays: menus and floating controls, then
      toasts and dialogs. */

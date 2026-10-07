@@ -53,7 +53,7 @@ from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm_json,
 )
-from co_scientist.progress import emit_progress
+from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.prompts import (
     PromptRunContext,
     get_research_overview_interim_prompt,

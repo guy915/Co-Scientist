@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from co_scientist.platform.retrieval.research_adapter import McpRetrieval, ResearchRun
 from co_scientist.research import (
     CallStatus,
     Finding,
@@ -19,7 +20,6 @@ from co_scientist.research import (
     result_from_dict,
     result_to_dict,
 )
-from co_scientist.research_adapter import McpRetrieval, ResearchRun
 from tests._research_fakes import (
     FakeResearchClient,
     research_registry,
@@ -118,7 +118,7 @@ async def test_a_failing_source_is_a_retrieval_error_naming_it(
     detail: str,
 ) -> None:
     monkeypatch.setattr(
-        "co_scientist.evidence.search_query._search_retry_delay",
+        "co_scientist.platform.retrieval.evidence.search_query._search_retry_delay",
         lambda attempt: 0.0,
     )
     client = FakeResearchClient({"search_alpha": answer})

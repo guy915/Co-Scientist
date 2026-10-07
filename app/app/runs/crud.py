@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
 
+import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
 from co_scientist.platform import db
@@ -19,7 +20,6 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 import app.credentials as credentials
 import app.engine_adapter as engine_adapter
 import app.free_usage as free_usage
-import app.run_corpus as run_corpus
 import app.staged_documents as staged_documents
 import app.store.receipts as run_creation_receipts
 from app.auth import client_id, require_client_scope

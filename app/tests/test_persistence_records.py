@@ -10,6 +10,8 @@ import pytest
 from co_scientist.platform import db as _store_db
 from co_scientist.platform.db import checkpoints as store_checkpoints
 from co_scientist.platform.db.models import RunStatus
+from co_scientist.platform.telemetry import logs
+from co_scientist.platform.telemetry.logs import NewLogRecord
 from fastapi.testclient import TestClient
 
 from app import retention
@@ -17,7 +19,7 @@ from app.claims.gate import ClaimEdge
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.report.content import derive_knowledge_facts
-from app.store import documents, logs, records, reports
+from app.store import documents, records, reports
 from app.store import runs as store
 from app.store import tasks as store_tasks
 from app.store.events import (
@@ -25,7 +27,6 @@ from app.store.events import (
     ACTIVITY_VALUES,
     activity_for_event,
 )
-from app.store.logs import NewLogRecord
 from app.store.records import NewClaimEvidence
 from tests._client import create_run as _create_run
 from tests._client import drain as _drain

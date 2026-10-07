@@ -1,6 +1,6 @@
 name: Bug report
 description: Something does not work as expected.
-labels: ["bug"]
+labels: ["type: bug", "needs triage"]
 body:
   - type: markdown
     attributes:
@@ -29,6 +29,21 @@ body:
       label: Expected behavior
     validations:
       required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Commit or release
+      description: If known; for a local checkout, use git rev-parse --short HEAD.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - API or backend workflow
+        - Frontend
+        - MCP or literature retrieval
+        - Evaluation harness
+        - CI or setup
   - type: input
     id: os
     attributes:

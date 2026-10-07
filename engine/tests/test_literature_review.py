@@ -10,13 +10,13 @@ from co_scientist.agents.generation.literature_review import (
 from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
 )
-from co_scientist.evidence import (
+from co_scientist.platform.llm.offline import llm as offline_llm
+from co_scientist.platform.retrieval.evidence import (
     article_support,
     relevance,
     search,
     search_support,
 )
-from co_scientist.platform.llm.offline import llm as offline_llm
 from tests._llm_fake import install_fake_llm
 from tests._research_fakes import (
     _stub_node,

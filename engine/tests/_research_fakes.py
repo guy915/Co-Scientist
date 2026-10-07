@@ -18,12 +18,12 @@ from co_scientist.agents.generation.literature_review import (
 from co_scientist.agents.generation.literature_review import (
     synthesis as lr_synthesis,
 )
-from co_scientist.config import SearchSourceConfig, WorkflowConfig
-from co_scientist.config.registry import ToolRegistry
-from co_scientist.config.schema import ToolConfig
-from co_scientist.evidence import search
-from co_scientist.evidence.search_support import SearchConfig
-from co_scientist.mcp_client import MCPToolClient
+from co_scientist.platform.retrieval.config import SearchSourceConfig, WorkflowConfig
+from co_scientist.platform.retrieval.config.registry import ToolRegistry
+from co_scientist.platform.retrieval.config.schema import ToolConfig
+from co_scientist.platform.retrieval.evidence import search
+from co_scientist.platform.retrieval.evidence.search_support import SearchConfig
+from co_scientist.platform.retrieval.mcp_client import MCPToolClient
 from co_scientist.research import (
     Document,
     ExtractedFinding,

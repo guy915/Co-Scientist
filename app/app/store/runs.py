@@ -15,8 +15,8 @@ from co_scientist.platform.db.models import (
     RunStatus,
     row_to_run,
 )
+from co_scientist.platform.telemetry.logs import count_logs_for_run, delete_logs_for_run
 
-from app.store.logs import count_logs_for_run, delete_logs_for_run
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 logger = logging.getLogger(__name__)

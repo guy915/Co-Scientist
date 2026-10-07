@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS, short_error_text
-from co_scientist.progress import record_schema_degradation
+from co_scientist.platform.telemetry.progress import record_schema_degradation
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

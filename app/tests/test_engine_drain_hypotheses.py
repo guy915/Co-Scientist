@@ -6,6 +6,7 @@ import time
 from types import SimpleNamespace
 from typing import Any
 
+import co_scientist.platform.retrieval.citations as citation_resolver
 import pytest
 from co_scientist.agents.ranking.ranking_debate import (
     _DebateRun,
@@ -17,14 +18,13 @@ from co_scientist.core.config import settings
 from co_scientist.models import Hypothesis
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunRow
-
-import app.citations as citation_resolver
-from app import safety
-from app.citations import (
+from co_scientist.platform.retrieval.citations import (
     CitationMetadata,
     Resolvability,
     Resolver,
 )
+
+from app import safety
 from app.claims.grounding import evidence_passages
 from app.engine_adapter.drain.matches import _persist_engine_matches
 from app.hypothesis import screen_hypotheses
