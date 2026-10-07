@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
+import co_scientist.orchestration.engine_adapter as provider
 import pytest
 from co_scientist.core.config import (
     PROVIDER_CREDENTIAL_ENV,
@@ -17,18 +18,17 @@ from co_scientist.domains.research_state.models import UNDERMINED_VERDICT, Hypot
 from co_scientist.domains.research_state.models import (
     rank_for_publication as engine_rank_for_publication,
 )
-from co_scientist.generator.core import HypothesisGenerator
-
-import app.engine_adapter as provider
-from app.engine_adapter.events import (
+from co_scientist.orchestration.engine_adapter.events import (
     _canonical_engine_payload,
     _canonical_event_type,
     append_node_milestone,
 )
-from app.engine_adapter.opts import (
+from co_scientist.orchestration.engine_adapter.opts import (
     build_engine_opts,
     build_generator,
 )
+from co_scientist.orchestration.generator.core import HypothesisGenerator
+
 from tests._store_helpers import seed_run
 
 

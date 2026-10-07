@@ -22,8 +22,8 @@ from co_scientist.domains.research_state.claims.grounding import (
     persist_grounding,
 )
 from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.orchestration.repository import runs
 
-from app.store import runs
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._drain_helpers import _build_report

@@ -20,8 +20,8 @@ from litellm.exceptions import ContextWindowExceededError as ContextWindow
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from co_scientist.core.exceptions import LLMCallBudgetExceededError
-from co_scientist.generator.core import HypothesisGenerator
-from co_scientist.generator.run_setup import GeneratorOptions
+from co_scientist.orchestration.generator.core import HypothesisGenerator
+from co_scientist.orchestration.generator.run_setup import GeneratorOptions
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,

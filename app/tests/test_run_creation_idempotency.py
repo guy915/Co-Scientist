@@ -10,9 +10,9 @@ import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
 from co_scientist.domains.documents import repository as documents
+from co_scientist.orchestration.repository import receipts as store_receipts
 from co_scientist.platform import db
 
-from app.store import receipts as store_receipts
 from tests._client import make_client
 
 _IDEMPOTENCY_OWNER = "idempotency-owner"

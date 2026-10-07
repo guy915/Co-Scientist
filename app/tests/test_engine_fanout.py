@@ -6,27 +6,27 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
+import co_scientist.orchestration.engine_tasks.fanout as items
 import pytest
-from co_scientist.checkpoint import restore_workflow_state
 from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
 from co_scientist.domains.research_state.models import Hypothesis, HypothesisReview
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.checkpoint import restore_workflow_state
+from co_scientist.orchestration.engine_tasks import fanout_aggregates as aggregates
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.engine_tasks.fanout import _mature_reflection_specs
+from co_scientist.orchestration.engine_tasks.fanout_aggregates import _apply_review_items
+from co_scientist.orchestration.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import ScientificTask
 from co_scientist.platform.llm import ModelCallStats, record_call
 from co_scientist.science import reflection as _operations_reflection
 
-import app.engine_tasks.fanout as items
-from app import engine_tasks, task_worker
-from app.engine_tasks import fanout_aggregates as aggregates
-from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.fanout import _mature_reflection_specs
-from app.engine_tasks.fanout_aggregates import _apply_review_items
-from app.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
-from app.store import tasks as store
-from app.store import tasks_lifecycle as lifecycle
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
@@ -243,9 +243,8 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
 ) -> None:
     # gather must propagate parks or waves commit incomplete rounds against an
     # unchanged provider cap.
+    from co_scientist.orchestration.engine_tasks.ranking import _surviving_judgements
     from co_scientist.science.ranking import RankingJudgement
-
-    from app.engine_tasks.ranking import _surviving_judgements
 
     verdict = RankingJudgement("a", {"decision_summary": "A is stronger"}, 2)
 

@@ -71,7 +71,7 @@ def test_only_a_free_run_on_free_routes_is_stamped_zero_cost(
     worker_model: str,
     stamped: bool,
 ) -> None:
-    from app.store import runs
+    from co_scientist.orchestration.repository import runs
 
     monkeypatch.setattr(settings, "model_name", worker_model)
     with TestClient(app) as client:

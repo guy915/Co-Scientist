@@ -7,6 +7,7 @@ from co_scientist.domains.report import repository as reports
 from co_scientist.domains.report import unverified_hypothesis_ids
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
+from co_scientist.orchestration.repository import runs
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 
@@ -14,7 +15,6 @@ import app.api_contracts as contracts
 from app.api_contracts.reports import Report
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
-from app.store import runs
 
 router = APIRouter()
 

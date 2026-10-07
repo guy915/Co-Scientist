@@ -14,15 +14,15 @@ from co_scientist.domains.research_state.models import (
     Hypothesis,
     HypothesisReview,
 )
+from co_scientist.orchestration import engine_tasks
+from co_scientist.orchestration.engine_tasks import ranking as engine_tasks_ranking
+from co_scientist.orchestration.engine_tasks import runtime as engine_tasks_runtime
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.engine_tasks.runtime import ProductionEngineTaskRuntime
+from co_scientist.orchestration.repository import events, tasks
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform.db.models import ScientificTask
 
-from app import engine_tasks
-from app.engine_tasks import ranking as engine_tasks_ranking
-from app.engine_tasks import runtime as engine_tasks_runtime
-from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.runtime import ProductionEngineTaskRuntime
-from app.store import events, tasks
-from app.store import tasks_lifecycle as lifecycle
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
@@ -49,7 +49,7 @@ def _seed_checkpoint(
     stage: str = "fixture",
     db_path: str | None = None,
 ) -> int:
-    from co_scientist.checkpoint import (
+    from co_scientist.orchestration.checkpoint import (
         CHECKPOINT_VERSION,
         serialize_workflow_state,
     )
@@ -121,7 +121,7 @@ def _patch_generator(
 
 
 def _patch_task_node(monkeypatch: pytest.MonkeyPatch, execute: Any) -> None:
-    import co_scientist.task_runtime as runtime
+    import co_scientist.orchestration.task_runtime as runtime
 
     monkeypatch.setattr(runtime, "execute_task_node", execute)
 

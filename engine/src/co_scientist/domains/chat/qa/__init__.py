@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.sse import sse_frame as sse_frame
-from app.store import runs
 
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.chat.qa.manifest as qa_ideas
@@ -27,6 +26,7 @@ from co_scientist.domains.chat.qa.manifest import build_evidence_manifest as bui
 from co_scientist.domains.chat.qa.manifest import build_system_prompt as build_system_prompt
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
+from co_scientist.orchestration.repository import runs
 from co_scientist.platform.llm.attempts.retry import is_credential_rejected
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn

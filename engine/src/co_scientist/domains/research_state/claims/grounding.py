@@ -331,7 +331,7 @@ def build_assessor(model: str) -> tuple[Assessor, str]:
     # Offline admission precedes provider dispatch even when credentials are
     # available.
 
-    from app.engine_adapter import offline_mode
+    from co_scientist.orchestration.engine_adapter import offline_mode
 
     if not offline_mode():
         from co_scientist.domains.research_state.claims.verifier import make_llm_assessor
@@ -346,7 +346,7 @@ def build_batch_assessor(
     """Offline guards cover batch and individual paths so batching cannot
     expose goals to a provider.
     """
-    from app.engine_adapter import offline_mode
+    from co_scientist.orchestration.engine_adapter import offline_mode
 
     if not offline_mode():
         from co_scientist.domains.research_state.claims.verifier import make_llm_batch_assessor

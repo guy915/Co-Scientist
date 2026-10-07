@@ -2,14 +2,27 @@ import asyncio
 import dataclasses
 from typing import Any, cast
 
+import co_scientist.orchestration.engine_tasks.fanout as engine_tasks_fanout_generation
+import co_scientist.orchestration.engine_tasks.fanout as fanout
 import pytest
-from co_scientist.checkpoint import restore_workflow_state
 from co_scientist.domains.research_state.models import (
     Article,
     GenerationMethod,
     Hypothesis,
 )
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.orchestration import engine_tasks
+from co_scientist.orchestration.checkpoint import restore_workflow_state
+from co_scientist.orchestration.engine_tasks import fanout_aggregates as aggregates
+from co_scientist.orchestration.engine_tasks import (
+    fanout_aggregates as engine_tasks_fanout_aggregates,
+)
+from co_scientist.orchestration.engine_tasks import node as engine_tasks_node
+from co_scientist.orchestration.engine_tasks import support
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.science.generation import (
@@ -22,17 +35,6 @@ from co_scientist.science.generation import (
     generate as coordinator,
 )
 
-import app.engine_tasks.fanout as engine_tasks_fanout_generation
-import app.engine_tasks.fanout as fanout
-from app import engine_tasks
-from app.engine_tasks import fanout_aggregates as aggregates
-from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.engine_tasks import node as engine_tasks_node
-from app.engine_tasks import support
-from app.engine_tasks import support as engine_tasks_support
-from app.store import runs
-from app.store import tasks as store
-from app.store import tasks_lifecycle as lifecycle
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -173,7 +175,7 @@ async def _run_generation_strategies_and_aggregate(run_id: str, db_path: str) ->
 
 
 def _assert_generation_committed(run_id: str, db_path: str) -> None:
-    from co_scientist.checkpoint import restore_workflow_state
+    from co_scientist.orchestration.checkpoint import restore_workflow_state
 
     checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None
