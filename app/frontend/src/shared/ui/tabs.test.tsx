@@ -3,9 +3,9 @@ import {MemoryRouter} from 'react-router-dom';
 import {expect, it, vi} from 'vitest';
 import {SegmentedControl, TabNav, TabNavLink} from './tabs';
 
-it('presses exactly the selected segment and reports a new choice', () => {
+it('presses exactly the selected segment, shows its thumb and reports a new choice', () => {
   const onChange = vi.fn();
-  render(
+  const {container} = render(
     <SegmentedControl
       label="Theme"
       value="light"
@@ -26,12 +26,13 @@ it('presses exactly the selected segment and reports a new choice', () => {
     'aria-pressed',
     'false',
   );
+  expect(container.querySelector('.ui-sliding-thumb')).not.toBeNull();
   fireEvent.click(screen.getByRole('button', {name: 'Dark'}));
   expect(onChange).toHaveBeenCalledWith('dark');
 });
 
-it('marks the current route link as the page', () => {
-  render(
+it('marks the current route link as the page and shows its indicator', () => {
+  const {container} = render(
     <MemoryRouter>
       <TabNav label="Sections" variant="underline" current="b">
         <TabNavLink variant="underline" to="/a" current={false}>
@@ -53,4 +54,5 @@ it('marks the current route link as the page', () => {
   expect(screen.getByRole('link', {name: 'A'})).not.toHaveAttribute(
     'aria-current',
   );
+  expect(container.querySelector('.ui-sliding-thumb')).not.toBeNull();
 });

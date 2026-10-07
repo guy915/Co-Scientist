@@ -1,25 +1,25 @@
 import {useRef, type ReactNode} from 'react';
 import {Link, type LinkProps} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
-import {useSlidingIndicator} from '@/shared/hooks/use_sliding_indicator';
+import {
+  type IndicatorBox,
+  useSlidingIndicator,
+} from '@/shared/hooks/use_sliding_indicator';
 import {joinClasses} from './cx';
 
 // One moving thumb owns the selected fill, so a change of selection slides
-// instead of one background vanishing and another appearing.
+// instead of one background vanishing and another appearing. The track
+// measures (not the thumb): a child's layout effect runs before its parent's
+// ref is attached.
 function SlidingThumb({
-  trackRef,
-  selector,
-  selected,
+  box,
   className,
   children,
 }: {
-  trackRef: React.RefObject<HTMLElement | null>;
-  selector: string;
-  selected: string;
+  box: IndicatorBox | null;
   className: string;
   children?: ReactNode;
 }) {
-  const box = useSlidingIndicator(trackRef, selector, selected);
   if (!box) return null;
   return (
     <span
@@ -75,6 +75,7 @@ export function SegmentedControl<T extends string>({
   layoutClassName?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const box = useSlidingIndicator(trackRef, '[aria-pressed="true"]', value);
   return (
     <div
       ref={trackRef}
@@ -87,9 +88,7 @@ export function SegmentedControl<T extends string>({
       )}
     >
       <SlidingThumb
-        trackRef={trackRef}
-        selector='[aria-pressed="true"]'
-        selected={value}
+        box={box}
         className={joinClasses(
           'pointer-events-none absolute left-0 rounded-full bg-segmented-thumb',
           SEGMENT_THUMB_CLASSES[size],
@@ -225,18 +224,14 @@ export function TabNav({
   children: ReactNode;
 }) {
   const trackRef = useRef<HTMLElement>(null);
+  const box = useSlidingIndicator(trackRef, '[aria-current="page"]', current);
   return (
     <nav
       ref={trackRef}
       aria-label={label}
       className={joinClasses(TRACK_CLASSES[variant], layoutClassName)}
     >
-      <SlidingThumb
-        trackRef={trackRef}
-        selector='[aria-current="page"]'
-        selected={current}
-        className={THUMB_CLASSES[variant]}
-      >
+      <SlidingThumb box={box} className={THUMB_CLASSES[variant]}>
         {variant === 'underline' && (
           <span className="mx-[1.1rem] block h-full rounded-t-full bg-cosci-blue-strong" />
         )}
