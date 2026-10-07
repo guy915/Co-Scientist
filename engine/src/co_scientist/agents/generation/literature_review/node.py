@@ -33,7 +33,7 @@ from co_scientist.agents.generation.literature_review.research_phase import (
     ResearchOutcome,
     run_research_phase,
 )
-from co_scientist.constants import LITERATURE_REVIEW_FAILED
+from co_scientist.core.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.evidence.article_support import (
     make_failure_result,
     make_success_result,

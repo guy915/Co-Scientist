@@ -13,8 +13,8 @@ from typing import Any, Final, Generic, TypeVar, cast, overload
 
 from litellm.exceptions import ContextWindowExceededError
 
-from co_scientist.backoff import jittered_backoff_seconds
-from co_scientist.exceptions import (
+from co_scientist.core.backoff import jittered_backoff_seconds
+from co_scientist.core.exceptions import (
     FreeModelEligibilityError,
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,

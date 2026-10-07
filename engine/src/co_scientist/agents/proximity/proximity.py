@@ -13,7 +13,7 @@ from co_scientist.agents.proximity.proximity_graph import (
     build_proximity_graph,
     member_match_key,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     LONG_MAX_TOKENS,
     LOW_TEMPERATURE,
     PROGRESS_PROXIMITY_COMPLETE,

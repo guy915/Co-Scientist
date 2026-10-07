@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Protocol
 
-from app.config import any_provider_credential, has_provider_credential
+from co_scientist.core.config import any_provider_credential, has_provider_credential
 
 __all__ = [
     "EnvProcessMode",

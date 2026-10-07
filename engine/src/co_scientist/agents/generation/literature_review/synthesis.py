@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEFAULT_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
@@ -10,12 +10,12 @@ from co_scientist.constants import (
     LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS,
     truncate,
 )
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.evidence.article_support import (
     get_paper_content_for_analysis,
     get_papers_with_content,
     parse_year_from_metadata,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

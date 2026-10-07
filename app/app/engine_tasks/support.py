@@ -5,6 +5,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core.run_modes import resolved_run_config
+
 import app.engine_tasks.runtime as engine_tasks_runtime
 from app.engine_adapter.opts import (
     CONSUMED_STEERING_IDS_OPT,
@@ -13,7 +15,6 @@ from app.engine_adapter.opts import (
 )
 from app.engine_tasks.portfolio import _enqueue_node_portfolio
 from app.run_events import make_emitter
-from app.run_modes import resolved_run_config
 from app.store import checkpoints as store
 from app.store import db, events, messages, runs, tasks
 from app.store import retrieval_calls as retrieval

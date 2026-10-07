@@ -10,7 +10,7 @@ from typing import Any
 
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
-from co_scientist.exceptions import LLMTimeoutError
+from co_scientist.core.exceptions import LLMTimeoutError
 from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.llm.admission.free_policy import enforce_free_request
 from co_scientist.llm.request.backend import active_backend

@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from co_scientist.core.async_bridge import off_loop
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -17,7 +18,6 @@ from app import (
 from app.api_contracts import MessagesResponse
 from app.api_contracts.interviews import Interview
 from app.api_contracts.runs import RunMessage
-from app.async_bridge import off_loop
 from app.auth import require_client_scope
 from app.qa import snapshot
 from app.runs.models import (

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+from co_scientist.core.async_bridge import off_loop
 from fastapi import (
     APIRouter,
     File,
@@ -13,7 +14,6 @@ from fastapi import (
 
 import app.document_ingest as document_ingest
 import app.run_corpus as run_corpus
-from app.async_bridge import off_loop
 from app.auth import client_id
 from app.runs.models import (
     HumanAttachmentRequest,

@@ -102,7 +102,7 @@ def _security_seed(
 
 
 def _admin_token(monkeypatch: pytest.MonkeyPatch, token: str) -> None:
-    from app.config import settings
+    from co_scientist.core.config import settings
 
     monkeypatch.setattr(settings, "logs_admin_token", token)
 

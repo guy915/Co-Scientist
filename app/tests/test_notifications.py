@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from app import notifications
-from app.config import settings
 
 _RealSMTP = smtplib.SMTP
 

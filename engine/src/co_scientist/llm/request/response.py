@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, cast
 
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMBudgetExhaustedError,
     LLMContentFilteredError,
     LLMThinkingOnlyError,

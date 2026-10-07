@@ -4,9 +4,9 @@ from collections import Counter
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 
 from app import engine_tasks, task_worker
-from app.config import settings
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize

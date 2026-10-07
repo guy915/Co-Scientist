@@ -11,7 +11,7 @@ from co_scientist.agents.generation.expansion_research import (
     build_expansion_section,
     is_research_expansion,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEEP_HYPOTHESIS_MAX_TOKENS,
     DRAFT_MAX_TOKENS_CAP,
     DRAFT_TOKENS_PER_HYPOTHESIS,

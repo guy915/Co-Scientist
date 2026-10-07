@@ -4,12 +4,12 @@ import datetime as dt
 import sqlite3
 from typing import Any
 
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.core.config import settings
 from fastapi import APIRouter, HTTPException, Request
 
 from app import credentials, engine_adapter
-from app.async_bridge import off_loop
 from app.auth import client_id
-from app.config import settings
 from app.runs.models import CreateRunRequest
 
 FREE_TIER = "express"

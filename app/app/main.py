@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 from typing import Any, cast
 
 import uvicorn
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.core.config import settings
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,10 +19,8 @@ from fastapi.responses import JSONResponse
 
 import app.engine_adapter as engine_adapter
 from app import API_VERSION
-from app.async_bridge import off_loop
 from app.auth import Principal, principal_for_request
 from app.byok_models import router as byok_models_router
-from app.config import settings
 from app.diagnostics_api import router as diagnostics_api_router
 from app.documents import router as documents_router
 from app.error_tracking import init_error_tracking

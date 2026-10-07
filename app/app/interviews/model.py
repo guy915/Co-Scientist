@@ -6,13 +6,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from co_scientist.llm import coerce_json_list
-from fastapi import HTTPException
-from pydantic import BaseModel, Field
-
-import app.credentials as credentials
-import app.offline_guard as offline_guard
-from app.config import (
+from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -20,6 +14,12 @@ from app.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.llm import coerce_json_list
+from fastapi import HTTPException
+from pydantic import BaseModel, Field
+
+import app.credentials as credentials
+import app.offline_guard as offline_guard
 from app.llm_scope import budgeted, stream_chunks
 from app.store import documents as store
 

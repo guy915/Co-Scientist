@@ -6,11 +6,11 @@ import time
 from typing import Any, cast
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi.testclient import TestClient
 
 import app.main
 from app import seed
-from app.config import settings
 from app.store import runs as store
 from app.store import runs_views, tasks
 from app.store.models import DEMO_CLIENT_ID, RunStatus
@@ -263,7 +263,7 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
 def test_create_run_without_spec_gets_baseline_planning(
     isolated_db: str,
 ) -> None:
-    from app.run_modes import (
+    from co_scientist.core.run_modes import (
         DEFAULT_ATTRIBUTES,
         DEFAULT_CRITERIA,
         DEFAULT_REQUIREMENTS,

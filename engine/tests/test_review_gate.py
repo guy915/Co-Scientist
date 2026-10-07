@@ -20,7 +20,7 @@ from co_scientist.agents.supervisor.orchestrator import (
     _compute_stats,
     _default_budget,
 )
-from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
+from co_scientist.core.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
 from co_scientist.models import (
     SCIENTIST_REVIEWER,
     Hypothesis,

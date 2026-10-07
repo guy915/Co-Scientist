@@ -15,7 +15,7 @@ from litellm.exceptions import BadRequestError
 
 import co_scientist.agents.generation.literature_tools.validate as vs
 from co_scientist.agents.reflection import review as rv
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )

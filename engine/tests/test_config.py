@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from co_scientist.config import ToolRegistry
-from co_scientist.exceptions import ConfigError
+from co_scientist.core.exceptions import ConfigError
 from tests._research_fakes import REPLACE_CONFIG as _REPLACE_CONFIG
 from tests._research_fakes import write_config as _write_config
 

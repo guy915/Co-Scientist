@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from co_scientist.core.async_bridge import off_loop
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 
 import app.api_contracts as contracts
 from app.api_contracts.reports import Report
-from app.async_bridge import off_loop
 from app.report import unverified_hypothesis_ids
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404

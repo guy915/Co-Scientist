@@ -1,8 +1,7 @@
 import hmac
 
+from co_scientist.core.config import settings
 from fastapi import Request
-
-from app.config import settings
 
 # Direct loopback peers are inside the local trust boundary.
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})

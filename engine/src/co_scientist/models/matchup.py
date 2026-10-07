@@ -2,8 +2,8 @@ import dataclasses
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.models.metrics import _known_field_kwargs
+from co_scientist.core.constants import INITIAL_ELO_RATING
+from co_scientist.core.metrics import _known_field_kwargs
 
 
 @dataclass(frozen=True)

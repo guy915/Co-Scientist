@@ -41,7 +41,7 @@ def _install_recording_router(
 def test_offline_engine_run_completes_without_a_real_call(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.config import settings
+    from co_scientist.core.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
     escaped_calls = _install_recording_router(monkeypatch)

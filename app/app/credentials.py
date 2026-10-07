@@ -12,8 +12,9 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from co_scientist.core.config import byok_default_model, settings
+
 from app import byok_models
-from app.config import byok_default_model, settings
 from app.llm_scope import budgeted
 
 if TYPE_CHECKING:

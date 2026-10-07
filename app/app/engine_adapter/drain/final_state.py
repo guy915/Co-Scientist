@@ -6,6 +6,8 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
+from co_scientist.core.config import settings
+
 from app.citations import empty_citation_summary
 from app.claims import EvidencePassage
 from app.claims.grounding import (
@@ -16,7 +18,6 @@ from app.claims.grounding import (
     evidence_passages,
     persist_grounding,
 )
-from app.config import settings
 from app.engine_adapter.drain.hypotheses import (
     _hypotheses_with_proximity_archive,
     _HypothesisSink,
@@ -148,9 +149,8 @@ async def _assess_claims(
     """Reuse requires matching per-claim evidence inputs; provider work
     stays off-loop so the finalize lease keeps renewing.
     """
+    from co_scientist.core.async_bridge import run_off_loop
     from co_scientist.llm import scoped_telemetry
-
-    from app.async_bridge import run_off_loop
 
     model = settings.claim_verifier_model or settings.model_name
     assert model is not None
@@ -198,12 +198,12 @@ def _reusable_by_hypothesis(
 def fold_grounding_telemetry(final_state: dict[str, Any], usage: dict[str, dict[str, Any]]) -> None:
     if not usage:
         return
-    from co_scientist.models import MetricDeltas
-    from co_scientist.models.metrics import (
+    from co_scientist.core.metrics import (
         ExecutionMetrics,
         create_metrics_update,
         merge_metrics,
     )
+    from co_scientist.models import MetricDeltas
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
     existing = ExecutionMetrics.from_dict(final_state.get("metrics") or {})
@@ -356,7 +356,7 @@ async def _persist_evidence_hypotheses_and_screen(
     """Citation resolution happens before the transaction and off-loop;
     network latency must not hold the writer or expire the lease.
     """
-    from app.async_bridge import run_off_loop
+    from co_scientist.core.async_bridge import run_off_loop
 
     resolved = await run_off_loop(functools.partial(resolve_articles, inputs.articles))
     sink = _HypothesisSink(
@@ -442,7 +442,7 @@ async def persist_final_state(
     fold_grounding_telemetry(final_state, grounding_usage)
     # Escalate between transactions and off-loop so the finalize lease keeps
     # renewing.
-    from app.async_bridge import run_off_loop
+    from co_scientist.core.async_bridge import run_off_loop
 
     escalated = await run_off_loop(
         functools.partial(

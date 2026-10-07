@@ -7,7 +7,7 @@ from typing import Any
 
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.config.schema import WorkflowConfig
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEFAULT_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
     corpus_slug,

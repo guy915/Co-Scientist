@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from co_scientist.core.config import settings
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.schemas.builders import obj
 
 import app.credentials as credentials
 import app.offline_guard as offline_guard
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 

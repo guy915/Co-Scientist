@@ -4,9 +4,9 @@ import logging
 from collections.abc import Callable
 
 import pytest
+from co_scientist.core.config import settings
 
 from app import credentials
-from app.config import settings
 from app.store import db
 from app.store.models import RunRow
 from tests._store_helpers import seed_run

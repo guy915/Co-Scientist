@@ -33,7 +33,7 @@ from co_scientist.agents.meta_review.research_overview_review import (
     review_research_overview as review_research_overview,
 )
 from co_scientist.agents.node_degradation import run_or_degrade
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
     PROGRESS_RESEARCH_OVERVIEW_START,
@@ -41,7 +41,7 @@ from co_scientist.constants import (
     RESEARCH_OVERVIEW_MAX_TOKENS,
     RESEARCH_OVERVIEW_TOP_K,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS, short_error_text
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS, short_error_text
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,

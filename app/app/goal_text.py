@@ -5,14 +5,15 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from app import credentials, llm_request, offline_guard
-from app.config import (
+from co_scientist.core.config import (
     deepseek_thinking_kwargs,
     settings,
     thinking_off_kwargs,
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
+
+from app import credentials, llm_request, offline_guard
 from app.llm_scope import budgeted
 
 logger = logging.getLogger(__name__)

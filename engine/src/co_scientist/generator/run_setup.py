@@ -14,7 +14,7 @@ from co_scientist.agents.generation.operations import (
     TOOLS_REQUIRING_STRATEGIES,
 )
 from co_scientist.config.registry import parse_bool_env
-from co_scientist.constants import ELO_K_FACTOR
+from co_scientist.core.constants import ELO_K_FACTOR
 from co_scientist.offline.llm import is_offline_model
 from co_scientist.research_adapter import tier_researches
 

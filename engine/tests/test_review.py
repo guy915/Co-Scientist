@@ -20,7 +20,7 @@ from co_scientist.agents.reflection.review_gate import (
     recheck_targets,
     store_mature_review_result,
 )
-from co_scientist.constants import COMPARATIVE_BATCH_THRESHOLD
+from co_scientist.core.constants import COMPARATIVE_BATCH_THRESHOLD
 from co_scientist.models import Hypothesis, HypothesisReview
 from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis, make_review, make_state

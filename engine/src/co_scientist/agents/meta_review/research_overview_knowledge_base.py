@@ -10,12 +10,12 @@ from typing import Any, Final
 from co_scientist.agents.meta_review.research_overview_evidence import (
     prompt_context,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS,
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
     MEDIUM_TEMPERATURE,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

@@ -4,6 +4,8 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
+from co_scientist.core.run_modes import normalize_run_tier
+
 from app.engine_adapter.drain import persist_final_state
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.inputs import reopen_for_pending_scientist_input
@@ -22,7 +24,6 @@ from app.engine_tasks.support import (
 )
 from app.report import ReportRequest, finalize_report
 from app.run_events import make_emitter
-from app.run_modes import normalize_run_tier
 from app.safety import SafetyDecision, apply_safety_gate
 from app.store import db, events, reports, runs
 from app.store import retrieval_calls as retrieval

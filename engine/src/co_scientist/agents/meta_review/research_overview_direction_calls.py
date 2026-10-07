@@ -9,11 +9,11 @@ from typing import Any
 from co_scientist.agents.meta_review.research_overview_evidence import (
     prompt_context,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
     RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

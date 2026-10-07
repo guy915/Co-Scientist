@@ -11,7 +11,7 @@ from co_scientist.agents.generation.literature_review.synthesis import (
     _phase3_analyze_papers,
     _phase4_synthesize,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
 )
 from co_scientist.evidence.article_support import (

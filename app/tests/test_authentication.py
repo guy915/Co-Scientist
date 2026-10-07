@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Any, cast
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
-from app.config import settings
 from app.operator_access import is_operator
 from app.store import runs
 from app.store import runs_views as views

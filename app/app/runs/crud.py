@@ -5,6 +5,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
 
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.core.config import byok_enabled
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
 import app.credentials as credentials
@@ -13,9 +15,7 @@ import app.free_usage as free_usage
 import app.run_corpus as run_corpus
 import app.staged_documents as staged_documents
 import app.store.receipts as run_creation_receipts
-from app.async_bridge import off_loop
 from app.auth import client_id, require_client_scope
-from app.config import byok_enabled
 from app.execution_policy import ZERO_COST_CONFIG_KEY, deployment_routes_are_free
 from app.goal_text import (
     clean_title,

@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import ToolException
 
-from co_scientist.backoff import jittered_backoff_seconds
-from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
+from co_scientist.core.backoff import jittered_backoff_seconds
+from co_scientist.core.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.evidence.retrieval_support import (
     describe_exception,
 )

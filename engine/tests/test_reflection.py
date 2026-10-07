@@ -33,7 +33,7 @@ from co_scientist.agents.reflection.reflection import reflection_node
 from co_scientist.agents.reflection.review_evidence import (
     ReviewResearch,
 )
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )

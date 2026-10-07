@@ -29,7 +29,7 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
 from co_scientist.agents.ranking.ranking_matchmaking import (
     build_tournament_pairings,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     ELO_K_FACTOR,
 )
 from co_scientist.models import BLOCKING_REVIEW_DISPOSITIONS, Hypothesis

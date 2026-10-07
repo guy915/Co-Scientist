@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-from app.run_modes import attribute_display_strings, criteria_display_strings
+from co_scientist.core.run_modes import attribute_display_strings, criteria_display_strings
 
 # Attribute reports to this system rather than misattribute them to Google.
 _SYSTEM_NAME = "Co-Scientist"

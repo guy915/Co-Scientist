@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from co_scientist.core.run_modes import resolved_run_config
+
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.fanout import (
     execute_generation_strategy,
@@ -50,7 +52,6 @@ from app.engine_tasks.support import SupersededTaskError as SupersededTaskError
 from app.execution_policy import (
     zero_cost_admission_for_config,
 )
-from app.run_modes import resolved_run_config
 from app.store import runs
 from app.store.models import ScientificTask
 

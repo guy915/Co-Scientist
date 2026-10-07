@@ -21,14 +21,14 @@ from co_scientist.agents.reflection.deep_verification_evidence import (
 from co_scientist.agents.reflection.deep_verification_evidence import (
     with_researched as _with_researched,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
     PROGRESS_DEEP_VERIFICATION_COMPLETE,
     PROGRESS_DEEP_VERIFICATION_START,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import CompletionSpec, call_llm_json
 from co_scientist.models import (
     Article,

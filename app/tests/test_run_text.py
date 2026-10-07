@@ -6,8 +6,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 
-from app.config import settings
 from app.elo import live_leaderboard
 from app.goal_text import (
     generate_goal_restatement,

@@ -20,7 +20,7 @@ from co_scientist.agents.supervisor.supervisor_decision import (
     WORK_TASKS,
     choose_supervisor_task,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     INITIAL_ELO_RATING,
     PROGRESS_ORCHESTRATOR_DECISION,
 )

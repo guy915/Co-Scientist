@@ -17,8 +17,8 @@ from litellm.exceptions import (
 )
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
-from co_scientist import backoff
-from co_scientist.exceptions import (
+from co_scientist.core import backoff
+from co_scientist.core.exceptions import (
     LLMRateLimitParkError,
     LLMThinkingOnlyError,
     LLMTimeoutError,

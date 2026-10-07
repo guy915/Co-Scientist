@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
 from co_scientist.agents.ranking import RankingJudgement, RankingJudgingContext
-from co_scientist.constants import RANKING_WAVE_SIZE as RANKING_WAVE_SIZE
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.constants import RANKING_WAVE_SIZE as RANKING_WAVE_SIZE
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import scoped_telemetry
 
 from app.engine_tasks.support import (
@@ -209,7 +209,7 @@ def _apply_wave_elo(
     update where their previous matchup left them.
     """
     from co_scientist.agents.ranking import apply_ranking_matchup
-    from co_scientist.constants import ELO_K_FACTOR
+    from co_scientist.core.constants import ELO_K_FACTOR
 
     k_factor = int(state.get("elo_k_factor") or ELO_K_FACTOR)
     iteration = int(state.get("current_iteration", 0))

@@ -5,7 +5,6 @@ from typing import Any, cast
 
 import yaml
 
-from co_scientist.config.env_vars import parse_bool_env, substitute_env_vars
 from co_scientist.config.schema import (
     EnrichmentConfig,
     PromptsConfig,
@@ -14,7 +13,8 @@ from co_scientist.config.schema import (
     ToolsConfig,
     WorkflowConfig,
 )
-from co_scientist.exceptions import ConfigError
+from co_scientist.core.env_vars import parse_bool_env, substitute_env_vars
+from co_scientist.core.exceptions import ConfigError
 
 logger = logging.getLogger(__name__)
 

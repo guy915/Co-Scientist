@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     EXTENDED_MAX_TOKENS,
     MEDIUM_TEMPERATURE,
     PROGRESS_SUPERVISOR_COMPLETE,

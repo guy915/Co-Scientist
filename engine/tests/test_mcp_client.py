@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 import co_scientist.mcp_client as mcp_client_module
-from co_scientist.exceptions import MCPToolTimeoutError
+from co_scientist.core.exceptions import MCPToolTimeoutError
 from co_scientist.mcp_client import (
     MCP_AUTH_HEADER,
     MCP_SHARED_SECRET_ENV,

@@ -6,16 +6,17 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
-import app.credentials as credentials
-import app.offline_guard as offline_guard
-import app.qa.manifest as qa_ideas
-from app.config import (
+from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
     settings,
     thinking_safe_max_tokens,
 )
+
+import app.credentials as credentials
+import app.offline_guard as offline_guard
+import app.qa.manifest as qa_ideas
 from app.diagnostic_events import log_chat_turn
 from app.llm_scope import budgeted_stream, stream_chunks
 from app.logging_setup import run_log_context

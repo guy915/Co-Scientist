@@ -413,7 +413,7 @@ def test_drained_scientist_hypothesis_and_review_keep_their_rows(
 ) -> None:
     # Scientist rows survive publication resets; reconcile them instead of
     # inserting colliding copies.
-    from co_scientist.constants import NOT_VIABLE_SCORE
+    from co_scientist.core.constants import NOT_VIABLE_SCORE
 
     run = seed_run("Scientist drain", profile="express")
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)

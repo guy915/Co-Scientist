@@ -11,7 +11,13 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
+from co_scientist.core.async_bridge import (
+    propagate_context,
+    run_coroutine_sync,
+    run_in_scoped_loop,
+)
+from co_scientist.core.config import settings
+from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 from co_scientist.llm import (
     current_api_key,
     current_run_call_count,
@@ -22,12 +28,6 @@ from co_scientist.llm import (
 from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
 
 from app import llm_request, offline_guard
-from app.async_bridge import (
-    propagate_context,
-    run_coroutine_sync,
-    run_in_scoped_loop,
-)
-from app.config import settings
 from app.llm_scope import (
     app_call_scope,
     budgeted,

@@ -4,11 +4,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from co_scientist.llm import scoped_zero_cost_admission
 
 import app.qa as qa_stream
 from app import credentials, goal_text, run_start_announcement
-from app.config import settings
 from app.interviews import model as interviews_model
 from tests._llm_fake_backend import (
     completion_response,
@@ -187,7 +187,7 @@ async def test_free_qa_tool_continuation_keeps_admission(
 async def test_interview_reasoning_retry_rechecks_admission(
     monkeypatch: pytest.MonkeyPatch, captured: list[dict[str, Any]]
 ) -> None:
-    from co_scientist.exceptions import FreeModelEligibilityError
+    from co_scientist.core.exceptions import FreeModelEligibilityError
     from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")

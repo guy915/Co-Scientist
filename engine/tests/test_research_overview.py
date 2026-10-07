@@ -9,7 +9,7 @@ from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.agents.meta_review import (
     research_overview_direction_calls as calls,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,
     RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,
     RESEARCH_OVERVIEW_MAX_TOKENS,

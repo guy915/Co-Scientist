@@ -7,9 +7,9 @@ from threading import Barrier
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 
 from app import credentials
-from app.config import settings
 from app.store import db, documents
 from app.store import receipts as store_receipts
 from tests._client import make_client

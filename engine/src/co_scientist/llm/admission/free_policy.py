@@ -14,8 +14,8 @@ from typing import Any
 import httpx
 import litellm
 
-from co_scientist._context import _bind_contextvar
-from co_scientist.exceptions import FreeModelEligibilityError
+from co_scientist.core._context import _bind_contextvar
+from co_scientist.core.exceptions import FreeModelEligibilityError
 from co_scientist.llm.profile import is_free_route
 
 _byok_api_key: ContextVar[str | None] = ContextVar("byok_api_key", default=None)

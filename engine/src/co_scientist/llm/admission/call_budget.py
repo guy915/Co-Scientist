@@ -12,8 +12,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 
-from co_scientist._context import _bind_contextvar
-from co_scientist.exceptions import LLMCallBudgetExceededError
+from co_scientist.core._context import _bind_contextvar
+from co_scientist.core.exceptions import LLMCallBudgetExceededError
 
 
 @dataclass

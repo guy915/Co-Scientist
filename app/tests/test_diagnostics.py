@@ -6,10 +6,10 @@ import time
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi.testclient import TestClient
 
 from app import API_VERSION, diagnostics
-from app.config import settings
 from app.diagnostics import (
     HealthCheck,
 )

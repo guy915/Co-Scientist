@@ -5,7 +5,7 @@ import time
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     PROGRESS_META_REVIEW_COMPLETE,
     PROGRESS_SAFETY_SCREEN_COMPLETE,
     PROGRESS_SAFETY_SCREEN_START,
