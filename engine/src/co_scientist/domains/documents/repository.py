@@ -124,33 +124,6 @@ def merge_run_setup_documents(
     return list(resolved.values())
 
 
-def index_staged_documents_for_run(
-    run_id: str,
-    staged: list[dict[str, Any]],
-    source: str,
-    *,
-    conn: sqlite3.Connection | None = None,
-) -> None:
-    from co_scientist.domains.research_state.repository.records import NewEvidence, add_evidence
-
-    for document in staged:
-        add_evidence(
-            NewEvidence(
-                run_id=run_id,
-                title=str(document["title"]),
-                source=source,
-                abstract=str(document["text"]),
-                mime_type=str(document["mime_type"]),
-                sha256=str(document["sha256"]),
-                byte_size=int(document["byte_size"]),
-                document_version=str(document["sha256"]),
-                extraction_tool=str(document["extraction_tool"]),
-            ),
-            conn=conn,
-        )
-    mark_documents_used_by_run(run_id, [str(document["id"]) for document in staged], conn=conn)
-
-
 def interview_document_excerpts(interview_id: str) -> list[dict[str, str]]:
     """Mark clipped excerpts so the model never mistakes a truncated
     attachment for its complete text.
