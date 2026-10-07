@@ -5,6 +5,7 @@ TCP-only Landlock denial leaves UDP open; seccomp handles network denial.
 import ctypes
 import logging
 import os
+import stat
 import struct
 from pathlib import Path
 
@@ -90,6 +91,10 @@ def _ruleset_attr(abi: int, handled: int) -> ctypes.Array[ctypes.c_char]:
 def _add_path_rule(libc: ctypes.CDLL, ruleset_fd: int, path: Path, access: int) -> None:
     parent_fd = os.open(path, _O_PATH | os.O_CLOEXEC)
     try:
+        # Landlock rejects directory-only rights on files, including runtime
+        # config files and device nodes. Inspect the opened inode, not its path.
+        if not stat.S_ISDIR(os.fstat(parent_fd).st_mode):
+            access &= _EXECUTE | _WRITE_FILE | _READ_FILE | _TRUNCATE
         # landlock_path_beneath_attr is packed: 8+4 bytes, not 16.
         attr = ctypes.create_string_buffer(struct.pack("=Qi", access, parent_fd), 12)
         if libc.syscall(
@@ -142,7 +147,8 @@ def restrict_self(policy: SandboxPolicy) -> None:
         raise OSError(ctypes.get_errno(), "landlock_create_ruleset failed")
 
     try:
-        _add_path_rule(libc, ruleset_fd, Path("/"), _READ_ACCESS)
+        for root in policy.readable_roots:
+            _add_path_rule(libc, ruleset_fd, root, _READ_ACCESS)
         for root in policy.writable_roots:
             _add_path_rule(libc, ruleset_fd, root, handled)
         _commit(libc, ruleset_fd)

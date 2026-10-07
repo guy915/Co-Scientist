@@ -6,8 +6,6 @@ from typing import Any
 from co_scientist.llm.admission.free_policy import scoped_api_key
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
-    _JsonCallSpec,
-    escalated_max_tokens,
     escalated_spec,
 )
 from co_scientist.llm.attempts.json_attempt import (
@@ -38,9 +36,7 @@ def _call_for_attempt(
 
     async def _attempt(attempt: Attempt) -> str:
         escalation = attempt.rung
-        attempt_spec = dataclasses.replace(
-            spec, max_tokens=escalated_max_tokens(spec.max_tokens, escalation)
-        )
+        attempt_spec = escalated_spec(spec, escalation)
         attempt_opt = inner_opt
         if escalation is BudgetEscalation.NO_THINKING:
             attempt_opt = dataclasses.replace(inner_opt, enable_thinking=False)
@@ -70,24 +66,18 @@ async def call_llm(
         )
 
 
-async def _call_llm_for_json(prompt: str, spec: _JsonCallSpec, enable_thinking: bool = True) -> str:
+async def _call_llm_for_json(
+    prompt: str, spec: CompletionSpec, enable_thinking: bool = True
+) -> str:
     """Never nest another attempt loop."""
     response_text = await _call_llm_single_attempt(
-        prompt,
-        CompletionSpec(
-            model_name=spec.model_name,
-            max_tokens=spec.max_tokens,
-            temperature=spec.temperature,
-            json_schema=spec.json_schema,
-            force_json=not spec.json_schema,
-        ),
-        LLMCallOptions(enable_thinking=enable_thinking),
+        prompt, spec, LLMCallOptions(enable_thinking=enable_thinking)
     )
     return extract_response_json(response_text)
 
 
 def _json_call_for_attempt(
-    json_spec: _JsonCallSpec, enable_thinking: bool, judge: JsonJudge
+    json_spec: CompletionSpec, enable_thinking: bool, judge: JsonJudge
 ) -> Callable[[Attempt], Awaitable[str]]:
     """Resolve the raw-response seam in this module so installed test fakes
     still intercept it.
@@ -133,9 +123,7 @@ async def call_llm_json(
     # Scope the explicit key over every attempt, without putting it in the
     # JSON spec.
     with scoped_api_key(spec.api_key):
-        json_spec = _JsonCallSpec(
-            spec.model_name, spec.max_tokens, spec.temperature, spec.json_schema
-        )
+        json_spec = dataclasses.replace(spec, api_key=None, force_json=not spec.json_schema)
 
         judge = JsonJudge(prompt, json_spec)
         return await run_attempts(

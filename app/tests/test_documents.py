@@ -30,6 +30,7 @@ def test_pdf_ocr_includes_figures_on_text_pages(
 
     class _Image:
         data = b"x" * 1200
+        image = types.SimpleNamespace(width=30, height=40)
 
     class _Page:
         def __init__(self) -> None:
@@ -48,10 +49,10 @@ def test_pdf_ocr_includes_figures_on_text_pages(
     monkeypatch.setattr(
         document_ingest,
         "_extract_image_ocr",
-        lambda _data: "Plot shows a 42 percent reduction.",
+        lambda _data, **_kwargs: "Plot shows a 42 percent reduction.",
     )
 
-    text = document_ingest._extract_pdf(b"fake-pdf")
+    text = document_ingest._extract_pdf_in_process(b"fake-pdf")
 
     assert "Narrative results" in text
     assert "[Figure 1.1 sha256=" in text

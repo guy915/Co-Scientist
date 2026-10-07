@@ -11,6 +11,7 @@ import logging
 import os
 import pathlib
 import re
+import shutil
 from collections.abc import Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -377,13 +378,26 @@ _CREDENTIAL_ALIASES: dict[str, tuple[str, ...]] = {
     "FDA_API_KEY": ("FDA_API_KEY",),
 }
 
+_SKILL_CREDENTIALS: dict[str, tuple[str, ...]] = {
+    "alphagenome_single_variant_analysis": ("ALPHAGENOME_API_KEY",),
+    "clinvar_database": ("NCBI_API_KEY",),
+    "dbsnp_database": ("NCBI_API_KEY",),
+    "literature_search_openalex": ("OPENALEX_API_KEY",),
+    "ncbi_sequence_fetch": ("NCBI_API_KEY",),
+    "openfda_database": ("FDA_API_KEY",),
+    "protein_sequence_msa": ("USER_EMAIL",),
+    "protein_sequence_similarity_search": ("USER_EMAIL",),
+    "pubmed_database": ("NCBI_API_KEY", "USER_EMAIL", "NCBI_TOOL"),
+}
 
-def skill_environment() -> dict[str, str]:
+
+def skill_environment(skill_name: str) -> dict[str, str]:
     """Omit missing credentials: upstream skills distinguish absent variables
     from present empty strings.
     """
     resolved: dict[str, str] = {}
-    for wanted, aliases in _CREDENTIAL_ALIASES.items():
+    for wanted in _SKILL_CREDENTIALS.get(skill_name, ()):
+        aliases = _CREDENTIAL_ALIASES[wanted]
         for alias in aliases:
             value = os.environ.get(alias, "").strip()
             if value:
@@ -392,20 +406,142 @@ def skill_environment() -> dict[str, str]:
     return resolved
 
 
-def invoked_skill(argv: list[str]) -> str | None:
+def invoked_skill(
+    argv: list[str],
+    *,
+    cwd: pathlib.Path | None = None,
+    writable_roots: tuple[pathlib.Path, ...] = (),
+) -> str | None:
     """Attribute actual script invocations per source, because third-party
     disclosure obligations differ.
     """
     directory = skills_directory()
     if directory is None or not argv:
         return None
-    if pathlib.Path(argv[0]).name != pathlib.Path(skills_python()).name:
+    if len(argv) < 2 or not argv[1] or argv[1].startswith("-"):
+        return None
+    command_cwd = cwd or pathlib.Path.cwd()
+    expected_python = _executable_paths(skills_python(), command_cwd, writable_roots)
+    actual_python = _executable_paths(argv[0], command_cwd, writable_roots)
+    if expected_python is None or actual_python is None:
+        return None
+    if expected_python[0] != actual_python[0] or expected_python[1] != actual_python[1]:
+        return None
+    if any(
+        _path_in_writable_root(path, writable_roots)
+        for path in (expected_python[0], expected_python[1])
+    ):
+        return None
+    script = pathlib.Path(argv[1])
+    if not script.is_absolute() or _has_symlink_component(script):
+        return None
+    try:
+        resolved_script = script.resolve(strict=True)
+    except (OSError, ValueError):
+        return None
+    if not resolved_script.is_file() or resolved_script.suffix != ".py":
         return None
     for skill in available_skills():
         root = skill.directory.resolve()
-        if any(_is_within(argument, root) for argument in argv[1:]):
+        scripts_root = root / "scripts"
+        if any(_paths_overlap(scripts_root, writable) for writable in writable_roots):
+            continue
+        if not _is_within(str(resolved_script), scripts_root):
+            continue
+        if any(_same_path(resolved_script, candidate) for candidate in _runnable_scripts(root)):
             return skill.name
     return None
+
+
+def _executable_paths(
+    executable: str,
+    cwd: pathlib.Path,
+    writable_roots: tuple[pathlib.Path, ...],
+) -> tuple[pathlib.Path, pathlib.Path] | None:
+    resolved: str | None
+    if os.sep in executable or (os.altsep and os.altsep in executable):
+        candidate = pathlib.Path(executable)
+        if not candidate.is_absolute():
+            candidate = cwd / candidate
+        if _path_has_writable_prefix(candidate, writable_roots):
+            return None
+        resolved = os.path.abspath(candidate)
+    else:
+        path_entries = os.environ.get("PATH", os.defpath).split(os.pathsep)
+        absolute_entries = []
+        for entry in path_entries:
+            directory = pathlib.Path(entry or ".")
+            absolute_entries.append(str(directory if directory.is_absolute() else cwd / directory))
+        absolute_path = os.pathsep.join(absolute_entries)
+        resolved = shutil.which(executable, path=absolute_path)
+    if resolved is None:
+        return None
+    try:
+        lexical = pathlib.Path(resolved)
+        if _path_has_writable_prefix(lexical, writable_roots):
+            return None
+        return pathlib.Path(os.path.abspath(lexical)), lexical.resolve(strict=True)
+    except (OSError, ValueError):
+        return None
+
+
+def _path_in_writable_root(path: pathlib.Path, writable_roots: tuple[pathlib.Path, ...]) -> bool:
+    lexical = pathlib.Path(os.path.abspath(path))
+    try:
+        canonical = path.resolve(strict=False)
+    except (OSError, ValueError):
+        canonical = lexical
+    return any(
+        lexical.is_relative_to(root) or canonical.is_relative_to(root) for root in writable_roots
+    )
+
+
+def _path_has_writable_prefix(path: pathlib.Path, writable_roots: tuple[pathlib.Path, ...]) -> bool:
+    if not path.is_absolute():
+        return True
+    current = pathlib.Path(path.anchor)
+    for part in path.parts[1:]:
+        if part == "..":
+            try:
+                current = current.resolve(strict=False).parent
+            except (OSError, ValueError):
+                current = current.parent
+        else:
+            current = current / part
+        if _path_in_writable_root(current, writable_roots):
+            return True
+    return False
+
+
+def _has_symlink_component(path: pathlib.Path) -> bool:
+    """Reject aliases so a checked script path cannot be swapped through a link."""
+    if not path.is_absolute():
+        return True
+    current = pathlib.Path(path.anchor)
+    for part in path.parts[1:]:
+        if part == "..":
+            current = current.parent
+            continue
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def _same_path(left: pathlib.Path, right: pathlib.Path) -> bool:
+    try:
+        return left.resolve(strict=True) == right.resolve(strict=True)
+    except (OSError, ValueError):
+        return False
+
+
+def _paths_overlap(left: pathlib.Path, right: pathlib.Path) -> bool:
+    try:
+        left = left.resolve(strict=True)
+        right = right.resolve(strict=True)
+    except (OSError, ValueError):
+        return True
+    return left.is_relative_to(right) or right.is_relative_to(left)
 
 
 def _is_within(argument: str, root: pathlib.Path) -> bool:

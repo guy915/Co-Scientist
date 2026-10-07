@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from Bio import Entrez
 from mcp_server.entrez import read_entrez
+from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import (
     MIN_RESULTS_BEFORE_RELAX,
     anchored_relaxed_query,
@@ -16,6 +17,7 @@ from mcp_server.pubmed_client import (
 )
 from mcp_server.pubmed_storage import (
     link_metadata_to_run,
+    link_shared_file_to_run,
     write_metadata_cache_file,
 )
 from mcp_server.tests._entrez import (
@@ -277,6 +279,36 @@ def test_metadata_links_survive_cache_relocation(tmp_path: Path) -> None:
     relocated_metadata = relocated / "slug" / "shared" / metadata_file.name
     run_link = relocated / "slug" / "runs" / "run-id" / metadata_file.name
     assert run_link.read_bytes() == relocated_metadata.read_bytes()
+
+
+@pytest.mark.parametrize("slug", ["../outside", "/tmp/outside", "bad/slug"])
+def test_cache_slug_cannot_escape_root(tmp_path: Path, slug: str) -> None:
+    source = PubmedSource(tmp_path)
+
+    with pytest.raises(ValueError, match="invalid slug"):
+        source._prepare_run_directories(slug, None)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_cache_run_id_cannot_escape_slug_root(tmp_path: Path) -> None:
+    source = PubmedSource(tmp_path)
+
+    with pytest.raises(ValueError, match="invalid run ID"):
+        source._prepare_run_directories("slug", "../../outside")
+
+    assert not (tmp_path.parent / "outside").exists()
+
+
+def test_run_cache_link_rejects_an_existing_external_symlink(tmp_path: Path) -> None:
+    run_dir = tmp_path / "slug" / "runs" / "run"
+    run_dir.mkdir(parents=True)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.json"
+    outside.write_text("private", encoding="utf-8")
+    (run_dir / "123.metadata.json").symlink_to(outside)
+
+    with pytest.raises(ValueError, match="escapes"):
+        link_shared_file_to_run(run_dir, "123.metadata.json")
 
 
 @pytest.mark.parametrize(

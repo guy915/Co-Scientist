@@ -256,7 +256,15 @@ def announce_start(
     """
     run = _run_or_404(run_id)
     byok = _resolve_qa_byok(run, request)
-    prompt_msg = run_start_announcement.persist_prompt(run_id, req.prompt)
+    prompt_msg, fresh = store.claim_start_prompt(run_id, req.prompt)
+    if not fresh:
+        return StreamingResponse(
+            run_start_announcement.replay_announcement(run_id, prompt_msg.id),
+            media_type="text/event-stream",
+        )
+    from app.diagnostic_events import log_chat_turn
+
+    log_chat_turn("user", req.prompt, run_id=run_id)
     return StreamingResponse(
         run_start_announcement.stream_announcement(run, prompt_msg.id, byok),
         media_type="text/event-stream",
