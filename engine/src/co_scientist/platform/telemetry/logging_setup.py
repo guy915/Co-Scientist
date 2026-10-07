@@ -357,7 +357,7 @@ _capture: LogCapture | None = None
 
 def _build_capture_pipeline(
     level: int, max_rows: int
-) -> tuple[_CaptureQueueHandler, logging.handlers.QueueListener]:
+) -> tuple[_CaptureQueueHandler, CaptureListener]:
     record_queue = CaptureQueue()
     handler = _CaptureQueueHandler(record_queue)
     handler.setLevel(level)

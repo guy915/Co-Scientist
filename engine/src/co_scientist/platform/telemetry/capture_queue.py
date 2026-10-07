@@ -86,6 +86,8 @@ class CaptureQueue:
 
 
 class CaptureListener(logging.handlers.QueueListener):
+    queue: CaptureQueue
+
     def stop(self) -> None:
         self.enqueue_sentinel()
         thread = self._thread
