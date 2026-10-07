@@ -686,26 +686,18 @@ function InsightList({title, values}: {title: string; values: string[]}) {
   );
 }
 
-// Legacy flattened recommendations remain readable until production reset.
-function toRecommendation(raw: RecommendedDirection | string) {
-  if (typeof raw === 'string') {
-    return {
-      focusArea: '',
-      recommendation: readableText(raw).trim(),
-      justification: '',
-    };
-  }
+function toRecommendation(raw: RecommendedDirection) {
   return {
-    focusArea: readableText(raw?.focus_area).trim(),
-    recommendation: readableText(raw?.recommendation).trim(),
-    justification: readableText(raw?.justification).trim(),
+    focusArea: readableText(raw.focus_area).trim(),
+    recommendation: readableText(raw.recommendation).trim(),
+    justification: readableText(raw.justification).trim(),
   };
 }
 
 function RecommendedDirections({
   directions,
 }: {
-  directions: (RecommendedDirection | string)[];
+  directions: RecommendedDirection[];
 }) {
   const entries = (directions ?? [])
     .map(toRecommendation)
