@@ -450,6 +450,15 @@ body {
   background-clip: padding-box;
 }
 
+/* Every keyboard-focused control shows a ring. Zero specificity, so a
+   component's own focus style replaces it; text entry keeps its field border. */
+@layer base {
+  :where(:not(input, textarea, select, [contenteditable='true'])):focus-visible {
+    outline: 2px solid var(--color-th-ring);
+    outline-offset: 2px;
+  }
+}
+
 /* Controls ease between hover and focus states by default. It is a base
    rule so a component's own transition utility can replace it. */
 @layer base {
