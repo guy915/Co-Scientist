@@ -6,8 +6,8 @@ from typing import Any
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core.config import settings
+from co_scientist.core.json_schema import obj
 from co_scientist.platform.llm import CompletionSpec, LLMCallOptions, call_llm_json
-from co_scientist.science.schemas.builders import obj
 
 logger = logging.getLogger(__name__)
 
