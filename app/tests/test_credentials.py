@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
 from co_scientist.platform import db
@@ -59,7 +60,7 @@ def test_secret_dependent_calls_require_the_deployment_secret(
 
 def test_run_credential_round_trips_encrypted(byok_secret: str) -> None:
     run = _make_run()
-    cred = credentials.ByokCredential(
+    cred = byok_scope.ByokCredential(
         provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
     )
     credentials.store_run_credential(run.id, run.client_id, cred)
@@ -74,7 +75,7 @@ def test_run_credential_round_trips_encrypted(byok_secret: str) -> None:
 
 def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
     run = _make_run()
-    cred = credentials.ByokCredential(provider="openai", api_key=_KEY, model="openai/gpt-4o")
+    cred = byok_scope.ByokCredential(provider="openai", api_key=_KEY, model="openai/gpt-4o")
     credentials.store_run_credential(run.id, run.client_id, cred)
     with db.connect() as conn:
         conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
@@ -84,24 +85,24 @@ def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
 def test_byok_model_and_key_prefers_scoped_credential(
     byok_secret: str,
 ) -> None:
-    cred = credentials.ByokCredential(provider="openai", api_key=_KEY, model="openai/gpt-4o")
-    assert credentials.byok_model_and_key("chat-model") == (
+    cred = byok_scope.ByokCredential(provider="openai", api_key=_KEY, model="openai/gpt-4o")
+    assert byok_scope.byok_model_and_key("chat-model") == (
         "chat-model",
         None,
     )
-    with credentials.scoped_byok(cred):
-        assert credentials.byok_model_and_key("chat-model") == (
+    with byok_scope.scoped_byok(cred):
+        assert byok_scope.byok_model_and_key("chat-model") == (
             "openai/gpt-4o",
             _KEY,
         )
-    assert credentials.byok_model_and_key("chat-model") == (
+    assert byok_scope.byok_model_and_key("chat-model") == (
         "chat-model",
         None,
     )
 
 
-def _mixed() -> credentials.ByokCredential:
-    return credentials.ByokCredential(
+def _mixed() -> byok_scope.ByokCredential:
+    return byok_scope.ByokCredential(
         provider="openai",
         api_key=_KEY,
         model="openai/gpt-6.1-sol",
@@ -114,8 +115,8 @@ def _mixed() -> credentials.ByokCredential:
 def test_redaction_scrubs_both_keys(byok_secret: str) -> None:
     message = f"{_KEY} then {_SECOND_KEY}"
     record = logging.LogRecord("test", logging.ERROR, __file__, 1, message, (), None)
-    with credentials.scoped_byok(_mixed()):
-        assert credentials.ByokRedactionFilter().filter(record)
+    with byok_scope.scoped_byok(_mixed()):
+        assert byok_scope.ByokRedactionFilter().filter(record)
     assert record.getMessage() == "[REDACTED] then [REDACTED]"
 
 

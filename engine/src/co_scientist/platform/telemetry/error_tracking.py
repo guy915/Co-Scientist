@@ -4,7 +4,7 @@ import os
 import re
 from typing import Any
 
-from co_scientist.domains.access.credentials import redact_byok_text
+from co_scientist.core.byok_scope import redact_byok_text
 
 # Deployment credentials can surface in provider error text; any variable
 # named like a secret is scrubbed wherever it appears in a report.

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.core.run_modes import resolved_run_config
 from co_scientist.domains.access import credentials
@@ -34,7 +35,7 @@ def test_generator_runs_each_tier_on_its_chosen_model() -> None:
     def generator(**kwargs: Any) -> None:
         captured.update(kwargs)
 
-    cred = credentials.ByokCredential(
+    cred = byok_scope.ByokCredential(
         provider="deepseek",
         api_key=_KEY,
         model="deepseek/deepseek-v4-flash",
@@ -54,7 +55,7 @@ _MIXED = {
 }
 
 
-def _mixed_credential() -> credentials.ByokCredential:
+def _mixed_credential() -> byok_scope.ByokCredential:
     cred = credentials.credential_from_headers(_headers(**_MIXED))
     assert cred is not None
     return cred

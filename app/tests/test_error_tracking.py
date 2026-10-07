@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 import sentry_sdk
-from co_scientist.domains.access.credentials import ByokCredential, scoped_byok
+from co_scientist.core.byok_scope import ByokCredential, scoped_byok
 from co_scientist.platform.telemetry import error_tracking
 
 
