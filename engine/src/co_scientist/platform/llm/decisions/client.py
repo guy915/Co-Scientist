@@ -11,6 +11,7 @@ from typing import Any
 
 import httpx
 
+from co_scientist.core.metrics import ModelCallStats
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.service import (
     block_decision_provider,
@@ -18,7 +19,7 @@ from co_scientist.platform.llm.admission.service import (
 )
 from co_scientist.platform.llm.decisions.settings import DecisionSettings, DecisionUnavailableError
 from co_scientist.platform.llm.decisions.types import DecisionResult, Question, parse_result
-from co_scientist.platform.llm.telemetry import ModelCallStats, record_call
+from co_scientist.platform.llm.telemetry import record_call
 
 
 def _rate_limits(headers: httpx.Headers, api_key: str) -> dict[str, str]:
