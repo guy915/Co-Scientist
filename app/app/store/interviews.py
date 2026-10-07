@@ -109,18 +109,13 @@ def _interview_run_ids(conn: sqlite3.Connection, client_id: str) -> dict[str, st
     return links
 
 
-def run_id_for_interview(
-    interview_id: str,
-    client_id: str,
-    *,
-    db_path: str | None = None,
-) -> str | None:
+def run_id_for_interview(interview_id: str, client_id: str) -> str | None:
     """Only chat reopening needs this scan; per-turn readers must not pay
     its cost.
     """
     if not client_id:
         return None
-    with connect(db_path) as conn:
+    with connect() as conn:
         return _interview_run_ids(conn, client_id).get(str(interview_id))
 
 
@@ -137,13 +132,8 @@ def _chat_summary(row: sqlite3.Row, run_id: str | None) -> dict[str, Any]:
     }
 
 
-def list_interviews(
-    client_id: str,
-    *,
-    limit: int = 200,
-    db_path: str | None = None,
-) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
+def list_interviews(client_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
+    with connect() as conn:
         rows = conn.execute(
             "SELECT id, status, fields_json, created_at, updated_at "
             "FROM interviews WHERE client_id=? "
@@ -172,10 +162,9 @@ def append_interview_turn(
     turn: NewInterviewTurn,
     *,
     db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
 ) -> None:
     now = _now()
-    with _use_conn(conn, db_path) as active:
+    with connect(db_path) as active:
         active.execute(
             "INSERT INTO interview_turns (interview_id, role, content, "
             "reasoning, fallback, questions_json, created_at) "
@@ -204,17 +193,12 @@ def append_interview_turn(
             )
 
 
-def rewind_interview(
-    interview_id: str,
-    turn_id: int,
-    *,
-    db_path: str | None = None,
-) -> int:
+def rewind_interview(interview_id: str, turn_id: int) -> int:
     """Edits and retries invalidate downstream derivations; callers
     reconstruct interview fields from the retained transcript.
     """
     now = _now()
-    with connect(db_path) as conn:
+    with connect() as conn:
         removed = conn.execute(
             "DELETE FROM interview_turns WHERE interview_id=? AND id>=?",
             (interview_id, turn_id),
@@ -233,11 +217,10 @@ def update_interview(
     current_question: str | None,
     *,
     completed: bool = False,
-    db_path: str | None = None,
 ) -> None:
     now = _now()
     status = "completed" if completed else "active"
-    with connect(db_path) as conn:
+    with connect() as conn:
         conn.execute(
             "UPDATE interviews SET fields_json=?, current_question=?, "
             "status=?, updated_at=?, completed_at=? WHERE id=?",
@@ -252,11 +235,11 @@ def update_interview(
         )
 
 
-def delete_interview(interview_id: str, *, db_path: str | None = None) -> dict[str, int]:
+def delete_interview(interview_id: str) -> dict[str, int]:
     """Transcript rows cascade; staged documents lack an interview FK and
     must be detached without deleting the scientist's copy.
     """
-    with connect(db_path) as conn:
+    with connect() as conn:
         turns = conn.execute(
             "SELECT COUNT(*) FROM interview_turns WHERE interview_id=?",
             (interview_id,),

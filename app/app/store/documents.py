@@ -23,9 +23,9 @@ class NewStagedDocument:
     extraction_tool: str
 
 
-def add_staged_document(document: NewStagedDocument, *, db_path: str | None = None) -> str:
+def add_staged_document(document: NewStagedDocument) -> str:
     document_id = str(uuid.uuid4())
-    with connect(db_path) as conn:
+    with connect() as conn:
         conn.execute(
             "INSERT INTO staged_documents (id, client_id, title, text, "
             "mime_type, sha256, byte_size, extraction_tool, created_at) "
@@ -53,7 +53,6 @@ def get_staged_documents(
     document_ids: list[str],
     client_id: str,
     *,
-    db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
     """Unknown and other-owner IDs are indistinguishable to avoid leaking
@@ -62,7 +61,7 @@ def get_staged_documents(
     if not document_ids:
         return []
     placeholders = ",".join("?" for _ in document_ids)
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         rows = active.execute(
             f"SELECT * FROM staged_documents WHERE id IN ({placeholders}) AND client_id=?",
             (*document_ids, client_id),
@@ -75,13 +74,11 @@ def attach_documents_to_interview(
     interview_id: str,
     document_ids: list[str],
     client_id: str,
-    *,
-    db_path: str | None = None,
 ) -> int:
     if not document_ids:
         return 0
     placeholders = ",".join("?" for _ in document_ids)
-    with connect(db_path) as conn:
+    with connect() as conn:
         return int(
             conn.execute(
                 "UPDATE staged_documents SET interview_id=? "
@@ -91,13 +88,8 @@ def attach_documents_to_interview(
         )
 
 
-def list_interview_documents(
-    interview_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    with _use_conn(conn, db_path) as active:
+def list_interview_documents(interview_id: str) -> list[dict[str, Any]]:
+    with connect() as active:
         rows = active.execute(
             "SELECT * FROM staged_documents WHERE interview_id=? ORDER BY created_at ASC",
             (interview_id,),
@@ -108,12 +100,8 @@ def list_interview_documents(
 def merge_run_setup_documents(
     named: list[dict[str, Any]],
     interview_id: str | None,
-    *,
-    conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    from_chat = (
-        list_interview_documents(interview_id, conn=conn) if interview_id is not None else []
-    )
+    from_chat = list_interview_documents(interview_id) if interview_id is not None else []
     resolved: dict[str, dict[str, Any]] = {}
     for document in [*named, *from_chat]:
         resolved.setdefault(str(document["id"]), document)
@@ -147,13 +135,11 @@ def index_staged_documents_for_run(
     mark_documents_used_by_run(run_id, [str(document["id"]) for document in staged], conn=conn)
 
 
-def interview_document_excerpts(
-    interview_id: str, *, db_path: str | None = None
-) -> list[dict[str, str]]:
+def interview_document_excerpts(interview_id: str) -> list[dict[str, str]]:
     """Mark clipped excerpts so the model never mistakes a truncated
     attachment for its complete text.
     """
-    documents = list_interview_documents(interview_id, db_path=db_path)
+    documents = list_interview_documents(interview_id)
     excerpts = []
     for document in documents:
         text = str(document["text"])
@@ -164,8 +150,8 @@ def interview_document_excerpts(
     return excerpts
 
 
-def delete_staged_document(document_id: str, client_id: str, *, db_path: str | None = None) -> bool:
-    with connect(db_path) as conn:
+def delete_staged_document(document_id: str, client_id: str) -> bool:
+    with connect() as conn:
         cur = conn.execute(
             "DELETE FROM staged_documents WHERE id=? AND client_id=?",
             (document_id, client_id),
@@ -173,11 +159,11 @@ def delete_staged_document(document_id: str, client_id: str, *, db_path: str | N
     return cur.rowcount > 0
 
 
-def delete_staged_documents_older_than(cutoff: float, *, db_path: str | None = None) -> int:
+def delete_staged_documents_older_than(cutoff: float) -> int:
     """Age is measured from creation; staged rows have no last-use
     timestamp.
     """
-    with connect(db_path) as conn:
+    with connect() as conn:
         cur = conn.execute("DELETE FROM staged_documents WHERE created_at < ?", (cutoff,))
     return cur.rowcount
 
@@ -186,13 +172,12 @@ def mark_documents_used_by_run(
     run_id: str,
     document_ids: list[str],
     *,
-    db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
     if not document_ids:
         return
     placeholders = ",".join("?" for _ in document_ids)
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         active.execute(
             f"UPDATE staged_documents SET run_id=? WHERE id IN ({placeholders})",
             (run_id, *document_ids),
