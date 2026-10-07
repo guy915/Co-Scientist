@@ -223,7 +223,7 @@ def store_run_credential(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    from app.store.db import _now, _use_conn
+    from co_scientist.platform.db import _now, _use_conn
 
     with _use_conn(conn, db_path) as active:
         active.execute(
@@ -255,7 +255,7 @@ def store_run_credential(
 
 
 def get_run_credential(run_id: str, db_path: str | None = None) -> ByokCredential | None:
-    from app.store.db import connect
+    from co_scientist.platform.db import connect
 
     with connect(db_path) as conn:
         row = conn.execute(

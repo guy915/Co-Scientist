@@ -4,16 +4,17 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 
 from app import task_worker
 from app.runs import lifecycle as runs_lifecycle
-from app.store import checkpoints, hypotheses, reports, runs
 from app.store import events as store_events
+from app.store import hypotheses, reports, runs
 from app.store import records as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
 from app.store.hypotheses import NewHypothesis
-from app.store.models import RunStatus as StoreRunStatus
 from app.store.records import NewEvidence, NewReview
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client

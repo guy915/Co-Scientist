@@ -7,16 +7,18 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform import db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
 from app import API_VERSION, diagnostics
 from app.diagnostics import (
     HealthCheck,
 )
-from app.store import checkpoints, db, runs
+from app.store import runs
 from app.store import runs_views as views
 from app.store import tasks as store
-from app.store.models import DEMO_CLIENT_ID, RunStatus
 from app.store.tasks import queue_health_snapshot
 from app.store.tasks_lifecycle import QueueHealthSnapshot
 from tests._client import make_client as _client

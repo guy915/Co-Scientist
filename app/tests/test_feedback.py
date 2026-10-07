@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app.store import db, feedback
+from co_scientist.platform import db
+
+from app.store import feedback
 from tests._client import make_client
 
 PAYLOAD = {

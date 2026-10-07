@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect
+from co_scientist.platform.db import _now, _use_conn, connect
 
 
 def create_interview(

@@ -5,8 +5,9 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, checkpoint_wal, connect
 from app.store.supervisor_plan import sync_supervisor_ledger_from_checkpoint
+
+from co_scientist.platform.db import _now, _use_conn, checkpoint_wal, connect
 
 
 @dataclass(frozen=True)

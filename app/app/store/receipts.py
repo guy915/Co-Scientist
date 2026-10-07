@@ -6,8 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from app.store.db import _now, _use_conn
-from app.store.models import RunRow, _row_to_run
+from co_scientist.platform.db import _now, _use_conn
+from co_scientist.platform.db.models import RunRow, _row_to_run
 
 if TYPE_CHECKING:
     from app.credentials import ByokCredential
@@ -107,8 +107,9 @@ def commit_run_creation(
     """Recheck receipt and staged ownership under the same writer lock as
     setup, credentials and attachment persistence.
     """
+    from co_scientist.platform.db import transaction
+
     from app import credentials
-    from app.store.db import transaction
     from app.store.documents import index_staged_documents_for_run
 
     if (idempotency_key is None) != (request_digest is None):

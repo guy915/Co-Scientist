@@ -5,8 +5,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect, transaction
-from app.store.models import MessageRow, _row_to_message
+from co_scientist.platform.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db.models import MessageRow, _row_to_message
 
 
 @dataclass(frozen=True)

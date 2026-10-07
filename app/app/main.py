@@ -11,6 +11,9 @@ from typing import Any, cast
 import uvicorn
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
+from co_scientist.platform import db
+from co_scientist.platform.db import checkpoints as store
+from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,10 +39,8 @@ from app.logging_setup import (
 from app.logs_api import router as logs_router
 from app.runs import router as runs_router
 from app.seed import seed_demo_runs
-from app.store import checkpoints as store
-from app.store import db, runs, tasks
+from app.store import runs, tasks
 from app.store import runs_views as views
-from app.store.models import DEMO_CLIENT_ID, RunRow
 
 logger = logging.getLogger(__name__)
 

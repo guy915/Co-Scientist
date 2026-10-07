@@ -4,16 +4,18 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.platform import db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 
 from app import engine_tasks, safety, task_worker
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import support as engine_tasks_support
 from app.safety.types import SafetyDecision
-from app.store import checkpoints, db, records, runs
 from app.store import events as store_events
+from app.store import records, runs
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus as StoreRunStatus
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (

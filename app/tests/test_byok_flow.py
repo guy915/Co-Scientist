@@ -6,11 +6,12 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform.db import checkpoints
 from fastapi.testclient import TestClient
 
 from app import credentials, engine_tasks
 from app.main import app
-from app.store import checkpoints, runs
+from app.store import runs
 from tests._client import create_run as _create_run
 from tests._llm_fake_backend import (
     completion_response,
@@ -183,7 +184,7 @@ async def test_byok_key_absent_from_serialized_checkpoint(
     generator, opts = _generator_and_opts(task, None)
     state = await generator.prepare_task_state("BYOK goal", opts=opts, run_id=run["id"])
     envelope = serialize_workflow_state(state, last_event_seq=0)
-    from app.store.checkpoints import NewCheckpoint, save_checkpoint
+    from co_scientist.platform.db.checkpoints import NewCheckpoint, save_checkpoint
 
     save_checkpoint(
         run["id"],

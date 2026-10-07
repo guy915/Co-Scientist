@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _use_conn, connect
+from co_scientist.platform.db import _use_conn, connect
 
 
 @dataclass(frozen=True)

@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any, NamedTuple
 
 from co_scientist.core.config import settings
+from co_scientist.platform import db
 
 from app.citations import empty_citation_summary
 from app.claims import EvidencePassage
@@ -39,7 +40,7 @@ from app.hypothesis.safety import (
     HypothesisSafetyOutcome,
     escalate_held_hypotheses,
 )
-from app.store import db, hypotheses
+from app.store import hypotheses
 from app.store import records as store_records
 from app.store import supervisor_plan as plans
 from app.store.records import NewSafetyDecision

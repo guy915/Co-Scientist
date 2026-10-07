@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from app.store.db import _list_by_run, _now, _use_conn, connect
+from co_scientist.platform.db import _list_by_run, _now, _use_conn, connect
 
 if TYPE_CHECKING:
     from co_scientist.research import ResearchResult

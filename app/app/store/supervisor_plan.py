@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect
+from co_scientist.platform.db import _now, _use_conn, connect
 
 
 @dataclass(frozen=True)

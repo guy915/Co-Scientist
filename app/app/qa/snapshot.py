@@ -6,10 +6,11 @@ import sqlite3
 from typing import Any
 
 from co_scientist.checkpoint import CHECKPOINT_VERSION
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import RunRow
 
-from app.store import checkpoints, interviews, records, reports, supervisor_plan
 from app.store import hypotheses as store_hypotheses
-from app.store.models import RunRow
+from app.store import interviews, records, reports, supervisor_plan
 
 # Exclude runtime handles, credentials and model routing.
 _SCIENCE_KEYS = (

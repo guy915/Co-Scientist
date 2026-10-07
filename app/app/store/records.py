@@ -7,9 +7,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, fields
 from typing import Any
 
+from co_scientist.platform.db import _list_by_run, _now, _use_conn, connect
+
 from app.citations import CitationState
 from app.claims.gate import DEFAULT_CLAIM_ROLE, ClaimEdge
-from app.store.db import _list_by_run, _now, _use_conn, connect
 
 
 @dataclass(frozen=True)

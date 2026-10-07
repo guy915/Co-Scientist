@@ -3,9 +3,11 @@ from __future__ import annotations
 import sqlite3
 from typing import TYPE_CHECKING, Any, cast
 
-from app.store import db, tasks
+from co_scientist.platform import db
+from co_scientist.platform.db.models import ScientificTask
+
+from app.store import tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import ScientificTask
 from app.store.tasks import NewTask
 
 if TYPE_CHECKING:

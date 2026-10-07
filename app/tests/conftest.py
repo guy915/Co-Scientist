@@ -61,9 +61,7 @@ def _apply_offline_env(monkeypatch: pytest.MonkeyPatch, db_path: str) -> None:
 def isolated_db(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> Iterator[str]:
     db_path = str(tmp_path / "test.db")
     _apply_offline_env(monkeypatch, db_path)
-    from app.store import (
-        db as _store_db,
-    )
+    from co_scientist.platform import db as _store_db
 
     _store_db._initialized.discard(db_path)
     yield db_path

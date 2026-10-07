@@ -4,14 +4,15 @@ import sqlite3
 from collections.abc import Iterable, Mapping
 from typing import Any, TypedDict
 
+from co_scientist.platform import db as store_db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.checkpoints import NewCheckpoint
+from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
 from typing_extensions import Unpack
 
-from app.store import checkpoints, events, runs, tasks
-from app.store import db as store_db
+from app.store import events, runs, tasks
 from app.store import hypotheses as store
-from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import NewHypothesis
-from app.store.models import RunRow, RunStatus, ScientificTask
 from app.store.runs import RunCreateOptions
 from app.store.tasks import NewTask
 

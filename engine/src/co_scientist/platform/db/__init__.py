@@ -11,8 +11,8 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-from app.store.schema import ADDED_COLUMNS as _ADDED_COLUMNS
-from app.store.schema import SCHEMA as _SCHEMA
+from co_scientist.platform.db.schema import ADDED_COLUMNS as _ADDED_COLUMNS
+from co_scientist.platform.db.schema import SCHEMA as _SCHEMA
 
 logger = logging.getLogger(__name__)
 

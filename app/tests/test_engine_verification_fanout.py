@@ -5,12 +5,12 @@ from typing import Any
 
 import pytest
 from co_scientist.models import Article, Hypothesis
+from co_scientist.platform.db import checkpoints
 
 import app.engine_tasks.fanout as engine_tasks_fanout_items
 from app import engine_tasks
 from app.engine_tasks import fanout as engine_tasks_fanout
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.store import checkpoints
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
 from tests._engine_tasks_helpers import (

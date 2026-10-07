@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform.db.models import RunStatus
 
 from app import engine_tasks, task_worker
 from app.engine_tasks import support as engine_tasks_support
@@ -16,7 +17,6 @@ from app.store import hypotheses, reports, runs
 from app.store import runs_views as views
 from app.store import tasks as store
 from app.store.hypotheses import NewHypothesis
-from app.store.models import RunStatus
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (

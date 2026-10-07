@@ -6,8 +6,8 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect, transaction
-from app.store.models import (
+from co_scientist.platform.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db.models import (
     UNKNOWN_PROVIDER_OUTCOME_ERROR,
     ScientificTask,
     TaskFailure,

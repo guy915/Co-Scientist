@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform.db.models import RunStatus
 from fastapi.testclient import TestClient
 
 from app import task_worker
@@ -19,7 +20,6 @@ from app.store import (
     tasks,
 )
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus
 from app.store.records import NewSafetyDecision
 from tests._client import create_run as _create_run
 from tests._client import make_client

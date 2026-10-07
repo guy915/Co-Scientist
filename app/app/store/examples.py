@@ -7,8 +7,10 @@ import sqlite3
 import uuid
 from typing import Any
 
-from app.store import db, interviews, runs
-from app.store.models import DEMO_CLIENT_ID
+from co_scientist.platform import db
+from co_scientist.platform.db.models import DEMO_CLIENT_ID
+
+from app.store import interviews, runs
 from app.store.runs import RunCreateOptions
 
 # Copy scientific artifacts only. No credentials, tasks or logs.

@@ -7,9 +7,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow, RunStatus, _row_to_run
+
 from app.store.logs import count_logs_for_run, delete_logs_for_run
-from app.store.models import TERMINAL_STATUSES, RunRow, RunStatus, _row_to_run
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 logger = logging.getLogger(__name__)

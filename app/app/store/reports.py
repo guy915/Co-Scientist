@@ -5,7 +5,7 @@ import sqlite3
 import uuid
 from typing import Any
 
-from app.store.db import _list_by_run, _now, _use_conn
+from co_scientist.platform.db import _list_by_run, _now, _use_conn
 
 
 def replace_knowledge_facts(

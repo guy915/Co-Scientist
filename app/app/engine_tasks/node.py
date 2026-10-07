@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
+
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.fanout import (
     _enqueue_generation_fanout,
@@ -28,7 +30,6 @@ from app.engine_tasks.support import (
     _task_commit,
 )
 from app.store import runs
-from app.store.models import RunRow, RunStatus, ScientificTask
 
 if TYPE_CHECKING:
     from co_scientist.state import WorkflowState

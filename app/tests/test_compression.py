@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from co_scientist.platform.db.models import RunStatus
+
 from app.store import runs as store
-from app.store.models import RunStatus
 from tests._client import make_client
 from tests._store_helpers import seed_run
 

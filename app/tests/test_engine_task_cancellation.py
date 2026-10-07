@@ -8,6 +8,9 @@ from typing import Any
 
 import pytest
 from co_scientist.llm import ModelCallStats, record_call
+from co_scientist.platform import db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 from app import engine_tasks, task_worker
@@ -17,11 +20,10 @@ from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.fanout import _GenerationPlan, _StrategyInputs
 from app.engine_tasks.fanout_aggregates import _AggregateSpec
 from app.engine_tasks.support import ExactSuccessor, TaskCommit
-from app.store import checkpoints, db, runs
 from app.store import events as store_events
+from app.store import runs
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus as StoreRunStatus
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (

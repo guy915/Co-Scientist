@@ -7,11 +7,12 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from co_scientist.platform.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db.models import ScientificTask as ScientificTask
+from co_scientist.platform.db.models import TaskFailure as TaskFailure
+from co_scientist.platform.db.models import _decode as _decode
+
 import app.store.tasks_lifecycle as tasks_recovery
-from app.store.db import _now, _use_conn, connect, transaction
-from app.store.models import ScientificTask as ScientificTask
-from app.store.models import TaskFailure as TaskFailure
-from app.store.models import _decode as _decode
 from app.store.runs_views import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
 )

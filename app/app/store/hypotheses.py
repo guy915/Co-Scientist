@@ -6,8 +6,9 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.platform.db import _now, _use_conn, connect
+
 from app.elo import INITIAL_ELO
-from app.store.db import _now, _use_conn, connect
 
 
 @dataclass(frozen=True)

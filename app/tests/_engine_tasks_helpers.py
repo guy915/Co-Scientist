@@ -13,6 +13,7 @@ from co_scientist.models import (
     Hypothesis,
     HypothesisReview,
 )
+from co_scientist.platform.db.models import ScientificTask
 
 from app import engine_tasks
 from app.engine_tasks import ranking as engine_tasks_ranking
@@ -21,7 +22,6 @@ from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.runtime import ProductionEngineTaskRuntime
 from app.store import events, messages, tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import ScientificTask
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 

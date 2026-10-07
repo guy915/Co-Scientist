@@ -7,9 +7,8 @@ from contextvars import ContextVar
 from typing import Any
 
 from co_scientist.core.config import settings
+from co_scientist.platform import db
 from fastapi import HTTPException
-
-from app.store import db
 
 _client: ContextVar[str] = ContextVar("provider_usage_client", default="")
 

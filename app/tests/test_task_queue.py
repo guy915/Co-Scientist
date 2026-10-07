@@ -6,11 +6,12 @@ import sys
 import time
 
 import pytest
+from co_scientist.platform import db
+from co_scientist.platform.db.models import RunStatus
 
 import app.store.tasks as task_store
-from app.store import db, runs, tasks
+from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus
 from tests._engine_tasks_helpers import _enqueue, _run, _three_control_tasks
 from tests._store_helpers import enqueue_task
 

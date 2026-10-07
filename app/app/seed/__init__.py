@@ -7,9 +7,10 @@ import sqlite3
 from importlib import resources
 from typing import Any
 
-from app.store import db
+from co_scientist.platform import db
+from co_scientist.platform.db.models import DEMO_CLIENT_ID
+
 from app.store import runs_views as views
-from app.store.models import DEMO_CLIENT_ID
 
 logger = logging.getLogger(__name__)
 

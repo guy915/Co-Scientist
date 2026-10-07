@@ -8,9 +8,10 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform import db
 
 from app import credentials
-from app.store import db, documents
+from app.store import documents
 from app.store import receipts as store_receipts
 from tests._client import make_client
 

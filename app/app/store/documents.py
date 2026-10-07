@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect
+from co_scientist.platform.db import _now, _use_conn, connect
 
 # Interview excerpts need enough scope for planning; full-text corpus retrieval
 # belongs to the research run.

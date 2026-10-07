@@ -3,16 +3,17 @@ from __future__ import annotations
 import logging
 import sqlite3
 
-from app.store.checkpoints import has_checkpoint
-from app.store.db import _now, _use_conn, connect, transaction
-from app.store.events import _append_event
-from app.store.models import (
+from co_scientist.platform.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db.checkpoints import has_checkpoint
+from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,
     RunRow,
     RunStatus,
     TaskFailure,
     _row_to_run,
 )
+
+from app.store.events import _append_event
 
 logger = logging.getLogger(__name__)
 

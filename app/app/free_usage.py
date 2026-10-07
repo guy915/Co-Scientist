@@ -70,7 +70,7 @@ def claim_free_run(conn: sqlite3.Connection, owner: str, run_id: str) -> None:
     """Count and admission share the create transaction; deleting a run
     never refunds its independent usage-ledger slot.
     """
-    from app.store.db import _now
+    from co_scientist.platform.db import _now
 
     now = _now()
     limit = daily_limit()
@@ -97,7 +97,7 @@ def usage_payload(owner: str) -> dict[str, Any]:
     """Offline deterministic execution spends no deployment free-model
     allowance.
     """
-    from app.store.db import _now, connect
+    from co_scientist.platform.db import _now, connect
 
     now = _now()
     with connect() as conn:
