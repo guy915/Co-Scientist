@@ -32,6 +32,78 @@ export interface HomeStageProps {
   onToggleShowAll: () => void;
 }
 
+// Phone and tablet bounds are exact media queries: Tailwind's max-* variants
+// exclude their bound. The landing sheet owns the stage height when mounted.
+const HOME_STAGE_CLASSES =
+  'reference-home-stage grid h-full min-h-0 grid-cols-[minmax(40rem,50.75rem)_minmax(17rem,21rem)] justify-center gap-[clamp(2.5rem,7vw,7.5rem)] overflow-hidden px-6 pt-[1.15rem] pb-[clamp(1.6rem,4vh,2.6rem)] ' +
+  '[@media(min-width:701px)_and_(max-width:1180px)]:h-auto [@media(min-width:701px)_and_(max-width:1180px)]:min-h-full [@media(min-width:701px)_and_(max-width:1180px)]:grid-cols-[minmax(0,1fr)] [@media(min-width:701px)_and_(max-width:1180px)]:justify-items-center [@media(min-width:701px)_and_(max-width:1180px)]:gap-[clamp(1.5rem,3.5vw,2.5rem)] [@media(min-width:701px)_and_(max-width:1180px)]:overflow-visible [@media(min-width:701px)_and_(max-width:1180px)]:px-[clamp(1.5rem,4vw,2.25rem)] [@media(min-width:701px)_and_(max-width:1180px)]:py-0 ' +
+  'min-[1181px]:[--home-recents-width:clamp(19rem,18vw,20.5rem)] min-[1181px]:[align-items:start] min-[1181px]:grid-cols-[minmax(0,1fr)_minmax(19rem,var(--home-recents-width))] min-[1181px]:justify-stretch min-[1181px]:gap-[clamp(2.25rem,3.1vw,3.35rem)] min-[1181px]:py-0 min-[1181px]:pr-[clamp(0.7rem,1.2vw,1.3rem)] min-[1181px]:pl-[clamp(2rem,3vw,4rem)] ' +
+  '[@media(max-width:700px)]:flex [@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:flex-col [@media(max-width:700px)]:gap-0 [@media(max-width:700px)]:px-[clamp(0.9rem,4vw,1.25rem)] [@media(max-width:700px)]:pt-3 [@media(max-width:700px)]:pb-[clamp(0.8rem,2.2vh,1.15rem)]';
+
+// Only spacer tracks shrink as the composer grows upward; children take explicit
+// rows so auto-flow cannot place the greeting into spacer tracks.
+const HOME_MAIN_CLASSES =
+  'reference-home-main relative z-0 grid [align-content:start] pt-[clamp(2.4rem,7vh,3.5rem)] motion-safe:animate-[reference-fade-in_0.3s_ease-in-out_0s_forwards] ' +
+  '[@media(min-width:701px)_and_(max-width:1180px)]:h-[calc(100vh-4.5rem)] [@media(min-width:701px)_and_(max-width:1180px)]:supports-[height:100dvh]:h-[calc(100dvh-4.5rem)] [@media(min-width:701px)_and_(max-width:1180px)]:w-[min(100%,43rem)] [@media(min-width:701px)_and_(max-width:1180px)]:grid-rows-[minmax(0,clamp(2.4rem,7vh,3.5rem))_auto_auto_minmax(2rem,1fr)_auto_max-content_max-content] [@media(min-width:701px)_and_(max-width:1180px)]:pt-0 [@media(min-width:701px)_and_(max-width:1180px)]:pb-[clamp(1rem,2.5vh,1.75rem)] ' +
+  'min-[1181px]:h-full min-[1181px]:max-h-[calc(100vh-4.5rem)] min-[1181px]:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] min-[1181px]:max-w-[clamp(46rem,55vw,53.5rem)] min-[1181px]:min-w-0 min-[1181px]:justify-self-center min-[1181px]:grid-rows-[minmax(1.5rem,clamp(4.85rem,8.8vh,6.4rem))_auto_minmax(1.25rem,clamp(3.85rem,7.6vh,5.8rem))_auto_minmax(2rem,1fr)_auto_max-content_max-content] min-[1181px]:pt-0 min-[1181px]:pb-[clamp(1.35rem,3.2vh,2.25rem)] ' +
+  '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:flex-col [@media(max-width:700px)]:pt-2';
+
+const HOME_TITLE_CLASSES =
+  'm-[0_auto_0.5rem] w-[min(100%,34.375rem)] font-gsans text-[clamp(2.25rem,3.4vw,2.8125rem)] leading-[1.156] font-normal text-pretty text-cosci-fg text-center ' +
+  'min-[701px]:row-2 min-[1181px]:w-[min(100%,43.5rem)] min-[1181px]:text-[clamp(2.35rem,3vw,2.8125rem)] ' +
+  '[@media(min-width:1181px)_and_(max-height:760px)]:text-[clamp(2.1rem,2.8vw,2.65rem)] ' +
+  '[@media(max-width:700px)]:m-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:text-[clamp(1.85rem,7.6vw,2.35rem)] [@media(max-width:700px)]:leading-[1.16]';
+
+const HOME_LOGO_CLASSES =
+  'm-[auto_auto_1rem] block h-auto w-[2.5rem] self-center text-(--cosci-accent) [&_path]:fill-current [&_path]:stroke-current';
+
+const STEP_TIMELINE_CLASSES =
+  "relative m-[clamp(3.7rem,8.5vh,5.2rem)_0_0] grid list-none grid-cols-3 gap-[3.9rem] p-0 before:absolute before:top-4 before:right-4 before:left-4 before:h-px before:bg-(--cosci-step-line) before:content-[''] " +
+  'min-[701px]:row-3 min-[1181px]:row-4 min-[1181px]:mt-0 min-[1181px]:gap-x-0 ' +
+  '[@media(min-width:701px)_and_(max-width:1180px)]:mt-[clamp(2.75rem,6vh,4rem)] [@media(min-width:701px)_and_(max-width:1180px)]:gap-0 ' +
+  '[@media(min-width:1181px)_and_(max-height:760px)]:mt-[clamp(2.35rem,5.8vh,3.2rem)]';
+
+const STEP_ITEM_CLASSES =
+  'relative z-[1] grid gap-4 min-[1181px]:w-[min(100%,15.8rem)] [@media(min-width:701px)_and_(max-width:1180px)]:w-[min(100%,14rem)] [@media(min-width:701px)_and_(max-width:1180px)]:grid-cols-[1fr] [@media(min-width:701px)_and_(max-width:1180px)]:gap-[0.85rem]';
+
+const STEP_NUMBER_CLASSES =
+  'grid size-[1.875rem] place-items-center rounded-[9999px] bg-(--cosci-accent) text-[1rem] font-normal text-(--cosci-accent-fg) [transition:background-color_0.3s_ease-in-out]';
+
+const STEP_BODY_CLASSES =
+  'mt-1 max-w-[16rem] text-[0.875rem] leading-[1.43] text-cosci-fg [@media(min-width:1181px)_and_(max-height:760px)]:text-[0.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:leading-[1.28]';
+
+const SUGGESTION_ROW_CLASSES =
+  'mt-[clamp(3.2rem,7vh,4.35rem)] grid grid-cols-3 gap-[0.85rem] min-[701px]:row-5 min-[701px]:mt-0 min-[1181px]:row-6 min-[1181px]:[align-self:end] [@media(max-width:700px)]:mt-auto [@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:gap-[0.15rem]';
+
+// Its transition stays in home_surface.css: the global unlayered `button` rule
+// would beat a utility.
+const SUGGESTION_BUTTON_CLASSES =
+  'reference-suggestion-button flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full cursor-pointer items-center overflow-hidden rounded-[1rem] border border-cosci-border p-3 text-left leading-[1.35] text-cosci-fg [outline:0] [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover ' +
+  '[@media(min-width:1181px)_and_(max-height:760px)]:max-h-[3.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[3.9rem] ' +
+  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:rounded-[9999px] [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
+
+// A previewed phone row must beat the resting transparent background, so the
+// two states never share a background utility.
+const SUGGESTION_REST_CLASSES =
+  'bg-(--cosci-suggestion-bg) [@media(max-width:700px)]:bg-transparent';
+
+// TruncatedLabel clips only at whole words; CSS text-overflow would cut
+// letters.
+const SUGGESTION_TEXT_CLASSES =
+  'line-clamp-2 leading-[1.35] [@media(max-width:700px)]:block [@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:flex-auto [@media(max-width:700px)]:leading-[1.4] [@media(max-width:700px)]:whitespace-nowrap';
+
+// The preview shows the full teaser: line clamps would cut letters, while
+// viewport bounds permit whole-word wrapping.
+const SUGGESTION_PREVIEW_CLASSES =
+  'pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-[5] m-0 block w-max max-w-[min(46rem,calc(100vw-7rem))] text-[0.84rem] leading-[1.25rem] font-normal text-pretty text-cosci-shell-icon [@media(max-width:700px)]:hidden';
+
+// Anchor edge previews inward so they cannot overflow the viewport.
+const SUGGESTION_PREVIEW_POSITION_CLASSES = [
+  'left-0 text-left',
+  'left-1/2 text-center',
+  'right-0 text-right',
+] as const;
+
 function HomeScrollHint() {
   const onClick = () => {
     const reduce = window.matchMedia?.(
@@ -65,8 +137,8 @@ export function HomeStage(props: HomeStageProps) {
   const {chats} = useChatHistoryContext();
 
   return (
-    <section className="reference-home-stage">
-      <div className="reference-home-main">
+    <section className={HOME_STAGE_CLASSES}>
+      <div className={HOME_MAIN_CLASSES}>
         <HomeGreeting isMobile={isMobile} />
         <HomeSuggestionRow
           isMobile={isMobile}
@@ -104,26 +176,28 @@ function HomeGreeting({isMobile}: {isMobile: boolean}) {
   return (
     <>
       {isMobile && (
-        <GoogleLabsIcon aria-hidden="true" className="reference-home-logo" />
+        <GoogleLabsIcon aria-hidden="true" className={HOME_LOGO_CLASSES} />
       )}
-      <h1 className="reference-home-title">
+      <h1 className={HOME_TITLE_CLASSES}>
         What breakthrough should we make today?
       </h1>
       {!isMobile && (
-        <ol className="reference-step-timeline">
+        <ol className={STEP_TIMELINE_CLASSES}>
           {SESSION_STEPS.map((step, index) => (
             <li
               key={step.n}
               className={joinClasses(
-                'reference-step-item',
-                index === 1 && 'reference-step-item--center',
-                index === 2 && 'reference-step-item--end',
+                STEP_ITEM_CLASSES,
+                index === 1 && 'min-[701px]:justify-self-center',
+                index === 2 && 'min-[701px]:[justify-self:end]',
               )}
             >
-              <span className="reference-step-number">{step.n}</span>
+              <span className={STEP_NUMBER_CLASSES}>{step.n}</span>
               <div>
-                <h2 className="reference-step-heading">{step.title}</h2>
-                <p className="reference-step-body">{step.body}</p>
+                <h2 className="m-0 text-[0.875rem] font-normal text-cosci-shell-icon">
+                  {step.title}
+                </h2>
+                <p className={STEP_BODY_CLASSES}>{step.body}</p>
               </div>
             </li>
           ))}
@@ -147,7 +221,7 @@ function HomeSuggestionRow({
   onSelect: (text: string) => void;
 }) {
   return (
-    <div className="reference-suggestion-row">
+    <div className={SUGGESTION_ROW_CLASSES}>
       {suggestions.map((suggestion, index) => (
         <SuggestionCard
           key={suggestion.preview}
@@ -161,13 +235,6 @@ function HomeSuggestionRow({
       ))}
     </div>
   );
-}
-
-// Anchor edge previews inward so they cannot overflow the viewport.
-function suggestionPreviewPositionClass(index: number) {
-  if (index === 0) return 'reference-suggestion-preview--start';
-  if (index === 1) return 'reference-suggestion-preview--center';
-  return 'reference-suggestion-preview--end';
 }
 
 function SuggestionCard({
@@ -185,14 +252,12 @@ function SuggestionCard({
   onPreview: (preview: string | null) => void;
   onSelect: (prompt: string) => void;
 }) {
-  const previewPositionClass = suggestionPreviewPositionClass(index);
-
   return (
-    <div className="reference-suggestion-slot">
+    <div className="relative min-w-0 cursor-pointer">
       <SuggestionPreviewBubble
         text={suggestion.preview}
         isPreviewed={isPreviewed}
-        positionClass={previewPositionClass}
+        position={Math.min(index, 2)}
       />
       <SuggestionTriggerButton
         suggestion={suggestion}
@@ -208,18 +273,26 @@ function SuggestionCard({
 function SuggestionPreviewBubble({
   text,
   isPreviewed,
-  positionClass,
+  position,
 }: {
   text: string;
   isPreviewed: boolean;
-  positionClass: string;
+  position: number;
 }) {
+  const centered = position === 1;
   return (
     <p
       className={joinClasses(
-        'reference-suggestion-preview',
-        positionClass,
-        isPreviewed && 'visible',
+        SUGGESTION_PREVIEW_CLASSES,
+        SUGGESTION_PREVIEW_POSITION_CLASSES[position],
+        isPreviewed ? 'visible opacity-100' : 'invisible opacity-0',
+        isPreviewed
+          ? centered
+            ? '[transform:translateX(-50%)_translateY(0)]'
+            : '[transform:translateY(0)]'
+          : centered
+            ? '[transform:translateX(-50%)_translateY(0.2rem)]'
+            : '[transform:translateY(0.2rem)]',
       )}
       aria-hidden={!isPreviewed}
     >
@@ -242,8 +315,10 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
     <button
       type="button"
       className={joinClasses(
-        'reference-suggestion-button',
-        isPreviewed && 'is-previewed',
+        SUGGESTION_BUTTON_CLASSES,
+        isPreviewed
+          ? 'bg-cosci-hover [@media(max-width:700px)]:[&&]:[border-color:transparent]'
+          : SUGGESTION_REST_CLASSES,
       )}
       onPointerEnter={() => onPreview(suggestion.preview)}
       onPointerLeave={() => onPreview(null)}
@@ -256,12 +331,12 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
       {isMobile && (
         <Icon
           aria-hidden="true"
-          className="reference-suggestion-icon"
+          className="size-[1.4rem] flex-none text-[1.4rem] text-cosci-shell-icon"
           name={suggestion.icon}
         />
       )}
       <TruncatedLabel
-        className="reference-suggestion-text"
+        className={SUGGESTION_TEXT_CLASSES}
         text={suggestion.preview}
         lines={isMobile ? 1 : 2}
       />
@@ -372,7 +447,7 @@ export const SESSION_STEPS: readonly {
 // than a desktop-style scroller; 1181px+ fills the stage column. Mobile never
 // renders the panel.
 const RECENTS_PANEL_CLASSES =
-  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 ' +
+  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 motion-safe:animate-[reference-fade-in_0.3s_ease-in-out_0s_forwards] ' +
   'min-[701px]:mt-4 min-[701px]:min-h-auto min-[701px]:w-[min(100%,43rem)] min-[701px]:grid-rows-[auto_auto] min-[701px]:overflow-visible ' +
   'min-[1181px]:mt-0 min-[1181px]:h-full min-[1181px]:min-h-0 min-[1181px]:w-full min-[1181px]:max-h-[calc(100vh-4.5rem)] min-[1181px]:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] min-[1181px]:grid-rows-[auto_minmax(0,1fr)] min-[1181px]:[justify-self:end] min-[1181px]:gap-[1.55rem] min-[1181px]:pt-[clamp(0.35rem,1vh,0.75rem)] min-[1181px]:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
 
