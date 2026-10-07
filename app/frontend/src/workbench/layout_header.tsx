@@ -6,10 +6,13 @@ import {isModifiedClick} from '@/shared/lib/dom_events';
 import {Chip, IconButton} from '@/shared/ui';
 import {GoogleLabsIcon} from '@/shared/ui/layout_primitives';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
-import {CancelRunControl} from './layout_cancel_run';
-import {SessionDiagnostics} from './layout_diagnostics';
-import {FeedbackControl} from './components/feedback_dialog';
-import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
+import {CancelRunControl} from '@/features/runs/cancel_run';
+import {SessionDiagnostics} from '@/features/diagnostics/diagnostics';
+import {FeedbackControl} from '@/features/diagnostics/feedback_dialog';
+import {
+  SessionSwitch,
+  type SessionSwitchData,
+} from '@/features/runs/session_switch';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {SystemStatus} from '@/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';

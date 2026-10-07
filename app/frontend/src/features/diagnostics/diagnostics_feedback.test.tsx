@@ -3,7 +3,7 @@ import {beforeEach, expect, it, vi} from 'vitest';
 import {
   resetSessionBaselineForTest,
   sessionDiagnosticExport,
-} from './layout_diagnostics';
+} from './diagnostics';
 
 const logsApiMock = vi.hoisted(() => ({getAppLogs: vi.fn()}));
 vi.mock('@/api/logs', async importOriginal => ({

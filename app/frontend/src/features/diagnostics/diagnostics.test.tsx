@@ -4,7 +4,7 @@ import {
   installLayoutMocks,
   logsApiMock,
   renderLayout,
-} from './layout_test_support';
+} from '@/workbench/layout_test_support';
 import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
 
 describe('session diagnostics', () => {
