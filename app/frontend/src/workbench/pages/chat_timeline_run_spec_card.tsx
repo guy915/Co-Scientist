@@ -354,7 +354,7 @@ function OptionCard(props: OptionCardProps) {
   return (
     <label
       className={joinClasses(
-        'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg',
+        'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-[0.8rem] rounded-xl border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg',
         optionCardState(locked, unavailable),
       )}
     >
@@ -444,11 +444,7 @@ function RecoveryLookupStatus({
   }
   if (status === 'error') {
     return (
-      <div
-        role="alert"
-        className="text-sm"
-        style={{color: 'var(--md-sys-color-error)'}}
-      >
+      <div role="alert" className="text-sm text-th-destructive">
         <p>Could not verify the saved run status.</p>
         <Button variant="outlined" onClick={onRetry}>
           Retry status check
@@ -606,7 +602,7 @@ function SessionLinkCard({
   return (
     <Link
       to={href}
-      className={`${'reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-white'} no-underline`}
+      className={`${'reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-started-card-fg'} no-underline`}
     >
       <span className="block min-w-0">
         <strong className="block min-w-0 text-[1.18rem] leading-[1.25]">
@@ -615,11 +611,11 @@ function SessionLinkCard({
             text={session.title}
           />
         </strong>
-        <small className="mt-[0.3rem] block text-[0.9rem] text-white/80">
+        <small className="mt-[0.3rem] block text-[0.9rem] text-started-card-fg/80">
           Research session
         </small>
       </span>
-      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-white/75 px-[1.25rem] py-[0.65rem] text-center font-semibold text-white/90 hover:bg-white/12 focus-visible:bg-white/12">
+      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-started-card-fg/75 px-[1.25rem] py-[0.65rem] text-center font-semibold text-started-card-fg/90 hover:bg-started-card-fg/12 focus-visible:bg-started-card-fg/12">
         Open
       </span>
     </Link>

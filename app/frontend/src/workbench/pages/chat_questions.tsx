@@ -123,7 +123,7 @@ function lastPendingTurn(
 }
 
 const ROW_BASE_CLASSES =
-  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg';
+  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-xl border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg';
 
 const QUESTION_OPTION_ROW_CLASSES = `${ROW_BASE_CLASSES} has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg`;
 
@@ -349,7 +349,7 @@ function AnswerMarker({
     <span
       aria-hidden="true"
       className={joinClasses(
-        'mt-[0.08rem] grid size-[1.28rem] place-items-center rounded-[0.35rem] border-2 border-cosci-option-marker',
+        'mt-[0.08rem] grid size-[1.28rem] place-items-center rounded-md border-2 border-cosci-option-marker',
         selected && 'border-cosci-option-marker-on bg-cosci-option-marker-on',
       )}
     >

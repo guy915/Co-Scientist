@@ -68,7 +68,7 @@ const STEP_ITEM_CLASSES =
   'relative z-[1] grid gap-4 min-[1181px]:w-[min(100%,15.8rem)] [@media(min-width:701px)_and_(max-width:1180px)]:w-[min(100%,14rem)] [@media(min-width:701px)_and_(max-width:1180px)]:grid-cols-[1fr] [@media(min-width:701px)_and_(max-width:1180px)]:gap-[0.85rem]';
 
 const STEP_NUMBER_CLASSES =
-  'grid size-[1.875rem] place-items-center rounded-[9999px] bg-(--cosci-accent) text-[1rem] font-normal text-(--cosci-accent-fg) [transition:background-color_0.3s_ease-in-out]';
+  'grid size-[1.875rem] place-items-center rounded-full bg-(--cosci-accent) text-[1rem] font-normal text-(--cosci-accent-fg) [transition:background-color_0.3s_ease-in-out]';
 
 const STEP_BODY_CLASSES =
   'mt-1 max-w-[16rem] text-[0.875rem] leading-[1.43] text-cosci-fg [@media(min-width:1181px)_and_(max-height:760px)]:text-[0.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:leading-[1.28]';
@@ -79,9 +79,9 @@ const SUGGESTION_ROW_CLASSES =
 // Its transition stays in home_surface.css: the global unlayered `button` rule
 // would beat a utility.
 const SUGGESTION_BUTTON_CLASSES =
-  'reference-suggestion-button flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full cursor-pointer items-center overflow-hidden rounded-[1rem] border border-cosci-border p-3 text-left leading-[1.35] text-cosci-fg [outline:0] [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
+  'reference-suggestion-button flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full cursor-pointer items-center overflow-hidden rounded-2xl border border-cosci-border p-3 text-left leading-[1.35] text-cosci-fg [outline:0] [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:max-h-[3.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[3.9rem] ' +
-  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:rounded-[9999px] [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
+  '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:rounded-full [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
 
 // A previewed phone row must beat the resting transparent background, so the
 // two states never share a background utility.
@@ -471,7 +471,7 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 // Its transition stays in home_surface.css: the global unlayered `a` rule
 // would beat a utility.
 const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline [box-shadow:0_1px_2px_rgb(0_0_0/15%),0_2px_10px_rgb(0_0_0/10%)] [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
 
 interface HomeRecentsPanelProps {
   runs: Run[];
@@ -514,7 +514,7 @@ export function HomeRecentsPanel({
       >
         {empty ? (
           <li className="h-full min-h-0">
-            <div className="box-border grid h-full min-h-[25rem] w-full place-items-center content-center gap-4 rounded-[1.35rem] border-[1.5px] border-dashed border-cosci-border p-6 text-center text-cosci-muted">
+            <div className="box-border grid h-full min-h-[25rem] w-full place-items-center content-center gap-4 rounded-3xl border-[1.5px] border-dashed border-cosci-border p-6 text-center text-cosci-muted">
               <GoogleLabsIcon
                 aria-hidden="true"
                 className="block h-[1.95rem] w-[2.1rem] text-(--cosci-accent)"
@@ -747,7 +747,7 @@ export function RunStepFlow({run}: {run: Run}) {
         <div className={RUN_STEP_CLASSES}>
           <span
             aria-hidden="true"
-            className="size-5 shrink-0 animate-[reference-run-step-spin_0.8s_linear_infinite] rounded-[9999px] border-2 border-[color:color-mix(in_srgb,var(--color-th-primary)_28%,transparent)] border-t-th-primary motion-reduce:animate-none"
+            className="size-5 shrink-0 animate-[reference-run-step-spin_0.8s_linear_infinite] rounded-full border-2 border-[color:color-mix(in_srgb,var(--color-th-primary)_28%,transparent)] border-t-th-primary motion-reduce:animate-none"
           />
           <span className="reference-run-step-label min-w-0">In Progress</span>
         </div>

@@ -42,6 +42,7 @@
 /* Component roles resolve where they are used, so a surface can re-point them
    in its own scope (inline keeps the var() out of the root-level variable). */
 @theme inline {
+  --color-started-card-fg: var(--started-card-fg);
   --color-button-filled-bg: var(--button-filled-bg);
   --color-button-filled-fg: var(--button-filled-fg);
   --color-button-filled-hover: var(--button-filled-hover);
@@ -266,6 +267,7 @@
   --shadow-floating: var(--md-elevation-2);
   --shadow-overlay: var(--md-elevation-3);
   --shadow-drawer: var(--drawer-shadow);
+  --shadow-card: var(--card-shadow);
 
   --ease-standard: var(--motion-ease-standard);
   --ease-enter: var(--motion-ease-enter);
@@ -276,6 +278,13 @@
     'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
 
   --radius: 0.5rem;
+
+  /* Shapes off the default scale: the user bubble, the workspace corner, and
+     the landing's tiles and hero block. */
+  --radius-bubble: 1.625rem;
+  --radius-workspace: 1.875rem;
+  --radius-tile: 1.125rem;
+  --radius-5xl: 3rem;
 }
 
 :root[data-theme='dark'] {

@@ -84,13 +84,13 @@ const RAIL_CLASSES =
   'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
 
 const RAIL_NAV_CLASSES =
-  'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-[9999px] bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
+  'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-full bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
 
 const RAIL_TAB_CLASSES =
-  'relative z-[1] grid h-[38px] flex-none place-items-center rounded-[9999px] px-[16px] text-[14px] font-medium no-underline';
+  'relative z-[1] grid h-[38px] flex-none place-items-center rounded-full px-[16px] text-[14px] font-medium no-underline';
 
 const SLIDER_CLASSES =
-  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-[9999px] bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
+  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-full bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
 
 const CARD_H3_CLASSES = 'm-0 font-(family-name:--l-display) font-normal';
 
@@ -99,7 +99,7 @@ const FEATURE_P_CLASSES = 'leading-[1.5] text-(--l-muted)';
 const OV_ITEM_CLASSES = 'bg-(--l-surface) px-[18px] py-[14px]';
 
 const OV_PANEL_CLASSES =
-  'm-0 flex list-none flex-col gap-[6px] rounded-[24px] bg-(--l-bg) p-[12px]';
+  'm-0 flex list-none flex-col gap-[6px] rounded-3xl bg-(--l-bg) p-[12px]';
 
 const SEC_CLASSES = 'scroll-mt-[72px] py-[clamp(44px,5.5vw,76px)]';
 
@@ -172,7 +172,7 @@ function LandingHero({
             </Button>
           </div>
           <iframe
-            className="block aspect-[16/9] w-full rounded-[12px] [border:0] bg-(--l-surface)"
+            className="block aspect-[16/9] w-full rounded-xl [border:0] bg-(--l-surface)"
             title="Co-Scientist trailer"
             src="https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0"
             loading="lazy"
@@ -501,7 +501,7 @@ function AgentCard({
   return (
     <article
       className={joinClasses(
-        'grid grid-cols-[104px_1fr] items-center gap-[24px] rounded-[32px] bg-(--l-surface) p-[28px] outline-offset-[3px]',
+        'grid grid-cols-[104px_1fr] items-center gap-[24px] rounded-4xl bg-(--l-surface) p-[28px] outline-offset-[3px]',
         wide && '[grid-column:span_3] [@media(max-width:900px)]:col-auto',
       )}
       tabIndex={0}
@@ -558,7 +558,7 @@ export function TournamentSection({reduceMotion}: MotionProps) {
       <LandingBracket reduceMotion={reduceMotion} />
       <div className="mt-[16px] grid grid-cols-[7fr_5fr] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <LandingEloChart reduceMotion={reduceMotion} />
-        <div className="relative grid [align-content:space-between] gap-[16px] overflow-hidden rounded-[32px] bg-(--l-c-blue) p-[32px] text-(--l-o-blue)">
+        <div className="relative grid [align-content:space-between] gap-[16px] overflow-hidden rounded-4xl bg-(--l-c-blue) p-[32px] text-(--l-o-blue)">
           <div>
             <h3 className={`${CARD_H3_CLASSES} text-[28px]`}>Ranked ideas</h3>
             <p className="m-[8px_0_0] max-w-[26rem] leading-[1.5] opacity-80">
@@ -643,7 +643,7 @@ export function EvidenceSection() {
             {LANDING_VERDICTS.map(v => (
               <div
                 key={v.label}
-                className={`tone-${v.tone} grid grid-cols-[120px_1fr] items-center gap-[16px] rounded-[24px] bg-(--tone-c) px-[22px] py-[18px] text-[15px] leading-[1.45] text-(--tone-o) [@media(max-width:900px)]:grid-cols-[1fr] [@media(max-width:900px)]:gap-[4px]`}
+                className={`tone-${v.tone} grid grid-cols-[120px_1fr] items-center gap-[16px] rounded-3xl bg-(--tone-c) px-[22px] py-[18px] text-[15px] leading-[1.45] text-(--tone-o) [@media(max-width:900px)]:grid-cols-[1fr] [@media(max-width:900px)]:gap-[4px]`}
               >
                 <b className="font-medium">{v.label}</b>
                 <span>{v.body}</span>
@@ -667,7 +667,7 @@ function SafetyCard({
   const morph = useShapeMorph(layer.shape, reduceMotion);
   return (
     <article
-      className="grid [align-content:start] gap-[12px] rounded-[32px] border border-(--l-line) p-[28px]"
+      className="grid [align-content:start] gap-[12px] rounded-4xl border border-(--l-line) p-[28px]"
       tabIndex={0}
       onPointerEnter={morph.toCircle}
       onPointerLeave={morph.toRest}
@@ -747,7 +747,7 @@ export function FaqSection() {
 export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
   return (
     <section className="scroll-mt-[72px] pt-0 pb-[clamp(44px,5.5vw,76px)]">
-      <div className="grid grid-cols-[1fr_340px] items-center gap-[32px] rounded-[48px] bg-(--l-c-teal) p-[clamp(28px,5vw,72px)] text-(--l-o-teal) [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="grid grid-cols-[1fr_340px] items-center gap-[32px] rounded-5xl bg-(--l-c-teal) p-[clamp(28px,5vw,72px)] text-(--l-o-teal) [@media(max-width:900px)]:grid-cols-[1fr]">
         <div>
           <h2 className={H2_CLASSES}>Start with a question.</h2>
           <p className="m-[16px_0_28px] max-w-[30rem] text-[1.15rem] leading-[1.55] opacity-80">
@@ -806,7 +806,7 @@ function OverviewCard({
   children: ReactNode;
 }) {
   return (
-    <div className="ucs-landing-ov-card grid [grid-row:span_3] grid-rows-subgrid gap-[8px] rounded-[32px] bg-(--l-surface) p-[28px]">
+    <div className="ucs-landing-ov-card grid [grid-row:span_3] grid-rows-subgrid gap-[8px] rounded-4xl bg-(--l-surface) p-[28px]">
       <h3 className={`${CARD_H3_CLASSES} text-[26px]`}>{title}</h3>
       <p className="m-[0_0_12px] text-[15px] leading-[1.5] text-(--l-muted)">
         {sub}
@@ -819,7 +819,7 @@ function OverviewCard({
 function Chip({tone, children}: {tone: LandingTone; children: string}) {
   return (
     <span
-      className={`tone-${tone} rounded-[9999px] bg-(--tone-c) px-[12px] py-[4px] text-[13px] font-medium text-(--tone-o)`}
+      className={`tone-${tone} rounded-full bg-(--tone-c) px-[12px] py-[4px] text-[13px] font-medium text-(--tone-o)`}
     >
       {children}
     </span>
@@ -833,7 +833,7 @@ function InputCard() {
       sub="A research goal in plain language. Add your own papers and choose the sources to search if you like."
     >
       <div className={OV_PANEL_CLASSES}>
-        <div className={`${OV_ITEM_CLASSES} flex-1 rounded-[18px]`}>
+        <div className={`${OV_ITEM_CLASSES} flex-1 rounded-tile`}>
           <b className="mb-[8px] block font-(family-name:--l-display) text-[18px] leading-[1.35] font-normal">
             {GOAL_TITLE}
           </b>
@@ -861,7 +861,7 @@ function RunCard() {
         {STAGES.map(stage => (
           <li
             key={stage.label}
-            className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-[12px] rounded-[9999px] text-[14px] leading-[1.35]`}
+            className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-[12px] rounded-full text-[14px] leading-[1.35]`}
           >
             <Icon
               aria-hidden="true"
@@ -886,7 +886,7 @@ function OutputCard() {
         {RANKED.map((idea, i) => (
           <li
             key={idea.title}
-            className={`${OV_ITEM_CLASSES} flex flex-col justify-center rounded-[18px] ${
+            className={`${OV_ITEM_CLASSES} flex flex-col justify-center rounded-tile ${
               i === 0 ? 'gap-[10px] [flex:1.7_1_0%]' : 'flex-1 gap-[6px]'
             }`}
           >
@@ -952,10 +952,10 @@ const GENERATIONS = [
 
 const DOT_CLASSES = [
   '[--dot:var(--l-muted)]',
-  '[--dot:#4285f4]',
-  '[--dot:#34a853]',
-  '[--dot:#fbbc04]',
-  '[--dot:#ea4335]',
+  '[--dot:var(--l-dot-blue)]',
+  '[--dot:var(--l-dot-green)]',
+  '[--dot:var(--l-dot-yellow)]',
+  '[--dot:var(--l-dot-red)]',
 ];
 
 function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
@@ -971,7 +971,7 @@ function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
             <i
               key={i}
               className={joinClasses(
-                'aspect-square rounded-[9999px] [transition:transform_500ms_var(--l-ease),background-color_500ms] motion-reduce:[transition:none]',
+                'aspect-square rounded-full [transition:transform_500ms_var(--l-ease),background-color_500ms] motion-reduce:[transition:none]',
                 generation === null
                   ? 'bg-(--l-line) [transform:scale(0.35)]'
                   : `${DOT_CLASSES[generation]} bg-(--dot) [transform:scale(1)]`,
@@ -985,7 +985,7 @@ function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
         {GENERATIONS.filter(g => g.generation <= tier.cycles).map(g => (
           <span
             key={g.label}
-            className={`${DOT_CLASSES[g.generation]} before:mr-[6px] before:inline-block before:size-[10px] before:rounded-[9999px] before:bg-(--dot) before:[vertical-align:-1px] before:content-['']`}
+            className={`${DOT_CLASSES[g.generation]} before:mr-[6px] before:inline-block before:size-[10px] before:rounded-full before:bg-(--dot) before:[vertical-align:-1px] before:content-['']`}
           >
             {g.label}
           </span>
@@ -1035,7 +1035,7 @@ export function LandingTiers({reduceMotion}: MotionProps) {
         options={LANDING_TIERS.map(t => ({value: t.name, label: t.name}))}
         layoutClassName="mt-[32px]"
       />
-      <div className="mt-[20px] grid grid-cols-[1fr_260px] items-center gap-[32px] rounded-[32px] bg-(--l-surface) p-[clamp(20px,3vw,40px)] [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="mt-[20px] grid grid-cols-[1fr_260px] items-center gap-[32px] rounded-4xl bg-(--l-surface) p-[clamp(20px,3vw,40px)] [@media(max-width:900px)]:grid-cols-[1fr]">
         <TierField tier={tier} reduceMotion={reduceMotion} />
         <TierStats tier={tier} />
       </div>
