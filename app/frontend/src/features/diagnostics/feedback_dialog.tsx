@@ -14,8 +14,8 @@ import {
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
 import {Button, Dialog, DIALOG_TITLE_CLASSES, TextArea} from '@/shared/ui';
 
-import {sessionDiagnosticExport} from '../layout_diagnostics';
-import {SettingsSelect} from './settings_dialog';
+import {sessionDiagnosticExport} from './diagnostics';
+import {SettingsSelect} from '@/features/access/settings_dialog';
 
 export function FeedbackControl({runId}: {runId?: string}) {
   const [open, setOpen] = useState(false);

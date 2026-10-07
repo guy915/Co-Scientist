@@ -21,7 +21,7 @@ import {
   capitalizeTerm,
 } from '@/shared/lib/text';
 import {useNowTick} from '@/shared/hooks/timers';
-import {preferredSessionSide} from '@/workbench/layout_session_switch';
+import {preferredSessionSide} from '@/features/runs/session_switch';
 
 export interface HomeStageProps {
   input: string;
