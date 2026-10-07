@@ -43,7 +43,7 @@ const HOME_STAGE_CLASSES =
 // Only spacer tracks shrink as the composer grows upward; children take explicit
 // rows so auto-flow cannot place the greeting into spacer tracks.
 const HOME_MAIN_CLASSES =
-  'reference-home-main relative z-0 grid [align-content:start] pt-[clamp(2.4rem,7vh,3.5rem)] motion-safe:animate-[reference-fade-in_0.3s_ease-in-out_0s_forwards] ' +
+  'reference-home-main relative z-0 grid [align-content:start] pt-[clamp(2.4rem,7vh,3.5rem)] ui-motion-enter ' +
   'tablet:h-[calc(100vh-4.5rem)] tablet:supports-[height:100dvh]:h-[calc(100dvh-4.5rem)] tablet:w-[min(100%,43rem)] tablet:grid-rows-[minmax(0,clamp(2.4rem,7vh,3.5rem))_auto_auto_minmax(2rem,1fr)_auto_max-content_max-content] tablet:pt-0 tablet:pb-[clamp(1rem,2.5vh,1.75rem)] ' +
   'desktop:h-full desktop:max-h-[calc(100vh-4.5rem)] desktop:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] desktop:max-w-[clamp(46rem,55vw,53.5rem)] desktop:min-w-0 desktop:justify-self-center desktop:grid-rows-[minmax(1.5rem,clamp(4.85rem,8.8vh,6.4rem))_auto_minmax(1.25rem,clamp(3.85rem,7.6vh,5.8rem))_auto_minmax(2rem,1fr)_auto_max-content_max-content] desktop:pt-0 desktop:pb-[clamp(1.35rem,3.2vh,2.25rem)] ' +
   'phone:flex phone:min-h-0 phone:w-full phone:flex-1 phone:flex-col phone:pt-2';
@@ -428,7 +428,7 @@ export const SESSION_STEPS: readonly {
 // than a desktop-style scroller; 1181px+ fills the stage column. Mobile never
 // renders the panel.
 const RECENTS_PANEL_CLASSES =
-  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 motion-safe:animate-[reference-fade-in_0.3s_ease-in-out_0s_forwards] ' +
+  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 ui-motion-enter ' +
   'above-phone:mt-4 above-phone:min-h-auto above-phone:w-[min(100%,43rem)] above-phone:grid-rows-[auto_auto] above-phone:overflow-visible ' +
   'desktop:mt-0 desktop:h-full desktop:min-h-0 desktop:w-full desktop:max-h-[calc(100vh-4.5rem)] desktop:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] desktop:grid-rows-[auto_minmax(0,1fr)] desktop:[justify-self:end] desktop:gap-[1.55rem] desktop:pt-[clamp(0.35rem,1vh,0.75rem)] desktop:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
 

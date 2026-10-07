@@ -63,7 +63,7 @@ const REPORT_PAGE_CLASSES =
 
 const SHELL_CLASSES =
   'ucs-app-shell grid min-h-[100vh] bg-cosci-rail supports-[height:100dvh]:min-h-[100dvh] ' +
-  '[transition:grid-template-columns_240ms_cubic-bezier(0.2,0,0,1)] motion-reduce:[transition:none] ' +
+  '[transition:grid-template-columns_var(--motion-duration-long)_var(--motion-ease-standard)] motion-reduce:[transition:none] ' +
   'phone:grid-cols-[minmax(0,1fr)]';
 
 const SHELL_OPEN_GRID_CLASSES =
