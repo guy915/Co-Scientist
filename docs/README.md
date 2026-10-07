@@ -17,6 +17,9 @@
 | [Production shrink](PROD-SHRINK.md) | Behavior-preserving size reduction, folder by folder after the cuts |
 | [Optimization](OPTIMIZATION.md) | Performance, efficiency and launch readiness |
 | [Re-architecture](REARCHITECTURE.md) | Target structure, phases and rules for the next campaign |
+| [Re-architecture survey](rearchitecture/survey.md) | Phase 0 measurements: sizes, import graph, hot spots, break points |
+| [Glossary](GLOSSARY.md) | Domain terms used in module and type names |
+| [Architecture decisions](adr/) | ADR-001 module map, ADR-002 layering, ADR-004 LLM gateway, ADR-005 tracing |
 
 Retired audits, guides, incident records and screenshots remain in
 [immutable history at 33ec8984](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688/docs).
