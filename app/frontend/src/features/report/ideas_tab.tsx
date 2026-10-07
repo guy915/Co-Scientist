@@ -24,7 +24,7 @@ import {
 const IDEA_RANK_ROW_CLASSES =
   'idea-rank-row grid min-h-[8.9rem] w-full min-w-0 ' +
   'grid-cols-[minmax(0,1fr)] cursor-pointer content-start ' +
-  'gap-[0.5rem] rounded-xl no-underline ' +
+  'gap-2 rounded-xl no-underline ' +
   'border border-cosci-idea-row-border bg-cosci-idea-row-bg ' +
   'p-4 text-left text-cosci-idea-row-text transition-colors duration-150 ' +
   'hover:border-cosci-idea-row-hover-border ' +

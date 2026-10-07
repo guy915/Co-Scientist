@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
@@ -38,7 +37,7 @@ from co_scientist.orchestration.repository import runs as store
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import Connection, checkpoints
 from co_scientist.platform.db.admission import claim_run, connecting_host
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from co_scientist.platform.llm.execution_policy import (
@@ -150,7 +149,7 @@ class _PersistNewRun(Protocol):
         interview: dict[str, Any] | None,
         resolved: _ResolvedRunSettings,
         *,
-        conn: sqlite3.Connection | None = None,
+        conn: Connection | None = None,
     ) -> RunRow: ...
 
 
@@ -207,7 +206,7 @@ def _persist_new_run_for_owner(
     resolved: _ResolvedRunSettings,
     *,
     owner: str,
-    conn: sqlite3.Connection | None = None,
+    conn: Connection | None = None,
 ) -> RunRow:
     interview_title = None
     if interview:
@@ -327,7 +326,7 @@ def _persist_setup_transaction(
     run_creation_receipts.RunCreationReceipt | None,
 ]:
 
-    def persist_run(conn: sqlite3.Connection) -> RunRow:
+    def persist_run(conn: Connection) -> RunRow:
         run = callbacks.persist_new_run(
             setup.request,
             request,
@@ -465,7 +464,7 @@ def _persist_new_run(
     interview: dict[str, Any] | None,
     resolved: _ResolvedRunSettings,
     *,
-    conn: sqlite3.Connection | None = None,
+    conn: Connection | None = None,
 ) -> RunRow:
     return _persist_new_run_for_owner(
         req,
@@ -640,7 +639,7 @@ def _run_details(run_id: str) -> dict[str, Any]:
     }
 
 
-def _awaiting_decision_count(run: RunRow, *, conn: sqlite3.Connection) -> int:
+def _awaiting_decision_count(run: RunRow, *, conn: Connection) -> int:
     """Awaiting review derives from paused status plus unresolved decisions,
     avoiding a third state that can drift.
     """

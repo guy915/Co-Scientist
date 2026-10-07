@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {type ByokProvider, getStoredModel} from '@/shared/lib/client_id';
+import {jsonResponse} from '@/shared/api/testing';
 import {ThemeProvider} from '@/shared/hooks/theme_context';
 import {ModelSection, SettingsDialog} from './settings_dialog';
 
@@ -21,16 +22,12 @@ const FREE_USAGE = {
   resets_at: 0,
 };
 
-function respond(body: unknown): Response {
-  return {ok: true, status: 200, json: async () => body} as Response;
-}
-
 beforeEach(() => {
   window.localStorage.clear();
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) =>
-      respond(
+      jsonResponse(
         url.endsWith('/api/byok-models') ? {providers: CATALOG} : FREE_USAGE,
       ),
     ),

@@ -1,13 +1,9 @@
-import {render} from '@testing-library/react';
-import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
-import type {ChatSummary, Run} from '@/shared/api/runs';
-import {makeRun} from '@/test_fixtures';
+import type {Run} from '@/shared/api/runs';
+import {makeChat, makeRunWithSummary} from '@/shared/testing/fixtures';
+import {renderWithProviders} from '@/shared/testing/render';
 import {resetSessionBaselineForTest} from '@/features/diagnostics/diagnostics';
-import {ChatHistoryProvider} from '@/shared/hooks/history_context';
-import {RunHistoryProvider} from '@/shared/hooks/history_context';
 import {Layout} from './layout';
-import {ThemeProvider} from '@/shared/hooks/theme_context';
 
 // Hoist mocks before imports bind real network modules.
 const apiMock = vi.hoisted(() => {
@@ -62,50 +58,12 @@ vi.mock('@/shared/api/logs', async importOriginal => ({
 export {apiMock, systemApiMock, logsApiMock};
 
 export function renderLayout(path = '/') {
-  return render(
-    <ThemeProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <ChatHistoryProvider>
-          <RunHistoryProvider>
-            <Layout>
-              <main>Workspace content</main>
-            </Layout>
-          </RunHistoryProvider>
-        </ChatHistoryProvider>
-      </MemoryRouter>
-    </ThemeProvider>,
+  return renderWithProviders(
+    <Layout>
+      <main>Workspace content</main>
+    </Layout>,
+    {path, theme: true},
   );
-}
-
-export function runFixture(id: string, goal: string) {
-  return {
-    ...makeRun({
-      id,
-      research_goal: goal,
-      provider: 'mock',
-      created_at: 1,
-      updated_at: 2,
-      completed_at: 3,
-    }),
-    summary: {events: 1, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
-  };
-}
-
-export function chatFixture(
-  id: string,
-  challenge: string,
-  overrides: Partial<ChatSummary> = {},
-): ChatSummary {
-  return {
-    id,
-    title: null,
-    challenge,
-    status: 'active',
-    run_id: null,
-    created_at: 1,
-    updated_at: 2,
-    ...overrides,
-  };
 }
 
 export function installLayoutMocks() {
@@ -117,17 +75,25 @@ export function installLayoutMocks() {
   document.documentElement.classList.remove('dark');
   apiMock.listRuns.mockResolvedValue([]);
   apiMock.listInterviews.mockResolvedValue([
-    chatFixture(
-      'chat-ferroptosis',
-      'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
-        'cells.',
+    makeChat(
+      {
+        id: 'chat-ferroptosis',
+        challenge:
+          'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
+          'cells.',
+      },
+      'active',
     ),
   ]);
   apiMock.listDemoRuns.mockResolvedValue([
-    runFixture(
-      'demo-ferroptosis',
-      'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
-        'cells.',
+    makeRunWithSummary(
+      {
+        id: 'demo-ferroptosis',
+        research_goal:
+          'Generate testable hypotheses for ferroptosis in pancreatic cancer ' +
+          'cells.',
+      },
+      'listed',
     ),
   ]);
   apiMock.getRunEvents.mockReset();

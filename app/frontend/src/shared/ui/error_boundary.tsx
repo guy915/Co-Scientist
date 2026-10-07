@@ -20,7 +20,7 @@ interface ErrorBoundaryState {
 function FallbackHeader() {
   return (
     <header className="p-6">
-      <h1 className="flex items-center gap-2 text-lg font-semibold leading-none text-th-destructive">
+      <h1 className="flex items-center gap-2 text-lg font-semibold leading-none text-cosci-danger-fg">
         <span aria-hidden="true">
           <Icon name="warning" />
         </span>
@@ -35,8 +35,8 @@ function FallbackHeader() {
 
 function FallbackErrorMessage({error}: {error: Error | null}) {
   return (
-    <div className="rounded-lg border border-th-destructive bg-th-muted p-4">
-      <p className="font-mono text-sm text-th-destructive">
+    <div className="rounded-lg border border-cosci-danger-border bg-cosci-danger-bg p-4">
+      <p className="font-mono text-sm text-cosci-danger-fg">
         {error?.toString()}
       </p>
     </div>

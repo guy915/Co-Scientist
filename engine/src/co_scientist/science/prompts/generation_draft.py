@@ -9,6 +9,7 @@ from co_scientist.science.prompts._common import (
     format_lab_constraints_section,
 )
 from co_scientist.science.prompts.loading import _build_prompt
+from co_scientist.science.prompts.untrusted import untrusted_evidence
 
 from ._common import _csv_value, _guidance_items
 
@@ -249,10 +250,19 @@ def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
         "supervisor_guidance": format_supervisor_guidance_for_generation(
             req.context.supervisor_guidance
         ),
-        "articles_with_reasoning": req.articles_with_reasoning
-        or "no literature review summary available - examine papers below directly.",
-        "articles_metadata": format_articles_metadata(req.articles or []),
-        "citation_reference_section": _build_citation_reference_section(req.reference_list or ""),
+        "articles_with_reasoning": untrusted_evidence(
+            "derived literature summary",
+            req.articles_with_reasoning
+            or "no literature review summary available - examine papers below directly.",
+        ),
+        "articles_metadata": untrusted_evidence(
+            "retrieved paper metadata", format_articles_metadata(req.articles or [])
+        ),
+        "citation_reference_section": _build_citation_reference_section(
+            untrusted_evidence("citation provenance", req.reference_list)
+            if req.reference_list
+            else ""
+        ),
         "max_iterations": req.max_iterations,
         "instructions": req.instructions
         or "Focus on creative ideation - draft diverse hypotheses based on literature gaps.",

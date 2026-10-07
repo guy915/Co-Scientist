@@ -3,7 +3,8 @@ import * as runsApi from '@/shared/api/runs';
 import {type Evidence, type RunWithSummary} from '@/shared/api/runs';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
-import {makeRun, renderAt} from './run_detail_test_support';
+import {makeRunWithSetup} from '@/shared/testing/fixtures';
+import {renderAt} from './run_detail_test_support';
 
 beforeEach(() => {
   resetRunDetailMocks();
@@ -17,7 +18,7 @@ it.each([
   'renders the %s end state with its recorded error, not report tabs',
   async (status, heading, error) => {
     vi.mocked(runsApi.getRun).mockResolvedValue({
-      ...makeRun('Study pathway X'),
+      ...makeRunWithSetup('Study pathway X'),
       status,
       error: error ?? null,
     });
@@ -34,7 +35,7 @@ it.each([
 
 function failedRun(failureKind?: string) {
   return {
-    ...makeRun('Study pathway X'),
+    ...makeRunWithSetup('Study pathway X'),
     status: 'failed' as const,
     failure_kind: failureKind,
     error: 'LLM call budget exhausted after 2500 requests',
@@ -62,7 +63,7 @@ it('shows exact call-budget guidance with an accessible label and keeps the reco
 
 it('does not show provider guidance when a run is blocked', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
+    ...makeRunWithSetup('Study pathway X'),
     status: 'blocked',
     failure_kind: 'llm_timeout',
     error: 'Safety or cancellation detail',
@@ -79,7 +80,7 @@ it('does not show provider guidance when a run is blocked', async () => {
 
 it('omits the notice for a paused run with nothing left to review', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
+    ...makeRunWithSetup('Study pathway X'),
     status: 'paused',
     awaiting_decision_count: 0,
   });
@@ -105,7 +106,7 @@ const EVIDENCE_ROW = {
 
 it('flags a completed run with no retrieved evidence as ungrounded', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
+    ...makeRunWithSetup('Study pathway X'),
     provider: 'engine',
     llm_backend: 'real',
   } as RunWithSummary);
@@ -123,7 +124,7 @@ it.each([
   'omits the ungrounded notice when %s',
   async (_name, provider, llm_backend, evidence) => {
     vi.mocked(runsApi.getRun).mockResolvedValue({
-      ...makeRun('Study pathway X'),
+      ...makeRunWithSetup('Study pathway X'),
       provider,
       llm_backend,
     } as RunWithSummary);

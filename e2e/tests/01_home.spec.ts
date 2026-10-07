@@ -32,6 +32,37 @@ test('closed phone drawer keeps its chat links out of the tab order', async ({
     expect(inDrawer).toBe(false);
   }
 });
+
+test('open phone drawer holds focus until it closes', async ({page}) => {
+  await page.setViewportSize(MOBILE_VIEWPORT);
+  await page.goto('/');
+  const opener = page.getByRole('button', {name: 'Open navigation'});
+  await opener.click();
+  const drawer = page.getByRole('complementary', {name: 'Primary navigation'});
+  await expect(drawer.getByRole('link', {name: 'New chat'})).toBeVisible();
+  await expect(opener).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('main').locator('xpath=..')).toHaveJSProperty(
+    'inert',
+    true,
+  );
+
+  for (let step = 0; step < 20; step++) {
+    await page.keyboard.press('Tab');
+    const inDrawer = await page.evaluate(
+      () => !!document.activeElement?.closest('.ucs-nav-panel'),
+    );
+    expect(inDrawer).toBe(true);
+  }
+
+  await page.keyboard.press('Escape');
+  await expect(opener).toHaveAttribute('aria-expanded', 'false');
+  await expect(opener).toBeFocused();
+
+  // The scrim beside the drawer still dismisses it.
+  await opener.click();
+  await page.mouse.click(380, 400);
+  await expect(opener).toHaveAttribute('aria-expanded', 'false');
+});
 });
 
 test.describe('not found', () => {

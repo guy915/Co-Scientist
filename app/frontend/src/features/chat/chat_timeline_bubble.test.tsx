@@ -5,7 +5,7 @@ import {
   ChatBubble,
   type ChatEntry,
 } from './chat_timeline_bubble';
-import {makeMessage as makeSharedMessage} from '@/test_fixtures';
+import {makeMessage} from './chat_message_fixture';
 
 describe('chat timeline bubble', () => {
   afterEach(() => {
@@ -96,10 +96,6 @@ describe('chat timeline bubble collapse', () => {
   });
 });
 
-export function makeMessage(overrides: Partial<ChatEntry> = {}): ChatEntry {
-  return makeSharedMessage({content: 'Hello there', ...overrides});
-}
-
 export function renderBubble(
   overrides: Partial<ChatEntry> = {},
   revisable = true,
@@ -107,7 +103,7 @@ export function renderBubble(
   const onSubmitEdit = vi.fn();
   const onCopyRequest = vi.fn();
   const onRetry = vi.fn();
-  const message = makeMessage(overrides);
+  const message = makeMessage({content: 'Hello there', ...overrides});
   const utils = render(
     <ChatBubble
       message={message}

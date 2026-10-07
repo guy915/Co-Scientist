@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Awaitable, Callable
+from types import SimpleNamespace
 from typing import Any
 
 from co_scientist.core.exceptions import ConfigError
@@ -44,8 +45,17 @@ def _payload_excerpt(payload: str) -> str:
 
 
 class MCPToolProvider:
-    def __init__(self, mcp_client: MCPToolClient | None = None):
+    def __init__(
+        self,
+        mcp_client: MCPToolClient | None = None,
+        *,
+        run_id: str | None = None,
+        corpus: str | None = None,
+    ):
         self.mcp_client = mcp_client
+        self._run_id = run_id
+        self._corpus = corpus
+        self._scope_fields: dict[str, set[str]] = {}
 
         self._tool_names: set[str] = set()
 
@@ -62,6 +72,11 @@ class MCPToolProvider:
             try:
                 tools_dict, openai_tools = self.mcp_client.get_tools(whitelist=mcp_whitelist)
                 self._tool_names.update(tools_dict.keys())
+                for tool in openai_tools:
+                    function = tool.get("function", {})
+                    self._scope_fields[function.get("name", "")] = set(
+                        function.get("parameters", {}).get("properties", {})
+                    ) & {"run_id", "slug"}
                 logger.debug("added %s MCP tools", len(tools_dict))
             except Exception as e:
                 # Transient MCP outages degrade to no tools rather than aborting
@@ -87,6 +102,26 @@ class MCPToolProvider:
         try:
             if self.mcp_client is None:
                 raise ConfigError("MCP client not configured")
+            args = json.loads(tool_call.function.arguments)
+            if not isinstance(args, dict):
+                return tool_error_message(
+                    tool_name, tool_call_id, "tool arguments must be an object"
+                )
+            original = dict(args)
+            for field, expected in (("run_id", self._run_id), ("slug", self._corpus)):
+                if field in args and args[field] not in (None, "", expected):
+                    return tool_error_message(
+                        tool_name, tool_call_id, "tool scope is fixed by the research task"
+                    )
+                if expected is not None and (
+                    field in args or field in self._scope_fields.get(tool_name, set())
+                ):
+                    args[field] = expected
+            if args != original:
+                tool_call = SimpleNamespace(
+                    id=tool_call_id,
+                    function=SimpleNamespace(name=tool_name, arguments=json.dumps(args)),
+                )
             return await self.mcp_client.execute_tool_call(tool_call)
         except Exception as e:
             # Return failures as tool messages so one bad call cannot abort the
