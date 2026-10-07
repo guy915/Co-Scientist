@@ -258,45 +258,6 @@ function DiagramSvg({
   );
 }
 
-function DiagramList({
-  active,
-  onHold,
-}: {
-  active: string | null;
-  onHold: (name: string | null) => void;
-}) {
-  return (
-    <ol className="ucs-landing-flow">
-      <li className="is-you">
-        <b>You</b>set the research goal and configuration
-      </li>
-      <li className="is-supervisor">
-        <b>Supervisor agent</b>plans the run and assigns agents to workers
-      </li>
-      <li className="ucs-landing-flow-ring">
-        {SPECIALISTS.map(agent => (
-          <button
-            key={agent.name}
-            type="button"
-            aria-pressed={active === agent.name}
-            className={joinClasses(
-              `tone-${agent.tone}`,
-              active === agent.name && 'is-active',
-            )}
-            onClick={() => onHold(agent.name)}
-          >
-            {agent.name}
-          </button>
-        ))}
-        <em>Repeats until the rankings settle</em>
-      </li>
-      <li className="is-output">
-        <b>Research overview and ranked ideas</b>what you get back
-      </li>
-    </ol>
-  );
-}
-
 function DiagramCaption({active}: {active: string | null}) {
   if (!active) {
     return (
@@ -322,7 +283,6 @@ export function LandingDiagram() {
   return (
     <figure className="ucs-landing-diagram">
       <DiagramSvg active={active} onHold={choose} />
-      <DiagramList active={active} onHold={choose} />
       <DiagramCaption active={active} />
     </figure>
   );
@@ -571,7 +531,7 @@ export function LandingBracket({reduceMotion}: MotionProps) {
   const rounds = Array.from({length: ROUNDS}, (_, r) => r);
   return (
     <div ref={ref} className="ucs-landing-panel ucs-landing-tree">
-      <div className="ucs-landing-tree-scroll">
+      <div>
         <svg
           viewBox={`0 0 ${CHAMP_X + 200} ${TOP * 2 + IDEAS.length * ROW_H}`}
           role="img"
