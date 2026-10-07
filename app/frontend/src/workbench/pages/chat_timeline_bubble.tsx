@@ -1,6 +1,7 @@
 import type {QaSource} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {MarkdownMessage} from '@/components/markdown_message';
+import {Button} from '@/shared/ui';
 import {
   useEffect,
   useLayoutEffect,
@@ -216,21 +217,6 @@ export function ChatBubble(props: ChatBubbleProps) {
   );
 }
 
-const EDITOR_BUTTON_CLASSES =
-  'min-h-[2.1rem] cursor-pointer rounded-full border px-4 text-sm font-medium';
-
-const EDITOR_CANCEL_CLASSES =
-  `${EDITOR_BUTTON_CLASSES} border-cosci-btn-secondary-border ` +
-  'bg-transparent text-cosci-btn-secondary-fg ' +
-  'hover:bg-cosci-btn-secondary-hover-bg';
-
-const EDITOR_SEND_CLASSES =
-  `${EDITOR_BUTTON_CLASSES} border-cosci-btn-primary-bg ` +
-  'bg-cosci-btn-primary-bg text-cosci-btn-primary-fg ' +
-  'hover:bg-cosci-btn-primary-hover disabled:cursor-default ' +
-  'disabled:border-cosci-btn-disabled-border ' +
-  'disabled:bg-cosci-btn-disabled-bg disabled:text-cosci-btn-disabled-fg';
-
 function fitToContent(node: HTMLTextAreaElement | null): void {
   if (!node) return;
   node.style.height = 'auto';
@@ -291,23 +277,22 @@ export function BubbleEditor({
       <div className="mt-3 flex justify-end gap-2">
         {/* Labelled past their visible text because a plan card's Cancel and
             the composer's Send sit on the same page. */}
-        <button
-          type="button"
+        <Button
+          variant="outlined"
+          size="sm"
           aria-label="Cancel edit"
-          className={EDITOR_CANCEL_CLASSES}
           onClick={onCancel}
         >
           Cancel
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          size="sm"
           aria-label="Send edited prompt"
-          className={EDITOR_SEND_CLASSES}
           disabled={!changed}
           onClick={() => onSubmit(value)}
         >
           Send
-        </button>
+        </Button>
       </div>
     </div>
   );

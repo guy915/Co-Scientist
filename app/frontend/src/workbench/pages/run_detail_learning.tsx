@@ -1,6 +1,7 @@
 import {useMemo, useState} from 'react';
 import type {Evidence, KnowledgeBaseTopic, Report} from '@/api/runs';
 import {Icon} from '@/components/icon';
+import {Button} from '@/shared/ui';
 import {splitAbstractSections, capitalizeTerm} from '@/lib/text';
 import {renderInlineHtml} from '@/lib/sanitize_html';
 import {
@@ -142,19 +143,16 @@ function LearningSectionToggle({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className="cosci-inline-action mt-4 inline-flex cursor-pointer items-center gap-[0.3rem] border-0 bg-transparent font-[inherit] text-[0.82rem] text-cosci-fg pointer-coarse:min-h-11"
+    <Button
+      variant="text"
+      size="sm"
+      trailingIcon={expanded ? 'expand_less' : 'expand_more'}
+      layoutClassName="mt-4 -ml-2 pointer-coarse:min-h-11"
       aria-expanded={expanded}
       onClick={onToggle}
     >
       <span>{expanded ? 'Show less' : 'Show more'}</span>
-      <Icon
-        className="text-base"
-        aria-hidden="true"
-        name={expanded ? 'expand_less' : 'expand_more'}
-      />
-    </button>
+    </Button>
   );
 }
 

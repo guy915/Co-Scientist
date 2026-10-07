@@ -2,13 +2,12 @@ import type {RunFocus, RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {Link} from 'react-router-dom';
+import {Button, buttonClasses} from '@/shared/ui';
 import {
   joinClasses,
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
   SETUP_ACTIONS_CLASSES,
-  SETUP_PRIMARY_BUTTON_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
   tooltipClassNames,
 } from '../classes';
 import {TruncatedLabel} from '../components/truncated_label';
@@ -296,18 +295,11 @@ function RunSpecActions({
   return (
     <div className={SETUP_ACTIONS_CLASSES}>
       {!locked && (
-        <button
-          type="button"
-          className={SETUP_SECONDARY_BUTTON_CLASSES}
-          onClick={onCancel}
-          disabled={isStarting}
-        >
+        <Button variant="outlined" onClick={onCancel} disabled={isStarting}>
           Cancel
-        </button>
+        </Button>
       )}
-      <button
-        type="button"
-        className={SETUP_PRIMARY_BUTTON_CLASSES}
+      <Button
         aria-busy={isStarting}
         onClick={onStart}
         disabled={startActionDisabled({
@@ -318,7 +310,7 @@ function RunSpecActions({
         })}
       >
         {startActionLabel(isStarting, recoveryAction)}
-      </button>
+      </Button>
       {isStarting && (
         <span className="sr-only" role="status" aria-live="polite">
           {startStatusMessage(recoveryAction)}
@@ -478,13 +470,9 @@ function RecoveryLookupStatus({
         style={{color: 'var(--md-sys-color-error)'}}
       >
         <p>Could not verify the saved run status.</p>
-        <button
-          type="button"
-          className={SETUP_SECONDARY_BUTTON_CLASSES}
-          onClick={onRetry}
-        >
+        <Button variant="outlined" onClick={onRetry}>
           Retry status check
-        </button>
+        </Button>
       </div>
     );
   }
@@ -566,9 +554,6 @@ function NotificationEmail({
     </label>
   );
 }
-
-const STARTED_NEXT_BUTTON_CLASSES =
-  'min-h-[2.6rem] cursor-pointer rounded-full border border-cosci-btn-outline-border bg-transparent px-[1.2rem] font-semibold text-cosci-btn-outline-fg hover:bg-cosci-btn-outline-hover-bg focus-visible:bg-cosci-btn-outline-hover-bg';
 
 export interface StartedSession {
   id: string;
@@ -674,19 +659,12 @@ function SessionNextActions({
       <p className="basis-full m-0 mb-[0.1rem] text-[0.95rem] font-semibold text-cosci-muted">
         What would you like to do next?
       </p>
-      <Link
-        to={href}
-        className={`${STARTED_NEXT_BUTTON_CLASSES} inline-flex items-center no-underline`}
-      >
+      <Link to={href} className={buttonClasses({variant: 'outlined'})}>
         View session details
       </Link>
-      <button
-        type="button"
-        className={STARTED_NEXT_BUTTON_CLASSES}
-        onClick={onNewTopic}
-      >
+      <Button variant="outlined" onClick={onNewTopic}>
         Start a new research goal session on a new topic
-      </button>
+      </Button>
     </div>
   );
 }

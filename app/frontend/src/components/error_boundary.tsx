@@ -2,6 +2,7 @@ import type React from 'react';
 import type {ReactNode} from 'react';
 import {Component} from 'react';
 import {logUiError} from '@/lib/ui_logging';
+import {Button} from '@/shared/ui';
 import {Icon} from './icon';
 
 interface ErrorBoundaryProps {
@@ -63,20 +64,10 @@ function FallbackComponentStack({
 function FallbackActions({onReset}: {onReset: () => void}) {
   return (
     <div className="flex gap-2">
-      <button
-        type="button"
-        className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-transparent bg-th-primary px-5 text-sm font-medium text-th-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring"
-        onClick={onReset}
-      >
-        Try Again
-      </button>
-      <button
-        type="button"
-        className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-th-border bg-transparent px-5 text-sm font-medium text-th-fg hover:bg-th-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring"
-        onClick={() => window.location.reload()}
-      >
+      <Button onClick={onReset}>Try Again</Button>
+      <Button variant="outlined" onClick={() => window.location.reload()}>
         Reload Page
-      </button>
+      </Button>
     </div>
   );
 }

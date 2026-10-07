@@ -1,6 +1,4 @@
 import type {ReactNode, SVGProps} from 'react';
-import {Icon, type IconName} from '@/components/icon';
-import {tooltipClassNames} from './classes';
 
 // Width and padding come from the call site: Tailwind stylesheet order, not
 // class order, decides conflicting utilities. `ucs-popover` carries the shadow
@@ -17,66 +15,7 @@ export const HEADER_PILL_SHAPE_CLASSES =
   'h-[2.35rem] min-w-max items-center rounded-full ' +
   'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap';
 
-export const HEADER_ACCENT_PILL_CLASSES =
-  `inline-flex ${HEADER_PILL_SHAPE_CLASSES} ` +
-  'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg';
-
-// Pass complete utility names so Tailwind discovers them at the call site.
-export function headerControlButtonClasses(padding = 'px-[0.72rem]'): string {
-  return (
-    `ucs-logs-button relative cursor-pointer gap-[0.45rem] border-0 ${padding} ` +
-    `${HEADER_ACCENT_PILL_CLASSES} hover:bg-cosci-logs-accent-hover ` +
-    '[&[aria-expanded=true]]:bg-cosci-logs-accent-hover'
-  );
-}
-
-const DEFAULT_HEADER_CONTROL_CLASSES = headerControlButtonClasses();
-
 export const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
-
-interface HeaderControlTriggerProps {
-  icon: IconName;
-  label: string;
-  tooltip: string;
-  open: boolean;
-  onToggle: () => void;
-  ariaLabel?: string;
-  ariaHasPopup?: 'dialog';
-  className?: string;
-  children?: ReactNode;
-}
-
-export function HeaderControlTrigger({
-  icon,
-  label,
-  tooltip,
-  open,
-  onToggle,
-  ariaLabel,
-  ariaHasPopup,
-  className = DEFAULT_HEADER_CONTROL_CLASSES,
-  children,
-}: HeaderControlTriggerProps) {
-  return (
-    <button
-      type="button"
-      className={tooltipClassNames({className, placement: 'bottom'})}
-      aria-label={ariaLabel}
-      aria-haspopup={ariaHasPopup}
-      data-tooltip={tooltip}
-      aria-expanded={open}
-      onClick={onToggle}
-    >
-      <Icon
-        aria-hidden="true"
-        className={HEADER_CONTROL_ICON_CLASSES}
-        name={icon}
-      />
-      <span>{label}</span>
-      {children}
-    </button>
-  );
-}
 
 // Interactive popovers are not status live regions; provide accessible
 // names/roles without announcing the whole panel on every change.
