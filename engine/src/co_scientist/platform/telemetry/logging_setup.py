@@ -5,13 +5,11 @@ import hashlib
 import json
 import logging
 import logging.handlers
-import os
 import sys
 import threading
 from collections.abc import Generator
 from contextvars import ContextVar
 
-from co_scientist.platform import db
 from co_scientist.platform.telemetry import logs as store
 from co_scientist.platform.telemetry.capture_queue import CaptureListener, CaptureQueue
 from co_scientist.platform.telemetry.logs import NewLogRecord
@@ -185,7 +183,7 @@ class _StoreWriteHandler(logging.Handler):
         self._warned = False
         # A bounded shutdown may leave one busy write finishing; it must never
         # spill into a later configuration's database.
-        self._db_path = os.path.abspath(db.default_db_path() or "./coscientist.db")
+        self._db_path = store.bound_log_db_path()
 
     def emit(self, record: logging.LogRecord) -> None:
         try:

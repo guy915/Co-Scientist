@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 import time
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.platform.db import connect, use_conn
+from co_scientist.platform.db import connect, default_db_path, use_conn
+
+
+def bound_log_db_path() -> str:
+    return os.path.abspath(default_db_path() or "./coscientist.db")
+
 
 UI_LOG_MAX_ROWS = 2000
 _UI_SOURCE = "(logger = 'ui' OR logger GLOB 'ui.*')"
