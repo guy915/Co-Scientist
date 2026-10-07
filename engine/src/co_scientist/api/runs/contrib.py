@@ -112,7 +112,7 @@ async def upload_attachment(
     uploader = client_id(request)
     if not consent:
         raise HTTPException(status_code=422, detail="consent is required to index a document")
-    extracted = await document_ingest.extract_upload(file)
+    extracted = await document_ingest.extract_upload(file, owner=uploader or "")
     title = (file.filename or "Uploaded document").strip()
     evidence_id, continuation = _persist_and_notify_upload(run_id, title, extracted, uploader)
     return {

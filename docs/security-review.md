@@ -153,6 +153,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 **Fix:** Admit only a bounded number of extraction jobs globally and per host, with bounded queue bytes. Use disposable memory/CPU/pid-limited workers, enforce image dimensions before expensive decode, and bound OCR output while streaming it.
 
+**Fixing PR:** [#420](https://github.com/guy915/Co-Scientist/pull/420) bounds extraction to two global jobs and one per owner/connecting host, retaining admission until actual worker completion after cancellation. Both upload routes share the limit; disposable parsing/OCR workers have CPU, 512 MiB address-space, descriptor and file-output limits, image header/frame checks and bounded OCR output. Current PDF workers already had resource limits when the fix was rechecked. Offline regressions and a real Linux worker-limit observation cover these boundaries; no destructive load or parser-vulnerability exploitation was attempted.
+
 ### SR-10 — SSE subscriptions have no aggregate connection admission
 
 **Area:** denial of service. **Severity:** medium. **Owner:** lane X.
