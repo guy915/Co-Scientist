@@ -1,9 +1,9 @@
 import pytest
-
-from app.report.markdown import hypothesis as report_markdown_hypothesis
-from app.report.markdown.hypothesis import (
+from co_scientist.domains.report.markdown import hypothesis as report_markdown_hypothesis
+from co_scientist.domains.report.markdown.hypothesis import (
     _HYPOTHESIS_DISCLAIMER,
 )
+
 from tests._report_helpers import meta_review_markdown as _meta_review_markdown
 from tests._report_helpers import render_markdown
 

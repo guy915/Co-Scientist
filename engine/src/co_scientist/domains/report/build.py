@@ -2,13 +2,7 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
-from co_scientist.domains.research_state.claims.gate import ClaimEdge
-from co_scientist.domains.research_state.elo import live_leaderboard, rank_for_publication
-from co_scientist.domains.research_state.repository import hypotheses
-from co_scientist.domains.research_state.repository import records as store
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
-
-from app.report.content import (
+from co_scientist.domains.report.content import (
     _agent_insights,
     _idea_buckets,
     _knowledge_base_topics,
@@ -16,13 +10,18 @@ from app.report.content import (
     derive_knowledge_facts,
     released_claim_evidence,
 )
-from app.report.gates import (
+from co_scientist.domains.report.gates import (
     _exclusion_tally,
     _verified_hypothesis_count,
     contradicted_hypothesis_ids,
     exclude_unsafe_hypotheses,
 )
-from app.report.markdown import ReportMarkdownInputs, render_report_markdown
+from co_scientist.domains.report.markdown import ReportMarkdownInputs, render_report_markdown
+from co_scientist.domains.research_state.claims.gate import ClaimEdge
+from co_scientist.domains.research_state.elo import live_leaderboard, rank_for_publication
+from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.domains.research_state.repository import records as store
+from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 
 class ReportRequest(NamedTuple):

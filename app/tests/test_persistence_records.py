@@ -9,6 +9,10 @@ from typing import Any, cast
 import pytest
 from co_scientist.domains.access import retention
 from co_scientist.domains.documents import repository as documents
+from co_scientist.domains.report import build as report_build
+from co_scientist.domains.report import finalize as report_finalize
+from co_scientist.domains.report import repository as reports
+from co_scientist.domains.report.content import derive_knowledge_facts
 from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewClaimEvidence
@@ -19,10 +23,6 @@ from co_scientist.platform.telemetry import logs
 from co_scientist.platform.telemetry.logs import NewLogRecord
 from fastapi.testclient import TestClient
 
-from app.report import build as report_build
-from app.report import finalize as report_finalize
-from app.report.content import derive_knowledge_facts
-from app.store import reports
 from app.store import runs as store
 from app.store import tasks as store_tasks
 from app.store.events import (

@@ -9,9 +9,8 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains import safety
 from co_scientist.domains.access import credentials
-
-from app import safety
 
 from ._llm_fake_backend import completion_response, install_completion_backend
 
@@ -93,7 +92,7 @@ async def test_the_screen_runs_only_with_the_models_credential(
     _env(monkeypatch, *keys, offline=offline)
     monkeypatch.setattr(settings, "semantic_safety_enabled", enabled)
 
-    with caplog.at_level(logging.WARNING, logger="app.safety.semantic"):
+    with caplog.at_level(logging.WARNING, logger="co_scientist.domains.safety.semantic"):
         screened = await safety.screen_contextual(_TEXT, "intake")
 
     assert screened.decision == decision

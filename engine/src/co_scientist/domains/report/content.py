@@ -10,11 +10,10 @@ from co_scientist.domains.research_state.text_utils import (
     hypothesis_title,
     readable_experiment_summary,
 )
+from co_scientist.domains.safety.hypothesis.safety import is_blocking_status
 from co_scientist.science.reflection.reflection_helpers import (
     extract_entity_names,
 )
-
-from app.hypothesis.safety import is_blocking_status
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,5 @@
-from app.report.markdown.overview import render_research_overview_markdown
+from co_scientist.domains.report.markdown.overview import render_research_overview_markdown
+
 from tests._report_helpers import meta_review_markdown as _meta_review_markdown
 from tests._report_helpers import render_markdown
 

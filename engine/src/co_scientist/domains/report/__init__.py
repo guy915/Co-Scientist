@@ -2,13 +2,13 @@
 engine_adapter.
 """
 
-from app.report.build import ReportRequest, build_report_content
-from app.report.content import (
+from co_scientist.domains.report.build import ReportRequest, build_report_content
+from co_scientist.domains.report.content import (
     format_deep_verification_critique,
     released_claim_evidence,
 )
-from app.report.finalize import finalize_report
-from app.report.gates import (
+from co_scientist.domains.report.finalize import finalize_report
+from co_scientist.domains.report.gates import (
     exclude_unsafe_hypotheses,
     unverified_hypothesis_ids,
 )

@@ -4,6 +4,10 @@ from collections.abc import Sequence
 from typing import Any
 
 import pytest
+from co_scientist.domains.report import content as report_content
+from co_scientist.domains.report import gates as report_gates
+from co_scientist.domains.report.content import derive_knowledge_facts
+from co_scientist.domains.report.markdown.hypothesis import _render_claim_evidence
 from co_scientist.domains.research_state.claims import (
     AssessorDraft,
     EntailmentLabel,
@@ -19,10 +23,6 @@ from co_scientist.domains.research_state.claims.grounding import (
 )
 from co_scientist.domains.research_state.repository import hypotheses
 
-from app.report import content as report_content
-from app.report import gates as report_gates
-from app.report.content import derive_knowledge_facts
-from app.report.markdown.hypothesis import _render_claim_evidence
 from app.store import runs
 from tests._client import create_run as _create_run
 from tests._client import make_client

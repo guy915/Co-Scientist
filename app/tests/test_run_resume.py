@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
@@ -14,7 +15,7 @@ from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 from app import task_worker
 from app.runs import lifecycle as runs_lifecycle
 from app.store import events as store_events
-from app.store import reports, runs
+from app.store import runs
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
 from tests._client import create_run as _create_run
