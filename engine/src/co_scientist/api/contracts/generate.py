@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import TypeAdapter
 from typing_extensions import is_typeddict
 
-from app.api_contracts import common, interviews, reports, runs, science
+from co_scientist.api.contracts import common, interviews, reports, runs, science
 
 GROUPS: tuple[ModuleType, ...] = (common, interviews, reports, runs, science)
 
@@ -123,7 +123,7 @@ def declaration(name: str, schema: dict[str, Any]) -> str:
     return f"export type {name} = {type_expression(schema)};"
 
 
-API_DIR = Path(__file__).resolve().parents[2] / "frontend/src/api"
+API_DIR = Path(__file__).resolve().parents[5] / "app/frontend/src/api"
 HEADER = "// Generated from app.api_contracts; edit the backend models.\n"
 
 

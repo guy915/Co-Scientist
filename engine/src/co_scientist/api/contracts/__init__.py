@@ -1,7 +1,7 @@
 from typing_extensions import TypedDict
 
-from app.api_contracts.runs import Run, RunMessage
-from app.api_contracts.science import (
+from co_scientist.api.contracts.runs import Run, RunMessage
+from co_scientist.api.contracts.science import (
     ClaimEvidenceRow,
     Evidence,
     Hypothesis,

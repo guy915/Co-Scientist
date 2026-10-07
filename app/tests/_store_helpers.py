@@ -190,7 +190,7 @@ async def resume_run_async(run_id: str) -> None:
     """Drive the resume path the safety-hold release and startup recovery share."""
     import asyncio
 
-    from app.runs import lifecycle as runs_lifecycle
+    from co_scientist.api.runs import lifecycle as runs_lifecycle
 
     await runs_lifecycle._launch_resume(run_id)
     await asyncio.gather(*list(runs_lifecycle._resume_tasks))

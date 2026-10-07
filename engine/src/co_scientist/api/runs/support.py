@@ -5,11 +5,12 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from fastapi import HTTPException
+
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.orchestration.repository import runs
 from co_scientist.platform.db.models import RunRow, ScientificTask
-from fastapi import HTTPException
 
 
 def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:

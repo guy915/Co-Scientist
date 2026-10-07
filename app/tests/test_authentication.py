@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, cast
 
 import pytest
+from co_scientist.api.operator_access import is_operator
 from co_scientist.core.config import settings
 from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import runs_views as views
@@ -10,7 +11,6 @@ from co_scientist.platform.db.models import RunStatus
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
-from app.operator_access import is_operator
 from tests._client import create_run as _create_run
 
 

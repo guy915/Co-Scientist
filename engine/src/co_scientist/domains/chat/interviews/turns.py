@@ -5,13 +5,13 @@ import logging
 import time
 from typing import Any
 
-from app.auth import client_id
 from fastapi import HTTPException, Request
 
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.chat.interviews.model as model
 import co_scientist.domains.chat.interviews.questions as question_repair
 import co_scientist.domains.documents.staged as staged_documents
+from co_scientist.api.auth import client_id
 from co_scientist.domains.chat.interviews.model import (
     ProseSink,
     ReasoningSink,

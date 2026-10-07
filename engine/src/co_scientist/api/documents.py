@@ -6,14 +6,6 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from co_scientist.core.async_bridge import off_loop
-from co_scientist.domains.documents import ingest as document_ingest
-from co_scientist.domains.documents import repository as store
-from co_scientist.domains.documents.repository import NewStagedDocument
-from co_scientist.domains.documents.staged import document_summary as document_summary
-from co_scientist.domains.documents.staged import (
-    resolve_owned_documents as resolve_owned_documents,
-)
 from fastapi import (
     APIRouter,
     File,
@@ -24,7 +16,15 @@ from fastapi import (
     UploadFile,
 )
 
-from app.auth import client_id, require_client_scope
+from co_scientist.api.auth import client_id, require_client_scope
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.documents import ingest as document_ingest
+from co_scientist.domains.documents import repository as store
+from co_scientist.domains.documents.repository import NewStagedDocument
+from co_scientist.domains.documents.staged import document_summary as document_summary
+from co_scientist.domains.documents.staged import (
+    resolve_owned_documents as resolve_owned_documents,
+)
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -47,7 +47,7 @@ async def stage_document(
 
     Raises:
         HTTPException: 400 when the caller carries no identity at all (see
-            ``app.auth.require_client_scope``); 422 when consent is
+            ``co_scientist.api.auth.require_client_scope``); 422 when consent is
             withheld or the document cannot be extracted.
     """
     owner = require_client_scope(request)
