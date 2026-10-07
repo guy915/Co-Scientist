@@ -33,6 +33,8 @@ The root and nested `AGENTS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`, and
 
 ### SR-01 — Caller-controlled identities multiply run admission; scientific calls omit daily global quotas
 
+**Fixing PR:** [#389 — Reapply durable global admission](https://github.com/guy915/Co-Scientist/pull/389) (lane S). The tested implementation first merged in [#383](https://github.com/guy915/Co-Scientist/pull/383); [#385](https://github.com/guy915/Co-Scientist/pull/385) reverted it after an unchanged-frontend Vercel quota failure. The owner subsequently approved backend-only deployment when Railway succeeds.
+
 **Area:** cost abuse; denial of service. **Severity:** high. **Owner:** lane X.
 
 **Entry and path:** A bot sends `POST /api/runs` with a new `X-Client-ID` for each group of Express runs, then starts them with `POST /api/runs/{id}/start`. The server uses the header verbatim as the principal ([app/app/auth.py:15](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/auth.py#L15)), charges free admission to that owner ([app/app/free_usage.py:60](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/free_usage.py#L60)), and counts active runs only within that owner ([app/app/store/runs.py:400](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/store/runs.py#L400)). Defaults are three free runs per day and ten active runs ([engine/src/co_scientist/core/config.py:139](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/engine/src/co_scientist/core/config.py#L139), [engine/src/co_scientist/core/config.py:110](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/engine/src/co_scientist/core/config.py#L110)); neither is a global run limit or a verified-person allowance.
@@ -46,6 +48,8 @@ Conversational completions reserve durable per-client and global daily call/toke
 **Fix:** Reserve a durable global run allowance and a durable global call/token allowance before every deployment-funded physical provider attempt, including research, semantic safety, verification, retries and conversational helpers. Combine that hard service budget with admission by connecting host and an issued, verified or challenged anonymous session; enforce edge controls on the origin as well as the public hostname.
 
 ### SR-02 — Run ownership grants safety-review authority
+
+**Fixing PR:** [#395 — Require an operator token to resolve safety holds](https://github.com/guy915/Co-Scientist/pull/395) (lane S).
 
 **Area:** auth and ownership; safety abuse. **Severity:** high. **Owner:** lane X.
 

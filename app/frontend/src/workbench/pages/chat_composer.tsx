@@ -8,11 +8,11 @@ import {
   useState,
   type RefObject,
 } from 'react';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from '@/shared/ui/icon';
 import {IconButton, Menu, MenuItem, TextArea} from '@/shared/ui';
-import {joinClasses, tooltipClassNames} from '../classes';
+import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {Connector, SystemStatus} from '@/api/system';
-import {useSystemStatus} from '../hooks/system_status_context';
+import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 export interface ComposerProps {
   input: string;

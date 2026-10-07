@@ -4,7 +4,7 @@ import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';
 import {HypothesisDetail} from './ideas_detail_pane';
 
-vi.mock('@/lib/smooth_scroll', () => ({smoothScrollToSection: vi.fn()}));
+vi.mock('@/shared/lib/smooth_scroll', () => ({smoothScrollToSection: vi.fn()}));
 
 function review(over: Partial<Review>): Review {
   return {

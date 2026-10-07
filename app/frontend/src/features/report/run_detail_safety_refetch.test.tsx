@@ -4,7 +4,7 @@ import {type SafetyDecision} from '@/api/runs';
 import {
   ChatHistoryProvider,
   RunHistoryProvider,
-} from '@/workbench/hooks/history_context';
+} from '@/shared/hooks/history_context';
 import {render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';

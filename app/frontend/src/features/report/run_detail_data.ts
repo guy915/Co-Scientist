@@ -21,10 +21,10 @@ import {
   useRunStream,
   type StreamConnectionState,
   type StreamEvent,
-} from '@/hooks/use_run_stream';
-import {useResetTimer} from '@/workbench/hooks/timers';
+} from '@/shared/hooks/use_run_stream';
+import {useResetTimer} from '@/shared/hooks/timers';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {HEADER_TITLE_EVENT} from '../dom_events';
+import {HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
 
 // Carry stream transport state with the run so reconnecting cannot look
 // healthy; missing state is not evidence of a drop.

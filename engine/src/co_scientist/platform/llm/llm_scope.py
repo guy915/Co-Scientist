@@ -15,6 +15,7 @@ from functools import wraps
 from typing import Any, ParamSpec, TypeVar
 
 from co_scientist.platform.llm.admission.call_budget import scoped_completion_budget
+from co_scientist.platform.llm.admission.service import scoped_app_admission
 from co_scientist.platform.llm.telemetry import scoped_telemetry
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ def app_call_scope(surface: str) -> Iterator[None]:
     token = _active.set(True)
     with (
         scoped_completion_budget(settings.app_llm_max_calls) as budget,
+        scoped_app_admission(),
         scoped_telemetry(f"app.{surface}") as telemetry,
     ):
         try:

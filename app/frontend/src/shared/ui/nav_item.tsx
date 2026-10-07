@@ -1,6 +1,6 @@
 import type {MouseEventHandler} from 'react';
 import {Link, type LinkProps} from 'react-router-dom';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from './icon';
 import {joinClasses} from './cx';
 import {tooltipClassNames} from './tooltip';
 

@@ -1,9 +1,9 @@
 import {Card} from '@/shared/ui';
-import type {StreamEvent} from '@/hooks/use_run_stream';
-import {formatDurationPhrase} from '@/lib/text';
-import {useNowTick} from '@/workbench/hooks/timers';
+import type {StreamEvent} from '@/shared/hooks/use_run_stream';
+import {formatDurationPhrase} from '@/shared/lib/text';
+import {useNowTick} from '@/shared/hooks/timers';
 import {useMemo} from 'react';
-import {RunExecutionProgress} from './chat_home_stage';
+import {RunExecutionProgress} from '@/workbench/pages/chat_home_stage';
 import {ActivityLog, windowedActivityGroups} from './run_detail_activity_log';
 import {type RunWithStreamState} from './run_detail_data';
 

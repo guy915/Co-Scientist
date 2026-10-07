@@ -9,13 +9,13 @@ import type {
   ResearchOverview,
   RunWithSummary,
 } from '@/api/runs';
-import {sortByEloDesc} from '@/lib/hypotheses';
+import {sortByEloDesc} from '@/shared/lib/hypotheses';
 import {
   formatDurationPhrase,
   isRecord,
   readableText,
   readableTextList,
-} from '@/lib/text';
+} from '@/shared/lib/text';
 import {useMemo} from 'react';
 import {
   REPORT_H3_CLASSES,

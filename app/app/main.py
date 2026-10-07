@@ -260,6 +260,16 @@ async def _run_ownership_response(request: Request, principal: Principal) -> Res
             return JSONResponse({"detail": "shared examples are read-only"}, status_code=403)
         return None
     client_id = principal.subject
+    from co_scientist.api.operator_access import has_admin_token
+
+    if (
+        request.method == "POST"
+        and len(parts) == 6
+        and parts[3] == "safety"
+        and parts[5] == "adjudicate"
+        and has_admin_token(request)
+    ):
+        return None
     if client_id and client_id == run.client_id:
         return None
     return JSONResponse({"detail": "run not found"}, status_code=404)
@@ -282,9 +292,12 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     ownership_response = await _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response
+    from co_scientist.platform.db.admission import connecting_host
     from co_scientist.platform.llm.provider_usage import scoped_client
 
-    with scoped_client(principal.subject):
+    with scoped_client(
+        principal.subject, host=connecting_host(request.client.host if request.client else None)
+    ):
         return cast(Response, await call_next(request))
 
 

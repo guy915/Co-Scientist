@@ -1,5 +1,5 @@
 import type {RunFocus, RunTier} from '@/api/runs';
-import {conciseTitle} from '@/lib/text';
+import {conciseTitle} from '@/shared/lib/text';
 import {Link} from 'react-router-dom';
 import {Button, buttonClasses, IconButton, TextField} from '@/shared/ui';
 import {
@@ -7,9 +7,9 @@ import {
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
   SETUP_ACTIONS_CLASSES,
-} from '../classes';
-import {TruncatedLabel} from '../components/truncated_label';
-import {useSystemStatus} from '../hooks/system_status_context';
+} from '@/shared/ui/classes';
+import {TruncatedLabel} from '@/shared/ui/truncated_label';
+import {useSystemStatus} from '@/shared/hooks/system_status_context';
 import {
   type InferredRunSpec,
   availableTierOptions,
@@ -18,7 +18,7 @@ import {
   isValidCompletionEmail,
   runOptionLabel,
   TIER_OPTIONS,
-} from '../run_spec';
+} from '@/shared/lib/run_spec';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
 import {

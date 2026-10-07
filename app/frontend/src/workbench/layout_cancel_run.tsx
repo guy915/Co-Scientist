@@ -5,10 +5,10 @@ import {
   isStoppableStatus,
   type RunStatus,
 } from '@/api/runs';
-import type {IconName} from '@/components/icon';
-import {logUiError} from '@/lib/ui_logging';
+import type {IconName} from '@/shared/ui/icon';
+import {logUiError} from '@/shared/lib/ui_logging';
 import {Button} from '@/shared/ui';
-import {RUNS_CHANGED_EVENT} from './dom_events';
+import {RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 
 // Cancellation is terminal and cannot resume; require a second click without
 // adding another modal.

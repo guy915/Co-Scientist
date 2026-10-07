@@ -2,8 +2,8 @@ import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {useState} from 'react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {type ByokProvider, getStoredModel} from '@/lib/client_id';
-import {ThemeProvider} from '../theme_context';
+import {type ByokProvider, getStoredModel} from '@/shared/lib/client_id';
+import {ThemeProvider} from '@/shared/hooks/theme_context';
 import {ModelSection, SettingsDialog} from './settings_dialog';
 
 const CATALOG = {

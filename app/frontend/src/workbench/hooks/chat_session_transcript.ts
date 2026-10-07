@@ -1,10 +1,10 @@
 import type {QaSource} from '@/api/runs';
 import {type Interview, type InterviewTurn, type RunMessage} from '@/api/runs';
-import {makePrefixedId} from '@/lib/client_id';
+import {makePrefixedId} from '@/shared/lib/client_id';
 import type {Dispatch} from 'react';
-import {DIAGNOSTIC_EVENT} from '../dom_events';
+import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
 import {type ChatEntry} from '../pages/chat_timeline_bubble';
-import {interviewToRunSpec} from '../run_spec';
+import {interviewToRunSpec} from '@/shared/lib/run_spec';
 import {
   type DraftIntro,
   type HandlerDeps,

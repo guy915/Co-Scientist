@@ -12,7 +12,7 @@ import {
 } from 'vitest';
 import {listInterviews, loadRunHistory, type ChatSummary} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
-import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '../dom_events';
+import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import {
   ChatHistoryProvider,
   RunHistoryProvider,

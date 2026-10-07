@@ -18,11 +18,11 @@ import {
   type NavigateFunction,
 } from 'react-router-dom';
 import {Button, IconButton, Toast} from '@/shared/ui';
-import {conciseTitle} from '@/lib/text';
-import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
-import {useIsMobile} from '../hooks/dom';
-import {useToast, type ToastState} from '../hooks/timers';
-import {useRunHistoryContext} from '../hooks/history_context';
+import {conciseTitle} from '@/shared/lib/text';
+import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '@/shared/lib/dom_events';
+import {useIsMobile} from '@/shared/hooks/dom';
+import {useToast, type ToastState} from '@/shared/hooks/timers';
+import {useRunHistoryContext} from '@/shared/hooks/history_context';
 import {
   useChatSession,
   type SpecStage,

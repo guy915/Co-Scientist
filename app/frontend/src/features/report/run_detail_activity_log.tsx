@@ -1,8 +1,11 @@
 import type {RunEventActivity} from '@/api/wire_common';
-import {Icon, type IconName} from '@/components/icon';
-import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
-import {capitalizeTerm} from '@/lib/text';
-import {joinClasses} from '../classes';
+import {Icon, type IconName} from '@/shared/ui/icon';
+import type {
+  StreamConnectionState,
+  StreamEvent,
+} from '@/shared/hooks/use_run_stream';
+import {capitalizeTerm} from '@/shared/lib/text';
+import {joinClasses} from '@/shared/ui/classes';
 
 const TIMELINE_RAIL_CLASSES =
   'absolute left-[1.0625rem] top-[2.375rem] bottom-1 w-px bg-cosci-border';
