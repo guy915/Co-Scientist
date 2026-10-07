@@ -27,7 +27,7 @@ The root and nested `AGENTS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`, and
 | SR-11 | Medium, conditional | SSRF and retrieval; auth | Unset MCP shared secret preserves unauthenticated tools if reachable | launch runbook | Middleware and deployment contract |
 | SR-12 | Medium, conditional | Abuse | Anonymous users can address completion mail to an unverified recipient | lane X | Notification configuration and SMTP trace; no delivery |
 | SR-13 | Medium | Denial of service; data | A botnet can overwhelm the unbounded diagnostic capture queue | lane X | Queue and admission trace |
-| SR-14 | Low | Data; dependencies; CI | Dependency audit reports advisories in installed packages; enabled attack surfaces differ | lane C | Required audit failed; reachability triage below |
+| SR-14 | Low | Data; dependencies; CI | Dependency audit reports advisories in installed packages; enabled attack surfaces differ | lane V | Required audit failed; remediation and reachability triage below |
 
 ## High findings
 
