@@ -20,6 +20,13 @@ _STREAM_END_STATUSES: tuple[RunStatus, ...] = (
 )
 
 
+def _terminal_frame(status: str, seq: int) -> str:
+    """The synthetic terminal frame closes a connection and is never
+    persisted.
+    """
+    return sse_frame({"type": "_terminal", "payload": {"status": status}, "seq": seq})
+
+
 def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
     if ev["type"] != "status":
         return None
@@ -81,10 +88,7 @@ async def _stream_live_tail(
 
         terminal_status = _resolve_tick_terminal(terminal_status, run_id, tick)
         if terminal_status is not None:
-            # The synthetic terminal frame closes a connection and is never persisted.
-            yield sse_frame(
-                {"type": "_terminal", "payload": {"status": terminal_status}, "seq": last_seq}
-            )
+            yield _terminal_frame(terminal_status, last_seq)
             return
 
 
@@ -108,7 +112,7 @@ async def _event_stream(
         yield sse_frame(ev)
 
     if run.status in _STREAM_END_STATUSES:
-        yield sse_frame({"type": "_terminal", "payload": {"status": run.status}, "seq": last_seq})
+        yield _terminal_frame(run.status, last_seq)
         return
 
     async for frame in _stream_live_tail(run_id, request, last_seq):
