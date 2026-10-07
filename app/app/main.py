@@ -15,13 +15,13 @@ from co_scientist.api.diagnostics_api import router as diagnostics_api_router
 from co_scientist.api.documents import router as documents_router
 from co_scientist.api.feedback_api import router as feedback_router
 from co_scientist.api.free_usage import router as free_usage_router
+from co_scientist.api.interviews import router as interviews_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import StorageAdmissionError
-from co_scientist.domains.chat.interviews import router as interviews_router
 from co_scientist.domains.chat.seed import is_current_demo_run, seed_demo_runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks
