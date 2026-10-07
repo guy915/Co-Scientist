@@ -3,6 +3,7 @@ import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/shared/api/runs';
 import {makeHypothesis, makeRunWithSummary} from '@/test_fixtures';
+import {jsonResponse} from '@/shared/api/testing';
 import {ChatHistoryProvider} from '@/shared/hooks/history_context';
 import {RunHistoryProvider} from '@/shared/hooks/history_context';
 import {ChatWorkspace} from './chat_workspace';
@@ -78,12 +79,7 @@ export function stubStatusConnectors(
 ) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({connectors}),
-      text: async () => '',
-    })) as unknown as typeof fetch,
+    vi.fn(async () => jsonResponse({connectors})),
   );
 }
 
