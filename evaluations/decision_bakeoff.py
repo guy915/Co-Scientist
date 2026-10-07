@@ -28,6 +28,25 @@ from co_scientist.platform.llm.telemetry import scoped_telemetry
 from evaluations.decision_cases import DecisionCase, build_cases
 
 
+def reference_spec(site: str, model: str, schema: dict[str, Any]) -> CompletionSpec:
+    from co_scientist.core.constants import (
+        DEFAULT_MAX_TOKENS,
+        HIGH_TEMPERATURE,
+        LONG_MAX_TOKENS,
+        LOW_TEMPERATURE,
+        THINKING_MAX_TOKENS,
+    )
+
+    limits = {
+        "ranking_pairwise": (THINKING_MAX_TOKENS, LOW_TEMPERATURE),
+        "literature_relevance": (DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE),
+        "proximity": (LONG_MAX_TOKENS, LOW_TEMPERATURE),
+        "semantic_safety": (1000, 0.0),
+    }
+    tokens, temperature = limits[site]
+    return CompletionSpec(model, max_tokens=tokens, temperature=temperature, json_schema=schema)
+
+
 def reference_values(site: str, response: dict[str, Any]) -> dict[str, Any]:
     if site == "ranking_pairwise":
         from co_scientist.science.ranking.ranking_debate import _parse_matchup_winner
@@ -206,7 +225,7 @@ async def run_panel(
             }
             try:
                 reference = await call_llm_json(
-                    case.prompt, CompletionSpec(model, json_schema=case.schema), max_attempts=1
+                    case.prompt, reference_spec(site, model, case.schema), max_attempts=1
                 )
                 row["reference"] = reference_values(site, reference)
                 await asyncio.sleep(delay)

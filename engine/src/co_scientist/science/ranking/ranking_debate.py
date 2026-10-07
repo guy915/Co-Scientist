@@ -682,7 +682,7 @@ async def judge_matchup(
             "confidence_level": "high" if answer.confidence >= 0.9 else "medium",
             "debate_turns": 1,
             "debate_transcript": [entry],
-            "debate_verdict": _verdict_number(winner),
+            "debate_verdict": verdict_number(winner),
             "judge_model": "liquid/d1:free",
             "consensus_votes": [winner],
             "position_balanced": True,
