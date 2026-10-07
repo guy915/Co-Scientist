@@ -20,8 +20,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "langgraph~=1.0.6",
-    "langchain-core~=1.3.3",
+    "langgraph~=1.2.14",
+    "langchain-core~=1.4.7",
     # Bound future major releases while allowing compatible upgrades.
     "langchain-mcp-adapters~=0.3.0",
     # The adapter depends on MCP v1 RequestContext paths; a major upgrade requires coordinated
