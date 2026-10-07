@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -171,3 +173,29 @@ def test_capture_critical_retention_is_separate_from_ordinary_traffic(isolated_d
     stored = logs.list_logs(db_path=isolated_db)
     assert "critical canary" in [row["message"] for row in stored]
     assert sum(row["levelno"] < logging.WARNING for row in stored) <= 3
+
+
+def test_global_ui_byte_admission_survives_a_fresh_process(
+    monkeypatch: pytest.MonkeyPatch, isolated_db: str
+) -> None:
+    from co_scientist.platform import db
+    from co_scientist.platform.db import log_admission
+
+    minute = int(time.time() // 60)
+    monkeypatch.setattr(log_admission.time, "time", lambda: minute * 60 + 1)
+    with db.transaction(isolated_db) as conn:
+        assert log_admission.claim(conn, 1, log_admission.MAX_GLOBAL_BYTES)
+    code = (
+        "import sys; from co_scientist.platform import db; "
+        "from co_scientist.platform.db import log_admission; "
+        "log_admission.time.time=lambda: int(sys.argv[2])*60+1\n"
+        "with db.transaction(sys.argv[1]) as conn:\n"
+        " assert not log_admission.claim(conn, 1, 1)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code, isolated_db, str(minute)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
