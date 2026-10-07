@@ -380,11 +380,8 @@ class MCPToolClient:
             logger.warning("%s; reporting the timeout to the model", exc)
             return f"Error: {exc}. No result was returned."
 
-    def _require_initialized_tools(self) -> dict[str, Any]:
-        return _ensure_tools_initialized(self._tools_dict)
-
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
-        tools_dict = self._require_initialized_tools()
+        tools_dict = _ensure_tools_initialized(self._tools_dict)
         tool_name = tool_call.function.name
         tool_args = json.loads(tool_call.function.arguments)
 
