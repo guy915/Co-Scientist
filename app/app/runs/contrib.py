@@ -13,6 +13,7 @@ from fastapi import (
 
 import app.document_ingest as document_ingest
 import app.run_corpus as run_corpus
+from app.async_bridge import off_loop
 from app.auth import client_id
 from app.runs.models import (
     HumanAttachmentRequest,
@@ -52,7 +53,8 @@ def _persist_and_notify_attachment(
 
 
 @attachments_router.post("/{run_id}/attachments")
-async def add_attachment(run_id: str, req: HumanAttachmentRequest) -> dict[str, Any]:
+@off_loop
+def add_attachment(run_id: str, req: HumanAttachmentRequest) -> dict[str, Any]:
     """Attach a consented text document to the run's private corpus."""
     _require_run(run_id)
     if not req.consent:
