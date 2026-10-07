@@ -55,10 +55,12 @@ for (const theme of ['light', 'dark']) {
         expect(tabBox!.y).toBeGreaterThanOrEqual(headerBottom - 1);
         expect(tabBox!.y).toBeLessThan(headerBottom + 24);
       }
-      await expect(header.getByRole('button', {name: /^Logs/})).toBeVisible();
-      await expect(
-        header.getByRole('button', {name: /^Logs/}),
-      ).toBeInViewport();
+      const feedback = header.getByRole('button', {
+        name: 'Feedback',
+        exact: true,
+      });
+      await expect(feedback).toBeVisible();
+      await expect(feedback).toBeInViewport();
       if (width > 1000) {
         const panels = await page
           .locator('.ucs-landing-ov-card > :last-child')
@@ -110,6 +112,5 @@ test('phones get the composer alone, without landing or header actions', async (
   await expect(
     header.getByRole('button', {name: 'Feedback', exact: true}),
   ).toBeHidden();
-  await expect(header.getByRole('button', {name: /^Logs/})).toBeHidden();
   await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
 });

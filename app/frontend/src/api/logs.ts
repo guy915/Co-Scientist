@@ -37,13 +37,6 @@ export function getAppLogs(
   );
 }
 
-// Lets the Logs indicator refresh right after a write instead of on a timer.
-export const APP_LOGS_CHANGED_EVENT = 'cosci-app-logs-changed';
-
-function announceAppLogsChanged(): void {
-  window.dispatchEvent(new Event(APP_LOGS_CHANGED_EVENT));
-}
-
 export interface ClientLogRecord {
   message: string;
   level?: string;
@@ -54,10 +47,8 @@ export interface ClientLogRecord {
 export async function postAppLogs(
   records: ClientLogRecord[],
 ): Promise<{added: number; last_id: number}> {
-  const result = await fetchJson<{added: number; last_id: number}>(
+  return fetchJson<{added: number; last_id: number}>(
     '/api/logs',
     jsonRequest({records}, /*includeClientId=*/ true),
   );
-  announceAppLogsChanged();
-  return result;
 }

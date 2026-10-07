@@ -20,14 +20,8 @@ for (const theme of ['light', 'dark']) {
         name: 'Feedback',
         exact: true,
       });
-      const logs = header.getByRole('button', {name: /^Logs/});
       await expect(feedback).toBeInViewport();
-      await expect(logs).toBeInViewport();
-      const feedbackBox = await feedback.boundingBox();
-      const logsBox = await logs.boundingBox();
-      expect(feedbackBox!.x + feedbackBox!.width).toBeLessThanOrEqual(
-        logsBox!.x,
-      );
+      await expect(header.getByRole('button', {name: /^Logs/})).toHaveCount(0);
       await feedback.click();
       let dialog = page.getByRole('dialog', {name: 'Feedback', exact: true});
       await expect(dialog.getByLabel('Message')).toBeFocused();
