@@ -178,7 +178,7 @@ function PrivateCorpusUpload({
         />
       </label>
       {status && (
-        <p role="status" className="mt-2 text-sm">
+        <p role="status" className="ui-motion-enter mt-2 text-sm">
           {status}
         </p>
       )}

@@ -63,12 +63,22 @@ export function Composer({
       ? 'Type to edit session details'
       : 'Start a new research goal to begin');
 
-  // Measure programmatic fills as well as typing.
+  // Measure programmatic fills as well as typing. The height eases from the
+  // last measured size; a scrollbar appears only once content passes the cap.
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+    const from = textarea.style.height;
+    const cap = large ? 146 : 120;
     textarea.style.height = 'auto';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, large ? 146 : 120)}px`;
+    const content = textarea.scrollHeight;
+    const to = `${Math.min(content, cap)}px`;
+    textarea.style.overflowY = content > cap ? 'auto' : 'hidden';
+    if (from && from !== to) {
+      textarea.style.height = from;
+      void textarea.offsetHeight;
+    }
+    textarea.style.height = to;
   }, [input, large]);
 
   // Composer elevation is light-only in the reference, so its shadow stays a
@@ -113,7 +123,7 @@ export function Composer({
           autoFocus={autoFocus}
           variant="bare"
           layoutClassName={joinClasses(
-            'relative z-[2] block min-h-[2.85rem] resize-none overflow-y-auto leading-6',
+            'relative z-[2] block min-h-[2.85rem] resize-none overflow-y-auto leading-6 transition-[height] duration-short ease-standard motion-reduce:transition-none',
             large &&
               '[@media(min-width:1181px)_and_(max-height:760px)]:min-h-[2.65rem]',
           )}
@@ -222,7 +232,7 @@ export function AttachmentStrip({
   if (attachments.length === 0) return null;
   return (
     <div
-      className="reference-attachment-strip flex min-w-0 flex-wrap gap-[0.8rem] pb-[1.35rem] pointer-events-auto"
+      className="reference-attachment-strip ui-motion-enter-items flex min-w-0 flex-wrap gap-[0.8rem] pb-[1.35rem] pointer-events-auto"
       aria-label="Attachments"
     >
       {attachments.map(attachment => (
@@ -569,7 +579,7 @@ function ConnectorMenuRow({
 function ConnectorsNote({text}: {text: string}) {
   return (
     <p
-      className="m-0 grid min-h-[2.5rem] items-center px-[0.75rem] text-[0.875rem] text-cosci-muted"
+      className="ui-motion-enter m-0 grid min-h-[2.5rem] items-center px-[0.75rem] text-[0.875rem] text-cosci-muted"
       role="note"
     >
       {text}

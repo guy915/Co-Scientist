@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import sqlite3
+import threading
 import time
 from typing import Annotated, Any
 
@@ -19,8 +20,10 @@ from co_scientist.platform.telemetry.logging_setup import level_to_number
 from co_scientist.platform.telemetry.logs import LogFilters, NewLogRecord
 
 # Process-local limit; assumes one API replica and needs shared storage when
-# replicated.
+# replicated. Ingestion runs on the handler thread pool, so the window needs a
+# lock: expiring stale scopes mutates the map it reads.
 _ingest_hits: dict[str, list[float]] = {}
+_ingest_hits_lock = threading.Lock()
 
 
 def _rate_limit_keys(request: Request) -> tuple[str, str]:
@@ -61,9 +64,13 @@ def _check_both_rates(
     limit: int,
     detail: str,
 ) -> None:
+    """Hold the lock across both scopes so one request's two budgets are
+    decided against one snapshot of the window.
+    """
     ip_key, id_key = _rate_limit_keys(request)
-    _check_rate(hits_by_scope, ip_key, limit, detail)
-    _check_rate(hits_by_scope, id_key, limit, detail)
+    with _ingest_hits_lock:
+        _check_rate(hits_by_scope, ip_key, limit, detail)
+        _check_rate(hits_by_scope, id_key, limit, detail)
 
 
 def _check_ingest_rate(request: Request) -> None:

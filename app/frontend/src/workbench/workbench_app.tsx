@@ -17,7 +17,7 @@ const RunDetail = lazy(() =>
 
 function PageLoading() {
   return (
-    <div className="grid h-full min-h-0 place-items-center p-6 text-sm text-cosci-muted">
+    <div className="ui-motion-enter grid h-full min-h-0 place-items-center p-6 text-sm text-cosci-muted">
       <p role="status">Loading page…</p>
     </div>
   );

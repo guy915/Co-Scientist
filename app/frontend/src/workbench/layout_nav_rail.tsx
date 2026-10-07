@@ -47,7 +47,7 @@ const NAV_BOTTOM_CLASSES =
   '[@media(max-width:700px)]:w-full [@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:[justify-items:stretch] [@media(max-width:700px)]:gap-[0.3rem]';
 
 const SIDE_CONTENT_CLASSES =
-  'mt-[1rem] grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
+  'transition-[opacity,visibility] duration-medium ease-standard mt-[1rem] grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
   'min-[701px]:flex min-[701px]:min-h-0 min-[701px]:max-h-none min-[701px]:flex-1 min-[701px]:flex-col ' +
   '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:flex-1 ' +
   '[@media(max-width:700px)]:flex-col [@media(max-width:700px)]:overflow-hidden';
@@ -255,7 +255,7 @@ const SIDE_HEADING_CLASSES =
 // Row height and gap must stay in rem: hooks/dom.ts FALLBACK_ROW_PITCH_PX is
 // the 2.35rem link line-height plus this 0.35rem gap at a 16px root.
 const CHAT_LIST_CLASSES =
-  'ucs-chat-list grid min-w-0 gap-[0.35rem] min-[701px]:min-h-0 ' +
+  'ucs-chat-list ui-motion-enter-items grid min-w-0 gap-[0.35rem] min-[701px]:min-h-0 ' +
   '[@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:[align-content:start] [@media(max-width:700px)]:min-h-0 ' +
   '[@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:overflow-x-hidden [@media(max-width:700px)]:overflow-y-auto';
 

@@ -187,12 +187,14 @@ function LearningSectionBlock({
       <h4 className={REPORT_H4_CLASSES}>Summary</h4>
       <AbstractBody text={section.summary} />
       {expanded && (
-        <LearningSectionDetailsBlock
-          detail={section.detail}
-          uncertainty={section.uncertainty}
-          referenceIds={section.referenceIds}
-          referenceNumberById={referenceNumberById}
-        />
+        <div className="ui-motion-enter">
+          <LearningSectionDetailsBlock
+            detail={section.detail}
+            uncertainty={section.uncertainty}
+            referenceIds={section.referenceIds}
+            referenceNumberById={referenceNumberById}
+          />
+        </div>
       )}
       <LearningSectionToggle expanded={expanded} onToggle={onToggle} />
     </section>
