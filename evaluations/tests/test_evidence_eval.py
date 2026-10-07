@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import pathlib
+
 from evaluations import citation_eval, safety_eval
 from evaluations.citation_usefulness_eval import (
     _LABELS,
     load_dataset,
     run_deterministic,
 )
-from evaluations.claim_support_eval import score_claims
+from evaluations.claim_support_eval import score_claims, stage_timings
 
 
 def test_offline_citation_panel_meets_its_release_floor() -> None:
@@ -84,3 +86,32 @@ def test_safety_eval_reports_both_arms_and_the_easy_baseline_is_exact() -> None:
     assert metrics["by_difficulty"]["hard"]["n"] > 0
     per_category = metrics["per_category"]
     assert sum(b["total"] for b in per_category.values()) == metrics["n"]
+
+
+def test_stage_timings_sum_busy_time_per_stage_and_count_retries(tmp_path: pathlib.Path) -> None:
+    import sqlite3
+
+    db = tmp_path / "run.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE scientific_tasks (run_id TEXT, task_type TEXT, status TEXT,"
+            " attempt INTEGER, started_at REAL, completed_at REAL, available_at REAL)"
+        )
+        conn.executemany(
+            "INSERT INTO scientific_tasks VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                ("r", "engine.ranking.match", "completed", 1, 10.0, 40.0, None),
+                ("r", "engine.ranking.match", "completed", 2, 12.0, 32.0, 11.0),
+                ("r", "engine.node.review", "failed", 3, 0.0, 5.0, None),
+                ("other", "engine.node.review", "completed", 1, 0.0, 999.0, None),
+            ],
+        )
+
+    timings = stage_timings(str(db), "r")
+
+    assert timings["wall_s"] == 40.0
+    assert list(timings["stages"]) == ["engine.ranking.match", "engine.node.review"]
+    match = timings["stages"]["engine.ranking.match"]
+    assert (match["tasks"], match["attempts"], match["parked"]) == (2, 3, 1)
+    assert (match["busy_s"], match["max_s"]) == (50.0, 30.0)
+    assert timings["stages"]["engine.node.review"]["failed"] == 1
