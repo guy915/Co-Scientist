@@ -4,9 +4,10 @@ Remove the features, modes and dev tooling the owner chose to give up on
 6 October 2026. This plan only deletes. Condensing what stays is a separate,
 later plan that starts from the size this one leaves.
 
-**Status:** in progress since 6 October 2026 (day 1 of `docs/CAMPAIGNS.md`),
-in parallel streams (see Streams). Progress, open PRs and blockers are on the
-`Campaign board: cuts` issue.
+**Status:** every row in "What goes" merged on 6 October 2026 except stream 5's
+deletion of the legacy-reading code and branches, which waits for the owner to
+run the legacy migration (`app/dev/migrate_legacy_data.py`). Steps and the final
+report are on the `Campaign board: cuts` issue.
 
 ## Scope
 

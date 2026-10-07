@@ -10,14 +10,13 @@ from typing import Any, cast
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import app.engine_adapter as engine_adapter
 from app import API_VERSION
-from app.auth import Principal, auth_required, principal_for_request
-from app.auth import router as auth_router
+from app.auth import Principal, principal_for_request
 from app.byok_models import router as byok_models_router
 from app.config import settings
 from app.diagnostics_api import router as diagnostics_api_router
@@ -229,20 +228,7 @@ def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:
 _allowed_origins, _allow_credentials = _resolve_cors_config(os.getenv("ALLOWED_ORIGINS", ""))
 
 
-def _auth_gate_response(
-    request: Request, principal: Principal | None, public_api: bool
-) -> Response | None:
-    if (
-        auth_required()
-        and request.scope["path"].startswith("/api/")
-        and not public_api
-        and principal is None
-    ):
-        return JSONResponse({"detail": "researcher access required"}, status_code=401)
-    return None
-
-
-def _run_ownership_response(request: Request, principal: Principal | None) -> Response | None:
+def _run_ownership_response(request: Request, principal: Principal) -> Response | None:
     """Empty subjects own nothing, including legacy empty-owner rows; non-
     owned run existence remains hidden.
     """
@@ -261,7 +247,7 @@ def _run_ownership_response(request: Request, principal: Principal | None) -> Re
         ):
             return JSONResponse({"detail": "shared examples are read-only"}, status_code=403)
         return None
-    client_id = principal.subject if principal else ""
+    client_id = principal.subject
     if client_id and client_id == run.client_id:
         return None
     return JSONResponse({"detail": "run not found"}, status_code=404)
@@ -275,19 +261,7 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
         return cast(Response, await call_next(request))
     # Authorize routed ASGI paths, not URLs reconstructed from caller-controlled
     # Host headers.
-    path = request.scope["path"]
-    public_api = path.startswith("/api/auth/")
-    try:
-        principal = principal_for_request(request)
-    except HTTPException as exc:
-        return JSONResponse(
-            {"detail": exc.detail},
-            status_code=exc.status_code,
-            headers=exc.headers,
-        )
-    auth_response = _auth_gate_response(request, principal, public_api)
-    if auth_response is not None:
-        return auth_response
+    principal = principal_for_request(request)
     ownership_response = _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response
@@ -310,7 +284,6 @@ app.include_router(interviews_router)
 app.include_router(documents_router)
 app.include_router(free_usage_router)
 app.include_router(byok_models_router)
-app.include_router(auth_router)
 app.include_router(logs_router)
 app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)

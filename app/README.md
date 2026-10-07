@@ -24,7 +24,7 @@ app/
 └── frontend/       React 19 + Vite 7 + TypeScript + Tailwind v4
     └── src/
         ├── workbench/
-        │   ├── pages/      chat workspace, run detail, researcher access, shared report
+        │   ├── pages/      chat workspace, run detail, shared report
         │   ├── hooks/      chat-session, run-history, and utility hooks
         │   └── components/  shared workbench UI (settings dialog) + tabs/ (ideas_tab)
         ├── api/runs.ts     HTTP + SSE client
@@ -121,10 +121,6 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | `SEMANTIC_SAFETY_MODEL` | `openrouter/inclusionai/ling-3.1-flash` | Model for contextual safety screening |
 | `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
 | `ENTREZ_EMAIL` | — | Email for NCBI Entrez / PubMed access (optional) |
-| `AUTH_MODE` | `compatibility` | Local development identity; set `required` before exposing the API |
-| `AUTH_SECRET` | — | Random signing secret; required when authentication is required |
-| `RESEARCHER_ACCESS_CODES` | `{}` | JSON mapping of researcher IDs to unique high-entropy invite codes |
-| `AUTH_EXCHANGE_PER_MINUTE` | `20` | Invite-exchange attempt limit per connecting IP and API process |
 
 The default free Nemotron 3 Ultra route falls back only to free models, keeps
 the JSON schema in the prompt because its host accepts no response format, and

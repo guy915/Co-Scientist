@@ -135,7 +135,19 @@ async def _run_reflection_llm_or_none(
     """One failed observation must not prevent peer hypotheses receiving
     their reviews."""
     try:
-        response = await _call_reflection_llm(call, context, hypothesis_index)
+        response = await call_llm_json(
+            prompt=call.prompt,
+            spec=CompletionSpec(
+                model_name=context.model_name,
+                max_tokens=EXTENDED_MAX_TOKENS,
+                temperature=LOW_TEMPERATURE,
+                json_schema=call.schema,
+            ),
+            options=LLMCallOptions(
+                run_id=context.run_id,
+                prompt_name=indexed_prompt_name("reflection", hypothesis_index),
+            ),
+        )
         return _format_reflection_result(response, call.indra_data, hypothesis_index)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
@@ -164,26 +176,6 @@ async def _prepare_reflection_call(
         ),
     )
     return _ReflectionCall(prompt=prompt, schema=schema, indra_data=indra_data)
-
-
-async def _call_reflection_llm(
-    call: _ReflectionCall,
-    context: _ReflectionContext,
-    hypothesis_index: int,
-) -> dict[str, Any]:
-    return await call_llm_json(
-        prompt=call.prompt,
-        spec=CompletionSpec(
-            model_name=context.model_name,
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=LOW_TEMPERATURE,
-            json_schema=call.schema,
-        ),
-        options=LLMCallOptions(
-            run_id=context.run_id,
-            prompt_name=indexed_prompt_name("reflection", hypothesis_index),
-        ),
-    )
 
 
 def _format_reflection_result(

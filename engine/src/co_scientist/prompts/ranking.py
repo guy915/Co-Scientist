@@ -155,7 +155,11 @@ def _format_ranking_notes(context: PromptRunContext) -> str:
     blocks = (
         domain["domain_context"],
         domain["domain_review_guidance"],
-        _format_supervisor_guidance_for_ranking(context.supervisor_guidance),
+        _format_key_areas_guidance(
+            context.supervisor_guidance,
+            "Key Research Areas to Consider",
+            "When comparing hypotheses, prioritize those that better address these key areas.",
+        ),
         _format_meta_review_context(context.meta_review),
         _run_guidance_section(context),
     )
@@ -216,7 +220,14 @@ def get_proximity_prompt(
             )
         },
         sections=PromptSections(
-            supervisor_guidance=_format_supervisor_guidance_for_proximity(supervisor_guidance)
+            supervisor_guidance=_format_key_areas_guidance(
+                supervisor_guidance,
+                "Key Research Areas",
+                "When assessing similarity, consider whether hypotheses"
+                " explore different aspects of these key areas. Hypotheses"
+                " that address the same area with similar approaches should"
+                " be flagged as duplicates.",
+            )
         ),
         include_domain=False,
     )
@@ -235,26 +246,3 @@ def _format_key_areas_guidance(
 
     bullets = _format_bullet_section(header, key_areas)
     return f"## Supervisor Guidance\n{bullets}{trailer}\n"
-
-
-def _format_supervisor_guidance_for_ranking(
-    supervisor_guidance: dict[str, Any] | None,
-) -> str:
-    return _format_key_areas_guidance(
-        supervisor_guidance,
-        "Key Research Areas to Consider",
-        "When comparing hypotheses, prioritize those that better address these key areas.",
-    )
-
-
-def _format_supervisor_guidance_for_proximity(
-    supervisor_guidance: dict[str, Any] | None,
-) -> str:
-    return _format_key_areas_guidance(
-        supervisor_guidance,
-        "Key Research Areas",
-        "When assessing similarity, consider whether hypotheses"
-        " explore different aspects of these key areas. Hypotheses"
-        " that address the same area with similar approaches should"
-        " be flagged as duplicates.",
-    )
