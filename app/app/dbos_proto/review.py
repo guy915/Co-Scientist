@@ -28,8 +28,8 @@ from app.engine_tasks.support import (
     _metrics_snapshot,
     _successor_task_type,
 )
-from app.store import db, events, runs, tasks
 from app.store import checkpoints as store
+from app.store import db, events, runs, tasks
 from app.store import retrieval_calls as retrieval
 from app.store.checkpoints import NewCheckpoint
 from app.store.models import (
@@ -196,7 +196,11 @@ def _classify(exc: Exception, attempt: int) -> dict[str, Any]:
             return {"kind": "unknown", "error": UNKNOWN_PROVIDER_OUTCOME_ERROR}
         from co_scientist.llm import provider_outage_backoff_seconds
 
-        return {"kind": "retryable", "error": str(exc), "backoff": provider_outage_backoff_seconds(attempt)}
+        return {
+            "kind": "retryable",
+            "error": str(exc),
+            "backoff": provider_outage_backoff_seconds(attempt),
+        }
     return {"kind": "retryable", "error": str(exc)}
 
 
@@ -236,7 +240,9 @@ async def review_attempt(
 
 
 @DBOS.workflow(name="coscientist.review.item")
-async def review_item(run_id: str, checkpoint_seq: int, hypothesis_id: str, index: int) -> dict[str, Any]:
+async def review_item(
+    run_id: str, checkpoint_seq: int, hypothesis_id: str, index: int
+) -> dict[str, Any]:
     with _run_scopes(run_id) as provably_free:
         attempt = 0
         # Issuance is keyed per invocation, not per retry attempt: a parked
@@ -296,7 +302,7 @@ def _apply_review_outcomes(
     return successful, failed, merge_usage_snapshots(usage)
 
 
-class _Replayed(Exception):
+class _ReplayedError(Exception):
     def __init__(self, checkpoint_seq: int) -> None:
         self.checkpoint_seq = checkpoint_seq
 
@@ -310,7 +316,7 @@ def _commit_fence(node_task: ScientificTask, expected_seq: int, conn: sqlite3.Co
         (node_task.run_id,),
     ).fetchone()
     if latest is not None and latest["stage"] == f"engine_task:{node_task.id}":
-        raise _Replayed(int(latest["seq"]))
+        raise _ReplayedError(int(latest["seq"]))
     if latest is None or int(latest["seq"]) != expected_seq:
         raise SupersededTaskError("review checkpoint was superseded")
     row = conn.execute("SELECT status FROM runs WHERE id=?", (node_task.run_id,)).fetchone()
@@ -368,15 +374,13 @@ async def commit_review(
     state = restore_checkpoint_state(node_task, checkpoint, None)
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     successful, failed, usage = _apply_review_outcomes(by_id, outcomes, state.get("criteria"))
-    committed = apply_task_update(
-        state, _review_aggregate_update(state, successful, failed, usage)
-    )
+    committed = apply_task_update(state, _review_aggregate_update(state, successful, failed, usage))
     successor: str | None = next_task_type("review", committed)
     try:
         seq, successor_id = await asyncio.to_thread(
             _commit_review, node_task, checkpoint_seq, committed, successor
         )
-    except _Replayed as replayed:
+    except _ReplayedError as replayed:
         return {"checkpoint_seq": replayed.checkpoint_seq, "replayed": True}
     except SupersededTaskError as exc:
         return {"superseded": True, "reason": str(exc)}
@@ -445,9 +449,7 @@ def start_review_fanout(
 
     items = [
         [hypothesis.id, index]
-        for index, hypothesis in enumerate(
-            h for h in state["hypotheses"] if not has_peer_review(h)
-        )
+        for index, hypothesis in enumerate(h for h in state["hypotheses"] if not has_peer_review(h))
     ]
     workflow_id = review_workflow_id(task.run_id, checkpoint_seq)
     with SetWorkflowID(workflow_id):

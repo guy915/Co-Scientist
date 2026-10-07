@@ -147,7 +147,8 @@ def list_active_engine_task_run_ids(
         ).fetchall()
     from app import dbos_proto
 
-    return sorted({str(row["run_id"]) for row in rows} | set(dbos_proto.pending_review_run_ids(db_path)))
+    pending = dbos_proto.pending_review_run_ids(db_path)
+    return sorted({str(row["run_id"]) for row in rows} | set(pending))
 
 
 # Aggregate scalars in SQL without decoding kilobyte task payloads; literal

@@ -1,0 +1,23 @@
+{
+  "legacy_run": {
+    "review_item_task_rows": 8,
+    "dbos_review_workflow": null,
+    "committed": true,
+    "reviewed": 2,
+    "review_failed": 6
+  },
+  "new_run": {
+    "review_item_task_rows": 0,
+    "dbos_review_workflow": "SUCCESS",
+    "committed": true,
+    "reviewed": 4,
+    "review_failed": 0
+  },
+  "calls_total": 16,
+  "legacy_work_rows_mid_cutover": 7,
+  "legacy_work_rows_after_commit": 1,
+  "legacy_run_cancel_http_status": 200,
+  "legacy_work_rows_after_legacy_run_ended": 0,
+  "drain_query": "SELECT COUNT(*) FROM scientific_tasks t JOIN runs r ON r.id=t.run_id WHERE t.status IN ('queued','leased') AND r.status IN ('queued','running','synthesizing','paused') AND COALESCE(json_extract(r.config_json,'$.durable_runtime'),'') <> 'dbos'",
+  "workdir": "/tmp/dbos-c7-wz1ytmhn"
+}
