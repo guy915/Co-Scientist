@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -158,24 +158,28 @@ def _rate_limit_error(message: str, *, headers: dict[str, str] | None = None) ->
 
 _THREE_HOURS = 3 * 3600
 
+# A real clock near UTC midnight puts the per-day reset seconds away, inside
+# the ordinary wait, so the cases run at a fixed noon (2026-09-21 12:00 UTC).
+_NOON_UTC = 1789992000
+
 
 @pytest.mark.parametrize(
-    ("error", "reason"),
+    ("make_error", "reason"),
     [
         (
-            _rate_limit_error(
+            lambda now: _rate_limit_error(
                 "rate limited",
-                headers={"x-ratelimit-reset": str(int((time.time() + _THREE_HOURS) * 1000))},
+                headers={"x-ratelimit-reset": str(int((now + _THREE_HOURS) * 1000))},
             ),
             "x_ratelimit_reset_header",
         ),
         (
-            _rate_limit_error("free-models-per-day rate limit exceeded"),
+            lambda now: _rate_limit_error("free-models-per-day rate limit exceeded"),
             "message_per_day",
         ),
-        (_rate_limit_error("rate-limited upstream, provider_code=x"), None),
-        (_rate_limit_error("limited", headers={"retry-after": "20"}), None),
-        (_rate_limit_error("free-models-per-minute rate limit exceeded"), None),
+        (lambda now: _rate_limit_error("rate-limited upstream, provider_code=x"), None),
+        (lambda now: _rate_limit_error("limited", headers={"retry-after": "20"}), None),
+        (lambda now: _rate_limit_error("free-models-per-minute rate limit exceeded"), None),
     ],
     ids=[
         "reset-header",
@@ -186,16 +190,21 @@ _THREE_HOURS = 3 * 3600
     ],
 )
 def test_only_a_platform_cap_that_outlasts_a_wait_parks_the_task(
-    error: RateLimitError, reason: str | None
+    make_error: Callable[[float], RateLimitError],
+    reason: str | None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    park = platform_rate_limit_park(error)
+    from co_scientist.llm.attempts import retry
+
+    monkeypatch.setattr(retry, "time", SimpleNamespace(time=lambda: float(_NOON_UTC)))
+    park = platform_rate_limit_park(make_error(_NOON_UTC))
 
     if reason is None:
         assert park is None
         return
     assert isinstance(park, LLMRateLimitParkError)
     assert park.reason == reason
-    assert 0 < park.resume_at - time.time() <= 86400
+    assert 0 < park.resume_at - _NOON_UTC <= 86400
 
 
 _MID_STREAM = (

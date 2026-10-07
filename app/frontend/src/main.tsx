@@ -18,6 +18,23 @@ import {WorkbenchApp} from './workbench/workbench_app';
 installUiErrorLogging();
 installUiInteractionLogging();
 
+// A deploy deletes the old hashed chunks; reload once to fetch the new index.
+// The timestamp guard stops a reload loop if the chunk is genuinely missing.
+window.addEventListener('vite:preloadError', event => {
+  const key = 'coscientist:chunk-reload-at';
+  try {
+    const last = Number(sessionStorage.getItem(key));
+    if (Date.now() - last < 10_000) {
+      return;
+    }
+    sessionStorage.setItem(key, String(Date.now()));
+  } catch {
+    return;
+  }
+  event.preventDefault();
+  window.location.reload();
+});
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Missing #root element in index.html.');

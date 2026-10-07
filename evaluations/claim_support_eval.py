@@ -35,7 +35,9 @@ scores a real persisted run, which is the mode that means something.
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
+import sqlite3
 import sys
 from typing import Any
 
@@ -103,6 +105,60 @@ def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     }
 
 
+# Benchmarks set this to keep the run database for offline analysis; the
+# temporary store is otherwise deleted with its directory.
+KEEP_DB_ENV = "CLAIM_SUPPORT_KEEP_DB"
+
+
+def stage_timings(db_path: str, run_id: str) -> dict[str, Any]:
+    """Busy time sums concurrent tasks, so per-stage seconds can exceed the
+    run's wall time; compare stages with each other, not with the wall.
+    """
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        rows = conn.execute(
+            "SELECT task_type, status, attempt, started_at, completed_at, available_at"
+            " FROM scientific_tasks WHERE run_id = ?",
+            (run_id,),
+        ).fetchall()
+    stages: dict[str, dict[str, Any]] = {}
+    starts: list[float] = []
+    ends: list[float] = []
+    for task_type, status, attempt, started, completed, available in rows:
+        stage = stages.setdefault(
+            task_type,
+            {"tasks": 0, "failed": 0, "attempts": 0, "parked": 0, "busy_s": 0.0, "max_s": 0.0},
+        )
+        stage["tasks"] += 1
+        stage["failed"] += status == "failed"
+        stage["attempts"] += attempt or 0
+        stage["parked"] += available is not None
+        if started is not None:
+            starts.append(started)
+        if completed is not None:
+            ends.append(completed)
+        if started is not None and completed is not None:
+            seconds = completed - started
+            stage["busy_s"] += seconds
+            stage["max_s"] = max(stage["max_s"], seconds)
+    for stage in stages.values():
+        stage["busy_s"] = round(stage["busy_s"], 1)
+        stage["max_s"] = round(stage["max_s"], 1)
+    return {
+        "wall_s": round(max(ends) - min(starts), 1) if starts and ends else None,
+        "stages": dict(sorted(stages.items(), key=lambda item: -item[1]["busy_s"])),
+    }
+
+
+def _keep_database(db_path: str) -> None:
+    target = os.environ.get(KEEP_DB_ENV)
+    if not target:
+        return
+    pathlib.Path(target).parent.mkdir(parents=True, exist_ok=True)
+    # The backup API copies a consistent snapshot, including WAL contents.
+    with sqlite3.connect(db_path) as source, sqlite3.connect(target) as copy:
+        source.backup(copy)
+
+
 def drive_and_score(
     goal: str = _GOAL, tier: str = "express", *, live: bool = False
 ) -> dict[str, Any]:
@@ -121,6 +177,8 @@ def drive_and_score(
                 db_path=db_path,
             ),
         )
+        timings = stage_timings(db_path, arm["run_id"])
+        _keep_database(db_path)
     return {
         "run_id": arm["run_id"],
         "tier": tier,
@@ -130,6 +188,7 @@ def drive_and_score(
         "llm_calls": arm["metrics"]["llm_calls"],
         "latency_seconds": arm["metrics"]["latency_seconds"],
         "usage_evidence": arm["metrics"]["usage_evidence"],
+        "stage_timings": timings,
         **score_claims(arm["hypotheses"]),
     }
 
