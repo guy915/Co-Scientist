@@ -195,20 +195,50 @@ async def _probe_literature_stack() -> tuple[ProbeResult, ProbeResult, ProbeResu
     )
 
 
-_probe_cache: tuple[float, tuple[ProbeResult, ProbeResult, ProbeResult]] | None = None
+_ProbeTriple = tuple[ProbeResult, ProbeResult, ProbeResult]
+_probe_cache: tuple[float, _ProbeTriple] | None = None
+# One refresh at a time, bound to the loop that started it; a task must not
+# be awaited from another event loop.
+_probe_refresh: tuple[asyncio.AbstractEventLoop, asyncio.Task[_ProbeTriple]] | None = None
+# Status polls arrive less often than the TTL, so without a stale window
+# every poll would wait on live probes (p50 about 380 ms in production).
+_STALE_SERVE_SECONDS = 300.0
 
 
 def clear_probe_cache() -> None:
-    global _probe_cache
+    global _probe_cache, _probe_refresh
     _probe_cache = None
+    _probe_refresh = None
 
 
-async def probe_literature_stack_cached() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
+async def _refresh_probe_cache() -> _ProbeTriple:
     global _probe_cache
-    now = time.monotonic()
-    if _probe_cache is not None and now < _probe_cache[0]:
-        return _probe_cache[1]
     results = await _probe_literature_stack()
-    ttl = settings.status_probe_cache_ttl_seconds
-    _probe_cache = (now + ttl, results)
+    _probe_cache = (time.monotonic() + settings.status_probe_cache_ttl_seconds, results)
     return results
+
+
+def _probe_refresh_task() -> asyncio.Task[_ProbeTriple]:
+    global _probe_refresh
+    loop = asyncio.get_running_loop()
+    if _probe_refresh is not None:
+        refresh_loop, task = _probe_refresh
+        if refresh_loop is loop and not task.done():
+            return task
+    task = loop.create_task(_refresh_probe_cache())
+    _probe_refresh = (loop, task)
+    return task
+
+
+async def probe_literature_stack_cached() -> _ProbeTriple:
+    """Expired results are served while one background refresh runs, so
+    status polls never wait on probes unless the cache is empty or old.
+    """
+    cached = _probe_cache
+    now = time.monotonic()
+    if cached is not None and now < cached[0]:
+        return cached[1]
+    refresh = _probe_refresh_task()
+    if cached is not None and now < cached[0] + _STALE_SERVE_SECONDS:
+        return cached[1]
+    return await asyncio.shield(refresh)
