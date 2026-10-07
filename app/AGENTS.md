@@ -143,6 +143,7 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 | Label or status | `Chip`: `tonal` or `outlined`, tone `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs`, `sm`, `md`. |
 | Text input | `TextField` / `TextArea`: `outlined`, or `bare` inside a surface that already draws the box (composer, bubble editor). |
 | Grouping surface | `Card`: `block` (notices, `rounded-md`), `tile` (stats and summaries) or `panel` (control groups and side rails, `rounded-2xl`). Tones `neutral`, `raised`, `warning`, `danger`; `outlined` adds the hairline. `CardButton` is a card that is one action as a whole (home suggestions). |
+| Link off the app | `ExternalLink`: opens in a new tab with `rel="noopener noreferrer"`, and renders its `fallback` instead when the URL is not `http(s)` or `mailto` (model-written URLs reach it). |
 | Rail destination | `NavItemButton` / `NavItemLink`: a round icon on the collapsed rail, an icon and label row when the rail is open and in the phone drawer. |
 
 **Enforced:** `bun run lint` (and `make lint`) rejects a raw `<button>`, a hex, `rgb()` or `hsl()` colour, and an arbitrary radius (`rounded-[…]`, `border-radius:`, inline `borderRadius`) anywhere outside `src/shared/ui/`, tests and `md3_scheme.ts`. Radii come from the Tailwind scale or a named radius in `index.css` (`rounded-bubble`, `rounded-workspace`, `rounded-tile`, `rounded-5xl`); colours come from tokens.

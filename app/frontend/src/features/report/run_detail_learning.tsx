@@ -8,6 +8,7 @@ import {
   chipClasses,
   chipIconClasses,
   joinClasses,
+  ExternalLink,
 } from '@/shared/ui';
 import {splitAbstractSections, capitalizeTerm} from '@/shared/lib/text';
 import {renderInlineHtml} from '@/shared/lib/sanitize_html';
@@ -488,16 +489,13 @@ function ReferenceSourceState({item}: {item: Evidence}) {
       </Chip>
     );
   }
-  if (!item.url) return null;
   return (
-    <a
+    <ExternalLink
       className={joinClasses(
         chipClasses({variant: 'outlined', interactive: true}),
         'reference-open-pill max-[700px]:col-start-2',
       )}
       href={item.url}
-      target="_blank"
-      rel="noopener noreferrer"
     >
       <Icon
         className={chipIconClasses()}
@@ -505,6 +503,6 @@ function ReferenceSourceState({item}: {item: Evidence}) {
         name="open_in_new"
       />
       Open
-    </a>
+    </ExternalLink>
   );
 }

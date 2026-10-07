@@ -1,10 +1,5 @@
-import {Card} from '@/shared/ui';
-import type {
-  ClaimEvidenceRow,
-  Hypothesis,
-  MatchRow,
-  Review,
-} from '@/shared/api/runs';
+import {Card, ExternalLink, safeExternalHref} from '@/shared/ui';
+import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/shared/api/runs';
 import {Icon} from '@/shared/ui/icon';
 import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {useMemo, type MouseEvent, type ReactNode} from 'react';
@@ -356,17 +351,15 @@ function EvidenceSpanList({spans}: {spans: NormalizedSpan[]}) {
           className="border-l-2 border-th-outline-variant pl-2 italic"
         >
           “{span.quote}”
-          {span.url && (
+          {safeExternalHref(span.url) && (
             <>
               {' '}
-              <a
+              <ExternalLink
                 href={span.url}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="not-italic underline pointer-coarse:inline-block pointer-coarse:py-2"
               >
                 open source
-              </a>
+              </ExternalLink>
             </>
           )}
         </li>

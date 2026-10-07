@@ -8,6 +8,7 @@ export {Chip, chipClasses, chipIconClasses} from './chip';
 export type {ChipSize, ChipTone, ChipVariant} from './chip';
 export {joinClasses} from './cx';
 export {CopyButton} from './copy_button';
+export {ExternalLink, safeExternalHref} from './external_link';
 export {DIALOG_TITLE_CLASSES, Dialog} from './dialog';
 export {IconButton, iconButtonClasses} from './icon_button';
 export {MENU_ITEM_CLASSES, Menu, MenuItem, SelectTrigger} from './menu';

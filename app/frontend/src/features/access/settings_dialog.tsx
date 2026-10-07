@@ -9,6 +9,7 @@ import {
   SegmentedControl,
   Select,
   TextField,
+  ExternalLink,
 } from '@/shared/ui';
 import {
   type ByokProvider,
@@ -189,11 +190,9 @@ function ApiKeyHint({provider}: {provider: ByokProvider}) {
   const {url, article} = PROVIDER_KEY_PAGES[provider];
   return (
     <p className={HINT_CLASSES}>
-      <a
+      <ExternalLink
         className="inline-flex items-center gap-1 text-[0.82rem] font-medium text-cosci-blue no-underline focus-visible:underline [&:hover]:underline"
         href={url}
-        target="_blank"
-        rel="noreferrer"
       >
         Get {article} {PROVIDER_LABELS[provider]} API key
         <Icon
@@ -201,7 +200,7 @@ function ApiKeyHint({provider}: {provider: ByokProvider}) {
           className="text-[0.95rem]"
           name="open_in_new"
         />
-      </a>
+      </ExternalLink>
     </p>
   );
 }
