@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn
+from app.store.db import _now, _use_conn, connect
 
 
 @dataclass(frozen=True)
@@ -20,11 +20,10 @@ class NewSupervisorPlan:
 def save_supervisor_plan(
     plan: NewSupervisorPlan,
     *,
-    db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
     now = _now()
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         active.execute(
             "INSERT INTO supervisor_plan (run_id, plan_json, "
             "orchestrator_state_json, decision_provenance, "
@@ -68,13 +67,12 @@ def replace_supervisor_allocations(
     run_id: str,
     allocations: list[dict[str, Any]],
     *,
-    db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
     """Ledger sequence follows scheduling order; shared drain timestamps
     cannot recover that order.
     """
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         active.execute("DELETE FROM supervisor_allocations WHERE run_id = ?", (run_id,))
         now = _now()
         active.executemany(
@@ -99,13 +97,8 @@ def replace_supervisor_allocations(
         )
 
 
-def list_supervisor_allocations(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
-    with _use_conn(conn, db_path) as active:
+def list_supervisor_allocations(run_id: str, *, db_path: str | None = None) -> list[dict[str, Any]]:
+    with connect(db_path) as active:
         rows = active.execute(
             "SELECT * FROM supervisor_allocations WHERE run_id=? ORDER BY seq ASC",
             (run_id,),

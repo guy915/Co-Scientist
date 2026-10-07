@@ -222,9 +222,8 @@ def latest_event_seq(
 def latest_status_event(
     run_id: str,
     conn: sqlite3.Connection | None = None,
-    db_path: str | None = None,
 ) -> dict[str, Any] | None:
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         row = active.execute(
             "SELECT payload_json FROM run_events "
             "WHERE run_id=? AND type='status' ORDER BY seq DESC LIMIT 1",
@@ -261,12 +260,11 @@ def recent_events(
     run_id: str,
     limit: int,
     conn: sqlite3.Connection | None = None,
-    db_path: str | None = None,
 ) -> list[dict[str, Any]]:
     """Bound the decoded Q&A context tail rather than loading the run's
     entire event history.
     """
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         rows = active.execute(
             "SELECT seq, type, payload_json, created_at FROM run_events "
             "WHERE run_id=? ORDER BY seq DESC LIMIT ?",
@@ -283,15 +281,11 @@ def recent_events(
     ]
 
 
-def run_execution_started_at(
-    run_id: str,
-    conn: sqlite3.Connection | None = None,
-    db_path: str | None = None,
-) -> float | None:
+def run_execution_started_at(run_id: str, conn: sqlite3.Connection | None = None) -> float | None:
     """Draft creation is not compute start; elapsed execution begins with
     the first queued lifecycle event.
     """
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         row = active.execute(
             "SELECT MIN(created_at) AS started FROM run_events WHERE run_id=? AND type='lifecycle'",
             (run_id,),
