@@ -9,6 +9,7 @@ from co_scientist.core.config import (
 from co_scientist.core.run_modes import (
     resolved_run_config,
 )
+from co_scientist.domains.chat.repository import messages as store
 from co_scientist.generator.core import HypothesisGenerator
 
 import app.engine_adapter as provider
@@ -21,7 +22,6 @@ from app.engine_adapter.opts import (
     build_engine_opts,
     build_generator,
 )
-from app.store import messages as store
 from tests._store_helpers import seed_run
 
 

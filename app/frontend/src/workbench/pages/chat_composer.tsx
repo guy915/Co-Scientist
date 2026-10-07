@@ -314,7 +314,7 @@ function FileAttachmentCard({
           {attachment.name}
         </strong>
         <span className="flex min-w-0 items-center gap-[0.55rem] text-[0.9rem] leading-[1.2] text-cosci-attach-meta">
-          <span className="reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] place-items-center rounded-[0.18rem] bg-cosci-attach-badge text-[0.48rem] leading-none font-bold text-white">
+          <span className="reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] place-items-center rounded-sm bg-cosci-attach-badge text-[0.48rem] leading-none font-bold text-cosci-attach-badge-fg">
             {attachment.badge}
           </span>
           {attachment.kind}

@@ -9,6 +9,9 @@ from typing import Any
 import httpx
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.chat import seed
+from co_scientist.domains.chat.repository import messages
+from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
@@ -16,18 +19,16 @@ from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from fastapi import FastAPI
 from httpx import ASGITransport
 
-from app import seed
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.store import events as store_events
-from app.store import messages, reports
+from app.store import reports
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
-from app.store.messages import NewMessage
 from tests._client import (
     DEFAULT_TEST_CLIENT_ID,
 )
@@ -583,7 +584,7 @@ def test_unreadable_demo_snapshot_is_logged_and_never_aborts_startup(
 
     monkeypatch.setattr(seed, "_read_snapshot", _boom)
 
-    with caplog.at_level(logging.ERROR, logger="app.seed"):
+    with caplog.at_level(logging.ERROR, logger="co_scientist.domains.chat.seed"):
         _seed(isolated_db)
 
     assert "Failed to read the demo run snapshot" in caplog.text
@@ -606,7 +607,7 @@ def test_failed_demo_run_load_does_not_stop_the_other_examples(
 
     monkeypatch.setattr(seed, "_load_run", _flaky)
 
-    with caplog.at_level(logging.ERROR, logger="app.seed"):
+    with caplog.at_level(logging.ERROR, logger="co_scientist.domains.chat.seed"):
         _seed(isolated_db)
 
     assert "Failed to load demo run" in caplog.text

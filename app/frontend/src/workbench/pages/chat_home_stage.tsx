@@ -12,7 +12,7 @@ import {useChatHistoryContext} from '../hooks/history_context';
 import {GoogleLabsIcon} from '../layout_primitives';
 import {Icon, type IconName} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
-import {Button} from '@/shared/ui';
+import {Button, Chip} from '@/shared/ui';
 import {TruncatedLabel} from '../components/truncated_label';
 import {Link} from 'react-router-dom';
 import {
@@ -473,13 +473,6 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 const RECENT_CARD_CLASSES =
   'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline [box-shadow:0_1px_2px_rgb(0_0_0/15%),0_2px_10px_rgb(0_0_0/10%)] [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
 
-// Wrap whole chips rather than split duration labels inside their pills.
-const RECENT_META_CHIP_CLASSES =
-  'rounded-[0.3125rem] bg-cosci-recent-meta-bg px-2 py-1 text-[0.6875rem] font-medium tracking-[0.1px] whitespace-nowrap text-cosci-fg min-[1181px]:leading-[1.45]';
-
-const RECENT_CHIP_CLASSES =
-  'inline-flex items-center gap-1 rounded-[0.3125rem] bg-(--cosci-recent-chip-bg) px-2 py-1 text-[0.6875rem] font-medium tracking-[0.1px] text-cosci-fg min-[1181px]:min-h-[1.62rem] min-[1181px]:flex-none min-[1181px]:leading-[1.45] min-[1181px]:whitespace-nowrap';
-
 interface HomeRecentsPanelProps {
   runs: Run[];
   showAll: boolean;
@@ -557,12 +550,8 @@ function RecentCardMeta({run}: {run: Run}) {
   const nowSeconds = useNowTick(1000);
   return (
     <span className="flex flex-wrap gap-[0.35rem]">
-      <span className={RECENT_META_CHIP_CLASSES}>
-        {formatHomeRunDate(run.updated_at)}
-      </span>
-      <span className={RECENT_META_CHIP_CLASSES}>
-        {formatHomeRunTimeChip(run, nowSeconds)}
-      </span>
+      <Chip size="xs">{formatHomeRunDate(run.updated_at)}</Chip>
+      <Chip size="xs">{formatHomeRunTimeChip(run, nowSeconds)}</Chip>
     </span>
   );
 }
@@ -623,15 +612,13 @@ function RecentRunResults({run}: {run: Run}) {
   return (
     <>
       <span className="flex flex-nowrap items-center gap-[0.35rem]">
-        <span className={RECENT_CHIP_CLASSES}>
-          <Icon aria-hidden="true" className="size-4" name="emoji_events" />
+        <Chip size="xs" tone="success" icon="emoji_events">
           Winning ideas
-        </span>
+        </Chip>
         {topScore !== null && (
-          <span className={RECENT_CHIP_CLASSES}>
-            <Icon aria-hidden="true" className="size-4" name="stars" />
+          <Chip size="xs" tone="success" icon="stars">
             Top score: {topScore}
-          </span>
+          </Chip>
         )}
       </span>
       {topIdeas.length > 0 && (

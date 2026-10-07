@@ -8,6 +8,13 @@ from typing import Any, NamedTuple, Protocol
 import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
+from co_scientist.domains.chat.goal_text import (
+    clean_title,
+    generate_goal_restatement,
+    generate_run_title,
+)
+from co_scientist.domains.chat.repository import interviews
+from co_scientist.domains.chat.seed import is_current_demo_run
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
@@ -24,19 +31,13 @@ import app.free_usage as free_usage
 import app.staged_documents as staged_documents
 import app.store.receipts as run_creation_receipts
 from app.auth import client_id, require_client_scope
-from app.goal_text import (
-    clean_title,
-    generate_goal_restatement,
-    generate_run_title,
-)
 from app.runs.models import (
     CreateRunRequest,
     RenameRunRequest,
     _build_create_run_config,
 )
 from app.runs.support import _run_or_404
-from app.seed import is_current_demo_run
-from app.store import documents, events, interviews, tasks
+from app.store import documents, events, tasks
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store.runs import RunCreateOptions

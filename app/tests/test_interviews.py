@@ -3,15 +3,15 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import co_scientist.domains.chat.interviews.questions as question_repair
 import pytest
 from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT, settings
+from co_scientist.domains.chat.interviews import model as interviews_model
+from co_scientist.domains.chat.repository import interviews as store
+from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
 from fastapi.testclient import TestClient
 
-import app.interviews.questions as question_repair
-from app.interviews import model as interviews_model
 from app.main import app
-from app.store import interviews as store
-from app.store.interviews import NewInterviewTurn
 from tests._client import create_run as _create_run
 from tests._llm_fake_backend import install_completion_backend
 

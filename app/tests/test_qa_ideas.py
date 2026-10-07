@@ -4,8 +4,8 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.domains.chat import qa
 
-from app import qa
 from tests._llm_fake_backend import install_completion_backend
 
 

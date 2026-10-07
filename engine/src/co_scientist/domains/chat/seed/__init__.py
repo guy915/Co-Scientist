@@ -7,10 +7,10 @@ import sqlite3
 from importlib import resources
 from typing import Any
 
+from app.store import runs_views as views
+
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
-
-from app.store import runs_views as views
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,9 @@ _RUN_SCOPED = (
 
 
 def _read_snapshot() -> dict[str, Any]:
-    raw = resources.files("app").joinpath("data/demo_runs.json.gz").read_bytes()
+    raw = (
+        resources.files("co_scientist.domains.chat").joinpath("data/demo_runs.json.gz").read_bytes()
+    )
     snapshot: dict[str, Any] = json.loads(gzip.decompress(raw))
     return snapshot
 

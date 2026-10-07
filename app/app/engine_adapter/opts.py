@@ -13,12 +13,11 @@ from co_scientist.core.run_modes import (
     normalize_run_tier,
     setup_guidance,
 )
+from co_scientist.domains.chat.repository import interviews
+from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform.db.models import MessageRow
 from co_scientist.platform.retrieval import run_corpus
-
-from app.store import interviews
-from app.store import messages as store
 
 if TYPE_CHECKING:
     from app.credentials import ByokCredential

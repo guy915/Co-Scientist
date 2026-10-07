@@ -1,5 +1,5 @@
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
-import {Icon} from '@/components/icon';
+import {Chip} from '@/shared/ui';
 import {
   UNDERMINED_VERDICT,
   presentedHypotheses,
@@ -25,14 +25,6 @@ const IDEA_RANK_ROW_CLASSES =
   'hover:border-cosci-idea-row-hover-border ' +
   'hover:bg-cosci-idea-row-hover-bg ' +
   'motion-reduce:transition-none';
-
-const IDEA_CHIP_CLASSES =
-  'inline-grid h-7 min-w-7 place-items-center rounded-full border-0 ' +
-  'px-3 bg-cosci-idea-chip-bg text-[0.875rem] font-normal ' +
-  'whitespace-nowrap text-cosci-idea-chip-text';
-
-const IDEA_ELO_CHIP_CLASSES =
-  IDEA_CHIP_CLASSES + ' idea-elo-chip w-fit min-w-[6.35rem]';
 
 function resolveSelectedHypothesis(
   sorted: Hypothesis[],
@@ -219,22 +211,34 @@ function IdeaRankHead({
 }) {
   return (
     <span className="idea-rank-head flex min-w-0 flex-nowrap items-center gap-[0.6rem] overflow-hidden">
-      <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>{rank}</span>
-      <span className={IDEA_ELO_CHIP_CLASSES}>{ratingLabel(hypothesis)}</span>
+      <Chip
+        tone="info"
+        layoutClassName="idea-rank-number min-w-7 justify-center"
+      >
+        {rank}
+      </Chip>
+      <Chip
+        tone="info"
+        layoutClassName="idea-elo-chip min-w-[6.35rem] justify-center"
+      >
+        {ratingLabel(hypothesis)}
+      </Chip>
       {hypothesis.verification_verdict === UNDERMINED_VERDICT ? (
         // Undermined means evidence against an assumption; unverified means no verdict.
         // Distinct caution tones must not imply equal scientific standing.
-        <span className="idea-undermined-chip inline-flex h-7 w-fit items-center gap-1 whitespace-nowrap rounded-full bg-th-destructive-container px-3 text-[0.8rem] font-medium text-th-destructive-on-container">
-          <Icon aria-hidden="true" name="warning" />
+        <Chip
+          tone="danger"
+          icon="warning"
+          layoutClassName="idea-undermined-chip"
+        >
           Undermined
-        </span>
+        </Chip>
       ) : null}
       {hypothesis.unverified &&
       hypothesis.verification_verdict !== UNDERMINED_VERDICT ? (
-        <span className="idea-unverified-chip inline-flex h-7 w-fit items-center gap-1 whitespace-nowrap rounded-full bg-cosci-idea-chip-bg px-3 text-[0.8rem] font-medium text-cosci-idea-chip-text">
-          <Icon aria-hidden="true" name="warning" />
+        <Chip tone="info" icon="warning" layoutClassName="idea-unverified-chip">
           Unverified
-        </span>
+        </Chip>
       ) : null}
     </span>
   );

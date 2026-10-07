@@ -3,7 +3,13 @@ from __future__ import annotations
 import time
 from typing import Any
 
+import co_scientist.domains.chat.qa.manifest as qa_run_state
 from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.chat import qa, run_start_announcement
+from co_scientist.domains.chat.qa import snapshot
+from co_scientist.domains.chat.repository import messages as store
+from co_scientist.domains.chat.repository.examples import open_example_chat
+from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
@@ -11,19 +17,11 @@ from co_scientist.platform.db.models import MessageRow, RunRow, RunStatus
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-import app.qa.manifest as qa_run_state
-from app import (
-    credentials,
-    engine_adapter,
-    engine_tasks,
-    qa,
-    run_start_announcement,
-)
+from app import credentials, engine_adapter, engine_tasks
 from app.api_contracts import MessagesResponse
 from app.api_contracts.interviews import Interview
 from app.api_contracts.runs import RunMessage
 from app.auth import require_client_scope
-from app.qa import snapshot
 from app.runs.models import (
     AskRequest,
     QaRevisionRequest,
@@ -31,9 +29,6 @@ from app.runs.models import (
     StartAnnouncementRequest,
 )
 from app.runs.support import _require_run, _run_or_404
-from app.store import messages as store
-from app.store.examples import open_example_chat
-from app.store.messages import NewMessage
 
 router = APIRouter()
 
