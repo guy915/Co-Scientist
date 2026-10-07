@@ -122,11 +122,30 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 **Design invariants:**
 
 - Material Design 3 roles derive from seed `#1A6B6B` in `theme_context.tsx`; never hardcode `--md-sys-color-*` values. `index.css` bridges data/status roles as `--color-th-*` and shell/home roles as `--color-cosci-*`; use named utilities instead of arbitrary token references.
-- Preserve `main.tsx`'s sheet order: `index.css` → `tokens.css` → `shell_surface.css` → `home_surface.css` → `home_landing.css` → `tooltips.css`, so token definitions precede consumers.
+- Preserve `main.tsx`'s sheet order: `index.css` → `tokens.css` → `shell_surface.css` → `home_surface.css` → `home_landing.css` → `tooltips.css` → `shared/ui/motion.css`, so token definitions precede consumers.
 - Add paired light/dark tokens in `tokens.css`, never inline hardcoded `dark:[#hex]` overrides. Theme swaps must update both palettes; respect reduced-motion preferences and suppress transitions during swaps.
 - Use `rounded-md` (6px) for data blocks, `rounded-xl` (12px) for interactive containers, and `rounded-full` for pills/buttons/chips. Existing bare `rounded` utilities are 8px.
 - Cards and inputs use tonal layers rather than box shadows; reserve elevation for overlays.
 - Goal Report Markdown relies on browser-default paragraph/list spacing. Global margin resets or Tailwind preflight collapse that spacing and remove list markers; reset individual styled components instead.
+
+**UI building blocks** (`src/shared/ui/`, imported from `@/shared/ui`). New UI composes these. Shape, radius, colour, focus ring and motion live in the component; a call site passes only layout (`layoutClassName`: margins, width, grid placement, position).
+
+| Need | Use |
+|---|---|
+| Action | `Button`: `filled` for the one primary action, `outlined` for its alternatives (Cancel), `tonal` for header and toolbar pills, `text` for low-emphasis actions, `link` for inline text actions. Sizes: `sm` (header, inline editors), `md` (default), `lg` (landing). `buttonClasses()` styles a router `Link` the same way. |
+| Icon-only action | `IconButton`, always round: `ghost`, or `elevated` for a control floating over content. Sizes `xs` (24px, inside code blocks), `sm` (32px), `md` (40px). `label` is required and becomes the tooltip unless `tooltip` overrides it (`null` when a visible label already names it). |
+| Modal | `Dialog` (`md` for a form, `lg` for Settings). It portals, traps focus, makes the background inert, closes on Escape and the scrim, and restores focus. |
+| Popup list | `Menu` + `MenuItem` (`item`, `radio`, `checkbox`). Outside press and Escape dismiss it; arrow keys, Home and End move focus. |
+| One value in place | `SegmentedControl` (pressed buttons with a sliding thumb). |
+| Route sections | `TabNav` + `TabNavLink` (`underline` for report sections, `pill` for the session switch): real links with `aria-current="page"`. |
+| Hint | `tooltip` on `Button` / `IconButton`; `Tooltip` for non-interactive content. Never native `title`. |
+| Label or status | `Chip`: `tonal` or `outlined`, tone `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs`, `sm`, `md`. |
+| Text input | `TextField` / `TextArea`: `outlined`, or `bare` inside a surface that already draws the box (composer, bubble editor). |
+| Grouping surface | `Card`: `block` (data blocks and notices, `rounded-md`) or `panel` (control groups, `rounded-2xl`). Tones `neutral`, `raised`, `warning`, `danger`. |
+
+Colours come from component tokens in `styles/tokens.css` (`--button-*`, `--icon-button-*`, `--chip-*`, `--segmented-*`, `--tab-pill-*`, `--field-*`). These tokens default to the shell palette. A surface with its own palette re-points them in its own scope, as the landing page does, instead of styling call sites.
+
+**Motion:** durations and curves are tokens (`--motion-duration-short|medium|long|exit`, `--motion-ease-standard|enter|exit`; utilities `duration-short|medium|long`, `ease-standard|enter|exit`). Overlays enter through `@starting-style` and leave through `usePresence`, which keeps a closing element mounted, inert and `aria-hidden` for `EXIT_MS` while focus and the background are released at once. Never delay input, focus or content, and keep everything except progress indicators under 300 ms. Under `prefers-reduced-motion: reduce`, the tokens shorten fades and remove every scale and travel. Tests that close an overlay assert on the role (closing elements are hidden from it) or wait for removal, never sleep.
 
 **Commands** (run from `app/frontend/`):
 ```bash
