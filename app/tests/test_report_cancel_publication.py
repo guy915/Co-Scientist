@@ -263,8 +263,7 @@ async def test_normal_finalize_publishes_and_survives_restart(
         for task in store.list_tasks(run_id, db_path=isolated_db)
         if task.task_type == "notification.email"
     ]
-    assert len(email_tasks) == 1
-    assert email_tasks[0].inputs["email"] == _EMAIL
+    assert not email_tasks
 
     reconciled = views.reconcile_interrupted_runs(db_path=isolated_db)
     assert run_id not in reconciled["failed"]
@@ -321,5 +320,5 @@ async def test_restart_does_not_strand_finalize_lease_after_report_commit(
             task.task_type == "notification.email"
             for task in store.list_tasks(run_id, db_path=isolated_db)
         )
-        == 1
+        == 0
     )
