@@ -1,6 +1,9 @@
 import {useCallback, useState, type ReactNode} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
-import {isCancelledStatus, type TerminalNonCompletedStatus} from '@/api/runs';
+import {
+  isCancelledStatus,
+  type TerminalNonCompletedStatus,
+} from '@/shared/api/runs';
 import {Icon, type IconName} from '@/shared/ui/icon';
 import {Card, TabNav, TabNavLink, Toast} from '@/shared/ui';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';

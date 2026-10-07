@@ -12,10 +12,7 @@ from co_scientist.core import byok_scope
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
-    deepseek_thinking_kwargs,
     settings,
-    thinking_off_kwargs,
-    thinking_safe_max_tokens,
 )
 from co_scientist.core.sse import sse_frame as sse_frame
 from co_scientist.domains.chat.qa import artifacts as qa_artifacts
@@ -28,6 +25,11 @@ from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.orchestration.repository import runs
 from co_scientist.platform.llm.attempts.retry import is_credential_rejected
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
+from co_scientist.platform.llm.request.thinking import (
+    deepseek_thinking_kwargs,
+    thinking_off_kwargs,
+    thinking_safe_max_tokens,
+)
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
 

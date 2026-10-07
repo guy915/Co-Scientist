@@ -1,4 +1,4 @@
-import type {QaSource} from '@/api/runs';
+import type {QaSource} from '@/shared/api/runs';
 import {MarkdownMessage} from '@/shared/ui/markdown_message';
 import {Button, IconButton, TextArea} from '@/shared/ui';
 import {

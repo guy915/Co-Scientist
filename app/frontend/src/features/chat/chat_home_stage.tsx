@@ -4,7 +4,7 @@ import {
   isActiveStatus,
   isCompletedStatus,
   type ChatSummary,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {joinClasses} from '@/shared/ui/classes';
 import {useIsMobile} from '@/shared/hooks/dom';
 import {Composer, type ConnectorToggleProps} from './chat_composer';

@@ -2,8 +2,8 @@ import {
   resetRunDetailMocks,
   setConnection,
 } from './run_detail_api_test_support';
-import type {Run} from '@/api/runs';
-import * as runsApi from '@/api/runs';
+import type {Run} from '@/shared/api/runs';
+import * as runsApi from '@/shared/api/runs';
 import {
   ChatHistoryProvider,
   RunHistoryProvider,

@@ -56,7 +56,7 @@ and prerendering default to `dist/`.
 | `src/workbench/pages/` | Chat workspace (session home), run detail, shared report |
 | `src/workbench/components/tabs/` | Ideas tab (other run views render inline in `run_detail.tsx`) |
 | `src/workbench/hooks/` | Chat-session state, shared chat/run history, toast, and system status |
-| `src/api/runs.ts` | Product REST operations and streaming message helpers |
+| `src/shared/api/runs.ts` | Product REST operations and streaming message helpers |
 | `src/hooks/` | Shared app-level hooks (e.g. `use_run_stream.ts`) |
 | `src/components/` | Shared primitives (error boundary, icon) |
 | `src/index.css`, `src/styles/` | Token bridge + Tailwind layers (`index.css`); surface sheets imported in order by `main.tsx` |
@@ -75,7 +75,7 @@ and prerendering default to `dist/`.
 
 ## API Integration
 
-The frontend talks to the FastAPI backend through `src/api/runs.ts`. Run
+The frontend talks to the FastAPI backend through `src/shared/api/runs.ts`. Run
 detail data uses REST, and live progress uses fetch-based SSE from
 `/api/runs/{id}/events`, preserving authentication headers on stream requests.
 

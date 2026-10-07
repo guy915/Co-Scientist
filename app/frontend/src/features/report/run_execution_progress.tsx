@@ -1,4 +1,4 @@
-import type {Run} from '@/api/runs';
+import type {Run} from '@/shared/api/runs';
 
 function activeTaskLabel(run: Run): string {
   const activeTask = run.execution_progress?.active_task;
