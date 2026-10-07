@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-import co_scientist.orchestration.engine_adapter as provider
 import pytest
 from co_scientist.core.config import (
     PROVIDER_CREDENTIAL_ENV,
@@ -28,6 +27,7 @@ from co_scientist.orchestration.engine_adapter.opts import (
     build_generator,
 )
 from co_scientist.orchestration.generator.core import HypothesisGenerator
+from co_scientist.platform.llm import process_mode
 
 from tests._store_helpers import seed_run
 
@@ -346,7 +346,7 @@ def test_offline_mode(
     _clear_credentials(monkeypatch)
     if has_key:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    assert provider.offline_mode() is expected
+    assert process_mode.offline_mode() is expected
 
 
 # Raw Elo and publication order disagree here: the leader is undermined and
