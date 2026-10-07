@@ -130,7 +130,8 @@ async def _execute_and_record(
         logger.info("Task %s stopped after lease revocation", task.id)
         return
     except Exception as exc:  # Worker boundary isolates one task failure.
-        from co_scientist.domains.access.credentials import get_run_credential, scoped_byok
+        from co_scientist.core.byok_scope import scoped_byok
+        from co_scientist.domains.access.credentials import get_run_credential
 
         try:
             credential = get_run_credential(task.run_id, db_path=db_path)

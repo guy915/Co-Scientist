@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from co_scientist.domains.access import credentials
+from co_scientist.core import byok_scope
 from co_scientist.orchestration import engine_adapter
 
 __all__ = ["OfflineModeError", "remote_chat_allowed", "require_remote_chat"]
@@ -14,7 +14,7 @@ def remote_chat_allowed() -> bool:
     """Forced offline withholds deployment credentials; explicitly scoped
     validated BYOK credentials remain caller-authorized.
     """
-    if credentials.current_byok() is not None:
+    if byok_scope.current_byok() is not None:
         return True
     return not engine_adapter.offline_mode()
 

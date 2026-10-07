@@ -43,9 +43,9 @@ class EnvProcessMode:
         """
         # Import lazily so this leaf stays available from config without
         # credential-module cycles.
-        from co_scientist.domains.access import credentials
+        from co_scientist.core import byok_scope
 
-        return credentials.current_byok() is not None or has_provider_credential(model)
+        return byok_scope.current_byok() is not None or has_provider_credential(model)
 
 
 _current: ProcessMode = EnvProcessMode()

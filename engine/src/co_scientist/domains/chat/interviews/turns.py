@@ -12,6 +12,7 @@ import co_scientist.domains.chat.interviews.model as model
 import co_scientist.domains.chat.interviews.questions as question_repair
 import co_scientist.domains.documents.staged as staged_documents
 from co_scientist.api.auth import client_id
+from co_scientist.core import byok_scope
 from co_scientist.domains.chat.interviews.model import (
     ProseSink,
     ReasoningSink,
@@ -39,7 +40,7 @@ def owned_interview(interview_id: str, request: Request) -> dict[str, Any]:
     return _with_documents(interview)
 
 
-def request_byok(request: Request) -> credentials.ByokCredential | None:
+def request_byok(request: Request) -> byok_scope.ByokCredential | None:
     """Per-request interview credentials override run defaults and are never
     persisted.
     """

@@ -318,7 +318,7 @@ def fail_task(
     the stream cannot remain open with no recoverable work.
     """
     failure = error if isinstance(error, TaskFailure) else TaskFailure(error)
-    from co_scientist.domains.access.credentials import redact_byok_text
+    from co_scientist.core.byok_scope import redact_byok_text
 
     failure = TaskFailure(redact_byok_text(failure.error), failure.failure_kind)
     with transaction(db_path) as conn:
