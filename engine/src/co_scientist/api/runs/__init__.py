@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from co_scientist.core.async_bridge import off_loop
-from co_scientist.orchestration.repository import events as store
 from fastapi import (
     APIRouter,
     Query,
@@ -10,21 +8,23 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 
-import app.runs.crud as runs_deletion
-from app.api_contracts import RunsResponse
-from app.api_contracts.runs import Run, RunWithSummary
-from app.runs import chat as runs_chat
-from app.runs import collections as runs_collections
-from app.runs import contrib as runs_contrib
-from app.runs import crud as runs_crud
-from app.runs import lifecycle as runs_lifecycle
-from app.runs.events import _event_stream
-from app.runs.lifecycle import (
+import co_scientist.api.runs.crud as runs_deletion
+from co_scientist.api.contracts import RunsResponse
+from co_scientist.api.contracts.runs import Run, RunWithSummary
+from co_scientist.api.runs import chat as runs_chat
+from co_scientist.api.runs import collections as runs_collections
+from co_scientist.api.runs import contrib as runs_contrib
+from co_scientist.api.runs import crud as runs_crud
+from co_scientist.api.runs import lifecycle as runs_lifecycle
+from co_scientist.api.runs.events import _event_stream
+from co_scientist.api.runs.lifecycle import (
     resume_interrupted_runs as resume_interrupted_runs,
 )
-from app.runs.support import (
+from co_scientist.api.runs.support import (
     _run_or_404 as _run_or_404,
 )
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.orchestration.repository import events as store
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 

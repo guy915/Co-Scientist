@@ -4,10 +4,9 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
+from co_scientist.api import diagnostics
+from co_scientist.api.diagnostics import PROBE_DOWN, PROBE_UP, ProbeResult
 from co_scientist.core.config import settings
-
-from app import diagnostics
-from app.diagnostics import PROBE_DOWN, PROBE_UP, ProbeResult
 
 
 class _Clock:

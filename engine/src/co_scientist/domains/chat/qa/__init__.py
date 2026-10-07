@@ -6,11 +6,10 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.sse import sse_frame as sse_frame
-
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.chat.qa.manifest as qa_ideas
 import co_scientist.platform.llm.offline_guard as offline_guard
+from co_scientist.api.sse import sse_frame as sse_frame
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,

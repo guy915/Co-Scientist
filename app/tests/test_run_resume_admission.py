@@ -69,7 +69,7 @@ def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
 def _hold_resume_admission(
     monkeypatch: pytest.MonkeyPatch, *, first_only: bool = False
 ) -> tuple[Event, Event]:
-    from app.runs import lifecycle as runs_lifecycle
+    from co_scientist.api.runs import lifecycle as runs_lifecycle
 
     reached = Event()
     release = Event()
@@ -128,7 +128,7 @@ def test_startup_resume_skips_cancelled_run_after_admission_race(
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
 
-    from app.runs import lifecycle as runs_lifecycle
+    from co_scientist.api.runs import lifecycle as runs_lifecycle
 
     queue_reached, release_queue = _hold_resume_admission(monkeypatch)
     with ThreadPoolExecutor(max_workers=1) as pool:

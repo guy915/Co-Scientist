@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.api_contracts.interviews import ChatSummary, Interview
-from app.auth import client_id, require_client_scope
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 import co_scientist.domains.chat.interviews.turns as support
 import co_scientist.domains.documents.staged as staged_documents
+from co_scientist.api.auth import client_id, require_client_scope
+from co_scientist.api.contracts.interviews import ChatSummary, Interview
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.chat.interviews.model import (
     CreateInterviewRequest as CreateInterviewRequest,
@@ -159,7 +159,7 @@ def create_interview(body: CreateInterviewRequest, request: Request) -> Streamin
 
     Raises:
         HTTPException: 400 when the caller carries no identity at all (see
-            ``app.auth.require_client_scope``) -- checked first, since an
+            ``co_scientist.api.auth.require_client_scope``) -- checked first, since an
             interview created under that scope would be invisible to its
             own creator.
     """
@@ -208,7 +208,7 @@ def get_interview(interview_id: str, request: Request) -> dict[str, Any]:
 def delete_interview(interview_id: str, request: Request) -> dict[str, Any]:
     """Permanently delete an owned chat and its transcript.
 
-    Unlike a run (see ``app.runs.crud``) a chat has no worker that
+    Unlike a run (see ``co_scientist.api.runs.crud``) a chat has no worker that
     could be mid-write, so there is no active state to refuse: an
     interview is only ever advanced by a request the caller makes. A chat
     already carried into a run is still deletable, and deleting it leaves
