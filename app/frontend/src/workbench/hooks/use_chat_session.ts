@@ -10,11 +10,11 @@ import {
   useReducer,
 } from 'react';
 import {buildChatHandlers} from './chat_session_handlers';
-import type {InferredRunSpec} from '../run_spec';
+import type {InferredRunSpec} from '@/shared/lib/run_spec';
 import type {Interview, StagedDocument} from '@/api/runs';
 import type {ChatEntry} from '../pages/chat_timeline_bubble';
 import type {StartedSession} from '../pages/chat_timeline_run_spec_card';
-import type {ToastSetter} from './timers';
+import type {ToastSetter} from '@/shared/hooks/timers';
 
 export interface SessionState {
   input: string;

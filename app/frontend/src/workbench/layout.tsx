@@ -10,21 +10,21 @@ import {
 import {useLocation} from 'react-router-dom';
 import type {RunStatus} from '@/api/runs';
 import {presenceProps, usePresence} from '@/shared/ui';
-import {joinClasses} from './classes';
-import {useRunHistoryContext} from './hooks/history_context';
+import {joinClasses} from '@/shared/ui/classes';
+import {useRunHistoryContext} from '@/shared/hooks/history_context';
 import {
   SettingsDialog,
   type SettingsSection,
 } from './components/settings_dialog';
-import {NEW_CHAT_EVENT, HEADER_TITLE_EVENT} from './dom_events';
-import {closeDrawerIfMobile, useEscapeKey} from './hooks/dom';
+import {NEW_CHAT_EVENT, HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
+import {closeDrawerIfMobile, useEscapeKey} from '@/shared/hooks/dom';
 import {ShellHeader} from './layout_header';
 import {NavRail, withExamples, type ChatRailData} from './layout_nav_rail';
 import {
   sessionSwitchData,
   type SessionSwitchData,
 } from './layout_session_switch';
-import {useChatHistoryContext} from './hooks/history_context';
+import {useChatHistoryContext} from '@/shared/hooks/history_context';
 
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 

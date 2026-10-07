@@ -1,4 +1,4 @@
-import type {IconName} from '@/components/icon';
+import type {IconName} from '@/shared/ui/icon';
 import type {ShapeName} from './home_landing_hooks';
 
 // Keep tier facts synchronized with app RUN_TIER_DEFAULTS and initial Elo with
