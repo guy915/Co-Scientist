@@ -99,7 +99,7 @@ async def _build_and_gate_report(
 
 def _redacted_report(built: _BuiltReport, decision: SafetyDecision) -> _BuiltReport:
     """Redact both payload and markdown: each is independently readable through
-    reports, events and public shares.
+    reports and events.
     """
     matches = list(decision.matches)
     logger.warning(

@@ -38,14 +38,9 @@ _RELEVANCE_BATCH_SIZE = 10
 _ABSTRACT_CHAR_BUDGET = 1500
 
 
-def normalize_lexical(raw_score: float) -> float:
-    """Fusion already normalizes to [0, 1]; this clamp only removes floating-
-    point noise."""
-    return max(0.0, min(1.0, raw_score))
-
-
 def combine_hybrid_score(lexical_raw: float, semantic: float | None) -> float:
-    lexical = normalize_lexical(lexical_raw)
+    # Fusion already normalizes to [0, 1]; this clamp only removes floating-point noise.
+    lexical = max(0.0, min(1.0, lexical_raw))
     if semantic is None:
         return round(lexical, 4)
     bounded_semantic = max(0.0, min(1.0, semantic))

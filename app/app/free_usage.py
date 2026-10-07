@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException, Request
 from app import credentials, engine_adapter
 from app.auth import client_id
 from app.config import settings
-from app.execution_policy import CAMPAIGN
 from app.runs.models import CreateRunRequest
 
 FREE_TIER = "express"
@@ -28,12 +27,8 @@ class FreeUsageExhaustedError(Exception):
     """The daily free-run allowance is exhausted."""
 
 
-def applies(
-    byok: credentials.ByokCredential | None,
-    execution_policy: str,
-    llm_backend: str,
-) -> bool:
-    return byok is None and execution_policy != CAMPAIGN and llm_backend == "real"
+def applies(byok: credentials.ByokCredential | None, llm_backend: str) -> bool:
+    return byok is None and llm_backend == "real"
 
 
 def check_request(req: CreateRunRequest, tier: str) -> None:

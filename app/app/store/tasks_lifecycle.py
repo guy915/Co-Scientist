@@ -301,12 +301,10 @@ def _stop_run_after_unknown_provider_outcome(
     _settle_run_for_failed_task(conn, run_id, task_type, failure, retryable=False)
 
 
-# Persisted campaign policy or zero-cost stamp proves zero-price admission only
-# without caller credentials; those expired leases may safely use ordinary
-# rescue.
+# The zero-cost stamp proves zero-price admission only without caller
+# credentials; those expired leases may safely use ordinary rescue.
 _PROVABLY_FREE_RUN = (
-    "(runs.execution_policy='campaign' OR CASE "
-    "WHEN json_valid(runs.config_json) "
+    "(CASE WHEN json_valid(runs.config_json) "
     "THEN json_extract(runs.config_json,'$.zero_cost_admission') IS 1"
     " ELSE 0 END)"
     " AND NOT EXISTS "
@@ -460,22 +458,6 @@ def cancel_run_tasks(
             "updated_at=? WHERE run_id=? "
             "AND status IN ('queued','leased','paused')",
             (now, now, run_id),
-        ).rowcount
-    return int(changed)
-
-
-def pause_run_tasks(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
-    now = _now()
-    with _use_conn(conn, db_path) as active:
-        changed = active.execute(
-            "UPDATE scientific_tasks SET status='paused', updated_at=? "
-            "WHERE run_id=? AND status='queued'",
-            (now, run_id),
         ).rowcount
     return int(changed)
 

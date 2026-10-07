@@ -39,7 +39,6 @@ class Run(TypedDict):
     config: RunConfig
     is_demo: NotRequired[bool]
     llm_backend: NotRequired[str | None]
-    execution_policy: NotRequired[Literal["standard", "campaign"]]
     created_at: float
     updated_at: float
     completed_at: float | None
@@ -68,25 +67,6 @@ class RunWithSummary(Run):
 
     summary: RunSummary
     failure_kind: NotRequired[str | None]
-
-
-@with_config(ConfigDict(extra="allow"))
-class ReportShare(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    id: str
-    run_id: str
-    token: NotRequired[str]
-    created_at: float
-
-
-@with_config(ConfigDict(extra="allow"))
-class SharedRun(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    research_goal: str
-    title: NotRequired[str | None]
-    run_mode: NotRequired[RunMode]
 
 
 @with_config(ConfigDict(extra="allow"))

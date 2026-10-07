@@ -33,7 +33,7 @@ async def test_availability_is_probed_once_per_configuration(
     await generator.prepare_task_state("goal two")
     assert len(probes) == 2, "one concurrent probe pair, cached afterward"
 
-    generator.reload_tool_registry(tools_config=None, disable_tools=["pubmed"])
+    generator.reload_tool_registry(disable_tools=["pubmed"])
     await generator.prepare_task_state("goal three")
     assert len(probes) == 4, "a registry change must re-probe"
 

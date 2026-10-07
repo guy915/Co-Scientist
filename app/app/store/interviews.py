@@ -14,7 +14,6 @@ def create_interview(
     client_id: str,
     challenge: str,
     *,
-    execution_policy: str = "standard",
     db_path: str | None = None,
 ) -> dict[str, Any]:
     interview_id = str(uuid.uuid4())
@@ -30,13 +29,12 @@ def create_interview(
     }
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO interviews (id, client_id, execution_policy, "
+            "INSERT INTO interviews (id, client_id, "
             "status, fields_json, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?)",
             (
                 interview_id,
                 client_id,
-                execution_policy,
                 "active",
                 json.dumps(fields),
                 now,

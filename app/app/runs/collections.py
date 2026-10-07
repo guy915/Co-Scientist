@@ -1,19 +1,17 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import PlainTextResponse
 
 import app.api_contracts as contracts
 from app.api_contracts.reports import Report
-from app.logs_api import RunLogQuery, logs_payload
 from app.report import unverified_hypothesis_ids
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
-from app.store import hypotheses, reports, runs, tasks
+from app.store import hypotheses, reports, runs
 from app.store import records as store
-from app.store import retrieval_calls as retrieval
 
 router = APIRouter()
 
@@ -50,13 +48,6 @@ async def get_matches(run_id: str) -> dict[str, Any]:
     return {"matches": store.list_matches(run_id)}
 
 
-@router.get("/{run_id}/proximity", response_model=contracts.ProximityResponse)
-async def get_proximity(run_id: str) -> dict[str, Any]:
-    """Return the persisted weighted idea-proximity landscape."""
-    _require_run(run_id)
-    return {"proximity": store.list_proximity_edges(run_id)}
-
-
 @router.get("/{run_id}/reviews", response_model=contracts.ReviewsResponse)
 async def get_reviews(run_id: str) -> dict[str, Any]:
     """Return reviewer and meta-review notes for the run."""
@@ -71,28 +62,6 @@ async def get_safety(run_id: str) -> dict[str, Any]:
     return {"safety": store.list_safety_decisions(run_id)}
 
 
-def _task_payload(task: Any) -> dict[str, Any]:
-    return {
-        "id": task.id,
-        "task_type": task.task_type,
-        "status": task.status,
-        "attempt": task.attempt,
-        "max_attempts": task.max_attempts,
-        "error": task.error,
-        "attempts": list(task.attempts),
-        "created_at": task.created_at,
-        "started_at": task.started_at,
-        "completed_at": task.completed_at,
-    }
-
-
-@router.get("/{run_id}/tasks")
-async def get_tasks(run_id: str) -> dict[str, Any]:
-    """Return the run's durable tasks, including retry-attempt history."""
-    _require_run(run_id)
-    return {"tasks": [_task_payload(t) for t in tasks.list_tasks(run_id)]}
-
-
 # Literal routes precede dynamic IDs because the router uses first-match
 # ordering.
 router.post("/{run_id}/safety/{decision_id}/adjudicate")(adjudicate_safety)
@@ -103,36 +72,6 @@ async def get_citations(run_id: str) -> dict[str, Any]:
     """Return the run's citation rows with classification states."""
     _require_run(run_id)
     return {"citations": store.list_citations(run_id)}
-
-
-@router.get("/{run_id}/metrics")
-async def get_metrics(run_id: str) -> dict[str, Any]:
-    """Return the run's persisted execution metrics.
-
-    The metrics dict (LLM calls, phase timings, artifact counts) is
-    written on every durable node-commit boundary (finding L14), inside
-    the same transaction that commits the node's checkpoint -- not on a
-    timer -- so a still-running run already shows live, if partial,
-    numbers here; the finalize drain then overwrites it with the final
-    total. ``metrics`` is null only for a run that has not yet committed
-    its first node (e.g. still bootstrapping).
-    """
-    _require_run(run_id)
-    return {"metrics": retrieval.get_run_metrics(run_id)}
-
-
-@router.get("/{run_id}/logs")
-async def get_run_logs(
-    run_id: str,
-    query: Annotated[RunLogQuery, Query()],
-) -> dict[str, Any]:
-    """Return the run's persisted application log records, oldest-first.
-
-    Run-scoped view of ``GET /api/logs``: same filters and payload shape,
-    with ``run_id`` fixed to this run.
-    """
-    _require_run(run_id)
-    return logs_payload(query.for_run(run_id))
 
 
 @router.get("/{run_id}/claim-evidence", response_model=contracts.ClaimsResponse)
@@ -146,24 +85,6 @@ async def get_claim_evidence(run_id: str) -> dict[str, Any]:
     """
     _require_run(run_id)
     return {"claim_evidence": store.list_claim_evidence(run_id)}
-
-
-@router.get("/{run_id}/knowledge-facts")
-async def get_knowledge_facts(
-    run_id: str,
-    kind: str | None = None,
-    entity: str | None = None,
-) -> dict[str, Any]:
-    """Return the run's durable structured facts and contradictions (G14).
-
-    One row per settled claim-evidence edge (``supports`` -> a fact,
-    ``contradicts`` -> a contradiction), tagged with the entities its claim
-    text mentions. Populated once the run's report is finalized; empty
-    before then. Optional ``kind`` (``fact``/``contradiction``) and
-    ``entity`` query params filter the result.
-    """
-    _require_run(run_id)
-    return {"knowledge_facts": reports.list_knowledge_facts(run_id, kind=kind, entity=entity)}
 
 
 @router.get("/{run_id}/report", response_model=Report)

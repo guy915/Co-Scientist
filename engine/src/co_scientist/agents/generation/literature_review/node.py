@@ -6,9 +6,6 @@ from co_scientist.agents.generation.literature_review.orchestration import (
     _analyze_and_synthesize as _analyze_and_synthesize,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
-    _cache_result as _cache_result,
-)
-from co_scientist.agents.generation.literature_review.orchestration import (
     _collect_and_enrich_papers as _collect_and_enrich_papers,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
@@ -27,9 +24,6 @@ from co_scientist.agents.generation.literature_review.orchestration import (
     _log_sample_papers as _log_sample_papers,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
-    _ReviewCachePlan as _ReviewCachePlan,
-)
-from co_scientist.agents.generation.literature_review.orchestration import (
     _ReviewSynthesis as _ReviewSynthesis,
 )
 from co_scientist.agents.generation.literature_review.queries import (
@@ -40,7 +34,6 @@ from co_scientist.agents.generation.literature_review.research_phase import (
     ResearchOutcome,
     run_research_phase,
 )
-from co_scientist.cache import get_node_cache
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.evidence.article_support import (
     make_failure_result,
@@ -66,100 +59,15 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-_LITERATURE_CACHE_SCHEMA_VERSION = 3
 
-
-def _literature_cache_params(state: WorkflowState, config: SearchConfig) -> dict[str, Any]:
-    """Key every result-affecting input, including source semantics, research
-    budget and critique; store only the config digest."""
-    registry = config.tool_registry
-    tool_contract: dict[str, Any]
-    if registry is None:
-        tool_contract = {
-            "legacy_search_tool": config.search_tool_name,
-            "source_name": config.source_name,
-        }
-    else:
-        tool_contract = dataclasses.asdict(registry.config)
-    return {
-        "cache_schema_version": _LITERATURE_CACHE_SCHEMA_VERSION,
-        "research_goal": state["research_goal"],
-        "model_name": state.get("model_name"),
-        "papers_to_read_count": config.papers_to_read_count,
-        "research_tier": state.get("research_tier"),
-        "tool_contract": tool_contract,
-        "run_setup_guidance": state.get("run_setup_guidance"),
-        "run_focus_guidance": state.get("run_focus_guidance"),
-        "preferences": state.get("preferences"),
-        "meta_review": state.get("meta_review"),
-    }
-
-
-def _initialize_review(
-    state: WorkflowState,
-) -> tuple[SearchConfig, _ReviewCachePlan]:
+def _initialize_review(state: WorkflowState) -> SearchConfig:
     config = search_config_for(state)
     logger.info(
         "Literature review config: dev_mode=%s, papers=%s",
         config.is_dev_mode,
         config.papers_to_read_count,
     )
-
-    node_cache = get_node_cache()
-    cache_params = _literature_cache_params(state, config)
-    # Dev tool isolation forces cache reuse so downstream iteration need not
-    # repeat expensive review.
-
-    force_cache = bool(state.get("dev_test_lit_tools_isolation", False))
-    if force_cache:
-        logger.info("Dev isolation mode: forcing literature review cache")
-
-    return config, _ReviewCachePlan(node_cache, cache_params, force_cache)
-
-
-async def _check_cache(
-    state: WorkflowState,
-    cache_plan: _ReviewCachePlan,
-) -> dict[str, Any] | None:
-    """Source/configuration changes must not replay a stale review even if
-    goal and model are unchanged."""
-    cached = cache_plan.node_cache.get(
-        "literature_review",
-        force=cache_plan.force_cache,
-        **cache_plan.cache_params,
-    )
-    if cached is None:
-        return None
-    if _has_orphaned_research_articles(cached):
-        logger.warning(
-            "Literature review cache entry has researched articles but no "
-            "research ledger; refreshing it"
-        )
-        return None
-
-    logger.info("Literature review cache hit")
-    await emit_progress(
-        state,
-        "literature_review_complete",
-        "Literature review completed (cached)",
-        0.2,
-        cached=True,
-    )
-    return cached
-
-
-def _has_orphaned_research_articles(result: dict[str, Any]) -> bool:
-    if result.get("research_ledgers"):
-        return False
-    articles = result.get("articles")
-    if not isinstance(articles, list):
-        return False
-    return any(
-        article.get("retrieval_call_id")
-        if isinstance(article, dict)
-        else getattr(article, "retrieval_call_id", None)
-        for article in articles
-    )
+    return config
 
 
 async def _check_server_available(
@@ -199,12 +107,8 @@ def _with_llm_call_metrics(result: dict[str, Any], llm_calls: int) -> dict[str, 
 
 async def _prepare_review(
     state: WorkflowState,
-) -> tuple[SearchConfig, _ReviewCachePlan, MCPToolClient] | dict[str, Any]:
-    config, cache_plan = _initialize_review(state)
-
-    cached = await _check_cache(state, cache_plan)
-    if cached is not None:
-        return cached
+) -> tuple[SearchConfig, MCPToolClient] | dict[str, Any]:
+    config = _initialize_review(state)
 
     unavailable_result = await _check_server_available(state, config)
     if unavailable_result is not None:
@@ -213,7 +117,7 @@ async def _prepare_review(
     await emit_progress(state, "literature_review_start", "Conducting literature review...", 0.1)
 
     mcp_client = await get_mcp_client(tool_registry=config.tool_registry)
-    return config, cache_plan, mcp_client
+    return config, mcp_client
 
 
 @dataclasses.dataclass(frozen=True)
@@ -221,7 +125,6 @@ class _ReviewOutput:
     config: SearchConfig
     collected: _CollectionResult
     query_result: QueryPhaseResult
-    cache_plan: _ReviewCachePlan
     reviewed: _ReviewSynthesis
     research: ResearchOutcome | None
 
@@ -258,7 +161,6 @@ async def _finalize_review(state: WorkflowState, output: _ReviewOutput) -> dict[
         result["context_enrichment_sources"] = collected.context_enrichment_sources
     if output.research is not None:
         result["research_ledgers"] = [output.research.ledger]
-    result = _cache_result(result, output.cache_plan)
     return _with_llm_call_metrics(result, output.query_result.llm_calls + output.reviewed.llm_calls)
 
 
@@ -286,7 +188,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     prepared = await _prepare_review(state)
     if isinstance(prepared, dict):
         return prepared
-    config, cache_plan, mcp_client = prepared
+    config, mcp_client = prepared
 
     phase_result = await _run_search_phases(state, config, mcp_client)
     if isinstance(phase_result, dict):
@@ -304,7 +206,6 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
             config=config,
             collected=collected,
             query_result=query_result,
-            cache_plan=cache_plan,
             reviewed=reviewed,
             research=research,
         ),

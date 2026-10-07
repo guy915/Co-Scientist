@@ -26,7 +26,6 @@ from co_scientist.llm import (
     LLMCallOptions,
     ToolLoop,
     call_llm_with_tools,
-    campaign_free_mode,
     parse_tool_loop_json,
 )
 from co_scientist.prompts import (
@@ -266,7 +265,7 @@ class DraftSkills:
 def attach_skills(state: WorkflowState, provider: Any, tools: list[Any]) -> DraftSkills:
     """Workspace/skill setup failure must retain MCP drafting rather than
     lose the cycle's hypotheses."""
-    if campaign_free_mode() or not skills_section():
+    if not skills_section():
         return DraftSkills(provider, tools)
     run_id = state.get("run_id")
     if not run_id:
@@ -344,7 +343,6 @@ async def _call_draft_llm_with_tools(
     call: _DraftCall,
     draft_max_tokens: int,
 ) -> tuple[str, int]:
-    # Diversity-critical drafting must remain fresh rather than cache-frozen.
     final_response, messages = await call_llm_with_tools(
         prompt=call.prompt,
         spec=CompletionSpec(
@@ -359,7 +357,6 @@ async def _call_draft_llm_with_tools(
             max_prompt_tokens=call.max_prompt_tokens,
         ),
         options=LLMCallOptions(
-            use_cache=False,
             run_id=state.get("run_id"),
             prompt_name="generate_draft_with_tools",
         ),

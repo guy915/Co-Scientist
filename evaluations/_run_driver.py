@@ -16,13 +16,9 @@ if str(_ROOT / "app") not in sys.path:
 _SUPPORTED_CLAIM_LABELS = ("supports", "partial")
 
 
-def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
-    """Configure before settings imports; disable caches so later arms cannot
-    reuse earlier model calls.
-    """
+def configure_environment(db_path: str, *, live: bool) -> None:
+    """Configure before settings imports."""
     os.environ["COSCIENTIST_DB_PATH"] = db_path
-    os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
-    os.environ["COSCIENTIST_CACHE_ENABLED"] = "0"
     if not live:
         os.environ["COSCIENTIST_FORCE_OFFLINE"] = "1"
         # Clear credentials as well as forcing offline so nonconsulting call
@@ -34,7 +30,6 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
         os.environ["FORCE_LITERATURE_REVIEW"] = "0"
         return
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
-    os.environ.pop("COSCIENTIST_FORCE_MOCK", None)
     from evaluations._live_config import configure_live_environment
 
     configure_live_environment()
@@ -198,10 +193,7 @@ def run_arm(
 
     db_path = invocation.db_path
     run_id = persist_arm_run(goal, tier, overrides, invocation)
-    from co_scientist.cache import scoped_cache_override
-
-    with scoped_cache_override(False):
-        events, elapsed = drive_arm_run(run_id, db_path)
+    events, elapsed = drive_arm_run(run_id, db_path)
     run = store_runs.get_run(run_id, db_path=db_path)
     completed, real_backend = run_completion_status(run)
     hyps = store.list_hypotheses(run_id, db_path=db_path)

@@ -58,6 +58,4 @@ logs/
 *.bak
 *.orig
 cache/
-# The cache package is source, not disposable runtime cache.
-!/src/co_scientist/cache/
 paper_cache/

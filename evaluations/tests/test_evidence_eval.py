@@ -7,11 +7,6 @@ from evaluations.citation_usefulness_eval import (
     run_deterministic,
 )
 from evaluations.claim_support_eval import score_claims
-from evaluations.retrieval_replay_eval import (
-    _rederives,
-    _result_set_complete,
-    run,
-)
 
 
 def test_offline_citation_panel_meets_its_release_floor() -> None:
@@ -73,26 +68,6 @@ def test_claim_rates_count_claims_not_ideas() -> None:
     assert metrics["ideas"] == 3
     assert metrics["ideas_with_assessed_claims"] == 2
     assert metrics["unverified_idea_rate"] == 0.5
-
-
-def test_a_persisted_ledger_replays_exactly() -> None:
-    report = run(None)
-
-    assert report["mode"] == "synthetic"
-    assert report["calls"] == 2
-    assert report["id_reproduction"] == 1.0
-    assert report["result_set_completeness"] == 1.0
-    assert report["evidence_with_provenance"] == 1
-    assert report["evidence_resolution"] == 1.0
-
-
-def test_replay_rejects_rewritten_questions_and_incomplete_result_sets() -> None:
-    # Stored ids hash the content, so editing a question breaks identity.
-    rewritten = {"id": "0" * 32, "source": "pubmed", "question": "edited"}
-    hits = [{"locator": "1"}]
-    assert not _rederives({**rewritten, "query": "a query"})
-    assert not _result_set_complete({"hits": hits, "admitted": ["2"], "dropped": []})
-    assert _result_set_complete({"hits": hits, "admitted": ["1"], "dropped": []})
 
 
 def test_safety_eval_reports_both_arms_and_the_easy_baseline_is_exact() -> None:

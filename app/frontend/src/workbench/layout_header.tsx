@@ -3,16 +3,11 @@ import {Link} from 'react-router-dom';
 import type {RunStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {isModifiedClick} from '@/workbench/dom_events';
-import {
-  GoogleLabsIcon,
-  NAV_ICON_CLASSES,
-  ShellPopover,
-} from './layout_primitives';
+import {GoogleLabsIcon, NAV_ICON_CLASSES} from './layout_primitives';
 import {TruncatedLabel} from './components/truncated_label';
 import {CancelRunControl} from './layout_cancel_run';
 import {DiagnosticsControl} from './layout_diagnostics';
 import {FeedbackControl} from './components/feedback_dialog';
-import type {ShellPanel} from './layout';
 import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
 import {tooltipClassNames} from './classes';
 import type {SystemStatus} from '@/api/system';
@@ -75,8 +70,6 @@ export function ShellHeader({
   toggleNav,
   startNewChat,
   headerTitle,
-  activePanel,
-  onTogglePanel,
   logsControlRef,
   session,
   runStatus,
@@ -85,8 +78,6 @@ export function ShellHeader({
   toggleNav: () => void;
   startNewChat: () => void;
   headerTitle: string;
-  activePanel: ShellPanel | null;
-  onTogglePanel: (panel: ShellPanel) => void;
   logsControlRef: RefObject<HTMLDivElement | null>;
   session: SessionSwitchData | null;
   runStatus: RunStatus | undefined;
@@ -104,25 +95,13 @@ export function ShellHeader({
           />
         )}
       </div>
-      {/* Navigation dismisses popovers itself, so the session switch may share the Logs anchor. */}
+      {/* Navigation dismisses popovers itself, so the session switch may share this anchor. */}
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
         <CancelRunControl runId={session?.runId} status={runStatus} />
         <SessionSwitch session={session} />
         <SystemStatusIndicator />
         <FeedbackControl runId={session?.runId} />
-        <DiagnosticsControl
-          open={activePanel === 'logs'}
-          onToggle={() => onTogglePanel('logs')}
-          renderPopover={(children, className, ariaLabel) => (
-            <ShellPopover
-              className={className}
-              role="group"
-              ariaLabel={ariaLabel}
-            >
-              {children}
-            </ShellPopover>
-          )}
-        />
+        <DiagnosticsControl />
       </div>
     </header>
   );

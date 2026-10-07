@@ -1,5 +1,5 @@
 import os
-from typing import Any, Literal
+from typing import Any
 
 from co_scientist.constants import (
     THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
@@ -9,7 +9,7 @@ from co_scientist.llm import effective_max_tokens as _effective_max_tokens
 from co_scientist.llm import model_profile as _model_profile
 from co_scientist.llm import model_reasons as _model_reasons
 from co_scientist.llm import reasoning_effort_args as _effort_args
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONVERSATIONAL_REASONING_EFFORT = "medium"
@@ -69,33 +69,25 @@ class Settings(BaseSettings):
     chat_model_name: str | None = DEFAULT_MODEL
     # LiteLLM and the engine consume provider environment variables, not this
     # Settings object.
-    gemini_api_key: str = ""
 
     # The module entrypoint uses this port; Makefile, Docker and browser
     # harnesses pass their own explicit ports.
     host: str = "0.0.0.0"  # bind address; 0.0.0.0 for container/dev use
     port: int = 8008
-    coscientist_debug: bool = False
 
     # The engine MCP client reads MCP_SERVER_URL from the environment rather
     # than Settings.
     mcp_server_url: str = "http://localhost:8888/mcp"
 
-    coscientist_cache_enabled: bool = True  # bridged to env for the engine
-    coscientist_cache_dir: str = "./cache"
-
     # K-factor stays deployment-tunable while the engine owns tournament math
     # and initial ratings.
     elo_k_factor: int = 24
 
-    safety_mode: str = "standard"
     # Deterministic safety hard blocks run first and cannot be overridden by
     # semantic assessment.
     semantic_safety_enabled: bool = True
     # Safety stays on the worker tier rather than the strategic supervisor tier.
     semantic_safety_model: str | None = DEFAULT_MODEL
-
-    log_format: str = "text"
 
     log_capture_enabled: bool = True
     log_capture_level: str = "INFO"
@@ -114,10 +106,6 @@ class Settings(BaseSettings):
     # leave writer headroom for ordinary API requests.
     worker_pool_size: int = 8
 
-    # Disable embedded cohorts when a separate durable worker service consumes
-    # the same queue.
-    coscientist_embedded_worker: bool = True
-
     status_probe_timeout_seconds: float = 3.0
     status_probe_cache_ttl_seconds: float = 30.0
 
@@ -128,40 +116,19 @@ class Settings(BaseSettings):
     # no space.
     health_check_min_free_disk_bytes: int = 100 * 1024 * 1024
 
-    # Cache exposition briefly so scrape storms do not multiply store query
-    # passes.
-    metrics_cache_ttl_seconds: float = 5.0
-
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from_email: str = ""
     public_app_url: str = "http://localhost:5173"
-    # The diagnostic-report recipient is fixed server-side, never chosen by the
-    # requester.
-    log_report_email: str = "guybarel2006@gmail.com"
 
-    auth_mode: Literal["compatibility", "required"] = "compatibility"
-    auth_secret: str = ""
-    researcher_access_codes: str = "{}"
-    # Only verified bearer subjects qualify for campaign funding, never
-    # compatibility IDs.
-    campaign_researcher_ids: set[str] = Field(default_factory=set)
-    auth_session_hours: int = Field(default=12, gt=0)
-    auth_exchange_per_minute: int = Field(default=20, gt=0)
-
-    # Encryption and session-signing secrets are separate purposes; rotating one
-    # must not silently rotate the other.
     byok_encryption_key: str = ""
     # Removing the daily cap does not remove the free express-only envelope.
     free_runs_per_day: int = 3
 
-    tools_config: str | None = None
-
     # Hermetic tests select deterministic entailment; production defaults to
     # semantic assessment.
-    claim_assessor: str = "llm"
     claim_verifier_model: str | None = None
 
     # Hermetic tests select metadata resolution; production defaults to live
@@ -175,20 +142,6 @@ class Settings(BaseSettings):
         extra="ignore",
         hide_input_in_errors=True,
     )
-
-    @field_validator("campaign_researcher_ids")
-    @classmethod
-    def _validate_campaign_researcher_ids(cls, value: set[str]) -> set[str]:
-        cleaned = {subject.strip() for subject in value}
-        if "" in cleaned:
-            raise ValueError("campaign researcher ids must be non-empty")
-        return cleaned
-
-    @model_validator(mode="after")
-    def _validate_auth_configuration(self) -> "Settings":
-        if self.auth_mode == "required" and not self.auth_secret.strip():
-            raise ValueError("AUTH_SECRET is required for AUTH_MODE=required")
-        return self
 
     @property
     def effective_chat_model(self) -> str:

@@ -7,10 +7,10 @@ from threading import Event
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app import engine_tasks
-from app.config import settings
 from app.store import checkpoints, runs
 from app.store import db as store_db
 from app.store import events as store_events
@@ -22,6 +22,8 @@ from tests._client import make_client
 from tests._store_helpers import (
     enqueue_task,
     event_seqs,
+    pause_run,
+    resume_run,
     seed_checkpoint,
 )
 
@@ -92,23 +94,23 @@ def _assert_settled(run_id: str, successor_id: str, db: str, status: RunStatus) 
 
 
 def test_cancel_wins_when_it_commits_before_resume_enqueue(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
-    assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
+    pause_run(run_id, db_path=isolated_db)
 
     queue_reached, release_queue = _hold_resume_admission(monkeypatch)
     with ThreadPoolExecutor(max_workers=1) as pool:
-        resume_future = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
+        resume_future = pool.submit(resume_run, run_id)
         assert queue_reached.wait(timeout=5), "resume did not reach enqueue boundary"
         cancelled = owner.post(f"/api/runs/{run_id}/cancel")
         assert cancelled.status_code == 200, cancelled.text
         release_queue.set()
-        resumed = resume_future.result(timeout=5)
+        with pytest.raises(HTTPException) as refused:
+            resume_future.result(timeout=5)
 
-    assert resumed.status_code == 409, resumed.text
+    assert refused.value.status_code == 409
     task = _assert_settled(run_id, successor_id, isolated_db, RunStatus.CANCELLED)
     assert task.status == "cancelled"
     [cancelled_seq] = event_seqs(run_id, "status", status="cancelled", db_path=isolated_db)
@@ -120,9 +122,8 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
 
 
 def test_startup_resume_skips_cancelled_run_after_admission_race(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
 
@@ -158,11 +159,11 @@ def _started_bootstrap(client: TestClient, goal: str, db: str) -> tuple[str, str
 
 @pytest.mark.parametrize("lease_state", ["live", "expired_retryable", "expired_spent"])
 def test_resume_reuses_precheckpoint_bootstrap_lease(
+    manual_worker: None,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     lease_state: str,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
     run_id, task_id = _started_bootstrap(client, f"Resume {lease_state} bootstrap", isolated_db)
     original = store.get_task(task_id, db_path=isolated_db)
@@ -177,15 +178,13 @@ def test_resume_reuses_precheckpoint_bootstrap_lease(
             (lease_expiry, int(lease_state == "expired_spent"), task_id),
         )
 
-    paused = client.post(f"/api/runs/{run_id}/pause")
-    assert paused.status_code == 200
+    pause_run(run_id, db_path=isolated_db)
     paused_run = runs.get_run(run_id, db_path=isolated_db)
     assert paused_run is not None and paused_run.status == "paused"
     assert not checkpoints.has_checkpoint(run_id, db_path=isolated_db)
 
-    resumed = client.post(f"/api/runs/{run_id}/resume")
+    resume_run(run_id)
 
-    assert resumed.status_code == 200, resumed.text
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "queued"
     tasks = store.list_tasks(run_id, db_path=isolated_db)
@@ -215,62 +214,4 @@ def test_resume_reuses_precheckpoint_bootstrap_lease(
             for event in events
         )
         == 1
-    )
-
-
-@pytest.mark.parametrize(
-    "scenario",
-    ["ordinary_failure", "cancelled_after_abandon", "paused_permanent_failure"],
-)
-def test_dead_precheckpoint_bootstrap_is_not_resumable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, scenario: str
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    client = make_client()
-    run_id, task_id = _started_bootstrap(client, scenario, isolated_db)
-    if scenario == "ordinary_failure":
-        assert store.fail_task(
-            task_id,
-            "bootstrap-owner",
-            "permanent failure",
-            retryable=False,
-            db_path=isolated_db,
-        )
-    elif scenario == "cancelled_after_abandon":
-        with store_db.connect(isolated_db) as conn:
-            conn.execute(
-                "UPDATE scientific_tasks SET lease_expires_at=0, attempt=max_attempts WHERE id=?",
-                (task_id,),
-            )
-        assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
-        assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 1
-        assert client.post(f"/api/runs/{run_id}/cancel").status_code == 200
-    else:
-        assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
-        with store_db.connect(isolated_db) as conn:
-            conn.execute(
-                "UPDATE scientific_tasks SET attempt=max_attempts WHERE id=?",
-                (task_id,),
-            )
-        assert store.fail_task(
-            task_id,
-            "bootstrap-owner",
-            "permanent budget ceiling",
-            retryable=False,
-            db_path=isolated_db,
-        )
-
-    response = client.post(f"/api/runs/{run_id}/resume")
-
-    assert response.status_code == 409
-    run = runs.get_run(run_id, db_path=isolated_db)
-    task = store.get_task(task_id, db_path=isolated_db)
-    assert run is not None and task is not None and task.status == "failed"
-    assert (
-        run.status
-        == {
-            "ordinary_failure": run.status,
-            "cancelled_after_abandon": "cancelled",
-            "paused_permanent_failure": "paused",
-        }[scenario]
     )

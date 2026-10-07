@@ -12,19 +12,14 @@ services:
       - MCP_SERVER_URL=http://mcp:8888/mcp
       # Optional MCP authentication requires identical secrets on both services.
       - COSCIENTIST_MCP_SHARED_SECRET=${COSCIENTIST_MCP_SHARED_SECRET:-}
-      - COSCIENTIST_CACHE_DIR=/app/cache
       # Container recreation discards writable layers; bind-mount SQLite to preserve durable
       # runs.
       - COSCIENTIST_DB_PATH=/app/data/coscientist.db
       # Clone refs resolve again on recreation; pin a SHA for reproducibility.
       - COSCIENTIST_ENGINE_REPO=
       - COSCIENTIST_ENGINE_REF=main
-      # Compose interpolation uses the root .env; unset or empty TOOLS_CONFIG selects this
-      # fallback.
-      - TOOLS_CONFIG=${TOOLS_CONFIG:-/workspace/co-scientist-engine/src/co_scientist/config/examples/indra_cancer.yaml}
     volumes:
       - ./data:/app/data
-      - ./cache:/app/cache
       - ./app:/app/app
       - ${COSCIENTIST_ENGINE_PATH:-../engine}:/workspace/co-scientist-engine
     depends_on:

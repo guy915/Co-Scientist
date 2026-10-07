@@ -177,8 +177,7 @@ async def _run_tournament(
 
 
 async def ranking_node(state: WorkflowState) -> dict[str, Any]:
-    """Stable goal/iteration seeds preserve deterministic pairings and cache
-    reuse."""
+    """Stable goal/iteration seeds preserve deterministic pairings."""
     hypotheses = state["hypotheses"]
     eligible = _filter_eligible_hypotheses(hypotheses)
 

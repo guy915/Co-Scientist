@@ -71,10 +71,6 @@ def _publication_type(metadata: dict[str, Any]) -> str | None:
     return "; ".join(str(item) for item in types) or None
 
 
-def _correction_status(metadata: dict[str, Any], is_retracted: bool) -> str:
-    return str(metadata.get("correction_status") or ("retracted" if is_retracted else "current"))
-
-
 def build_article_from_metadata(
     paper_id: str,
     metadata: dict[str, Any],
@@ -98,7 +94,9 @@ def build_article_from_metadata(
         source=source_name,
         doi=metadata.get("doi"),
         is_retracted=is_retracted,
-        correction_status=_correction_status(metadata, is_retracted),
+        correction_status=str(
+            metadata.get("correction_status") or ("retracted" if is_retracted else "current")
+        ),
         publication_type=_publication_type(metadata),
         pdf_links=[],
         used_in_analysis=used_in_analysis,
@@ -177,7 +175,8 @@ def build_articles_from_metadata(
                 paper_id,
                 metadata,
                 paper_source,
-                used_in_analysis=_has_analyzable_content(metadata),
+                # An abstract supports shallower analysis; it does not imply fulltext retrieval.
+                used_in_analysis=bool(metadata.get("fulltext") or metadata.get("abstract")),
             )
         )
     return articles
@@ -206,18 +205,14 @@ def count_papers_with_fulltext(
     return with_fulltext, without_fulltext
 
 
-def _has_analyzable_content(metadata: dict[str, Any]) -> bool:
-    """A source abstract supports shallower analysis; it does not imply
-    fulltext retrieval."""
-    return bool(metadata.get("fulltext") or metadata.get("abstract"))
-
-
 def get_papers_with_content(
     all_paper_metadata: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
     papers_with_content = {}
     for pid, metadata in all_paper_metadata.items():
-        if not isinstance(metadata, dict) or not _has_analyzable_content(metadata):
+        if not isinstance(metadata, dict) or not (
+            metadata.get("fulltext") or metadata.get("abstract")
+        ):
             continue
         papers_with_content[pid] = metadata
         if not metadata.get("fulltext"):

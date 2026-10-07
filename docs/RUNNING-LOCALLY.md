@@ -35,7 +35,7 @@ It stops existing listeners on those ports; reserve them for this checkout.
 | Service | Address | Notes |
 | --- | --- | --- |
 | Workbench | http://localhost:5173 | Vite proxies API requests to port 8008 |
-| API | http://localhost:8008 | Local operator docs at `/docs` |
+| API | http://localhost:8008 | Health at `/health` |
 | MCP | http://localhost:8888 | Literature/database tools; Python 3.12 required |
 
 Use `make stop` to stop the development services. Run individual services
@@ -80,8 +80,8 @@ make docker-build  # production image builds; no deployment
 `make test-all` includes backend and frontend unit tests and the evaluation harness tests.
 `make e2e` runs Playwright with a fresh temporary SQLite store, offline model
 responses, API port 8108, and UI port 5273. `make e2e-production` builds the
-frontend and serves its bundled assets with required researcher authentication.
-It checks login, report retrieval after a reload, and ownership isolation.
+frontend and serves its bundled assets.
+It checks deep links, report retrieval after a reload, and ownership isolation.
 Both targets typecheck the browser harness, disable local dotenv loading,
 and explicitly select offline evidence/claim checks. Chromium is normally
 installed

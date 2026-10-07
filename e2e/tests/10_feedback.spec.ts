@@ -1,5 +1,4 @@
-import {captureViewport, CLIENT_ID, expect, test} from '../support/fixtures';
-import {API_URL, E2E_LOGS_ADMIN_TOKEN} from '../support/paths';
+import {captureViewport, expect, test} from '../support/fixtures';
 
 for (const theme of ['light', 'dark']) {
   for (const width of [1440, 768]) {
@@ -78,6 +77,11 @@ for (const theme of ['light', 'dark']) {
         height: 812,
         name: `feedback-${theme}-${width}.png`,
       });
+      const submittedRequest = page.waitForRequest(
+        request =>
+          request.url().endsWith('/api/feedback') &&
+          request.method() === 'POST',
+      );
       const submitted = page.waitForResponse(
         response =>
           response.url().endsWith('/api/feedback') &&
@@ -86,23 +90,14 @@ for (const theme of ['light', 'dark']) {
       await dialog.getByRole('button', {name: 'Submit', exact: true}).click();
       expect((await submitted).status()).toBe(201);
       await expect(dialog).toHaveCount(0);
-      expect(
-        (await page.request.get(`${API_URL}/api/feedback/admin`)).status(),
-      ).toBe(403);
-      const admin = await page.request.get(`${API_URL}/api/feedback/admin`, {
-        headers: {'X-Logs-Token': E2E_LOGS_ADMIN_TOKEN},
-      });
-      expect(admin.status()).toBe(200);
-      const rows = (await admin.json()).feedback as {
+      const row = (await submittedRequest).postDataJSON() as {
         message: string;
         category: string;
-        client_id: string;
         url: string;
         run_id: string;
         diagnostics: string;
-      }[];
-      const row = rows.find(record => record.message === message)!;
-      expect(row.client_id).toBe(CLIENT_ID);
+      };
+      expect(row.message).toBe(message);
       expect(row.category).toBe('Results quality');
       expect(row.run_id).toBe(runId);
       expect(row.url).toBe(page.url());
@@ -115,12 +110,9 @@ for (const theme of ['light', 'dark']) {
         expect(row.diagnostics).toContain(marker);
       expect(row.diagnostics).toContain('modal_open: Feedback');
       await logs.click();
-      await expect(
-        page.getByRole('button', {name: 'Copy', exact: true}),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', {name: 'Clear', exact: true}),
-      ).toBeVisible();
+      await expect(logs.locator('[data-logged]')).toHaveCount(1);
+      await expect(logs).toHaveText(/Copied/);
+      await expect(page.getByRole('group', {name: /logs/i})).toHaveCount(0);
     });
   }
 }

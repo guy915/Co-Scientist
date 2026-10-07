@@ -35,8 +35,6 @@ class EnvProcessMode:
         """
         if os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1":
             return True
-        if os.getenv("COSCIENTIST_FORCE_MOCK") == "1":
-            return True  # deprecated alias, retained for backward compatibility
         return not any_provider_credential()
 
     def credential_available(self, model: str) -> bool:

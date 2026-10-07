@@ -92,23 +92,6 @@ class MatchRow(TypedDict):
 
 
 @with_config(ConfigDict(extra="allow"))
-class ProximityEdge(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    id: int
-    run_id: str
-    source_hypothesis_id: str
-    target_hypothesis_id: str
-    similarity: float
-    degree: str | None
-    cluster_id: str | None
-    method: str | None
-    version: str | None
-    model: str | None
-    updated_at: float | None
-
-
-@with_config(ConfigDict(extra="allow"))
 class SupportSpan(TypedDict):
     """Cited passage; older and curated spans can omit offsets/source."""
 

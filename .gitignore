@@ -40,8 +40,6 @@ yarn-error.log*
 *.db-*
 reports/
 cache/
-# The engine cache package is source, not disposable runtime cache.
-!/engine/src/co_scientist/cache/
 .cache/
 .coscientist_cache/
 .pytest_cache/

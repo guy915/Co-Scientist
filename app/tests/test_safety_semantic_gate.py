@@ -14,8 +14,6 @@ from app.config import settings
 
 from ._llm_fake_backend import completion_response, install_completion_backend
 
-pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
-
 _MODEL = "openrouter/test-safety-model"
 _OTHER_PROVIDER_KEY = "ANTHROPIC_API_KEY"
 _MODEL_PROVIDER_KEY = "OPENROUTER_API_KEY"
@@ -30,7 +28,6 @@ def _screen_configured(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _env(monkeypatch: pytest.MonkeyPatch, *keys: str, offline: bool = False) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     if offline:
         monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     else:

@@ -8,7 +8,6 @@ from typing import Any
 
 from app.claims.gate import ClaimRole, is_speculative
 from app.config import settings
-from app.execution_policy import effective_execution_model
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +34,7 @@ async def _assess_gate_claims(
     """
     from app.async_bridge import run_off_loop
     from app.claims.grounding import assess_claim_groups
+    from app.engine_adapter import offline_mode
 
     call = functools.partial(
         assess_claim_groups,
@@ -42,7 +42,7 @@ async def _assess_gate_claims(
         passages,
         spec,
     )
-    if settings.claim_assessor != "llm":
+    if offline_mode():
         return call(parallel=False)
     return await run_off_loop(call)
 
@@ -296,13 +296,11 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     )
 
     passages = _build_evidence_passages(state)
-    model = effective_execution_model(settings.claim_verifier_model or settings.model_name)
+    model = settings.claim_verifier_model or settings.model_name
     assert model is not None
-    assessor, assessor_id = build_assessor(settings.claim_assessor, model)
+    assessor, assessor_id = build_assessor(model)
     entailment_calls = [0]
-    batch_assessor = build_batch_assessor(
-        settings.claim_assessor, model, call_counter=entailment_calls
-    )
+    batch_assessor = build_batch_assessor(model, call_counter=entailment_calls)
     spec = AssessorSpec(assessor, assessor_id, batch_assessor)
     wave = _build_gate_wave(state.get("hypotheses") or [], passages, assessor_id)
 

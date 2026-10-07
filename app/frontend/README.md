@@ -53,7 +53,7 @@ and prerendering default to `dist/`.
 | --- | --- |
 | `src/main.tsx` | Mounts `BrowserRouter` and `WorkbenchApp` |
 | `src/workbench/workbench_app.tsx` | Route table for the chat workspace and run views |
-| `src/workbench/pages/` | Chat workspace (session home), run detail, researcher access, shared report |
+| `src/workbench/pages/` | Chat workspace (session home), run detail, shared report |
 | `src/workbench/components/tabs/` | Ideas tab (other run views render inline in `run_detail.tsx`) |
 | `src/workbench/hooks/` | Chat-session state, shared chat/run history, toast, and system status |
 | `src/api/runs.ts` | Product REST operations and streaming message helpers |
@@ -71,8 +71,6 @@ and prerendering default to `dist/`.
 | `/runs`, `/runs/new` | Redirect to `/` |
 | `/runs/:id` | Redirect to the details tab |
 | `/runs/:id/:tab` | Run detail tab |
-| `/access` | Researcher access |
-| `/shared/:token` | Shared goal report |
 | `*` | 404 |
 
 ## API Integration

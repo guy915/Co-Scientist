@@ -12,8 +12,6 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   /runs/:id          -> redirect to the details tab                |
 |   /runs/:id/:tab     -> RunDetail (active tab persisted in URL)    |
 |   /chats/:id         -> ChatWorkspace   (one saved conversation)   |
-|   /access            -> researcher access-code exchange            |
-|   /shared/:token     -> public read-only Goal Report               |
 |   *                  -> NotFoundPage                               |
 |                                                                    |
 | useChatSession (chat timeline, steering + Q&A)                     |
@@ -120,14 +118,16 @@ Tables (SQLite, WAL):
 
 What varies per run is the **LLM backend**, not the provider. `engine_adapter.offline_mode()` returns `True` when:
 
-1. `COSCIENTIST_FORCE_OFFLINE=1` is set (or its deprecated alias `COSCIENTIST_FORCE_MOCK=1`), OR
+1. `COSCIENTIST_FORCE_OFFLINE=1` is set, OR
 2. no supported provider key is configured.
 
 An offline-backed run still executes the real durable engine; `co_scientist.offline.llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
 
 ## Curated example chats
 
-The three seeded examples include fixed scope conversations, completed plan
+The three examples are exported once as `app/app/data/demo_runs.json.gz` and
+inserted at startup by `seed/`, which replaces a demo run whose version stamp is
+older. They include fixed scope conversations, completed plan
 cards, illustrative Q&A and their scientific results. Titles begin `Example: `.
 Desktop Recents and a mobile example strip open `/examples/:id`, which requests
 `POST /api/runs/{id}/example-chat` and navigates to the visitor's owned chat.
@@ -135,11 +135,11 @@ Desktop Recents and a mobile example strip open `/examples/:id`, which requests
 `store/examples.py` copies the curated scientific records and transcript in one
 SQLite transaction, remapping identities and lineage. It reuses one copy per
 owner and source on later opens, preserving continued chat. No engine tasks,
-credentials, logs, share tokens or free-generation allowance are copied or
-consumed; the copy makes no provider or retrieval call. Existing researcher
-authentication still applies. Shared examples allow reads and this copy endpoint;
-other mutations return 403. Seed version 15 backfills the full conversations,
-with a readiness marker committed only after the curated bundle is complete.
+credentials, logs or free-generation allowance are copied or
+consumed; the copy makes no provider or retrieval call. Existing client-id
+ownership still applies. Shared examples allow reads and this copy endpoint;
+other mutations return 403. Each run loads in one transaction, so the version
+markers in its config are visible only once the whole bundle is present.
 
 ## Run chat context
 
@@ -170,8 +170,7 @@ like a Redux store of fetched entities. On mount it:
 2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getClaimEvidence / getSafety / getReport` in parallel.
 3. Streams `/api/runs/{id}/events?after=0`, which replays every event since the run
    started and then tails live. Not an `EventSource`: the browser API cannot set
-   request headers, and the stream is authenticated (`Authorization` for a
-   researcher session, `X-Client-ID` otherwise), so it is a `fetch` whose body is
+   request headers, and the stream carries `X-Client-ID`, so it is a `fetch` whose body is
    read by the frame reader in `src/api/runs_http.ts::readSseFrames`.
 4. Run-scoped Q&A (`POST /api/runs/{id}/messages/ask`) and steering
    (`POST /api/runs/{id}/messages`) remain available to API clients. The
@@ -184,12 +183,12 @@ re-fetched from the API, never read back from a client cache.
 
 It does persist a handful of small, non-content keys, all via
 `localStorage`/`sessionStorage` (not a state-management library): the
-client id and (when a researcher session is active) its bearer token
-(`lib/client_id.ts` — `co_scientist_client_id`, `co_scientist_access_token`),
+client id
+(`lib/client_id.ts` — `co_scientist_client_id`),
 the light/dark theme (`workbench/theme_context.tsx` —
 `cosci-theme`), a scientist's own BYOK provider key when set
 (`lib/api_key.ts` — `cosci-api-key`, `cosci-api-provider`), and the Logs
-popover's per-session baseline row id (`workbench/layout_diagnostics_state.ts`
+button's per-session baseline row id (`workbench/layout_diagnostics.tsx`
 — `cosci-logs-session-baseline`). These are identity, preference, and UI
 bookkeeping, not a cache of server content, which is why point 1-4 above
 still holds: nothing here lets a view render without hitting the API.
@@ -202,7 +201,7 @@ still holds: nothing here lets a view render without hitting the API.
     underneath (offline or real) varies with configuration.
 -   The FastAPI app is a single ASGI application composed from routers in
     `main.py` — the run router alongside the diagnostics endpoints
-    (`/health`, `/config`, `/status`, defined in `diagnostics_api.py` and
+    (`/health`, `/status`, defined in `diagnostics_api.py` and
     mounted by `app.main`).
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
     The workbench lives under `src/workbench/`; the earlier public landing

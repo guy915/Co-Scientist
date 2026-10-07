@@ -55,7 +55,6 @@ def _seed_owned_finalize(
     *,
     claim: bool = True,
 ) -> tuple[Any, str, Any, str]:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
     monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
 
@@ -162,8 +161,6 @@ def _publication_snapshot(
     cancel_responses: list[dict[str, Any]],
     isolated_db: str,
 ) -> dict[str, Any]:
-    share = owner.post(f"/api/runs/{run_id}/shares", headers=_OWNER)
-    public = owner.get(f"/api/shared/{share.json().get('token', 'no-issued-share-token')}")
     reconciliation = views.reconcile_interrupted_runs(db_path=isolated_db)
     persisted_run = runs.get_run(run_id, db_path=isolated_db)
     task_after = store.get_task(task_id, db_path=isolated_db)
@@ -190,8 +187,6 @@ def _publication_snapshot(
         "completed_event_count": event_counts["completed"],
         "cancelled_event_count": event_counts["cancelled"],
         "email_task_count": task_types.count("notification.email"),
-        "owner_share_status": share.status_code,
-        "public_report_status": public.status_code,
         "restart_run_status": final_run.status,
         "restart_reconciles_as_active": run_id in reconciliation["failed"]
         or run_id in reconciliation["resumable"],
@@ -200,7 +195,7 @@ def _publication_snapshot(
 
 @pytest.mark.asyncio
 async def test_cancel_after_final_safety_withholds_report_publication(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, task, hypothesis_id = _seed_owned_finalize(isolated_db, monkeypatch)
     _install_report_stubs(hypothesis_id, monkeypatch)
@@ -222,8 +217,6 @@ async def test_cancel_after_final_safety_withholds_report_publication(
         "completed_event_count": 0,
         "cancelled_event_count": 1,
         "email_task_count": 0,
-        "owner_share_status": 409,
-        "public_report_status": 404,
         "restart_run_status": RunStatus.CANCELLED.value,
         "restart_reconciles_as_active": False,
     }
@@ -231,7 +224,7 @@ async def test_cancel_after_final_safety_withholds_report_publication(
 
 @pytest.mark.asyncio
 async def test_normal_finalize_publishes_and_survives_restart(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
@@ -286,7 +279,7 @@ async def test_normal_finalize_publishes_and_survives_restart(
 
 @pytest.mark.asyncio
 async def test_restart_does_not_strand_finalize_lease_after_report_commit(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False

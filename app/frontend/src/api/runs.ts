@@ -1,12 +1,7 @@
-import {
-  clearAccessToken,
-  getAccessToken,
-  getClientId,
-  resolveByokRoutes,
-} from '@/lib/client_id';
+import {getClientId, resolveByokRoutes} from '@/lib/client_id';
 import type {RunFocus, RunStatus, RunTier} from './wire_common';
 import type {ChatSummary, Interview} from './wire_interviews';
-import type {Report, SharedGoalReport} from './wire_reports';
+import type {Report} from './wire_reports';
 import type {QaSource, Run, RunMessage, RunWithSummary} from './wire_runs';
 import type {
   ClaimEvidenceRow,
@@ -253,11 +248,6 @@ export async function getReport(id: string): Promise<Report | null> {
   return parseJson<Report>(res);
 }
 
-// Public shared reports omit ownership headers.
-export function getSharedGoalReport(token: string): Promise<SharedGoalReport> {
-  return fetchJson(`/api/shared/${token}`);
-}
-
 type InterviewFrame =
   | {type: 'reasoning'; content: string}
   | {type: 'chunk'; content: string}
@@ -489,21 +479,8 @@ export async function announceRunStart(
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 
-export function exchangeAccessCode(
-  accessCode: string,
-): Promise<{access_token: string; researcher_id: string; expires_in: number}> {
-  return fetchJson(
-    '/api/auth/exchange',
-    jsonRequest({access_code: accessCode}),
-  );
-}
-
-// Authenticated researcher identity overrides the anonymous browser identity.
 export function clientHeaders(): Record<string, string> {
-  const token = getAccessToken();
-  return token
-    ? {Authorization: `Bearer ${token}`}
-    : {'X-Client-ID': getClientId()};
+  return {'X-Client-ID': getClientId()};
 }
 
 // BYOK credentials and model choices travel only in request headers. The
@@ -552,13 +529,10 @@ async function responseErrorMessage(res: Response): Promise<string> {
   return `${res.status} ${text || res.statusText}`;
 }
 
-// Only the credentials actually sent may expire their matching current session;
-// delayed anonymous/old-token failures must not erase a later login.
 export async function fetchWithSession(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const authorization = new Headers(init?.headers).get('Authorization');
   let res: Response;
   try {
     res = await fetch(url, init);
@@ -567,14 +541,6 @@ export async function fetchWithSession(
     throw error;
   }
   if (!res.ok) logFetchFailure(url, init, res.status);
-  const currentToken = getAccessToken();
-  if (
-    res.status === 401 &&
-    currentToken &&
-    authorization === `Bearer ${currentToken}`
-  ) {
-    clearAccessToken();
-  }
   return res;
 }
 

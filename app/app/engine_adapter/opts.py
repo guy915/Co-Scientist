@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 from app import run_corpus
 from app.config import settings
-from app.execution_policy import effective_execution_model
 from app.run_modes import (
     attribute_names,
     clean_string_list,
@@ -123,33 +122,20 @@ def build_engine_opts(cfg: dict[str, Any], run_id: str, db_path: str | None) -> 
     return initial_opts
 
 
-def _resolve_generator_models(
-    offline: bool,
-    campaign_model_name: str | None = None,
-) -> tuple[str, str | None, bool | None]:
-    """Offline cache overrides are per generator and must not disable
-    caching for concurrent real runs.
-    """
+def _resolve_generator_models(offline: bool) -> tuple[str, str | None]:
     if not offline:
-        if campaign_model_name is not None:
-            return campaign_model_name, campaign_model_name, None
-        return (
-            effective_execution_model(settings.model_name) or settings.model_name,
-            effective_execution_model(settings.supervisor_model_name),
-            None,
-        )
+        return settings.model_name, settings.supervisor_model_name
     # Import locally after sibling engine discovery, avoiding a hard dependency
     # at app-package import time.
     from co_scientist.offline.llm import DEFAULT_OFFLINE_MODEL
 
-    return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL, False
+    return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL
 
 
 def _generator_kwargs(
     cfg: dict[str, Any],
     model_name: str,
     supervisor_model_name: str | None,
-    enable_cache: bool | None,
     api_key: str | None = None,
 ) -> dict[str, Any]:
     """Resolved numeric configuration is durable; BYOK credential material
@@ -164,7 +150,6 @@ def _generator_kwargs(
         "evolution_max_count": int(cfg["evolution_max_count"]),
         "options": GeneratorOptions(
             supervisor_model_name=supervisor_model_name,
-            enable_cache=enable_cache,
             budget={
                 "max_llm_calls": int(cfg["max_llm_calls"]),
                 "max_ideas": int(cfg["max_ideas"]),
@@ -175,9 +160,6 @@ def _generator_kwargs(
             # Translate the sole literature-budget knob here rather than
             # persisting another synchronized key.
             literature_review_papers_count=int(cfg["evidence_count"]),
-            # Configured domain tools must reach the generator; unset paths
-            # select the bundled multi-source registry.
-            tools_config=settings.tools_config,
             disable_tools=[] if cfg.get("enable_web_search", True) else ["web_search"],
             api_key=api_key,
         ),
@@ -196,27 +178,17 @@ def build_generator(
     """
     model_name: str
     supervisor_model_name: str | None
-    enable_cache: bool | None
-    campaign_model = effective_execution_model(None)
-    if campaign_model is not None and not offline:
-        model_name, supervisor_model_name, enable_cache = _resolve_generator_models(
-            offline, campaign_model
-        )
-        byok = None
-    elif byok is not None:
-        # Validated worker/supervisor choices remain real-backed; the engine
-        # disables caching for explicit credentials.
+    if byok is not None:
+        # Validated worker/supervisor choices remain real-backed.
         model_name = byok.model
         supervisor_model_name = byok.supervisor_model or byok.model
-        enable_cache = None
     else:
-        model_name, supervisor_model_name, enable_cache = _resolve_generator_models(offline)
+        model_name, supervisor_model_name = _resolve_generator_models(offline)
     return generator_cls(
         **_generator_kwargs(
             cfg,
             model_name,
             supervisor_model_name,
-            enable_cache,
             api_key=byok.api_key if byok else None,
         )
     )

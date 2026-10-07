@@ -9,8 +9,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.llm import LLMCallOptions, ToolLoop
-from co_scientist.llm.tools.policy import _guard_cache_for_local_tools
+from co_scientist.llm import ToolLoop
 from co_scientist.patch import PatchError
 from co_scientist.sandbox import (
     SandboxKind,
@@ -107,7 +106,7 @@ def test_reading_outside_the_workspace_is_refused(tmp_path: Path, path: str) -> 
 async def test_a_carve_out_backend_refuses_to_replace_the_metadata_dir(
     tmp_path: Path,
 ) -> None:
-    """Landlock only adds access; seatbelt/bwrap can protect writable carve-
+    """Landlock only adds access; seatbelt can protect writable carve-
     outs."""
     if sandbox_backend() == "landlock":
         pytest.skip("landlock cannot express a carve-out; see the next test")
@@ -286,18 +285,6 @@ def _loop(names: list[str]) -> ToolLoop:
         tools=[{"type": "function", "function": {"name": name}} for name in names],
         executor=executor,
     )
-
-
-def test_local_tools_disable_the_transcript_cache() -> None:
-    guarded = _guard_cache_for_local_tools(
-        _loop(["search_pubmed", RUN_COMMAND]), LLMCallOptions(use_cache=True)
-    )
-    assert guarded.use_cache is False
-
-
-def test_mcp_only_loops_keep_their_cache() -> None:
-    guarded = _guard_cache_for_local_tools(_loop(["search_pubmed"]), LLMCallOptions(use_cache=True))
-    assert guarded.use_cache is True
 
 
 @pytest.mark.parametrize(

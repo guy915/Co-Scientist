@@ -37,7 +37,13 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
 
     key_areas = _extract_key_areas(supervisor_guidance)
     _log_key_areas(key_areas)
-    await _announce_supervisor_complete(state, key_areas)
+    await emit_progress(
+        state,
+        "supervisor_complete",
+        "Research plan created",
+        PROGRESS_SUPERVISOR_COMPLETE,
+        key_areas=len(key_areas),
+    )
 
     return _build_supervisor_result(supervisor_guidance, key_areas)
 
@@ -53,33 +59,11 @@ async def _announce_supervisor_start(state: WorkflowState, prompt_context: dict[
     )
 
 
-async def _announce_supervisor_complete(state: WorkflowState, key_areas: list[str]) -> None:
-    await emit_progress(
-        state,
-        "supervisor_complete",
-        "Research plan created",
-        PROGRESS_SUPERVISOR_COMPLETE,
-        key_areas=len(key_areas),
-    )
-
-
 async def _run_supervisor_planning(
     state: WorkflowState, prompt_context: dict[str, Any]
 ) -> dict[str, Any]:
     prompt, schema = get_supervisor_prompt(**prompt_context)
-    response = await _call_supervisor_llm(state, prompt, schema)
-    return _build_supervisor_guidance(response)
-
-
-def _log_key_areas(key_areas: list[str]) -> None:
-    if key_areas:
-        logger.info("Key research areas identified: %s", ", ".join(key_areas[:3]))
-
-
-async def _call_supervisor_llm(
-    state: WorkflowState, prompt: str, schema: dict[str, Any] | None
-) -> dict[str, Any]:
-    return await call_llm_json(
+    response = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
             model_name=state["supervisor_model_name"],
@@ -92,6 +76,12 @@ async def _call_supervisor_llm(
             prompt_name="supervisor",
         ),
     )
+    return _build_supervisor_guidance(response)
+
+
+def _log_key_areas(key_areas: list[str]) -> None:
+    if key_areas:
+        logger.info("Key research areas identified: %s", ", ".join(key_areas[:3]))
 
 
 def _build_supervisor_result(

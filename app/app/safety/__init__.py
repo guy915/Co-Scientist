@@ -15,14 +15,12 @@ from co_scientist.safety import (
 
 import app.process_mode as process_mode
 from app.config import settings
-from app.execution_policy import effective_execution_model
 from app.safety.semantic import (
     run_semantic_safety_model,
     semantic_credential_missing_decision,
     semantic_safety_error_decision,
 )
 from app.safety.types import SafetyDecision, redact_matched_spans
-from app.safety.types import SafetyMode as SafetyMode
 from app.safety.types import redact_payload_text as redact_payload_text
 from app.store import db, records, runs
 from app.store import events as store_events
@@ -244,16 +242,6 @@ async def apply_safety_gate(
         yield event
 
 
-def _resolve_safety_mode() -> SafetyMode:
-    try:
-        return SafetyMode(settings.safety_mode.lower())
-    except ValueError:
-        return SafetyMode.STANDARD
-
-
-SAFETY_MODE = _resolve_safety_mode()
-
-
 def _decision_from_review(stage: str, review: Any) -> SafetyDecision:
     return SafetyDecision(
         stage=stage,
@@ -319,11 +307,7 @@ def _hypothesis_policy_decision(stage: str, text: str) -> SafetyDecision | None:
 
 
 def screen_intake(goal: str) -> SafetyDecision:
-    review = review_content_safety(
-        goal or "",
-        "intake",
-        strict_intake=SAFETY_MODE == SafetyMode.STRICT,
-    )
+    review = review_content_safety(goal or "", "intake")
     baseline = _decision_from_review("intake", review)
     parity = _hypothesis_policy_decision("intake", goal)
     return baseline if parity is None else _more_severe(baseline, parity)
@@ -346,9 +330,7 @@ async def screen_contextual(
     baseline = deterministic or (screen_intake(text) if stage == "intake" else screen_final(text))
     if baseline.decision == "block":
         return baseline
-    model = effective_execution_model(
-        settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
-    )
+    model = settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
     assert model is not None
     if not settings.semantic_safety_enabled or process_mode.offline_mode():
         return baseline
@@ -388,9 +370,7 @@ async def assess_hold_contextually(
     """
     if not _should_escalate_to_semantic(run_id, stage, "engine", db_path=db_path):
         return None
-    model = effective_execution_model(
-        settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
-    )
+    model = settings.semantic_safety_model or settings.supervisor_model_name or settings.model_name
     assert model is not None
     if not settings.semantic_safety_enabled or process_mode.offline_mode():
         return None
@@ -454,9 +434,7 @@ def ensure_redactable(decision: SafetyDecision) -> SafetyDecision:
 
 __all__ = [
     "POLICY_VERSION",
-    "SAFETY_MODE",
     "SafetyDecision",
-    "SafetyMode",
     "ScreenSubject",
     "apply_safety_gate",
     "ensure_redactable",

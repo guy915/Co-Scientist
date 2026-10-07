@@ -2,7 +2,6 @@ import {afterEach, expect, it, vi} from 'vitest';
 import {fetchWithSession} from './runs';
 import {DIAGNOSTIC_EVENT} from '@/workbench/dom_events';
 
-vi.mock('@/lib/client_id', () => ({getAccessToken: () => null}));
 afterEach(() => vi.unstubAllGlobals());
 
 function observe() {

@@ -4,7 +4,6 @@ from typing import Any
 
 import litellm
 import pytest
-from co_scientist.cache import scoped_cache_override
 from co_scientist.llm import scoped_telemetry
 from co_scientist.models import ExecutionMetrics
 
@@ -70,7 +69,7 @@ def test_claim_provider_records_only_deterministic_substitution(
 
     install_completion_backend(monkeypatch, provider)
     assessor, identity = make_llm_assessor("deepseek/deepseek-chat")
-    with scoped_cache_override(False), scoped_telemetry("claims") as usage:
+    with scoped_telemetry("claims") as usage:
         result = assess_claim(
             "Kinase X inhibition reduces tumor growth.",
             [_KINASE_PASSAGE],
@@ -91,7 +90,7 @@ def test_batch_fallback_counts_claims_only_after_judging(
 
     install_completion_backend(monkeypatch, unavailable)
     assessor, identity = make_llm_batch_assessor("deepseek/deepseek-chat")
-    with scoped_cache_override(False), scoped_telemetry("claims") as usage:
+    with scoped_telemetry("claims") as usage:
         assess_claims_batch(
             ["Kinase X inhibition reduces tumor growth."],
             [_KINASE_PASSAGE] if has_evidence else [],
@@ -423,27 +422,24 @@ def test_evidence_passages_excludes_unavailable_sources(
 
 
 @pytest.mark.parametrize(
-    ("force_offline", "mode", "expected"),
+    ("force_offline", "expected"),
     [
-        (False, "deterministic", "deterministic-v1"),
-        (False, "llm", "llm:deepseek/deepseek-chat"),
-        (True, "llm", "deterministic-v1"),
+        (False, "llm:deepseek/deepseek-chat"),
+        (True, "deterministic-v1"),
     ],
 )
 def test_offline_never_builds_the_assessor_that_calls_a_provider(
     monkeypatch: pytest.MonkeyPatch,
     force_offline: bool,
-    mode: str,
     expected: str,
 ) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
     if force_offline:
         monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     else:
         monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
 
-    _, assessor_id = build_assessor(mode, "deepseek/deepseek-chat")
+    _, assessor_id = build_assessor("deepseek/deepseek-chat")
 
     assert assessor_id == expected
 
@@ -452,7 +448,6 @@ def test_ground_with_llm_assessor_persists_provenance(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
-    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
     run = seed_run("grounding goal")
     hyp_id = _add(run.id, "Supported", _CONTRADICTED, isolated_db)
@@ -478,17 +473,16 @@ def test_ground_with_llm_assessor_persists_provenance(
         )
 
     install_completion_backend(monkeypatch, completion)
-    assessor, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
-    with scoped_cache_override(False):
-        persist_grounding(
-            run.id,
-            assess_hypothesis_claims(
-                hypotheses.list_hypotheses(run.id),
-                evidence_passages(run.id, db_path=isolated_db),
-                AssessorSpec(assessor, assessor_id),
-            ),
-            db_path=isolated_db,
-        )
+    assessor, assessor_id = build_assessor("deepseek/deepseek-chat")
+    persist_grounding(
+        run.id,
+        assess_hypothesis_claims(
+            hypotheses.list_hypotheses(run.id),
+            evidence_passages(run.id, db_path=isolated_db),
+            AssessorSpec(assessor, assessor_id),
+        ),
+        db_path=isolated_db,
+    )
 
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
     edge = next(e for e in edges if e["hypothesis_id"] == hyp_id)

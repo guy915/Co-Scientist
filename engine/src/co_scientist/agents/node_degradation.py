@@ -12,12 +12,6 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def durable_retries_remain(state: WorkflowState) -> bool:
-    """The worker supplies this attempt flag; absent state degrades.
-    Nonretryable control-flow failures escape before consulting it."""
-    return bool(state.get("durable_retries_remain"))
-
-
 async def run_or_degrade(
     state: WorkflowState,
     synthesize: Callable[[], Awaitable[dict[str, Any]]],
@@ -31,7 +25,8 @@ async def run_or_degrade(
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as exc:
-        if durable_retries_remain(state):
+        # The worker supplies this attempt flag; absent state degrades.
+        if state.get("durable_retries_remain"):
             raise
         # Provider messages may embed full completions; bound error text and
         # report its actual cause rather than labeling every failure an outage.

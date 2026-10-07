@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import dataclasses
 import json
 from typing import Any
 
@@ -27,25 +28,18 @@ from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._store_helpers import enqueue_task, seed_run
 
-# Campaign and zero-cost-stamped requests enforce exact zero price; lost leases
-# are retry-safe only without caller credentials.
-_PROVABLY_FREE = {
-    "campaign": ("campaign", {}),
-    "zero-cost-standard": ("standard", {"zero_cost_admission": True}),
-}
 
-
-def _campaign_run_with_expired_lease(
+# The zero-cost stamp enforces exact zero price; lost leases are retry-safe
+# only without caller credentials.
+def _stamped_run_with_expired_lease(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
-    kind: str = "campaign",
 ) -> tuple[str, str]:
-    policy, config = _PROVABLY_FREE[kind]
     run = seed_run(
-        "Campaign lease loss",
+        "Zero-cost lease loss",
         profile="express",
-        config=config,
-        options=RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID, execution_policy=policy),
+        config={"zero_cost_admission": True},
+        options=RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID),
     )
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
     task = enqueue_task(
@@ -64,11 +58,9 @@ def _campaign_run_with_expired_lease(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", _PROVABLY_FREE)
 async def test_expired_provably_free_lease_is_retried(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, kind: str
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     replayed: list[str] = []
 
     async def _replay(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
@@ -76,7 +68,7 @@ async def test_expired_provably_free_lease_is_retried(
         return {"replayed": True}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _replay)
-    run_id, task_id = _campaign_run_with_expired_lease(isolated_db, monkeypatch, kind)
+    run_id, task_id = _stamped_run_with_expired_lease(isolated_db, monkeypatch)
 
     assert await task_worker.run_once("new-worker", db_path=isolated_db)
 
@@ -88,12 +80,10 @@ async def test_expired_provably_free_lease_is_retried(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", _PROVABLY_FREE)
 async def test_expired_provably_free_lease_with_byok_still_fails_closed(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, kind: str
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    monkeypatch.setattr(settings, "byok_encryption_key", "synthetic-campaign-lease-secret")
+    monkeypatch.setattr(settings, "byok_encryption_key", "synthetic-zero-cost-lease-secret")
     replayed: list[str] = []
 
     async def _must_not_call(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
@@ -101,13 +91,13 @@ async def test_expired_provably_free_lease_with_byok_still_fails_closed(
         return {}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _must_not_call)
-    run_id, task_id = _campaign_run_with_expired_lease(isolated_db, monkeypatch, kind)
+    run_id, task_id = _stamped_run_with_expired_lease(isolated_db, monkeypatch)
     credentials.store_run_credential(
         run_id,
         DEFAULT_TEST_CLIENT_ID,
         credentials.ByokCredential(
             provider="deepseek",
-            api_key="sk-synthetic-campaign-lease-12345",
+            api_key="sk-synthetic-zero-cost-lease-12345",
             model="deepseek/deepseek-v4-flash",
         ),
         db_path=isolated_db,
@@ -123,9 +113,8 @@ async def test_expired_provably_free_lease_with_byok_still_fails_closed(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("config", [{}, {"zero_cost_admission": "yes"}])
 async def test_expired_standard_lease_without_the_stamp_fails_closed(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch, config: dict[str, Any]
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     run = seed_run(
         "Unproven lease loss",
         config=config,
@@ -253,23 +242,6 @@ def test_failed_attempt_write_is_transactional_with_settlement(
     assert saved.attempts == ()
 
 
-def test_tasks_endpoint_returns_attempt_history(isolated_db: str) -> None:
-    with make_client() as client:
-        created = _create_run(client, "attempts endpoint goal")
-        run_id = created.json()["id"]
-        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        task_id = _history_enqueue(run_id, "k", isolated_db, max_attempts=3)
-        leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
-        assert leased is not None
-        assert store.fail_task(leased.id, "w1", "endpoint failure", db_path=isolated_db)
-
-        body = client.get(f"/api/runs/{run_id}/tasks").json()
-
-    tasks_by_id = {t["id"]: t for t in body["tasks"]}
-    assert tasks_by_id[task_id]["attempts"][0]["error"] == ("endpoint failure")
-    assert tasks_by_id[task_id]["attempts"][0]["attempt"] == 1
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("error", "attempts", "expected_kind", "expected_message"),
@@ -298,6 +270,7 @@ def test_tasks_endpoint_returns_attempt_history(isolated_db: str) -> None:
     ],
 )
 async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
+    manual_worker: None,
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     error: Exception,
@@ -305,7 +278,6 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
     expected_kind: str | None,
     expected_message: str,
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _raise_known_or_near_miss(
         _task: ScientificTask, *, db_path: str | None = None
@@ -331,9 +303,8 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
 
 @pytest.mark.asyncio
 async def test_run_failure_kind_comes_from_task_that_settles_run(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _fail_tasks(task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
         if task.task_type == "engine.bootstrap":
@@ -379,17 +350,9 @@ def _redaction_parse_sse(text: str) -> list[dict[str, Any]]:
 
 @pytest.mark.asyncio
 async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+    manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
-    monkeypatch.setattr(settings, "auth_mode", "required")
-    monkeypatch.setattr(settings, "auth_secret", "synthetic-test-signing-key")
-    monkeypatch.setattr(
-        settings,
-        "researcher_access_codes",
-        '{"failure-owner":"owner-invite","failure-other":"other-invite"}',
-    )
 
     async def _echo_key(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, Any]:
         raise LLMTimeoutError(f"provider echoed {_BYOK_KEY}; {_DIAGNOSTIC}")
@@ -397,15 +360,9 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _echo_key)
 
     with make_client() as client:
-        sessions = {
-            name: client.post("/api/auth/exchange", json={"access_code": f"{name}-invite"}).json()[
-                "access_token"
-            ]
-            for name in ("owner", "other")
-        }
-        owner = {"Authorization": f"Bearer {sessions['owner']}"}
-        other = {"Authorization": f"Bearer {sessions['other']}"}
-        created = _create_run(client, "authenticated synthetic failure", headers=owner)
+        owner = {"X-Client-ID": "failure-owner"}
+        other = {"X-Client-ID": "failure-other"}
+        created = _create_run(client, "owned synthetic failure", headers=owner)
         assert created.status_code == 200
         run_id = created.json()["id"]
         credentials.store_run_credential(
@@ -425,29 +382,29 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
 
     with make_client() as reopened:
         run = reopened.get(f"/api/runs/{run_id}", headers=owner)
-        task_rows = reopened.get(f"/api/runs/{run_id}/tasks", headers=owner)
         events = reopened.get(f"/api/runs/{run_id}/events", headers=owner)
-        logs = reopened.get(
-            f"/api/runs/{run_id}/logs",
-            headers=owner,
-            params={"verbose": True},
-        )
         other_run = reopened.get(f"/api/runs/{run_id}", headers=other)
         other_events = reopened.get(f"/api/runs/{run_id}/events", headers=other)
 
-    assert run.status_code == task_rows.status_code == 200
-    assert events.status_code == logs.status_code == 200
+    assert run.status_code == 200
+    assert events.status_code == 200
     assert other_run.status_code == other_events.status_code == 404
     run_body = run.json()
-    rows = task_rows.json()["tasks"]
+    with store_db.connect(isolated_db) as conn:
+        run_logs = [
+            dict(row) for row in conn.execute("SELECT * FROM app_logs WHERE run_id = ?", (run_id,))
+        ]
+    rows = store.list_tasks(run_id, db_path=isolated_db)
     replayed = _redaction_parse_sse(events.text)
-    owned_output = json.dumps([run_body, rows, replayed, logs.json()], sort_keys=True)
+    owned_output = json.dumps(
+        [run_body, [dataclasses.asdict(t) for t in rows], replayed, run_logs], sort_keys=True
+    )
     assert run_body["status"] == "failed"
     assert run_body["failure_kind"] == "llm_timeout_unknown"
     assert _BYOK_KEY not in owned_output
     assert "[REDACTED]" in owned_output
     assert _DIAGNOSTIC in owned_output
-    assert rows[-1]["status"] == "failed" and len(rows[-1]["attempts"]) == 1
+    assert rows[-1].status == "failed" and len(rows[-1].attempts) == 1
     assert replayed[-1]["type"] == "_terminal"
     failed = [
         event
@@ -455,9 +412,7 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
         if event["type"] == "status" and event.get("payload", {}).get("status") == "failed"
     ]
     assert len(failed) == 1
-    assert any(
-        row.get("exc_text") and _DIAGNOSTIC in row["exc_text"] for row in logs.json()["logs"]
-    )
+    assert any(row.get("exc_text") and _DIAGNOSTIC in row["exc_text"] for row in run_logs)
 
 
 # Settle runs transactionally when their last claimable task fails, or SSE never

@@ -27,12 +27,7 @@ import {
 } from './use_chat_session';
 import {beginTurnAbort, isAbortError} from './chat_session_transcript';
 import {interviewToRunSpec} from '../run_spec';
-import {
-  resolveByokRoutes,
-  getAccessToken,
-  getClientId,
-  makePrefixedId,
-} from '@/lib/client_id';
+import {resolveByokRoutes, getClientId, makePrefixedId} from '@/lib/client_id';
 import {
   recoverySpecForRun,
   type LinkedRunTarget,
@@ -365,8 +360,7 @@ function intentStorageKey(chatId: string): string {
 }
 
 function ownerMaterial(): string {
-  const token = getAccessToken();
-  return token ? `researcher:${token}` : `client:${getClientId()}`;
+  return `client:${getClientId()}`;
 }
 
 // Both tiers' credentials identify the intent, exactly as the headers send them.

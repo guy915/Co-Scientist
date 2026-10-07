@@ -18,13 +18,6 @@ export interface QaSource {
   passage?: string | null;
 }
 
-export interface ReportShare {
-  id: string;
-  run_id: string;
-  token?: string;
-  created_at: number;
-}
-
 export interface Run {
   id: string;
   research_goal: string;
@@ -37,7 +30,6 @@ export interface Run {
   config: RunConfig;
   is_demo?: boolean;
   llm_backend?: string | null;
-  execution_policy?: 'standard' | 'campaign';
   created_at: number;
   updated_at: number;
   completed_at: number | null;
@@ -91,7 +83,6 @@ export interface RunWithSummary {
   config: RunConfig;
   is_demo?: boolean;
   llm_backend?: string | null;
-  execution_policy?: 'standard' | 'campaign';
   created_at: number;
   updated_at: number;
   completed_at: number | null;
@@ -103,10 +94,4 @@ export interface RunWithSummary {
   execution_progress?: RunExecutionProgress;
   summary: RunSummary;
   failure_kind?: string | null;
-}
-
-export interface SharedRun {
-  research_goal: string;
-  title?: string | null;
-  run_mode?: 'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
 }

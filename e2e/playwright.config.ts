@@ -3,11 +3,6 @@ import {
   API_PORT,
   API_URL,
   APP_DIR,
-  E2E_AUTH_SECRET,
-  E2E_LOGS_ADMIN_TOKEN,
-  E2E_OTHER_RESEARCHER_ACCESS_CODE,
-  E2E_RESEARCHER_ACCESS_CODE,
-  E2E_RESEARCHER_ID,
   FRONTEND_DIR,
   runStateDir,
   UI_PORT,
@@ -36,20 +31,11 @@ const backendServer = {
     // harness.
     COSCIENTIST_FORCE_OFFLINE: '1',
     PYTHON_DOTENV_DISABLED: '1',
-    CLAIM_ASSESSOR: 'heuristic',
     EVIDENCE_RESOLVER: 'offline',
     SMTP_HOST: '',
-    LOGS_ADMIN_TOKEN: E2E_LOGS_ADMIN_TOKEN,
     // Fresh per-invocation stores must never touch developer data or inherit
     // earlier runs.
     COSCIENTIST_DB_PATH: `${STATE_DIR}/coscientist.db`,
-    COSCIENTIST_CACHE_DIR: `${STATE_DIR}/cache`,
-    AUTH_SECRET: E2E_AUTH_SECRET,
-    AUTH_MODE: PRODUCTION ? 'required' : 'compatibility',
-    RESEARCHER_ACCESS_CODES: JSON.stringify({
-      [E2E_RESEARCHER_ID]: E2E_RESEARCHER_ACCESS_CODE,
-      'e2e-other': E2E_OTHER_RESEARCHER_ACCESS_CODE,
-    }),
     // Credentialed cross-origin requests require the exact UI origin on the
     // CORS allowlist.
     ALLOWED_ORIGINS: UI_URL,

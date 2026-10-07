@@ -19,8 +19,6 @@ from litellm.exceptions import APIError, BadRequestError, RateLimitError
 from litellm.exceptions import ContextWindowExceededError as ContextWindow
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
-from co_scientist import cache
-from co_scientist.cache import LLMCache
 from co_scientist.exceptions import LLMCallBudgetExceededError
 from co_scientist.generator.core import HypothesisGenerator
 from co_scientist.generator.run_setup import GeneratorOptions
@@ -31,7 +29,6 @@ from co_scientist.llm import (
     call_llm,
     call_llm_json,
     call_llm_with_tools,
-    precall,
     rate_limited_attempt_count,
     scoped_telemetry,
 )
@@ -121,11 +118,6 @@ def scripted_backend(
     return fake
 
 
-def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A disabled cache prevents replay from bypassing a scripted provider."""
-    monkeypatch.setattr(precall, "get_cache", lambda: LLMCache(enabled=False))
-
-
 def stub_call_llm_json(
     monkeypatch: pytest.MonkeyPatch,
     module: types.ModuleType,
@@ -160,7 +152,6 @@ def mock_call_llm_json(
 
 
 def make_test_generator() -> HypothesisGenerator:
-    """Disable caching so previous disk transcripts cannot bypass the fake."""
     return HypothesisGenerator(
         model_name="fake/model",
         max_iterations=1,
@@ -168,7 +159,6 @@ def make_test_generator() -> HypothesisGenerator:
         evolution_max_count=2,
         options=GeneratorOptions(
             tournament_pairs=2,
-            enable_cache=False,
         ),
     )
 
@@ -192,8 +182,6 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
 
 
 def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reset the cache singleton as well as environment defaults to isolate
-    runs."""
     install_fake_backend(
         monkeypatch,
         _fake_acompletion,
@@ -201,8 +189,6 @@ def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
         # The gateway downgrade has separate coverage.
         supports_json_schema=lambda _model_name: True,
     )
-    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "false")
-    monkeypatch.setattr(cache, "_global_cache", None)
 
 
 NESTED_SCHEMA: dict[str, Any] = {
@@ -388,7 +374,6 @@ class Driver:
         self._caplog = caplog
 
     async def __call__(self, entry: Entry, script: list[Any], max_attempts: int = 3) -> Run:
-        disable_llm_cache(self._monkeypatch)
         calls: list[dict[str, Any]] = []
         slept: list[float] = []
         queue = list(script)
@@ -536,7 +521,7 @@ def _catalog(pricing: Any) -> dict[str, Any]:
     return {
         "data": [
             {
-                "id": "campaign/zero:free",
+                "id": "free/zero:free",
                 "pricing": pricing,
                 "architecture": {
                     "input_modalities": ["text"],

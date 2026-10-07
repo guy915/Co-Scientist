@@ -59,21 +59,6 @@ def _format_connection(connection: Any) -> str:
     return opportunity or kind or str(connection)
 
 
-def _covered_areas_section(meta_review: dict[str, Any]) -> str:
-    return _format_bullet_section(
-        "Research Areas Already Covered (Recurring Themes)",
-        meta_review.get("emerging_themes", []),
-    )
-
-
-def _open_directions_section(meta_review: dict[str, Any]) -> str:
-    return _format_bullet_section(
-        "Open Directions Flagged for Further Exploration",
-        meta_review.get("potential_connections", []),
-        _format_connection,
-    )
-
-
 def _meta_review_closing(include_coverage_sections: bool) -> str:
     closing = "Use these insights to provide more informed and consistent"
     if include_coverage_sections:
@@ -110,7 +95,12 @@ def _format_meta_review_context(
         ),
     ]
     if include_coverage_sections:
-        sections.append(_covered_areas_section(meta_review))
+        sections.append(
+            _format_bullet_section(
+                "Research Areas Already Covered (Recurring Themes)",
+                meta_review.get("emerging_themes", []),
+            )
+        )
     sections.append(
         _format_bullet_section(
             "Strategic Recommendations",
@@ -119,7 +109,13 @@ def _format_meta_review_context(
         )
     )
     if include_coverage_sections:
-        sections.append(_open_directions_section(meta_review))
+        sections.append(
+            _format_bullet_section(
+                "Open Directions Flagged for Further Exploration",
+                meta_review.get("potential_connections", []),
+                _format_connection,
+            )
+        )
     sections.append(_meta_review_closing(include_coverage_sections))
     return "".join(sections)
 

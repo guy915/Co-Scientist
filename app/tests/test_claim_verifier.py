@@ -28,8 +28,6 @@ from ._llm_fake_backend import (
     install_completion_backend,
 )
 
-pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
-
 _MODEL = "deepseek/deepseek-chat"
 _CLAIM = "Kinase X inhibition reduces tumor growth."
 _PASSAGE = EvidencePassage(

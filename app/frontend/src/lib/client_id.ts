@@ -1,5 +1,4 @@
 const KEY = 'co_scientist_client_id';
-const ACCESS_TOKEN_KEY = 'co_scientist_access_token';
 
 export function getClientId(): string {
   let id = localStorage.getItem(KEY);
@@ -8,20 +7,6 @@ export function getClientId(): string {
     localStorage.setItem(KEY, id);
   }
   return id;
-}
-
-// Researcher sessions are tab-scoped; anonymous client identity persists across
-// tabs.
-export function getAccessToken(): string | null {
-  return sessionStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-export function setAccessToken(token: string): void {
-  sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
-}
-
-export function clearAccessToken(): void {
-  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
 export function makePrefixedId(prefix: string): string {

@@ -306,8 +306,6 @@ async def _call_assumptions_llm(
     schema: Any,
     params: _AssumptionCallParams,
 ) -> dict[str, Any]:
-    """Durable generation tasks can share a prompt; caching would freeze
-    diversity and deduplication would silently shrink the pool."""
     return await call_llm_json(
         prompt,
         spec=CompletionSpec(
@@ -317,7 +315,6 @@ async def _call_assumptions_llm(
             json_schema=schema,
         ),
         options=LLMCallOptions(
-            use_cache=False,
             run_id=state.get("run_id"),
             prompt_name=params.prompt_name,
         ),
