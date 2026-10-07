@@ -69,24 +69,44 @@ def _drain_tick_frames(
     return last_seq, terminal_status, frames
 
 
+_TICK_SECONDS = 0.5
+# Railway closes HTTP responses that send nothing for 5 minutes, and one model
+# call can outlast that; an SSE comment keeps the stream open and clients
+# ignore it.
+_KEEPALIVE_TICKS = 30
+_KEEPALIVE_FRAME = ": keepalive\n\n"
+
+
+def _poll_tick(run_id: str, last_seq: int, tick: int) -> tuple[int, str | None, list[str]]:
+    last_seq, terminal_status, frames = _drain_tick_frames(run_id, last_seq)
+    return last_seq, _resolve_tick_terminal(terminal_status, run_id, tick), frames
+
+
 async def _stream_live_tail(
     run_id: str,
     request: Request,
     last_seq: int,
 ) -> AsyncGenerator[str, None]:
     """The producer can live in another process; the persisted event log is
-    the only reliable signal.
+    the only reliable signal. Each viewer polls twice a second, so the store
+    reads run off the event loop.
     """
+    idle_ticks = 0
     for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
         if await request.is_disconnected():
             return
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(_TICK_SECONDS)
 
-        last_seq, terminal_status, frames = _drain_tick_frames(run_id, last_seq)
+        last_seq, terminal_status, frames = await asyncio.to_thread(
+            _poll_tick, run_id, last_seq, tick
+        )
         for frame in frames:
             yield frame
+        idle_ticks = 0 if frames else idle_ticks + 1
+        if idle_ticks >= _KEEPALIVE_TICKS:
+            idle_ticks = 0
+            yield _KEEPALIVE_FRAME
 
-        terminal_status = _resolve_tick_terminal(terminal_status, run_id, tick)
         if terminal_status is not None:
             yield _terminal_frame(terminal_status, last_seq)
             return
