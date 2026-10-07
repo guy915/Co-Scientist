@@ -2,7 +2,7 @@ import {
   type Interview,
   type InterviewQuestion,
   type InterviewTurn,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {useState} from 'react';
 import {Icon} from '@/shared/ui/icon';
 import {Button, IconButton, TextField} from '@/shared/ui';

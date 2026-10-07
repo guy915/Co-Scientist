@@ -10,10 +10,7 @@ from co_scientist.core.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.report import repository as reports
-from co_scientist.domains.research_state.models import (
-    Article,
-    Hypothesis,
-)
+from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.repository import records
 from co_scientist.orchestration import engine_tasks, task_worker
 from co_scientist.orchestration.engine_tasks import (
@@ -32,6 +29,7 @@ from co_scientist.platform.llm import (
     release_run_call_budget,
 )
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.science.meta_review import research_overview as ro
 from litellm.exceptions import APIError
 

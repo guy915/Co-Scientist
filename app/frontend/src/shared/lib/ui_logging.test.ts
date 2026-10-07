@@ -7,7 +7,7 @@ import {
 
 const logsApiMock = vi.hoisted(() => ({postAppLogs: vi.fn()}));
 
-vi.mock('@/api/logs', () => logsApiMock);
+vi.mock('@/shared/api/logs', () => logsApiMock);
 
 beforeEach(() => {
   logsApiMock.postAppLogs.mockReset();

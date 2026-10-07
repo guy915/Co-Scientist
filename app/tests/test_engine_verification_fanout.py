@@ -5,7 +5,7 @@ from typing import Any
 
 import co_scientist.orchestration.engine_tasks.fanout as engine_tasks_fanout_items
 import pytest
-from co_scientist.domains.research_state.models import Article, Hypothesis
+from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.orchestration import engine_tasks
 from co_scientist.orchestration.engine_tasks import fanout as engine_tasks_fanout
 from co_scientist.orchestration.engine_tasks import (
@@ -14,6 +14,7 @@ from co_scientist.orchestration.engine_tasks import (
 from co_scientist.orchestration.repository import tasks as store
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform.db import checkpoints
+from co_scientist.platform.retrieval.article import Article
 
 from tests._engine_tasks_helpers import (
     _Generator,

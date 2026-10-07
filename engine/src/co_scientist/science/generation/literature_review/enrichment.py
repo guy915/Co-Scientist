@@ -3,12 +3,12 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+from co_scientist.domains.research_state.entity_names import extract_entity_names
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
 )
 from co_scientist.platform.retrieval.mcp_client import MCPToolClient
-from co_scientist.science.reflection.reflection_helpers import extract_entity_names
 
 if TYPE_CHECKING:
     from co_scientist.platform.retrieval.config import ToolConfig, ToolRegistry, WorkflowConfig

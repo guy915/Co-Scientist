@@ -10,7 +10,7 @@ import {
   FEEDBACK_CATEGORIES,
   submitFeedback,
   type FeedbackCategory,
-} from '@/api/feedback';
+} from '@/shared/api/feedback';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
 import {
   Button,

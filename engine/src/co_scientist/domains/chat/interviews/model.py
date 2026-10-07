@@ -14,14 +14,16 @@ from co_scientist.core import byok_scope
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
-    deepseek_thinking_kwargs,
     settings,
-    thinking_off_kwargs,
-    thinking_safe_max_tokens,
 )
 from co_scientist.domains.documents import repository as store
 from co_scientist.platform.llm import coerce_json_list
 from co_scientist.platform.llm.llm_scope import budgeted, stream_chunks
+from co_scientist.platform.llm.request.thinking import (
+    deepseek_thinking_kwargs,
+    thinking_off_kwargs,
+    thinking_safe_max_tokens,
+)
 
 logger = logging.getLogger(__name__)
 

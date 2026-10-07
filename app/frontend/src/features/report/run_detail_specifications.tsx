@@ -5,7 +5,7 @@ import {
   isTerminalStatus,
   runGoal,
   uploadRunDocument,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {errorMessage} from '@/shared/lib/text';
 import {type ChangeEvent, useState} from 'react';
 import {

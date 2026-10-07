@@ -27,7 +27,7 @@ The root and nested `AGENTS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`, and
 | SR-11 | Medium, conditional | SSRF and retrieval; auth | Unset MCP shared secret preserves unauthenticated tools if reachable | launch runbook | Middleware and deployment contract |
 | SR-12 | Medium, conditional | Abuse | Anonymous users can address completion mail to an unverified recipient | lane X | Notification configuration and SMTP trace; no delivery |
 | SR-13 | Medium | Denial of service; data | A botnet can overwhelm the unbounded diagnostic capture queue | lane X | Queue and admission trace |
-| SR-14 | Low | Data; dependencies; CI | Dependency audit reports advisories in installed packages; enabled attack surfaces differ | lane V | Required audit failed; remediation and reachability triage below |
+| SR-14 | Low | Data; dependencies; CI | Dependency audit reports advisories in installed packages; enabled attack surfaces differ | lane V | Dependency remediation and fresh audit receipt below; weekly advisory gate added |
 
 ## High findings
 
@@ -189,7 +189,7 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 **Fix:** Bound capture by records and bytes, define observable drop/backpressure behavior, and apply a global ingest budget before enqueueing. Preserve critical server diagnostics separately from anonymous UI log traffic.
 
-### SR-14 — Dependency audit is red; installed advisories need an explicit disposition
+### SR-14 — Dependency advisory remediation and audit receipt
 
 **Area:** data; dependencies; CI. **Severity:** low for the exposed paths established here. **Owner:** lane V.
 
@@ -202,7 +202,11 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 **Dependency remediation:** LiteLLM is raised to 1.88.6 in [#391](https://github.com/guy915/Co-Scientist/pull/391). The FastMCP 3.2.4 migration in [#396](https://github.com/guy915/Co-Scientist/pull/396) removes `diskcache` from `requirements/mcp.txt`; no production lock now contains it. The MCP server does not import `diskcache`, instantiate `DiskStore`, enable the `py-key-value-aio[disk]` extra, or configure an OAuth proxy. Its production image installs only the hash-pinned MCP closure.
 
-**Diskcache disposition (#459 / GHSA-w8v5-vhqr-4h9v):** The advisory has no patched release and requires an attacker-writable pickle/cache artifact. Removal of the dependency addresses this deployment; no diskcache directory is configured or created by the reference server, so a shared/world-writable diskcache directory is not part of its current storage contract. This does not assert filesystem permissions on a live deployment. Any future introduction of a disk-backed key/value store must reassess deserialization and require a private directory that is neither shared with untrusted writers nor group/world-writable. The regenerated MCP lock passes `pip-audit==2.10.1` with no known vulnerabilities. LangGraph SDK remediation and the final all-lock audit remain separate work items.
+**Diskcache disposition (#459 / GHSA-w8v5-vhqr-4h9v):** The advisory has no patched release and requires an attacker-writable pickle/cache artifact. Removal of the dependency addresses this deployment; no diskcache directory is configured or created by the reference server, so a shared/world-writable diskcache directory is not part of its current storage contract. This does not assert filesystem permissions on a live deployment. Any future introduction of a disk-backed key/value store must reassess deserialization and require a private directory that is neither shared with untrusted writers nor group/world-writable. The regenerated MCP lock passes `pip-audit==2.10.1` with no known vulnerabilities. LangGraph SDK remediation and the final all-lock audit are recorded below.
+
+**Fresh detector receipt (2026-10-07):** `make audit-deps` returned exit 0 with LiteLLM 1.88.6, FastMCP 3.2.4 and LangGraph 1.2.14 / SDK 0.4.6. `pip-audit==2.10.1` reported no known vulnerabilities in `requirements/api.txt`, `requirements/mcp.txt` or `requirements/skills.txt`; Bun 1.3.14 reported none in either `app/frontend/` or `e2e/`. LangGraph now requires SDK >=0.4.6, above the advisory's 0.4.4 patch floor; the application does not use SDK auth decorators. The original detector receipt below remains historical evidence. Advisory data changes over time, and this receipt does not establish private GitHub alert state.
+
+**Ongoing gate:** `.github/workflows/dependency-audit.yml` runs the same online audit weekly and on manual dispatch. It retains every detector's findings and fails when any lock reports an advisory, separately from the hermetic presubmit suites. Source suppressions for intentional BYOK browser storage and the keyed idempotency digest document their rationale; CodeQL excludes immutable vendored sources. Private Security-tab alerts must be verified by the repository owner after the default-branch scans finish.
 
 ## What was checked and found sound
 

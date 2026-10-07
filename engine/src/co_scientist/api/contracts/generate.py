@@ -123,7 +123,7 @@ def declaration(name: str, schema: dict[str, Any]) -> str:
     return f"export type {name} = {type_expression(schema)};"
 
 
-API_DIR = Path(__file__).resolve().parents[5] / "app/frontend/src/api"
+API_DIR = Path(__file__).resolve().parents[5] / "app/frontend/src/shared/api"
 HEADER = "// Generated from app.api_contracts; edit the backend models.\n"
 
 

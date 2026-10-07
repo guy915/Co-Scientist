@@ -1,4 +1,4 @@
-import type {Hypothesis} from '@/api/runs';
+import type {Hypothesis} from '@/shared/api/runs';
 
 // Match the report exclusion set: duplicate/rejected ideas are withdrawn, not
 // results.

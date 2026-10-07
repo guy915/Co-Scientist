@@ -194,7 +194,7 @@ def _save_paused_checkpoint(
     envelope: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> int:
-    from co_scientist.orchestration.checkpoint import CHECKPOINT_VERSION
+    from co_scientist.platform.db.checkpoints import CHECKPOINT_VERSION
 
     task = commit.task
     latest_seq = store.latest_checkpoint_seq(task.run_id, conn)
@@ -407,7 +407,7 @@ def _save_node_checkpoint(
     """Persist the exact resume successor; bootstrap recovery must not enter
     orchestration before supervisor guidance exists.
     """
-    from co_scientist.orchestration.checkpoint import CHECKPOINT_VERSION
+    from co_scientist.platform.db.checkpoints import CHECKPOINT_VERSION
 
     latest_seq = store.latest_checkpoint_seq(task.run_id, conn)
     if latest_seq != expected_checkpoint_seq:
@@ -469,7 +469,7 @@ def _save_exact_checkpoint(
     *,
     changed_message: str = "checkpoint changed during scientific task",
 ) -> int:
-    from co_scientist.orchestration.checkpoint import CHECKPOINT_VERSION
+    from co_scientist.platform.db.checkpoints import CHECKPOINT_VERSION
 
     latest_seq = store.latest_checkpoint_seq(task.run_id, conn)
     if latest_seq != expected_checkpoint_seq:

@@ -1,16 +1,13 @@
 import {
   isValidElement,
   memo,
-  useEffect,
-  useState,
   type ComponentPropsWithoutRef,
   type ReactNode,
 } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {rehypeHighlightKnownLanguages} from './highlight_code';
-import {IconButton} from '@/shared/ui';
-import {copyText} from '@/shared/lib/clipboard';
+import {CopyButton} from './copy_button';
 import {fromMarkdown} from 'mdast-util-from-markdown';
 import {gfm} from 'micromark-extension-gfm';
 import {gfmFromMarkdown} from 'mdast-util-gfm';
@@ -140,33 +137,6 @@ function highlightedText(node: ReactNode): string {
   return '';
 }
 
-const COPIED_LABEL_MS = 2_000;
-
-// Shared clipboard handling contains absent/rejected Clipboard API failures
-// instead of leaking an unhandled rejection.
-function CodeCopyButton({text}: {text: string}) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) {
-      return;
-    }
-    const id = window.setTimeout(() => setCopied(false), COPIED_LABEL_MS);
-    return () => window.clearTimeout(id);
-  }, [copied]);
-
-  return (
-    <IconButton
-      size="xs"
-      icon={copied ? 'check' : 'content_copy'}
-      label={copied ? 'Copied' : 'Copy code'}
-      tooltipPlacement="left"
-      layoutClassName="ml-auto"
-      onClick={() => void copyText(text).then(() => setCopied(true))}
-    />
-  );
-}
-
 function CodeBlockHeader({
   language,
   text,
@@ -177,7 +147,13 @@ function CodeBlockHeader({
   return (
     <div className="flex items-center gap-2 border-b border-cosci-border px-3 py-1.5 text-xs text-cosci-muted">
       {language && <span className="font-mono">{language}</span>}
-      <CodeCopyButton text={text} />
+      <CopyButton
+        text={text}
+        label="Copy code"
+        size="xs"
+        tooltipPlacement="left"
+        layoutClassName="ml-auto"
+      />
     </div>
   );
 }

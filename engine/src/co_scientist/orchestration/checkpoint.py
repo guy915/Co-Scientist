@@ -13,15 +13,10 @@ from langchain_core.messages import (
     messages_to_dict,
 )
 
-from co_scientist.domains.research_state.models import (
-    Article,
-    ExecutionMetrics,
-    Hypothesis,
-)
+from co_scientist.domains.research_state.models import ExecutionMetrics, Hypothesis
 from co_scientist.domains.research_state.state import WorkflowState
-
-# Bump incompatible envelope changes; mismatched versions fail closed.
-CHECKPOINT_VERSION = 1
+from co_scientist.platform.db.checkpoints import CHECKPOINT_VERSION
+from co_scientist.platform.retrieval.article import Article
 
 # Runtime collection objects need explicit JSON serialization.
 _SPECIAL_COLLECTION_KEYS = frozenset({"hypotheses", "metrics", "articles", "messages"})

@@ -1,5 +1,5 @@
 import {useEffect, useRef} from 'react';
-import {getAppLogs, postAppLogs, type AppLogsPayload} from '@/api/logs';
+import {getAppLogs, postAppLogs, type AppLogsPayload} from '@/shared/api/logs';
 import {useLocation} from 'react-router-dom';
 import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
 import {
@@ -13,6 +13,12 @@ import {
   type DiagnosticLogEventDetail,
   type PersistedAppLogs,
 } from './diagnostics_data';
+import {
+  readStorage,
+  removeStorage,
+  STORAGE_KEYS,
+  writeStorage,
+} from '@/shared/lib/safe_storage';
 
 // The feedback export is scoped to records after this anchor, so it must be
 // taken when the shell mounts, not when feedback is first submitted.
@@ -36,7 +42,7 @@ export function SessionDiagnostics() {
 
 // sessionStorage preserves the log anchor across tab reloads but ends it on tab
 // close; each tab owns its view.
-const BASELINE_KEY = 'cosci-logs-session-baseline';
+const BASELINE_KEY = STORAGE_KEYS.logsBaseline;
 
 interface SessionBaseline {
   id: number;
@@ -47,31 +53,25 @@ interface SessionBaseline {
 let memoryBaseline: SessionBaseline | null = null;
 
 function readBaseline(): SessionBaseline | null {
-  try {
-    const raw = window.sessionStorage.getItem(BASELINE_KEY);
-    if (raw) return JSON.parse(raw) as SessionBaseline;
-  } catch {
-    // Unavailable storage falls back to the memory anchor.
+  const raw = readStorage('session', BASELINE_KEY);
+  if (raw) {
+    try {
+      return JSON.parse(raw) as SessionBaseline;
+    } catch {
+      // A corrupt anchor falls back to the memory one.
+    }
   }
   return memoryBaseline;
 }
 
 function writeBaseline(baseline: SessionBaseline): void {
   memoryBaseline = baseline;
-  try {
-    window.sessionStorage.setItem(BASELINE_KEY, JSON.stringify(baseline));
-  } catch {
-    // The memory anchor already retains this load’s baseline.
-  }
+  writeStorage('session', BASELINE_KEY, JSON.stringify(baseline));
 }
 
 export function resetSessionBaselineForTest(): void {
   memoryBaseline = null;
-  try {
-    window.sessionStorage.removeItem(BASELINE_KEY);
-  } catch {
-    // The memory anchor was cleared even if storage is unavailable.
-  }
+  removeStorage('session', BASELINE_KEY);
 }
 
 export function sessionAfterId(): number {

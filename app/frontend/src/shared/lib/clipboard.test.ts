@@ -18,7 +18,7 @@ it('uses the async Clipboard API when available', async () => {
     configurable: true,
   });
 
-  await copyText('hello world');
+  await expect(copyText('hello world')).resolves.toBe(true);
 
   expect(writeText).toHaveBeenCalledWith('hello world');
   expect(execCommand).not.toHaveBeenCalled();
@@ -36,13 +36,13 @@ it('falls back to execCommand when the Clipboard API rejects', async () => {
     configurable: true,
   });
 
-  await copyText('retry text');
+  await expect(copyText('retry text')).resolves.toBe(true);
 
   expect(writeText).toHaveBeenCalledWith('retry text');
   expect(execCommand).toHaveBeenCalledWith('copy');
 });
 
-it('never throws when clipboard API and execCommand are absent', async () => {
+it('reports failure without throwing when no copy path works', async () => {
   Reflect.deleteProperty(navigator, 'clipboard');
   Object.defineProperty(document, 'execCommand', {
     value: () => {
@@ -51,5 +51,5 @@ it('never throws when clipboard API and execCommand are absent', async () => {
     configurable: true,
   });
 
-  await expect(copyText('no-op')).resolves.toBeUndefined();
+  await expect(copyText('no-op')).resolves.toBe(false);
 });

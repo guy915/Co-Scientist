@@ -4,7 +4,7 @@ import {
   HttpError,
   isStoppableStatus,
   type RunStatus,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import type {IconName} from '@/shared/ui/icon';
 import {logUiError} from '@/shared/lib/ui_logging';
 import {Button} from '@/shared/ui';

@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/browser';
 import {getStoredApiKey, keyedProviders} from './client_id';
+import {readStorage, STORAGE_KEYS} from './safe_storage';
 
-const CLIENT_ID_KEY = 'co_scientist_client_id';
 const MIN_SECRET_LENGTH = 8;
 
 // The client ID is the run-ownership capability and saved provider keys are
@@ -9,7 +9,7 @@ const MIN_SECRET_LENGTH = 8;
 function browserSecrets(): string[] {
   try {
     const secrets = keyedProviders().map(provider => getStoredApiKey(provider));
-    secrets.push(window.localStorage.getItem(CLIENT_ID_KEY) ?? '');
+    secrets.push(readStorage('local', STORAGE_KEYS.clientId) ?? '');
     return secrets.filter(secret => secret.length >= MIN_SECRET_LENGTH);
   } catch {
     return [];

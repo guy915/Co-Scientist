@@ -110,7 +110,7 @@ describe('markdown message code', () => {
       expect(hs.textContent).toBe('main = pure ()\n');
     });
 
-    it('does not crash or leave an unhandled rejection when the clipboard rejects', async () => {
+    it('does not crash or claim success when the clipboard rejects', async () => {
       const writeText = vi.fn().mockRejectedValue(new Error('denied'));
       stubClipboard(writeText);
       const {container} = render(
@@ -127,9 +127,10 @@ describe('markdown message code', () => {
       );
       await waitFor(() =>
         expect(
-          screen.getByRole('button', {name: 'Copied'}),
+          screen.getByRole('button', {name: /copy code/i}),
         ).toBeInTheDocument(),
       );
+      expect(screen.queryByRole('button', {name: 'Copied'})).toBeNull();
     });
   });
 });
