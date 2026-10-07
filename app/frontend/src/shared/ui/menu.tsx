@@ -1,6 +1,7 @@
 import {
   useRef,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
   type Ref,
@@ -9,6 +10,7 @@ import {
 import {Icon, type IconName} from '@/components/icon';
 import {useDismiss} from '@/shared/hooks/use_dismiss';
 import {joinClasses} from './cx';
+import {fieldClasses} from './text_field';
 import {presenceProps, usePresence} from './use_presence';
 
 const SURFACE_CLASSES =
@@ -40,14 +42,30 @@ function onMenuKeyDown(event: KeyboardEvent<HTMLElement>) {
   items[next].focus();
 }
 
+// Closing with focus inside the menu would drop it on <body>; hand it back to
+// the trigger instead.
+function returnFocus(
+  menu: HTMLElement | null,
+  anchors: RefObject<HTMLElement | null>[],
+) {
+  if (!menu?.contains(document.activeElement)) return;
+  const anchor = anchors[0]?.current;
+  const trigger = anchor?.matches('button')
+    ? anchor
+    : anchor?.querySelector<HTMLElement>('button, [href]');
+  trigger?.focus();
+}
+
 interface MenuProps {
   open: boolean;
   onClose: () => void;
   label: string;
-  // Pointer presses inside these (the trigger) do not count as outside.
+  // Pointer presses inside these (the trigger first) do not count as outside.
   anchorRefs: RefObject<HTMLElement | null>[];
   // Position, size, stacking and transform origin only.
   layoutClassName: string;
+  // Measured placement for menus anchored with fixed positioning.
+  style?: CSSProperties;
   menuRef?: RefObject<HTMLDivElement | null>;
   children: ReactNode;
 }
@@ -58,19 +76,24 @@ export function Menu({
   label,
   anchorRefs,
   layoutClassName,
+  style,
   menuRef,
   children,
 }: MenuProps) {
   const {mounted, state} = usePresence(open);
   const ownRef = useRef<HTMLDivElement>(null);
   const ref = menuRef ?? ownRef;
-  useDismiss(open, onClose, [...anchorRefs, ref]);
+  useDismiss(open, () => {
+    returnFocus(ref.current, anchorRefs);
+    onClose();
+  }, [...anchorRefs, ref]);
   if (!mounted) return null;
   return (
     <div
       ref={ref}
       role="menu"
       aria-label={label}
+      style={style}
       className={joinClasses(SURFACE_CLASSES, layoutClassName)}
       onKeyDown={onMenuKeyDown}
       {...presenceProps(state)}
@@ -95,6 +118,8 @@ interface MenuItemProps extends Omit<
   kind?: 'item' | 'radio' | 'checkbox';
   checked?: boolean;
   icon?: IconName;
+  // Radio items show a check when chosen; checkbox items show a switch.
+  indicator?: boolean;
   ref?: Ref<HTMLButtonElement>;
 }
 
@@ -104,10 +129,36 @@ const ROLE = {
   checkbox: 'menuitemcheckbox',
 } as const;
 
+// The knob slides between ends rather than jumping.
+function SwitchIndicator({on}: {on: boolean}) {
+  return (
+    <span
+      aria-hidden="true"
+      data-on={on}
+      className={joinClasses(
+        'relative ml-auto h-[0.95rem] w-[1.6rem] flex-none rounded-full',
+        'transition-colors duration-medium ease-standard',
+        on ? 'bg-cosci-toggle-on-track' : 'bg-cosci-toggle-off-track',
+      )}
+    >
+      <span
+        className={joinClasses(
+          'absolute top-[0.15rem] left-[0.18rem] size-[0.65rem] rounded-full',
+          'transition-[translate,background-color] duration-medium ease-standard',
+          on
+            ? 'translate-x-[0.59rem] bg-cosci-toggle-on-knob'
+            : 'bg-cosci-toggle-off-knob',
+        )}
+      />
+    </span>
+  );
+}
+
 export function MenuItem({
   kind = 'item',
   checked,
   icon,
+  indicator = false,
   children,
   type = 'button',
   ...rest
@@ -128,6 +179,50 @@ export function MenuItem({
         />
       )}
       {children}
+      {indicator && kind === 'checkbox' && <SwitchIndicator on={!!checked} />}
+      {indicator && kind === 'radio' && checked && (
+        <Icon
+          aria-hidden="true"
+          className="ml-auto flex-none text-[1.05rem] text-cosci-blue"
+          name="check"
+        />
+      )}
+    </button>
+  );
+}
+
+// A field-shaped button that opens a menu of choices (the select pattern).
+export function SelectTrigger({
+  open,
+  children,
+  type = 'button',
+  ...rest
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & {
+  open: boolean;
+  ref?: Ref<HTMLButtonElement>;
+}) {
+  return (
+    <button
+      type={type}
+      aria-haspopup="menu"
+      aria-expanded={open}
+      className={joinClasses(
+        fieldClasses(),
+        'flex cursor-pointer items-center justify-between gap-3 text-left',
+        'enabled:hover:bg-cosci-menu-row-hover',
+      )}
+      {...rest}
+    >
+      {children}
+      <Icon
+        aria-hidden="true"
+        className={joinClasses(
+          'flex-none text-[1.15rem] text-cosci-muted',
+          'transition-[rotate] duration-medium ease-standard',
+          open && 'rotate-180',
+        )}
+        name="expand_more"
+      />
     </button>
   );
 }

@@ -3,12 +3,19 @@ import {
   useEffect,
   useRef,
   useState,
-  type KeyboardEvent,
   type CSSProperties,
   useLayoutEffect,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {Dialog, DIALOG_TITLE_CLASSES, IconButton, TextField} from '@/shared/ui';
+import {
+  Dialog,
+  DIALOG_TITLE_CLASSES,
+  IconButton,
+  Menu,
+  MenuItem,
+  SelectTrigger,
+  TextField,
+} from '@/shared/ui';
 import {
   type ByokProvider,
   type ModelChoice,
@@ -34,11 +41,7 @@ import {
   SlidingPill,
   useSlidingIndicator,
 } from '@/shared/hooks/use_sliding_indicator';
-import {
-  joinClasses,
-  SETTINGS_FIELD_CLASSES,
-  SETTINGS_FIELD_LABEL_CLASSES,
-} from '../classes';
+import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '../classes';
 
 const CARD_CLASSES =
   'rounded-2xl bg-cosci-settings-card-bg px-[1.4rem] pt-5 pb-[1.4rem]';
@@ -580,23 +583,6 @@ export const PROVIDER_KEY_PAGES: Record<
 const TRIGGER_ID = 'cosci-settings-provider';
 const LABEL_ID = 'cosci-settings-provider-label';
 
-export function useCloseOnOutsidePointer(
-  open: boolean,
-  container: React.RefObject<HTMLDivElement | null>,
-  onClose: () => void,
-) {
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: PointerEvent) {
-      if (!container.current?.contains(event.target as Node)) onClose();
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [open, container, onClose]);
-}
-
 const MENU_GAP_PX = 6;
 const MENU_EDGE_PX = 16;
 
@@ -701,17 +687,7 @@ export function SettingsSelect<T extends string>({
 }) {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
-  useCloseOnOutsidePointer(open, container, () => setOpen(false));
   const {menuRef, menuStyle} = useAnchoredMenu(open, container, align);
-
-  // Consume Escape before the dialog listener so dismissing its menu does not
-  // also close the dialog.
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape' && open) {
-      event.stopPropagation();
-      setOpen(false);
-    }
-  }
 
   return (
     <div
@@ -719,17 +695,10 @@ export function SettingsSelect<T extends string>({
       // pushed the trigger past the panel instead of ellipsizing.
       className="relative grid w-full grid-cols-[minmax(0,1fr)]"
       ref={container}
-      onKeyDown={onKeyDown}
     >
-      <button
-        type="button"
+      <SelectTrigger
         id={triggerId}
-        className={joinClasses(
-          SETTINGS_FIELD_CLASSES,
-          'group/trigger flex cursor-pointer items-center justify-between gap-3 text-left disabled:cursor-default disabled:text-cosci-muted [&:hover:not(:disabled)]:bg-cosci-menu-row-hover',
-        )}
-        aria-haspopup="menu"
-        aria-expanded={open}
+        open={open}
         aria-labelledby={`${labelId} ${triggerId}`}
         disabled={disabled}
         onClick={() => setOpen(current => !current)}
@@ -737,70 +706,57 @@ export function SettingsSelect<T extends string>({
         <span className={truncate ? 'truncate' : undefined}>
           {optionLabel(value)}
         </span>
-        <Icon
-          aria-hidden="true"
-          className="flex-none text-[1.15rem] text-cosci-muted group-aria-expanded/trigger:[transform:rotate(180deg)]"
-          name="expand_more"
-        />
-      </button>
-      {open && !disabled && (
-        <div
-          ref={menuRef}
-          style={menuStyle}
-          // Absolute menus clip inside the scrolling Settings panel; fixed
-          // anchored menus may escape its edges.
-          className="fixed top-0 left-0 z-40 grid w-max min-w-full gap-[0.15rem] overflow-y-auto rounded-xl border border-cosci-border bg-cosci-menu-bg p-[0.35rem] [box-shadow:0_4px_16px_rgb(0_0_0/18%)]"
-          role="menu"
-          aria-label={name}
-        >
-          {groupOptions(options, groupOf).map(section => (
-            <div
-              key={section.label ?? ''}
-              // Options must stretch like direct menu children so highlights
-              // span the row.
-              className="grid"
-              role={section.label ? 'group' : undefined}
-              aria-label={section.label ?? undefined}
-            >
-              {section.label && (
-                <div
-                  className="px-[0.7rem] pt-[0.4rem] pb-[0.1rem] text-[0.75rem] text-cosci-muted"
-                  aria-hidden="true"
-                >
-                  {section.label}
-                </div>
-              )}
-              {section.items.map(option => (
-                <button
-                  key={option}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={option === value}
-                  className="flex min-h-[2.4rem] cursor-pointer items-center justify-between gap-5 rounded-lg bg-transparent px-[0.7rem] text-left text-[0.875rem] text-cosci-fg [border:0] focus-visible:bg-cosci-menu-row-hover [&:hover]:bg-cosci-menu-row-hover"
-                  onClick={() => {
-                    setOpen(false);
-                    if (option !== value) onChange(option);
-                  }}
-                >
-                  <span>{optionLabel(option)}</span>
-                  {optionNote?.(option) && (
-                    <span className="ml-auto text-[0.75rem] text-cosci-muted">
-                      {optionNote(option)}
-                    </span>
-                  )}
-                  {option === value && (
-                    <Icon
-                      aria-hidden="true"
-                      className="flex-none text-[1.05rem] text-cosci-blue"
-                      name="check"
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
+      </SelectTrigger>
+      <Menu
+        open={open && !disabled}
+        onClose={() => setOpen(false)}
+        label={name}
+        anchorRefs={[container]}
+        menuRef={menuRef}
+        style={menuStyle}
+        // Absolute menus clip inside the scrolling Settings panel; fixed
+        // anchored menus may escape its edges.
+        layoutClassName="fixed top-0 left-0 z-40 w-max min-w-full origin-top"
+      >
+        {groupOptions(options, groupOf).map(section => (
+          <div
+            key={section.label ?? ''}
+            // Options must stretch like direct menu children so highlights
+            // span the row.
+            className="grid"
+            role={section.label ? 'group' : undefined}
+            aria-label={section.label ?? undefined}
+          >
+            {section.label && (
+              <div
+                className="px-[0.75rem] pt-[0.4rem] pb-[0.1rem] text-[0.75rem] text-cosci-muted"
+                aria-hidden="true"
+              >
+                {section.label}
+              </div>
+            )}
+            {section.items.map(option => (
+              <MenuItem
+                key={option}
+                kind="radio"
+                checked={option === value}
+                indicator
+                onClick={() => {
+                  setOpen(false);
+                  if (option !== value) onChange(option);
+                }}
+              >
+                <span>{optionLabel(option)}</span>
+                {optionNote?.(option) && (
+                  <span className="ml-auto text-[0.75rem] text-cosci-muted">
+                    {optionNote(option)}
+                  </span>
+                )}
+              </MenuItem>
+            ))}
+          </div>
+        ))}
+      </Menu>
     </div>
   );
 }

@@ -4,8 +4,6 @@ export {tooltipClassNames} from '@/shared/ui/tooltip';
 
 export const SETTINGS_FIELD_LABEL_CLASSES =
   'mb-[0.45rem] text-[0.875rem] font-medium';
-export const SETTINGS_FIELD_CLASSES =
-  'w-full rounded-xl border border-cosci-border bg-cosci-menu-bg px-[0.9rem] py-[0.65rem] text-[0.9rem] text-cosci-fg focus-visible:border-cosci-blue focus-visible:outline-1 focus-visible:outline-cosci-blue focus-visible:outline-offset-0';
 
 export const OPTION_MARKER_CLASSES =
   'mt-[0.08rem] size-[1.28rem] rounded-full border-2 border-cosci-option-marker';

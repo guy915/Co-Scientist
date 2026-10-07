@@ -1,14 +1,14 @@
 import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
-import {Button} from '@/shared/ui';
+import {Button, Menu, MenuItem} from '@/shared/ui';
 import {isModifiedClick} from '@/workbench/dom_events';
 import {
   SETTINGS_SECTIONS,
   type SettingsSection,
 } from './components/settings_dialog';
 import type {ShellPanel} from './layout';
-import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
+import {NAV_ICON_CLASSES} from './layout_primitives';
 import {joinClasses, tooltipClassNames} from './classes';
 import type {ChatSummary, Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
@@ -17,21 +17,14 @@ import {useFittingRows, useOverflowing} from './hooks/dom';
 import {preferredSessionSide} from './layout_session_switch';
 import {tabPath} from './run_tabs';
 
-const RAIL_POPOVER_CLASSES =
-  'bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] p-[0.5rem] ' +
+const RAIL_MENU_LAYOUT_CLASSES =
+  'absolute z-[35] origin-bottom-left bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] ' +
   '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:right-auto ' +
   '[@media(max-width:700px)]:bottom-[1.15rem] [@media(max-width:700px)]:left-[0.5rem] ' +
   '[@media(max-width:700px)]:w-[min(13.5rem,calc(100vw-1rem))]';
 
 const SETTINGS_CONTROL_CLASSES =
   'relative grid w-auto justify-items-center [@media(max-width:700px)]:w-full';
-
-const SETTINGS_MENU_CLASSES = 'grid gap-[0.15rem]';
-
-const SETTINGS_MENU_ITEM_CLASSES =
-  'flex min-h-[2.6rem] cursor-pointer items-center gap-[0.72rem] [border:0] rounded-[0.75rem] bg-transparent px-[0.75rem] text-left text-[0.875rem] font-medium text-cosci-fg no-underline [&:hover]:bg-cosci-menu-row-hover focus-visible:bg-cosci-menu-row-hover';
-
-const SETTINGS_MENU_ICON_CLASSES = 'flex-none text-[1.25rem] text-cosci-muted';
 
 // Rail rules resolve per width band: bare classes are the base,
 // `min-[701px]:` the desktop rail and `[@media(max-width:700px)]:` the phone
@@ -225,27 +218,6 @@ export function NavRail({
   );
 }
 
-function SettingsPopoverMenu({
-  onOpenSettings,
-}: {
-  onOpenSettings: (section: SettingsSection) => void;
-}) {
-  return (
-    <ShellPopover className={RAIL_POPOVER_CLASSES}>
-      <div className={SETTINGS_MENU_CLASSES} role="menu">
-        {SETTINGS_SECTIONS.map(({label, icon, section}) => (
-          <SettingsMenuButton
-            key={section}
-            label={label}
-            icon={icon}
-            onClick={() => onOpenSettings(section)}
-          />
-        ))}
-      </div>
-    </ShellPopover>
-  );
-}
-
 function RailSettingsControl({
   nav,
   activePanel,
@@ -269,9 +241,23 @@ function RailSettingsControl({
         expanded={activePanel === 'settings'}
         onClick={() => onTogglePanel('settings')}
       />
-      {activePanel === 'settings' && (
-        <SettingsPopoverMenu onOpenSettings={onOpenSettings} />
-      )}
+      <Menu
+        open={activePanel === 'settings'}
+        onClose={() => onTogglePanel('settings')}
+        label="Settings"
+        anchorRefs={[settingsControlRef]}
+        layoutClassName={RAIL_MENU_LAYOUT_CLASSES}
+      >
+        {SETTINGS_SECTIONS.map(({label, icon, section}) => (
+          <MenuItem
+            key={section}
+            icon={icon}
+            onClick={() => onOpenSettings(section)}
+          >
+            {label}
+          </MenuItem>
+        ))}
+      </Menu>
     </div>
   );
 }
@@ -338,32 +324,6 @@ function NavActionButton({
     >
       <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name={icon} />
       <span className={labelClassName}>{label}</span>
-    </button>
-  );
-}
-
-function SettingsMenuButton({
-  label,
-  icon,
-  onClick,
-}: {
-  label: string;
-  icon: IconName;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={SETTINGS_MENU_ITEM_CLASSES}
-      role="menuitem"
-      onClick={onClick}
-    >
-      <Icon
-        aria-hidden="true"
-        className={SETTINGS_MENU_ICON_CLASSES}
-        name={icon}
-      />
-      <span>{label}</span>
     </button>
   );
 }

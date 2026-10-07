@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {IconButton, TextArea} from '@/shared/ui';
+import {IconButton, Menu, MenuItem, TextArea} from '@/shared/ui';
 import {joinClasses, tooltipClassNames} from '../classes';
 import type {Connector, SystemStatus} from '@/api/system';
 import {useSystemStatus} from '../hooks/system_status_context';
@@ -413,24 +413,6 @@ export interface ConnectorToggleProps {
 export function useConnectorsMenu() {
   const sourceControlsRef = useRef<HTMLDivElement>(null);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!connectorsOpen) return;
-
-    function closeConnectors(e: globalThis.MouseEvent) {
-      if (
-        e.target instanceof Node &&
-        sourceControlsRef.current?.contains(e.target)
-      ) {
-        return;
-      }
-      setConnectorsOpen(false);
-    }
-
-    document.addEventListener('mousedown', closeConnectors);
-    return () => document.removeEventListener('mousedown', closeConnectors);
-  }, [connectorsOpen]);
-
   return {connectorsOpen, setConnectorsOpen, sourceControlsRef};
 }
 
@@ -452,6 +434,7 @@ export function SourceControls(props: SourceControlsProps) {
     onFilesChanged,
     connectors,
   } = props;
+  const connectorsButtonRef = useRef<HTMLButtonElement>(null);
   return (
     <div
       className="reference-composer-source-controls pointer-events-auto relative flex min-w-[4.6rem] items-center gap-[0.45rem]"
@@ -472,23 +455,31 @@ export function SourceControls(props: SourceControlsProps) {
         onClick={() => fileInputRef.current?.click()}
       />
       <SourceToolbarButton
+        ref={connectorsButtonRef}
         label="Connectors"
         icon="database"
         expanded={connectorsOpen}
         onClick={onToggleConnectors}
       />
-      {connectorsOpen ? <ConnectorsMenu connectors={connectors} /> : null}
+      <ConnectorsMenu
+        open={connectorsOpen}
+        onClose={onToggleConnectors}
+        anchorRefs={[connectorsButtonRef, sourceControlsRef]}
+        connectors={connectors}
+      />
     </div>
   );
 }
 
 // Omit aria-expanded for the non-expandable Files button.
 function SourceToolbarButton({
+  ref,
   label,
   icon,
   expanded,
   onClick,
 }: {
+  ref?: RefObject<HTMLButtonElement | null>;
   label: string;
   icon: IconName;
   expanded?: boolean;
@@ -496,6 +487,7 @@ function SourceToolbarButton({
 }) {
   return (
     <IconButton
+      ref={ref}
       icon={icon}
       label={label}
       layoutClassName="reference-composer-source-button pointer-events-auto"
@@ -562,36 +554,22 @@ function ConnectorMenuRow({
 }) {
   const {checked, toggle, iconName} = connectorRowState(connector, toggles);
   return (
-    <button
-      type="button"
-      role="menuitemcheckbox"
-      aria-checked={checked}
-      className="reference-connectors-menu-row md-state grid min-h-[2.6rem] w-full cursor-pointer grid-cols-[1.35rem_1fr_auto] items-center gap-3 border-0 bg-transparent px-[0.9rem] py-[0.45rem] text-left font-[inherit] text-[0.9rem] text-inherit focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring"
+    <MenuItem
+      kind="checkbox"
+      checked={checked}
+      icon={iconName}
+      indicator
       onClick={toggle}
     >
-      <Icon
-        className="reference-connector-icon text-[1.15rem] text-cosci-menu-icon"
-        aria-hidden="true"
-        name={iconName}
-      />
-      <span>{connector.display}</span>
-      <span
-        className={joinClasses(
-          'reference-toggle relative h-[0.95rem] w-[1.6rem] rounded-full after:absolute after:top-[0.15rem] after:size-[0.65rem] after:rounded-full after:[content:""]',
-          checked
-            ? 'bg-cosci-toggle-on-track after:right-[0.18rem] after:bg-cosci-toggle-on-knob'
-            : 'bg-cosci-toggle-off-track after:left-[0.18rem] after:bg-cosci-toggle-off-knob',
-        )}
-        aria-hidden="true"
-      />
-    </button>
+      {connector.display}
+    </MenuItem>
   );
 }
 
 function ConnectorsNote({text}: {text: string}) {
   return (
     <p
-      className="reference-connectors-menu-row m-0 grid min-h-[2.6rem] w-full items-center px-[0.9rem] py-[0.45rem] text-[0.9rem] text-cosci-muted"
+      className="m-0 grid min-h-[2.5rem] items-center px-[0.75rem] text-[0.875rem] text-cosci-muted"
       role="note"
     >
       {text}
@@ -623,19 +601,27 @@ function ConnectorsMenuState({
 // Keep checking, unreachable and empty states distinct so fallback sources
 // cannot misrepresent deployment availability.
 function ConnectorsMenu({
+  open,
+  onClose,
+  anchorRefs,
   connectors: toggles,
 }: {
+  open: boolean;
+  onClose: () => void;
+  anchorRefs: RefObject<HTMLElement | null>[];
   connectors: ConnectorToggleProps;
 }) {
   const {status, unreachable} = useSystemStatus();
   const connectors = visibleConnectors(status);
   return (
-    <div
-      className="reference-connectors-menu pointer-events-auto absolute bottom-[2.45rem] left-[2.35rem] z-10 w-56 overflow-hidden rounded-[0.9rem] border border-cosci-menu-border bg-cosci-menu-bg py-[0.45rem] text-cosci-menu-text"
-      role="menu"
-      aria-label="Connectors"
+    <Menu
+      open={open}
+      onClose={onClose}
+      label="Connectors"
+      anchorRefs={anchorRefs}
+      layoutClassName="pointer-events-auto absolute bottom-[2.45rem] left-[2.35rem] z-10 w-56 origin-bottom-left"
     >
-      <div className="reference-connectors-menu-row reference-connectors-menu-row--top grid min-h-[2.6rem] w-full grid-cols-[1fr] items-center border-0 border-b border-cosci-menu-divider bg-transparent px-[0.9rem] py-[0.45rem] font-medium text-inherit">
+      <div className="grid min-h-[2.5rem] items-center border-b border-cosci-menu-divider px-[0.75rem] text-[0.875rem] font-medium">
         <span>Connectors</span>
       </div>
       <ConnectorsMenuState
@@ -650,6 +636,6 @@ function ConnectorsMenu({
           toggles={toggles}
         />
       ))}
-    </div>
+    </Menu>
   );
 }
