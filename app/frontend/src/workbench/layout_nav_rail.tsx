@@ -61,7 +61,7 @@ const NAV_RAIL_VARIANTS = {
       'min-[701px]:items-stretch min-[701px]:px-[0.75rem] min-[701px]:py-[1rem]',
       '[@media(max-width:700px)]:visible [@media(max-width:700px)]:[transform:translateX(0)]',
       '[@media(max-width:700px)]:shadow-drawer',
-      '[@media(max-width:700px)]:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard)] motion-reduce:[transition:none]',
+      '[@media(max-width:700px)]:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard)] [@media(max-width:700px)]:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
       'grid gap-[0.85rem] min-[701px]:flex min-[701px]:min-h-0 min-[701px]:w-full min-[701px]:flex-1 min-[701px]:flex-col',
@@ -78,7 +78,7 @@ const NAV_RAIL_VARIANTS = {
     panel: joinClasses(
       NAV_PANEL_CLASSES,
       'min-[701px]:py-[1rem] [@media(max-width:700px)]:invisible [@media(max-width:700px)]:[transform:translateX(-100%)]',
-      '[@media(max-width:700px)]:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard),visibility_0s_linear_var(--motion-duration-long)] motion-reduce:[transition:none]',
+      '[@media(max-width:700px)]:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard),visibility_0s_linear_var(--motion-duration-long)] [@media(max-width:700px)]:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
       'grid w-full items-center justify-items-center gap-[0.74rem] min-[701px]:gap-[0.25rem] min-[701px]:mt-[0.25rem]',
