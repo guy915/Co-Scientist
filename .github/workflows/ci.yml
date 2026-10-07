@@ -44,6 +44,7 @@ jobs:
       root_config: >-
         ${{ steps.select.outputs.root_config || steps.all.outputs.root_config }}
       python_lint: ${{ steps.select.outputs.python_lint || steps.all.outputs.python_lint }}
+      protected_contexts: ${{ steps.contexts.outputs.matrix }}
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
@@ -181,6 +182,34 @@ jobs:
             docker root_config python_lint; do
             echo "${target}=true" >> "$GITHUB_OUTPUT"
           done
+
+      - name: Select legacy compatibility contexts
+        id: contexts
+        env:
+          ENGINE_SELECTED: ${{ steps.select.outputs.engine || steps.all.outputs.engine }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          selected = os.environ["ENGINE_SELECTED"]
+          if selected not in {"true", "false"}:
+              raise SystemExit("Engine selection is missing or invalid")
+          contexts = [
+              {"name": "MCP server tests", "owner": "format-lint", "target": "mcp_server", "combined": True},
+              {"name": "App tests", "owner": "test-app", "target": "app"},
+              {"name": "Evaluations (parity + offline smoke)", "owner": "evaluations", "target": "evaluations"},
+              {"name": "Browser e2e (Playwright)", "owner": "e2e", "target": "e2e"},
+          ]
+          # GitHub does not expand a skipped matrix into its protected names.
+          if selected == "false":
+              contexts += [
+                  {"name": f"Engine tests (py{version})", "owner": "test-engine", "target": "engine"}
+                  for version in ("3.10", "3.12")
+              ]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              print(f"matrix={json.dumps(contexts)}", file=output)
+          PY
 
   # MCP and Ruff share an interpreter, while retaining independent step failures.
   format-lint:
@@ -502,17 +531,13 @@ jobs:
   protected-contexts:
     name: ${{ matrix.name }}
     if: always()
-    needs: [changes, format-lint, test-app, evaluations, e2e]
+    needs: [changes, format-lint, test-engine, test-app, evaluations, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {name: MCP server tests, owner: format-lint, target: mcp_server, combined: true}
-          - {name: App tests, owner: test-app, target: app}
-          - {name: Evaluations (parity + offline smoke), owner: evaluations, target: evaluations}
-          - {name: Browser e2e (Playwright), owner: e2e, target: e2e}
+        include: ${{ fromJSON(needs.changes.outputs.protected_contexts) }}
     steps:
       - name: Require the selected suite to pass
         env:
