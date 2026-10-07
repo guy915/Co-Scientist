@@ -143,7 +143,8 @@ export interface QuestionChooserProps {
 }
 
 // Selection never sends a turn; the chooser owns commit. Remount on turn id to
-// reset selections and dismissal.
+// reset selections and dismissal. Long options scroll inside the panel (dvh
+// follows the Safari toolbar) instead of pushing the question off a phone.
 export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   const [selections, setSelections] = useState(emptySelections);
   const [minimized, setMinimized] = useState(false);
@@ -160,7 +161,7 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
 
   return (
     <section
-      className="reference-questions-panel mb-[0.9rem] grid gap-[0.85rem] border-b border-cosci-composer-border pb-[0.9rem]"
+      className="mb-[0.9rem] grid max-h-[50dvh] gap-[0.85rem] overflow-y-auto overscroll-contain border-b border-cosci-composer-border pb-[0.9rem] [scrollbar-gutter:stable]"
       aria-label="Answer options"
     >
       <ChooserHead
