@@ -124,6 +124,9 @@ class Settings(BaseSettings):
     public_app_url: str = "http://localhost:5173"
 
     byok_encryption_key: str = ""
+    # Error tracking is off unless a DSN is set; see docs/MONITORING.md.
+    sentry_dsn: str = ""
+    sentry_environment: str = ""
     # Removing the daily cap does not remove the free express-only envelope.
     free_runs_per_day: int = 3
 
