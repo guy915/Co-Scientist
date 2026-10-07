@@ -110,7 +110,10 @@ describe('ideas detail pane', () => {
         }),
       ],
       claimEvidence: [
-        claim(1, {claim: 'A supported claim.', supporting: ['A passage.']}),
+        claim(1, {
+          claim: 'A supported claim.',
+          supporting: [{evidence_id: 'e1', quote: 'A passage.', url: ''}],
+        }),
         claim(2, {
           claim: 'An unsupported claim.',
           label: 'insufficient',
