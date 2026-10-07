@@ -8,7 +8,8 @@ import {tooltipClassNames} from './classes';
 const SHELL_POPOVER_CLASSES =
   'ucs-popover absolute z-[35] grid gap-[0.35rem] rounded-[1rem] border border-cosci-border bg-cosci-menu-bg text-cosci-fg';
 
-export const NAV_ICON_CLASSES = 'ucs-nav-icon';
+export const NAV_ICON_CLASSES =
+  'grid size-[1.5rem] min-h-[1.5rem] min-w-[1.5rem] place-items-center justify-self-center text-[1.25rem] leading-none';
 
 // Exclude shared display/color/padding states: Tailwind stylesheet order
 // decides conflicting utilities, which can break a consumer’s grid sizing.

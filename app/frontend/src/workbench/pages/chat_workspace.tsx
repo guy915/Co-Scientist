@@ -1,9 +1,11 @@
 import {
   lazy,
+  memo,
   Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useState,
   Fragment,
   type RefObject,
@@ -40,8 +42,11 @@ import {
 } from './chat_workspace_timeline';
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 
-// Lazy-load the landing page so chat first paint does not wait for it.
-const HomeLanding = lazy(() => import('./home_landing'));
+// Lazy-load the landing page so chat first paint does not wait for it; it takes
+// no props, so memo keeps composer keystrokes from re-rendering it.
+const HomeLanding = lazy(() =>
+  import('./home_landing').then(m => ({default: memo(m.default)})),
+);
 
 interface ChatWorkspaceLocationState {
   cosciAction?: 'new-chat' | 'focus-composer';
@@ -253,13 +258,83 @@ export function useConversationLayout(
 ) {
   const composerRef = useRef<HTMLDivElement>(null);
 
-  const timelineItems = buildTimelineItems({
-    ...session,
-    navigate,
-    resetWorkspace,
-    focusComposer,
-    linkedDraftRecovery,
-  });
+  const {
+    messages,
+    handleEditMessage,
+    handleCopyRequest,
+    handleRetryMessage,
+    draft,
+    setDraft,
+    isStarting,
+    isAwaitingAgent,
+    agentReasoning,
+    agentDraft,
+    handleCancelDraftSpec,
+    handleRetryDraftSpec,
+    handleStartRun,
+    confirmed,
+    stageDraftSpec,
+    startedSession,
+  } = session;
+  const {canContinueLinkedDraft, spec, status, retryStatusLookup} =
+    linkedDraftRecovery;
+  // Keyed on everything but the composer text, so a keystroke does not rebuild
+  // and re-render every bubble of a long transcript.
+  const timelineItems = useMemo(
+    () =>
+      buildTimelineItems({
+        messages,
+        handleEditMessage,
+        handleCopyRequest,
+        handleRetryMessage,
+        draft,
+        setDraft,
+        isStarting,
+        isAwaitingAgent,
+        agentReasoning,
+        agentDraft,
+        handleCancelDraftSpec,
+        handleRetryDraftSpec,
+        handleStartRun,
+        confirmed,
+        stageDraftSpec,
+        startedSession,
+        navigate,
+        resetWorkspace,
+        focusComposer,
+        linkedDraftRecovery: {
+          canContinueLinkedDraft,
+          spec,
+          status,
+          retryStatusLookup,
+        },
+      }),
+    [
+      messages,
+      handleEditMessage,
+      handleCopyRequest,
+      handleRetryMessage,
+      draft,
+      setDraft,
+      isStarting,
+      isAwaitingAgent,
+      agentReasoning,
+      agentDraft,
+      handleCancelDraftSpec,
+      handleRetryDraftSpec,
+      handleStartRun,
+      confirmed,
+      stageDraftSpec,
+      startedSession,
+      navigate,
+      resetWorkspace,
+      focusComposer,
+      canContinueLinkedDraft,
+      spec,
+      status,
+      retryStatusLookup,
+    ],
+  );
 
   const scrollRef = useChatTimelineScroll(
     timelineItems,
@@ -301,7 +376,7 @@ export interface ConversationViewProps {
 export function ConversationView(props: ConversationViewProps) {
   return (
     <>
-      <TimelineSection
+      <MemoizedTimelineSection
         scrollRef={props.scrollRef}
         timelineItems={props.timelineItems}
         error={props.session.error}
@@ -353,6 +428,8 @@ function TimelineSection({
     </section>
   );
 }
+
+const MemoizedTimelineSection = memo(TimelineSection);
 
 interface ComposerSectionProps {
   composerRef: RefObject<HTMLDivElement | null>;

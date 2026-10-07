@@ -158,7 +158,7 @@ function CodeCopyButton({text}: {text: string}) {
   return (
     <button
       type="button"
-      className="ml-auto grid size-6 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg focus-visible:outline-none"
+      className="ml-auto grid size-6 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring"
       aria-label={copied ? 'Copied' : 'Copy code'}
       onClick={() => void copyText(text).then(() => setCopied(true))}
     >

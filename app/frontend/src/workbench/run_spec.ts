@@ -50,7 +50,7 @@ export interface EditedSpecFields {
 
 export function buildInterviewFieldsPayload(
   values: EditedSpecFields,
-): Omit<Interview['fields'], 'title'> {
+): Omit<Interview['fields'], 'title' | 'lab_constraints'> {
   return {
     research_challenge: values.goal,
     focus_area: values.attributes,
