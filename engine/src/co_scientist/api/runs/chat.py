@@ -17,7 +17,7 @@ from co_scientist.api.runs.models import (
     SendMessageRequest,
     StartAnnouncementRequest,
 )
-from co_scientist.api.runs.support import _require_run, _run_or_404
+from co_scientist.api.runs.support import _require_run, _run_or_404, request_continuation
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import qa, run_start_announcement
@@ -27,7 +27,7 @@ from co_scientist.domains.chat.repository.examples import open_example_chat
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
-from co_scientist.orchestration import engine_adapter, engine_tasks
+from co_scientist.orchestration import engine_adapter
 from co_scientist.platform import db
 from co_scientist.platform.db.models import MessageRow, RunRow, RunStatus
 
@@ -45,7 +45,7 @@ def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     msg = store.append_message(
         NewMessage(run_id=run_id, sender="user", content=req.content, kind="steering")
     )
-    continuation = engine_tasks.enqueue_scientist_continuation(run_id, msg.id)
+    continuation = request_continuation(run_id, msg.id)
     return {
         **msg.to_dict(),
         "status": "queued",

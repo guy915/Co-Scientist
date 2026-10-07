@@ -101,6 +101,10 @@ class Settings(BaseSettings):
     free_runs_per_host_per_day: int = Field(default=6, ge=1)
     free_runs_globally_per_day: int = Field(default=20, ge=1)
     concurrent_runs_per_host: int = Field(default=10, ge=1)
+    continuations_per_run_per_day: int = Field(default=3, ge=1)
+    continuations_per_client_per_day: int = Field(default=8, ge=1)
+    continuations_per_host_per_day: int = Field(default=16, ge=1)
+    continuations_per_day: int = Field(default=100, ge=1)
 
     # Production model choices are explicit hosting overrides; changing these
     # defaults alone does not change production.

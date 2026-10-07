@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from co_scientist.core.exceptions import ContinuationAdmissionError
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.orchestration.repository import runs
@@ -34,8 +35,6 @@ def _steer_and_continue(
     """Contributions continue from durable checkpoint state rather than
     restarting prior scientific work.
     """
-    from co_scientist.orchestration import engine_tasks
-
     message = messages.append_message(
         NewMessage(
             run_id=run_id,
@@ -45,4 +44,13 @@ def _steer_and_continue(
             meta=meta,
         )
     )
-    return engine_tasks.enqueue_scientist_continuation(run_id, message.id)
+    return request_continuation(run_id, message.id)
+
+
+def request_continuation(run_id: str, input_id: int) -> ScientificTask | None:
+    from co_scientist.orchestration import engine_tasks
+
+    try:
+        return engine_tasks.enqueue_scientist_continuation(run_id, input_id)
+    except ContinuationAdmissionError as exc:
+        raise HTTPException(status_code=409 if exc.capacity else 429, detail=str(exc)) from exc
