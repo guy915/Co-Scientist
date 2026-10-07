@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
-from co_scientist.api.sse import sse_frame
+from co_scientist.core.sse import sse_frame
 from co_scientist.domains.access import credentials
 from co_scientist.domains.chat.interviews import turns
 from co_scientist.domains.chat.repository import interviews as store
