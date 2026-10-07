@@ -189,58 +189,15 @@ def parse_mcp_query_result(result: Any) -> list[str]:
     return []
 
 
-def _collect_enabled_source_types(
-    workflow: "WorkflowConfig",
-    tool_registry: "ToolRegistry",
-) -> list[str]:
-    source_types = []
-    for source in workflow.get_enabled_search_sources():
-        tool_cfg = tool_registry.get_tool(source.tool)
-        if tool_cfg:
-            source_types.append(tool_cfg.source_type)
-    return source_types
-
-
-def _determine_multi_source_query_type(
-    workflow: "WorkflowConfig",
-    tool_registry: "ToolRegistry",
-) -> str:
-    """Mixed graph/academic sources share generic queries: one specialized
-    prompt cannot serve both source types."""
-    source_types = _collect_enabled_source_types(workflow, tool_registry)
-
-    if "knowledge_graph" in source_types and len(source_types) > 1:
-        logger.warning(
-            "Multi-source mode with knowledge_graph detected. "
-            "Using generic queries. For best results, use"
-            " per-source query generation."
-        )
-        return "academic"
-
-    if "knowledge_graph" in source_types:
-        return "knowledge_graph"
-    return "academic"
-
-
-def _multi_source_type_if_applicable(
-    is_multi_source: bool,
-    workflow: Optional["WorkflowConfig"],
-    tool_registry: Optional["ToolRegistry"],
-) -> str | None:
-    if not is_multi_source or not workflow or not tool_registry:
-        return None
-    return _determine_multi_source_query_type(workflow, tool_registry)
-
-
 def determine_query_source_type(
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
     search_tool_config: Optional["ToolConfig"],
     is_multi_source: bool,
 ) -> str:
-    multi_source_type = _multi_source_type_if_applicable(is_multi_source, workflow, tool_registry)
-    if multi_source_type is not None:
-        return multi_source_type
+    # One specialized query prompt cannot serve every source of a multi-source run.
+    if is_multi_source and workflow and tool_registry:
+        return "academic"
 
     if search_tool_config:
         return search_tool_config.source_type or "academic"

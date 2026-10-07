@@ -486,7 +486,7 @@ def _citations_citation_map() -> dict[str, Any]:
         },
         "C3": {
             "type": "knowledge_graph",
-            "display": "INDRA: CXCR1 -> STAT3",
+            "display": "STRING: CXCR1 -> STAT3",
         },
     }
 
@@ -539,11 +539,11 @@ def test_persist_classifies_citations_via_shared_classifier(
     # citation key loses source identity.
     evidence = records.list_evidence(run.id, db_path=isolated_db)
     kg_row = next(e for e in evidence if e["source"] == "knowledge_graph")
-    assert kg_row["title"] == "INDRA: CXCR1 -> STAT3"
+    assert kg_row["title"] == "STRING: CXCR1 -> STAT3"
 
     # The rendered report resolves the grounding text's citation keys.
     _payload, markdown = asyncio.run(_build_report(run, isolated_db))
     section = markdown.split("#### References", 1)[1]
     assert "CXCR1 drives CSC renewal" in section
-    assert "INDRA: CXCR1 -> STAT3" in section
+    assert "STRING: CXCR1 -> STAT3" in section
     assert "cited in hypothesis" not in section
