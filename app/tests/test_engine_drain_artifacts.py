@@ -5,14 +5,14 @@ import json
 from typing import Any
 
 import pytest
+from co_scientist.domains.report import build as report_build
+from co_scientist.domains.report import finalize as report_finalize
+from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
 from co_scientist.orchestration.drain import fold_grounding_telemetry
 from co_scientist.platform import db
 
-from app.report import build as report_build
-from app.report import finalize as report_finalize
-from app.store import reports
 from tests._client import drain as _drain
 from tests._drain_helpers import (
     _build_report,

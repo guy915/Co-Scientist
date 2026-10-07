@@ -5,11 +5,11 @@ import json
 from typing import Any
 
 import pytest
-from co_scientist.domains.research_state.repository import records
-
-from app.report.markdown.hypothesis import (
+from co_scientist.domains.report.markdown.hypothesis import (
     _render_hypothesis_reviews,
 )
+from co_scientist.domains.research_state.repository import records
+
 from tests._drain_helpers import (
     _build_report,
     _final_state_with_features,

@@ -10,8 +10,7 @@ from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.hypotheses import HypothesisStateChanges
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
-
-from app.hypothesis.safety import (
+from co_scientist.domains.safety.hypothesis.safety import (
     EscalatedVerdict,
     HeldHypothesis,
     HypothesisSafetyOutcome,

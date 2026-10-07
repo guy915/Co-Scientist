@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.safety import POLICY_VERSION, REDACTED_PLACEHOLDER
+from co_scientist.domains.safety.rules import POLICY_VERSION, REDACTED_PLACEHOLDER
 
 
 @dataclass

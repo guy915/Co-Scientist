@@ -6,8 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.report import format_deep_verification_critique
-
+from co_scientist.domains.report import format_deep_verification_critique
 from co_scientist.domains.research_state.claims.assessor import SENTENCE_SPLIT
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.records import (

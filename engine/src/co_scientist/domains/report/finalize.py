@@ -4,20 +4,20 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from co_scientist.domains.research_state.repository import records
-from co_scientist.domains.research_state.repository.records import NewSafetyDecision
-from co_scientist.platform import db
-from co_scientist.platform.db.models import RunStatus, ScientificTask
-
 from app.notifications import _enqueue_completion_notification
-from app.report.build import (
+from app.run_events import EmitFn
+from app.store import events, runs
+
+from co_scientist.domains.report import repository as store
+from co_scientist.domains.report.build import (
     ReportRequest,
     _BuiltReport,
     build_report_content,
 )
-from app.report.gates import _empty_leaderboard_reason
-from app.run_events import EmitFn
-from app.safety import (
+from co_scientist.domains.report.gates import _empty_leaderboard_reason
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.records import NewSafetyDecision
+from co_scientist.domains.safety.gate import (
     SafetyDecision,
     ScreenSubject,
     apply_safety_gate,
@@ -25,8 +25,8 @@ from app.safety import (
     redact_payload_text,
     screen_final,
 )
-from app.store import events, runs
-from app.store import reports as store
+from co_scientist.platform import db
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,7 @@ def _commit_leased_report_publication(
     writes.
     """
     # Keep imports local: engine task support closes a cycle through
-    # engine_adapter and app.report.
+    # engine_adapter and co_scientist.domains.report.
     from app.engine_tasks.support import assert_task_commit_allowed
 
     with db.transaction(db_path) as conn:

@@ -4,6 +4,8 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.domains.report import gates as report_gates
+from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state import models as engine_models
 from co_scientist.domains.research_state.repository import hypotheses, records
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
@@ -24,8 +26,7 @@ from co_scientist.science.research import (
 )
 
 from app.engine_tasks import inputs as engine_tasks_inputs
-from app.report import gates as report_gates
-from app.store import reports, runs
+from app.store import runs
 from app.store import runs_views as views
 from tests._drain_helpers import (
     _build_report,

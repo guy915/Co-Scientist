@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.report import markdown as report_markdown
+from co_scientist.domains.report import markdown as report_markdown
 
 
 def render_markdown(*, top_hypotheses: list[dict[str, Any]] | None = None, **fields: Any) -> str:

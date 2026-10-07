@@ -5,17 +5,18 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.report import build as report_build
+from co_scientist.domains.report import finalize as report_finalize
+from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
+from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.platform.db.models import RunStatus
 
 from app import engine_tasks, task_worker
 from app.engine_tasks import support as engine_tasks_support
-from app.report import build as report_build
-from app.report import finalize as report_finalize
-from app.safety import SafetyDecision
 from app.store import events as store_events
-from app.store import reports, runs
+from app.store import runs
 from app.store import runs_views as views
 from app.store import tasks as store
 from tests._client import create_run as _create_run

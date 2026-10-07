@@ -23,8 +23,8 @@ layers =
     co_scientist.orchestration : co_scientist.workflow_topology : co_scientist.task_runtime : co_scientist.checkpoint : co_scientist.generator : app.engine_tasks : app.task_worker : app.run_events : app.notifications : app.engine_adapter.opts : app.engine_adapter.events : app.store.tasks : app.store.tasks_lifecycle : app.store.runs : app.store.runs_views : app.store.events : app.store.supervisor_plan : app.store.receipts
     co_scientist.science
     co_scientist.domains.chat
-    (co_scientist.domains.report) : app.report : app.store.reports
-    (co_scientist.domains.safety) : co_scientist.safety : app.safety : app.hypothesis
+    co_scientist.domains.report
+    co_scientist.domains.safety
     co_scientist.domains.research_state
     co_scientist.domains.documents : co_scientist.domains.access : co_scientist.domains.feedback
     co_scientist.platform.retrieval
@@ -37,7 +37,7 @@ ignore_imports =
     co_scientist.core.config -> co_scientist.platform.llm
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.ranking.ranking_debate
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.research
-    co_scientist.domains.research_state.drain.reviews -> app.report
+    co_scientist.domains.research_state.drain.reviews -> co_scientist.domains.report
     co_scientist.platform.telemetry.error_tracking -> co_scientist.domains.access.credentials
     co_scientist.domains.documents.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
     co_scientist.domains.access.free_usage -> app.auth
@@ -59,22 +59,22 @@ ignore_imports =
     co_scientist.domains.chat.qa.manifest -> app.store.tasks
     co_scientist.domains.chat.qa.snapshot -> app.store.supervisor_plan
     co_scientist.domains.chat.qa.snapshot -> co_scientist.checkpoint
-    app.report.content -> co_scientist.science.reflection.reflection_helpers
-    app.report.finalize -> app.engine_tasks.runtime
-    app.report.finalize -> app.engine_tasks.support
-    app.report.finalize -> app.notifications
-    app.report.finalize -> app.run_events
-    app.report.finalize -> app.store.events
-    app.report.finalize -> app.store.runs
+    co_scientist.domains.report.content -> co_scientist.science.reflection.reflection_helpers
+    co_scientist.domains.report.finalize -> app.engine_tasks.runtime
+    co_scientist.domains.report.finalize -> app.engine_tasks.support
+    co_scientist.domains.report.finalize -> app.notifications
+    co_scientist.domains.report.finalize -> app.run_events
+    co_scientist.domains.report.finalize -> app.store.events
+    co_scientist.domains.report.finalize -> app.store.runs
     co_scientist.domains.access.retention -> app.store.runs
     co_scientist.domains.access.retention -> app.store.runs_views
     co_scientist.core.run_modes -> co_scientist.domains.research_state.elo
     co_scientist.domains.chat.run_start_announcement -> app.sse
-    app.safety -> app.engine_tasks.support
-    app.safety -> app.store.events
-    app.safety -> app.store.runs
-    app.safety -> app.task_worker.outcomes
-    app.safety.semantic -> co_scientist.science.schemas.builders
+    co_scientist.domains.safety.gate -> app.engine_tasks.support
+    co_scientist.domains.safety.gate -> app.store.events
+    co_scientist.domains.safety.gate -> app.store.runs
+    co_scientist.domains.safety.gate -> app.task_worker.outcomes
+    co_scientist.domains.safety.semantic -> co_scientist.science.schemas.builders
     co_scientist.domains.chat.seed -> app.store.runs_views
     co_scientist.platform.db.checkpoints -> app.store.supervisor_plan
     co_scientist.domains.documents.repository -> co_scientist.domains.research_state.repository.records
@@ -148,11 +148,8 @@ source_modules =
     app.store.receipts
     co_scientist.science
     co_scientist.domains.chat
-    app.report
-    app.store.reports
-    co_scientist.safety
-    app.safety
-    app.hypothesis
+    co_scientist.domains.report
+    co_scientist.domains.safety
     co_scientist.domains.research_state
     co_scientist.domains.documents
     co_scientist.domains.access
@@ -213,11 +210,8 @@ source_modules =
     app.store.receipts
     co_scientist.science
     co_scientist.domains.chat
-    app.report
-    app.store.reports
-    co_scientist.safety
-    app.safety
-    app.hypothesis
+    co_scientist.domains.report
+    co_scientist.domains.safety
     co_scientist.domains.research_state
     co_scientist.domains.documents
     co_scientist.domains.access
@@ -270,11 +264,8 @@ source_modules =
     app.store.receipts
     co_scientist.science
     co_scientist.domains.chat
-    app.report
-    app.store.reports
-    co_scientist.safety
-    app.safety
-    app.hypothesis
+    co_scientist.domains.report
+    co_scientist.domains.safety
     co_scientist.domains.research_state
     co_scientist.domains.documents
     co_scientist.domains.access
@@ -348,7 +339,7 @@ source_modules =
     co_scientist.science
     co_scientist.platform.retrieval.research_adapter
     co_scientist.platform.retrieval.degradation
-    co_scientist.safety
+    co_scientist.domains.safety.rules
     co_scientist.platform.sandbox
     co_scientist.platform.sandbox.skills
     co_scientist.domains.research_state.state

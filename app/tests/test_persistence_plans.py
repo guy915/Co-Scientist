@@ -4,8 +4,8 @@ import pathlib
 from typing import Any
 
 import pytest
+from co_scientist.domains.report import repository as reports
 
-from app.store import reports
 from app.store import supervisor_plan as plans
 from tests._drain_helpers import (
     _final_state_with_features,

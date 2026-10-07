@@ -6,9 +6,8 @@ from typing import Any
 from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
-
-from app.hypothesis import hypothesis_text, record_hypothesis_block
-from app.hypothesis.safety import (
+from co_scientist.domains.safety.hypothesis import hypothesis_text, record_hypothesis_block
+from co_scientist.domains.safety.hypothesis.safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
