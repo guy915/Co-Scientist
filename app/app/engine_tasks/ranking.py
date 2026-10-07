@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from co_scientist.agents.ranking import RankingJudgement, RankingJudgingContext
 from co_scientist.constants import RANKING_WAVE_SIZE as RANKING_WAVE_SIZE
@@ -26,6 +26,9 @@ from app.engine_tasks.support import (
 from app.store import db, events, runs
 from app.store.models import ScientificTask
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
+
+if TYPE_CHECKING:
+    from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +190,7 @@ async def _judge_wave_matchups(
 
     # Durable judging deliberately omits preferences and shares one checkpointed
     # guidance/median snapshot across the wave.
-    prompt = prepare_ranking_prompt_context(state)
+    prompt = prepare_ranking_prompt_context(cast("WorkflowState", state))
     context = prepare_ranking_judging_context(prompt, eligible)
     judge_context = _WaveJudgeContext(context, plan.index)
     judged = await asyncio.gather(
@@ -271,9 +274,7 @@ def _ranking_chain_skipped(state: dict[str, Any], eligible: list[Any]) -> bool:
 
     if len(eligible) < 2:
         return True
-    # Unfollowed engine imports arrive as Any; assert the declared integer type
-    # at this boundary.
-    rounds_left: int = remaining_ranking_rounds(state, state["hypotheses"])
+    rounds_left = remaining_ranking_rounds(cast("WorkflowState", state), state["hypotheses"])
     # An empty tournament resets pending matches; skip exhausted whole-run
     # budgets to retain already judged history.
     return rounds_left < 1
@@ -315,7 +316,7 @@ async def _schedule_ranking_chain(
     eligible = _ranking_eligible(state)
     if _ranking_chain_skipped(state, eligible):
         return None
-    rounds, *_ = await prepare_ranking_round(state, eligible)
+    rounds, *_ = await prepare_ranking_round(cast("WorkflowState", state), eligible)
     state["pending_ranking_matchups"] = []
     committed_seq, successor_id = _enqueue_first_ranking_match(
         task, state, checkpoint_seq, rounds, db_path
@@ -453,9 +454,7 @@ async def _commit_ranking_finalize(
     """
     from co_scientist.task_runtime import next_task_type
 
-    # Unfollowed engine imports arrive as Any; assert the declared type at this
-    # boundary.
-    successor: str | None = next_task_type("ranking", committed)
+    successor = next_task_type("ranking", cast("WorkflowState", committed))
     checkpoint_seq, successor_id = _save_state_and_enqueue(commit, committed, successor)
     await _emit_node_completion(
         commit.task.run_id,
@@ -493,14 +492,14 @@ async def execute_ranking_finalize(
     if replay is not None:
         return replay
     update = await finalize_ranking(
-        state,
+        cast("WorkflowState", state),
         state["hypotheses"],
         list(state.get("pending_ranking_matchups") or []),
         int(task.inputs["tournament_rounds"]),
         int(task.inputs["total_llm_calls"]),
     )
     _fold_ranking_telemetry(update, dict(task.inputs.get("model_usage") or {}))
-    committed = apply_task_update(state, update)
+    committed = cast("dict[str, Any]", apply_task_update(cast("WorkflowState", state), update))
     committed.pop("pending_ranking_matchups", None)
     return await _commit_ranking_finalize(TaskCommit(task, current_seq, db_path), committed, update)
 

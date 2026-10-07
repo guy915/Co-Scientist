@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from app.store import db, tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import ScientificTask
 from app.store.tasks import NewTask
+
+if TYPE_CHECKING:
+    from co_scientist.state import WorkflowState
 
 
 def _cascade_cancel_downstream(
@@ -212,7 +215,7 @@ def _enqueue_lookahead_tail(
     from app.engine_tasks.support import NODE_TASK_PREFIX
 
     predecessor = head
-    for hop in plan_portfolio(successor, state)[1:]:
+    for hop in plan_portfolio(successor, cast("WorkflowState", state))[1:]:
         predecessor = _enqueue_after(predecessor, f"{NODE_TASK_PREFIX}{hop}", 90, conn)
 
 

@@ -89,11 +89,13 @@ max-complexity = 15
 [tool.mypy]
 python_version = "3.10"
 strict = true
+# The app's modules move into this package (ADR-001); they need the plugin.
+plugins = ["pydantic.mypy"]
 # MCP owns independent strict configuration and Biopython overrides.
 exclude = ["^(mcp_server|build|dist)/"]
 
 [[tool.mypy.overrides]]
-module = ["jsonschema", "jsonschema.*", "yaml"]
+module = ["jsonschema", "jsonschema.*", "yaml", "pypdf", "pypdf.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
