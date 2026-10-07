@@ -130,11 +130,6 @@ def _queue_resume_workflow(
             expected_lifecycle_revision,
             conn=conn,
         )
-        run = _run_or_404(run_id, conn=conn)
-        if not runs.has_run_capacity_in_transaction(
-            conn, run.id, run.client_id, settings.max_concurrent_runs
-        ):
-            raise HTTPException(status_code=409, detail="concurrent run limit reached")
         revive_failed_bootstrap = _has_failed_precheckpoint_bootstrap_while_paused(
             run_id, conn=conn
         )

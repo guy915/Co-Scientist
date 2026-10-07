@@ -32,17 +32,6 @@ const backendServer = {
     COSCIENTIST_FORCE_OFFLINE: '1',
     PYTHON_DOTENV_DISABLED: '1',
     EVIDENCE_RESOLVER: 'offline',
-    // A shared fake-provider store spans the whole browser suite. Exhaustion
-    // and restart accounting are covered by the isolated admission tests.
-    APP_LLM_GLOBAL_CALLS_PER_DAY: '8192',
-    APP_LLM_GLOBAL_TOKENS_PER_DAY: '256000000',
-    PROVIDER_HOST_CALLS_PER_DAY: '8192',
-    PROVIDER_HOST_TOKENS_PER_DAY: '256000000',
-    PROVIDER_CLIENT_CALLS_PER_DAY: '8192',
-    PROVIDER_CLIENT_TOKENS_PER_DAY: '256000000',
-    ANONYMOUS_SESSIONS_PER_HOST_PER_DAY: '256',
-    RUNS_PER_HOST_PER_DAY: '500',
-    RUNS_PER_DAY: '500',
     SMTP_HOST: '',
     // Fresh per-invocation stores must never touch developer data or inherit
     // earlier runs.

@@ -66,15 +66,6 @@ class LLMCallBudgetExceededError(CoScientistError):
 
 # Long platform caps outlast bounded backoff; not ValueError, which would spend
 # durable retries.
-class ProviderAdmissionError(LLMCallBudgetExceededError):
-    """Durable service admission failed; never retry a rejected dispatch."""
-
-    def __init__(self, reason: str) -> None:
-        self.count = 0
-        self.ceiling = 0
-        CoScientistError.__init__(self, reason)
-
-
 class LLMRateLimitParkError(CoScientistError):
     """Long-lived platform caps require parking rather than consuming
     transient retries.

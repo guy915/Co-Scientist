@@ -1,19 +1,4 @@
 SCHEMA = """
--- Admission ledgers are independent of run deletion and survive restarts.
-CREATE TABLE IF NOT EXISTS anonymous_admissions (
-    day INTEGER NOT NULL, host TEXT NOT NULL, client_id TEXT NOT NULL,
-    PRIMARY KEY(day, host, client_id)
-);
-CREATE TABLE IF NOT EXISTS run_admissions (
-    run_id TEXT PRIMARY KEY, client_id TEXT NOT NULL, host TEXT NOT NULL,
-    day INTEGER NOT NULL, free INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_run_admissions_day_host ON run_admissions(day, host);
-CREATE TABLE IF NOT EXISTS provider_admissions (
-    day INTEGER NOT NULL, scope TEXT NOT NULL, subject TEXT NOT NULL,
-    calls INTEGER NOT NULL, tokens INTEGER NOT NULL,
-    PRIMARY KEY(day, scope, subject)
-);
 -- Explicitly retired empirical-outcomes data; no runtime consumer remains.
 DROP TABLE IF EXISTS outcome_refinement_actions;
 DROP TABLE IF EXISTS hypothesis_outcomes;

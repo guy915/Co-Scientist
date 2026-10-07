@@ -5,12 +5,6 @@ from typing import Any, ClassVar
 
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def _isolated_admission_store(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("COSCIENTIST_DB_PATH", str(tmp_path / "admission.db"))
-
-
 # Some editable installs fail to process the .pth file; keep imports working.
 _SRC = pathlib.Path(__file__).resolve().parents[1] / "src"
 if str(_SRC) not in sys.path:
