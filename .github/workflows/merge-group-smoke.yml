@@ -1,0 +1,107 @@
+name: Merge-group smoke
+
+on:
+  push:
+    branches: [test/lane-c-merge-group]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install workflow parser
+        run: python -m pip install PyYAML==6.0.3
+      - name: Create docs-only and mixed merge-group payloads
+        id: fixture
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          import yaml
+
+          workflow = yaml.load(Path('.github/workflows/ci.yml').read_text(), Loader=yaml.BaseLoader)
+          assert 'merge_group' in workflow['on']
+          steps = workflow['jobs']['changes']['steps']
+          filtered = next(step for step in steps if step.get('id') == 'filter')
+          selected = next(step for step in steps if step.get('id') == 'select')
+          assert filtered['with']['base'] == '${{ github.event.merge_group.base_sha }}'
+          assert filtered['with']['ref'] == '${{ github.event.merge_group.head_sha }}'
+          for step in [filtered, selected, steps[0]]:
+              assert "github.event_name == 'merge_group'" in step['if']
+          all_step = next(step for step in steps if step.get('id') == 'all')
+          assert "github.event_name != 'merge_group'" in all_step['if']
+          Path('/tmp/lane-c-select.sh').write_text(selected['run'])
+          Path('/tmp/lane-c-filters.yml').write_text(filtered['with']['filters'])
+          subprocess.run(['git', 'config', 'user.name', 'CI fixture'], check=True)
+          subprocess.run(['git', 'config', 'user.email', 'ci-fixture@example.invalid'], check=True)
+          base = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          note = Path('.github/ci-metrics/merge-group-note.md')
+          note.write_text('Temporary merge-group documentation fixture.\n')
+          subprocess.run(['git', 'add', str(note)], check=True)
+          subprocess.run(['git', 'commit', '-m', 'test(ci): create documentation group'], check=True)
+          docs_head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          ci = Path('.github/workflows/ci.yml')
+          ci.write_text(ci.read_text() + '\n# Temporary mixed group fixture.\n')
+          subprocess.run(['git', 'add', str(ci)], check=True)
+          subprocess.run(['git', 'commit', '-m', 'test(ci): create mixed group'], check=True)
+          mixed_head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for name, head in [('docs', docs_head), ('mixed', mixed_head)]:
+                  event = {'merge_group': {'base_sha': base, 'head_sha': head}}
+                  print(f'{name}={json.dumps(event)}', file=output)
+          PY
+      - name: Detect docs group with the production action and filters
+        id: docs
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          token: ''
+          filters: /tmp/lane-c-filters.yml
+          base: ${{ fromJSON(steps.fixture.outputs.docs).merge_group.base_sha }}
+          ref: ${{ fromJSON(steps.fixture.outputs.docs).merge_group.head_sha }}
+          list-files: json
+      - name: Detect mixed group with the production action and filters
+        id: mixed
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          token: ''
+          filters: /tmp/lane-c-filters.yml
+          base: ${{ fromJSON(steps.fixture.outputs.mixed).merge_group.base_sha }}
+          ref: ${{ fromJSON(steps.fixture.outputs.mixed).merge_group.head_sha }}
+          list-files: json
+      - name: Replay the production target selector and verify both groups
+        env:
+          DOCS: ${{ toJSON(steps.docs.outputs) }}
+          MIXED: ${{ toJSON(steps.mixed.outputs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          test_targets = ['engine', 'app', 'frontend', 'evaluations', 'mcp_server', 'e2e']
+          for name, expected in [('DOCS', 'false'), ('MIXED', 'true')]:
+              with tempfile.NamedTemporaryFile() as output:
+                  subprocess.run(['bash', '/tmp/lane-c-select.sh'], env={
+                      **os.environ, 'FILTERS': os.environ[name], 'GITHUB_OUTPUT': output.name,
+                  }, check=True)
+                  selected = dict(line.split('=') for line in Path(output.name).read_text().splitlines())
+              assert all(selected[target] == expected for target in test_targets), selected
+              assert selected['python_lint'] == 'true', selected
+              if name == 'MIXED':
+                  assert selected['root_config'] == selected['docker'] == 'true', selected
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+                  print(f'{name}: `{json.dumps(selected, sort_keys=True)}`', file=summary)
+          print('Production paths-filter and selector passed both merge-group payloads.')
+          PY
