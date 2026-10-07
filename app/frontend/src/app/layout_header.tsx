@@ -18,7 +18,7 @@ import type {SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 const HEADER_CLASSES =
-  'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4rem] items-center justify-between gap-[1rem] [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
+  'ucs-header-action-bar sticky top-0 z-header flex min-h-[4rem] items-center justify-between gap-[1rem] [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
   'phone:min-w-0 phone:gap-[0.35rem] phone:px-[0.5rem]';
 
 const PRODUCT_LOCKUP_CLASSES =

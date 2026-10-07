@@ -64,7 +64,7 @@ const STEP_TIMELINE_CLASSES =
   '[@media(min-width:1181px)_and_(max-height:760px)]:mt-[clamp(2.35rem,5.8vh,3.2rem)]';
 
 const STEP_ITEM_CLASSES =
-  'relative z-[1] grid gap-4 desktop:w-[min(100%,15.8rem)] tablet:w-[min(100%,14rem)] tablet:grid-cols-[1fr] tablet:gap-[0.85rem]';
+  'relative z-1 grid gap-4 desktop:w-[min(100%,15.8rem)] tablet:w-[min(100%,14rem)] tablet:grid-cols-[1fr] tablet:gap-[0.85rem]';
 
 const STEP_NUMBER_CLASSES =
   'grid size-[1.875rem] place-items-center rounded-full bg-(--cosci-accent) text-[1rem] font-normal text-(--cosci-accent-fg) [transition:background-color_0.3s_ease-in-out]';
@@ -88,7 +88,7 @@ const SUGGESTION_TEXT_CLASSES =
 // The preview shows the full teaser: line clamps would cut letters, while
 // viewport bounds permit whole-word wrapping.
 const SUGGESTION_PREVIEW_CLASSES =
-  'pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-[5] m-0 block w-max max-w-[min(46rem,calc(100vw-7rem))] text-[0.84rem] leading-[1.25rem] font-normal text-pretty text-cosci-shell-icon transition-[opacity,visibility] duration-short ease-standard phone:hidden';
+  'pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-5 m-0 block w-max max-w-[min(46rem,calc(100vw-7rem))] text-[0.84rem] leading-[1.25rem] font-normal text-pretty text-cosci-shell-icon transition-[opacity,visibility] duration-short ease-standard phone:hidden';
 
 // Anchor edge previews inward so they cannot overflow the viewport.
 const SUGGESTION_PREVIEW_POSITION_CLASSES = [

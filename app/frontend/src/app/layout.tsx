@@ -30,7 +30,7 @@ import {routeIds} from '@/shared/lib/routes';
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
 const WORKSPACE_CLASSES =
-  'ucs-workspace relative z-[1] grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
+  'ucs-workspace relative z-1 grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
   'phone:rounded-none';
 
 const REPORT_WORKSPACE_CLASSES =
@@ -130,7 +130,7 @@ function DrawerScrim({
     <div
       {...presenceProps(state)}
       data-motion="long"
-      className="ui-motion-fade fixed inset-0 z-[55] hidden bg-scrim phone:block"
+      className="ui-motion-fade fixed inset-0 z-drawer-scrim hidden bg-scrim phone:block"
       aria-hidden="true"
       onClick={onDismiss}
     />

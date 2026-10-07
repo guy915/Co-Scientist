@@ -17,14 +17,14 @@ import {presenceProps, usePresence} from './use_presence';
 
 export type DialogSize = 'md' | 'lg';
 
-const SCRIM_CLASSES = 'ui-motion-fade fixed inset-0 z-[70] bg-scrim';
+const SCRIM_CLASSES = 'ui-motion-fade fixed inset-0 z-dialog-scrim bg-scrim';
 
 // Centred with translate so the motion can scale without fighting it. The
 // panel background equals the default hover tone in dark mode, so the panel
 // re-points the hover tokens.
 const PANEL_CLASSES =
   '[--button-outlined-hover:var(--cosci-menu-row-hover)] ' +
-  '[--icon-button-hover-bg:var(--cosci-menu-row-hover)] ui-motion-pop fixed top-1/2 left-1/2 z-[71] flex -translate-1/2 flex-col ' +
+  '[--icon-button-hover-bg:var(--cosci-menu-row-hover)] ui-motion-pop fixed top-1/2 left-1/2 z-dialog flex -translate-1/2 flex-col ' +
   'rounded-[1.75rem] bg-cosci-menu-bg text-cosci-fg shadow-overlay ' +
   'outline-none phone:rounded-[1.25rem]';
 

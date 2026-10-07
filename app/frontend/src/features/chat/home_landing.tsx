@@ -87,7 +87,7 @@ const RAIL_NAV_CLASSES =
   'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-full bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
 
 const RAIL_TAB_CLASSES =
-  'relative z-[1] grid h-[38px] flex-none place-items-center rounded-full px-[16px] text-[14px] font-medium no-underline';
+  'relative z-1 grid h-[38px] flex-none place-items-center rounded-full px-[16px] text-[14px] font-medium no-underline';
 
 const SLIDER_CLASSES =
   'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-full bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
@@ -148,7 +148,7 @@ function LandingHero({
     >
       <h2
         id="ucs-landing-word"
-        className="relative z-[1] m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
+        className="relative z-1 m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
       >
         Co-Scientist
       </h2>
@@ -341,7 +341,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   return (
     <div
       ref={anchorRef}
-      className={joinClasses('min-h-[66px]', sticky && 'sticky top-0 z-[5]')}
+      className={joinClasses('min-h-[66px]', sticky && 'sticky top-0 z-5')}
     >
       <div inert={inHeader} aria-hidden={inHeader || undefined}>
         <LandingTabs reduceMotion={reduceMotion} />

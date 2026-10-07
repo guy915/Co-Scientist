@@ -101,7 +101,7 @@ export function SegmentedControl<T extends string>({
           aria-pressed={option.value === value}
           onClick={() => onChange(option.value)}
           className={joinClasses(
-            'relative z-[1] inline-flex min-w-0 cursor-pointer items-center',
+            'relative z-1 inline-flex min-w-0 cursor-pointer items-center',
             'justify-center gap-[0.45rem] rounded-full border-0 bg-transparent',
             'font-[inherit] text-segmented-fg',
             'aria-[pressed=false]:hover:bg-segmented-hover',
@@ -193,7 +193,7 @@ const LINK_CLASSES: Record<TabNavVariant, string> = {
     'gap-[0.35rem] py-2 text-sm no-underline text-cosci-muted ' +
     'hover:text-cosci-fg aria-[current=page]:text-cosci-blue',
   pill:
-    'relative z-[1] flex h-full min-w-0 items-center justify-center ' +
+    'relative z-1 flex h-full min-w-0 items-center justify-center ' +
     'gap-[0.45rem] rounded-full px-[0.72rem] no-underline text-tab-pill-fg ' +
     'aria-[current=page]:text-tab-pill-selected-fg ' +
     'not-aria-[current=page]:hover:bg-tab-pill-hover',

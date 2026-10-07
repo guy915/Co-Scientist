@@ -113,6 +113,18 @@
 @custom-variant tablet (@media (min-width: 701px) and (max-width: 1180px));
 @custom-variant desktop (@media (min-width: 1181px));
 
+/* Page-level stacking, lowest first; static so tooltips.css can read them.
+   Numbers inside one component (z-1, z-2) only order its own children. */
+@theme static {
+  --z-index-header: 20;
+  --z-index-drawer-scrim: 55;
+  --z-index-rail: 60;
+  --z-index-dialog-scrim: 70;
+  --z-index-dialog: 71;
+  --z-index-toast: 80;
+  --z-index-tooltip: 1000;
+}
+
 @theme {
   /* MD3 bridge values are derived at runtime from the shared seed. */
   --color-th-bg: var(--md-sys-color-background, hsl(0 0% 100%));

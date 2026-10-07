@@ -16,7 +16,7 @@ import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
 import {displayTitle} from '@/shared/lib/titles';
 
 const RAIL_MENU_LAYOUT_CLASSES =
-  'absolute z-[35] origin-bottom-left bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] ' +
+  'absolute z-35 origin-bottom-left bottom-[0.15rem] left-[3rem] w-[min(13.5rem,calc(100vw-4rem))] ' +
   'phone:fixed phone:right-auto ' +
   'phone:bottom-[1.15rem] phone:left-[0.5rem] ' +
   'phone:w-[min(13.5rem,calc(100vw-1rem))]';
@@ -32,8 +32,8 @@ const SETTINGS_CONTROL_CLASSES =
 // bottom under its toolbar.
 // `ucs-nav-panel` scopes the shell tones for its buttons (tokens.css).
 const NAV_PANEL_CLASSES =
-  'ucs-nav-panel relative z-[70] box-border flex h-[100vh] w-full flex-col items-center justify-between [border-right:0] bg-cosci-rail py-[1.25rem] ' +
-  'phone:fixed phone:[inset:0_auto_0_0] phone:z-[60] ' +
+  'ucs-nav-panel relative z-rail box-border flex h-[100vh] w-full flex-col items-center justify-between [border-right:0] bg-cosci-rail py-[1.25rem] ' +
+  'phone:fixed phone:[inset:0_auto_0_0] ' +
   'phone:h-auto phone:w-[21rem] phone:min-w-0 phone:max-w-[85vw] ' +
   'phone:items-stretch phone:px-[0.75rem] phone:py-[1rem] ' +
   'phone:rounded-r-workspace';

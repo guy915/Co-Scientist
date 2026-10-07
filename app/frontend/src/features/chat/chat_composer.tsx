@@ -105,7 +105,7 @@ export function Composer({
       <label className="relative block min-h-[3.6rem] pb-[3rem]">
         <span
           className={joinClasses(
-            'absolute top-0 left-[0.4rem] z-[1] flex h-6 items-center gap-[0.45rem] pointer-events-none text-base text-cosci-composer-label',
+            'absolute top-0 left-[0.4rem] z-1 flex h-6 items-center gap-[0.45rem] pointer-events-none text-base text-cosci-composer-label',
             input.trim() && 'hidden',
           )}
         >
@@ -123,7 +123,7 @@ export function Composer({
           autoFocus={autoFocus}
           variant="bare"
           layoutClassName={joinClasses(
-            'relative z-[2] block min-h-[2.85rem] resize-none overflow-y-auto leading-6 transition-[height] duration-short ease-standard motion-reduce:transition-none',
+            'relative z-2 block min-h-[2.85rem] resize-none overflow-y-auto leading-6 transition-[height] duration-short ease-standard motion-reduce:transition-none',
             large &&
               '[@media(min-width:1181px)_and_(max-height:760px)]:min-h-[2.65rem]',
           )}

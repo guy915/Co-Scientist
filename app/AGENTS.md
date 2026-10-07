@@ -128,6 +128,7 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 - Cards and inputs use tonal layers rather than box shadows; reserve elevation for overlays.
 - Breakpoints are the variants in `index.css`: `phone:` (≤700px, equal to `MOBILE_MEDIA_QUERY` in `shared/hooks/dom.ts`, which a test checks), `above-phone:`, `tablet:` (701–1180px) and `desktop:` (≥1181px). Lint rejects a hand-written phone breakpoint.
 - Hover styles use `hover:`, which Tailwind applies only where the pointer can hover; `[&:hover]:` stays lit after a tap on touch screens, and lint rejects it.
+- Page-level stacking uses the named layers in `index.css` (`z-header` < `z-drawer-scrim` < `z-rail` < `z-dialog-scrim` < `z-dialog` < `z-toast`, then tooltips); a small integer (`z-1`) orders children inside one component only.
 - Goal Report Markdown relies on browser-default paragraph/list spacing. Global margin resets or Tailwind preflight collapse that spacing and remove list markers; reset individual styled components instead.
 
 **UI building blocks** (`src/shared/ui/`, imported from `@/shared/ui`). New UI composes these. Shape, radius, colour, focus ring and motion live in the component; a call site passes only layout (`layoutClassName`: margins, width, grid placement, position).
