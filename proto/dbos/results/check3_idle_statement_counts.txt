@@ -1,0 +1,191 @@
+    133 Thread-4 (queue_thread) | SELECT 1
+     67 Thread-4 (queue_thread) | SELECT main.queues.queue_id, main.queues.name, main.queues.concurrency, main.queues.worker_concurrency, main.queues.rate_limit_max, main.que
+     66 dbos-workflow-timeout | UPDATE main.workflow_status SET status='CANCELLED', updated_at=CAST(unixepoch('subsec') * 1000 AS BIGINT), queue_name=NULL, started_at_epoch
+     66 dbos-workflow-timeout | COMMIT
+     66 dbos-workflow-timeout | BEGIN IMMEDIATE
+     66 Thread-4 (queue_thread) | UPDATE main.workflow_status SET status='ENQUEUED', deduplication_id=CASE WHEN (main.workflow_status.is_debounced = 1) THEN NULL ELSE main.wo
+     66 Thread-4 (queue_thread) | COMMIT
+     66 Thread-4 (queue_thread) | BEGIN IMMEDIATE
+     65 queue-worker-_dbos_internal_queue | SELECT main.workflow_status.workflow_uuid FROM main.workflow_status WHERE main.workflow_status.queue_name = '_dbos_internal_queue' AND main.
+     65 queue-worker-_dbos_internal_queue | SELECT main.application_versions.version_name FROM main.application_versions WHERE main.application_versions.application_name IN ('coscienti
+     65 queue-worker-_dbos_internal_queue | SELECT 1
+     65 dbos-workflow-timeout | SELECT 1
+     61 Thread-5 (dynamic_scheduler_loop) | SELECT main.workflow_schedules.schedule_id, main.workflow_schedules.schedule_name, main.workflow_schedules.workflow_name, main.workflow_sche
+     60 Thread-5 (dynamic_scheduler_loop) | SELECT 1
+      3 uvloop_0 | SELECT 1
+      2 uvloop_0 | CREATE INDEX IF NOT EXISTS idx_operation_outputs_retention ON operation_outputs (retention_timestamp)
+      2 uvloop_0 | COMMIT
+      2 uvloop_0 | BEGIN IMMEDIATE
+      1 uvloop_0 | UPDATE main.application_versions SET application_name='coscientist' WHERE main.application_versions.version_name = 'review-v1' AND main.appl
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 9
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 8
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 7
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 6
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 5
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 40
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 4
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 39
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 38
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 37
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 36
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 35
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 34
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 33
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 32
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 31
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 30
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 3
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 29
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 28
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 27
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 26
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 25
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 24
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 23
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 22
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 21
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 20
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 2
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 19
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 18
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 17
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 16
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 15
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 14
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 13
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 123
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 122
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 121
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 120
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 12
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 119
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 118
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 117
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 116
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 115
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 114
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 112
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 111
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 110
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 11
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 109
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 108
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 107
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 106
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 104
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 103
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 102
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 101
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 100
+      1 uvloop_0 | UPDATE dbos_migrations SET version = 10
+      1 uvloop_0 | SELECT name FROM sqlite_master WHERE type='table' AND name='dbos_migrations'
+      1 uvloop_0 | SELECT main.workflow_status.workflow_uuid FROM main.workflow_status WHERE main.workflow_status.status = 'PENDING' AND main.workflow_status.e
+      1 uvloop_0 | SELECT main.application_versions.version_id, main.application_versions.version_name, main.application_versions.version_timestamp, main.appli
+      1 uvloop_0 | SELECT main.application_versions.application_name FROM main.application_versions WHERE main.application_versions.version_name = 'review-v1'
+      1 uvloop_0 | PRAGMA read_uncommitted
+      1 uvloop_0 | PRAGMA foreign_keys=ON
+      1 uvloop_0 | PRAGMA foreign_keys = ON
+      1 uvloop_0 | PRAGMA busy_timeout=30000
+      1 uvloop_0 | INSERT INTO operation_outputs_new (workflow_uuid, function_id, function_name, output, error, child_workflow_id, started_at_epoch_ms, complet
+      1 uvloop_0 | INSERT INTO main.application_versions (version_id, version_name, application_name) VALUES ('e0d9a3d1-1fa6-4fa8-bbc0-b1b913ecbdcd', 'review-v
+      1 uvloop_0 | INSERT INTO dbos_migrations (version) VALUES (1)
+      1 uvloop_0 | DROP TABLE operation_outputs
+      1 uvloop_0 | DROP INDEX IF EXISTS "workflow_status_status_index"
+      1 uvloop_0 | DROP INDEX IF EXISTS "workflow_status_executor_id_index"
+      1 uvloop_0 | DROP INDEX IF EXISTS "uq_workflow_status_queue_name_dedup_id"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_workflow_status_queue_status_started"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_workflow_status_partition_dequeue_v2"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_workflow_status_partition_dequeue"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_workflow_status_parent_workflow_id"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_workflow_status_in_flight"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_workflow_status_forked_from"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_operation_outputs_completed_at_function_name"
+      1 uvloop_0 | DROP INDEX IF EXISTS "idx_notifications"
+      1 uvloop_0 | CREATE UNIQUE INDEX uq_workflow_status_queue_name_dedup_id ON workflow_status (queue_name, deduplication_id)
+      1 uvloop_0 | CREATE UNIQUE INDEX IF NOT EXISTS "uq_workflow_status_dedup_id" ON "workflow_status" ("queue_name", "deduplication_id") WHERE "deduplication
+      1 uvloop_0 | CREATE UNIQUE INDEX IF NOT EXISTS "uq_application_versions_unclaimed_version" ON application_versions ("version_name") WHERE "application_na
+      1 uvloop_0 | CREATE UNIQUE INDEX IF NOT EXISTS "uq_application_versions_owner_version" ON application_versions ("application_name", "version_name") WHERE
+      1 uvloop_0 | CREATE TABLE workflow_status ( workflow_uuid TEXT PRIMARY KEY, status TEXT, name TEXT, authenticated_user TEXT, assumed_role TEXT, authentic
+      1 uvloop_0 | CREATE TABLE workflow_schedules ( schedule_id TEXT PRIMARY KEY, schedule_name TEXT NOT NULL UNIQUE, workflow_name TEXT NOT NULL, workflow_cl
+      1 uvloop_0 | CREATE TABLE workflow_events_history ( workflow_uuid TEXT NOT NULL, function_id INTEGER NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PR
+      1 uvloop_0 | CREATE TABLE workflow_events ( workflow_uuid TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (workflow_uuid, key), FOREIG
+      1 uvloop_0 | CREATE TABLE streams ( workflow_uuid TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, "offset" INTEGER NOT NULL, PRIMARY KEY (workflow
+      1 uvloop_0 | CREATE TABLE queues ( queue_id TEXT PRIMARY KEY DEFAULT (hex(randomblob(16))), name TEXT NOT NULL UNIQUE, concurrency INTEGER, worker_concur
+      1 uvloop_0 | CREATE TABLE operation_outputs_new ( workflow_uuid TEXT NOT NULL, function_id INTEGER NOT NULL, function_name TEXT NOT NULL DEFAULT '', outp
+      1 uvloop_0 | CREATE TABLE operation_outputs ( workflow_uuid TEXT NOT NULL, function_id INTEGER NOT NULL, function_name TEXT NOT NULL DEFAULT '', output T
+      1 uvloop_0 | CREATE TABLE notifications ( message_uuid TEXT NOT NULL DEFAULT (hex(randomblob(16))) PRIMARY KEY, destination_uuid TEXT NOT NULL, topic TEX
+      1 uvloop_0 | CREATE TABLE dbos_migrations (version INTEGER NOT NULL PRIMARY KEY)
+      1 uvloop_0 | CREATE TABLE application_versions ( version_id TEXT NOT NULL PRIMARY KEY, version_name TEXT NOT NULL UNIQUE, version_timestamp INTEGER NOT N
+      1 uvloop_0 | CREATE TABLE IF NOT EXISTS workflow_output ( workflow_uuid TEXT NOT NULL PRIMARY KEY, output TEXT, error TEXT, retention_timestamp INTEGER N
+      1 uvloop_0 | CREATE TABLE IF NOT EXISTS workflow_input ( workflow_uuid TEXT NOT NULL PRIMARY KEY, inputs TEXT, retention_timestamp INTEGER NOT NULL DEFAU
+      1 uvloop_0 | CREATE INDEX workflow_status_status_index ON workflow_status (status)
+      1 uvloop_0 | CREATE INDEX workflow_status_executor_id_index ON workflow_status (executor_id)
+      1 uvloop_0 | CREATE INDEX workflow_status_created_at_index ON workflow_status (created_at)
+      1 uvloop_0 | CREATE INDEX idx_workflow_topic ON notifications (destination_uuid, topic)
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS idx_workflow_output_retention ON workflow_output (retention_timestamp)
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS idx_workflow_input_retention ON workflow_input (retention_timestamp)
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS idx_operation_outputs_completed_at_function_name ON operation_outputs (completed_at_epoch_ms, function_name)
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_started_at" ON "workflow_status" ("started_at_epoch_ms") WHERE "started_at_epoch_ms" IS NOT 
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_schedule_name" ON "workflow_status" ("schedule_name") WHERE "schedule_name" IS NOT NULL
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_rate_limited" ON "workflow_status" ("queue_name", "started_at_epoch_ms") WHERE "rate_limited
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_pending" ON "workflow_status" ("created_at") WHERE "status" = 'PENDING'
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_partition_dequeue_v3" ON "workflow_status" ("queue_name", "status", "queue_partition_key", "
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_partition_dequeue_v2" ON "workflow_status" ("queue_name", "status", "queue_partition_key", "
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_partition_dequeue" ON "workflow_status" ("queue_name", "status", "queue_partition_key", "pri
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_parent_workflow_id" ON "workflow_status" ("parent_workflow_id") WHERE "parent_workflow_id" I
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_in_flight_v2" ON "workflow_status" ("queue_name", "status", "priority", "created_at", "appli
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_in_flight" ON "workflow_status" ("queue_name", "status", "priority", "created_at") WHERE "st
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_forked_from" ON "workflow_status" ("forked_from") WHERE "forked_from" IS NOT NULL
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_failed" ON "workflow_status" ("status", "created_at") WHERE "status" IN ('ERROR', 'CANCELLED
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_deadline" ON "workflow_status" ("workflow_deadline_epoch_ms") WHERE "status" IN ('ENQUEUED',
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_workflow_status_completed_at" ON "workflow_status" ("completed_at") WHERE "completed_at" IS NOT NULL
+      1 uvloop_0 | CREATE INDEX IF NOT EXISTS "idx_operation_outputs_completed_at_function_name_v2" ON "operation_outputs" ("completed_at_epoch_ms", "function_
+      1 uvloop_0 | CREATE INDEX "idx_workflow_status_queue_status_started" ON "workflow_status" ("queue_name", "status", "started_at_epoch_ms")
+      1 uvloop_0 | CREATE INDEX "idx_workflow_status_parent_workflow_id" ON "workflow_status" ("parent_workflow_id")
+      1 uvloop_0 | CREATE INDEX "idx_workflow_status_forked_from" ON "workflow_status" ("forked_from")
+      1 uvloop_0 | CREATE INDEX "idx_workflow_status_delayed" ON "workflow_status" ("delay_until_epoch_ms") WHERE status = 'DELAYED'
+      1 uvloop_0 | CREATE INDEX "idx_operation_outputs_completed_at_function_name" ON "operation_outputs" ("completed_at_epoch_ms", "function_name")
+      1 uvloop_0 | CREATE INDEX "idx_notifications" ON "notifications" ("destination_uuid", "topic")
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN queue_partition_key TEXT
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN forked_from TEXT
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "was_forked_from" BOOLEAN NOT NULL DEFAULT FALSE
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "schedule_name" TEXT
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "parent_workflow_id" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "owner_xid" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "is_debounced" BOOLEAN NOT NULL DEFAULT FALSE
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "delay_until_epoch_ms" BIGINT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "debounce_deadline_epoch_ms" BIGINT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "creator_xid" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "completed_at" BIGINT
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "attributes" TEXT
+      1 uvloop_0 | ALTER TABLE workflow_status ADD COLUMN "application_name" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_schedules ADD COLUMN "queue_name" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_schedules ADD COLUMN "last_fired_at" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_schedules ADD COLUMN "cron_timezone" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE workflow_schedules ADD COLUMN "automatic_backfill" BOOLEAN NOT NULL DEFAULT FALSE
+      1 uvloop_0 | ALTER TABLE workflow_schedules ADD COLUMN "application_name" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE streams ADD COLUMN function_id INTEGER NOT NULL DEFAULT 0
+      1 uvloop_0 | ALTER TABLE queues ADD COLUMN "partition_worker_concurrency" INTEGER DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE queues ADD COLUMN "partition_rate_limit_period_sec" REAL DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE queues ADD COLUMN "partition_rate_limit_max" INTEGER DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE queues ADD COLUMN "partition_concurrency" INTEGER DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE queues ADD COLUMN "application_name" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE operation_outputs_new RENAME TO operation_outputs
+      1 uvloop_0 | ALTER TABLE operation_outputs ADD COLUMN started_at_epoch_ms BIGINT
+      1 uvloop_0 | ALTER TABLE operation_outputs ADD COLUMN retention_timestamp INTEGER
+      1 uvloop_0 | ALTER TABLE operation_outputs ADD COLUMN completed_at_epoch_ms BIGINT
+      1 uvloop_0 | ALTER TABLE operation_outputs ADD COLUMN "application_name" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE notifications ADD COLUMN consumed_by_function_id INTEGER
+      1 uvloop_0 | ALTER TABLE application_versions ADD COLUMN "application_name" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE "workflow_status" ADD COLUMN "serialization" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE "workflow_status" ADD COLUMN "rate_limited" BOOLEAN NOT NULL DEFAULT FALSE
+      1 uvloop_0 | ALTER TABLE "workflow_events_history" ADD COLUMN "serialization" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE "workflow_events" ADD COLUMN "serialization" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE "streams" ADD COLUMN "serialization" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE "operation_outputs" ADD COLUMN "serialization" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE "notifications" ADD COLUMN "serialization" TEXT DEFAULT NULL
+      1 uvloop_0 | ALTER TABLE "notifications" ADD COLUMN "consumed" BOOLEAN NOT NULL DEFAULT FALSE
+      1 dbos-workflow-timeout | PRAGMA foreign_keys=ON
+      1 dbos-workflow-timeout | PRAGMA busy_timeout=30000
+      1 Thread-5 (dynamic_scheduler_loop) | PRAGMA foreign_keys=ON
+      1 Thread-5 (dynamic_scheduler_loop) | PRAGMA busy_timeout=30000

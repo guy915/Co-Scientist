@@ -1,0 +1,92 @@
+{
+  "idle_dbos": {
+    "dbos": {
+      "statements": 877,
+      "begin_immediate": 118,
+      "write_statements": 118,
+      "commit": 118,
+      "write_lock_acquisitions_per_s": 1.967,
+      "write_txn_ms": {
+        "count": 118,
+        "p50": 0.41,
+        "p99": 3.69,
+        "max": 3.9
+      }
+    },
+    "window_s": 60.0,
+    "pragma_or_vacuum_statements": []
+  },
+  "idle_baseline": {
+    "dbos": false,
+    "window_s": 60.0,
+    "pragma_or_vacuum_statements": []
+  },
+  "fanout_dbos": {
+    "dbos": {
+      "statements": 537,
+      "begin_immediate": 64,
+      "write_statements": 137,
+      "commit": 63,
+      "write_lock_acquisitions_per_s": 9.129,
+      "write_txn_ms": {
+        "count": 63,
+        "p50": 3.16,
+        "p99": 10.74,
+        "max": 16.49
+      }
+    },
+    "review_committed": true,
+    "provider_calls": 12,
+    "journal_mode_after": "wal",
+    "outside_writer_wait_ms": {
+      "samples": 67,
+      "p50": 0.12,
+      "p99": 1.11,
+      "max": 8.46,
+      "lock_errors": 0
+    },
+    "window_s": 7.0,
+    "app": {
+      "statements": 993,
+      "begin_immediate": 26,
+      "write_statements": 30,
+      "commit": 26,
+      "write_lock_acquisitions_per_s": 3.709,
+      "write_txn_ms": {
+        "count": 26,
+        "p50": 0.59,
+        "p99": 10.12,
+        "max": 18.91
+      }
+    },
+    "pragma_or_vacuum_statements": []
+  },
+  "fanout_baseline": {
+    "dbos": false,
+    "review_committed": true,
+    "provider_calls": 12,
+    "journal_mode_after": "wal",
+    "outside_writer_wait_ms": {
+      "samples": 48,
+      "p50": 0.19,
+      "p99": 0.43,
+      "max": 1.31,
+      "lock_errors": 0
+    },
+    "window_s": 5.1,
+    "app": {
+      "statements": 658,
+      "begin_immediate": 28,
+      "write_statements": 57,
+      "commit": 28,
+      "write_lock_acquisitions_per_s": 5.544,
+      "write_txn_ms": {
+        "count": 28,
+        "p50": 1.0,
+        "p99": 25.45,
+        "max": 59.38
+      }
+    },
+    "pragma_or_vacuum_statements": []
+  }
+}
