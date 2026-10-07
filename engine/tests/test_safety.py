@@ -183,13 +183,14 @@ def test_operational_intent_is_never_assessor_resolvable(text: str) -> None:
     assert review.blocks_tournament
 
 
-def test_redaction_keeps_the_claim_and_masks_the_protocol_fields() -> None:
-    assert redact_hypothesis_fields("text", "mechanism", "protocol") == (
+def test_redaction_keeps_the_claim_and_masks_every_other_field() -> None:
+    assert redact_hypothesis_fields("text", "effect", "protocol", "grounding") == (
         "text",
         REDACTED_PLACEHOLDER,
         REDACTED_PLACEHOLDER,
+        REDACTED_PLACEHOLDER,
     )
-    assert redact_hypothesis_fields("text", None, "") == ("text", None, "")
+    assert redact_hypothesis_fields("text", None, "", None) == ("text", None, "", None)
 
 
 def _pool(*hypotheses: Hypothesis) -> WorkflowState:
@@ -259,14 +260,27 @@ async def test_screen_keeps_dual_use_and_redact_ideas_with_masked_fields(
         id="kept-1",
         explanation="Detailed mechanism of action",
         experiment="BSL-4 containment protocol steps",
+        literature_grounding="Prior work established the route",
     )
 
     result = await safety_screen_node(_pool(hypothesis))
 
     [kept] = result["hypotheses"].items
     assert kept.safety_status == status
+    assert kept.text == text
     assert kept.explanation == REDACTED_PLACEHOLDER
     assert kept.experiment == REDACTED_PLACEHOLDER
+    assert kept.literature_grounding == REDACTED_PLACEHOLDER
+
+
+@pytest.mark.parametrize("field", ["explanation", "literature_grounding", "experiment"])
+async def test_screen_reads_every_free_text_field_not_only_the_statement(field: str) -> None:
+    hypothesis = make_hypothesis(_SAFE, id="hidden-1", **{field: _PROHIBITED})
+
+    result = await safety_screen_node(_pool(hypothesis))
+
+    assert result["hypotheses"].items == []
+    assert [d["hypothesis_id"] for d in result["safety_decisions"]] == ["hidden-1"]
 
 
 def test_replace_hypotheses_reducer_distinguishes_clearing_from_no_update() -> None:

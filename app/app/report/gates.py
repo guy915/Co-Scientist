@@ -7,7 +7,7 @@ from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
 
-from app.hypothesis import record_hypothesis_block
+from app.hypothesis import hypothesis_text, record_hypothesis_block
 from app.hypothesis.safety import (
     is_blocking_status,
     review_hypothesis_safety,
@@ -224,7 +224,7 @@ def _hypothesis_passes_safety_gate(
 def _legacy_hypothesis_passes_safety_gate(
     run_id: str, hyp: dict[str, Any], db_path: str | None
 ) -> bool:
-    review = review_hypothesis_safety(str(hyp.get("statement") or ""))
+    review = review_hypothesis_safety(hypothesis_text(hyp))
     if not review.blocks_tournament:
         return True
     record_hypothesis_block(run_id, hyp.get("id"), review, db_path=db_path)

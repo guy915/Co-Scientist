@@ -43,9 +43,9 @@ _STICKY_STATUSES = frozenset(o.value for o in _REDACTING_OUTCOMES) | frozenset(
     }
 )
 
-# Redact operational detail while retaining statement and expected effect so the
-# high-level idea stays rankable.
-_REDACTED_FIELDS = ("mechanism", "experimental_context")
+# Hide every screened field but the statement, which stays so the hypothesis
+# remains rankable.
+_REDACTED_FIELDS = ("mechanism", "expected_effect", "experimental_context")
 
 
 def hypothesis_text(hyp: Mapping[str, Any]) -> str:

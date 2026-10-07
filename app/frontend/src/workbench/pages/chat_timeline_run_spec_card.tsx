@@ -1,7 +1,7 @@
 import type {RunFocus, RunTier} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {Link} from 'react-router-dom';
-import {Button, buttonClasses, IconButton} from '@/shared/ui';
+import {Button, buttonClasses, IconButton, TextField} from '@/shared/ui';
 import {
   joinClasses,
   OPTION_MARKER_CLASSES,
@@ -520,11 +520,10 @@ function NotificationEmail({
       <span className="text-cosci-fg">
         Email me when the Goal Report is ready
       </span>
-      <input
+      <TextField
         type="email"
         disabled={disabled || !available}
         placeholder="you@example.com — leave blank for no email"
-        className="w-full rounded-xl border border-cosci-border bg-transparent p-3"
         value={spec.completionEmail || ''}
         onChange={event => {
           const email = event.currentTarget.value;
