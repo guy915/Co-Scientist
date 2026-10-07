@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {SessionState} from './use_chat_session';
-import {sessionRuntime, stagedDocument} from './__tests__/session_helpers';
+import {sessionRuntime, stagedDocument} from './session_test_helpers';
 import {cancelRun, createRun, getRun, startRun} from '@/api/runs';
 import {
   readPendingCreateIntent,

@@ -7,8 +7,8 @@ import {ChatHistoryProvider} from '@/shared/hooks/history_context';
 import {RunHistoryProvider} from '@/shared/hooks/history_context';
 import {SystemStatusProvider} from '@/shared/hooks/system_status_context';
 import {Layout} from './layout';
-import {ChatWorkspace} from './pages/chat_workspace';
-import {ExampleChat} from './pages/example_chat';
+import {ChatWorkspace} from '@/features/chat/chat_workspace';
+import {ExampleChat} from '@/features/chat/example_chat';
 import {ThemeProvider} from '@/shared/hooks/theme_context';
 
 const RunDetail = lazy(() =>

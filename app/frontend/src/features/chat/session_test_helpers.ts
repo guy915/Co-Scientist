@@ -6,7 +6,7 @@ import {
   type SessionUpdate,
   initialSessionState,
   sessionReducer,
-} from '../use_chat_session';
+} from './use_chat_session';
 
 export function sessionRuntime(
   state: Partial<SessionState> = {},
