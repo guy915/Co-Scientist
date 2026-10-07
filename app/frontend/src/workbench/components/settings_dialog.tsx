@@ -8,7 +8,7 @@ import {
   useLayoutEffect,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {IconButton, TextField} from '@/shared/ui';
+import {Dialog, DIALOG_TITLE_CLASSES, IconButton, TextField} from '@/shared/ui';
 import {
   type ByokProvider,
   type ModelChoice,
@@ -23,12 +23,6 @@ import {
   setStoredApiProvider,
   setStoredModel,
 } from '@/lib/client_id';
-import {
-  useBackgroundInert,
-  useEscapeKey,
-  useFocusTrap,
-  useRestoreFocusOnClose,
-} from '../hooks/dom';
 import {type Mode, useTheme} from '../theme_context';
 import {
   type ByokModelCatalog,
@@ -42,25 +36,14 @@ import {
 } from '@/shared/hooks/use_sliding_indicator';
 import {
   joinClasses,
-  SETTINGS_DIALOG_CLASSES,
-  SETTINGS_DIALOG_TITLE_CLASSES,
   SETTINGS_FIELD_CLASSES,
   SETTINGS_FIELD_LABEL_CLASSES,
-  SETTINGS_SCRIM_CLASSES,
 } from '../classes';
 
 const CARD_CLASSES =
   'rounded-2xl bg-cosci-settings-card-bg px-[1.4rem] pt-5 pb-[1.4rem]';
 const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';
 const HINT_CLASSES = 'm-0 mt-[0.55rem] text-[0.78rem] text-cosci-muted';
-
-// Focus newly opened dialogs internally so keyboard and assistive-technology
-// users do not remain behind them.
-function useFocusOnMount(ref: RefObject<HTMLElement | null>) {
-  useEffect(() => {
-    ref.current?.focus();
-  }, [ref]);
-}
 
 // Free-text credentials commit on blur/Enter; selections commit whole values
 // immediately. Saving silently avoids covering the page with redundant
@@ -103,7 +86,7 @@ function SettingsDialogHeader({
 }) {
   return (
     <header className="flex items-center justify-between gap-4">
-      <h2 className={SETTINGS_DIALOG_TITLE_CLASSES}>Settings</h2>
+      <h2 className={DIALOG_TITLE_CLASSES}>Settings</h2>
       <IconButton
         ref={closeRef}
         size="md"
@@ -117,7 +100,8 @@ function SettingsDialogHeader({
 }
 
 interface SettingsDialogProps {
-  section: SettingsSection;
+  // `null` closes the dialog; the last section stays drawn while it fades.
+  section: SettingsSection | null;
   onSectionChange: (section: SettingsSection) => void;
   onClose: () => void;
 }
@@ -127,47 +111,42 @@ export function SettingsDialog({
   onSectionChange,
   onClose,
 }: SettingsDialogProps) {
-  const theme = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const apiKeyField = useApiKeyField();
-
-  // Capture the opener before the focus-on-open effect moves focus into the
-  // dialog.
-  useRestoreFocusOnClose();
-  // Background content must be inert as well as outside the Tab trap, including
-  // for assistive technology.
-  useFocusTrap(rootRef);
-  useBackgroundInert(rootRef);
-  useFocusOnMount(closeRef);
-  useEscapeKey(onClose, true);
+  const [shown, setShown] = useState<SettingsSection>(section ?? 'appearance');
+  if (section && section !== shown) setShown(section);
 
   return (
-    <div className="ucs-settings-dialog-root" ref={rootRef}>
-      <div
-        className={SETTINGS_SCRIM_CLASSES}
-        aria-hidden="true"
-        onClick={onClose}
-      />
-      <div
-        className={joinClasses(
-          SETTINGS_DIALOG_CLASSES,
-          'h-[min(34rem,calc(100dvh-3rem))] w-[min(52rem,calc(100vw-2rem))] px-7 py-6 [@media(max-width:700px)]:h-[calc(100dvh-1.5rem)] [@media(max-width:700px)]:w-[calc(100vw-1.5rem)] [@media(max-width:700px)]:px-4 [@media(max-width:700px)]:py-[1.1rem]',
+    <Dialog
+      open={section !== null}
+      onClose={onClose}
+      label="Settings"
+      size="lg"
+      initialFocusRef={closeRef}
+    >
+      <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
+      <SettingsBody section={shown} onSectionChange={onSectionChange} />
+    </Dialog>
+  );
+}
+
+// Mounted per opening, so the key field rereads storage each time.
+function SettingsBody({
+  section,
+  onSectionChange,
+}: {
+  section: SettingsSection;
+  onSectionChange: (section: SettingsSection) => void;
+}) {
+  const theme = useTheme();
+  const apiKeyField = useApiKeyField();
+  return (
+    <div className="mt-5 grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-6 [@media(max-width:700px)]:mt-[0.9rem] [@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:grid-rows-[auto_minmax(0,1fr)] [@media(max-width:700px)]:gap-4">
+      <SettingsNav section={section} onSectionChange={onSectionChange} />
+      <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 [align-content:start]">
+        {section === 'appearance' && (
+          <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
         )}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Settings"
-      >
-        <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-        <div className="mt-5 grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-6 [@media(max-width:700px)]:mt-[0.9rem] [@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:grid-rows-[auto_minmax(0,1fr)] [@media(max-width:700px)]:gap-4">
-          <SettingsNav section={section} onSectionChange={onSectionChange} />
-          <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 [align-content:start]">
-            {section === 'appearance' && (
-              <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
-            )}
-            {section === 'model' && <ModelSection {...apiKeyField} />}
-          </div>
-        </div>
+        {section === 'model' && <ModelSection {...apiKeyField} />}
       </div>
     </div>
   );

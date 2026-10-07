@@ -265,6 +265,7 @@
      toasts and dialogs. */
   --shadow-floating: var(--md-elevation-2);
   --shadow-overlay: var(--md-elevation-3);
+  --shadow-drawer: var(--drawer-shadow);
 
   --ease-standard: var(--motion-ease-standard);
   --ease-enter: var(--motion-ease-enter);

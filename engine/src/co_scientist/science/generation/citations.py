@@ -144,15 +144,31 @@ def build_reference_index(
     return ReferenceIndex(text="\n".join(paper_lines + enrichment_lines), sources=sources)
 
 
+_BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
+_CITATION_KEY = re.compile(r"\AC\d+\Z")
+
+
+def citation_keys_in(text: str) -> list[str]:
+    """The prompt asks for one key per bracket, but models group them
+    ("[C1, C2]"), and a grouped key reaching no citation row leaves the
+    source unpersisted.
+    """
+    return [
+        key
+        for group in _BRACKET_GROUP.findall(text)
+        for part in group.split(",")
+        if _CITATION_KEY.match(key := part.strip())
+    ]
+
+
 def _record_citation_key(
-    raw_key: str,
+    key: str,
     sources: dict[str, dict[str, Any]],
     seen: set[str],
     result: dict[str, dict[str, Any]],
 ) -> None:
     """Drop hallucinated citation keys: citation_map is best-effort metadata,
     not the evidence correctness gate."""
-    key = raw_key[1:-1]
     if key not in sources or key in seen:
         return
     result[key] = sources[key]
@@ -167,11 +183,10 @@ def resolve_citation_keys(
     if not literature_grounding or not sources:
         return {}
 
-    keys = re.findall(r"\[C\d+\]", literature_grounding)
     seen: set[str] = set()
     result: dict[str, dict[str, Any]] = {}
-    for raw_key in keys:
-        _record_citation_key(raw_key, sources, seen, result)
+    for key in citation_keys_in(literature_grounding):
+        _record_citation_key(key, sources, seen, result)
     return result
 
 
