@@ -29,6 +29,13 @@ const HEADER_ACTIONS_CLASSES =
   'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-[0.55rem] [transform:translateY(-50%)] ' +
   '[@media(max-width:700px)]:[&>:not(.ucs-session-switch)]:hidden';
 
+// Its transition stays in shell_surface.css: the unlayered global button
+// transition outranks utilities.
+const HAMBURGER_CLASSES =
+  'ucs-nav-hamburger hidden size-[2.5rem] flex-none cursor-pointer place-items-center [border:0] rounded-[9999px] bg-transparent p-0 text-cosci-shell-icon ' +
+  '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
+  '[@media(max-width:700px)]:inline-grid';
+
 function HamburgerButton({
   navOpen,
   onClick,
@@ -39,7 +46,7 @@ function HamburgerButton({
   return (
     <button
       type="button"
-      className="ucs-nav-hamburger"
+      className={HAMBURGER_CLASSES}
       aria-label="Open navigation"
       aria-expanded={navOpen}
       aria-controls="primary-navigation"
