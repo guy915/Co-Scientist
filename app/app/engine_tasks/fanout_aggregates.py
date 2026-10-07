@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from app.engine_tasks.support import (
     NodeCompletion,
@@ -17,6 +17,9 @@ from app.engine_tasks.support import (
 from app.store import tasks
 from app.store.models import ScientificTask
 from app.store.tasks import NewTask
+
+if TYPE_CHECKING:
+    from co_scientist.state import WorkflowState
 
 
 @dataclass(frozen=True)
@@ -39,9 +42,7 @@ async def _checkpoint_and_advance(
     """
     from co_scientist.task_runtime import next_task_type
 
-    # Unfollowed engine imports arrive as Any; assert the declared return type
-    # at this boundary.
-    successor: str | None = next_task_type(node_name, committed)
+    successor = next_task_type(node_name, cast("WorkflowState", committed))
     checkpoint_seq, successor_id = _save_state_and_enqueue(commit, committed, successor)
     await _emit_node_completion(
         commit.task.run_id,
@@ -149,7 +150,9 @@ def _mature_reflection_update(
         phase_message,
     )
 
-    state["articles"] = merge_retrieved_articles(state.get("articles"), items.results)
+    state["articles"] = merge_retrieved_articles(
+        state.get("articles"), cast("list[dict[str, Any] | None]", items.results)
+    )
     return {
         "hypotheses": state["hypotheses"],
         "articles": state["articles"],
@@ -182,7 +185,10 @@ async def execute_mature_reflection_aggregate(
     )
     from co_scientist.task_runtime import apply_task_update
 
-    committed = apply_task_update(state, _mature_reflection_update(state, items))
+    committed = cast(
+        "dict[str, Any]",
+        apply_task_update(cast("WorkflowState", state), _mature_reflection_update(state, items)),
+    )
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
         TaskCommit(task, current_seq, db_path),
         committed,
@@ -286,7 +292,9 @@ def _verification_aggregate_update(
         phase_message,
     )
 
-    state["articles"] = merge_retrieved_articles(state.get("articles"), items.results)
+    state["articles"] = merge_retrieved_articles(
+        state.get("articles"), cast("list[dict[str, Any] | None]", items.results)
+    )
     return {
         "hypotheses": state["hypotheses"],
         "articles": state["articles"],
@@ -316,7 +324,12 @@ async def execute_verification_aggregate(
     )
     from co_scientist.task_runtime import apply_task_update
 
-    committed = apply_task_update(state, _verification_aggregate_update(state, items))
+    committed = cast(
+        "dict[str, Any]",
+        apply_task_update(
+            cast("WorkflowState", state), _verification_aggregate_update(state, items)
+        ),
+    )
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
         TaskCommit(task, current_seq, db_path), committed, "deep_verification"
     )
@@ -439,8 +452,12 @@ async def execute_review_aggregate(
     )
     from co_scientist.task_runtime import apply_task_update
 
-    committed = apply_task_update(
-        state, _review_aggregate_update(state, successful, failed, model_usage)
+    committed = cast(
+        "dict[str, Any]",
+        apply_task_update(
+            cast("WorkflowState", state),
+            _review_aggregate_update(state, successful, failed, model_usage),
+        ),
     )
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
         TaskCommit(task, current_seq, db_path), committed, "review"
@@ -518,7 +535,7 @@ async def _generation_aggregate_update(
 
     buckets = items.buckets
     update: dict[str, Any] = await finalize_generation(
-        state,
+        cast("WorkflowState", state),
         GenerationCounts(**task.inputs["counts"]),
         GenerationResults(
             tools_hypotheses=buckets["tools"],
@@ -552,7 +569,10 @@ async def execute_generation_aggregate(
     from co_scientist.task_runtime import apply_task_update
 
     update = await _generation_aggregate_update(task, state, items)
-    committed = apply_task_update(state, update)
+    committed = cast(
+        "dict[str, Any]",
+        apply_task_update(cast("WorkflowState", state), update),
+    )
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
         TaskCommit(task, current_seq, db_path), committed, "generate"
     )

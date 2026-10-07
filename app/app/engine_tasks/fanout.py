@@ -5,7 +5,7 @@ import sqlite3
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from app.engine_tasks.fanout_aggregates import (
     _AggregateSpec,
@@ -27,6 +27,9 @@ from app.engine_tasks.support import (
 from app.store import db, events, tasks
 from app.store.models import ScientificTask
 from app.store.tasks import NewTask
+
+if TYPE_CHECKING:
+    from co_scientist.state import WorkflowState
 
 
 def _hypothesis_for_item(task: ScientificTask, state: dict[str, Any]) -> tuple[str, Any]:
@@ -51,7 +54,7 @@ async def execute_review_item(
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="review item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
-    context = ReviewContext.from_state(state)
+    context = ReviewContext.from_state(cast("WorkflowState", state))
     with scoped_telemetry("review") as telemetry:
         review = await review_single_hypothesis(
             hypothesis_text=hypothesis.text,
@@ -75,7 +78,7 @@ async def execute_verification_item(
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="verification item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     with scoped_telemetry("deep_verification") as telemetry:
-        result = await verify_hypothesis(state, hypothesis)
+        result = await verify_hypothesis(cast("WorkflowState", state), hypothesis)
     if result is None:
         raise RuntimeError(f"deep verification failed for {hypothesis_id}")
     return {
@@ -102,9 +105,11 @@ async def execute_mature_reflection_item(
 
             if not state.get("articles_with_reasoning"):
                 raise RuntimeError("observation review has no literature context")
-            result = await observe_hypothesis(state, hypothesis)
+            result = await observe_hypothesis(cast("WorkflowState", state), hypothesis)
         else:
-            _, result, ledger = await review_hypothesis(state, hypothesis, mode)
+            _, result, ledger = await review_hypothesis(
+                cast("WorkflowState", state), hypothesis, mode
+            )
     if result is None:
         raise RuntimeError(f"{mode.value} review failed for {hypothesis_id}")
     return {
@@ -197,7 +202,7 @@ async def _plan_generation_fanout(state: dict[str, Any]) -> _GenerationPlan:
     """
     from co_scientist.agents.generation import prepare_generation
 
-    plan = await prepare_generation(state)
+    plan = await prepare_generation(cast("WorkflowState", state))
     return _GenerationPlan(
         task_specs=_generation_task_specs(plan.counts.strategy_counts),
         inputs=_StrategyInputs(plan.literature, plan.reference_index),
@@ -301,10 +306,8 @@ async def _run_debate_strategy(
     batch_position = None
     if inputs.debate_index is not None and inputs.debate_total is not None:
         batch_position = DebateBatchPosition(inputs.debate_index, inputs.debate_total)
-    # Unfollowed engine imports arrive as Any; assert the declared return type
-    # at this boundary.
     result: tuple[list[Any], list[dict[str, Any]], int] = await generate_with_debate(
-        state=state,
+        state=cast("WorkflowState", state),
         count=count,
         articles_with_reasoning=literature,
         reference_index=debate_reference,
@@ -327,14 +330,16 @@ async def _run_generation_strategy(
     )
 
     if strategy == "tools":
-        hypotheses, llm_calls = await generate_with_tools(state, count, inputs.reference_index)
+        hypotheses, llm_calls = await generate_with_tools(
+            cast("WorkflowState", state), count, inputs.reference_index
+        )
         return hypotheses, [], llm_calls
     if strategy in {"debate_lit", "debate_only"}:
         return await _run_debate_strategy(state, strategy, count, inputs)
     if strategy == "assumptions":
         # Durable assumptions generation omits plan literature and references;
         # sharing coordinator dispatch would alter grounding.
-        hypotheses, llm_calls = await generate_with_assumptions(state, count)
+        hypotheses, llm_calls = await generate_with_assumptions(cast("WorkflowState", state), count)
         return hypotheses, [], llm_calls
     raise ValueError(f"unsupported generation strategy: {strategy}")
 

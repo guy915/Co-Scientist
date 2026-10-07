@@ -1,6 +1,6 @@
 import asyncio
 import dataclasses
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from co_scientist.agents.generation import (
@@ -18,6 +18,7 @@ from co_scientist.models import (
     GenerationMethod,
     Hypothesis,
 )
+from co_scientist.state import WorkflowState
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 import app.engine_tasks.fanout as fanout
@@ -390,7 +391,7 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
 
     monkeypatch.setattr(coordinator, "generate_with_tools", failed_tools)
     with pytest.raises(RuntimeError, match="draft failed"):
-        await coordinator.generate_hypotheses(state)
+        await coordinator.generate_hypotheses(cast("WorkflowState", state))
 
     monkeypatch.setattr(literature_tools, "generate_with_tools", failed_tools)
     planned, tasks = await _schedule_generation(state, isolated_db)
@@ -447,8 +448,8 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
     run = seed_run("Generation contract")
     state = _generation_state(run.id, mode)
     strategies, expansion_calls = _install_strategies(monkeypatch)
-    plan = await prepare_generation(state)
-    graph = await coordinator.generate_hypotheses(state)
+    plan = await prepare_generation(cast("WorkflowState", state))
+    graph = await coordinator.generate_hypotheses(cast("WorkflowState", state))
     graph_calls = list(strategies.calls)
     strategies.calls.clear()
     planned, tasks = await _schedule_generation(state, isolated_db)

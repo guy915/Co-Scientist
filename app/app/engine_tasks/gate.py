@@ -4,7 +4,7 @@ import dataclasses
 import functools
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, cast
 
 from app.claims.gate import ClaimRole
 from app.config import settings
@@ -319,6 +319,9 @@ def _fold_gate_telemetry(state: dict[str, Any], usage: Mapping[str, Mapping[str,
     from co_scientist.models.metrics import merge_metrics
 
     calls = sum(entry.get("calls", 0) for entry in usage.values())
-    delta = create_metrics_update(deltas=MetricDeltas(llm_calls=calls), model_usage=dict(usage))
+    delta = create_metrics_update(
+        deltas=MetricDeltas(llm_calls=calls),
+        model_usage=cast("dict[str, dict[str, Any]]", dict(usage)),
+    )
     existing = state.get("metrics")
     state["metrics"] = merge_metrics(existing, delta) if existing else delta

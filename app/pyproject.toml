@@ -104,11 +104,6 @@ plugins = ["pydantic.mypy"]
 exclude = ["^(dev|build|dist)/"]
 
 [[tool.mypy.overrides]]
-module = ["co_scientist", "co_scientist.*"]
-ignore_missing_imports = true
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
 module = ["pypdf", "pypdf.*"]
 ignore_missing_imports = true
 

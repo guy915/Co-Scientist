@@ -5,7 +5,7 @@ import json
 import logging
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Any
+from typing import Any, cast
 
 from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
@@ -523,7 +523,7 @@ def _parse_batch_drafts(data: dict[str, Any], claims: Sequence[str]) -> list[Ass
         site="claim_verifier.batch_verdicts",
     ):
         try:
-            position = int(item.get("index")) - 1
+            position = int(cast("Any", item.get("index"))) - 1
         except (TypeError, ValueError):
             continue
         if not (0 <= position < num_claims):

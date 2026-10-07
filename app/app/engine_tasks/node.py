@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.fanout import (
@@ -29,6 +29,9 @@ from app.engine_tasks.support import (
 )
 from app.store import runs
 from app.store.models import RunRow, RunStatus, ScientificTask
+
+if TYPE_CHECKING:
+    from co_scientist.state import WorkflowState
 
 ADMISSION_NODE = "orchestrator"
 _SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
@@ -210,6 +213,8 @@ async def execute_node_task(task: ScientificTask, *, db_path: str | None = None)
     if fanout is not None:
         return fanout
 
-    committed, successor = await execute_task_node(node_name, state)
+    committed, successor = await execute_task_node(node_name, cast("WorkflowState", state))
     run = _require_active_run(task, db_path, stage="during specialist run")
-    return await _commit_node_result(commit, run, node_name, committed, successor)
+    return await _commit_node_result(
+        commit, run, node_name, cast("dict[str, Any]", committed), successor
+    )
