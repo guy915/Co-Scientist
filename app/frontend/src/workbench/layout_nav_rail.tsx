@@ -255,7 +255,7 @@ const SIDE_HEADING_CLASSES =
 // Row height and gap must stay in rem: hooks/dom.ts FALLBACK_ROW_PITCH_PX is
 // the 2.35rem link line-height plus this 0.35rem gap at a 16px root.
 const CHAT_LIST_CLASSES =
-  'ucs-chat-list grid min-w-0 gap-[0.35rem] min-[701px]:min-h-0 ' +
+  'ucs-chat-list ui-motion-enter-items grid min-w-0 gap-[0.35rem] min-[701px]:min-h-0 ' +
   '[@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:[align-content:start] [@media(max-width:700px)]:min-h-0 ' +
   '[@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:overflow-x-hidden [@media(max-width:700px)]:overflow-y-auto';
 

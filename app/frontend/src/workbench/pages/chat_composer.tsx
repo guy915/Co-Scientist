@@ -222,7 +222,7 @@ export function AttachmentStrip({
   if (attachments.length === 0) return null;
   return (
     <div
-      className="reference-attachment-strip flex min-w-0 flex-wrap gap-[0.8rem] pb-[1.35rem] pointer-events-auto"
+      className="reference-attachment-strip ui-motion-enter-items flex min-w-0 flex-wrap gap-[0.8rem] pb-[1.35rem] pointer-events-auto"
       aria-label="Attachments"
     >
       {attachments.map(attachment => (

@@ -210,7 +210,7 @@ export function ActivityLog({
         <StreamStatusNote connection={connection} />
       </div>
       {groups.length ? (
-        <ol className="mt-5">
+        <ol className="ui-motion-enter-items mt-5">
           {groups.map((group, index) => (
             <ActivityGroupCard
               key={group.events[0].seq}

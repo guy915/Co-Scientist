@@ -444,7 +444,7 @@ const RECENTS_PANEL_CLASSES =
 const RECENTS_PANEL_EMPTY_CLASSES = 'grid-rows-[auto_1fr] self-stretch pb-8';
 
 const RECENTS_LIST_CLASSES =
-  'm-0 grid min-h-0 list-none gap-[2.6rem] min-[1181px]:scroll-p-[0.55rem_0.55rem_2.15rem] min-[1181px]:gap-[2.65rem]';
+  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-[2.6rem] min-[1181px]:scroll-p-[0.55rem_0.55rem_2.15rem] min-[1181px]:gap-[2.65rem]';
 
 // Background-independent masks soften the scroll edge in both themes without
 // matching surface colors; symmetric 1181px+ insets leave scrollbar slack so
@@ -731,7 +731,7 @@ export function RunStepFlow({run}: {run: Run}) {
 
   return (
     <div className="mt-[0.1rem] grid gap-[0.7rem]">
-      <div className="grid">
+      <div className="ui-motion-enter-items grid">
         <div className={RUN_STEP_CLASSES}>
           <span
             aria-hidden="true"

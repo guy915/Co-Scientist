@@ -142,7 +142,7 @@ function MobileIdeaView({
         </>
       ) : (
         <ol
-          className="idea-mobile-list m-0 grid min-h-0 content-start gap-[0.7rem] overflow-visible bg-transparent p-4 list-none"
+          className="idea-mobile-list ui-motion-enter-items m-0 grid min-h-0 content-start gap-[0.7rem] overflow-visible bg-transparent p-4 list-none"
           aria-label="Ranked hypothesis list"
         >
           {sorted.map((h, index) => (
@@ -172,7 +172,7 @@ function DesktopIdeaSplit({
         <ol
           // An auto grid track follows nowrap content width; minmax(0,1fr) prevents
           // clipped cards and sideways scrolling.
-          className="idea-rank-list m-0 grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-[0.7rem] overflow-x-hidden overflow-y-auto border-r border-cosci-idea-list-border bg-transparent py-5 pr-6 pl-5 list-none"
+          className="idea-rank-list ui-motion-enter-items m-0 grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-[0.7rem] overflow-x-hidden overflow-y-auto border-r border-cosci-idea-list-border bg-transparent py-5 pr-6 pl-5 list-none"
           aria-label="Ranked hypothesis list"
         >
           {sorted.map((h, index) => (
