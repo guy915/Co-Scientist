@@ -8,11 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import {
-  applyTheme,
-  argbFromHex,
-  themeFromSourceColor,
-} from '@material/material-color-utilities';
+import {MD3_SCHEMES} from './md3_scheme';
 
 export type Mode = 'system' | 'light' | 'dark';
 type ResolvedMode = 'light' | 'dark';
@@ -118,18 +114,11 @@ export function useTheme(): ThemeContextValue {
   return ctx;
 }
 
-// Derive roles from one seed so palette changes cannot leave individual colors
-// behind.
-const SEED = '#1A6B6B';
-
-const THEME = themeFromSourceColor(argbFromHex(SEED));
-
 export function applyMd3Theme(dark: boolean): void {
-  applyTheme(THEME, {
-    target: document.documentElement,
-    dark,
-    // Emit unsuffixed role names; reapply on brightness changes rather than
-    // exporting separate palettes.
-    brightnessSuffix: false,
-  });
+  const style = document.documentElement.style;
+  for (const [token, color] of Object.entries(
+    MD3_SCHEMES[dark ? 'dark' : 'light'],
+  )) {
+    style.setProperty(token, color);
+  }
 }
