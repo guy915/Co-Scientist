@@ -7,12 +7,12 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.chat.repository import messages
 from co_scientist.platform import db
 from co_scientist.platform.llm import llm_request, offline_guard, provider_usage
 from fastapi import HTTPException
 
 from app import credentials, logs_api
-from app.store import messages
 from tests._client import create_run, fake_litellm, make_client
 from tests._llm_fake_backend import install_completion_backend
 
@@ -123,7 +123,7 @@ def test_announcement_claims_are_atomic_even_before_streaming() -> None:
         results = list(pool.map(lambda _: messages.claim_start_prompt(run_id, "Start"), range(12)))
     assert sum(fresh for _, fresh in results) == 1
     assert len({message.id for message, _ in results}) == 1
-    from app.run_start_announcement import replay_announcement
+    from co_scientist.domains.chat.run_start_announcement import replay_announcement
 
     async def replay() -> str:
         return "".join([frame async for frame in replay_announcement(run_id, results[0][0].id)])

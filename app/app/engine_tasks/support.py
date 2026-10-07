@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core.run_modes import resolved_run_config
+from co_scientist.domains.chat.repository import messages
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
 from co_scientist.platform.db.checkpoints import NewCheckpoint
@@ -25,7 +26,7 @@ from app.engine_adapter.opts import (
 )
 from app.engine_tasks.portfolio import _enqueue_node_portfolio
 from app.run_events import make_emitter
-from app.store import events, messages, runs, tasks
+from app.store import events, runs, tasks
 from app.store.tasks import NewTask
 
 

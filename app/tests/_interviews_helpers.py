@@ -7,11 +7,10 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from co_scientist.domains.chat.interviews import model as interviews_model
+from co_scientist.domains.chat.interviews.model import CLOSE_MARKER, OPEN_MARKER
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-
-from app.interviews import model as interviews_model
-from app.interviews.model import CLOSE_MARKER, OPEN_MARKER
 
 
 @dataclasses.dataclass(frozen=True)

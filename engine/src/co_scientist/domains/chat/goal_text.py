@@ -5,6 +5,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from app import credentials
+
 from co_scientist.core.config import (
     deepseek_thinking_kwargs,
     settings,
@@ -14,8 +16,6 @@ from co_scientist.core.config import (
 )
 from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
-
-from app import credentials
 
 logger = logging.getLogger(__name__)
 

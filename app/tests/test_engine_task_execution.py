@@ -8,6 +8,8 @@ import pytest
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.core.exceptions import LLMCallBudgetExceededError
 from co_scientist.core.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
+from co_scientist.domains.chat.repository import messages
+from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.research_state.models import (
     Article,
     Hypothesis,
@@ -27,10 +29,9 @@ from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.support import TaskCommit
 from app.store import events as store_events
-from app.store import messages, reports, runs
+from app.store import reports, runs
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.messages import NewMessage
 from tests._engine_tasks_helpers import (
     _Generator,
     _milestones,

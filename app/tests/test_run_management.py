@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 from co_scientist.core import run_modes
+from co_scientist.domains.chat import seed
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from co_scientist.platform.telemetry import logs
 from co_scientist.scheduling import (
@@ -17,7 +18,6 @@ from co_scientist.scheduling.policy import (
 )
 from fastapi.testclient import TestClient
 
-from app import seed
 from app.engine_adapter.opts import _generator_kwargs
 from app.store import runs, runs_views
 from tests._client import append_log_row, make_client, wait_for

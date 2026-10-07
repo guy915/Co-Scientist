@@ -6,9 +6,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
+from co_scientist.domains.chat import goal_text, run_start_announcement
+from co_scientist.domains.chat.repository import messages as store
 
-from app import credentials, goal_text, run_start_announcement
-from app.store import messages as store
+from app import credentials
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._store_helpers import seed_run
@@ -117,7 +118,7 @@ async def test_announcement_makes_no_outbound_request(
 async def test_question_repair_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    from app.interviews.questions import repair_questions
+    from co_scientist.domains.chat.interviews.questions import repair_questions
 
     assert await repair_questions("Private scientific question?") == []
     assert attempts == []

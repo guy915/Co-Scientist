@@ -6,13 +6,13 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.chat.interviews import model as interviews_model
+from co_scientist.domains.chat.interviews import stream as interviews_stream
+from co_scientist.domains.chat.repository import interviews as store
+from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
 from fastapi.testclient import TestClient
 
-from app.interviews import model as interviews_model
-from app.interviews import stream as interviews_stream
 from app.main import app
-from app.store import interviews as store
-from app.store.interviews import NewInterviewTurn
 from tests._llm_fake_backend import install_completion_backend
 
 from ._interviews_helpers import (

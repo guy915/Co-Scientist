@@ -57,7 +57,7 @@ class StartRunRequest(BaseModel):
 class RenameRunRequest(BaseModel):
     """Body for PATCH /api/runs/{id} (rename).
 
-    ``max_length`` matches ``app.goal_text._MAX_TITLE_CHARS``, the ceiling
+    ``max_length`` matches ``co_scientist.domains.chat.goal_text._MAX_TITLE_CHARS``, the ceiling
     a generated title is held to, so a hand-written one cannot outgrow the
     surfaces (sidebar rows, run titlebar, report header) built for it.
     """

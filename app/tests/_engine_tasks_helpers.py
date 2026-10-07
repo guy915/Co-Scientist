@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.research_state.models import (
     ExecutionMetrics,
     Hypothesis,
@@ -20,7 +21,7 @@ from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.runtime import ProductionEngineTaskRuntime
-from app.store import events, messages, tasks
+from app.store import events, tasks
 from app.store import tasks_lifecycle as lifecycle
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
