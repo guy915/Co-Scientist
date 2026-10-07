@@ -142,7 +142,8 @@ def restrict_self(policy: SandboxPolicy) -> None:
         raise OSError(ctypes.get_errno(), "landlock_create_ruleset failed")
 
     try:
-        _add_path_rule(libc, ruleset_fd, Path("/"), _READ_ACCESS)
+        for root in policy.readable_roots:
+            _add_path_rule(libc, ruleset_fd, root, _READ_ACCESS)
         for root in policy.writable_roots:
             _add_path_rule(libc, ruleset_fd, root, handled)
         _commit(libc, ruleset_fd)

@@ -1,3 +1,6 @@
+import os
+import sys
+import sysconfig
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -33,6 +36,7 @@ class SandboxPolicy:
     kind: SandboxKind
     writable_roots: tuple[Path, ...] = field(default_factory=tuple)
     network_allowed: bool = False
+    readable_roots: tuple[Path, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         """macOS /var points to /private/var; OS grants need real paths.
@@ -45,6 +49,14 @@ class SandboxPolicy:
             self,
             "writable_roots",
             tuple(p.resolve() for p in self.writable_roots),
+        )
+        relative = [str(p) for p in self.readable_roots if not p.is_absolute()]
+        if relative:
+            raise ValueError(f"readable_roots must be absolute paths; got {relative}")
+        object.__setattr__(
+            self,
+            "readable_roots",
+            tuple(p.resolve() for p in self.readable_roots),
         )
 
     @property
@@ -63,13 +75,60 @@ class SandboxPolicy:
         return True
 
 
-def read_only() -> SandboxPolicy:
-    return SandboxPolicy(kind=SandboxKind.READ_ONLY)
+def read_only(*roots: Path) -> SandboxPolicy:
+    return SandboxPolicy(
+        kind=SandboxKind.READ_ONLY,
+        readable_roots=(*runtime_read_roots(), *roots),
+    )
 
 
 def workspace_write(*roots: Path, network_allowed: bool = False) -> SandboxPolicy:
     return SandboxPolicy(
         kind=SandboxKind.WORKSPACE_WRITE,
         writable_roots=tuple(roots),
+        readable_roots=(*runtime_read_roots(), *roots),
         network_allowed=network_allowed,
     )
+
+
+def runtime_read_roots() -> tuple[Path, ...]:
+    """Small immutable runtime closure; service data and source trees stay out."""
+    version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    candidates = [
+        Path("/bin"),
+        Path("/usr/bin"),
+        Path("/lib"),
+        Path("/lib64"),
+        Path("/usr/lib"),
+        Path(sys.executable).absolute().parent,
+        Path(sys.prefix) / "lib" / version,
+        Path(sysconfig.get_path("stdlib")),
+        Path(sysconfig.get_path("purelib")),
+        Path(sysconfig.get_path("platlib")),
+        Path("/etc/ld.so.cache"),
+        Path("/etc/ssl/certs"),
+        Path("/etc/hosts"),
+        Path("/etc/resolv.conf"),
+        Path("/etc/nsswitch.conf"),
+        Path("/dev/null"),
+    ]
+    skills = os.getenv("COSCIENTIST_SKILLS_DIR")
+    if skills:
+        candidates.append(Path(skills).expanduser())
+    skills_python = os.getenv("COSCIENTIST_SKILLS_PYTHON")
+    if skills_python:
+        interpreter = Path(skills_python).absolute()
+        venv = interpreter.parent.parent
+        candidates.extend(
+            (
+                interpreter,
+                interpreter.resolve(),
+                venv / "bin",
+                venv / "lib" / version,
+                venv / "pyvenv.cfg",
+            )
+        )
+    roots = tuple(dict.fromkeys(path.resolve() for path in candidates if path.exists()))
+    if Path("/") in roots:
+        raise ValueError("runtime read roots must not include the filesystem root")
+    return roots

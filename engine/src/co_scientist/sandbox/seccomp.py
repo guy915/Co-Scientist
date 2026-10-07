@@ -15,6 +15,7 @@ _SECCOMP_MODE_FILTER = 2
 
 _RET_ALLOW = 0x7FFF0000
 _RET_ERRNO_EACCES = 0x00050000 | 13
+_RET_ERRNO_EPERM = 0x00050000 | 1
 
 _OFFSET_NR = 0
 _OFFSET_ARCH = 4
@@ -22,6 +23,7 @@ _OFFSET_ARG0 = 16
 
 _LD_W_ABS = 0x20
 _JEQ_K = 0x15
+_ALU_AND_K = 0x54
 _RET_K = 0x06
 
 _AF_INET = 2
@@ -29,9 +31,9 @@ _AF_INET6 = 10
 _AF_PACKET = 17
 
 _ARCHITECTURES = {
-    "aarch64": (0xC00000B7, 198),
-    "arm64": (0xC00000B7, 198),
-    "x86_64": (0xC000003E, 41),
+    "aarch64": (0xC00000B7, 198, (117, 270, 271, 438)),
+    "arm64": (0xC00000B7, 198, (117, 270, 271, 438)),
+    "x86_64": (0xC000003E, 41, (101, 310, 311, 438)),
 }
 
 
@@ -74,7 +76,41 @@ def deny_network() -> None:
     if architecture is None:
         raise SeccompUnavailableError(f"no seccomp filter for machine {platform.machine()!r}")
 
-    program = _deny_inet_program(*architecture)
+    program = _deny_inet_program(*architecture[:2])
+    _install(program)
+
+
+def deny_process_inspection() -> None:
+    """Block cross-process memory and descriptor reads that bypass file rules."""
+    architecture = _ARCHITECTURES.get(platform.machine())
+    if architecture is None:
+        raise SeccompUnavailableError(f"no seccomp filter for machine {platform.machine()!r}")
+    _install(_deny_syscalls_program(architecture[0], architecture[2]))
+
+
+def _deny_syscalls_program(audit_arch: int, syscalls: tuple[int, ...]) -> bytes:
+    instructions = [
+        _instruction(_LD_W_ABS, 0, 0, _OFFSET_ARCH),
+        _instruction(_JEQ_K, 1, 0, audit_arch),
+        _instruction(_RET_K, 0, 0, _RET_ERRNO_EPERM),
+        _instruction(_LD_W_ABS, 0, 0, _OFFSET_NR),
+        _instruction(_ALU_AND_K, 0, 0, 0x40000000),
+        _instruction(_JEQ_K, 1, 0, 0),
+        _instruction(_RET_K, 0, 0, _RET_ERRNO_EPERM),
+        _instruction(_LD_W_ABS, 0, 0, _OFFSET_NR),
+    ]
+    for syscall in syscalls:
+        instructions.extend(
+            (
+                _instruction(_JEQ_K, 0, 1, syscall),
+                _instruction(_RET_K, 0, 0, _RET_ERRNO_EPERM),
+            )
+        )
+    instructions.append(_instruction(_RET_K, 0, 0, _RET_ALLOW))
+    return b"".join(instructions)
+
+
+def _install(program: bytes) -> None:
     blob = ctypes.create_string_buffer(program, len(program))
     fprog = _SockFprog(len(program) // 8, ctypes.cast(blob, ctypes.c_void_p))
 

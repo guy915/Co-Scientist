@@ -8,7 +8,13 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from co_scientist.patch import PatchError, apply_patch, parse_patch
+from co_scientist.patch import (
+    PatchError,
+    apply_patch,
+    parse_patch,
+    read_workspace_bytes,
+    write_workspace_file,
+)
 from co_scientist.sandbox import (
     METADATA_NAMES,
     ExecRequest,
@@ -17,9 +23,14 @@ from co_scientist.sandbox import (
     run_sandboxed,
     workspace_write,
 )
-from co_scientist.sandbox.argv import wrap_argv
+from co_scientist.sandbox.cgroups import CommandCgroup
 from co_scientist.sandbox.policy import SandboxPolicy
-from co_scientist.sandbox.runner import _terminate, build_env
+from co_scientist.sandbox.runner import (
+    _terminate,
+    build_env,
+    cleanup_cgroup,
+    create_command_process,
+)
 from co_scientist.tool_effects import ToolEffect
 from co_scientist.workspace.output import SPILL_DIRECTORY
 
@@ -73,7 +84,10 @@ class CommandSession:
         self._out = _Stream()
         self._err = _Stream()
         self._proc: asyncio.subprocess.Process | None = None
+        self._cgroup: CommandCgroup | None = None
         self._pumps: list[asyncio.Task[None]] = []
+        self._lifecycle_task: asyncio.Task[None] | None = None
+        self._lifecycle_error: str | None = None
 
     @property
     def running(self) -> bool:
@@ -90,20 +104,24 @@ class CommandSession:
         cwd: Path,
         env: dict[str, str],
     ) -> None:
-        self._proc = await asyncio.create_subprocess_exec(
-            *wrap_argv(self.argv, policy),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd),
-            env=env,
-            # A separate process group makes cancellation end the entire tree.
-            start_new_session=True,
-        )
+        self._proc, self._cgroup = await create_command_process(self.argv, policy, cwd=cwd, env=env)
         self._pumps = [
             asyncio.create_task(self._pump(self._proc.stdout, self._out)),
             asyncio.create_task(self._pump(self._proc.stderr, self._err)),
         ]
+        self._lifecycle_task = asyncio.create_task(self._reap_after_exit())
+
+    async def _reap_after_exit(self) -> None:
+        if self._proc is None:
+            return
+        await self._proc.wait()
+        if self._cgroup is not None:
+            group, self._cgroup = self._cgroup, None
+            try:
+                await cleanup_cgroup(group)
+            except OSError as exc:
+                self._lifecycle_error = f"command cgroup cleanup failed: {exc}"
+                logger.exception("could not clean command cgroup for session %s", self.id)
 
     async def _pump(self, reader: object, into: _Stream) -> None:
         """Drain continuously: a full unread pipe blocks the writer between
@@ -129,6 +147,8 @@ class CommandSession:
         marks = cursor or {}
         stdout, out_at = self._out.since(int(marks.get("stdout", 0)))
         stderr, err_at = self._err.since(int(marks.get("stderr", 0)))
+        if self._lifecycle_error:
+            stderr += f"\n{self._lifecycle_error}"
         return SessionRead(
             session_id=self.id,
             running=self.running,
@@ -155,11 +175,16 @@ class CommandSession:
         """Sessions outlive their starting calls; callers must reap them when a
         workspace closes.
         """
-        if self._proc is not None:
-            await _terminate(self._proc)
-        for pump in self._pumps:
-            pump.cancel()
-        await asyncio.gather(*self._pumps, return_exceptions=True)
+        try:
+            if self._proc is not None:
+                group, self._cgroup = self._cgroup, None
+                await asyncio.shield(_terminate(self._proc, group))
+        finally:
+            for pump in self._pumps:
+                pump.cancel()
+            await asyncio.gather(*self._pumps, return_exceptions=True)
+            if self._lifecycle_task is not None:
+                await asyncio.gather(self._lifecycle_task, return_exceptions=True)
 
 
 class SessionRegistry:
@@ -310,15 +335,15 @@ class WorkspaceSession:
         """Whole-file creation avoids context-patch failures on a new program;
         patches retain edit anchoring.
         """
-        target = self.resolve_path(relative)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        write_workspace_file(self.root, relative, content)
 
     def read_file(self, relative: str, max_bytes: int = 200_000) -> str:
-        target = self.resolve_path(relative)
-        if not target.is_file():
-            raise PatchError(f"no such file in workspace: {relative!r}")
-        raw = target.read_bytes()[:max_bytes]
+        try:
+            raw = read_workspace_bytes(self.root, relative, max_bytes=max_bytes)
+        except FileNotFoundError:
+            raise PatchError(f"no such file in workspace: {relative!r}") from None
+        except OSError as exc:
+            raise PatchError(f"cannot read workspace file {relative!r}: {exc}") from exc
         return raw.decode("utf-8", errors="replace")
 
     def list_files(self) -> tuple[str, ...]:

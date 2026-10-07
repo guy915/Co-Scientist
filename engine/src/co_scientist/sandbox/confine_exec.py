@@ -31,6 +31,7 @@ def policy_to_json(policy: SandboxPolicy) -> str:
         {
             "kind": policy.kind.value,
             "writable_roots": [str(root) for root in policy.writable_roots],
+            "readable_roots": [str(root) for root in policy.readable_roots],
             "allows_network": policy.allows_network,
         }
     )
@@ -41,6 +42,7 @@ def policy_from_json(raw: str) -> SandboxPolicy:
     return SandboxPolicy(
         kind=SandboxKind(data["kind"]),
         writable_roots=tuple(Path(p) for p in data["writable_roots"]),
+        readable_roots=tuple(Path(p) for p in data.get("readable_roots", ())),
         network_allowed=bool(data["allows_network"]),
     )
 
@@ -66,6 +68,11 @@ def _apply(policy: SandboxPolicy) -> None:
             seccomp.deny_network()
         except OSError as exc:
             _fail(EXIT_POLICY_REFUSED, f"could not deny the network: {exc}")
+
+    try:
+        seccomp.deny_process_inspection()
+    except OSError as exc:
+        _fail(EXIT_POLICY_REFUSED, f"could not deny cross-process inspection: {exc}")
 
     _refuse_inexpressible(policy)
 

@@ -648,6 +648,18 @@ CREATE TABLE IF NOT EXISTS feedback (
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at, id);
 CREATE INDEX IF NOT EXISTS idx_feedback_owner
     ON feedback(client_id, created_at);
+CREATE TABLE IF NOT EXISTS app_llm_usage (
+    day INTEGER NOT NULL,
+    client_id TEXT NOT NULL,
+    calls INTEGER NOT NULL,
+    tokens INTEGER NOT NULL,
+    PRIMARY KEY (day, client_id)
+);
+CREATE TABLE IF NOT EXISTS run_announcements (
+    run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+    prompt_message_id INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS feedback_admissions (
     client_id TEXT NOT NULL,
     host_key TEXT NOT NULL,

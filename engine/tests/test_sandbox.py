@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 import signal
@@ -31,6 +32,8 @@ from co_scientist.sandbox.runner import (
     DEFAULT_ENV_ALLOWLIST,
     ExecRequest,
     ExecResult,
+    _collect,
+    _terminate,
     build_env,
     run_sandboxed,
 )
@@ -74,6 +77,17 @@ def test_writable_roots_are_resolved(tmp_path: Path) -> None:
     assert workspace_write(link).writable_roots == (real.resolve(),)
 
 
+def test_default_read_roots_exclude_host_root_and_workspace() -> None:
+    from co_scientist.sandbox.policy import runtime_read_roots
+
+    roots = runtime_read_roots()
+    assert Path("/") not in roots
+    checkout = Path.cwd().resolve()
+    assert checkout not in roots
+    checkout_roots = [root for root in roots if checkout in root.parents]
+    assert all(root.relative_to(checkout).parts[:1] == (".venv",) for root in checkout_roots)
+
+
 def test_network_is_denied_unless_a_workspace_policy_opts_in(
     tmp_path: Path,
 ) -> None:
@@ -115,6 +129,33 @@ def test_missing_backend_refuses_rather_than_running_unconfined(
         sandbox_argv.wrap_argv(["echo", "hi"], read_only())
 
 
+def test_confined_helper_uses_isolated_python_imports() -> None:
+    wrapped = sandbox_argv._landlock_argv(["echo", "hi"], read_only())
+    assert wrapped[:3] == [sys.executable, "-I", "-m"]
+
+
+@_requires_sandbox
+def test_workspace_package_cannot_shadow_the_confinement_helper(tmp_path: Path) -> None:
+    package = tmp_path / "co_scientist"
+    package.mkdir()
+    marker = tmp_path / "shadowed"
+    (package / "__init__.py").write_text(
+        f"from pathlib import Path; Path({str(marker)!r}).touch()", encoding="utf-8"
+    )
+    result = subprocess.run(
+        wrap_argv(["echo", "trusted"], read_only()),
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "trusted"
+    assert not marker.exists()
+
+
 @_requires_seatbelt
 def test_writable_roots_are_passed_as_parameters_not_interpolated(
     tmp_path: Path,
@@ -132,6 +173,15 @@ def test_metadata_denial_is_emitted_after_the_write_allow(
 ) -> None:
     text = seatbelt.build_policy_text(workspace_write(tmp_path))
     assert text.index("(allow file-write*") < text.index("(deny file-write*")
+
+
+@_requires_seatbelt
+def test_read_roots_are_passed_as_parameters_not_interpolated(tmp_path: Path) -> None:
+    wrapped = wrap_argv(["echo", "hi"], read_only(tmp_path))
+    policy_text = wrapped[wrapped.index("-p") + 1]
+    assert str(tmp_path) not in policy_text
+    assert f"-DREAD_ROOT_0={tmp_path}" in wrapped
+    assert "(allow file-read*)" not in policy_text
 
 
 def _run_confined(argv: list[str], policy: SandboxPolicy) -> subprocess.CompletedProcess[str]:
@@ -166,9 +216,26 @@ class TestRealConfinement:
     def test_reads_are_permitted(self, tmp_path: Path) -> None:
         target = tmp_path / "readable.txt"
         target.write_text("content")
-        result = _run_confined([_bin("cat"), str(target)], read_only())
+        result = _run_confined([_bin("cat"), str(target)], read_only(tmp_path))
         assert result.returncode == 0
         assert result.stdout == "content"
+
+    def test_reads_outside_the_explicit_roots_are_denied(self, tmp_path: Path) -> None:
+        target = tmp_path / "private.txt"
+        target.write_text("private")
+        result = _run_confined([_bin("cat"), str(target)], read_only())
+        assert result.returncode != 0
+        assert result.stdout == ""
+
+    @pytest.mark.skipif(sys.platform != "linux", reason="process inspection filter is Linux-only")
+    def test_process_vm_reads_are_denied(self) -> None:
+        code = (
+            "import ctypes; libc=ctypes.CDLL(None, use_errno=True); "
+            "libc.syscall(310, 0, 0, 0, 0, 0, 0); print(ctypes.get_errno())"
+        )
+        result = _run_confined([sys.executable, "-c", code], read_only())
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "1"
 
     def test_read_only_policy_denies_a_write(self, tmp_path: Path) -> None:
         target = tmp_path / "forbidden.txt"
@@ -312,6 +379,70 @@ def test_every_internet_family_reaches_deny() -> None:
             families[k] = index + 1 + jt
     assert set(families) == {2, 10, 17}  # AF_INET, AF_INET6, AF_PACKET.
     assert set(families.values()) == {_DENY_INDEX}
+
+
+def test_cross_process_read_syscalls_are_denied() -> None:
+    program = _decode(seccomp._deny_syscalls_program(0xC000003E, (101, 310, 311, 438)))
+    assert program[0] == (0x20, 0, 0, 4)
+    assert program[1] == (0x15, 1, 0, 0xC000003E)
+    assert program[2] == (0x06, 0, 0, 0x00050001)
+    assert program[3:7] == [
+        (0x20, 0, 0, 0),
+        (0x54, 0, 0, 0x40000000),
+        (0x15, 1, 0, 0),
+        (0x06, 0, 0, 0x00050001),
+    ]
+    for index in (8, 10, 12, 14):
+        assert program[index][0] == 0x15
+        assert program[index][2] == 1
+        assert program[index + 1] == (0x06, 0, 0, 0x00050001)
+    assert program[-1] == (0x06, 0, 0, 0x7FFF0000)
+
+
+@pytest.mark.asyncio
+async def test_an_exited_parent_still_kills_its_cgroup_descendants(tmp_path: Path) -> None:
+    from co_scientist.sandbox.cgroups import CommandCgroup
+
+    group = CommandCgroup(tmp_path / "command")
+    calls: list[str] = []
+    group.kill = lambda: calls.append("kill")  # type: ignore[method-assign]
+    group.remove = lambda: calls.append("remove")  # type: ignore[method-assign]
+    process = type("ExitedProcess", (), {"returncode": 0, "pid": 123})()
+
+    await _terminate(process, group)
+
+    assert calls == ["kill", "remove"]
+
+
+@pytest.mark.asyncio
+async def test_cancellation_still_cleans_the_command_cgroup(tmp_path: Path) -> None:
+    from co_scientist.sandbox.cgroups import CommandCgroup
+
+    group = CommandCgroup(tmp_path / "command")
+    calls: list[str] = []
+    group.kill = lambda: calls.append("kill")  # type: ignore[method-assign]
+    group.remove = lambda: calls.append("remove")  # type: ignore[method-assign]
+    process = await asyncio.create_subprocess_exec(
+        "/bin/sleep",
+        "10",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    task = asyncio.create_task(
+        _collect(
+            process,
+            ExecRequest(argv=["/bin/sleep"], policy=_UNCONFINED),
+            group,
+        )
+    )
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert process.returncode is not None
+    assert calls == ["kill", "kill", "remove"]
 
 
 _UNCONFINED = SandboxPolicy(kind=SandboxKind.DANGER_FULL_ACCESS)
