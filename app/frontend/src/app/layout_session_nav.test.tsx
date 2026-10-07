@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import type {ChatSummary} from '@/api/runs';
-import {makeRun} from '../test_fixtures';
+import {makeRun} from '@/test_fixtures';
 import {installLayoutMocks} from './layout_test_support';
 import {withExamples} from './layout_nav_rail';
 import {

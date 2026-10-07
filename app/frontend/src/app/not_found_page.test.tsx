@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import {render, waitFor} from '@testing-library/react';
-import {NoIndex} from './page';
+import {NoIndex} from './not_found_page';
 
 describe('no index', () => {
   describe('NoIndex', () => {
