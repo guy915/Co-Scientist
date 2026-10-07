@@ -249,6 +249,17 @@ def list_expired_terminal_runs(cutoff: float, db_path: str | None = None) -> lis
     return [row_to_run(row) for row in rows]
 
 
+def list_expired_draft_runs(cutoff: float, db_path: str | None = None) -> list[RunRow]:
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM runs r WHERE status='draft' AND updated_at<? "
+            "AND NOT EXISTS (SELECT 1 FROM scientific_tasks t WHERE t.run_id=r.id "
+            "AND t.status IN ('queued','leased')) ORDER BY updated_at ASC",
+            (cutoff,),
+        ).fetchall()
+    return [row_to_run(row) for row in rows]
+
+
 def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
         rows = conn.execute(

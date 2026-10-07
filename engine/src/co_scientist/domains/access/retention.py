@@ -11,6 +11,7 @@ from co_scientist.orchestration.repository import runs_views as views
 logger = logging.getLogger(__name__)
 
 _DEFAULT_RUN_RETENTION_DAYS = 90
+_DEFAULT_DRAFT_RETENTION_DAYS = 7
 _DEFAULT_DOCUMENT_RETENTION_DAYS = 30
 _SECONDS_PER_DAY = 86_400
 
@@ -44,15 +45,32 @@ def sweep_expired_runs(*, now: float | None = None) -> list[str]:
     """Use short per-run transactions rather than holding SQLite's writer
     across the whole retention sweep.
     """
-    days = run_retention_days()
-    if days == 0:
-        return []
-    cutoff = (now or time.time()) - days * _SECONDS_PER_DAY
+    now = time.time() if now is None else now
     deleted = []
-    for run in views.list_expired_terminal_runs(cutoff):
-        store_runs.delete_run(run.id)
-        deleted.append(run.id)
-        logger.info("Retention swept expired run %s", run.id)
+    for env_var, default, lookup in (
+        (
+            "COSCIENTIST_RUN_RETENTION_DAYS",
+            _DEFAULT_RUN_RETENTION_DAYS,
+            views.list_expired_terminal_runs,
+        ),
+        (
+            "COSCIENTIST_DRAFT_RETENTION_DAYS",
+            _DEFAULT_DRAFT_RETENTION_DAYS,
+            views.list_expired_draft_runs,
+        ),
+    ):
+        days = _retention_days(env_var, default)
+        if days == 0:
+            continue
+        for run in lookup(now - days * _SECONDS_PER_DAY):
+            cutoff = now - days * _SECONDS_PER_DAY
+            counts = store_runs.delete_run(
+                run.id, draft_before=cutoff if lookup is views.list_expired_draft_runs else None
+            )
+            if not counts:
+                continue
+            deleted.append(run.id)
+            logger.info("Retention swept expired run %s", run.id)
     return deleted
 
 
