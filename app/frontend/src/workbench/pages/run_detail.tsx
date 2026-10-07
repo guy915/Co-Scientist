@@ -28,6 +28,7 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
+import {joinClasses} from '../classes';
 
 const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto max-[700px]:overflow-x-hidden';
@@ -263,7 +264,7 @@ function RunDetailTabContent({
 }: Omit<RunDetailBodyProps, 'active'>) {
   return (
     <div
-      className={REPORT_SCROLL_CLASSES}
+      className={joinClasses(REPORT_SCROLL_CLASSES, 'ui-motion-enter')}
       key={activeTab}
       aria-label={reportSectionLabel(activeTab)}
     >

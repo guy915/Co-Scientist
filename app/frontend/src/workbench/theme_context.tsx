@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import {flushSync} from 'react-dom';
 import {MD3_SCHEMES} from './md3_scheme';
 
 export type Mode = 'system' | 'light' | 'dark';
@@ -83,6 +84,17 @@ function useApplyTheme(mode: Mode, resolvedMode: ResolvedMode): void {
   }, [mode, resolvedMode]);
 }
 
+// A chosen theme cross-fades the whole page (shared/ui/motion.css) instead of
+// repainting at once. The update commits synchronously inside the transition so
+// the new snapshot already carries the new palette.
+function crossFade(update: () => void): void {
+  if (typeof document.startViewTransition !== 'function') {
+    update();
+    return;
+  }
+  document.startViewTransition(() => flushSync(update));
+}
+
 export function ThemeProvider({children}: {children: ReactNode}) {
   const [mode, setModeState] = useState<Mode>(readStoredMode);
   const systemMode = useSystemColorScheme();
@@ -91,11 +103,13 @@ export function ThemeProvider({children}: {children: ReactNode}) {
   useApplyTheme(mode, resolvedMode);
 
   const setMode = useCallback((m: Mode) => {
-    setModeState(m);
+    crossFade(() => setModeState(m));
   }, []);
 
   const toggle = useCallback(() => {
-    setModeState(current => (current === 'dark' ? 'light' : 'dark'));
+    crossFade(() =>
+      setModeState(current => (current === 'dark' ? 'light' : 'dark')),
+    );
   }, []);
 
   const value = useMemo(

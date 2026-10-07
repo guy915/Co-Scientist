@@ -15,7 +15,7 @@ function panelStateClasses(open: boolean): string {
 
 function chevronClasses(open: boolean): string {
   return (
-    'text-base transition-transform duration-300 ease-out ' +
+    'text-base transition-transform duration-long ease-standard ' +
     'motion-reduce:transition-none ' +
     (open ? 'rotate-0' : 'rotate-180')
   );
@@ -130,7 +130,7 @@ export function ThoughtsDisclosure({
         inert={!open}
         // Animate the grid track to natural height; streamed reasoning makes measured
         // max-height stale.
-        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${panelStateClasses(open)}`}
+        className={`grid transition-[grid-template-rows,opacity] duration-long ease-standard motion-reduce:transition-none ${panelStateClasses(open)}`}
       >
         <div className="overflow-hidden">
           <ThoughtsTrail trail={trail} />

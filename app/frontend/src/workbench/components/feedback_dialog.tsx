@@ -151,7 +151,11 @@ function FeedbackForm({
           disabled={busy}
         />
       </label>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p className="ui-motion-enter" role="alert">
+          {error}
+        </p>
+      )}
       <div className="flex gap-3 [justify-content:end]">
         <Button variant="outlined" onClick={onClose}>
           Cancel

@@ -23,8 +23,8 @@ const ITEM_COLLAPSED_CLASSES =
   'grid-cols-[1fr] justify-self-center min-[701px]:h-[2.45rem] min-[701px]:min-h-[2.45rem]';
 
 const LABEL_CLASSES =
-  'text-[0.875rem] font-medium tracking-[0.01em] whitespace-nowrap ' +
-  '[transition:opacity_180ms_cubic-bezier(0.2,0,0,1),max-width_240ms_cubic-bezier(0.2,0,0,1)] motion-reduce:[transition:none]';
+  'text-[0.875rem] font-medium tracking-[0.01em] whitespace-nowrap starting:opacity-0 ' +
+  '[transition:opacity_var(--motion-duration-medium)_var(--motion-ease-standard),max-width_var(--motion-duration-long)_var(--motion-ease-standard)]';
 
 // display:none, not visibility:hidden, which would keep a grid row and shift
 // the icon. Width and overflow persist on phones, where labels show.

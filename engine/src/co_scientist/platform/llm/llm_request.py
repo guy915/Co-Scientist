@@ -1,5 +1,6 @@
 from typing import Any
 
+from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.domains.access import credentials
 from co_scientist.platform.llm import offline_guard, provider_usage
 from co_scientist.platform.llm.llm_scope import app_call_scope, in_app_call_scope
@@ -23,10 +24,12 @@ async def _complete(kwargs: dict[str, Any]) -> Any:
     timeout = kwargs.get("timeout")
     if kwargs.get("stream"):
         kwargs.setdefault("stream_options", {"include_usage": True})
-    return await complete_request(
-        kwargs,
-        str(kwargs["model"]),
-        byok=user_key,
-        timeout_seconds=float(timeout) if timeout is not None else 600.0,
-        before_dispatch=(None if user_key else lambda: provider_usage.reserve(kwargs)),
-    )
+    try:
+        return await complete_request(
+            kwargs,
+            str(kwargs["model"]),
+            byok=user_key,
+            timeout_seconds=float(timeout) if timeout is not None else 600.0,
+        )
+    except ProviderAdmissionError as error:
+        provider_usage.raise_http_admission(error)

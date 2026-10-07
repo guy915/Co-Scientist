@@ -17,6 +17,7 @@ from co_scientist.science.research.artifacts import (
     ThreadRecord,
     ThreadStatus,
 )
+from co_scientist.science.research.strings import string_items
 
 
 def result_to_dict(result: ResearchResult) -> dict[str, Any]:
@@ -37,7 +38,7 @@ def result_from_dict(data: dict[str, Any]) -> ResearchResult:
     """
     return ResearchResult(
         goal=str(data.get("goal", "")),
-        stances=tuple(_strings(data.get("stances"))),
+        stances=tuple(string_items(data.get("stances"))),
         threads=tuple(_thread_from_dict(item) for item in _dicts(data.get("threads"))),
         calls=tuple(_call_from_dict(item) for item in _dicts(data.get("calls"))),
         findings=tuple(_finding_from_dict(item) for item in _dicts(data.get("findings"))),
@@ -75,9 +76,9 @@ def _thread_from_dict(data: dict[str, Any]) -> ThreadRecord:
         ),
         depth=int(data.get("depth") or 0),
         status=_enum(ThreadStatus, data.get("status"), ThreadStatus.OK),
-        call_ids=tuple(_strings(data.get("call_ids"))),
-        finding_ids=tuple(_strings(data.get("finding_ids"))),
-        follow_ups=tuple(_strings(data.get("follow_ups"))),
+        call_ids=tuple(string_items(data.get("call_ids"))),
+        finding_ids=tuple(string_items(data.get("finding_ids"))),
+        follow_ups=tuple(string_items(data.get("follow_ups"))),
         summary=_optional_str(data.get("summary")),
         note=_optional_str(data.get("note")),
         retry_breadth=_optional_int(data.get("retry_breadth")),
@@ -105,8 +106,8 @@ def _call_from_dict(data: dict[str, Any]) -> SearchCall:
         source=str(data.get("source", "")),
         status=_enum(CallStatus, data.get("status"), CallStatus.OK),
         hits=tuple(_hit_from_dict(item) for item in _dicts(data.get("hits"))),
-        admitted=tuple(_strings(data.get("admitted"))),
-        dropped=tuple(_strings(data.get("dropped"))),
+        admitted=tuple(string_items(data.get("admitted"))),
+        dropped=tuple(string_items(data.get("dropped"))),
         error=_optional_str(data.get("error")),
         duration_seconds=_optional_float(data.get("duration_seconds")),
     )
@@ -169,12 +170,6 @@ def _dicts(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
-
-
-def _strings(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str)]
 
 
 def _optional_str(value: Any) -> str | None:
