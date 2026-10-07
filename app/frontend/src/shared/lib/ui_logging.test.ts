@@ -1,5 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {emitDiagnostic} from './diagnostic_events';
 import {
+  installDiagnosticLogging,
   installUiErrorLogging,
   installUiInteractionLogging,
   logUiError,
@@ -122,5 +124,44 @@ describe('interaction logging', () => {
     ]);
     vi.runAllTimers();
     expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('diagnostic logging', () => {
+  it('persists session diagnostics with no shell mounted', () => {
+    const uninstall = installDiagnosticLogging();
+    emitDiagnostic({
+      stage: 'LIFECYCLE',
+      runId: 'run-1',
+      payload: {event: 'start_requested'},
+    });
+    uninstall();
+    expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
+      {
+        message: 'LIFECYCLE {"event":"start_requested"}',
+        level: 'info',
+        logger: 'session',
+        run_id: 'run-1',
+      },
+    ]);
+  });
+
+  it('never persists goal text as a run id', () => {
+    const uninstall = installDiagnosticLogging();
+    window.dispatchEvent(
+      new CustomEvent('cosci-diagnostic-event', {
+        detail: {
+          stage: 'LIFECYCLE',
+          run: 'Novel oncology target X in pancreatic cancer',
+          payload: {event: 'start_requested'},
+        },
+      }),
+    );
+    uninstall();
+    const [records] = logsApiMock.postAppLogs.mock.calls[0] as [
+      {run_id?: string}[],
+    ];
+    expect(records[0].run_id).toBeUndefined();
+    expect(JSON.stringify(records)).not.toContain('oncology');
   });
 });

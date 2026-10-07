@@ -10,6 +10,7 @@ from co_scientist.platform.llm.offline.llm import (
     DEFAULT_OFFLINE_MODEL,
     install_offline_router,
 )
+from co_scientist.science.citations import ReferenceIndex
 from co_scientist.science.evolution import (
     EvolutionContext,
     build_evolution_context,
@@ -25,7 +26,6 @@ from co_scientist.science.evolution.evolve_prompt import (
     _EvolutionOperation,
 )
 from co_scientist.science.evolution.evolve_results import _apply_evolution_result
-from co_scientist.science.generation.citations import ReferenceIndex
 from tests._llm_fake import stub_call_llm_json
 from tests._mcp import isolate_offline_router
 from tests._state import make_article, make_hypothesis, make_state

@@ -1,23 +1,12 @@
-const REDUCE_QUERY = '(prefers-reduced-motion: reduce)';
+import {matchesMedia} from './media';
 
-// Prerendering has no window, and jsdom has no matchMedia.
+export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
 export function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia(REDUCE_QUERY).matches
-  );
+  return matchesMedia(REDUCED_MOTION_QUERY);
 }
 
 // Programmatic scrolls jump instead of gliding when motion is reduced.
 export function scrollBehavior(): ScrollBehavior {
   return prefersReducedMotion() ? 'auto' : 'smooth';
-}
-
-export function watchReducedMotion(onChange: () => void): () => void {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function')
-    return () => undefined;
-  const query = window.matchMedia(REDUCE_QUERY);
-  query.addEventListener('change', onChange);
-  return () => query.removeEventListener('change', onChange);
 }

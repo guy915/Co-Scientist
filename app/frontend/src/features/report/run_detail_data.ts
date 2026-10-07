@@ -25,6 +25,8 @@ import {
 import {useResetTimer, useToast} from '@/shared/hooks/timers';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
+import {displayTitle} from '@/shared/lib/titles';
+import {errorMessage} from '@/shared/lib/errors';
 
 // Carry stream transport state with the run so reconnecting cannot look
 // healthy; missing state is not evidence of a drop.
@@ -94,7 +96,7 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
 
   const title = useMemo(() => {
     if (!run) return 'Goal report';
-    return run.title?.trim() || runGoal(run);
+    return displayTitle(run.title, runGoal(run), goal => goal);
   }, [run]);
 
   useEffect(() => {
@@ -240,7 +242,7 @@ async function fetchRunOutcome(id: string, keys?: ReadonlySet<RunDataKey>) {
   } catch (err) {
     return {
       data: null,
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     };
   }
 }

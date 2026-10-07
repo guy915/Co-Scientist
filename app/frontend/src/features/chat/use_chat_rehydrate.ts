@@ -28,6 +28,7 @@ import {
 } from './chat_session_transcript';
 import {readPendingCreateIntent} from './chat_session_start_run';
 import type {LinkedDraftRecovery, useChatSession} from './use_chat_session';
+import {displayTitle} from '@/shared/lib/titles';
 
 type ChatSession = ReturnType<typeof useChatSession>;
 
@@ -89,7 +90,7 @@ interface ResolveLinkedRunArgs {
 
 function startedTitle(run: Run | undefined, fallback: string): string {
   if (!run) return conciseTitle(fallback);
-  return run.title?.trim() || conciseTitle(run.research_goal);
+  return displayTitle(run.title, run.research_goal);
 }
 
 function resumedSession(

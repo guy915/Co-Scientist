@@ -31,9 +31,7 @@ from co_scientist.platform.sandbox.workspace import (
     open_draft_workspace,
 )
 from co_scientist.platform.sandbox.workspace.tool_schemas import READ_SKILL
-from co_scientist.science.generation.assumptions import (
-    build_falsified_assumptions_section,
-)
+from co_scientist.science.falsified_assumptions import build_falsified_assumptions_section
 from co_scientist.science.generation.expansion_research import (
     EXPANSION_EXTRA_DRAFT_ITERATIONS,
     build_expansion_section,

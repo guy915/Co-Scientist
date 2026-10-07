@@ -15,6 +15,7 @@ from co_scientist.domains.research_state.state import (
     WorkflowState,
     deduplicate_hypotheses,
 )
+from co_scientist.domains.safety.monitor import monitor_research_direction, review_direction_safety
 from co_scientist.domains.safety.rules import (
     POLICY_VERSION,
     REDACTED_PLACEHOLDER,
@@ -31,11 +32,7 @@ from co_scientist.orchestration.task_runtime import (
 from co_scientist.orchestration.workflow_topology import route_next_task
 from co_scientist.science.meta_review import meta_review
 from co_scientist.science.meta_review.meta_review import meta_review_node
-from co_scientist.science.safety_screen import (
-    monitor_research_direction,
-    review_direction_safety,
-    safety_screen_node,
-)
+from co_scientist.science.safety_screen import safety_screen_node
 from tests._llm_fake import (
     install_fake_llm,
     make_test_generator,

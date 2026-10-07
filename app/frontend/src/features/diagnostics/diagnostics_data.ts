@@ -1,6 +1,8 @@
-import {type AppLogRecord, type ClientLogRecord} from '@/shared/api/logs';
+import {type AppLogRecord} from '@/shared/api/logs';
+import {type DiagnosticLevel} from '@/shared/lib/diagnostic_events';
+import {formatClockTime} from '@/shared/lib/time';
 
-export type DiagnosticLogLevel = 'info' | 'warning' | 'error';
+export type DiagnosticLogLevel = DiagnosticLevel;
 
 export interface DiagnosticLogEntry {
   id: number;
@@ -21,47 +23,9 @@ export const SERVER_LOG_SOURCE = 'Server';
 
 export const EXPORT_LIMIT = 100;
 
-export interface DiagnosticLogEventDetail {
-  // Use the actual run ID, never a goal-derived title: this field is persisted
-  // and served through the API.
-  runId?: string;
-  stage: string;
-  level?: DiagnosticLogLevel;
-  payload?: Record<string, unknown>;
-}
-
 export interface PersistedAppLogs {
   entries: DiagnosticLogEntry[];
   total: number;
-}
-
-const DIAGNOSTIC_TIME_FMT = new Intl.DateTimeFormat(undefined, {
-  hour: 'numeric',
-  minute: '2-digit',
-  second: '2-digit',
-});
-
-function formatDiagnosticTime(date = new Date()): string {
-  return DIAGNOSTIC_TIME_FMT.format(date);
-}
-
-function clientLevel(level: DiagnosticLogLevel | undefined): string {
-  return level === 'error' || level === 'warning' ? level : 'info';
-}
-
-export function detailToClientRecord(
-  detail: DiagnosticLogEventDetail,
-): ClientLogRecord {
-  const payload = detail.payload || {};
-  const suffix = Object.keys(payload).length
-    ? ` ${JSON.stringify(payload)}`
-    : '';
-  return {
-    message: `${detail.stage}${suffix}`,
-    level: clientLevel(detail.level),
-    logger: 'session',
-    ...(detail.runId ? {run_id: detail.runId} : {}),
-  };
 }
 
 function appLogLevel(record: AppLogRecord): DiagnosticLogLevel {
@@ -76,7 +40,7 @@ export function buildAppLogEntry(
   return {
     id: record.id,
     number,
-    time: formatDiagnosticTime(new Date(record.created_at * 1000)),
+    time: formatClockTime(record.created_at),
     run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : SERVER_LOG_SOURCE,
     stage: record.logger,
     level: appLogLevel(record),

@@ -10,12 +10,7 @@ import type {
   RunWithSummary,
 } from '@/shared/api/runs';
 import {sortByEloDesc} from '@/shared/lib/hypotheses';
-import {
-  formatDurationPhrase,
-  isRecord,
-  readableText,
-  readableTextList,
-} from '@/shared/lib/text';
+import {isRecord, readableText, readableTextList} from '@/shared/lib/text';
 import {useMemo} from 'react';
 import {
   REPORT_H3_CLASSES,
@@ -24,6 +19,7 @@ import {
   REPORT_SECTION_CLASSES,
   ReportDocument,
 } from './run_detail_shell';
+import {formatDurationPhrase} from '@/shared/lib/time';
 
 // Keep an empty leaderboard's identity stable so it cannot invalidate
 // downstream memos on every render.

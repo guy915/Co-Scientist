@@ -33,7 +33,7 @@ from co_scientist.platform.llm import (
 from co_scientist.platform.retrieval.evidence.search_query import call_search_tool
 from co_scientist.platform.retrieval.tools.provider import MCPToolProvider
 from co_scientist.platform.retrieval.tools.response_parser import ResponseParser, parse_mcp_result
-from co_scientist.science.generation.citations import (
+from co_scientist.science.citations import (
     hypothesis_from_llm_output,
 )
 from co_scientist.science.generation.literature_tools.draft import (

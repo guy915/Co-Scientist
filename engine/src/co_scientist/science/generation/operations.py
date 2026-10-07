@@ -18,12 +18,9 @@ from co_scientist.platform.retrieval.config.schema import EnrichmentConfig, Tool
 from co_scientist.platform.retrieval.mcp_client import get_mcp_client
 from co_scientist.platform.retrieval.tools.response_parser import parse_mcp_result
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.science.generation.citations import (
+from co_scientist.science.citations import (
     ReferenceIndex,
     build_reference_index,
-)
-from co_scientist.science.meta_review.research_overview import (
-    format_interim_overview,
 )
 
 logger = logging.getLogger(__name__)
@@ -441,7 +438,7 @@ async def prepare_generation(
 def _with_interim_overview(state: WorkflowState, articles_with_reasoning: str | None) -> str | None:
     """The run's own overview is guidance, not retrieved literature;
     debate-only calls must omit this context."""
-    block = format_interim_overview(state)
+    block = str(state.get("interim_overview") or "").strip()
     if not block:
         return articles_with_reasoning
     if not articles_with_reasoning:

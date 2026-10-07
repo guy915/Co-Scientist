@@ -1,15 +1,13 @@
 import {useEffect, useState, useRef} from 'react';
+import {matchesMedia} from '@/shared/lib/media';
+import {useMediaQuery} from './use_media_query';
 
 // One phone breakpoint prevents seams where related shell and workspace surfaces
 // disagree on interaction mode.
 export const MOBILE_MEDIA_QUERY = '(max-width: 700px)';
 
 export function isMobileViewport(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia(MOBILE_MEDIA_QUERY).matches
-  );
+  return matchesMedia(MOBILE_MEDIA_QUERY);
 }
 
 // Desktop rail state is a user preference; only an overlaying phone drawer
@@ -18,25 +16,8 @@ export function closeDrawerIfMobile(setNavOpen: (open: boolean) => void): void {
   if (isMobileViewport()) setNavOpen(false);
 }
 
-// createRoot mounts without hydration; synchronous initial measurement avoids a
-// frame of incorrect desktop layout on phones.
 export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(
-    () =>
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia(MOBILE_MEDIA_QUERY).matches,
-  );
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const mql = window.matchMedia(MOBILE_MEDIA_QUERY);
-    const update = () => setIsMobile(mql.matches);
-    // Viewport size can change between first render and subscribing; re-read
-    // when installing the listener.
-    update();
-    mql.addEventListener('change', update);
-    return () => mql.removeEventListener('change', update);
-  }, []);
-  return isMobile;
+  return useMediaQuery(MOBILE_MEDIA_QUERY);
 }
 
 // Overflow containers clip tooltips even without scrolling; measure child span,
