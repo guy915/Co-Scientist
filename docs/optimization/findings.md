@@ -200,6 +200,11 @@ reasoning-exhaustion findings need a run with retrieval on (M1) before they
 can be confirmed on Ling; each run had one retry. Caching remains near
 zero (M4).
 
+M2–M6 describe the routes rather than defects with a fix of their own: M2's
+fallback pattern is measured as M11, M3's reasoning share is what the batches
+change, M4 is answered by M7 below, and M5 and M6 are properties of the free
+endpoint.
+
 Baselines at `a82eed8` with every fan-out stage timed: Express r2
 ([37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903))
 and Standard
@@ -244,4 +249,5 @@ capping them.
 | F14 | A URL-aware pre-hydration skeleton | A deep link shows a landing-shaped placeholder until React mounts; fixing it is a visual change in lever 7's area for a brief placeholder |
 | I11 | Drop heavy transitive dependencies | `grpcio`, `tokenizers`, `huggingface-hub` and `hf-xet` are litellm's own requirements; only `watchfiles` (via `uvicorn[standard]`, used by `--reload`) could go: a few MB for a rewritten extras list and a regenerated hash-pinned lock |
 | F9 | Split the landing stylesheet out of the entry CSS | After shrink #308 the whole sheet is 117 KB (22.5 KB gzip), of which the landing's own rules are 5.3 KB gzip. The home route, where most visits start, needs them anyway, so splitting adds a render-blocking request there to save 5 KB elsewhere; lever 7 keeps moving these rules to utilities |
+| F12 | Pause polling in hidden tabs and resume streams mid-way | The campaigns leave frontend fetching and polling to shrink lever 9, which judged its rework not worth the risk (board #240) |
 | M13 | Run proximity beside the research overview | The overview does not read proximity's output, but the workflow commits one node per checkpoint; running two nodes at once means concurrent checkpoint writers for one run, an invariant change in `docs/OPERATIONS.md`, to save about 4 minutes of an Express run |
