@@ -1,0 +1,563 @@
+# Import contracts for docs/adr/001-module-map.md, checked by `make arch`.
+# Modules keep their current names; each move PR renames them here.
+# Every ignore_imports entry is a current violation. A fix deletes its entry;
+# evaluations/tests/test_import_contracts.py pins the count, so it only shrinks.
+# Package __init__ modules whose children belong to different layers stay out of
+# the layers until they move: app.engine_adapter, app.engine_adapter.drain,
+# co_scientist.agents, co_scientist.config and co_scientist.models.
+# Run from app/ (make arch): from the repository root, `app` resolves to the
+# app/ directory instead of the package.
+
+[importlinter]
+root_packages =
+    co_scientist
+    app
+include_external_packages = True
+
+[importlinter:contract:layers]
+name = Layers (ADR-001)
+type = layers
+layers =
+    (co_scientist.main) : app.main
+    (co_scientist.api) : app.api_contracts : app.runs : app.diagnostics_api : app.diagnostics : app.logs_api : app.feedback_api : app.documents : app.sse : app.operator_access : app.auth
+    (co_scientist.orchestration) : co_scientist.workflow_topology : co_scientist.task_runtime : co_scientist.checkpoint : co_scientist.generator : app.engine_tasks : app.task_worker : app.run_events : app.notifications : app.engine_adapter.opts : app.engine_adapter.events : app.engine_adapter.drain.final_state : app.store.tasks : app.store.tasks_lifecycle : app.store.runs : app.store.runs_views : app.store.events : app.store.supervisor_plan : app.store.receipts
+    (co_scientist.science) : co_scientist.agents.generation : co_scientist.agents.reflection : co_scientist.agents.ranking : co_scientist.agents.evolution : co_scientist.agents.proximity : co_scientist.agents.meta_review : co_scientist.agents.supervisor : co_scientist.agents.safety : co_scientist.agents.node_degradation : co_scientist.scheduling : co_scientist.prompts : co_scientist.schemas : co_scientist.research
+    (co_scientist.domains.chat) : app.qa : app.interviews : app.run_start_announcement : app.goal_text : app.seed : app.store.messages : app.store.interviews : app.store.examples
+    (co_scientist.domains.report) : app.report : app.store.reports
+    (co_scientist.domains.safety) : co_scientist.safety : app.safety : app.hypothesis
+    (co_scientist.domains.research_state) : co_scientist.models.matchup : co_scientist.state : app.elo : app.text_utils : app.claims : app.store.hypotheses : app.store.records : app.engine_adapter.drain.hypotheses : app.engine_adapter.drain.reviews : app.engine_adapter.drain.matches
+    (co_scientist.domains.documents) : app.document_ingest : app.pdf : app.pdf_worker : app.evidence_chunking : app.staged_documents : app.store.documents : (co_scientist.domains.access) : app.credentials : app.byok_models : app.free_usage : app.retention : (co_scientist.domains.feedback) : app.store.feedback
+    (co_scientist.platform.retrieval) : co_scientist.mcp_client : co_scientist.tools : co_scientist.config.registry : co_scientist.config.schema : co_scientist.evidence : co_scientist.retrieval_degradation : co_scientist.research_adapter : app.pinned_http : app.retraction_set : app.citations : app.run_corpus : app.engine_adapter.tools
+    (co_scientist.platform.llm) : co_scientist.llm : co_scientist.offline : co_scientist.tool_effects : app.llm_request : app.llm_scope : app.execution_policy : app.process_mode : app.offline_guard : app.provider_usage : (co_scientist.platform.sandbox) : co_scientist.sandbox : co_scientist.workspace : co_scientist.skills : co_scientist.patch : (co_scientist.platform.db) : app.store.db : app.store.schema : app.store.checkpoints : app.store.models
+    (co_scientist.platform.telemetry) : co_scientist.progress : app.logging_setup : app.error_tracking : app.diagnostic_events : app.store.logs : app.store.retrieval_calls
+    (co_scientist.core) : co_scientist.exceptions : co_scientist._context : co_scientist.backoff : co_scientist.config.env_vars : co_scientist.models.metrics : co_scientist.constants : app.config : app.run_modes : app.async_bridge
+ignore_imports =
+    app.claims.grounding -> app.engine_adapter
+    app.claims.verifier -> co_scientist.schemas.builders
+    app.config -> co_scientist.llm
+    app.engine_adapter.drain.matches -> co_scientist.agents.ranking.ranking_debate
+    app.engine_adapter.drain.matches -> co_scientist.research
+    app.engine_adapter.drain.reviews -> app.report
+    app.error_tracking -> app.credentials
+    app.evidence_chunking -> app.claims.assessor
+    app.free_usage -> app.auth
+    app.free_usage -> app.engine_adapter
+    app.free_usage -> app.runs.models
+    app.interviews -> app.api_contracts.interviews
+    app.interviews -> app.auth
+    app.interviews.questions -> co_scientist.schemas.builders
+    app.interviews.stream -> app.sse
+    app.interviews.turns -> app.auth
+    app.llm_request -> app.credentials
+    app.logging_setup -> app.credentials
+    app.offline_guard -> app.credentials
+    app.offline_guard -> app.engine_adapter
+    app.process_mode -> app.credentials
+    app.qa -> app.sse
+    app.qa -> app.store.runs
+    app.qa.manifest -> app.store.events
+    app.qa.manifest -> app.store.tasks
+    app.qa.snapshot -> app.store.supervisor_plan
+    app.qa.snapshot -> co_scientist.checkpoint
+    app.report.content -> co_scientist.agents.reflection.reflection_helpers
+    app.report.finalize -> app.engine_tasks.runtime
+    app.report.finalize -> app.engine_tasks.support
+    app.report.finalize -> app.notifications
+    app.report.finalize -> app.run_events
+    app.report.finalize -> app.store.events
+    app.report.finalize -> app.store.runs
+    app.retention -> app.store.runs
+    app.retention -> app.store.runs_views
+    app.run_modes -> app.elo
+    app.run_start_announcement -> app.sse
+    app.safety -> app.engine_tasks.support
+    app.safety -> app.store.events
+    app.safety -> app.store.runs
+    app.safety -> app.task_worker.outcomes
+    app.safety.semantic -> co_scientist.schemas.builders
+    app.seed -> app.store.runs_views
+    app.store.checkpoints -> app.store.supervisor_plan
+    app.store.documents -> app.store.records
+    app.store.examples -> app.store.runs
+    app.store.logs -> app.store.db
+    app.store.retrieval_calls -> app.store.db
+    app.store.retrieval_calls -> co_scientist.research
+    co_scientist.constants -> co_scientist.llm.profile
+    co_scientist.evidence.article_support -> co_scientist.models
+    co_scientist.evidence.article_support -> co_scientist.research
+    co_scientist.evidence.relevance -> co_scientist.prompts
+    co_scientist.evidence.relevance -> co_scientist.schemas
+    co_scientist.evidence.search -> co_scientist.state
+    co_scientist.evidence.search_support -> co_scientist.state
+    co_scientist.models.metrics -> co_scientist.llm
+    co_scientist.progress -> co_scientist.state
+    co_scientist.research_adapter -> co_scientist.prompts
+    co_scientist.research_adapter -> co_scientist.research
+    co_scientist.tool_effects -> co_scientist.config.registry
+    co_scientist.tools.response_parser -> co_scientist.models
+    co_scientist.workspace.tools -> co_scientist.tools.provider
+
+[importlinter:contract:agents]
+name = Science agents are independent
+type = independence
+modules =
+    co_scientist.agents.generation
+    co_scientist.agents.reflection
+    co_scientist.agents.ranking
+    co_scientist.agents.evolution
+    co_scientist.agents.proximity
+    co_scientist.agents.meta_review
+    co_scientist.agents.supervisor
+    co_scientist.agents.safety
+ignore_imports =
+    co_scientist.agents.evolution.evolve_grounding -> co_scientist.agents.reflection.deep_verification_evidence
+    co_scientist.agents.evolution.evolve_prompt -> co_scientist.agents.generation.assumptions
+    co_scientist.agents.evolution.evolve_prompt -> co_scientist.agents.proximity.proximity_graph
+    co_scientist.agents.evolution.evolve_prompt -> co_scientist.agents.reflection.review_gate
+    co_scientist.agents.evolution.evolve_results -> co_scientist.agents.generation.citations
+    co_scientist.agents.evolution.operations -> co_scientist.agents.generation.citations
+    co_scientist.agents.generation.literature_review.enrichment -> co_scientist.agents.reflection.reflection_helpers
+    co_scientist.agents.generation.operations -> co_scientist.agents.meta_review.research_overview
+    co_scientist.agents.meta_review.meta_review -> co_scientist.agents.reflection.review_gate
+    co_scientist.agents.meta_review.meta_review -> co_scientist.agents.safety
+    co_scientist.agents.ranking.ranking_debate -> co_scientist.agents.reflection.review_gate
+    co_scientist.agents.supervisor.orchestrator -> co_scientist.agents.ranking.ranking_lifecycle
+    co_scientist.agents.supervisor.orchestrator -> co_scientist.agents.reflection.owed_review
+
+[importlinter:contract:fastapi]
+name = FastAPI only in api and main
+type = forbidden
+source_modules =
+    co_scientist.workflow_topology
+    co_scientist.task_runtime
+    co_scientist.checkpoint
+    co_scientist.generator
+    app.engine_tasks
+    app.task_worker
+    app.run_events
+    app.notifications
+    app.engine_adapter.opts
+    app.engine_adapter.events
+    app.engine_adapter.drain.final_state
+    app.store.tasks
+    app.store.tasks_lifecycle
+    app.store.runs
+    app.store.runs_views
+    app.store.events
+    app.store.supervisor_plan
+    app.store.receipts
+    co_scientist.agents.generation
+    co_scientist.agents.reflection
+    co_scientist.agents.ranking
+    co_scientist.agents.evolution
+    co_scientist.agents.proximity
+    co_scientist.agents.meta_review
+    co_scientist.agents.supervisor
+    co_scientist.agents.safety
+    co_scientist.agents.node_degradation
+    co_scientist.scheduling
+    co_scientist.prompts
+    co_scientist.schemas
+    co_scientist.research
+    app.qa
+    app.interviews
+    app.run_start_announcement
+    app.goal_text
+    app.seed
+    app.store.messages
+    app.store.interviews
+    app.store.examples
+    app.report
+    app.store.reports
+    co_scientist.safety
+    app.safety
+    app.hypothesis
+    co_scientist.models.matchup
+    co_scientist.state
+    app.elo
+    app.text_utils
+    app.claims
+    app.store.hypotheses
+    app.store.records
+    app.engine_adapter.drain.hypotheses
+    app.engine_adapter.drain.reviews
+    app.engine_adapter.drain.matches
+    app.document_ingest
+    app.pdf
+    app.pdf_worker
+    app.evidence_chunking
+    app.staged_documents
+    app.store.documents
+    app.credentials
+    app.byok_models
+    app.free_usage
+    app.retention
+    app.store.feedback
+    co_scientist.mcp_client
+    co_scientist.tools
+    co_scientist.config.registry
+    co_scientist.config.schema
+    co_scientist.evidence
+    co_scientist.retrieval_degradation
+    co_scientist.research_adapter
+    app.pinned_http
+    app.retraction_set
+    app.citations
+    app.run_corpus
+    app.engine_adapter.tools
+    co_scientist.llm
+    co_scientist.offline
+    co_scientist.tool_effects
+    app.llm_request
+    app.llm_scope
+    app.execution_policy
+    app.process_mode
+    app.offline_guard
+    app.provider_usage
+    co_scientist.sandbox
+    co_scientist.workspace
+    co_scientist.skills
+    co_scientist.patch
+    app.store.db
+    app.store.schema
+    app.store.checkpoints
+    app.store.models
+    co_scientist.progress
+    app.logging_setup
+    app.error_tracking
+    app.diagnostic_events
+    app.store.logs
+    app.store.retrieval_calls
+    co_scientist.exceptions
+    co_scientist._context
+    co_scientist.backoff
+    co_scientist.config.env_vars
+    co_scientist.models.metrics
+    co_scientist.constants
+    app.config
+    app.run_modes
+    app.async_bridge
+forbidden_modules =
+    fastapi
+    starlette
+allow_indirect_imports = True
+ignore_imports =
+    app.byok_models -> fastapi
+    app.document_ingest -> fastapi
+    app.free_usage -> fastapi
+    app.interviews -> fastapi
+    app.interviews.model -> fastapi
+    app.interviews.stream -> fastapi
+    app.interviews.turns -> fastapi
+    app.provider_usage -> fastapi
+    app.staged_documents -> fastapi
+
+[importlinter:contract:litellm]
+name = litellm only in the LLM gateway
+type = forbidden
+source_modules =
+    app.main
+    app.api_contracts
+    app.runs
+    app.diagnostics_api
+    app.diagnostics
+    app.logs_api
+    app.feedback_api
+    app.documents
+    app.sse
+    app.operator_access
+    app.auth
+    co_scientist.workflow_topology
+    co_scientist.task_runtime
+    co_scientist.checkpoint
+    co_scientist.generator
+    app.engine_tasks
+    app.task_worker
+    app.run_events
+    app.notifications
+    app.engine_adapter.opts
+    app.engine_adapter.events
+    app.engine_adapter.drain.final_state
+    app.store.tasks
+    app.store.tasks_lifecycle
+    app.store.runs
+    app.store.runs_views
+    app.store.events
+    app.store.supervisor_plan
+    app.store.receipts
+    co_scientist.agents.generation
+    co_scientist.agents.reflection
+    co_scientist.agents.ranking
+    co_scientist.agents.evolution
+    co_scientist.agents.proximity
+    co_scientist.agents.meta_review
+    co_scientist.agents.supervisor
+    co_scientist.agents.safety
+    co_scientist.agents.node_degradation
+    co_scientist.scheduling
+    co_scientist.prompts
+    co_scientist.schemas
+    co_scientist.research
+    app.qa
+    app.interviews
+    app.run_start_announcement
+    app.goal_text
+    app.seed
+    app.store.messages
+    app.store.interviews
+    app.store.examples
+    app.report
+    app.store.reports
+    co_scientist.safety
+    app.safety
+    app.hypothesis
+    co_scientist.models.matchup
+    co_scientist.state
+    app.elo
+    app.text_utils
+    app.claims
+    app.store.hypotheses
+    app.store.records
+    app.engine_adapter.drain.hypotheses
+    app.engine_adapter.drain.reviews
+    app.engine_adapter.drain.matches
+    app.document_ingest
+    app.pdf
+    app.pdf_worker
+    app.evidence_chunking
+    app.staged_documents
+    app.store.documents
+    app.credentials
+    app.byok_models
+    app.free_usage
+    app.retention
+    app.store.feedback
+    co_scientist.mcp_client
+    co_scientist.tools
+    co_scientist.config.registry
+    co_scientist.config.schema
+    co_scientist.evidence
+    co_scientist.retrieval_degradation
+    co_scientist.research_adapter
+    app.pinned_http
+    app.retraction_set
+    app.citations
+    app.run_corpus
+    app.engine_adapter.tools
+    co_scientist.sandbox
+    co_scientist.workspace
+    co_scientist.skills
+    co_scientist.patch
+    app.store.db
+    app.store.schema
+    app.store.checkpoints
+    app.store.models
+    co_scientist.progress
+    app.logging_setup
+    app.error_tracking
+    app.diagnostic_events
+    app.store.logs
+    app.store.retrieval_calls
+    co_scientist.exceptions
+    co_scientist._context
+    co_scientist.backoff
+    co_scientist.config.env_vars
+    co_scientist.models.metrics
+    co_scientist.constants
+    app.config
+    app.run_modes
+    app.async_bridge
+forbidden_modules =
+    litellm
+allow_indirect_imports = True
+ignore_imports =
+    app.async_bridge -> litellm
+    app.credentials -> litellm
+    app.logging_setup -> litellm
+
+[importlinter:contract:httpx]
+name = httpx only in the LLM gateway and retrieval
+type = forbidden
+source_modules =
+    app.main
+    app.api_contracts
+    app.runs
+    app.diagnostics_api
+    app.diagnostics
+    app.logs_api
+    app.feedback_api
+    app.documents
+    app.sse
+    app.operator_access
+    app.auth
+    co_scientist.workflow_topology
+    co_scientist.task_runtime
+    co_scientist.checkpoint
+    co_scientist.generator
+    app.engine_tasks
+    app.task_worker
+    app.run_events
+    app.notifications
+    app.engine_adapter.opts
+    app.engine_adapter.events
+    app.engine_adapter.drain.final_state
+    app.store.tasks
+    app.store.tasks_lifecycle
+    app.store.runs
+    app.store.runs_views
+    app.store.events
+    app.store.supervisor_plan
+    app.store.receipts
+    co_scientist.agents.generation
+    co_scientist.agents.reflection
+    co_scientist.agents.ranking
+    co_scientist.agents.evolution
+    co_scientist.agents.proximity
+    co_scientist.agents.meta_review
+    co_scientist.agents.supervisor
+    co_scientist.agents.safety
+    co_scientist.agents.node_degradation
+    co_scientist.scheduling
+    co_scientist.prompts
+    co_scientist.schemas
+    co_scientist.research
+    app.qa
+    app.interviews
+    app.run_start_announcement
+    app.goal_text
+    app.seed
+    app.store.messages
+    app.store.interviews
+    app.store.examples
+    app.report
+    app.store.reports
+    co_scientist.safety
+    app.safety
+    app.hypothesis
+    co_scientist.models.matchup
+    co_scientist.state
+    app.elo
+    app.text_utils
+    app.claims
+    app.store.hypotheses
+    app.store.records
+    app.engine_adapter.drain.hypotheses
+    app.engine_adapter.drain.reviews
+    app.engine_adapter.drain.matches
+    app.document_ingest
+    app.pdf
+    app.pdf_worker
+    app.evidence_chunking
+    app.staged_documents
+    app.store.documents
+    app.credentials
+    app.byok_models
+    app.free_usage
+    app.retention
+    app.store.feedback
+    co_scientist.sandbox
+    co_scientist.workspace
+    co_scientist.skills
+    co_scientist.patch
+    app.store.db
+    app.store.schema
+    app.store.checkpoints
+    app.store.models
+    co_scientist.progress
+    app.logging_setup
+    app.error_tracking
+    app.diagnostic_events
+    app.store.logs
+    app.store.retrieval_calls
+    co_scientist.exceptions
+    co_scientist._context
+    co_scientist.backoff
+    co_scientist.config.env_vars
+    co_scientist.models.metrics
+    co_scientist.constants
+    app.config
+    app.run_modes
+    app.async_bridge
+forbidden_modules =
+    httpx
+allow_indirect_imports = True
+
+[importlinter:contract:sqlite]
+name = sqlite3 only in platform.db, domains and orchestration
+type = forbidden
+source_modules =
+    app.main
+    app.api_contracts
+    app.runs
+    app.diagnostics_api
+    app.diagnostics
+    app.logs_api
+    app.feedback_api
+    app.documents
+    app.sse
+    app.operator_access
+    app.auth
+    co_scientist.agents.generation
+    co_scientist.agents.reflection
+    co_scientist.agents.ranking
+    co_scientist.agents.evolution
+    co_scientist.agents.proximity
+    co_scientist.agents.meta_review
+    co_scientist.agents.supervisor
+    co_scientist.agents.safety
+    co_scientist.agents.node_degradation
+    co_scientist.scheduling
+    co_scientist.prompts
+    co_scientist.schemas
+    co_scientist.research
+    co_scientist.mcp_client
+    co_scientist.tools
+    co_scientist.config.registry
+    co_scientist.config.schema
+    co_scientist.evidence
+    co_scientist.retrieval_degradation
+    co_scientist.research_adapter
+    app.pinned_http
+    app.retraction_set
+    app.citations
+    app.run_corpus
+    app.engine_adapter.tools
+    co_scientist.llm
+    co_scientist.offline
+    co_scientist.tool_effects
+    app.llm_request
+    app.llm_scope
+    app.execution_policy
+    app.process_mode
+    app.offline_guard
+    app.provider_usage
+    co_scientist.sandbox
+    co_scientist.workspace
+    co_scientist.skills
+    co_scientist.patch
+    co_scientist.progress
+    app.logging_setup
+    app.error_tracking
+    app.diagnostic_events
+    app.store.logs
+    app.store.retrieval_calls
+    co_scientist.exceptions
+    co_scientist._context
+    co_scientist.backoff
+    co_scientist.config.env_vars
+    co_scientist.models.metrics
+    co_scientist.constants
+    app.config
+    app.run_modes
+    app.async_bridge
+forbidden_modules =
+    sqlite3
+allow_indirect_imports = True
+ignore_imports =
+    app.logs_api -> sqlite3
+    app.main -> sqlite3
+    app.runs.crud -> sqlite3
+    app.runs.lifecycle -> sqlite3
+    app.runs.support -> sqlite3
+    app.store.logs -> sqlite3
+    app.store.retrieval_calls -> sqlite3
