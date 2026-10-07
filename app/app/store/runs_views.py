@@ -221,20 +221,20 @@ def _top_hypotheses_by_run(conn: sqlite3.Connection, run_ids: list[str]) -> dict
 def _latest_stage_by_run(conn: sqlite3.Connection, run_ids: list[str]) -> dict[str, str]:
     if not run_ids:
         return {}
-    run_placeholders = ",".join("?" for _ in run_ids)
+    # One indexed newest-first probe per run; a window over every matching
+    # event grows with each run's whole history.
     stage_placeholders = ",".join("?" for _ in _STAGE_EVENT_TYPES)
-    rows = conn.execute(
-        "SELECT run_id, type FROM ("
-        " SELECT run_id, type, ROW_NUMBER() OVER ("
-        "  PARTITION BY run_id ORDER BY seq DESC"
-        " ) AS rn"
-        " FROM run_events"
-        f" WHERE run_id IN ({run_placeholders})"
-        f" AND type IN ({stage_placeholders})"
-        ") WHERE rn = 1",
-        (*run_ids, *_STAGE_EVENT_TYPES),
-    ).fetchall()
-    return {row["run_id"]: row["type"] for row in rows}
+    query = (
+        "SELECT type FROM run_events"
+        f" WHERE run_id = ? AND type IN ({stage_placeholders})"
+        " ORDER BY seq DESC LIMIT 1"
+    )
+    latest: dict[str, str] = {}
+    for run_id in run_ids:
+        row = conn.execute(query, (run_id, *_STAGE_EVENT_TYPES)).fetchone()
+        if row is not None:
+            latest[run_id] = row["type"]
+    return latest
 
 
 def list_expired_terminal_runs(cutoff: float, db_path: str | None = None) -> list[RunRow]:
@@ -252,12 +252,13 @@ def list_expired_terminal_runs(cutoff: float, db_path: str | None = None) -> lis
 def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT r.*, t.top_elo FROM runs r "
-            "LEFT JOIN ("
-            " SELECT h.run_id, MAX(s.elo_rating) AS top_elo "
-            " FROM hypotheses h "
+            # A correlated MAX touches only listed runs; a grouped join
+            # aggregates every hypothesis in the store.
+            "SELECT r.*, ("
+            " SELECT MAX(s.elo_rating) FROM hypotheses h "
             " JOIN hypothesis_state s ON s.hypothesis_id = h.id "
-            " GROUP BY h.run_id) t ON t.run_id = r.id "
+            " WHERE h.run_id = r.id) AS top_elo "
+            "FROM runs r "
             "WHERE r.client_id = ? "
             "ORDER BY r.created_at DESC LIMIT ?",
             (client_id, limit),
