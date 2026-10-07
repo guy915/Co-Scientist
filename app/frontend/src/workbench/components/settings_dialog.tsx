@@ -36,6 +36,19 @@ import {
   fetchFreeUsage,
 } from '@/api/system';
 import {SlidingPill, useSlidingIndicator} from '../hooks/sliding_indicator';
+import {
+  joinClasses,
+  SETTINGS_DIALOG_CLASSES,
+  SETTINGS_DIALOG_TITLE_CLASSES,
+  SETTINGS_FIELD_CLASSES,
+  SETTINGS_FIELD_LABEL_CLASSES,
+  SETTINGS_SCRIM_CLASSES,
+} from '../classes';
+
+const CARD_CLASSES =
+  'rounded-2xl bg-cosci-settings-card-bg px-[1.4rem] pt-5 pb-[1.4rem]';
+const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';
+const HINT_CLASSES = 'm-0 mt-[0.55rem] text-[0.78rem] text-cosci-muted';
 
 // Focus newly opened dialogs internally so keyboard and assistive-technology
 // users do not remain behind them.
@@ -85,12 +98,12 @@ function SettingsDialogHeader({
   closeRef: RefObject<HTMLButtonElement | null>;
 }) {
   return (
-    <header className="ucs-settings-dialog-header">
-      <h2 className="ucs-settings-dialog-title">Settings</h2>
+    <header className="flex items-center justify-between gap-4">
+      <h2 className={SETTINGS_DIALOG_TITLE_CLASSES}>Settings</h2>
       <button
         ref={closeRef}
         type="button"
-        className="ucs-settings-dialog-close"
+        className="grid size-10 flex-none cursor-pointer place-items-center rounded-[9999px] bg-transparent p-0 text-[1.35rem] text-cosci-muted [border:0] focus-visible:bg-cosci-menu-row-hover focus-visible:text-cosci-fg [&:hover]:bg-cosci-menu-row-hover [&:hover]:text-cosci-fg"
         aria-label="Close settings"
         onClick={onClose}
       >
@@ -129,20 +142,23 @@ export function SettingsDialog({
   return (
     <div className="ucs-settings-dialog-root" ref={rootRef}>
       <div
-        className="ucs-settings-dialog-scrim"
+        className={SETTINGS_SCRIM_CLASSES}
         aria-hidden="true"
         onClick={onClose}
       />
       <div
-        className="ucs-settings-dialog"
+        className={joinClasses(
+          SETTINGS_DIALOG_CLASSES,
+          'h-[min(34rem,calc(100dvh-3rem))] w-[min(52rem,calc(100vw-2rem))] px-7 py-6 [@media(max-width:700px)]:h-[calc(100dvh-1.5rem)] [@media(max-width:700px)]:w-[calc(100vw-1.5rem)] [@media(max-width:700px)]:px-4 [@media(max-width:700px)]:py-[1.1rem]',
+        )}
         role="dialog"
         aria-modal="true"
         aria-label="Settings"
       >
         <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-        <div className="ucs-settings-dialog-body">
+        <div className="mt-5 grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-6 [@media(max-width:700px)]:mt-[0.9rem] [@media(max-width:700px)]:grid-cols-[minmax(0,1fr)] [@media(max-width:700px)]:grid-rows-[auto_minmax(0,1fr)] [@media(max-width:700px)]:gap-4">
           <SettingsNav section={section} onSectionChange={onSectionChange} />
-          <div className="ucs-settings-dialog-panel">
+          <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 [align-content:start]">
             {section === 'appearance' && (
               <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
             )}
@@ -181,30 +197,34 @@ export function AppearanceSection({
   const trackRef = useRef<HTMLDivElement>(null);
   const pill = useSlidingIndicator(trackRef, '[aria-pressed="true"]', mode);
   return (
-    <section className="ucs-settings-card">
-      <h3 className="ucs-settings-card-title">Theme</h3>
+    <section className={CARD_CLASSES}>
+      <h3 className={CARD_TITLE_CLASSES}>Theme</h3>
       <div
         ref={trackRef}
-        className="ucs-theme-segment ucs-theme-segment--dialog"
+        className="relative grid grid-cols-3 gap-[0.3rem] rounded-[9999px] border border-cosci-border bg-cosci-settings-segment-bg p-[0.18rem]"
         role="group"
         aria-label="Theme"
       >
-        <SlidingPill box={pill} className="ucs-theme-slider" />
+        <SlidingPill
+          box={pill}
+          className="ucs-theme-slider pointer-events-none absolute top-[0.18rem] bottom-[0.18rem] left-0 rounded-[9999px] bg-cosci-toggle-on-track"
+        />
         {THEME_MODES.map(option => (
           <button
             key={option.mode}
             type="button"
-            className={
+            className={joinClasses(
+              'relative flex min-h-[2.6rem] min-w-0 cursor-pointer items-center justify-center gap-[0.45rem] rounded-[9999px] bg-transparent px-[0.44rem] text-[0.875rem] font-semibold [border:0]',
               mode === option.mode
-                ? 'ucs-theme-button ucs-theme-button--dialog selected'
-                : 'ucs-theme-button ucs-theme-button--dialog'
-            }
+                ? 'text-cosci-selected-row-fg'
+                : 'text-cosci-shell-icon focus-visible:bg-cosci-menu-row-hover [&:hover]:bg-cosci-menu-row-hover',
+            )}
             aria-pressed={mode === option.mode}
             onClick={() => setMode(option.mode)}
           >
             <Icon
               aria-hidden="true"
-              className="ucs-theme-button-icon"
+              className="text-[1.15rem]"
               name={option.icon}
             />
             <span>{option.label}</span>
@@ -218,15 +238,19 @@ export function AppearanceSection({
 function ApiKeyHint({provider}: {provider: ByokProvider}) {
   const {url, article} = PROVIDER_KEY_PAGES[provider];
   return (
-    <p className="ucs-settings-field-hint">
+    <p className={HINT_CLASSES}>
       <a
-        className="ucs-settings-field-link"
+        className="inline-flex items-center gap-1 text-[0.82rem] font-medium text-cosci-blue no-underline focus-visible:underline [&:hover]:underline"
         href={url}
         target="_blank"
         rel="noreferrer"
       >
         Get {article} {PROVIDER_LABELS[provider]} API key
-        <Icon aria-hidden="true" name="open_in_new" />
+        <Icon
+          aria-hidden="true"
+          className="text-[0.95rem]"
+          name="open_in_new"
+        />
       </a>
     </p>
   );
@@ -249,10 +273,10 @@ export function ModelSection({
 }) {
   const modelFields = useModelFields(provider, savedProviders);
   return (
-    <div className="ucs-settings-cards">
-      <section className="ucs-settings-card" aria-labelledby={LABEL_ID}>
+    <div className="grid gap-4">
+      <section className={CARD_CLASSES} aria-labelledby={LABEL_ID}>
         {/* The heading also names the provider menu. */}
-        <h3 id={LABEL_ID} className="ucs-settings-card-title">
+        <h3 id={LABEL_ID} className={CARD_TITLE_CLASSES}>
           Provider
         </h3>
         <ProviderSelect
@@ -261,14 +285,17 @@ export function ModelSection({
           onChange={onProviderChange}
         />
         <label
-          className="ucs-settings-field-label ucs-settings-field-label--spaced"
+          className={joinClasses(
+            'mt-[0.9rem] block',
+            SETTINGS_FIELD_LABEL_CLASSES,
+          )}
           htmlFor="cosci-settings-api-key"
         >
           {PROVIDER_LABELS[provider]} API key
         </label>
         <input
           id="cosci-settings-api-key"
-          className="ucs-settings-field-input"
+          className={SETTINGS_FIELD_CLASSES}
           type="password"
           autoComplete="off"
           placeholder={`Paste your ${PROVIDER_LABELS[provider]} API key`}
@@ -281,11 +308,8 @@ export function ModelSection({
         />
         <ApiKeyHint provider={provider} />
       </section>
-      <section
-        className="ucs-settings-card"
-        aria-labelledby="cosci-models-title"
-      >
-        <h3 id="cosci-models-title" className="ucs-settings-card-title">
+      <section className={CARD_CLASSES} aria-labelledby="cosci-models-title">
+        <h3 id="cosci-models-title" className={CARD_TITLE_CLASSES}>
           Model
         </h3>
         <ModelSelectors
@@ -305,24 +329,30 @@ export function SettingsNav({
   onSectionChange: (section: SettingsSection) => void;
 }) {
   return (
-    <nav className="ucs-settings-dialog-nav" aria-label="Settings sections">
+    <nav
+      // Auto margins collapse on overflow; flex-end would spill sections
+      // beyond the unreachable left edge on narrow phones.
+      className="grid gap-[0.35rem] [align-content:start] [@media(max-width:700px)]:flex [@media(max-width:700px)]:overflow-x-auto [@media(max-width:700px)]:pb-[0.15rem] [@media(max-width:700px)]:[scrollbar-width:none] [@media(max-width:700px)]:[&>:first-child]:ml-auto"
+      aria-label="Settings sections"
+    >
       {SETTINGS_SECTIONS.map(item => {
         const active = item.section === section;
         return (
           <button
             key={item.section}
             type="button"
-            className={
+            className={joinClasses(
+              'flex min-h-11 cursor-pointer items-center gap-[0.72rem] rounded-[9999px] px-4 text-left text-[0.875rem] font-medium [border:0] [@media(max-width:700px)]:min-h-10 [@media(max-width:700px)]:flex-none [@media(max-width:700px)]:gap-[0.4rem] [@media(max-width:700px)]:px-[0.7rem] [@media(max-width:700px)]:text-[0.82rem] [@media(max-width:360px)]:!px-3',
               active
-                ? 'ucs-settings-nav-item ucs-settings-nav-item--active'
-                : 'ucs-settings-nav-item'
-            }
+                ? 'bg-cosci-toggle-on-track text-cosci-selected-row-fg'
+                : 'bg-transparent text-cosci-fg focus-visible:bg-cosci-menu-row-hover [&:hover]:bg-cosci-menu-row-hover',
+            )}
             aria-current={active ? 'true' : undefined}
             onClick={() => onSectionChange(item.section)}
           >
             <Icon
               aria-hidden="true"
-              className="ucs-settings-nav-icon"
+              className="flex-none text-[1.25rem] [@media(max-width:360px)]:hidden"
               name={item.icon}
             />
             <span>{item.label}</span>
@@ -363,10 +393,10 @@ function ModelSelect({
   const triggerId = `cosci-settings-${tier}-model`;
   const labelId = `${triggerId}-label`;
   return (
-    <div className="ucs-settings-model-field">
+    <div className="min-w-0">
       <label
         id={labelId}
-        className="ucs-settings-field-label"
+        className={joinClasses('block', SETTINGS_FIELD_LABEL_CLASSES)}
         htmlFor={triggerId}
       >
         {TIER_LABELS[tier]}
@@ -376,6 +406,7 @@ function ModelSelect({
         options={options}
         optionLabel={modelLabel}
         groupOf={groupOf}
+        truncate
         name={TIER_LABELS[tier]}
         triggerId={triggerId}
         labelId={labelId}
@@ -505,7 +536,7 @@ function FreeUsageNote({usage}: {usage: FreeUsage | null}) {
       ? ''
       : `, ${usage.remaining} of ${usage.limit} left today`;
   return (
-    <p className="ucs-settings-field-hint" role="status">
+    <p className={HINT_CLASSES} role="status">
       Free usage: Express runs only{count}.
     </p>
   );
@@ -523,7 +554,7 @@ export function ModelSelectors({
   const disabled = fields.options.length === 0;
   return (
     <>
-      <div className="ucs-settings-model-grid">
+      <div className="mt-[0.9rem] grid grid-cols-2 gap-3 [@media(max-width:480px)]:grid-cols-[minmax(0,1fr)]">
         {(['supervisor', 'worker'] as const).map(tier => (
           <ModelSelect
             key={tier}
@@ -669,6 +700,7 @@ export function SettingsSelect<T extends string>({
   triggerId,
   labelId,
   disabled = false,
+  truncate = false,
   align = 'start',
   onChange,
 }: {
@@ -682,6 +714,7 @@ export function SettingsSelect<T extends string>({
   triggerId: string;
   labelId: string;
   disabled?: boolean;
+  truncate?: boolean;
   align?: 'start' | 'end';
   onChange: (option: T) => void;
 }) {
@@ -700,21 +733,32 @@ export function SettingsSelect<T extends string>({
   }
 
   return (
-    <div className="ucs-provider-select" ref={container} onKeyDown={onKeyDown}>
+    <div
+      // An auto track grows to the label's unwrapped width, so a long model id
+      // pushed the trigger past the panel instead of ellipsizing.
+      className="relative grid w-full grid-cols-[minmax(0,1fr)]"
+      ref={container}
+      onKeyDown={onKeyDown}
+    >
       <button
         type="button"
         id={triggerId}
-        className="ucs-provider-trigger"
+        className={joinClasses(
+          SETTINGS_FIELD_CLASSES,
+          'group/trigger flex cursor-pointer items-center justify-between gap-3 text-left disabled:cursor-default disabled:text-cosci-muted [&:hover:not(:disabled)]:bg-cosci-menu-row-hover',
+        )}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-labelledby={`${labelId} ${triggerId}`}
         disabled={disabled}
         onClick={() => setOpen(current => !current)}
       >
-        <span>{optionLabel(value)}</span>
+        <span className={truncate ? 'truncate' : undefined}>
+          {optionLabel(value)}
+        </span>
         <Icon
           aria-hidden="true"
-          className="ucs-provider-chevron"
+          className="flex-none text-[1.15rem] text-cosci-muted group-aria-expanded/trigger:[transform:rotate(180deg)]"
           name="expand_more"
         />
       </button>
@@ -722,19 +766,26 @@ export function SettingsSelect<T extends string>({
         <div
           ref={menuRef}
           style={menuStyle}
-          className="ucs-provider-menu"
+          // Absolute menus clip inside the scrolling Settings panel; fixed
+          // anchored menus may escape its edges.
+          className="fixed top-0 left-0 z-40 grid w-max min-w-full gap-[0.15rem] overflow-y-auto rounded-xl border border-cosci-border bg-cosci-menu-bg p-[0.35rem] [box-shadow:0_4px_16px_rgb(0_0_0/18%)]"
           role="menu"
           aria-label={name}
         >
           {groupOptions(options, groupOf).map(section => (
             <div
               key={section.label ?? ''}
-              className="ucs-provider-group"
+              // Options must stretch like direct menu children so highlights
+              // span the row.
+              className="grid"
               role={section.label ? 'group' : undefined}
               aria-label={section.label ?? undefined}
             >
               {section.label && (
-                <div className="ucs-provider-group-label" aria-hidden="true">
+                <div
+                  className="px-[0.7rem] pt-[0.4rem] pb-[0.1rem] text-[0.75rem] text-cosci-muted"
+                  aria-hidden="true"
+                >
                   {section.label}
                 </div>
               )}
@@ -744,7 +795,7 @@ export function SettingsSelect<T extends string>({
                   type="button"
                   role="menuitemradio"
                   aria-checked={option === value}
-                  className="ucs-provider-option"
+                  className="flex min-h-[2.4rem] cursor-pointer items-center justify-between gap-5 rounded-lg bg-transparent px-[0.7rem] text-left text-[0.875rem] text-cosci-fg [border:0] focus-visible:bg-cosci-menu-row-hover [&:hover]:bg-cosci-menu-row-hover"
                   onClick={() => {
                     setOpen(false);
                     if (option !== value) onChange(option);
@@ -752,14 +803,14 @@ export function SettingsSelect<T extends string>({
                 >
                   <span>{optionLabel(option)}</span>
                   {optionNote?.(option) && (
-                    <span className="ucs-provider-option-note">
+                    <span className="ml-auto text-[0.75rem] text-cosci-muted">
                       {optionNote(option)}
                     </span>
                   )}
                   {option === value && (
                     <Icon
                       aria-hidden="true"
-                      className="ucs-provider-option-check"
+                      className="flex-none text-[1.05rem] text-cosci-blue"
                       name="check"
                     />
                   )}

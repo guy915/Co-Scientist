@@ -169,23 +169,14 @@ def delete_run(run_id: str) -> dict[str, int]:
 
 def run_used_offline(run: RunRow) -> bool:
     """Historical backend comes from the run row, not current process
-    configuration; legacy mock-provider rows were always offline.
+    configuration.
     """
-    if run.llm_backend is None:
-        return run.provider == "mock"
     return run.llm_backend == "offline"
 
 
-def run_offline_backed(
-    run_id: str,
-    *,
-    missing_run_fallback: bool = False,
-    db_path: str | None = None,
-) -> bool:
+def run_offline_backed(run_id: str, *, db_path: str | None = None) -> bool:
     run = get_run(run_id, db_path=db_path)
-    if run is None:
-        return missing_run_fallback
-    return run_used_offline(run)
+    return run is not None and run_used_offline(run)
 
 
 def set_run_llm_backend(run_id: str, llm_backend: str, db_path: str | None = None) -> None:
@@ -363,9 +354,7 @@ def create_run(
     """
     opts = options or RunCreateOptions()
     now = _now()
-    backend = opts.llm_backend
-    if backend is None:
-        backend = "offline" if provider == "mock" else "real"
+    backend = opts.llm_backend or "real"
     run = RunRow(
         id=str(uuid.uuid4()),
         research_goal=research_goal,

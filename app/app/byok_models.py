@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.async_bridge import off_loop
 from app.config import BYOK_PROVIDER_DEFAULT_MODELS
 
 WORKER_MODEL_HEADER = "X-LLM-Model"
@@ -60,6 +61,7 @@ def resolve_model_choice(provider: str, requested: str | None) -> str:
 
 
 @router.get("/api/byok-models")
-async def get_byok_models() -> dict[str, dict[str, list[str]]]:
+@off_loop
+def get_byok_models() -> dict[str, dict[str, list[str]]]:
     """Return the models each BYOK provider offers, default first."""
     return {"providers": model_catalog()}

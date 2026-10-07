@@ -3,10 +3,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from co_scientist.agents.reflection.reflection_helpers import (
-    extract_entity_names,
-    parse_indra_statement,
-)
+from co_scientist.agents.reflection.reflection_helpers import extract_entity_names
 from co_scientist.evidence.search_support import (
     SearchConfig,
 )
@@ -57,38 +54,6 @@ def _format_generic_items(
     return text, structured
 
 
-def _format_one_indra_statement(
-    s: dict[str, Any],
-) -> tuple[str, dict[str, Any]] | None:
-    """INDRA endpoints may return non-dicts or Complex/family records with
-    members instead of paired endpoints."""
-    core = parse_indra_statement(s)
-    belief = f"(belief: {core.belief:.2f})"
-    if core.subj and core.obj:
-        display = f"{core.subj} \u2192 {core.obj} [{core.rel_type}] {belief}"
-    elif core.member_names:
-        members = ", ".join(core.member_names)
-        display = f"Complex({members}) [{core.rel_type}] {belief}"
-    else:
-        return None
-    return display, {"display": f"INDRA: {display}", "data": s}
-
-
-def _format_indra_statements(
-    stmts: list[dict[str, Any]],
-) -> tuple[str, list[dict[str, Any]]]:
-    lines = []
-    items = []
-    for s in stmts[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]:
-        formatted = _format_one_indra_statement(s)
-        if not formatted:
-            continue
-        display, item = formatted
-        lines.append(f"- {display}")
-        items.append(item)
-    return "\n".join(lines), items
-
-
 def _try_json_decode(raw: str) -> Any:
     try:
         return json.loads(raw)
@@ -104,14 +69,6 @@ def _wrap_as_text_result(value: Any) -> tuple[str, list[dict[str, Any]]]:
 def _format_dict_result(
     data: dict[str, Any],
 ) -> tuple[str, list[dict[str, Any]]]:
-    # An empty INDRA statements result must not fall through to raw-dict prose.
-
-    if "statements" in data:
-        stmts = data.get("statements", [])
-        if not stmts:
-            return "", []
-        return _format_indra_statements(stmts)
-
     results = data.get("results", [])
     if results:
         return _format_generic_items(results)

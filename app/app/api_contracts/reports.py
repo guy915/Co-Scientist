@@ -88,7 +88,7 @@ class AgentInsights(TypedDict):
     key_findings: NotRequired[list[str]]
     uncertainties: NotRequired[list[str]]
     contradictions: NotRequired[list[str]]
-    recommended_directions: NotRequired[list[RecommendedDirection | str]]
+    recommended_directions: NotRequired[list[RecommendedDirection]]
     next_experiments: NotRequired[list[str]]
 
 

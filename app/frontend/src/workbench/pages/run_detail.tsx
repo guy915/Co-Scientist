@@ -67,14 +67,9 @@ type RunWithBackend = RunWithSummary & {
   llm_backend?: 'offline' | 'real' | null;
 };
 
-// Persisted backend is authoritative; legacy mock-provider rows were offline
-// and remain illustrative fixtures.
+// The persisted backend is authoritative, not the current process mode.
 function runUsedOffline(run: RunWithSummary): boolean {
-  const backend = (run as RunWithBackend).llm_backend;
-  if (backend === undefined || backend === null) {
-    return run.provider === 'mock';
-  }
-  return backend === 'offline';
+  return (run as RunWithBackend).llm_backend === 'offline';
 }
 
 // Flag completed runs without retrieved literature as ungrounded, except
