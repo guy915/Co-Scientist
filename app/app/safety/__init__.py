@@ -289,7 +289,7 @@ def _hypothesis_policy_decision(stage: str, text: str) -> SafetyDecision | None:
     """Use the canonical hypothesis classifier here too so intake/final
     cannot permit hazards the hypothesis gate disqualifies.
     """
-    review = review_hypothesis_safety(text or "")
+    review = review_hypothesis_safety(text or "", detect_obfuscation=stage != "final")
     mapped = _OUTCOME_TO_CONTENT_DECISION.get(review.outcome)
     if mapped is None:
         return None
@@ -306,16 +306,19 @@ def _hypothesis_policy_decision(stage: str, text: str) -> SafetyDecision | None:
     )
 
 
-def screen_intake(goal: str) -> SafetyDecision:
-    review = review_content_safety(goal or "", "intake")
-    baseline = _decision_from_review("intake", review)
-    parity = _hypothesis_policy_decision("intake", goal)
+def _screen_both_tiers(stage: str, text: str) -> SafetyDecision:
+    review = review_content_safety(text or "", stage)
+    baseline = _decision_from_review(stage, review)
+    parity = _hypothesis_policy_decision(stage, text)
     return baseline if parity is None else _more_severe(baseline, parity)
 
 
+def screen_intake(goal: str) -> SafetyDecision:
+    return _screen_both_tiers("intake", goal)
+
+
 def screen_final(report_markdown: str) -> SafetyDecision:
-    review = review_content_safety(report_markdown or "", "final")
-    return _decision_from_review("final", review)
+    return _screen_both_tiers("final", report_markdown)
 
 
 async def screen_contextual(

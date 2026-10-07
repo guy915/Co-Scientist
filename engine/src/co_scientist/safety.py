@@ -384,8 +384,8 @@ def _obfuscation_review(text: str) -> SafetyReview | None:
     )
 
 
-def _review_after_certain_tier(text: str) -> SafetyReview:
-    review = _obfuscation_review(text)
+def _review_after_certain_tier(text: str, detect_obfuscation: bool) -> SafetyReview:
+    review = _obfuscation_review(text) if detect_obfuscation else None
     if review is not None:
         return review
     review = _first_tiered_review(text, _POST_OBFUSCATION_CHECKS)
@@ -394,14 +394,18 @@ def _review_after_certain_tier(text: str) -> SafetyReview:
     return SafetyReview(SafetyOutcome.ALLOW, "no safety concern detected", (), POLICY_VERSION)
 
 
-def review_hypothesis_safety(text: str) -> SafetyReview:
+def review_hypothesis_safety(text: str, *, detect_obfuscation: bool = True) -> SafetyReview:
+    """`detect_obfuscation=False` is for whole documents: the hedge patterns
+    carry no proximity bound, and a report's own footer states "for research
+    purposes only", which any sensitive noun elsewhere would then complete.
+    """
     review = _first_tiered_review(text, _CERTAIN_CHECKS)
     if review is not None:
         return review
     context_review = _first_context_review(text)
     if context_review is not None:
         return context_review
-    return _review_after_certain_tier(text)
+    return _review_after_certain_tier(text, detect_obfuscation)
 
 
 def redact_hypothesis_fields(
