@@ -729,7 +729,10 @@ export function FaqSection() {
       <SectionHeading title="Questions" />
       <div className="mt-[32px] grid">
         {FAQ.map(entry => (
-          <details key={entry.question} className="border-b border-b-(--l-line)">
+          <details
+            key={entry.question}
+            className="border-b border-b-(--l-line)"
+          >
             <summary className="flex cursor-pointer items-center justify-between gap-[16px] py-[22px] text-[19px] [list-style:none] [&::-webkit-details-marker]:hidden">
               <span>{entry.question}</span>
               <Icon
