@@ -11,7 +11,7 @@ import {
   getRunMessages,
   retryInterviewTurn,
   stageDocument,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {copyText} from '@/shared/lib/clipboard';
 import type {FormEvent} from 'react';
 import type {ChatEntry} from './chat_timeline_bubble';

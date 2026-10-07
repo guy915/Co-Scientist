@@ -1,5 +1,9 @@
-import type {QaSource} from '@/api/runs';
-import {type Interview, type InterviewTurn, type RunMessage} from '@/api/runs';
+import type {QaSource} from '@/shared/api/runs';
+import {
+  type Interview,
+  type InterviewTurn,
+  type RunMessage,
+} from '@/shared/api/runs';
 import {makePrefixedId} from '@/shared/lib/client_id';
 import type {Dispatch} from 'react';
 import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';

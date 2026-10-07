@@ -1,4 +1,4 @@
-import type {ChatSummary} from '@/api/runs';
+import type {ChatSummary} from '@/shared/api/runs';
 import {Icon, type IconName} from '@/shared/ui/icon';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import {TabNav, TabNavLink} from '@/shared/ui';

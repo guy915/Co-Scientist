@@ -1,7 +1,7 @@
 import {makeQuestion} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, test, vi} from 'vitest';
-import {type InterviewQuestion} from '@/api/runs';
+import {type InterviewQuestion} from '@/shared/api/runs';
 import {
   QuestionChooser,
   answerText,

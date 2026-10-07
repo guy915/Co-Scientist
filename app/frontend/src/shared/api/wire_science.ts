@@ -1,5 +1,6 @@
 // Generated from app.api_contracts; edit the backend models.
 
+
 export interface ClaimEvidenceRow {
   id: number;
   hypothesis_id: string;
@@ -98,7 +99,7 @@ export interface Review {
 export interface SafetyDecision {
   id: number;
   stage: string;
-  decision: 'allow' | 'redact' | 'hold' | 'block';
+  decision: "allow" | "redact" | "hold" | "block";
   reason: string;
   matches: string[];
   category?: string | null;
@@ -106,7 +107,7 @@ export interface SafetyDecision {
   risk_domains: string[];
   requires_review: boolean;
   assessor?: string | null;
-  resolution?: 'approved' | 'rejected' | null;
+  resolution?: "approved" | "rejected" | null;
   resolved_by?: string | null;
   resolved_at?: number | null;
 }

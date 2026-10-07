@@ -10,7 +10,11 @@ import {
   vi,
   type MockedFunction,
 } from 'vitest';
-import {listInterviews, loadRunHistory, type ChatSummary} from '@/api/runs';
+import {
+  listInterviews,
+  loadRunHistory,
+  type ChatSummary,
+} from '@/shared/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import {
@@ -20,8 +24,8 @@ import {
   useRunHistoryContext,
 } from './history_context';
 
-vi.mock('@/api/runs', async importActual => {
-  const actual = await importActual<typeof import('@/api/runs')>();
+vi.mock('@/shared/api/runs', async importActual => {
+  const actual = await importActual<typeof import('@/shared/api/runs')>();
   return {...actual, listInterviews: vi.fn(), loadRunHistory: vi.fn()};
 });
 
