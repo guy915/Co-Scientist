@@ -8,16 +8,16 @@ import {
 } from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
-import {submitFeedback} from '@/api/feedback';
-import {postAppLogs} from '@/api/logs';
+import {submitFeedback} from '@/shared/api/feedback';
+import {postAppLogs} from '@/shared/api/logs';
 import {sessionDiagnosticExport} from './diagnostics';
 import {FeedbackControl} from './feedback_dialog';
 
-vi.mock('@/api/feedback', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/api/feedback')>()),
+vi.mock('@/shared/api/feedback', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/api/feedback')>()),
   submitFeedback: vi.fn(),
 }));
-vi.mock('@/api/logs', () => ({
+vi.mock('@/shared/api/logs', () => ({
   postAppLogs: vi.fn().mockResolvedValue({added: 1, last_id: 1}),
 }));
 vi.mock('./diagnostics', () => ({sessionDiagnosticExport: vi.fn()}));

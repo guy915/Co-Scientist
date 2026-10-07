@@ -4,7 +4,7 @@ import type {
   MatchRow,
   Review,
   SupportSpan,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {isRecord, readableText, readableTextList} from '@/shared/lib/text';
 
 export function findHypothesisReview(

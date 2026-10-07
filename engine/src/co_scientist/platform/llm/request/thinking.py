@@ -244,3 +244,48 @@ def failure_context_text(error: Exception) -> str:
     call_site, sent, asked = context
     named = f"{call_site}, " if call_site else ""
     return f" ({named}max_tokens {sent}, call site asked for {asked})"
+
+
+def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
+    result: dict[str, Any] = deepseek_thinking_extra_body(model_name, enabled=False)
+    return result
+
+
+def deepseek_thinking_kwargs(model_name: str, *, effort: str | None = None) -> dict[str, Any]:
+    extra_body = deepseek_thinking_extra_body(model_name, enabled=True)
+    if not extra_body:
+        return {}
+    kwargs: dict[str, Any] = {
+        "extra_body": extra_body,
+        **reasoning_effort_args(model_name, enabled=True),
+    }
+    if effort is not None and not model_profile(model_name).pinned_effort:
+        if "reasoning_effort" in kwargs:
+            kwargs["reasoning_effort"] = effort
+        reasoning = kwargs["extra_body"].get("reasoning")
+        if isinstance(reasoning, dict) and "effort" in reasoning:
+            reasoning["effort"] = effort
+    return kwargs
+
+
+def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
+    extra_body = deepseek_non_thinking_extra_body(model_name)
+    return {"extra_body": extra_body} if extra_body else {}
+
+
+def thinking_safe_max_tokens(model_name: str, answer_tokens: int) -> int:
+    result: int = effective_max_tokens(model_name, answer_tokens, True)
+    return result
+
+
+def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:
+    """The conservative 75-token/s clock funds reasoning floors; streaming
+    silence is bounded separately.
+    """
+    # Importing config reads settings; the gateway must stay importable before
+    # an evaluation configures its environment.
+    from co_scientist.core.config import THINKING_FLOOR_TIMEOUT_SECONDS
+
+    if not model_reasons(model_name):
+        return answer_seconds
+    return max(answer_seconds, THINKING_FLOOR_TIMEOUT_SECONDS)

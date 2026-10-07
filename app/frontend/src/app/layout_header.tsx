@@ -1,6 +1,6 @@
 import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
-import type {RunStatus} from '@/api/runs';
+import type {RunStatus} from '@/shared/api/runs';
 import type {IconName} from '@/shared/ui/icon';
 import {isModifiedClick} from '@/shared/lib/dom_events';
 import {Chip, IconButton} from '@/shared/ui';
@@ -14,7 +14,7 @@ import {
   type SessionSwitchData,
 } from '@/features/runs/session_switch';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
-import type {SystemStatus} from '@/api/system';
+import type {SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 const HEADER_CLASSES =

@@ -1,5 +1,5 @@
 import {useEffect, useRef} from 'react';
-import {getAppLogs, postAppLogs, type AppLogsPayload} from '@/api/logs';
+import {getAppLogs, postAppLogs, type AppLogsPayload} from '@/shared/api/logs';
 import {useLocation} from 'react-router-dom';
 import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
 import {

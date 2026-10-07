@@ -1,4 +1,4 @@
-import type {RunEventActivity} from '@/api/wire_common';
+import type {RunEventActivity} from '@/shared/api/wire_common';
 import {Icon, type IconName} from '@/shared/ui/icon';
 import type {
   StreamConnectionState,

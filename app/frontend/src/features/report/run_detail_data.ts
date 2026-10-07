@@ -16,7 +16,7 @@ import {
   type Review,
   type RunWithSummary,
   type SafetyDecision,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {
   useRunStream,
   type StreamConnectionState,
