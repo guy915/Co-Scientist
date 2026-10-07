@@ -136,7 +136,6 @@ class Settings(BaseSettings):
     log_capture_enabled: bool = True
     log_capture_level: str = "INFO"
     log_capture_max_rows: int = 20000
-    # Without an operator token, only direct loopback callers qualify.
     logs_admin_token: str = ""
     # Browsers need open ingestion to report their own failures, so bound it per
     # client.

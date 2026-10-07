@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from co_scientist.core import byok_scope
-from co_scientist.orchestration import engine_adapter
+from co_scientist.platform.llm.process_mode import offline_mode
 
 __all__ = ["OfflineModeError", "remote_chat_allowed", "require_remote_chat"]
 
@@ -16,7 +16,7 @@ def remote_chat_allowed() -> bool:
     """
     if byok_scope.current_byok() is not None:
         return True
-    return not engine_adapter.offline_mode()
+    return not offline_mode()
 
 
 def require_remote_chat(caller: str) -> None:
