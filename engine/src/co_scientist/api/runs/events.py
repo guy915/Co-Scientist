@@ -70,6 +70,7 @@ def _drain_tick_frames(
 
 
 _TICK_SECONDS = 0.5
+_DRAFT_IDLE_SECONDS = 30
 # Railway closes HTTP responses that send nothing for 5 minutes, and one model
 # call can outlast that; an SSE comment keeps the stream open and clients
 # ignore it.
@@ -86,12 +87,15 @@ async def _stream_live_tail(
     run_id: str,
     request: Request,
     last_seq: int,
+    draft: bool = False,
 ) -> AsyncGenerator[str, None]:
     """The producer can live in another process; the persisted event log is
     the only reliable signal. Each viewer polls twice a second, so the store
     reads run off the event loop.
     """
     idle_ticks = 0
+    loop = asyncio.get_running_loop()
+    last_activity = loop.time()
     for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
         if await request.is_disconnected():
             return
@@ -102,6 +106,13 @@ async def _stream_live_tail(
         )
         for frame in frames:
             yield frame
+        if frames:
+            last_activity = loop.time()
+        if draft and loop.time() - last_activity >= _DRAFT_IDLE_SECONDS:
+            current = await asyncio.to_thread(runs.get_run, run_id)
+            if current is None or current.status == RunStatus.DRAFT:
+                return
+            draft = False
         idle_ticks = 0 if frames else idle_ticks + 1
         if idle_ticks >= _KEEPALIVE_TICKS:
             idle_ticks = 0
@@ -135,5 +146,5 @@ async def _event_stream(
         yield _terminal_frame(run.status, last_seq)
         return
 
-    async for frame in _stream_live_tail(run_id, request, last_seq):
+    async for frame in _stream_live_tail(run_id, request, last_seq, run.status == RunStatus.DRAFT):
         yield frame
