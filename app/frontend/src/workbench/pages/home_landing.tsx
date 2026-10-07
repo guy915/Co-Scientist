@@ -76,11 +76,11 @@ const LEDE_CLASSES =
 const SR_ONLY_CLASSES =
   'absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)]';
 
-// `ucs-landing-pill` and `is-solid` are CSS hooks: the transition and the CTA's
-// recolor stay in home_landing.css.
+// `ucs-landing-pill` is a CSS hook: the transition stays in home_landing.css.
 const PILL_CLASSES =
   'ucs-landing-pill inline-flex h-[48px] cursor-pointer items-center gap-[8px] rounded-[9999px] px-[24px] [font:500_16px_var(--l-body)]';
-const PILL_SOLID_CLASSES = `${PILL_CLASSES} is-solid [border:0] bg-(--l-ink) text-(--l-bg)`;
+const PILL_INK_CLASSES = `${PILL_CLASSES} [border:0] bg-(--l-ink) text-(--l-bg)`;
+const PILL_TEAL_CLASSES = `${PILL_CLASSES} [border:0] bg-(--l-o-teal) text-(--l-c-teal)`;
 const PILL_LINE_CLASSES = `${PILL_CLASSES} border border-(--l-line) bg-transparent text-(--l-ink) [&:hover]:bg-(--l-surface)`;
 
 const RAIL_CLASSES =
@@ -103,6 +103,8 @@ const OV_ITEM_CLASSES = 'bg-(--l-surface) px-[18px] py-[14px]';
 
 const OV_PANEL_CLASSES =
   'm-0 flex list-none flex-col gap-[6px] rounded-[24px] bg-(--l-bg) p-[12px]';
+
+const SEC_CLASSES = 'scroll-mt-[72px] py-[clamp(44px,5.5vw,76px)]';
 
 const CHIPS_CLASSES = 'flex flex-wrap items-center gap-[8px]';
 
@@ -161,7 +163,7 @@ function LandingHero({
           <div className="flex flex-wrap gap-[12px]">
             <button
               type="button"
-              className={PILL_SOLID_CLASSES}
+              className={PILL_INK_CLASSES}
               onClick={onStart}
             >
               Start a research goal
@@ -533,7 +535,7 @@ function AgentCard({
 
 export function HowSection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-how">
+    <section className={SEC_CLASSES} id="landing-how">
       <SectionHeading
         title="How it works"
         lede="A Supervisor plans the run and hands work to six specialist agents. The loop repeats until the rankings settle, then you get a research overview back."
@@ -555,7 +557,7 @@ export function HowSection({reduceMotion}: MotionProps) {
 
 export function TournamentSection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-tournament">
+    <section className={SEC_CLASSES} id="landing-tournament">
       <SectionHeading
         title="Tournament"
         lede="Ideas meet in pairwise debates. Every win and loss moves their Elo rating, so the ranking reflects many arguments, not one score."
@@ -613,7 +615,7 @@ function SourcesMarquee() {
 
 export function EvidenceSection() {
   return (
-    <section className="ucs-landing-sec" id="landing-evidence">
+    <section className={SEC_CLASSES} id="landing-evidence">
       <SectionHeading title="Evidence" />
       <div className="mt-[40px] grid grid-cols-[4fr_7fr] items-center gap-[48px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <svg
@@ -694,7 +696,7 @@ function SafetyCard({
 
 export function SafetySection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-safety">
+    <section className={SEC_CLASSES} id="landing-safety">
       <SectionHeading title="Safety" />
       <div className="mt-[48px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         {LANDING_SAFETY.map(layer => (
@@ -711,7 +713,7 @@ export function SafetySection({reduceMotion}: MotionProps) {
 
 export function TiersSection({reduceMotion}: MotionProps) {
   return (
-    <section className="ucs-landing-sec" id="landing-tiers">
+    <section className={SEC_CLASSES} id="landing-tiers">
       <SectionHeading
         title="Tiers"
         lede="Choose a tier when you start. It sets how many ideas are seeded, how many evolution cycles run, and how large the pool can grow."
@@ -723,16 +725,22 @@ export function TiersSection({reduceMotion}: MotionProps) {
 
 export function FaqSection() {
   return (
-    <section className="ucs-landing-sec" id="faq">
+    <section className={SEC_CLASSES} id="faq">
       <SectionHeading title="Questions" />
-      <div className="ucs-landing-faq">
+      <div className="mt-[32px] grid">
         {FAQ.map(entry => (
-          <details key={entry.question}>
-            <summary>
+          <details key={entry.question} className="border-b border-(--l-line)">
+            <summary className="flex cursor-pointer items-center justify-between gap-[16px] py-[22px] text-[19px] [list-style:none] [&::-webkit-details-marker]:hidden">
               <span>{entry.question}</span>
-              <Icon aria-hidden="true" name="expand_more" />
+              <Icon
+                aria-hidden="true"
+                name="expand_more"
+                className="size-[24px] flex-none fill-(--l-muted) [transition:transform_0.3s_var(--l-ease)] [details[open]_&]:[transform:rotate(180deg)]"
+              />
             </summary>
-            <p>{entry.answer}</p>
+            <p className="m-[0_0_22px] max-w-[60rem] leading-[1.6] text-(--l-muted)">
+              {entry.answer}
+            </p>
           </details>
         ))}
       </div>
@@ -742,20 +750,16 @@ export function FaqSection() {
 
 export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
   return (
-    <section className="ucs-landing-sec ucs-landing-sec--tight">
-      <div className="ucs-landing-cta">
+    <section className="scroll-mt-[72px] pt-0 pb-[clamp(44px,5.5vw,76px)]">
+      <div className="grid grid-cols-[1fr_340px] items-center gap-[32px] rounded-[48px] bg-(--l-c-teal) p-[clamp(28px,5vw,72px)] text-(--l-o-teal) [@media(max-width:900px)]:grid-cols-[1fr]">
         <div>
           <h2 className={H2_CLASSES}>Start with a question.</h2>
-          <p>
+          <p className="m-[16px_0_28px] max-w-[30rem] text-[1.15rem] leading-[1.55] opacity-80">
             Describe what you want to find out.{' '}
             <span className="whitespace-nowrap">Co-Scientist</span> asks what a
             strong answer needs, then sends its agents to work.
           </p>
-          <button
-            type="button"
-            className={PILL_SOLID_CLASSES}
-            onClick={onStart}
-          >
+          <button type="button" className={PILL_TEAL_CLASSES} onClick={onStart}>
             Start a research goal
           </button>
         </div>
@@ -763,6 +767,7 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
           src={flaskArt}
           width={774}
           height={1069}
+          className="block h-auto max-h-[440px] w-full justify-self-center object-contain"
           loading="lazy"
           decoding="async"
           alt="3D render of a glass Erlenmeyer flask holding a glowing teal liquid."
@@ -916,7 +921,7 @@ function OutputCard() {
 
 export function OverviewSection() {
   return (
-    <section className="ucs-landing-sec" id="landing-overview">
+    <section className={SEC_CLASSES} id="landing-overview">
       <h2 className={H2_CLASSES}>From a question to ranked ideas</h2>
       <p className={LEDE_CLASSES}>
         One run, end to end. The example uses the first suggestion on the home
@@ -949,24 +954,43 @@ const GENERATIONS = [
   {label: 'Cycle 4', generation: 4},
 ];
 
+const DOT_CLASSES = [
+  '[--dot:var(--l-muted)]',
+  '[--dot:#4285f4]',
+  '[--dot:#34a853]',
+  '[--dot:#fbbc04]',
+  '[--dot:#ea4335]',
+];
+
 function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
   return (
     <div>
-      <div className="ucs-landing-field" aria-hidden="true">
+      <div
+        className="grid grid-cols-[repeat(24,1fr)] gap-[8px] [@media(max-width:900px)]:grid-cols-[repeat(12,1fr)]"
+        aria-hidden="true"
+      >
         {Array.from({length: MAX_POOL}, (_, i) => {
           const generation = dotGeneration(tier, i);
           return (
             <i
               key={i}
-              className={generation === null ? undefined : `g${generation}`}
+              className={joinClasses(
+                'aspect-square rounded-[9999px] [transition:transform_500ms_var(--l-ease),background-color_500ms] motion-reduce:[transition:none]',
+                generation === null
+                  ? 'bg-(--l-line) [transform:scale(0.35)]'
+                  : `${DOT_CLASSES[generation]} bg-(--dot) [transform:scale(1)]`,
+              )}
               style={{transitionDelay: reduceMotion ? '0ms' : `${i * 6}ms`}}
             />
           );
         })}
       </div>
-      <div className="ucs-landing-gens">
+      <div className="mt-[18px] flex flex-wrap gap-[14px] text-[13px] text-(--l-muted)">
         {GENERATIONS.filter(g => g.generation <= tier.cycles).map(g => (
-          <span key={g.label} className={`g${g.generation}`}>
+          <span
+            key={g.label}
+            className={`${DOT_CLASSES[g.generation]} before:mr-[6px] before:inline-block before:size-[10px] before:rounded-[9999px] before:bg-(--dot) before:[vertical-align:-1px] before:content-['']`}
+          >
             {g.label}
           </span>
         ))}
@@ -975,23 +999,29 @@ function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
   );
 }
 
+function TierStat({value, label}: {value: number; label: string}) {
+  return (
+    <div className="grid">
+      <b className="font-(family-name:--l-display) text-[56px] leading-none font-normal tracking-[-0.01em] tabular-nums [@media(max-width:900px)]:text-[44px]">
+        {value}
+      </b>
+      <span className="text-[14px] text-(--l-muted)">{label}</span>
+    </div>
+  );
+}
+
 function TierStats({tier}: {tier: LandingTier}) {
   return (
-    <div className="ucs-landing-tier-stats" aria-live="polite">
-      <div>
-        <b>{tier.maxIdeas}</b>
-        <span>ideas at most</span>
-      </div>
-      <div>
-        <b>{tier.seeds}</b>
-        <span>seed ideas</span>
-      </div>
-      <div>
-        <b>{tier.cycles}</b>
-        <span>
-          {tier.cycles === 1 ? 'evolution cycle' : 'evolution cycles'}
-        </span>
-      </div>
+    <div
+      className="grid gap-[18px] [@media(max-width:900px)]:grid-cols-[repeat(3,1fr)]"
+      aria-live="polite"
+    >
+      <TierStat value={tier.maxIdeas} label="ideas at most" />
+      <TierStat value={tier.seeds} label="seed ideas" />
+      <TierStat
+        value={tier.cycles}
+        label={tier.cycles === 1 ? 'evolution cycle' : 'evolution cycles'}
+      />
     </div>
   );
 }
@@ -1005,7 +1035,7 @@ export function LandingTiers({reduceMotion}: MotionProps) {
     <>
       <div
         ref={trackRef}
-        className="ucs-landing-seg"
+        className="ucs-landing-seg relative mt-[32px] inline-flex max-w-full gap-[4px] overflow-x-auto rounded-[9999px] bg-(--l-surface) p-[4px] [scrollbar-width:none]"
         role="group"
         aria-label="Run tier"
       >
@@ -1015,13 +1045,14 @@ export function LandingTiers({reduceMotion}: MotionProps) {
             key={t.name}
             type="button"
             aria-pressed={t.name === name}
+            className="relative z-[1] h-[40px] flex-none cursor-pointer [border:0] rounded-[9999px] bg-transparent px-[20px] [font:500_15px_var(--l-body)] text-(--l-muted) aria-pressed:text-(--l-bg) [@media(max-width:900px)]:px-[14px]"
             onClick={() => setName(t.name)}
           >
             {t.name}
           </button>
         ))}
       </div>
-      <div className="ucs-landing-tierbox">
+      <div className="mt-[20px] grid grid-cols-[1fr_260px] items-center gap-[32px] rounded-[32px] bg-(--l-surface) p-[clamp(20px,3vw,40px)] [@media(max-width:900px)]:grid-cols-[1fr]">
         <TierField tier={tier} reduceMotion={reduceMotion} />
         <TierStats tier={tier} />
       </div>
