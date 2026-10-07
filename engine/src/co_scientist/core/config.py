@@ -68,6 +68,21 @@ class Settings(BaseSettings):
     app_llm_global_tokens_per_day: int = Field(default=32_000_000, ge=1)
     app_llm_max_output_tokens: int = Field(default=32768, ge=1)
     app_llm_max_input_bytes: int = Field(default=256_000, ge=1)
+    # The existing global call/token caps cover every funded physical call,
+    # including research. BYOK still shares admission to compute resources.
+    provider_client_calls_per_day: int = Field(default=512, ge=1)
+    provider_client_tokens_per_day: int = Field(default=16_000_000, ge=1)
+    provider_host_calls_per_day: int = Field(default=512, ge=1)
+    provider_host_tokens_per_day: int = Field(default=16_000_000, ge=1)
+    provider_max_input_bytes: int = Field(default=1_000_000, ge=1)
+    provider_max_output_tokens: int = Field(default=131072, ge=1)
+    anonymous_sessions_per_host_per_day: int = Field(default=16, ge=1)
+    anonymous_sessions_per_day: int = Field(default=1000, ge=1)
+    runs_per_host_per_day: int = Field(default=32, ge=1)
+    runs_per_day: int = Field(default=200, ge=1)
+    free_runs_per_host_per_day: int = Field(default=6, ge=1)
+    free_runs_globally_per_day: int = Field(default=20, ge=1)
+    concurrent_runs_per_host: int = Field(default=10, ge=1)
 
     # Production model choices are explicit hosting overrides; changing these
     # defaults alone does not change production.

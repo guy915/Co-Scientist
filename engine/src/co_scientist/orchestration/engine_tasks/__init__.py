@@ -92,11 +92,13 @@ async def execute_engine_task(
     nested retries, without mutating shared process state.
     """
     from co_scientist.domains.access.credentials import get_run_credential, scoped_byok
+    from co_scientist.platform.db.admission import run_host
     from co_scientist.platform.llm import (
         scoped_api_key,
         scoped_llm_call_budget,
         scoped_zero_cost_admission,
     )
+    from co_scientist.platform.llm.provider_usage import scoped_client
 
     run = runs.get_run(task.run_id, db_path=db_path)
     if run is None:
@@ -107,6 +109,7 @@ async def execute_engine_task(
     with (
         engine_tasks_runtime.bound(engine_tasks_runtime.active()),
         scoped_byok(credential),
+        scoped_client(run.client_id, host=run_host(run.id, db_path=db_path), db_path=db_path),
         scoped_api_key(
             credential.api_key if credential else None,
             by_model=credential.keys_by_model() if credential else None,
