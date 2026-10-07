@@ -33,21 +33,17 @@ _QUOTE_NORMALIZE = str.maketrans(
 )
 
 
-def _straighten(text: str) -> str:
-    return text.translate(_QUOTE_NORMALIZE)
-
-
 def locate_span(passage: EvidencePassage, quote: str) -> SupportSpan | None:
     """Normalization tolerates model typography; offsets and returned quotes
     always refer to the verbatim source.
     """
-    normalized_quote = _WHITESPACE_RE.sub(" ", _straighten(quote)).strip()
+    normalized_quote = _WHITESPACE_RE.sub(" ", quote.translate(_QUOTE_NORMALIZE)).strip()
     if not normalized_quote:
         return None
     tokens = normalized_quote.split(" ")
     # Offsets always index the original source, never its normalized copy.
     pattern = r"\s+".join(re.escape(t) for t in tokens)
-    match = re.search(pattern, _straighten(passage.text), flags=re.IGNORECASE)
+    match = re.search(pattern, passage.text.translate(_QUOTE_NORMALIZE), flags=re.IGNORECASE)
     if match is None:
         return None
     start, end = match.start(), match.end()
@@ -190,14 +186,6 @@ def _dedupe_capped(passages: Sequence[EvidencePassage], cap: int) -> list[Eviden
     return union
 
 
-def _union_evidence(
-    per_claim_candidates: Sequence[Sequence[EvidencePassage]],
-    *,
-    cap: int = _BATCH_EVIDENCE_CAP,
-) -> list[EvidencePassage]:
-    return _dedupe_capped(_round_robin_by_rank(per_claim_candidates), cap)
-
-
 def _fallback_assessment(
     claim: str,
     candidates: Sequence[EvidencePassage],
@@ -274,7 +262,7 @@ def _assess_one_batch(
     top_k: int,
 ) -> list[ClaimAssessment]:
     per_claim_candidates = [retrieve_passages(claim, passages, top_k=top_k) for claim in claims]
-    union = _union_evidence(per_claim_candidates)
+    union = _dedupe_capped(_round_robin_by_rank(per_claim_candidates), _BATCH_EVIDENCE_CAP)
     if not union:
         # No evidence means no provider call can establish grounding.
         drafts: Sequence[AssessorDraft | None] = [None] * len(claims)
