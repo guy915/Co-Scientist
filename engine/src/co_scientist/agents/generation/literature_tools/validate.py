@@ -178,26 +178,6 @@ _PaperAnalyzer = Callable[
 ]
 
 
-@dataclass(frozen=True)
-class _NoveltyStageContext:
-    model_name: str
-    search: _NoveltySearchContext
-    analyze_paper: _PaperAnalyzer
-
-
-def _build_novelty_analysis_prompt(hypothesis_text: str, metadata: dict[str, Any]) -> str:
-    """Strip a paper's citation markers only from the prompt copy so the
-    verdict cannot echo them as apparent evidence."""
-    fulltext = strip_citation_markers(truncate_for_prompt(metadata.get("fulltext", "")))
-    return get_hypothesis_novelty_analysis_prompt(
-        hypothesis_text=hypothesis_text,
-        title=metadata.get("title", "Unknown"),
-        authors=metadata.get("authors", []),
-        year=metadata.get("year"),
-        fulltext=fulltext,
-    )
-
-
 async def _gather_novelty_analyses(
     novelty_analysis_tasks: list[Awaitable[dict[str, Any] | None]],
     idx: int,
@@ -262,14 +242,16 @@ async def _gather_hypothesis_novelty_analyses(
     idx: int,
     total: int,
     draft: dict[str, str],
-    ctx: _NoveltyStageContext,
+    model_name: str,
+    search_ctx: _NoveltySearchContext,
+    analyze_paper: _PaperAnalyzer,
 ) -> dict[str, Any]:
 
     hypothesis_text = draft.get("hypothesis") or draft.get("text", "")
     logger.info("Analyzing hypothesis %s/%s: %s...", idx, total, hypothesis_text[:80])
-    papers = await _search_papers_for_draft(hypothesis_text, idx, ctx.search)
+    papers = await _search_papers_for_draft(hypothesis_text, idx, search_ctx)
     novelty_analyses = await _run_parallel_novelty_analyses(
-        hypothesis_text, idx, papers, ctx.model_name, ctx.analyze_paper
+        hypothesis_text, idx, papers, model_name, analyze_paper
     )
 
     return {"draft": draft, "novelty_analyses": novelty_analyses}
@@ -281,14 +263,12 @@ async def _run_novelty_analysis_stage(
     search_ctx: _NoveltySearchContext,
     analyze_paper: _PaperAnalyzer,
 ) -> list[dict[str, Any]]:
-    ctx = _NoveltyStageContext(
-        model_name=state["model_name"],
-        search=search_ctx,
-        analyze_paper=analyze_paper,
-    )
+    model_name = state["model_name"]
     total_drafts = len(draft_hypotheses)
     return [
-        await _gather_hypothesis_novelty_analyses(idx, total_drafts, draft, ctx)
+        await _gather_hypothesis_novelty_analyses(
+            idx, total_drafts, draft, model_name, search_ctx, analyze_paper
+        )
         for idx, draft in enumerate(draft_hypotheses, 1)
     ]
 
@@ -316,13 +296,6 @@ class _SynthesisContext(NamedTuple):
 class _SynthesisCallInputs(NamedTuple):
     prompt: str
     max_tokens: int
-
-
-@dataclass(frozen=True)
-class _SynthesisRetryState:
-    all_validated_hypotheses: list[dict[str, Any]]
-    accumulated_texts: list[str]
-    call_synthesis: _SynthesisCaller
 
 
 def _setup_validation_tool_provider(
@@ -480,15 +453,16 @@ async def _retry_one_hypothesis(
     batch_idx: int,
     hyp_idx: int,
     hyp_data: dict[str, Any],
-    retry_state: _SynthesisRetryState,
+    all_validated_hypotheses: list[dict[str, Any]],
+    accumulated_texts: list[str],
+    call_synthesis: _SynthesisCaller,
 ) -> None:
     """An individual failed retry drops only that hypothesis; successful
     siblings still continue."""
     label = f"{batch_idx + 1}_retry_{hyp_idx + 1}"
-    accumulated_texts = retry_state.accumulated_texts
     context = accumulated_texts if accumulated_texts else None
     try:
-        single_result = await retry_state.call_synthesis([hyp_data], label, context)
+        single_result = await call_synthesis([hyp_data], label, context)
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
@@ -502,7 +476,7 @@ async def _retry_one_hypothesis(
 
     _accumulate_retry_result(
         single_result,
-        retry_state.all_validated_hypotheses,
+        all_validated_hypotheses,
         accumulated_texts,
     )
 
@@ -514,17 +488,20 @@ async def _retry_failed_synthesis_batches(
 ) -> None:
     """Individual retries shrink failure scope so one bad hypothesis or
     truncated answer cannot sink its batch-mates."""
-    retry_state = _SynthesisRetryState(
-        all_validated_hypotheses=all_validated_hypotheses,
-        accumulated_texts=[
-            h.get("hypothesis", "") for h in all_validated_hypotheses if h.get("hypothesis")
-        ],
-        call_synthesis=call_synthesis,
-    )
+    accumulated_texts = [
+        h.get("hypothesis", "") for h in all_validated_hypotheses if h.get("hypothesis")
+    ]
 
     for batch_idx, failed_batch in failed_batches:
         for hyp_idx, hyp_data in enumerate(failed_batch):
-            await _retry_one_hypothesis(batch_idx, hyp_idx, hyp_data, retry_state)
+            await _retry_one_hypothesis(
+                batch_idx,
+                hyp_idx,
+                hyp_data,
+                all_validated_hypotheses,
+                accumulated_texts,
+                call_synthesis,
+            )
 
 
 def _build_hypotheses_from_synthesis(
@@ -626,18 +603,6 @@ if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
 
-async def _call_novelty_analysis_llm(prompt: str, model_name: str) -> dict[str, Any]:
-    return await call_llm_json(
-        prompt=prompt,
-        spec=CompletionSpec(
-            model_name=model_name,
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=HIGH_TEMPERATURE,
-            json_schema=HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
-        ),
-    )
-
-
 async def _analyze_paper_novelty(
     hypothesis_text: str,
     hypothesis_idx: int,
@@ -645,10 +610,27 @@ async def _analyze_paper_novelty(
     metadata: dict[str, Any],
     model_name: str,
 ) -> dict[str, Any] | None:
-    prompt = _build_novelty_analysis_prompt(hypothesis_text, metadata)
+    # Strip a paper's citation markers only from the prompt copy so the verdict cannot echo
+    # them as apparent evidence.
+    fulltext = strip_citation_markers(truncate_for_prompt(metadata.get("fulltext", "")))
+    prompt = get_hypothesis_novelty_analysis_prompt(
+        hypothesis_text=hypothesis_text,
+        title=metadata.get("title", "Unknown"),
+        authors=metadata.get("authors", []),
+        year=metadata.get("year"),
+        fulltext=fulltext,
+    )
 
     try:
-        analysis = await _call_novelty_analysis_llm(prompt, model_name)
+        analysis = await call_llm_json(
+            prompt=prompt,
+            spec=CompletionSpec(
+                model_name=model_name,
+                max_tokens=EXTENDED_MAX_TOKENS,
+                temperature=HIGH_TEMPERATURE,
+                json_schema=HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
+            ),
+        )
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
@@ -760,23 +742,6 @@ async def _run_synthesis_stage_batches(
     return all_validated_hypotheses
 
 
-async def _run_validation_synthesis_stage(
-    hypotheses_with_analyses: list[dict[str, Any]],
-    state: WorkflowState,
-    mcp_client: Any,
-    tool_registry: Optional["ToolRegistry"],
-    reference_index: Any | None,
-) -> list[dict[str, Any]]:
-    ctx = _build_synthesis_context(
-        hypotheses_with_analyses,
-        state,
-        mcp_client,
-        tool_registry,
-        reference_index,
-    )
-    return await _run_synthesis_stage_batches(hypotheses_with_analyses, ctx)
-
-
 async def _run_validate_novelty_stage(
     draft_hypotheses: list[dict[str, str]],
     state: WorkflowState,
@@ -809,13 +774,14 @@ async def _run_synthesis_and_build_hypotheses(
     tool_registry: Optional["ToolRegistry"],
     reference_index: Any | None,
 ) -> list[Hypothesis]:
-    all_validated_hypotheses = await _run_validation_synthesis_stage(
+    ctx = _build_synthesis_context(
         hypotheses_with_analyses,
         state,
         mcp_client,
         tool_registry,
         reference_index,
     )
+    all_validated_hypotheses = await _run_synthesis_stage_batches(hypotheses_with_analyses, ctx)
 
     hypotheses = _build_hypotheses_from_synthesis(all_validated_hypotheses, reference_index)
     logger.info("Generated %s validated hypotheses", len(hypotheses))

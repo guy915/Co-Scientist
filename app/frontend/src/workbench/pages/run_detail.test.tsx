@@ -1,7 +1,6 @@
 import {resetRunDetailMocks} from './run_detail_api_test_support';
 import * as runsApi from '@/api/runs';
 import {type Evidence, type RunWithSummary} from '@/api/runs';
-import {clearAccessToken} from '@/lib/client_id';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
@@ -9,7 +8,6 @@ import {makeRun, renderAt} from './run_detail_test_support';
 beforeEach(() => {
   resetRunDetailMocks();
   vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
-  clearAccessToken();
 });
 
 it.each([

@@ -33,7 +33,7 @@ help:
 	@echo "  make audit-deps   Audit dependency locks online (see requirements/README.md)"
 	@echo "  make test-frontend Run frontend unit tests"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
-	@echo "  make e2e-production Test built frontend assets with required researcher authentication"
+	@echo "  make e2e-production Test built frontend assets and anonymous ownership"
 	@echo "  make test-evaluations Run evaluation harness tests"
 	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
 	@echo "  make lint         Lint backend (ruff) + frontend (gts)"

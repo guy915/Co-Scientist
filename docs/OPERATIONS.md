@@ -106,8 +106,9 @@ storage topology; upgrade and validate deliberately rather than suppressing them
 
 ## Credential boundaries
 
-Internet-facing APIs require signed researcher identity; caller-selected client
-IDs are development identity only. Keep MCP private with matching shared secrets.
+Run ownership is a caller-selected per-browser client ID, not verified
+identity; it keeps one browser's work apart from another's but does not
+authenticate a person. Keep MCP private with matching shared secrets.
 BYOK encryption uses a separate key: rotation requires migrating or removing the
 affected stored credentials. Keep database sidecars, caches and outputs out of
 commits and image build contexts.
@@ -292,8 +293,7 @@ report survives and no ordinary work is pending.
 
 ## Feedback and operational diagnostics
 
-`POST /api/feedback` requires the caller's usual owner identity (a researcher
-session in required auth mode). It accepts the five fixed categories, a trimmed
+`POST /api/feedback` requires the caller's `X-Client-ID` owner identity. It accepts the five fixed categories, a trimmed
 message (8,000 characters), session diagnostic export (100,000 characters), URL
 (2,048 characters) and optional reported run ID (128 characters). The run ID is
 context only: it never grants access to that run or fetches its artifacts.
