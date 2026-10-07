@@ -7,12 +7,12 @@ from typing import Any
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
+from co_scientist.orchestration import engine_tasks
+from co_scientist.orchestration.repository import runs
 from co_scientist.platform.db import checkpoints
 from fastapi.testclient import TestClient
 
-from app import engine_tasks
 from app.main import app
-from app.store import runs
 from tests._client import create_run as _create_run
 from tests._llm_fake_backend import (
     completion_response,
@@ -44,7 +44,7 @@ def _no_background_title_network(
     async def _no_title(goal: str) -> None:
         return None
 
-    monkeypatch.setattr("app.runs.crud.generate_run_title", _no_title)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_run_title", _no_title)
 
 
 def _fake_validation(monkeypatch: pytest.MonkeyPatch, *, fail_auth: bool = False) -> dict[str, Any]:
@@ -113,8 +113,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
     assert _KEY not in json.dumps(row.config)
 
     from co_scientist.core.run_modes import resolved_run_config
-
-    from app.engine_adapter import (
+    from co_scientist.orchestration.engine_adapter import (
         resolve_offline_backend,
         sync_engine_llm_backend,
     )
@@ -173,9 +172,8 @@ async def test_execute_engine_task_scopes_the_credential(
 async def test_byok_key_absent_from_serialized_checkpoint(
     byok_deployment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from co_scientist.checkpoint import serialize_workflow_state
-
-    from app.engine_tasks.support import _generator_and_opts
+    from co_scientist.orchestration.checkpoint import serialize_workflow_state
+    from co_scientist.orchestration.engine_tasks.support import _generator_and_opts
 
     _fake_validation(monkeypatch)
     with TestClient(app) as client:

@@ -91,7 +91,7 @@ def fake_process_mode() -> Iterator[FakeProcessMode]:
 def _fresh_probe_cache() -> None:
     # Clear module probe caches so earlier tests cannot supply status within the
     # TTL window.
-    from app.diagnostics import clear_probe_cache
+    from co_scientist.api.diagnostics import clear_probe_cache
 
     clear_probe_cache()
 
@@ -100,7 +100,7 @@ def _fresh_probe_cache() -> None:
 def _fresh_health_check_cache() -> None:
     # Health caches reference prior isolated databases; clear them before each
     # test.
-    from app.diagnostics import clear_health_check_cache
+    from co_scientist.api.diagnostics import clear_health_check_cache
 
     clear_health_check_cache()
 
@@ -110,6 +110,6 @@ def manual_worker(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tests that step tasks by hand must not race the embedded per-run cohort that start,
     resume and startup recovery launch.
     """
-    from app import task_worker
+    from co_scientist.orchestration import task_worker
 
     monkeypatch.setattr(task_worker, "run_run_worker_pool_sync", lambda *_: None)

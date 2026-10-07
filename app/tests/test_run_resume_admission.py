@@ -7,17 +7,17 @@ from threading import Event
 from typing import Any
 
 import pytest
+from co_scientist.orchestration import engine_tasks
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import engine_tasks
-from app.store import events as store_events
-from app.store import runs
-from app.store import tasks as store
-from app.store import tasks_lifecycle as lifecycle
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._store_helpers import (
@@ -69,7 +69,7 @@ def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
 def _hold_resume_admission(
     monkeypatch: pytest.MonkeyPatch, *, first_only: bool = False
 ) -> tuple[Event, Event]:
-    from app.runs import lifecycle as runs_lifecycle
+    from co_scientist.api.runs import lifecycle as runs_lifecycle
 
     reached = Event()
     release = Event()
@@ -128,7 +128,7 @@ def test_startup_resume_skips_cancelled_run_after_admission_race(
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
 
-    from app.runs import lifecycle as runs_lifecycle
+    from co_scientist.api.runs import lifecycle as runs_lifecycle
 
     queue_reached, release_queue = _hold_resume_admission(monkeypatch)
     with ThreadPoolExecutor(max_workers=1) as pool:

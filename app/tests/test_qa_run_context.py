@@ -4,14 +4,14 @@ import json
 from typing import Any
 
 import pytest
+from co_scientist.api.runs.chat import _gather_qa_context
 from co_scientist.domains.chat.qa import artifacts
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.orchestration.repository import runs
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunRow, RunStatus
 
-from app.runs.chat import _gather_qa_context
-from app.store import runs
 from tests._store_helpers import seed_checkpoint, seed_run
 
 

@@ -10,9 +10,9 @@ import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
 from co_scientist.domains.documents import repository as documents
+from co_scientist.orchestration.repository import receipts as store_receipts
 from co_scientist.platform import db
 
-from app.store import receipts as store_receipts
 from tests._client import make_client
 
 _IDEMPOTENCY_OWNER = "idempotency-owner"
@@ -129,8 +129,8 @@ def test_changed_byok_key_conflicts_without_echoing_either_secret(
         return None
 
     monkeypatch.setattr(credentials, "validate_byok_credential", accept_credential)
-    monkeypatch.setattr("app.runs.crud.generate_run_title", no_model_call)
-    monkeypatch.setattr("app.runs.crud.generate_goal_restatement", no_model_call)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_run_title", no_model_call)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_goal_restatement", no_model_call)
 
     client = make_client()
     first_secret = "sk-first-private-value"
@@ -213,8 +213,8 @@ def test_late_setup_failure_rolls_back_every_effect_and_allows_retry(
         return None
 
     monkeypatch.setattr(credentials, "validate_byok_credential", accept_credential)
-    monkeypatch.setattr("app.runs.crud.generate_run_title", no_model_call)
-    monkeypatch.setattr("app.runs.crud.generate_goal_restatement", no_model_call)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_run_title", no_model_call)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_goal_restatement", no_model_call)
     client = make_client()
     staged = client.post(
         "/api/documents",

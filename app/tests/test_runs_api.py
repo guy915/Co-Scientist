@@ -8,12 +8,12 @@ from typing import Any, cast
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.chat import seed
+from co_scientist.orchestration.repository import runs as store
+from co_scientist.orchestration.repository import runs_views, tasks
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
 import app.main
-from app.store import runs as store
-from app.store import runs_views, tasks
 from tests._client import DEFAULT_TEST_CLIENT_ID
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
@@ -52,24 +52,33 @@ def test_create_run_validates_goal_and_tier(goal: str, fields: dict[str, Any], s
         assert response.json()["run_mode"] == fields.get("tier", "standard")
 
 
-def test_concurrency_ceiling_is_uniform_and_per_client(
+def test_concurrency_ceiling_is_uniform_and_global(
     manual_worker: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "max_concurrent_runs", 2)
     client = _client()
+    run_ids: list[str] = []
 
     def start_runs(scientist: str, tier: str, count: int) -> list[int]:
         headers = {"X-Client-ID": scientist}
         codes = []
         for index in range(count):
             run_id = _create_run(client, f"{tier} {index}", headers=headers, tier=tier).json()["id"]
+            run_ids.append(run_id)
             codes.append(
                 client.post(f"/api/runs/{run_id}/start", headers=headers, json={}).status_code
             )
         return codes
 
     assert start_runs("scientist-a", "ultra", 3) == [200, 200, 409]
+    assert start_runs("scientist-b", "ultra", 1) == [409]
+    assert (
+        client.post(
+            f"/api/runs/{run_ids[0]}/cancel", headers={"X-Client-ID": "scientist-a"}
+        ).status_code
+        == 200
+    )
     assert start_runs("scientist-b", "ultra", 1) == [200]
 
 

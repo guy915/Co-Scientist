@@ -323,11 +323,6 @@
     0 4px 8px 3px rgb(0 0 0 / 15%), 0 1px 3px 0 rgb(0 0 0 / 30%);
 }
 
-.reference-toast,
-.reference-report-toast {
-  box-shadow: var(--md-elevation-3);
-}
-
 /* Tabs reserve after for their underline; use before for state layers and
    class selectors so anchors retain hover/focus styling. */
 .reference-report-tab {

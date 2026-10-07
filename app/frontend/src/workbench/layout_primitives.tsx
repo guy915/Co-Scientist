@@ -1,8 +1,5 @@
 import type {SVGProps} from 'react';
 
-export const NAV_ICON_CLASSES =
-  'grid size-[1.5rem] min-h-[1.5rem] min-w-[1.5rem] place-items-center justify-self-center text-[1.25rem] leading-none';
-
 export const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
 
 // Official Google Labs science mark used in the Co-Scientist references.

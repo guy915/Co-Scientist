@@ -351,7 +351,7 @@ function collapsibleTextClassName(
     clamped && !expanded
       ? 'block whitespace-normal'
       : 'block whitespace-pre-wrap';
-  return `${'reference-user-bubble-text min-w-0 break-words overflow-hidden transition-[max-height] duration-300 ease-out motion-reduce:transition-none'} ${stateClasses}`;
+  return `${'reference-user-bubble-text min-w-0 break-words overflow-hidden transition-[max-height] duration-long ease-standard motion-reduce:transition-none'} ${stateClasses}`;
 }
 
 // Drop the height cap after opening so later resizing cannot clip the bubble.

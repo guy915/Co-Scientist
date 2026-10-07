@@ -4,11 +4,11 @@ from typing import Any
 
 import pytest
 
-from co_scientist.generator.core import HypothesisGenerator
+from co_scientist.orchestration.generator.core import HypothesisGenerator
+from co_scientist.orchestration.workflow_topology import TASK_ROUTES
 from co_scientist.platform.llm.offline.llm import DEFAULT_OFFLINE_MODEL
 from co_scientist.platform.retrieval import mcp_client
 from co_scientist.science.scheduling import ALLOWED_LOOP_TASKS
-from co_scientist.workflow_topology import TASK_ROUTES
 from tests._mcp import stub_mcp_availability
 
 

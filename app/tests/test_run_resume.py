@@ -4,20 +4,20 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.api.runs import lifecycle as runs_lifecycle
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.domains.research_state.repository.records import NewEvidence, NewReview
+from co_scientist.orchestration import task_worker
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 
-from app import task_worker
-from app.runs import lifecycle as runs_lifecycle
-from app.store import events as store_events
-from app.store import runs
-from app.store import runs_views as views
-from app.store import tasks as store_tasks
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._store_helpers import (
@@ -209,7 +209,7 @@ def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
 def _install_blocking_execute(monkeypatch: pytest.MonkeyPatch) -> None:
     import time as _time
 
-    from app import engine_tasks
+    from co_scientist.orchestration import engine_tasks
 
     async def _execute(_task: Any, *, db_path: str | None = None) -> dict[str, bool]:
         _time.sleep(1.0)

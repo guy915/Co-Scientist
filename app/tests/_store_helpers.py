@@ -6,15 +6,14 @@ from typing import Any, TypedDict
 
 from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
+from co_scientist.orchestration.repository import events, runs, tasks
+from co_scientist.orchestration.repository.runs import RunCreateOptions
+from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.checkpoints import NewCheckpoint
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
 from typing_extensions import Unpack
-
-from app.store import events, runs, tasks
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
 
 
 def _add(
@@ -149,7 +148,7 @@ def leased_node_task(run_id: str) -> ScientificTask:
 def drive_offline_run(run: RunRow, *, db_path: str, worker: str) -> None:
     import asyncio
 
-    from app import task_worker
+    from co_scientist.orchestration import task_worker
 
     task_worker.enqueue_run_workflow(run.id, db_path=db_path)
     asyncio.run(
@@ -166,7 +165,7 @@ def event_seqs(
     db_path: str | None = None,
     **payload: object,
 ) -> list[int]:
-    from app.store import events
+    from co_scientist.orchestration.repository import events
 
     return [
         event["seq"]
@@ -191,7 +190,7 @@ async def resume_run_async(run_id: str) -> None:
     """Drive the resume path the safety-hold release and startup recovery share."""
     import asyncio
 
-    from app.runs import lifecycle as runs_lifecycle
+    from co_scientist.api.runs import lifecycle as runs_lifecycle
 
     await runs_lifecycle._launch_resume(run_id)
     await asyncio.gather(*list(runs_lifecycle._resume_tasks))

@@ -14,17 +14,17 @@ from co_scientist.domains.research_state.repository.hypotheses import (
     NewHypothesis,
 )
 from co_scientist.domains.research_state.repository.records import NewReview
-from co_scientist.platform.db import checkpoints
-
-from app import task_worker
-from app.engine_tasks import inputs as engine_tasks_inputs
-from app.engine_tasks import node as engine_tasks_restore
-from app.engine_tasks.support import (
+from co_scientist.orchestration import task_worker
+from co_scientist.orchestration.engine_tasks import inputs as engine_tasks_inputs
+from co_scientist.orchestration.engine_tasks import node as engine_tasks_restore
+from co_scientist.orchestration.engine_tasks.support import (
     NODE_TASK_PREFIX,
 )
-from app.store import events as store_events
-from app.store import runs
-from app.store import tasks as store
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.platform.db import checkpoints
+
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (
@@ -138,7 +138,7 @@ def test_scientist_idea_is_admitted_only_at_the_orchestrator_boundary(
 def test_authorship_and_screen_survive_a_checkpoint_round_trip(
     isolated_db: str,
 ) -> None:
-    from co_scientist.checkpoint import (
+    from co_scientist.orchestration.checkpoint import (
         restore_workflow_state,
         serialize_workflow_state,
     )

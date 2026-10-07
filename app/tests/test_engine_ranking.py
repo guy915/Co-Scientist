@@ -15,16 +15,16 @@ from co_scientist.domains.research_state.models import (
     Article,
     Hypothesis,
 )
-from co_scientist.platform.db.models import RunStatus
-
-from app.engine_tasks import gate as engine_tasks_gate
-from app.engine_tasks import ranking as engine_tasks_ranking
-from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.gate import (
+from co_scientist.orchestration.engine_tasks import gate as engine_tasks_gate
+from co_scientist.orchestration.engine_tasks import ranking as engine_tasks_ranking
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.engine_tasks.gate import (
     _apply_gate_verdict,
     _GatePlan,
 )
-from app.store import runs, tasks
+from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.platform.db.models import RunStatus
+
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
