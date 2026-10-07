@@ -92,3 +92,19 @@ def test_novelty_is_disclosed_as_unverified_unless_checked_against_literature(
     )
 
     assert ("reviewing model's own judgment" in markdown) is disclosed
+
+
+def test_persisted_sentinel_dois_do_not_merge_distinct_papers() -> None:
+    """Runs recorded before the parser fix hold "<not found>" in the doi
+    column, which is one truthy value shared by every unidentified paper.
+    """
+    rows = [
+        {"id": "ev-1", "title": "First paper", "doi": "<not found>"},
+        {"id": "ev-2", "title": "Second paper", "doi": "<not found>"},
+        {"id": "ev-3", "title": "Third paper", "doi": "10.1000/real"},
+    ]
+
+    deduped = report_markdown_hypothesis._dedupe_evidence(rows)
+
+    assert [row["id"] for row in deduped] == ["ev-1", "ev-2", "ev-3"]
+    assert report_markdown_hypothesis._identifier_suffix(rows[0]) == ""

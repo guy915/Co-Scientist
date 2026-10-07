@@ -179,3 +179,23 @@ async def test_review_with_negative_budget_keeps_only_lexical_scores(
     assert all(
         article.retriever_version == relevance._LEXICAL_ONLY_VERSION for article in result.values()
     )
+
+
+def test_a_cached_missing_value_sentinel_is_read_as_missing() -> None:
+    """One PubMed parser writes "<not found>" where a value is absent, and
+    cached metadata still holds it. A truthy DOI every unidentified paper
+    shares resolves as a URL and merges distinct papers in the report.
+    """
+    articles = article_support.build_articles_from_metadata(
+        {
+            "no-doi": {"title": "A paper with no DOI", "doi": "<not found>"},
+            "no-abstract": {"title": "A paper with no abstract", "abstract": "<not found>"},
+        },
+        "pubmed",
+    )
+
+    by_id = {article.source_id: article for article in articles}
+    assert by_id["no-doi"].doi is None
+    assert by_id["no-abstract"].abstract is None
+    # The titles are real metadata and must survive.
+    assert by_id["no-doi"].title == "A paper with no DOI"

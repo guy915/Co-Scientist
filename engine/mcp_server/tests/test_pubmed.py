@@ -91,7 +91,10 @@ _MARKUP_TEXT = (
                 "PublicationTypeList": ["Journal Article", "Retraction"],
             },
             {
-                "abstract": "<not found>",
+                # Absent values are absent, not a string every paper shares:
+                # a sentinel DOI resolves and deduplicates downstream.
+                "abstract": None,
+                "doi": None,
                 "publication_types": ["Journal Article", "Retraction"],
             },
             id="publication types and a missing abstract",

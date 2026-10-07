@@ -106,8 +106,10 @@ def _parse_authors(article: dict[str, Any]) -> list[str]:
     return names
 
 
-def _extract_doi(pubmed_article: dict[str, Any]) -> str:
-    # ArticleIdList mixes namespaces; select only the DOI type.
+def _extract_doi(pubmed_article: dict[str, Any]) -> str | None:
+    # ArticleIdList mixes namespaces; select only the DOI type. An absent DOI
+    # is None: a placeholder string resolves as a URL and deduplicates
+    # distinct papers once it reaches the engine.
     return next(
         (
             str(element)
@@ -116,7 +118,7 @@ def _extract_doi(pubmed_article: dict[str, Any]) -> str:
                 pubmed_article["PubmedData"]["ArticleIdList"],
             )
         ),
-        "<not found>",
+        None,
     )
 
 
@@ -133,13 +135,14 @@ def _extract_publication_types(article: dict[str, Any]) -> list[str]:
     return [str(item) for item in article.get("PublicationTypeList", [])]
 
 
-def _extract_abstract(article: dict[str, Any]) -> str:
+def _extract_abstract(article: dict[str, Any]) -> str | None:
     try:
         # Some abstracts have multiple labeled sections; absent abstracts omit
-        # the key.
+        # the key. An empty string reads downstream as an abstract already
+        # seen, so absence stays None.
         return " ".join(article["Abstract"]["AbstractText"])
     except KeyError:
-        return "<not found>"
+        return None
 
 
 def _parse_pubmed_article(
@@ -150,10 +153,11 @@ def _parse_pubmed_article(
     citation = pubmed_article["MedlineCitation"]
     article = citation["Article"]
     resolved_doi = doi if doi is not None else _extract_doi(pubmed_article)
+    abstract = _extract_abstract(article)
     return {
         "date_revised": _parse_date_revised(citation),
         "title": clean_markup(article["ArticleTitle"]),
-        "abstract": clean_markup(_extract_abstract(article)),
+        "abstract": clean_markup(abstract) if abstract is not None else None,
         "doi": resolved_doi,
         "authors": _parse_authors(article),
         "publication": article["Journal"]["Title"],
@@ -187,7 +191,7 @@ class _EntrezClient:
     def entrez_read(self, handle: Any) -> Any:
         return read_entrez(handle)
 
-    def _fetch_pmc_fulltext_id(self, paper_id: str, doi: str) -> str | None:
+    def _fetch_pmc_fulltext_id(self, paper_id: str, doi: str | None) -> str | None:
         try:
             # Failed PMC lookup and successful no-link are equally unreadable
             # but distinct provenance.
