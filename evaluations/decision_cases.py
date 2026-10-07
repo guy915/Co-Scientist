@@ -75,6 +75,16 @@ def read_corpus(directory: Path) -> tuple[list[dict[str, Any]], list[dict[str, A
                         hypotheses[_identifier(goal + text)] = {
                             "goal": goal,
                             "text": text,
+                            "safety_text": "\n".join(
+                                str(hyp[key] or "")
+                                for key in (
+                                    "statement",
+                                    "mechanism",
+                                    "expected_effect",
+                                    "experimental_context",
+                                )
+                                if hyp[key]
+                            ),
                             "side": sides.get(text),
                         }
                 for paper in conn.execute(
@@ -180,7 +190,7 @@ def _proximity_cases(hypotheses: list[dict[str, Any]]) -> list[DecisionCase]:
 def _safety_cases(hypotheses: list[dict[str, Any]]) -> list[DecisionCase]:
     from co_scientist.domains.safety.semantic import _SEMANTIC_DECISION_SCHEMA, _semantic_prompt
 
-    texts = {hyp["text"] for hyp in hypotheses}
+    texts = {hyp.get("safety_text", hyp["text"]) for hyp in hypotheses}
     for path in Path(__file__).with_name("datasets").glob("hypothesis_safety_*_v1.json"):
         texts.update(item["text"] for item in json.loads(path.read_text())["items"])
     questions = {
@@ -238,4 +248,9 @@ def build_cases(site: str, directory: Path) -> list[DecisionCase]:
         raise ValueError("unknown decision site")
     # Stable hash order provides disjoint calibration/validation cases without duplicates.
     unique = {case.identifier: case for case in cases}
-    return [unique[key] for key in sorted(unique)]
+    ordered = [unique[key] for key in sorted(unique)]
+    if site == "ranking_pairwise":
+        reviewed = [case for case in ordered if case.context_basis == "recorded checkpoint reviews"]
+        if len(reviewed) >= 150:
+            return reviewed
+    return ordered
