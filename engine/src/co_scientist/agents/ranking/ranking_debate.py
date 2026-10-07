@@ -38,6 +38,7 @@ from co_scientist.models import (
     create_metrics_update,
     phase_message,
 )
+from co_scientist.models.matchup import Matchup
 from co_scientist.prompts import (
     PromptRunContext,
     RankingSide,
@@ -435,15 +436,6 @@ def _extract_reasoning(response: dict[str, Any]) -> str:
     return reasoning
 
 
-class _MatchupOutcome(NamedTuple):
-    winner_hyp: Hypothesis
-    loser_hyp: Hypothesis
-    winner_elo_before: int
-    winner_elo_after: int
-    loser_elo_before: int
-    loser_elo_after: int
-
-
 def _compute_elo_update(
     winner_hyp: Hypothesis,
     loser_hyp: Hypothesis,
@@ -473,88 +465,44 @@ def _compute_elo_update(
     return new_winner_elo, new_loser_elo
 
 
-def _resolve_matchup_sides(
-    hyp_a: Hypothesis, hyp_b: Hypothesis, winner: str
-) -> tuple[Hypothesis, Hypothesis]:
-    return (hyp_a, hyp_b) if winner == "a" else (hyp_b, hyp_a)
-
-
-def _apply_matchup_elo(
-    hyp_a: Hypothesis,
-    hyp_b: Hypothesis,
-    winner: str,
-    *,
-    k_factor: int | None = None,
-    confidence: str | None = None,
-) -> _MatchupOutcome:
-    winner_hyp, loser_hyp = _resolve_matchup_sides(hyp_a, hyp_b, winner)
-    old_winner_elo = winner_hyp.elo_rating
-    old_loser_elo = loser_hyp.elo_rating
-
-    new_winner_elo, new_loser_elo = _compute_elo_update(winner_hyp, loser_hyp, k_factor, confidence)
-
-    return _MatchupOutcome(
-        winner_hyp,
-        loser_hyp,
-        old_winner_elo,
-        new_winner_elo,
-        old_loser_elo,
-        new_loser_elo,
-    )
-
-
-def _debate_provenance_fields(response: dict[str, Any], winner: str) -> dict[str, Any]:
-    """Legacy responses may lack debate_verdict; retain the resolved winner
-    fallback."""
-    return {
-        "debate_turns": response.get("debate_turns", 1),
-        "debate_transcript": response.get("debate_transcript", []),
-        "debate_verdict": response.get("debate_verdict") or _verdict_number(winner),
-        "judge_model": response.get("judge_model"),
-        "consensus_votes": response.get("consensus_votes", [winner]),
-        "position_balanced": response.get("position_balanced", False),
-        "invalid_output_fallback": response.get("invalid_output_fallback", False),
-    }
-
-
-def _elo_transition_fields(outcome: _MatchupOutcome) -> dict[str, Any]:
-    return {
-        "winner_elo_before": outcome.winner_elo_before,
-        "winner_elo_after": outcome.winner_elo_after,
-        "loser_elo_before": outcome.loser_elo_before,
-        "loser_elo_after": outcome.loser_elo_after,
-    }
-
-
-def _build_matchup_detail(
+def build_matchup(
     pair: tuple[Hypothesis, Hypothesis],
     winner: str,
     response: dict[str, Any],
-    outcome: _MatchupOutcome,
+    *,
+    k_factor: int | None,
     iteration: int,
-) -> dict[str, Any]:
+) -> Matchup:
     hyp_a, hyp_b = pair
-    return {
-        "iteration": int(iteration),
-        "hypothesis_a": truncate(hyp_a.text),
-        "hypothesis_b": truncate(hyp_b.text),
-        # Persist stable IDs because truncated text cannot identify an idea
-        # exactly.
-        "hypothesis_a_id": hyp_a.id,
-        "hypothesis_b_id": hyp_b.id,
-        "winner_id": outcome.winner_hyp.id,
-        "winner": winner,
-        "reasoning": _extract_reasoning(response),
-        "confidence": response.get("confidence_level", "Unknown"),
-        "tier": match_tier(
-            outcome.winner_elo_before,
-            outcome.loser_elo_before,
-            response.get("confidence_level", ""),
-        ),
-        "criteria_comparisons": _extract_criteria_comparisons(response),
-        **_debate_provenance_fields(response, winner),
-        **_elo_transition_fields(outcome),
-    }
+    winner_hyp, loser_hyp = pair if winner == "a" else (hyp_b, hyp_a)
+    winner_before, loser_before = winner_hyp.elo_rating, loser_hyp.elo_rating
+    winner_after, loser_after = _compute_elo_update(
+        winner_hyp, loser_hyp, k_factor, response.get("confidence_level")
+    )
+    return Matchup(
+        iteration=int(iteration),
+        hypothesis_a=truncate(hyp_a.text),
+        hypothesis_b=truncate(hyp_b.text),
+        hypothesis_a_id=hyp_a.id,
+        hypothesis_b_id=hyp_b.id,
+        winner_id=winner_hyp.id,
+        winner=winner,
+        reasoning=_extract_reasoning(response),
+        confidence=response.get("confidence_level", "Unknown"),
+        tier=match_tier(winner_before, loser_before, response.get("confidence_level", "")),
+        criteria_comparisons=_extract_criteria_comparisons(response),
+        debate_turns=response.get("debate_turns", 1),
+        debate_transcript=response.get("debate_transcript", []),
+        debate_verdict=response.get("debate_verdict") or _verdict_number(winner),
+        judge_model=response.get("judge_model"),
+        consensus_votes=response.get("consensus_votes", [winner]),
+        position_balanced=response.get("position_balanced", False),
+        invalid_output_fallback=response.get("invalid_output_fallback", False),
+        winner_elo_before=winner_before,
+        winner_elo_after=winner_after,
+        loser_elo_before=loser_before,
+        loser_elo_after=loser_after,
+    )
 
 
 def _ranking_metrics_update(matches_judged: int, total_llm_calls: int | None) -> ExecutionMetrics:
