@@ -12,7 +12,7 @@ import {
   installUiErrorLogging,
   installUiInteractionLogging,
 } from '@/shared/lib/ui_logging';
-import {WorkbenchApp} from './workbench/workbench_app';
+import {WorkbenchApp} from '@/app/workbench_app';
 
 // Install error capture before mounting so first-render crashes survive outside
 // the browser console.

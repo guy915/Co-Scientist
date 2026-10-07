@@ -1,8 +1,8 @@
 import {lazy, type ReactElement, Suspense} from 'react';
 import {Navigate, Route, Routes} from 'react-router-dom';
 import {ErrorBoundary} from '@/shared/ui/error_boundary';
-import {NoIndex} from '@/public/page';
-import {NotFoundPage} from '@/public/page';
+import {NoIndex} from './not_found_page';
+import {NotFoundPage} from './not_found_page';
 import {ChatHistoryProvider} from '@/shared/hooks/history_context';
 import {RunHistoryProvider} from '@/shared/hooks/history_context';
 import {SystemStatusProvider} from '@/shared/hooks/system_status_context';
