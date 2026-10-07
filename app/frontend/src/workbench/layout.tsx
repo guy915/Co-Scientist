@@ -28,25 +28,46 @@ import {useChatHistoryContext} from './hooks/history_context';
 
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
-const WORKSPACE_CLASSES = 'ucs-workspace';
+const WORKSPACE_CLASSES =
+  'ucs-workspace relative z-[1] grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-tl-[1.85rem] rounded-bl-[1.9rem] bg-cosci-bg ' +
+  '[@media(max-width:700px)]:rounded-none';
 
-const WORKSPACE_RESPONSIVE_CLASSES = 'ucs-workspace--rounded-bottom';
+const REPORT_WORKSPACE_CLASSES =
+  WORKSPACE_CLASSES + ' min-h-[100vh] supports-[height:100dvh]:min-h-[100dvh]';
 
-const REPORT_WORKSPACE_CLASSES = 'ucs-workspace ucs-workspace--report';
+// dvh tracks the visible viewport on iOS Safari, where vh includes the
+// collapsed-toolbar space; vh stays as the fallback.
+const PAGE_CLASSES =
+  'ucs-page h-[calc(100vh-4.5rem)] min-w-0 p-0 supports-[height:100dvh]:h-[calc(100dvh-4.5rem)]';
 
-const PAGE_CLASSES = 'ucs-page';
+const DEFAULT_PAGE_CLASSES = PAGE_CLASSES + ' overflow-auto';
 
-const HOME_PAGE_CLASSES = 'ucs-page ucs-page--home';
+const HOME_PAGE_CLASSES =
+  PAGE_CLASSES +
+  ' ucs-page--home overflow-auto min-[1181px]:overflow-hidden ' +
+  '[@media(max-width:1180px)]:overflow-x-hidden [@media(max-width:1180px)]:overflow-y-auto';
 
-const REPORT_PAGE_CLASSES = 'ucs-page ucs-page--report';
+// Narrow report overflow must remain reachable horizontally; vertical scroll
+// stays owned by the inner report pane.
+const REPORT_PAGE_CLASSES =
+  PAGE_CLASSES + ' min-h-0 overflow-x-auto overflow-y-hidden';
 
-const SHELL_OPEN_GRID_CLASSES = 'nav-open';
+const SHELL_CLASSES =
+  'ucs-app-shell grid min-h-[100vh] bg-cosci-rail supports-[height:100dvh]:min-h-[100dvh] ' +
+  '[transition:grid-template-columns_240ms_cubic-bezier(0.2,0,0,1)] motion-reduce:[transition:none] ' +
+  '[@media(max-width:700px)]:grid-cols-[minmax(0,1fr)]';
 
-const SHELL_COLLAPSED_GRID_CLASSES = 'nav-collapsed';
+const SHELL_OPEN_GRID_CLASSES =
+  'nav-open min-[701px]:grid-cols-[17.25rem_minmax(0,1fr)]';
+
+// Keep the collapsed icon on the open rail's 24px gutter so toggling cannot
+// shift it.
+const SHELL_COLLAPSED_GRID_CLASSES =
+  'nav-collapsed min-[701px]:grid-cols-[4.5rem_minmax(0,1fr)]';
 
 function pageClassesFor(pathname: string, isRunRoute: boolean): string {
   if (isRunRoute) return REPORT_PAGE_CLASSES;
-  return pathname === '/' ? HOME_PAGE_CLASSES : PAGE_CLASSES;
+  return pathname === '/' ? HOME_PAGE_CLASSES : DEFAULT_PAGE_CLASSES;
 }
 
 function deriveRoutePresentation(pathname: string): {
@@ -67,7 +88,7 @@ function deriveRoutePresentation(pathname: string): {
   const titleContextKey = isRunRoute ? `run:${activeRunId}` : pathname;
   const workspaceClasses = isRunRoute
     ? REPORT_WORKSPACE_CLASSES
-    : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
+    : WORKSPACE_CLASSES;
 
   return {
     isRunRoute,
@@ -81,7 +102,7 @@ function deriveRoutePresentation(pathname: string): {
 
 function shellClassFor(isRunRoute: boolean, navOpen: boolean): string {
   return joinClasses(
-    'ucs-app-shell',
+    SHELL_CLASSES,
     isRunRoute ? 'report-shell' : 'home-shell',
     navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
   );
@@ -106,7 +127,13 @@ function DrawerScrim({
   onDismiss: () => void;
 }) {
   if (!navOpen) return null;
-  return <div className="ucs-scrim" aria-hidden="true" onClick={onDismiss} />;
+  return (
+    <div
+      className="fixed inset-0 z-[55] hidden bg-[rgb(0_0_0/45%)] [@media(max-width:700px)]:block"
+      aria-hidden="true"
+      onClick={onDismiss}
+    />
+  );
 }
 
 interface ShellOverlaysProps {

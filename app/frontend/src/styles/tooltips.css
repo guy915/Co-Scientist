@@ -1,27 +1,3 @@
-/* Navigation popups must stack above the workspace. */
-.ucs-nav-panel {
-  position: relative;
-  z-index: 70;
-}
-
-.ucs-workspace {
-  position: relative;
-  z-index: 1;
-}
-
-.ucs-nav-items,
-.ucs-nav-item,
-.ucs-chat-list a,
-.ucs-side-content,
-.ucs-chat-list {
-  overflow: visible;
-}
-
-.ucs-nav-item,
-.ucs-chat-list a {
-  position: relative;
-}
-
 /* Unlayered final-sheet rules outrank utility layers; placement modifiers rely
    on source order at equal specificity. */
 [data-tooltip].ucs-tooltip-anchor {
@@ -149,8 +125,4 @@
   transform: translate(var(--ucs-tooltip-open-x), var(--ucs-tooltip-open-y))
     scale(var(--ucs-tooltip-open-scale));
   visibility: visible;
-}
-
-.ucs-nav-item .nav-label {
-  white-space: nowrap;
 }
