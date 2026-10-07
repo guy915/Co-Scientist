@@ -34,13 +34,12 @@ Validation commands and comprehensive main target selection remain unchanged.
 ## GitHub launch settings
 
 - Synchronize `.github/labels.yml`; enable Discussions for the issue chooser.
-- GitHub merge queues require organization ownership. Choose an organization and
-  transfer this public personal-account repository, or defer queue activation.
-- Once eligible, import `.github/rulesets/main.json`. Replace/disable the existing
+- No merge queue (owner decision): the repository stays on a personal account.
+- Import `.github/rulesets/main.json`. Replace/disable the existing
   overlapping `Default` ruleset (17522178), require only `Required checks`, and
   turn off **require branches to be up to date**. Keep PR and no-force-push rules.
-- Enable the queue with squash merging. Also disable merge/rebase methods in
-  repository settings. Validate the first real `merge_group` event after activation.
+- Allow squash merging only; disable merge and rebase methods in repository
+  settings.
 - Confirm CodeQL results in Security; enable private vulnerability reporting.
 
 These are recommendations and handoffs. Committing this file changes no repository
