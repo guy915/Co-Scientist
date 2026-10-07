@@ -1,10 +1,12 @@
+import {scrollBehavior} from './reduced_motion';
+
 // Native hash/scrollIntoView can no-op on partly visible sections; explicit
 // container coordinates keep rail jumps deterministic.
 export function smoothScrollToSection(
   sectionId: string,
   offset = 0,
   preferredSelector?: string,
-  behavior: ScrollBehavior = 'smooth',
+  behavior: ScrollBehavior = scrollBehavior(),
 ): boolean {
   const target = document.getElementById(sectionId);
   if (!target) return false;

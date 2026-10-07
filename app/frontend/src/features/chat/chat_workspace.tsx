@@ -40,6 +40,7 @@ import {
   DRAFT_SPEC_ITEM_ID,
 } from './chat_workspace_timeline';
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
+import {scrollBehavior} from '@/shared/lib/reduced_motion';
 
 // Lazy-load the landing page so chat first paint does not wait for it; it takes
 // no props, so memo keeps composer keystrokes from re-rendering it.
@@ -511,7 +512,10 @@ function JumpToBottomButton({
       layoutClassName="reference-jump-to-bottom absolute top-0 left-1/2 -translate-x-1/2"
       onClick={() => {
         const scroller = scrollRef.current;
-        scroller?.scrollTo({top: scroller.scrollHeight, behavior: 'smooth'});
+        scroller?.scrollTo({
+          top: scroller.scrollHeight,
+          behavior: scrollBehavior(),
+        });
       }}
     />
   );

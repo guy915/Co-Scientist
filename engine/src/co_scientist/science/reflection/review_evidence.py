@@ -13,13 +13,14 @@ from co_scientist.core.constants import (
     LOW_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.domains.research_state.models import Article, Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
 )
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.platform.retrieval.evidence.article_support import (
     build_articles_from_metadata,
     records_from_findings,

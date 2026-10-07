@@ -54,6 +54,21 @@ describe('client id', () => {
       expect(() => getClientId()).toThrow('Secure randomness is required');
       expect(localStorage.getItem('co_scientist_client_id')).toBeNull();
     });
+
+    it('keeps one id for the page when storage is blocked', () => {
+      const blocked = vi
+        .spyOn(window, 'localStorage', 'get')
+        .mockImplementation(() => {
+          throw new DOMException('blocked', 'SecurityError');
+        });
+      try {
+        const first = getClientId();
+        expect(first).toMatch(/^client-/);
+        expect(getClientId()).toBe(first);
+      } finally {
+        blocked.mockRestore();
+      }
+    });
   });
 });
 

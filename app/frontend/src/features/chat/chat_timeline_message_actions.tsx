@@ -1,11 +1,12 @@
 import type {IconName} from '@/shared/ui/icon';
-import {IconButton} from '@/shared/ui';
-import {copyText} from '@/shared/lib/clipboard';
+import {CopyButton, IconButton} from '@/shared/ui';
 
 export interface MessageAction {
   icon: IconName;
   label: string;
   onClick?: () => void;
+  // A copy action shows its own success feedback instead of running onClick.
+  copyText?: string;
 }
 
 // Revoke the download URL after handing it to the browser so blobs do not
@@ -39,14 +40,22 @@ export function MessageActionRow({
           : 'reference-message-actions flex items-center gap-[0.2rem] px-[0.2rem]'
       }
     >
-      {actions.map(action => (
-        <IconButton
-          key={action.label}
-          icon={action.icon}
-          label={action.label}
-          onClick={action.onClick}
-        />
-      ))}
+      {actions.map(action =>
+        action.copyText === undefined ? (
+          <IconButton
+            key={action.label}
+            icon={action.icon}
+            label={action.label}
+            onClick={action.onClick}
+          />
+        ) : (
+          <CopyButton
+            key={action.label}
+            label={action.label}
+            text={action.copyText}
+          />
+        ),
+      )}
     </div>
   );
 }
@@ -65,7 +74,7 @@ export function responseActions(
     {
       icon: 'content_copy',
       label: 'Copy response',
-      onClick: () => void copyText(text),
+      copyText: text,
     },
     {
       icon: 'download',

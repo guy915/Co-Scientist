@@ -89,9 +89,9 @@ def _passage_lookup(
     """Numeric references identify prompt positions, never potentially
     numeric evidence IDs. Parent aliases include every shown chunk.
     """
-    # Import lazily: evidence_chunking also imports claims, creating a module
+    # Import lazily: claims.chunking imports this package, creating a module
     # cycle.
-    from co_scientist.domains.documents.evidence_chunking import parent_evidence_id
+    from co_scientist.domains.research_state.claims.chunking import parent_evidence_id
 
     lookup: dict[str, list[EvidencePassage]] = (
         {}
