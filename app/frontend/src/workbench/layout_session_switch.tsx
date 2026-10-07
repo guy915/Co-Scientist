@@ -1,11 +1,8 @@
-import {Link} from 'react-router-dom';
 import type {ChatSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses, tooltipClassNames} from './classes';
-import {
-  HEADER_CONTROL_ICON_CLASSES,
-  HEADER_PILL_SHAPE_CLASSES,
-} from './layout_primitives';
+import {TabNav, TabNavLink} from '@/shared/ui';
+import {HEADER_CONTROL_ICON_CLASSES} from './layout_primitives';
 import {tabPath} from './run_tabs';
 import {useEffect} from 'react';
 
@@ -59,39 +56,6 @@ const SWITCH_SIDES: {
   },
 ];
 
-// Quiet raised track colors remain visible in both themes; accent belongs to
-// the selected half rather than the whole switch.
-const SWITCH_TRACK_CLASSES = joinClasses(
-  'ucs-session-switch relative box-border inline-grid grid-cols-2 p-0',
-  'bg-cosci-recent-meta-bg',
-  HEADER_PILL_SHAPE_CLASSES,
-);
-
-// Transform travel stays compositor-owned rather than laying out the header on
-// every animation frame.
-const SWITCH_THUMB_CLASSES =
-  'absolute inset-y-0 left-0 z-0 w-1/2 rounded-[9999px] bg-cosci-accent ' +
-  '[transition:transform_220ms_cubic-bezier(0.2,0,0,1)] ' +
-  'motion-reduce:[transition:none]';
-
-// Set link color directly because visited-link browser rules beat inherited
-// color; one moving highlight owns the fill.
-const SWITCH_SIDE_BASE_CLASSES =
-  'ucs-session-switch-side relative z-[1] flex h-full min-w-0 items-center ' +
-  'justify-center gap-[0.45rem] rounded-full px-[0.72rem] no-underline';
-
-// Unselected hover needs its own tint: the menu-row value equals the track and
-// would show no state.
-const SWITCH_SIDE_CLASSES = joinClasses(
-  SWITCH_SIDE_BASE_CLASSES,
-  'text-cosci-shell-icon [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover',
-);
-
-const SWITCH_SIDE_ACTIVE_CLASSES = joinClasses(
-  SWITCH_SIDE_BASE_CLASSES,
-  'text-cosci-logs-accent-fg',
-);
-
 // Results use the default tab; the run page owns live-progress/report selection.
 function sessionSideHref(session: SessionSwitchData, side: string): string {
   return side === 'chat'
@@ -105,45 +69,33 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
   useRecordSessionSide(session?.runId, session?.active);
   if (!session) return null;
   return (
-    <nav
-      className={SWITCH_TRACK_CLASSES}
-      aria-label="Session view"
-      data-active={session.active}
+    // One highlight travels between the sides instead of each side's fill
+    // vanishing and reappearing.
+    <TabNav
+      label="Session view"
+      variant="pill"
+      current={session.active}
+      layoutClassName="ucs-session-switch h-[2.35rem] min-w-max text-[0.88rem] font-semibold"
     >
-      {/* A single highlight can travel between sides; independent backgrounds can only reappear. */}
-      <span
-        className={joinClasses(
-          SWITCH_THUMB_CLASSES,
-          session.active === 'results' && '[transform:translateX(100%)]',
-        )}
-        aria-hidden="true"
-      />
-      {SWITCH_SIDES.map(({side, icon, label, tooltip}) => {
-        const active = side === session.active;
-        return (
-          <Link
-            key={side}
-            to={sessionSideHref(session, side)}
-            className={tooltipClassNames({
-              className: active
-                ? SWITCH_SIDE_ACTIVE_CLASSES
-                : SWITCH_SIDE_CLASSES,
-              placement: 'bottom',
-            })}
-            data-tooltip={tooltip}
-            aria-current={active ? 'page' : undefined}
-            aria-label={label}
-          >
-            <Icon
-              aria-hidden="true"
-              className={joinClasses(HEADER_CONTROL_ICON_CLASSES, 'flex-none')}
-              name={icon}
-            />
-            <span className="[@media(max-width:700px)]:hidden">{label}</span>
-          </Link>
-        );
-      })}
-    </nav>
+      {SWITCH_SIDES.map(({side, icon, label, tooltip}) => (
+        <TabNavLink
+          key={side}
+          variant="pill"
+          to={sessionSideHref(session, side)}
+          current={side === session.active}
+          className={tooltipClassNames({placement: 'bottom'})}
+          data-tooltip={tooltip}
+          aria-label={label}
+        >
+          <Icon
+            aria-hidden="true"
+            className={joinClasses(HEADER_CONTROL_ICON_CLASSES, 'flex-none')}
+            name={icon}
+          />
+          <span className="[@media(max-width:700px)]:hidden">{label}</span>
+        </TabNavLink>
+      ))}
+    </TabNav>
   );
 }
 

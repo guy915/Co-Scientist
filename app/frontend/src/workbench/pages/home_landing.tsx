@@ -11,7 +11,7 @@ import {
 import {useLocation} from 'react-router-dom';
 import {createPortal} from 'react-dom';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
-import {Button} from '@/shared/ui';
+import {Button, SegmentedControl} from '@/shared/ui';
 import helixArt from '../../assets/landing/helix.webp';
 import {joinClasses} from '../classes';
 import {
@@ -1025,29 +1025,16 @@ function TierStats({tier}: {tier: LandingTier}) {
 export function LandingTiers({reduceMotion}: MotionProps) {
   const [name, setName] = useState(DEFAULT_TIER);
   const tier = LANDING_TIERS.find(t => t.name === name) ?? LANDING_TIERS[1];
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const pill = useSlidingIndicator(trackRef, '[aria-pressed="true"]', name);
   return (
     <>
-      <div
-        ref={trackRef}
-        className="ucs-landing-seg relative mt-[32px] inline-flex max-w-full gap-[4px] overflow-x-auto rounded-[9999px] bg-(--l-surface) p-[4px] [scrollbar-width:none]"
-        role="group"
-        aria-label="Run tier"
-      >
-        <SlidingPill box={pill} className={SLIDER_CLASSES} />
-        {LANDING_TIERS.map(t => (
-          <button
-            key={t.name}
-            type="button"
-            aria-pressed={t.name === name}
-            className="relative z-[1] h-[40px] flex-none cursor-pointer [border:0] rounded-[9999px] bg-transparent px-[20px] [font:500_15px_var(--l-body)] text-(--l-muted) aria-pressed:text-(--l-bg) [@media(max-width:900px)]:px-[14px]"
-            onClick={() => setName(t.name)}
-          >
-            {t.name}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        label="Run tier"
+        size="lg"
+        value={name}
+        onChange={setName}
+        options={LANDING_TIERS.map(t => ({value: t.name, label: t.name}))}
+        layoutClassName="mt-[32px]"
+      />
       <div className="mt-[20px] grid grid-cols-[1fr_260px] items-center gap-[32px] rounded-[32px] bg-(--l-surface) p-[clamp(20px,3vw,40px)] [@media(max-width:900px)]:grid-cols-[1fr]">
         <TierField tier={tier} reduceMotion={reduceMotion} />
         <TierStats tier={tier} />
