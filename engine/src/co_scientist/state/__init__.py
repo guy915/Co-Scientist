@@ -61,10 +61,6 @@ def _matchup_identity(matchup: dict[str, Any]) -> tuple[Any, ...]:
     )
 
 
-def _normalized_text(hyp: Hypothesis) -> str:
-    return hyp.text.strip().lower()
-
-
 @dataclasses.dataclass(frozen=True)
 class AppendHypotheses:
     """Append evolved children without replacing parents; reject only exact
@@ -104,10 +100,10 @@ def _append_hypotheses(existing: list[Hypothesis], incoming: list[Hypothesis]) -
     judgment belongs to proximity.
     """
     seen_ids = {hyp.id for hyp in existing}
-    seen_texts = {_normalized_text(hyp) for hyp in existing}
+    seen_texts = {hyp.text.strip().lower() for hyp in existing}
     result = list(existing)
     for hyp in incoming:
-        text_key = _normalized_text(hyp)
+        text_key = hyp.text.strip().lower()
         if hyp.id in seen_ids or text_key in seen_texts:
             logger.debug(
                 "append: skipped duplicate hypothesis (id/text): %s...",

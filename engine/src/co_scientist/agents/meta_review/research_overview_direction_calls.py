@@ -126,22 +126,6 @@ def _needs_writing(direction: Any) -> bool:
     return not all(direction.get(field) for field in _BODY_FIELDS)
 
 
-def format_direction_titles(directions: list[Any]) -> str:
-    return "\n".join(
-        f"- {str(direction.get('title') or '').strip()}"
-        for direction in directions
-        if isinstance(direction, dict)
-    )
-
-
-def _material(direction: dict[str, Any], all_directions: str) -> DirectionWritingMaterial:
-    return DirectionWritingMaterial(
-        title=str(direction.get("title") or "").strip(),
-        rationale=str(direction.get("importance") or "").strip(),
-        all_directions=all_directions,
-    )
-
-
 async def write_direction_body(
     context: DirectionWaveContext,
     material: DirectionWritingMaterial,
@@ -198,10 +182,22 @@ async def develop_research_directions(
     pending = [index for index, d in enumerate(directions) if _needs_writing(d)]
     if not pending:
         return directions, 0
-    titles = format_direction_titles(directions)
+    titles = "\n".join(
+        f"- {str(direction.get('title') or '').strip()}"
+        for direction in directions
+        if isinstance(direction, dict)
+    )
     bodies = await asyncio.gather(
         *(
-            write_direction_body(context, _material(directions[index], titles), ask)
+            write_direction_body(
+                context,
+                DirectionWritingMaterial(
+                    title=str(directions[index].get("title") or "").strip(),
+                    rationale=str(directions[index].get("importance") or "").strip(),
+                    all_directions=titles,
+                ),
+                ask,
+            )
             for index in pending
         )
     )

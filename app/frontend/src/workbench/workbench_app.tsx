@@ -14,11 +14,6 @@ import {ThemeProvider} from './theme_context';
 const RunDetail = lazy(() =>
   import('./pages/run_detail').then(module => ({default: module.RunDetail})),
 );
-const ResearcherAccessPage = lazy(() =>
-  import('./pages/researcher_access').then(module => ({
-    default: module.ResearcherAccessPage,
-  })),
-);
 
 function PageLoading() {
   return (
@@ -48,10 +43,6 @@ function WorkbenchRoutes() {
       />
       <Route path="/runs" element={<Navigate to="/" replace />} />
       <Route path="/runs/new" element={<Navigate to="/" replace />} />
-      <Route
-        path="/access"
-        element={page('Researcher access', <ResearcherAccessPage />)}
-      />
       {/* One required-param route makes tab changes reuse RunDetail instead of refetching and blanking the header. */}
       <Route path="/runs/:id" element={<Navigate to="details" replace />} />
       <Route
