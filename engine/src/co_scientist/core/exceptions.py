@@ -115,3 +115,7 @@ def short_error_text(error: BaseException) -> str:
     if dropped <= 0:
         return text
     return f"{text[:_MAX_LOGGED_ERROR_CHARS]}... (+{dropped} more chars)"
+
+
+class StorageAdmissionError(CoScientistError):
+    pass
