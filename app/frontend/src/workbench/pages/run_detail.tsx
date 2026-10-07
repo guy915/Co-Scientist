@@ -138,7 +138,7 @@ export function RunDetail() {
         data={data}
       />
 
-      {data.toast && <RunToast message={data.toast} />}
+      <RunToast message={data.toast} />
     </div>
   );
 }

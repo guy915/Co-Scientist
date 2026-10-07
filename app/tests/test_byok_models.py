@@ -6,9 +6,9 @@ import pytest
 from co_scientist.core.config import settings
 from co_scientist.core.run_modes import resolved_run_config
 from co_scientist.domains.access import credentials
+from co_scientist.orchestration.engine_adapter.opts import build_generator
 from starlette.datastructures import Headers
 
-from app.engine_adapter.opts import build_generator
 from tests._store_helpers import seed_run
 
 _KEY = "sk-model-choice-123456"

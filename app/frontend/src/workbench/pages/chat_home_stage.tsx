@@ -89,7 +89,7 @@ const SUGGESTION_TEXT_CLASSES =
 // The preview shows the full teaser: line clamps would cut letters, while
 // viewport bounds permit whole-word wrapping.
 const SUGGESTION_PREVIEW_CLASSES =
-  'pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-[5] m-0 block w-max max-w-[min(46rem,calc(100vw-7rem))] text-[0.84rem] leading-[1.25rem] font-normal text-pretty text-cosci-shell-icon [@media(max-width:700px)]:hidden';
+  'pointer-events-none absolute bottom-[calc(100%+0.5rem)] z-[5] m-0 block w-max max-w-[min(46rem,calc(100vw-7rem))] text-[0.84rem] leading-[1.25rem] font-normal text-pretty text-cosci-shell-icon transition-[opacity,visibility] duration-short ease-standard [@media(max-width:700px)]:hidden';
 
 // Anchor edge previews inward so they cannot overflow the viewport.
 const SUGGESTION_PREVIEW_POSITION_CLASSES = [

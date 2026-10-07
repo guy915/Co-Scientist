@@ -6,24 +6,24 @@ from threading import Event, Thread
 from types import SimpleNamespace
 from typing import Any
 
+import co_scientist.orchestration.engine_tasks.fanout as engine_tasks_fanout_generation
 import pytest
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.engine_tasks import node as engine_tasks_node
+from co_scientist.orchestration.engine_tasks import ranking as engine_tasks_ranking
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.engine_tasks.fanout import _GenerationPlan, _StrategyInputs
+from co_scientist.orchestration.engine_tasks.fanout_aggregates import _AggregateSpec
+from co_scientist.orchestration.engine_tasks.support import ExactSuccessor, TaskCommit
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 from co_scientist.platform.llm import ModelCallStats, record_call
 
-import app.engine_tasks.fanout as engine_tasks_fanout_generation
-from app import engine_tasks, task_worker
-from app.engine_tasks import node as engine_tasks_node
-from app.engine_tasks import ranking as engine_tasks_ranking
-from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.fanout import _GenerationPlan, _StrategyInputs
-from app.engine_tasks.fanout_aggregates import _AggregateSpec
-from app.engine_tasks.support import ExactSuccessor, TaskCommit
-from app.store import events as store_events
-from app.store import runs
-from app.store import tasks as store
-from app.store import tasks_lifecycle as lifecycle
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -94,7 +94,7 @@ async def _judge_with_telemetry(*_: Any, **kwargs: Any) -> tuple[str, dict[str, 
 async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from co_scientist.checkpoint import restore_workflow_state
+    from co_scientist.orchestration.checkpoint import restore_workflow_state
 
     run = seed_run("Task-level science")
     _seed_ranking_node(
@@ -263,7 +263,7 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
         lambda: _control_run(client, run_id, "cancel", "cancelled"),
     )
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         await engine_tasks.execute_node_task(task, db_path=isolated_db)
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
@@ -411,7 +411,7 @@ def test_a_revoked_task_cannot_commit_at_any_boundary(
     else:
         _re_lease_same_owner(run_id, task, isolated_db)
 
-    with pytest.raises(task_worker._LeaseLostError):
+    with pytest.raises(task_worker.LeaseLostError):
         commit(task, seq, run_id, isolated_db)
 
     latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)

@@ -110,6 +110,6 @@ def manual_worker(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tests that step tasks by hand must not race the embedded per-run cohort that start,
     resume and startup recovery launch.
     """
-    from app import task_worker
+    from co_scientist.orchestration import task_worker
 
     monkeypatch.setattr(task_worker, "run_run_worker_pool_sync", lambda *_: None)

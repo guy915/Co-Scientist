@@ -31,9 +31,11 @@ def _persist(
 
 
 def _identity(run_id: str, db: str) -> dict[str, Any]:
-    from app.store import runs
+    from co_scientist.orchestration.repository import runs
 
-    identity: dict[str, Any] = runs.get_run(run_id, db_path=db).config["evaluation_identity"]
+    run = runs.get_run(run_id, db_path=db)
+    assert run is not None
+    identity: dict[str, Any] = run.config["evaluation_identity"]
     return identity
 
 
@@ -115,12 +117,14 @@ def test_model_and_fallback_changes_change_persisted_identity(
 def test_invalid_identity_stops_before_worker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
 ) -> None:
-    from app import task_worker
-    from app.store import runs
     from co_scientist.core.config import settings
+    from co_scientist.orchestration import task_worker
+    from co_scientist.orchestration.repository import runs
 
     run_id, db = _persist(tmp_path)
-    config = runs.get_run(run_id, db_path=db).config
+    run = runs.get_run(run_id, db_path=db)
+    assert run is not None
+    config = run.config
     if fault == "missing":
         del config["evaluation_identity"]
     elif fault == "corrupt":
@@ -143,9 +147,9 @@ def test_invalid_identity_stops_before_worker(
 def test_worker_drift_cannot_produce_an_arm_result(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fault: str
 ) -> None:
-    from app import task_worker
-    from app.store import runs
     from co_scientist.core.config import settings
+    from co_scientist.orchestration import task_worker
+    from co_scientist.orchestration.repository import runs
 
     db = str(tmp_path / "arms.db")
     _run_driver.configure_environment(db, live=False)
@@ -154,7 +158,9 @@ def test_worker_drift_cannot_produce_an_arm_result(
         if fault == "model":
             monkeypatch.setattr(settings, "model_name", "openrouter/changed:free")
             return
-        config = runs.get_run(run_id, db_path=db).config
+        run = runs.get_run(run_id, db_path=db)
+        assert run is not None
+        config = run.config
         if fault == "config":
             config["max_llm_calls"] += 1
         else:

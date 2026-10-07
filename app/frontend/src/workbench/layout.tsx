@@ -9,6 +9,7 @@ import {
 } from 'react';
 import {useLocation} from 'react-router-dom';
 import type {RunStatus} from '@/api/runs';
+import {presenceProps, usePresence} from '@/shared/ui';
 import {joinClasses} from './classes';
 import {useRunHistoryContext} from './hooks/history_context';
 import {
@@ -125,10 +126,13 @@ function DrawerScrim({
   navOpen: boolean;
   onDismiss: () => void;
 }) {
-  if (!navOpen) return null;
+  const {mounted, state} = usePresence(navOpen);
+  if (!mounted) return null;
   return (
     <div
-      className="fixed inset-0 z-[55] hidden bg-scrim [@media(max-width:700px)]:block"
+      {...presenceProps(state)}
+      data-motion="long"
+      className="ui-motion-fade fixed inset-0 z-[55] hidden bg-scrim [@media(max-width:700px)]:block"
       aria-hidden="true"
       onClick={onDismiss}
     />

@@ -7,13 +7,13 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.checkpoint import (
-    restore_workflow_state,
-    serialize_workflow_state,
-)
 from co_scientist.domains.research_state import models
 from co_scientist.domains.research_state.models import ExecutionMetrics
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.orchestration.checkpoint import (
+    restore_workflow_state,
+    serialize_workflow_state,
+)
 from co_scientist.platform.llm.offline.llm import (
     _GENERATED_VOCABULARY,
     leaf_text,
@@ -60,7 +60,7 @@ async def test_degradation_event_failure_cannot_break_the_run() -> None:
 
 def test_durable_commit_captures_recorded_degradation() -> None:
     """Mid-node fallback appends must survive whole-state checkpoint commits."""
-    from co_scientist.task_runtime import apply_task_update
+    from co_scientist.orchestration.task_runtime import apply_task_update
 
     state = _fresh_state()
     _ACTIVE_WORKFLOW_STATE.set(state)

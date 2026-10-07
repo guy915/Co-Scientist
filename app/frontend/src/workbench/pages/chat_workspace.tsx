@@ -11,14 +11,13 @@ import {
   type RefObject,
   useRef,
 } from 'react';
-import {createPortal} from 'react-dom';
 import {
   useLocation,
   useNavigate,
   useParams,
   type NavigateFunction,
 } from 'react-router-dom';
-import {Button, IconButton} from '@/shared/ui';
+import {Button, IconButton, Toast} from '@/shared/ui';
 import {conciseTitle} from '@/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useIsMobile} from '../hooks/dom';
@@ -169,22 +168,20 @@ function syncHeaderTitle(
   };
 }
 
-// Place the toast above ancestor stacking contexts.
 function ToastPortal({toast}: {toast: ToastState | null}) {
-  if (!toast) return null;
-  return createPortal(
-    <div
-      className="reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] font-medium text-cosci-toast-fg"
-      role="status"
-    >
-      <span>{toast.message}</span>
-      {toast.action && (
-        <Button variant="link" onClick={toast.action.onClick}>
-          {toast.action.label}
-        </Button>
+  return (
+    <Toast>
+      {toast && (
+        <>
+          <span>{toast.message}</span>
+          {toast.action && (
+            <Button variant="link" onClick={toast.action.onClick}>
+              {toast.action.label}
+            </Button>
+          )}
+        </>
       )}
-    </div>,
-    document.body,
+    </Toast>
   );
 }
 

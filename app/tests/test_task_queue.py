@@ -5,13 +5,13 @@ import subprocess
 import sys
 import time
 
+import co_scientist.orchestration.repository.tasks as task_store
 import pytest
+from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunStatus
 
-import app.store.tasks as task_store
-from app.store import runs, tasks
-from app.store import tasks_lifecycle as lifecycle
 from tests._engine_tasks_helpers import _enqueue, _run, _three_control_tasks
 from tests._store_helpers import enqueue_task
 
@@ -20,14 +20,14 @@ _SUBPROCESS_TIMEOUT_SECONDS = float(os.getenv("COSCIENTIST_TEST_SUBPROCESS_TIMEO
 
 _CLAIM_SCRIPT = """
 import sys
-from app.store import tasks as store
+from co_scientist.orchestration.repository import tasks as store
 task = store.claim_task(sys.argv[3], run_id=sys.argv[2], db_path=sys.argv[1])
 print(task.id if task else "NONE")
 """
 
 _COMPLETE_SCRIPT = """
 import sys
-from app.store import tasks_lifecycle as store
+from co_scientist.orchestration.repository import tasks_lifecycle as store
 completed = store.complete_task(
     sys.argv[2], sys.argv[3], {"value": sys.argv[4]}, db_path=sys.argv[1]
 )

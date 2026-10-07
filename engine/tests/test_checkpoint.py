@@ -6,13 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import co_scientist.checkpoint as checkpoint_module
-from co_scientist.checkpoint import (
-    CHECKPOINT_VERSION,
-    CheckpointSchemaError,
-    restore_workflow_state,
-    serialize_workflow_state,
-)
+import co_scientist.orchestration.checkpoint as checkpoint_module
 from co_scientist.domains.research_state.models import (
     ExecutionMetrics,
     Hypothesis,
@@ -23,6 +17,12 @@ from co_scientist.domains.research_state.state import (
     AppendHypotheses,
     accumulate_matchups,
     deduplicate_hypotheses,
+)
+from co_scientist.orchestration.checkpoint import (
+    CHECKPOINT_VERSION,
+    CheckpointSchemaError,
+    restore_workflow_state,
+    serialize_workflow_state,
 )
 from co_scientist.platform.sandbox.patch import (
     Patch,

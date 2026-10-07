@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 
 import pytest
+from co_scientist.orchestration.repository import events as store
 
-from app.store import events as store
 from tests._store_helpers import seed_run
 
 
@@ -57,7 +57,7 @@ def test_stage_logging_never_breaks_the_event_write(
     def boom(*args: object, **kwargs: object) -> None:
         raise RuntimeError("logging is down")
 
-    monkeypatch.setattr("app.store.events._log_stage", boom)
+    monkeypatch.setattr("co_scientist.orchestration.repository.events._log_stage", boom)
     seq = store.append_event(run_id, "generate", {"count": 1}, db_path=isolated_db)
     assert seq >= 1
     assert len(store.list_events(run_id, db_path=isolated_db)) == 1

@@ -4,13 +4,13 @@ from typing import Any, cast
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.platform.db.models import RunStatus
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from app.operator_access import is_operator
-from app.store import runs
-from app.store import runs_views as views
 from tests._client import create_run as _create_run
 
 

@@ -134,7 +134,7 @@ def validate_stored_arm(
     db_path: str,
     expected: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from app.store import runs
+    from co_scientist.orchestration.repository import runs
 
     run = runs.get_run(run_id, db_path=db_path)
     if run is None:
