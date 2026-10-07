@@ -65,11 +65,7 @@ function ThoughtsSummary({
         Thinking
         {live && <ThinkingDots />}
       </span>
-      <Icon
-        aria-hidden="true"
-        className={chevronClasses(open)}
-        name="expand_more"
-      />
+      <Icon className={chevronClasses(open)} name="expand_more" />
     </Button>
   );
 }

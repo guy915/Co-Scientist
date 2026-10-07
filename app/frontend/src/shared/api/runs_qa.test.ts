@@ -1,4 +1,9 @@
-import {FakeSseBody, streamingResponse, fetchMock} from '@/http_test_support';
+import {
+  FakeSseBody,
+  fetchMock,
+  jsonResponse,
+  streamingResponse,
+} from '@/shared/api/testing';
 import {beforeEach, afterEach, describe, expect, it, vi} from 'vitest';
 import {
   askRunQuestion,
@@ -73,12 +78,9 @@ describe('runs qa', () => {
   });
 
   it('unwraps the messages envelope of a run', async () => {
-    fetchMock().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({messages: [{id: 1, content: 'Why?'}]}),
-      text: async () => '',
-    });
+    fetchMock().mockResolvedValue(
+      jsonResponse({messages: [{id: 1, content: 'Why?'}]}),
+    );
 
     expect(await getRunMessages('run-1')).toEqual([{id: 1, content: 'Why?'}]);
   });

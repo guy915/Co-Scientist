@@ -3,12 +3,12 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
 } from 'react';
 import {flushSync} from 'react-dom';
+import {useMediaQuery} from './use_media_query';
 import {MD3_SCHEMES} from '@/shared/ui/md3_scheme';
 import {
   readStorage,
@@ -37,34 +37,10 @@ function readStoredMode(): Mode {
 }
 
 // Without matchMedia in jsdom/prerender, use the app’s dark reference theme.
-function readSystemMode(): ResolvedMode {
-  if (typeof window === 'undefined') return 'dark';
-  if (!window.matchMedia) return 'dark';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light';
-}
+const DARK_QUERY = '(prefers-color-scheme: dark)';
 
-// Older Safari lacks MediaQueryList add/removeEventListener; retain its
-// listener fallback.
 function useSystemColorScheme(): ResolvedMode {
-  const [systemMode, setSystemMode] = useState<ResolvedMode>(readSystemMode);
-
-  useEffect(() => {
-    if (!window.matchMedia) return undefined;
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    function onChange() {
-      setSystemMode(media.matches ? 'dark' : 'light');
-    }
-    if (media.addEventListener) {
-      media.addEventListener('change', onChange);
-      return () => media.removeEventListener('change', onChange);
-    }
-    media.addListener(onChange);
-    return () => media.removeListener(onChange);
-  }, []);
-
-  return systemMode;
+  return useMediaQuery(DARK_QUERY, true) ? 'dark' : 'light';
 }
 
 // Apply before paint to avoid a stale-theme flash; persist preference, not

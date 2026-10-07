@@ -70,14 +70,13 @@ export function Card({
 const CARD_BUTTON_CLASSES =
   'cursor-pointer rounded-2xl border border-cosci-border text-left text-cosci-fg [outline:0] ' +
   'transition-[background-color,border-color] duration-short ease-standard ' +
-  '[&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
-  '[@media(max-width:700px)]:rounded-full [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent]';
+  'hover:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
+  'phone:rounded-full phone:[border:0] phone:hover:[border-color:transparent] phone:focus-visible:[border-color:transparent]';
 
-const CARD_BUTTON_REST_CLASSES =
-  'bg-(--cosci-suggestion-bg) [@media(max-width:700px)]:bg-transparent';
+const CARD_BUTTON_REST_CLASSES = 'bg-cosci-suggestion-bg phone:bg-transparent';
 
 const CARD_BUTTON_HIGHLIGHTED_CLASSES =
-  'bg-cosci-hover [@media(max-width:700px)]:[&&]:[border-color:transparent]';
+  'bg-cosci-hover phone:[&&]:[border-color:transparent]';
 
 // A card that is one action as a whole (home suggestions); a list row on
 // phones. `highlighted` holds the hover look while its preview shows.

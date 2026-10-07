@@ -48,7 +48,7 @@ import {
   LandingEloChart,
 } from './home_landing_diagram';
 import {SUGGESTIONS} from './chat_home_stage';
-import {useReducedMotion} from '@/shared/hooks/use_reduced_motion';
+import {useReducedMotion} from '@/shared/hooks/use_media_query';
 
 // Lazy-load the landing section so it cannot delay chat first paint.
 
@@ -81,13 +81,13 @@ const SR_ONLY_CLASSES =
   'absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)]';
 
 const RAIL_CLASSES =
-  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
+  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] phone:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
 
 const RAIL_NAV_CLASSES =
   'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-full bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
 
 const RAIL_TAB_CLASSES =
-  'relative z-[1] grid h-[38px] flex-none place-items-center rounded-full px-[16px] text-[14px] font-medium no-underline';
+  'relative z-1 grid h-[38px] flex-none place-items-center rounded-full px-[16px] text-[14px] font-medium no-underline';
 
 const SLIDER_CLASSES =
   'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-full bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
@@ -148,7 +148,7 @@ function LandingHero({
     >
       <h2
         id="ucs-landing-word"
-        className="relative z-[1] m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
+        className="relative z-1 m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
       >
         Co-Scientist
       </h2>
@@ -341,7 +341,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   return (
     <div
       ref={anchorRef}
-      className={joinClasses('min-h-[66px]', sticky && 'sticky top-0 z-[5]')}
+      className={joinClasses('min-h-[66px]', sticky && 'sticky top-0 z-5')}
     >
       <div inert={inHeader} aria-hidden={inHeader || undefined}>
         <LandingTabs reduceMotion={reduceMotion} />
@@ -379,7 +379,7 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
         className={joinClasses(
           RAIL_NAV_CLASSES,
           more &&
-            '[@media(max-width:700px)]:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
+            'phone:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
         )}
       >
         <SlidingPill box={pill} className={SLIDER_CLASSES} />
@@ -477,7 +477,6 @@ function ShapeBadge({
         <path ref={pathRef} d={shapePath(shape)} />
       </svg>
       <Icon
-        aria-hidden="true"
         name={icon}
         className={joinClasses(
           'absolute inset-0 m-auto',
@@ -729,7 +728,6 @@ export function FaqSection() {
             <summary className="flex cursor-pointer items-center justify-between gap-[16px] py-[22px] text-[19px] [list-style:none] [&::-webkit-details-marker]:hidden">
               <span>{entry.question}</span>
               <Icon
-                aria-hidden="true"
                 name="expand_more"
                 className="size-[24px] flex-none fill-(--l-muted) [transition:transform_0.3s_var(--l-ease)] [details[open]_&]:[transform:rotate(180deg)]"
               />
@@ -864,7 +862,6 @@ function RunCard() {
             className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-[12px] rounded-full text-[14px] leading-[1.35]`}
           >
             <Icon
-              aria-hidden="true"
               name={stage.icon}
               className="size-[20px] flex-none fill-(--l-accent)"
             />

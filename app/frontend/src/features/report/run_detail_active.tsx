@@ -1,11 +1,11 @@
 import {Card} from '@/shared/ui';
 import type {StreamEvent} from '@/shared/hooks/use_run_stream';
-import {formatDurationPhrase} from '@/shared/lib/text';
 import {useNowTick} from '@/shared/hooks/timers';
 import {useMemo} from 'react';
 import {RunExecutionProgress} from './run_execution_progress';
 import {ActivityLog, windowedActivityGroups} from './run_detail_activity_log';
 import {type RunWithStreamState} from './run_detail_data';
+import {formatDurationPhrase} from '@/shared/lib/time';
 
 const ACTIVITY_WINDOW = 10;
 
@@ -31,7 +31,7 @@ function RunMetrics({
 }) {
   // Remove the default dl margin so it does not add to the section gap.
   return (
-    <dl className="my-0 grid grid-cols-3 gap-3 max-[700px]:grid-cols-1">
+    <dl className="my-0 grid grid-cols-3 gap-3 phone:grid-cols-1">
       <RunMetric label="Time elapsed" value={elapsed} />
       {metrics.map(([label, value]) => (
         <RunMetric key={label} label={label} value={value} />
@@ -62,7 +62,7 @@ export function ActiveRunView(props: ActiveRunViewProps) {
     [events],
   );
   return (
-    <div className="min-h-0 overflow-auto px-8 py-7 max-[700px]:px-4">
+    <div className="min-h-0 overflow-auto px-8 py-7 phone:px-4">
       {/* The section's three children are the progress header, the metric
           cards, and the activity log, so this gap *is* the space above and
           below the cards. 24px rather than 28: the cards sit 12px apart

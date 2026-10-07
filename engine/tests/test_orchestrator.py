@@ -7,14 +7,13 @@ import pytest
 
 from co_scientist.domains.research_state.models import ExecutionMetrics, Hypothesis
 from co_scientist.domains.research_state.state import WorkflowState
-from co_scientist.science.reflection import owed_review
-from co_scientist.science.reflection.owed_review import (
+from co_scientist.science.scheduling import SupervisorDecision, TaskType, owed_review
+from co_scientist.science.scheduling.owed_review import (
     mark_owed_review_issued,
     owed_review_count,
     owed_review_issued,
     owed_review_targets,
 )
-from co_scientist.science.scheduling import SupervisorDecision, TaskType
 from co_scientist.science.supervisor import orchestrator
 from co_scientist.science.supervisor.orchestrator import orchestrator_node
 from tests._state import make_hypothesis, make_review, make_state

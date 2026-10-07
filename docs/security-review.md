@@ -111,6 +111,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 ### SR-06 — Physical-request run ceilings are not durable
 
+**Fixing PR:** [#409 — Persist physical research-run call ceilings](https://github.com/guy915/Co-Scientist/pull/409) (lane S).
+
 **Area:** cost abuse. **Severity:** medium. **Owner:** lane X.
 
 **Entry and path:** Many admitted or resumed runs populate a process-local LRU of 500 counters. Eviction loses the original ceiling, and an in-flight task's next physical request recreates the entry with `ceiling=None` ([engine/src/co_scientist/llm/admission/call_budget.py:56](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/engine/src/co_scientist/llm/admission/call_budget.py#L56), [engine/src/co_scientist/llm/admission/call_budget.py:84](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/engine/src/co_scientist/llm/admission/call_budget.py#L84), [engine/src/co_scientist/llm/admission/call_budget.py:100](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/engine/src/co_scientist/llm/admission/call_budget.py#L100)). Process restart and nonterminal finalize release also remove physical counters ([app/app/engine_tasks/finalize.py:227](https://github.com/guy915/Co-Scientist/blob/0f2236c32b652c95559e5206c378fa9d5de296e2/app/app/engine_tasks/finalize.py#L227)).
@@ -128,6 +130,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 **Impact / evidence:** The path permits poisoned conclusions, unwanted allowed-tool queries, and requests to disclose same-run context in tool arguments or report text. Schema-conforming responses and citation formatting do not establish instruction provenance. Source confirms the flow; this review does **not** demonstrate that a production model obeys the injected text, bypasses deterministic safety, exposes another run, or leaks an API key. SR-04 and SR-08 describe concrete downstream boundaries an obedient model could cross.
 
 **Fix:** Treat external text as explicitly untrusted evidence and retain its provenance through summaries; do not elevate its instructions into the authoritative task. Constrain tool capabilities and outbound parameters outside the model, and evaluate adversarial retrieval fixtures for tool use, report contamination and final safety behavior before launch.
+
+**Fixing PR:** [#417](https://github.com/guy915/Co-Scientist/pull/417) preserves untrusted source/derived provenance, withholds validation tools, restricts physical dispatch to advertised names and binds draft retrieval to the workflow run/corpus. Offline regressions reproduce the original data and dispatch boundaries and retain ordinary citations/owned retrieval. JSON fencing mitigates instruction confusion; it does not prove immunity to poisoned conclusions or real-model obedience.
 
 ### SR-08 — Markdown remote images cause automatic third-party requests
 

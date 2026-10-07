@@ -6,6 +6,7 @@ import {
   useState,
   type Dispatch,
   type SetStateAction,
+  type RefObject,
 } from 'react';
 import {useLocation} from 'react-router-dom';
 import type {RunStatus} from '@/shared/api/runs';
@@ -17,7 +18,14 @@ import {
   type SettingsSection,
 } from '@/features/access/settings_dialog';
 import {NEW_CHAT_EVENT, HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
-import {closeDrawerIfMobile, useEscapeKey} from '@/shared/hooks/dom';
+import {
+  closeDrawerIfMobile,
+  useBackgroundInert,
+  useEscapeKey,
+  useFocusTrap,
+  useIsMobile,
+  useRestoreFocusOnClose,
+} from '@/shared/hooks/dom';
 import {ShellHeader} from './layout_header';
 import {NavRail, withExamples, type ChatRailData} from './layout_nav_rail';
 import {
@@ -25,12 +33,13 @@ import {
   type SessionSwitchData,
 } from '@/features/runs/session_switch';
 import {useChatHistoryContext} from '@/shared/hooks/history_context';
+import {routeIds} from '@/shared/lib/routes';
 
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
 const WORKSPACE_CLASSES =
-  'ucs-workspace relative z-[1] grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
-  '[@media(max-width:700px)]:rounded-none';
+  'ucs-workspace relative z-1 grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
+  'phone:rounded-none';
 
 const REPORT_WORKSPACE_CLASSES =
   WORKSPACE_CLASSES + ' min-h-[100vh] supports-[height:100dvh]:min-h-[100dvh]';
@@ -44,7 +53,7 @@ const DEFAULT_PAGE_CLASSES = PAGE_CLASSES + ' overflow-auto';
 
 const HOME_PAGE_CLASSES =
   PAGE_CLASSES +
-  ' ucs-page--home overflow-auto min-[1181px]:overflow-hidden ' +
+  ' ucs-page--home overflow-auto desktop:overflow-hidden ' +
   '[@media(max-width:1180px)]:overflow-x-hidden [@media(max-width:1180px)]:overflow-y-auto';
 
 // Narrow report overflow must remain reachable horizontally; vertical scroll
@@ -54,16 +63,16 @@ const REPORT_PAGE_CLASSES =
 
 const SHELL_CLASSES =
   'ucs-app-shell grid min-h-[100vh] bg-cosci-rail supports-[height:100dvh]:min-h-[100dvh] ' +
-  '[transition:grid-template-columns_240ms_cubic-bezier(0.2,0,0,1)] motion-reduce:[transition:none] ' +
-  '[@media(max-width:700px)]:grid-cols-[minmax(0,1fr)]';
+  '[transition:grid-template-columns_var(--motion-duration-long)_var(--motion-ease-standard)] motion-reduce:[transition:none] ' +
+  'phone:grid-cols-[minmax(0,1fr)]';
 
 const SHELL_OPEN_GRID_CLASSES =
-  'nav-open min-[701px]:grid-cols-[17.25rem_minmax(0,1fr)]';
+  'nav-open above-phone:grid-cols-[17.25rem_minmax(0,1fr)]';
 
 // Keep the collapsed icon on the open rail's 24px gutter so toggling cannot
 // shift it.
 const SHELL_COLLAPSED_GRID_CLASSES =
-  'nav-collapsed min-[701px]:grid-cols-[4.5rem_minmax(0,1fr)]';
+  'nav-collapsed above-phone:grid-cols-[4.5rem_minmax(0,1fr)]';
 
 function pageClassesFor(pathname: string, isRunRoute: boolean): string {
   if (isRunRoute) return REPORT_PAGE_CLASSES;
@@ -78,11 +87,8 @@ function deriveRoutePresentation(pathname: string): {
   workspaceClasses: string;
   pageClasses: string;
 } {
-  const isRunRoute = pathname.startsWith('/runs/');
-  const activeRunId = isRunRoute ? pathname.split('/')[2] : undefined;
-  const activeChatId = pathname.startsWith('/chats/')
-    ? pathname.split('/')[2]
-    : undefined;
+  const {runId: activeRunId, chatId: activeChatId} = routeIds(pathname);
+  const isRunRoute = activeRunId !== undefined;
   // Tab changes keep RunDetail mounted and do not redispatch its title; clear
   // only when the title-owning context changes.
   const titleContextKey = isRunRoute ? `run:${activeRunId}` : pathname;
@@ -132,7 +138,7 @@ function DrawerScrim({
     <div
       {...presenceProps(state)}
       data-motion="long"
-      className="ui-motion-fade fixed inset-0 z-[55] hidden bg-scrim [@media(max-width:700px)]:block"
+      className="ui-motion-fade fixed inset-0 z-drawer-scrim hidden bg-scrim phone:block"
       aria-hidden="true"
       onClick={onDismiss}
     />
@@ -160,9 +166,34 @@ interface ShellNavProps {
   rail: ChatRailData;
 }
 
+// The phone drawer covers the page, so while it is open it behaves as a modal:
+// focus moves in and stays, the page behind is inert, and closing returns focus.
+function DrawerModality({
+  containerRef,
+}: {
+  containerRef: RefObject<HTMLDivElement | null>;
+}) {
+  useRestoreFocusOnClose();
+  useFocusTrap(containerRef);
+  useBackgroundInert(containerRef, 'Navigation drawer');
+  useEffect(() => {
+    containerRef.current
+      ?.querySelector<HTMLElement>('a[href], button:not([disabled])')
+      ?.focus();
+  }, [containerRef]);
+  return null;
+}
+
+// `contents` keeps the rail and scrim as shell grid items while giving the
+// modal one container, so the scrim stays clickable when the page is inert.
 function ShellNav({chrome, startNewChat, rail}: ShellNavProps) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   return (
-    <>
+    <div ref={drawerRef} className="contents">
+      {isMobile && chrome.navOpen && (
+        <DrawerModality containerRef={drawerRef} />
+      )}
       <NavRail
         navOpen={chrome.navOpen}
         toggleNav={chrome.toggleNav}
@@ -177,7 +208,7 @@ function ShellNav({chrome, startNewChat, rail}: ShellNavProps) {
         navOpen={chrome.navOpen}
         onDismiss={() => chrome.setNavOpen(false)}
       />
-    </>
+    </div>
   );
 }
 

@@ -3,10 +3,14 @@ import {
   FakeSseBody,
   streamingResponse,
   errorResponse,
-} from '@/http_test_support';
+} from '@/shared/api/testing';
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {renderHook, act} from '@testing-library/react';
-import {useRunStream, RECONNECT_DELAY_MS} from './use_run_stream';
+import {
+  reconnectDelayMs,
+  useRunStream,
+  RECONNECT_DELAY_MS,
+} from './use_run_stream';
 
 // An exhausted response queue hangs to model a connection still in flight.
 function queueFetch(...responses: Response[]): void {
@@ -169,4 +173,28 @@ describe('connection state', () => {
     await settle(RECONNECT_DELAY_MS);
     expect(result.current.connection).toBe('open');
   });
+
+  it('backs off while the server keeps failing', async () => {
+    queueFetch(
+      errorResponse(500),
+      errorResponse(500),
+      streamingResponse(new FakeSseBody()),
+    );
+    const {result} = renderHook(() => useRunStream('run-1'));
+    await settle();
+
+    await settle(RECONNECT_DELAY_MS);
+    expect(fetchMock()).toHaveBeenCalledTimes(2);
+    await settle(RECONNECT_DELAY_MS);
+    expect(fetchMock()).toHaveBeenCalledTimes(2);
+    await settle(RECONNECT_DELAY_MS);
+    expect(fetchMock()).toHaveBeenCalledTimes(3);
+    expect(result.current.connection).toBe('open');
+  });
+});
+
+it('caps the reconnect delay', () => {
+  expect(reconnectDelayMs(1)).toBe(RECONNECT_DELAY_MS);
+  expect(reconnectDelayMs(2)).toBe(2 * RECONNECT_DELAY_MS);
+  expect(reconnectDelayMs(20)).toBe(30_000);
 });

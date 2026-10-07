@@ -76,19 +76,6 @@ modules =
     co_scientist.science.meta_review
     co_scientist.science.supervisor
     co_scientist.science.safety_screen
-ignore_imports =
-    co_scientist.science.evolution.evolve_grounding -> co_scientist.science.reflection.deep_verification_evidence
-    co_scientist.science.evolution.evolve_prompt -> co_scientist.science.generation.assumptions
-    co_scientist.science.evolution.evolve_prompt -> co_scientist.science.proximity.proximity_graph
-    co_scientist.science.evolution.evolve_prompt -> co_scientist.science.reflection.review_gate
-    co_scientist.science.evolution.evolve_results -> co_scientist.science.generation.citations
-    co_scientist.science.evolution.operations -> co_scientist.science.generation.citations
-    co_scientist.science.generation.operations -> co_scientist.science.meta_review.research_overview
-    co_scientist.science.meta_review.meta_review -> co_scientist.science.reflection.review_gate
-    co_scientist.science.meta_review.meta_review -> co_scientist.science.safety_screen
-    co_scientist.science.ranking.ranking_debate -> co_scientist.science.reflection.review_gate
-    co_scientist.science.supervisor.orchestrator -> co_scientist.science.ranking.ranking_lifecycle
-    co_scientist.science.supervisor.orchestrator -> co_scientist.science.reflection.owed_review
 
 [importlinter:contract:fastapi]
 name = FastAPI only in api and main
@@ -191,11 +178,6 @@ forbidden_modules =
     sqlite3
 allow_indirect_imports = True
 ignore_imports =
-    co_scientist.api.logs_api -> sqlite3
-    app.main -> sqlite3
-    co_scientist.api.runs.crud -> sqlite3
-    co_scientist.api.runs.lifecycle -> sqlite3
-    co_scientist.api.runs.support -> sqlite3
     co_scientist.platform.telemetry.logs -> sqlite3
     co_scientist.platform.telemetry.retrieval_calls -> sqlite3
 
@@ -229,6 +211,7 @@ source_modules =
     co_scientist.platform.retrieval.degradation
     co_scientist.platform.retrieval.article
     co_scientist.domains.research_state.entity_names
+    co_scientist.domains.research_state.proximity_edges
     co_scientist.core.json_schema
     co_scientist.domains.safety.rules
     co_scientist.platform.sandbox

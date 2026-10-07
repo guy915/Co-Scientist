@@ -1,4 +1,4 @@
-import {Card} from '@/shared/ui';
+import {Card, ExternalLink} from '@/shared/ui';
 import type {
   AgentInsights,
   Hypothesis,
@@ -10,12 +10,7 @@ import type {
   RunWithSummary,
 } from '@/shared/api/runs';
 import {sortByEloDesc} from '@/shared/lib/hypotheses';
-import {
-  formatDurationPhrase,
-  isRecord,
-  readableText,
-  readableTextList,
-} from '@/shared/lib/text';
+import {isRecord, readableText, readableTextList} from '@/shared/lib/text';
 import {useMemo} from 'react';
 import {
   REPORT_H3_CLASSES,
@@ -24,6 +19,7 @@ import {
   REPORT_SECTION_CLASSES,
   ReportDocument,
 } from './run_detail_shell';
+import {formatDurationPhrase} from '@/shared/lib/time';
 
 // Keep an empty leaderboard's identity stable so it cannot invalidate
 // downstream memos on every render.
@@ -225,18 +221,15 @@ function ResearchContactsSection({
                 varies freely; "Supporting article" is this schema's own
                 fixed name for it -- always exactly one grounded paper
                 (source_title/source_url), never free citation prose. */}
-            {contact.source_url ? (
-              <a
-                className="text-th-primary underline"
-                href={contact.source_url}
-                rel="noreferrer"
-                target="_blank"
-              >
-                Supporting article: {readableText(contact.source_title)}
-              </a>
-            ) : (
-              <p>Supporting article: {readableText(contact.source_title)}</p>
-            )}
+            <ExternalLink
+              className="text-th-primary underline"
+              href={contact.source_url}
+              fallback={
+                <p>Supporting article: {readableText(contact.source_title)}</p>
+              }
+            >
+              Supporting article: {readableText(contact.source_title)}
+            </ExternalLink>
           </div>
         );
       })}

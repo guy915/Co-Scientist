@@ -13,6 +13,7 @@ import {
   RunSpecCard,
   StartedSessionCard,
 } from './chat_timeline_run_spec_card';
+import {runPath} from '@/shared/lib/routes';
 
 export interface TimelineItem {
   id: string;
@@ -358,7 +359,7 @@ function startedTimelineItems({
       node: (
         <StartedSessionCard
           session={startedSession}
-          href={`/runs/${startedSession.id}/details`}
+          href={runPath(startedSession.id, 'details')}
           onNewTopic={() => {
             // Leave the old chat route when clearing; otherwise history
             // rehydration immediately reattaches its started run.

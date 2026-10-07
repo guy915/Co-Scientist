@@ -9,6 +9,7 @@ import './styles/home_landing.css';
 import './styles/tooltips.css';
 import './shared/ui/motion.css';
 import {
+  installDiagnosticLogging,
   installUiErrorLogging,
   installUiInteractionLogging,
 } from '@/shared/lib/ui_logging';
@@ -23,6 +24,7 @@ import {
 // the browser console.
 installUiErrorLogging();
 installUiInteractionLogging();
+installDiagnosticLogging();
 
 // The SDK loads as its own chunk only when a DSN is built in, so the main
 // bundle and builds without one are unchanged.

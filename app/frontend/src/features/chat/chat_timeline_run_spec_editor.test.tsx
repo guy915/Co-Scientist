@@ -1,6 +1,6 @@
 import type {Interview} from '@/shared/api/runs';
 import {editInterviewFields} from '@/shared/api/runs';
-import {makeSpec} from '@/test_fixtures';
+import {makeSpec} from '@/shared/testing/fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {beforeEach, expect, test, vi} from 'vitest';
 import type {InferredRunSpec} from '@/shared/lib/run_spec';

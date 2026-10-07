@@ -384,7 +384,7 @@ function AnswerRow(props: AnswerRowProps) {
         onClick={onSelect}
       />
       <AnswerMarker multiSelect={multiSelect} selected={selected} />
-      <span className="flex min-w-0 flex-wrap items-baseline gap-x-[0.5rem]">
+      <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
         <strong className="min-w-0 text-base leading-[1.2] font-bold">
           {label}
         </strong>

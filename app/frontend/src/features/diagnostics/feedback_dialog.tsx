@@ -18,17 +18,17 @@ import {
   DIALOG_TITLE_CLASSES,
   Select,
   TextArea,
+  StatusText,
 } from '@/shared/ui';
 
 import {sessionDiagnosticExport} from './diagnostics';
+import {routeIds} from '@/shared/lib/routes';
 
 export function FeedbackControl({runId}: {runId?: string}) {
   const [open, setOpen] = useState(false);
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const {pathname} = useLocation();
-  const currentRunId =
-    runId ??
-    (pathname.startsWith('/runs/') ? pathname.split('/')[2] : undefined);
+  const currentRunId = runId ?? routeIds(pathname).runId;
   const close = () => setOpen(false);
   return (
     <>
@@ -156,11 +156,7 @@ function FeedbackForm({
           disabled={busy}
         />
       </label>
-      {error && (
-        <p className="ui-motion-enter" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <StatusText tone="danger">{error}</StatusText>}
       <div className="flex gap-3 [justify-content:end]">
         <Button variant="outlined" onClick={onClose}>
           Cancel

@@ -49,9 +49,7 @@ from co_scientist.science.prompts import (
     RankingSide,
     get_ranking_prompt,
 )
-from co_scientist.science.reflection.review_gate import (
-    mature_review_summary,
-)
+from co_scientist.science.review_summary import mature_review_summary
 from co_scientist.science.schemas.review import RANKING_COMPARISON_CRITERIA
 
 logger = logging.getLogger(__name__)

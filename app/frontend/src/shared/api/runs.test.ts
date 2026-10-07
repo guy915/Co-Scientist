@@ -1,4 +1,9 @@
-import {jsonResponse, errorResponse, fetchMock} from '@/http_test_support';
+import {
+  errorResponse,
+  fetchMock,
+  jsonResponse,
+  unreadableErrorResponse,
+} from '@/shared/api/testing';
 import {setStoredApiKey, setStoredModel} from '@/shared/lib/client_id';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
@@ -36,7 +41,7 @@ afterEach(() => {
 
 describe('runs api', () => {
   it('creates a run with a JSON body, the client id and an optional idempotency key', async () => {
-    fetchMock().mockResolvedValue(jsonResponse({id: 'r1'}));
+    fetchMock().mockImplementation(async () => jsonResponse({id: 'r1'}));
     const payload = {
       research_goal: 'g',
       interview_id: 'chat-1',
@@ -119,7 +124,9 @@ describe('runs api', () => {
   });
 
   it('reads one run and starts it with owner data', async () => {
-    fetchMock().mockResolvedValue(jsonResponse({id: 'r7', status: 'queued'}));
+    fetchMock().mockImplementation(async () =>
+      jsonResponse({id: 'r7', status: 'queued'}),
+    );
 
     await getRun('r7');
     await startRun('r7');
@@ -175,13 +182,7 @@ describe('error messages', () => {
     ['an empty body', errorResponse(500, ''), 'API unavailable'],
     [
       'statusText when the body cannot be read',
-      {
-        ok: false,
-        status: 502,
-        statusText: 'Bad Gateway',
-        json: async () => ({}),
-        text: () => Promise.reject(new Error('stream closed')),
-      } as unknown as Response,
+      unreadableErrorResponse(502, 'Bad Gateway'),
       '502 Bad Gateway',
     ],
     [

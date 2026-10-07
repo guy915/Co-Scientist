@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from typing import Any
 
 from fastapi import HTTPException
@@ -11,10 +10,11 @@ from co_scientist.core.exceptions import ContinuationAdmissionError
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import Connection
 from co_scientist.platform.db.models import RunRow, ScientificTask
 
 
-def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:
+def _run_or_404(run_id: str, conn: Connection | None = None) -> RunRow:
     run = runs.get_run(run_id, conn=conn)
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
