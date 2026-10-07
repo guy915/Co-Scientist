@@ -48,6 +48,7 @@ their risk are at the end with the reason.
 | F6 | #294 | Closed mobile drawer out of the tab order; one `main` landmark |
 | F8 | #298 | Re-download after an app-only deploy 161 → 79 KB gzip |
 | F10 | #311 | Light-mode muted text 4.10:1 → at least 4.5:1 on every surface it sits on |
+| F11 | #312 | Keyboard focus stops without a visible ring 10 → 3 (two textareas with a caret, one iframe) |
 | M1 | #243 | Benchmark retrieval enabled |
 | M10 | #302 | Searches against an unregistered MCP tool fail once: 135 wasted calls and about 118 s of backoff per Express run → 0 |
 
