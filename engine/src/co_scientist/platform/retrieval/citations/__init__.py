@@ -5,6 +5,7 @@ import datetime as dt
 import enum
 import functools
 import logging
+import re
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -304,14 +305,20 @@ class CitationRecord:
     available: bool = True
 
 
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
 @functools.lru_cache(maxsize=256)
 def _content_tokens(text: str) -> frozenset[str]:
     """Claims repeat across citations, so cache tokenization rather than repeat
     it per source.
     """
+    # Match words rather than splitting on whitespace: attached punctuation
+    # made a document that states the claim score lower than the same words
+    # written bare, which docs/OPERATIONS.md requires to reach the top band.
     # Drop short function words so grammatical overlap cannot inflate apparent
     # claim support.
-    return frozenset(t for t in text.lower().split() if len(t) > 3)
+    return frozenset(t for t in _WORD_RE.findall(text.lower()) if len(t) > 3)
 
 
 def _token_overlap(claim: str, abstract: str) -> float:
