@@ -61,6 +61,12 @@ def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:
 class Settings(BaseSettings):
     # App-operation physical-call caps remain separate from research budgets.
     app_llm_max_calls: int = Field(default=4, ge=1)
+    app_llm_client_calls_per_day: int = Field(default=64, ge=1)
+    app_llm_global_calls_per_day: int = Field(default=1024, ge=1)
+    app_llm_client_tokens_per_day: int = Field(default=2_000_000, ge=1)
+    app_llm_global_tokens_per_day: int = Field(default=32_000_000, ge=1)
+    app_llm_max_output_tokens: int = Field(default=32768, ge=1)
+    app_llm_max_input_bytes: int = Field(default=256_000, ge=1)
 
     # Production model choices are explicit hosting overrides; changing these
     # defaults alone does not change production.

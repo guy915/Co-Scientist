@@ -13,6 +13,7 @@ from co_scientist.patch import PatchError
 from co_scientist.sandbox import (
     SandboxKind,
     SandboxPolicy,
+    command_lifecycle_available,
     is_known_safe,
     sandbox_backend,
 )
@@ -196,12 +197,20 @@ async def _handle_run_command(context: "_ToolContext", args: dict[str, Any]) -> 
     argv = _require_argv(args)
     # Inject credentials only into recognized skill scripts, never arbitrary
     # network-capable model programs.
-    skill = invoked_skill(argv) if context.session.skills_enabled else None
+    skill = (
+        invoked_skill(
+            argv,
+            cwd=context.session.root,
+            writable_roots=context.session.policy.writable_roots,
+        )
+        if context.session.skills_enabled
+        else None
+    )
     if skill is not None:
         # Attribution is per data source; run_command alone cannot identify the
         # notice owed.
         record_skill_use(skill)
-    env_extra = skill_environment() if skill is not None else None
+    env_extra = skill_environment(skill) if skill is not None else None
     session = await context.session.sessions.start(
         argv,
         policy=context.session.policy,
@@ -270,7 +279,7 @@ _BACKEND_EXEMPT_KINDS = (SandboxKind.EXTERNAL, SandboxKind.DANGER_FULL_ACCESS)
 def can_run_commands(policy: SandboxPolicy) -> bool:
     if policy.kind in _BACKEND_EXEMPT_KINDS:
         return True
-    return sandbox_backend() is not None
+    return sandbox_backend() is not None and command_lifecycle_available()
 
 
 def workspace_tool_schemas(

@@ -322,3 +322,21 @@ query strings or payloads), modal opens, and engine-stage execution spans
 retain their existing WARNING level. Chat text and tool arguments/results are
 not added to these metadata records. Existing ten-minute duplicate suppression
 and the WARNING floor for per-call HTTP dependency chatter still apply.
+
+
+Conversational provider admission is separate from research-run budgets. Every
+operator-funded physical completion atomically reserves one call and a
+conservative input-byte plus maximum-output token allowance in SQLite. UTC-day
+client and global quotas survive process restarts and run/chat deletion; the
+global quota also covers rotated client IDs. Failed calls and interrupted
+streams retain their reservations because billing may be uncertain. Defaults
+are 64 calls and 2 million reserved tokens per client, and 1,024 calls and
+32 million tokens globally. Configure `APP_LLM_CLIENT_CALLS_PER_DAY`,
+`APP_LLM_GLOBAL_CALLS_PER_DAY`, `APP_LLM_CLIENT_TOKENS_PER_DAY`, and
+`APP_LLM_GLOBAL_TOKENS_PER_DAY`; all must be positive.
+`APP_LLM_MAX_OUTPUT_TOKENS` (32,768) and `APP_LLM_MAX_INPUT_BYTES` (256,000)
+bound a single request. These are provider-usage limits, not a dollar-price
+quote; operator model selection still determines the cost per token. BYOK
+calls retain the operation cap and use the caller's funding. Session-start
+announcements are claimed once per run; repeats replay the stored reply, or
+a deterministic confirmation if the original stream was interrupted.

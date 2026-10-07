@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import httpx
 
 import app.retraction_set as retraction_set
+from app.pinned_http import UnsafeUrlError, request_with_screened_redirects
 
 logger = logging.getLogger(__name__)
 
@@ -181,18 +182,16 @@ def _doi_url(doi: str) -> str:
 
 def _reachable(client: httpx.Client, url: str) -> bool:
     try:
-        response = client.head(url, follow_redirects=True)
-        if response.status_code in (403, 405):
-            # Some hosts reject HEAD; GET without reading the body still proves
-            # reachability.
-            response = client.get(url, follow_redirects=True)
+        response = request_with_screened_redirects(client, "HEAD", url)
         return response.status_code < 400
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, UnsafeUrlError, ValueError) as exc:
         logger.debug("dereference failed for %s: %s", url, exc)
         return False
 
 
 def _pmid_found(client: httpx.Client, pmid: str) -> bool:
+    if not pmid.isascii() or not pmid.isdecimal():
+        return False
     try:
         response = client.get(
             _PUBMED_ESUMMARY_URL,
@@ -211,7 +210,7 @@ def _resolve_with_client(
     client: httpx.Client | None, check: Callable[[httpx.Client], bool]
 ) -> Resolvability:
     owns_client = client is None
-    active = client or httpx.Client(timeout=_RESOLVE_TIMEOUT_SECONDS)
+    active = client or httpx.Client(timeout=_RESOLVE_TIMEOUT_SECONDS, trust_env=False)
     try:
         found = check(active)
     finally:

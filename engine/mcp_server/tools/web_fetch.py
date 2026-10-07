@@ -1,14 +1,13 @@
 import asyncio
 import io
-import ipaddress
 import logging
-import socket
 from typing import Any
 from urllib.parse import ParseResult, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 
+from mcp_server.safe_http import UnsafeUrlError, get_with_screened_redirects, validate_http_url
 from mcp_server.text_extraction import truncate_markdown
 
 logger = logging.getLogger(__name__)
@@ -22,41 +21,6 @@ _METADATA_HOSTS = frozenset({"169.254.169.254", "metadata.google.internal"})
 
 class UrlNotFetchableError(Exception):
     """Raised when a URL fails the safety screen."""
-
-
-def _resolved_addresses(
-    hostname: str,
-) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
-    """Resolve before screening ranges so aliases and encoded hosts cannot
-    bypass private-address guards.
-    """
-    try:
-        infos = socket.getaddrinfo(hostname, None)
-    except socket.gaierror as exc:
-        raise UrlNotFetchableError(f"hostname does not resolve: {hostname}") from exc
-    addresses = []
-    for info in infos:
-        raw = info[4][0]
-        try:
-            addresses.append(ipaddress.ip_address(raw))
-        except ValueError:
-            continue
-    if not addresses:
-        raise UrlNotFetchableError(f"hostname does not resolve: {hostname}")
-    return addresses
-
-
-def _is_blocked_address(
-    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
-) -> bool:
-    return (
-        address.is_loopback
-        or address.is_private
-        or address.is_link_local
-        or address.is_reserved
-        or address.is_multicast
-        or address.is_unspecified
-    )
 
 
 def _check_scheme(parsed: ParseResult) -> None:
@@ -76,18 +40,15 @@ def _check_not_metadata_host(hostname: str) -> None:
         raise UrlNotFetchableError(f"host not allowed: {hostname}")
 
 
-def _check_resolved_addresses(hostname: str) -> None:
-    for address in _resolved_addresses(hostname):
-        if _is_blocked_address(address):
-            raise UrlNotFetchableError(f"host resolves to a non-public address: {hostname}")
-
-
 def check_fetchable(url: str) -> None:
     parsed = urlparse(url)
     _check_scheme(parsed)
     hostname = _check_host_present(parsed)
     _check_not_metadata_host(hostname)
-    _check_resolved_addresses(hostname)
+    try:
+        validate_http_url(url)
+    except UnsafeUrlError as exc:
+        raise UrlNotFetchableError(f"{exc}: {hostname}") from exc
 
 
 _REQUEST_TIMEOUT = 30
@@ -180,19 +141,10 @@ async def _get_with_screened_redirects(client: httpx.AsyncClient, url: str) -> h
     """Automatic redirects would bypass target screening; recheck each hop
     manually.
     """
-    current = url
-    for _ in range(_MAX_REDIRECTS):
-        response = await client.get(current, follow_redirects=False)
-        if not response.is_redirect:
-            return response
-        location = response.headers.get("location")
-        if not location:
-            return response
-        current = str(httpx.URL(current).join(location))
-        # In a worker thread: the screen resolves DNS with blocking socket
-        # calls, which would stall every other in-flight tool call.
-        await asyncio.to_thread(check_fetchable, current)
-    raise UrlNotFetchableError(f"too many redirects from {url}")
+    try:
+        return await get_with_screened_redirects(client, url, max_redirects=_MAX_REDIRECTS)
+    except UnsafeUrlError as exc:
+        raise UrlNotFetchableError(str(exc)) from exc
 
 
 def _render_response(response: httpx.Response) -> str:
@@ -210,7 +162,9 @@ def _render_response(response: httpx.Response) -> str:
 async def _fetch_and_render(url: str) -> str:
     """The caller screens the initial URL; this path screens redirects."""
     headers: dict[str, Any] = {"User-Agent": _USER_AGENT}
-    async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, headers=headers) as client:
+    async with httpx.AsyncClient(
+        timeout=_REQUEST_TIMEOUT, headers=headers, trust_env=False
+    ) as client:
         response = await _get_with_screened_redirects(client, url)
         response.raise_for_status()
         # In a worker thread: BeautifulSoup/pypdf parsing is CPU-bound

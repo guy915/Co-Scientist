@@ -130,6 +130,21 @@ def persist_prompt(run_id: str, prompt: str) -> MessageRow:
     return message
 
 
+async def replay_announcement(run_id: str, prompt_id: int) -> AsyncGenerator[str, None]:
+    reply = next(
+        (
+            message
+            for message in store.list_messages(run_id)
+            if message.kind == START_KIND and message.sender == "system"
+        ),
+        None,
+    )
+    text = reply.content if reply else FALLBACK_ANNOUNCEMENT
+    fallback = bool((reply.meta or {}).get("fallback")) if reply else True
+    yield sse_frame({"type": "chunk", "content": text})
+    yield sse_frame({"type": "done", "prompt_id": prompt_id, "fallback": fallback})
+
+
 def _persist_announcement(run_id: str, text: str, reasoning: str, fallback: bool) -> None:
     """Keep reasoning with the durable reply so reopened chats reproduce the
     disclosure shown live.
