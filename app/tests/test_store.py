@@ -15,10 +15,10 @@ from co_scientist.domains.research_state.repository.records import (
     NewEvidence,
     NewReview,
 )
+from co_scientist.orchestration.repository import events as store_events
 from co_scientist.platform import db as store_db
 from co_scientist.platform.retrieval.citations import CitationState
 
-from app.store import events as store_events
 from tests._store_helpers import seed_run
 
 

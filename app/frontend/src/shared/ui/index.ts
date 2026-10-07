@@ -19,6 +19,8 @@ export {
   tabLinkClasses,
 } from './tabs';
 export {TextArea, TextField, fieldClasses} from './text_field';
+export {Toast} from './toast';
+export type {ToastPlacement, ToastTone} from './toast';
 export {Tooltip, tooltipClassNames, tooltipProps} from './tooltip';
 export type {TooltipPlacement} from './tooltip';
 export {EXIT_MS, presenceProps, usePresence} from './use_presence';

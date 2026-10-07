@@ -4,11 +4,12 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.checkpoint import (
+from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.orchestration.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
-from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.orchestration.workflow_topology import route_after_meta_review
 from co_scientist.science.meta_review.research_overview import is_interim_firing
 from co_scientist.science.scheduling import (
     Budget,
@@ -21,7 +22,6 @@ from co_scientist.science.scheduling import (
     validate_decision,
 )
 from co_scientist.science.scheduling.policy import stack_companions
-from co_scientist.workflow_topology import route_after_meta_review
 from tests._state import BUDGET, healthy_stats, make_state
 
 _G, _E = TaskType.GENERATE, TaskType.EVOLVE

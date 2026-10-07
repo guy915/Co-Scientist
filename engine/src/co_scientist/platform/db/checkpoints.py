@@ -5,8 +5,9 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.supervisor_plan import sync_supervisor_ledger_from_checkpoint
-
+from co_scientist.orchestration.repository.supervisor_plan import (
+    sync_supervisor_ledger_from_checkpoint,
+)
 from co_scientist.platform.db import checkpoint_wal, connect, current_time, use_conn
 
 

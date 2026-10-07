@@ -17,18 +17,18 @@ from co_scientist.domains.report import finalize as report_finalize
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
+from co_scientist.orchestration.engine_tasks import inputs as engine_tasks_inputs
+from co_scientist.orchestration.engine_tasks import node as engine_tasks_node
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs as store
+from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from fastapi import FastAPI
 from httpx import ASGITransport
 
-from app.engine_tasks import inputs as engine_tasks_inputs
-from app.engine_tasks import node as engine_tasks_node
-from app.engine_tasks import support as engine_tasks_support
-from app.store import events as store_events
-from app.store import runs as store
-from app.store import runs_views as views
-from app.store import tasks as store_tasks
 from tests._client import (
     DEFAULT_TEST_CLIENT_ID,
 )

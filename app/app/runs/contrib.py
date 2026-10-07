@@ -7,6 +7,7 @@ import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewEvidence
+from co_scientist.orchestration.repository import events as store
 from co_scientist.platform.db.models import ScientificTask
 from fastapi import (
     APIRouter,
@@ -22,7 +23,6 @@ from app.runs.models import (
     HumanAttachmentRequest,
 )
 from app.runs.support import _require_run, _steer_and_continue
-from app.store import events as store
 
 attachments_router = APIRouter()
 

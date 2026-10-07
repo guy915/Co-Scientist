@@ -6,9 +6,6 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
-from app.store import supervisor_plan as plans
-from app.store.supervisor_plan import NewSupervisorPlan
-
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.claims import EvidencePassage
 from co_scientist.domains.research_state.claims.grounding import (
@@ -43,6 +40,8 @@ from co_scientist.domains.safety.hypothesis.safety import (
     HypothesisSafetyOutcome,
     escalate_held_hypotheses,
 )
+from co_scientist.orchestration.repository import supervisor_plan as plans
+from co_scientist.orchestration.repository.supervisor_plan import NewSupervisorPlan
 from co_scientist.platform import db
 from co_scientist.platform.retrieval.citations import empty_citation_summary
 

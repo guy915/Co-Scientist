@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 import co_scientist.platform.retrieval.evidence as evidence
-from co_scientist.generator.initial_state import (
+from co_scientist.orchestration.generator.initial_state import (
     RunCapabilities,
     RunIdentity,
     _build_initial_state,
@@ -177,6 +177,25 @@ async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> N
     assert "HTTP 503" in errors[0]
 
 
+_AGENT_MODULES = (
+    *(
+        f"co_scientist.science.{agent}"
+        for agent in (
+            "generation",
+            "reflection",
+            "ranking",
+            "evolution",
+            "proximity",
+            "meta_review",
+            "supervisor",
+            "safety_screen",
+            "node_degradation",
+        )
+    ),
+    "co_scientist.orchestration.registry",
+)
+
+
 def test_shared_evidence_modules_do_not_import_agents() -> None:
     for path in Path(evidence.__file__).parent.glob("*.py"):
         tree = ast.parse(path.read_text())
@@ -187,4 +206,4 @@ def test_shared_evidence_modules_do_not_import_agents() -> None:
             if isinstance(node, ast.Import)
             for alias in node.names
         ]
-        assert not any(module.startswith("co_scientist.agents") for module in modules), path
+        assert not any(module.startswith(_AGENT_MODULES) for module in modules), path

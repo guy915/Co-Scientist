@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import get_args
 
 import pytest
+from co_scientist.orchestration.repository.events import ACTIVITY_VALUES
 
 from app.api_contracts.common import RunEventActivity
 from app.api_contracts.generate import (
@@ -15,7 +16,6 @@ from app.api_contracts.generate import (
     contracts,
     generated_files,
 )
-from app.store.events import ACTIVITY_VALUES
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
 _ENGINE_DIR = Path(__file__).resolve().parents[2] / "engine/src/co_scientist"

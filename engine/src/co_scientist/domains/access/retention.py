@@ -4,10 +4,9 @@ import logging
 import os
 import time
 
-from app.store import runs as store_runs
-from app.store import runs_views as views
-
 from co_scientist.domains.documents import repository as store
+from co_scientist.orchestration.repository import runs as store_runs
+from co_scientist.orchestration.repository import runs_views as views
 
 logger = logging.getLogger(__name__)
 
