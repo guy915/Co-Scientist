@@ -28,7 +28,7 @@ agents; `task_runtime.execute_task_node` commits one node at a time.
 | Orchestrator (per-cycle routing) | `agents/supervisor/orchestrator.py` |
 | Literature Review (MCP-gated) | `agents/generation/literature_review/` (agent planning, analysis and synthesis); shared retrieval in `evidence/` |
 | Generate | `agents/generation/generate.py` (+ `operations.py`, `debate.py`, `reviews.py`, `literature_tools/`) |
-| Reflection | `agents/reflection/reflection.py`, `reflection_helpers.py` |
+| Reflection | `agents/reflection/reflection.py` |
 | Review | `agents/reflection/review.py` |
 | Comprehensive Reflection | `agents/reflection/comprehensive_reflection.py` |
 | Deep Verification (probing questions) | `agents/reflection/deep_verification.py` |
