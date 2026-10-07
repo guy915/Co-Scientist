@@ -374,9 +374,17 @@ export function getInterview(interviewId: string): Promise<Interview> {
   });
 }
 
+// The request's lab_constraints is optional (the server defaults it), unlike the
+// response's.
+export type InterviewFieldsEdit = Omit<
+  Interview['fields'],
+  'title' | 'lab_constraints'
+> &
+  Partial<Pick<Interview['fields'], 'lab_constraints'>>;
+
 export function editInterviewFields(
   interviewId: string,
-  fields: Omit<Interview['fields'], 'title'>,
+  fields: InterviewFieldsEdit,
 ): Promise<Interview> {
   return fetchJson(`/api/interviews/${interviewId}/fields`, {
     ...jsonRequest(fields, true),
