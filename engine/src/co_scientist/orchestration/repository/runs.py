@@ -10,6 +10,7 @@ from typing import Any
 from co_scientist.orchestration.repository.runs_views import _ACTIVE_RUN_STATUSES
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.admission import capacity_available
+from co_scientist.platform.db.logs import count_logs_for_run, delete_logs_for_run
 from co_scientist.platform.db.models import (
     DEMO_CLIENT_ID,
     TERMINAL_STATUSES,
@@ -17,7 +18,6 @@ from co_scientist.platform.db.models import (
     RunStatus,
     row_to_run,
 )
-from co_scientist.platform.telemetry.logs import count_logs_for_run, delete_logs_for_run
 
 logger = logging.getLogger(__name__)
 

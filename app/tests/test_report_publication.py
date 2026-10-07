@@ -21,8 +21,8 @@ from co_scientist.orchestration.repository import events as store_events
 from co_scientist.orchestration.repository import runs, tasks
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import retrieval_calls as retrieval
 from co_scientist.platform.db.models import RunStatus
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 from tests._client import create_run as _create_run
 from tests._client import make_client

@@ -18,7 +18,7 @@ def test_durable_artifact_retains_requested_and_observed_models(
 ) -> None:
     from co_scientist.orchestration.repository import runs
     from co_scientist.orchestration.repository.runs import RunCreateOptions
-    from co_scientist.platform.telemetry import retrieval_calls as store
+    from co_scientist.platform.db import retrieval_calls as store
 
     db = str(tmp_path / "metrics.db")
     run = runs.create_run(

@@ -27,14 +27,10 @@ from co_scientist.orchestration.repository import runs, tasks
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
+from co_scientist.platform.db.log_capture import configure_log_capture, shutdown_log_capture
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.telemetry.error_tracking import init_error_tracking
-from co_scientist.platform.telemetry.logging_setup import (
-    configure_log_capture,
-    configure_logging,
-    level_to_number,
-    shutdown_log_capture,
-)
+from co_scientist.platform.telemetry.logging_setup import configure_logging, level_to_number
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware

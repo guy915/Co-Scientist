@@ -613,7 +613,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_run_status
 
 -- One search: one query, against one source, serving one question. Written
 -- by the deep-research capability (co_scientist.platform.retrieval.research) through
--- co_scientist.platform.telemetry.retrieval_calls, after the network work returns -- never across
+-- co_scientist.platform.db.retrieval_calls, after the network work returns -- never across
 -- it, since a transaction spanning outbound I/O freezes every other writer
 -- for its duration (see the store gotchas in AGENTS.md).
 CREATE TABLE IF NOT EXISTS retrieval_calls (
@@ -700,7 +700,7 @@ CREATE INDEX IF NOT EXISTS idx_feedback_admission_host
     ON feedback_admissions(host_key, created_at);
 
 -- Persisted application log records captured from the Python root logger
--- (see app/logging_setup.py). App-wide: run_id is NULL for records emitted
+-- (see platform/db/log_capture.py). App-wide: run_id is NULL for records emitted
 -- outside any run context. Deliberately no FK to runs -- log history
 -- survives run deletion. Retention is enforced by store.prune_logs.
 CREATE TABLE IF NOT EXISTS app_logs (
