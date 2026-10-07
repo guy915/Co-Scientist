@@ -24,6 +24,41 @@ const stylisticRules = tseslint.configs.stylistic.filter(
   config => config.name !== 'typescript-eslint/base',
 );
 
+const HEX_COLOR = String.raw`/#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/`;
+const FUNCTION_COLOR = String.raw`/\b(rgba?|hsla?)\(/`;
+const ARBITRARY_RADIUS = String.raw`/rounded(-[a-z]{1,2})?-\[|border-radius:/`;
+
+function uiBuildingBlockRules() {
+  const inText = (pattern, message) => [
+    {selector: `Literal[value=${pattern}]`, message},
+    {selector: `TemplateElement[value.raw=${pattern}]`, message},
+  ];
+  return [
+    {
+      selector: "JSXOpeningElement[name.name='button']",
+      message:
+        'Use Button, IconButton or another control from @/shared/ui instead of a raw <button>.',
+    },
+    ...inText(
+      HEX_COLOR,
+      'Use a theme token instead of a hex colour (styles/tokens.css).',
+    ),
+    ...inText(
+      FUNCTION_COLOR,
+      'Use a theme token instead of an rgb()/hsl() colour (styles/tokens.css).',
+    ),
+    ...inText(
+      ARBITRARY_RADIUS,
+      'Use a radius from the scale or a named radius token instead of an arbitrary radius.',
+    ),
+    {
+      selector: "Property[key.name='borderRadius']",
+      message:
+        'Use a radius from the scale or a named radius token instead of an inline radius.',
+    },
+  ];
+}
+
 module.exports = defineConfig([
   {
     ignores: [
@@ -41,6 +76,21 @@ module.exports = defineConfig([
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     extends: [...strictRules, ...stylisticRules],
+  },
+  // Shape, colour and focus belong to src/shared/ui (app/AGENTS.md, "UI
+  // building blocks"). Screens compose those components and theme tokens.
+  {
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
+    ignores: [
+      'src/shared/ui/**',
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      // Derives the Material palette tokens at runtime.
+      'src/workbench/md3_scheme.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': ['error', ...uiBuildingBlockRules()],
+    },
   },
   // Test null assertions fail clearly; empty functions are intentional mocks.
   // Configure these once rather than requiring disables at every test call.

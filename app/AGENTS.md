@@ -136,12 +136,15 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 | Icon-only action | `IconButton`, always round: `ghost`, or `elevated` for a control floating over content. Sizes `xs` (24px, inside code blocks), `sm` (32px), `md` (40px). `label` is required and becomes the tooltip unless `tooltip` overrides it (`null` when a visible label already names it). |
 | Modal | `Dialog` (`md` for a form, `lg` for Settings). It portals, traps focus, makes the background inert, closes on Escape and the scrim, and restores focus. |
 | Popup list | `Menu` + `MenuItem` (`item`, `radio`, `checkbox`). Outside press and Escape dismiss it; arrow keys, Home and End move focus. |
-| One value in place | `SegmentedControl` (pressed buttons with a sliding thumb). |
+| One value in place | `SegmentedControl` (pressed buttons with a sliding thumb; `md` in the shell, `lg` on the landing). `SectionNav` switches the sections of one surface (Settings). |
 | Route sections | `TabNav` + `TabNavLink` (`underline` for report sections, `pill` for the session switch): real links with `aria-current="page"`. |
 | Hint | `tooltip` on `Button` / `IconButton`; `Tooltip` for non-interactive content. Never native `title`. |
 | Label or status | `Chip`: `tonal` or `outlined`, tone `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs`, `sm`, `md`. |
 | Text input | `TextField` / `TextArea`: `outlined`, or `bare` inside a surface that already draws the box (composer, bubble editor). |
-| Grouping surface | `Card`: `block` (data blocks and notices, `rounded-md`) or `panel` (control groups, `rounded-2xl`). Tones `neutral`, `raised`, `warning`, `danger`. |
+| Grouping surface | `Card`: `block` (notices, `rounded-md`), `tile` (stats and summaries) or `panel` (control groups and side rails, `rounded-2xl`). Tones `neutral`, `raised`, `warning`, `danger`; `outlined` adds the hairline. `CardButton` is a card that is one action as a whole (home suggestions). |
+| Rail destination | `NavItemButton` / `NavItemLink`: a round icon on the collapsed rail, an icon and label row when the rail is open and in the phone drawer. |
+
+**Enforced:** `bun run lint` (and `make lint`) rejects a raw `<button>`, a hex, `rgb()` or `hsl()` colour, and an arbitrary radius (`rounded-[…]`, `border-radius:`, inline `borderRadius`) anywhere outside `src/shared/ui/`, tests and `md3_scheme.ts`. Radii come from the Tailwind scale or a named radius in `index.css` (`rounded-bubble`, `rounded-workspace`, `rounded-tile`, `rounded-5xl`); colours come from tokens.
 
 Colours come from component tokens in `styles/tokens.css` (`--button-*`, `--icon-button-*`, `--chip-*`, `--segmented-*`, `--tab-pill-*`, `--field-*`). These tokens default to the shell palette. A surface with its own palette re-points them in its own scope, as the landing page does, instead of styling call sites.
 
