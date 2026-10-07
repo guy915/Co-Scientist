@@ -1,4 +1,4 @@
-import type {HTMLAttributes, MouseEventHandler, ReactNode} from 'react';
+import type {HTMLAttributes, ReactNode} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from './cx';
 import {tooltipClassNames, type TooltipPlacement} from './tooltip';
@@ -111,47 +111,5 @@ export function Chip({
       )}
       {children}
     </span>
-  );
-}
-
-const PRESSED_CLASSES: Record<ChipTone, string> = {
-  neutral: 'aria-pressed:border-chip-neutral-fg',
-  info: 'aria-pressed:border-chip-info-fg',
-  success: 'aria-pressed:border-chip-success-fg',
-  accent: 'aria-pressed:border-chip-accent-fg',
-  warning: 'aria-pressed:border-chip-warning-fg',
-  danger: 'aria-pressed:border-chip-danger-fg',
-};
-
-// A tonal chip that toggles (the landing diagram's agents). It fills its cell
-// and takes the surrounding type, and its pressed ring fades in.
-export function ChipButton({
-  tone = 'neutral',
-  pressed,
-  onClick,
-  layoutClassName,
-  children,
-}: {
-  tone?: ChipTone;
-  pressed: boolean;
-  onClick: MouseEventHandler<HTMLButtonElement>;
-  layoutClassName?: string;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      className={joinClasses(
-        'inline-flex cursor-pointer items-center rounded-full border-2 border-transparent px-3.5 py-2.5 text-start [font:inherit]',
-        'transition-[border-color] duration-long ease-standard',
-        TONAL_CLASSES[tone],
-        PRESSED_CLASSES[tone],
-        layoutClassName,
-      )}
-      onClick={onClick}
-    >
-      {children}
-    </button>
   );
 }

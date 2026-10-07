@@ -4,7 +4,7 @@ export {Button, buttonClasses, buttonIconClasses} from './button';
 export type {ButtonSize, ButtonVariant} from './button';
 export {Card, CardButton, cardClasses} from './card';
 export type {CardSize, CardTone} from './card';
-export {Chip, ChipButton, chipClasses, chipIconClasses} from './chip';
+export {Chip, chipClasses, chipIconClasses} from './chip';
 export type {ChipSize, ChipTone, ChipVariant} from './chip';
 export {joinClasses} from './cx';
 export {DIALOG_TITLE_CLASSES, Dialog} from './dialog';
