@@ -55,10 +55,10 @@ const HOME_TITLE_CLASSES =
   'phone:m-0 phone:w-full phone:text-[clamp(1.85rem,7.6vw,2.35rem)] phone:leading-[1.16]';
 
 const HOME_LOGO_CLASSES =
-  'm-[auto_auto_1rem] block h-auto w-[2.5rem] self-center text-(--cosci-accent) [&_path]:fill-current [&_path]:stroke-current';
+  'm-[auto_auto_1rem] block h-auto w-[2.5rem] self-center text-cosci-accent [&_path]:fill-current [&_path]:stroke-current';
 
 const STEP_TIMELINE_CLASSES =
-  "relative m-[clamp(3.7rem,8.5vh,5.2rem)_0_0] grid list-none grid-cols-3 gap-[3.9rem] p-0 before:absolute before:top-4 before:right-4 before:left-4 before:h-px before:bg-(--cosci-step-line) before:content-[''] " +
+  "relative m-[clamp(3.7rem,8.5vh,5.2rem)_0_0] grid list-none grid-cols-3 gap-[3.9rem] p-0 before:absolute before:top-4 before:right-4 before:left-4 before:h-px before:bg-cosci-step-line before:content-[''] " +
   'above-phone:row-3 desktop:row-4 desktop:mt-0 desktop:gap-x-0 ' +
   'tablet:mt-[clamp(2.75rem,6vh,4rem)] tablet:gap-0 ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:mt-[clamp(2.35rem,5.8vh,3.2rem)]';
@@ -67,7 +67,7 @@ const STEP_ITEM_CLASSES =
   'relative z-1 grid gap-4 desktop:w-[min(100%,15.8rem)] tablet:w-[min(100%,14rem)] tablet:grid-cols-[1fr] tablet:gap-[0.85rem]';
 
 const STEP_NUMBER_CLASSES =
-  'grid size-[1.875rem] place-items-center rounded-full bg-(--cosci-accent) text-[1rem] font-normal text-(--cosci-accent-fg) [transition:background-color_0.3s_ease-in-out]';
+  'grid size-[1.875rem] place-items-center rounded-full bg-cosci-accent text-[1rem] font-normal text-cosci-accent-fg [transition:background-color_0.3s_ease-in-out]';
 
 const STEP_BODY_CLASSES =
   'mt-1 max-w-[16rem] text-[0.875rem] leading-[1.43] text-cosci-fg [@media(min-width:1181px)_and_(max-height:760px)]:text-[0.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:leading-[1.28]';
@@ -449,7 +449,7 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 // Its transition stays in home_surface.css: the global unlayered `a` rule
 // would beat a utility.
 const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card hover:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) desktop:min-h-0 desktop:border-transparent';
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-cosci-suggestion-bg bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card hover:bg-cosci-recent-card-hover-bg focus-visible:bg-cosci-recent-card-hover-bg desktop:min-h-0 desktop:border-transparent';
 
 interface HomeRecentsPanelProps {
   runs: Run[];
@@ -491,7 +491,7 @@ export function HomeRecentsPanel({
             <div className="box-border grid h-full min-h-[25rem] w-full place-items-center content-center gap-4 rounded-3xl border-[1.5px] border-dashed border-cosci-border p-6 text-center text-cosci-muted">
               <GoogleLabsIcon
                 aria-hidden="true"
-                className="block h-[1.95rem] w-[2.1rem] text-(--cosci-accent)"
+                className="block h-[1.95rem] w-[2.1rem] text-cosci-accent"
               />
               <strong className="max-w-[17rem] text-[1rem] leading-[1.35] font-[650] text-inherit">
                 You have not started any sessions yet.

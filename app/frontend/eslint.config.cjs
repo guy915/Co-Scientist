@@ -27,6 +27,7 @@ const stylisticRules = tseslint.configs.stylistic.filter(
 const HEX_COLOR = String.raw`/#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/`;
 const FUNCTION_COLOR = String.raw`/\b(rgba?|hsla?)\(/`;
 const ARBITRARY_RADIUS = String.raw`/rounded(-[a-z]{1,2})?-\[|border-radius:/`;
+const ARBITRARY_TOKEN = String.raw`/\b[a-z]+-\(--cosci-/`;
 const DESTRUCTIVE_RED = String.raw`/\bth-destructive\b/`;
 const ARBITRARY_Z = String.raw`/(^|[\s:])-?z-\[/`;
 const ARBITRARY_HOVER = String.raw`/\[&:hover\]/`;
@@ -54,6 +55,10 @@ function uiBuildingBlockRules() {
     ...inText(
       ARBITRARY_RADIUS,
       'Use a radius from the scale or a named radius token instead of an arbitrary radius.',
+    ),
+    ...inText(
+      ARBITRARY_TOKEN,
+      'Use the named utility (bg-cosci-*, text-cosci-*; bridged in index.css) instead of an arbitrary token reference.',
     ),
     ...inText(
       DESTRUCTIVE_RED,

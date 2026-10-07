@@ -73,8 +73,7 @@ const CARD_BUTTON_CLASSES =
   'hover:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
   'phone:rounded-full phone:[border:0] phone:hover:[border-color:transparent] phone:focus-visible:[border-color:transparent]';
 
-const CARD_BUTTON_REST_CLASSES =
-  'bg-(--cosci-suggestion-bg) phone:bg-transparent';
+const CARD_BUTTON_REST_CLASSES = 'bg-cosci-suggestion-bg phone:bg-transparent';
 
 const CARD_BUTTON_HIGHLIGHTED_CLASSES =
   'bg-cosci-hover phone:[&&]:[border-color:transparent]';

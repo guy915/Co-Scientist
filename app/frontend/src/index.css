@@ -245,6 +245,10 @@
   --color-cosci-toggle-off-track: var(--cosci-toggle-off-track);
   --color-cosci-toggle-off-knob: var(--cosci-option-marker);
   --color-cosci-accent: var(--cosci-accent);
+  --color-cosci-accent-fg: var(--cosci-accent-fg);
+  --color-cosci-recent-card-hover-bg: var(--cosci-recent-card-hover-bg);
+  --color-cosci-suggestion-bg: var(--cosci-suggestion-bg);
+  --color-cosci-step-line: var(--cosci-step-line);
   --color-cosci-logs-accent-bg: var(--cosci-accent);
   --color-cosci-logs-accent-fg: var(--cosci-accent-fg);
   --color-cosci-recent-meta-bg: var(--cosci-menu-row-hover);
