@@ -17,7 +17,7 @@ import {
 } from '@/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
-import type {StartedSession} from '../pages/chat_timeline_run_spec_card';
+import type {StartedSession} from './chat_timeline_run_spec_card';
 import {announceChatsChanged} from '@/shared/hooks/history_context';
 import {
   type ExecuteStartDeps,
