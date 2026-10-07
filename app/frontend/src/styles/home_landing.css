@@ -156,6 +156,12 @@ html:has(.ucs-landing) body {
   --button-outlined-hover: var(--l-surface);
   --button-tonal-bg: var(--l-o-teal);
   --button-tonal-fg: var(--l-c-teal);
+  --segmented-track: var(--l-surface);
+  --segmented-border: transparent;
+  --segmented-thumb: var(--l-ink);
+  --segmented-fg: var(--l-muted);
+  --segmented-selected-fg: var(--l-bg);
+  --segmented-hover: var(--l-surface);
   --button-tonal-hover: color-mix(
     in srgb,
     var(--l-o-teal) 86%,
@@ -233,10 +239,9 @@ html:has(.ucs-landing) body {
   background: transparent;
 }
 
-/* The global unlayered `a` and `button` transition rules would beat a utility. */
-.ucs-landing-rail a,
-.ucs-landing-seg button {
-  transition: color 0.25s;
+/* Rail links keep a slower colour change than the shared control default. */
+.ucs-landing-rail a {
+  transition: color var(--motion-duration-long) var(--motion-ease-standard);
 }
 
 .ucs-landing-diagram {

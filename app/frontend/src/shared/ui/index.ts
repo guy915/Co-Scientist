@@ -10,7 +10,13 @@ export {joinClasses} from './cx';
 export {DIALOG_TITLE_CLASSES, Dialog} from './dialog';
 export {IconButton, iconButtonClasses} from './icon_button';
 export {MENU_ITEM_CLASSES, Menu, MenuItem, SelectTrigger} from './menu';
-export {SegmentedControl, TabNav, TabNavLink, tabLinkClasses} from './tabs';
+export {
+  SectionNav,
+  SegmentedControl,
+  TabNav,
+  TabNavLink,
+  tabLinkClasses,
+} from './tabs';
 export {TextArea, TextField, fieldClasses} from './text_field';
 export {Tooltip, tooltipClassNames, tooltipProps} from './tooltip';
 export type {TooltipPlacement} from './tooltip';
