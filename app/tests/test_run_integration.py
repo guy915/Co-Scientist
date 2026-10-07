@@ -392,8 +392,8 @@ def test_mid_run_steering_survives_a_crash_and_applies_once(
 
 
 def _fail_one_judged_matchup(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
-    import co_scientist.agents.ranking.operations as ranking_module
-    from co_scientist.agents.ranking.ranking_debate import judge_matchup as real
+    import co_scientist.science.ranking.operations as ranking_module
+    from co_scientist.science.ranking.ranking_debate import judge_matchup as real
 
     box = {"calls": 0, "failed": 0}
 

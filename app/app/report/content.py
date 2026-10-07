@@ -3,15 +3,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from co_scientist.agents.reflection.reflection_helpers import (
-    extract_entity_names,
-)
 from co_scientist.domains.documents.evidence_chunking import parent_evidence_id
 from co_scientist.domains.research_state.claims.gate import ClaimEdge, EntailmentLabel
 from co_scientist.domains.research_state.text_utils import (
     hypothesis_statement,
     hypothesis_title,
     readable_experiment_summary,
+)
+from co_scientist.science.reflection.reflection_helpers import (
+    extract_entity_names,
 )
 
 from app.hypothesis.safety import is_blocking_status

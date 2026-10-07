@@ -29,8 +29,8 @@ from co_scientist.platform.retrieval.evidence.search_support import (
     normalize_search_response,
 )
 from co_scientist.platform.retrieval.mcp_client import MCPToolClient
-from co_scientist.prompts import load_prompt_with_schema
-from co_scientist.research import (
+from co_scientist.science.prompts import load_prompt_with_schema
+from co_scientist.science.research import (
     Document,
     ExtractedFinding,
     Extraction,

@@ -60,10 +60,10 @@ def _apply_one_reflection_item(
     review: dict[str, Any],
     current_iteration: int,
 ) -> None:
-    from co_scientist.agents.reflection.reflection import (
+    from co_scientist.science.reflection.reflection import (
         apply_observation_result,
     )
-    from co_scientist.agents.reflection.review_gate import (
+    from co_scientist.science.reflection.review_gate import (
         ReviewType,
         store_mature_review_result,
     )
@@ -82,7 +82,7 @@ def _mark_recheck_item(by_id: dict[str, Any], item: Any) -> None:
     """A failed item still spends its one recheck, preventing repeated waves
     against the same failure.
     """
-    from co_scientist.agents.reflection.review_gate import mark_recheck_issued
+    from co_scientist.science.reflection.review_gate import mark_recheck_issued
 
     if not item.inputs.get("recheck"):
         return
@@ -97,7 +97,7 @@ def _apply_mature_reflection_items(
     current_iteration: int,
     db_path: str | None,
 ) -> _AppliedItems:
-    from co_scientist.agents.reflection.review_gate import ReviewType
+    from co_scientist.science.reflection.review_gate import ReviewType
 
     successful = 0
     failed = 0
@@ -142,13 +142,13 @@ def _mature_reflection_update(
     state: dict[str, Any],
     items: _AppliedItems,
 ) -> dict[str, Any]:
-    from co_scientist.agents.reflection.deep_verification import (
-        merge_retrieved_articles,
-    )
     from co_scientist.domains.research_state.models import (
         MetricDeltas,
         create_metrics_update,
         phase_message,
+    )
+    from co_scientist.science.reflection.deep_verification import (
+        merge_retrieved_articles,
     )
 
     state["articles"] = merge_retrieved_articles(
@@ -204,7 +204,7 @@ async def execute_mature_reflection_aggregate(
 
 
 def _mark_failed_item_unverified(by_id: dict[str, Any], item: Any) -> None:
-    from co_scientist.agents.reflection.deep_verification import (
+    from co_scientist.science.reflection.deep_verification import (
         mark_hypothesis_unverified,
     )
 
@@ -217,7 +217,7 @@ def _mark_verification_item(by_id: dict[str, Any], item: Any) -> None:
     """Failed verification still spends its issuance; otherwise recovery can
     repeat an unbounded failing wave.
     """
-    from co_scientist.agents.reflection.deep_verification import (
+    from co_scientist.science.reflection.deep_verification import (
         mark_verification_issued,
     )
 
@@ -234,7 +234,7 @@ def _completed_verification(item: Any) -> dict[str, Any] | None:
 
 
 def _record_verification(hypothesis: Any, verification: dict[str, Any], model_name: str) -> None:
-    from co_scientist.agents.reflection.deep_verification import (
+    from co_scientist.science.reflection.deep_verification import (
         verification_fingerprint,
     )
 
@@ -250,7 +250,7 @@ def _apply_verification_items(
     db_path: str | None,
     model_name: str,
 ) -> _AppliedItems:
-    from co_scientist.agents.reflection import has_valid_verification
+    from co_scientist.science.reflection import has_valid_verification
 
     successful = failed = llm_calls = 0
     verification_results: list[dict[str, Any]] = []
@@ -284,13 +284,13 @@ def _verification_aggregate_update(
     state: dict[str, Any],
     items: _AppliedItems,
 ) -> dict[str, Any]:
-    from co_scientist.agents.reflection.deep_verification import (
-        merge_retrieved_articles,
-    )
     from co_scientist.domains.research_state.models import (
         MetricDeltas,
         create_metrics_update,
         phase_message,
+    )
+    from co_scientist.science.reflection.deep_verification import (
+        merge_retrieved_articles,
     )
 
     state["articles"] = merge_retrieved_articles(
@@ -384,11 +384,11 @@ def _apply_review_items(
     db_path: str | None,
     criteria: list[str] | None = None,
 ) -> tuple[int, int, dict[str, dict[str, Any]]]:
-    from co_scientist.agents.reflection import apply_initial_review_gate
-    from co_scientist.agents.reflection.review_gate import (
+    from co_scientist.domains.research_state.models import HypothesisReview
+    from co_scientist.science.reflection import apply_initial_review_gate
+    from co_scientist.science.reflection.review_gate import (
         refresh_review_dispositions,
     )
-    from co_scientist.domains.research_state.models import HypothesisReview
 
     successful = 0
     failed = 0
@@ -527,12 +527,12 @@ async def _generation_aggregate_update(
     state: dict[str, Any],
     items: _GenerationItems,
 ) -> dict[str, Any]:
-    from co_scientist.agents.generation import (
+    from co_scientist.domains.research_state.models import MetricDeltas, create_metrics_update
+    from co_scientist.science.generation import (
         GenerationCounts,
         GenerationResults,
         finalize_generation,
     )
-    from co_scientist.domains.research_state.models import MetricDeltas, create_metrics_update
 
     buckets = items.buckets
     update: dict[str, Any] = await finalize_generation(

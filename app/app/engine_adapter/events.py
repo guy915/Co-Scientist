@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from co_scientist.agents.proximity.proximity_graph import is_judged_edge
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
+from co_scientist.science.proximity.proximity_graph import is_judged_edge
 
 from app.run_events import hypothesis_stub
 

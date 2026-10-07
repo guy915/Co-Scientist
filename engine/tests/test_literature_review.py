@@ -4,9 +4,6 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation.literature_review import (
-    literature_review_node,
-)
 from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
 )
@@ -16,6 +13,9 @@ from co_scientist.platform.retrieval.evidence import (
     relevance,
     search,
     search_support,
+)
+from co_scientist.science.generation.literature_review import (
+    literature_review_node,
 )
 from tests._llm_fake import install_fake_llm
 from tests._research_fakes import (

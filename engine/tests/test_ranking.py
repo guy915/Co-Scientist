@@ -4,14 +4,14 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.ranking import (
+from co_scientist.domains.research_state.models import ExecutionMetrics, Hypothesis
+from co_scientist.science.ranking import (
     ranking_debate,
     remaining_ranking_rounds,
 )
-from co_scientist.agents.ranking.ranking import (
+from co_scientist.science.ranking.ranking import (
     ranking_node,
 )
-from co_scientist.domains.research_state.models import ExecutionMetrics, Hypothesis
 from tests._llm_fake import stub_call_llm_json
 from tests._state import (
     make_hypothesis,
@@ -77,10 +77,10 @@ async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
 
 def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
     """Gated ideas can never settle match debt."""
-    from co_scientist.agents.ranking.ranking_lifecycle import (
+    from co_scientist.domains.research_state.models import ExecutionMetrics
+    from co_scientist.science.ranking.ranking_lifecycle import (
         _tournament_round_count,
     )
-    from co_scientist.domains.research_state.models import ExecutionMetrics
 
     hypotheses = [
         _hyp(text="played", win_count=1, loss_count=1),
@@ -100,10 +100,10 @@ async def test_budget_is_charged_for_matches_judged_not_rounds_offered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A distinct-pair ceiling can leave offered rounds unused."""
-    from co_scientist.agents.ranking.ranking_lifecycle import (
+    from co_scientist.domains.research_state.models import merge_metrics
+    from co_scientist.science.ranking.ranking_lifecycle import (
         _tournament_round_count,
     )
-    from co_scientist.domains.research_state.models import merge_metrics
 
     hypotheses = [_hyp(text=f"pool {i} TXT") for i in range(3)]
 

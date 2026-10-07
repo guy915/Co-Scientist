@@ -214,7 +214,7 @@ def _seed_ranking_node(
 
 
 def _install_plain_fake_judge(monkeypatch: pytest.MonkeyPatch) -> None:
-    import co_scientist.agents.ranking.operations as ranking_module
+    import co_scientist.science.ranking.operations as ranking_module
 
     async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
         return "a", {

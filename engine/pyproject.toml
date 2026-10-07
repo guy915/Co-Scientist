@@ -61,7 +61,7 @@ include = ["co_scientist*"]
 
 [tool.setuptools.package-data]
 co_scientist = [
-    "prompts/templates/*.md",
+    "science/prompts/templates/*.md",
     "platform/retrieval/config/*.yaml",
     "domains/chat/data/*.gz",
     "platform/retrieval/data/*.gz",

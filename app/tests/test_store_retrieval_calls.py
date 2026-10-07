@@ -9,7 +9,7 @@ import pytest
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewEvidence
 from co_scientist.platform.telemetry import retrieval_calls as store
-from co_scientist.research import (
+from co_scientist.science.research import (
     CallStatus,
     Question,
     ResearchResult,

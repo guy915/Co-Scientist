@@ -10,7 +10,7 @@ from co_scientist.domains.research_state.repository.hypotheses import NewHypothe
 from co_scientist.domains.research_state.repository.records import NewClaimEvidence, NewReview
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.telemetry import retrieval_calls as retrieval
-from co_scientist.research import (
+from co_scientist.science.research import (
     CallStatus,
     Finding,
     Question,

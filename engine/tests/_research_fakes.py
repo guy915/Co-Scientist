@@ -8,23 +8,23 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.agents.generation.literature_review import node as lr
-from co_scientist.agents.generation.literature_review import (
-    queries as lr_queries,
-)
-from co_scientist.agents.generation.literature_review import (
-    synthesis as lr_analysis,
-)
-from co_scientist.agents.generation.literature_review import (
-    synthesis as lr_synthesis,
-)
 from co_scientist.platform.retrieval.config import SearchSourceConfig, WorkflowConfig
 from co_scientist.platform.retrieval.config.registry import ToolRegistry
 from co_scientist.platform.retrieval.config.schema import ToolConfig
 from co_scientist.platform.retrieval.evidence import search
 from co_scientist.platform.retrieval.evidence.search_support import SearchConfig
 from co_scientist.platform.retrieval.mcp_client import MCPToolClient
-from co_scientist.research import (
+from co_scientist.science.generation.literature_review import node as lr
+from co_scientist.science.generation.literature_review import (
+    queries as lr_queries,
+)
+from co_scientist.science.generation.literature_review import (
+    synthesis as lr_analysis,
+)
+from co_scientist.science.generation.literature_review import (
+    synthesis as lr_synthesis,
+)
+from co_scientist.science.research import (
     Document,
     ExtractedFinding,
     Extraction,

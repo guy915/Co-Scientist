@@ -5,14 +5,14 @@ import logging
 import sqlite3
 from typing import Any
 
-from co_scientist.agents.ranking.ranking_debate import (
-    debate_transcript_document,
-)
 from co_scientist.domains.research_state.models.matchup import Matchup
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.records import NewMatch, NewProximityEdge
 from co_scientist.platform.telemetry import retrieval_calls as retrieval
-from co_scientist.research import result_from_dict
+from co_scientist.science.ranking.ranking_debate import (
+    debate_transcript_document,
+)
+from co_scientist.science.research import result_from_dict
 
 logger = logging.getLogger(__name__)
 

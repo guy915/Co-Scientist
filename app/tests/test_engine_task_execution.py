@@ -5,7 +5,6 @@ from typing import Any
 
 import co_scientist.orchestration.drain as drain_claim_grounding
 import pytest
-from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.core.exceptions import LLMCallBudgetExceededError
 from co_scientist.core.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
 from co_scientist.domains.chat.repository import messages
@@ -21,6 +20,7 @@ from co_scientist.platform.llm import (
     release_run_call_budget,
 )
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
+from co_scientist.science.meta_review import research_overview as ro
 from litellm.exceptions import APIError
 
 from app import engine_tasks, task_worker

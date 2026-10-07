@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from co_scientist.domains.research_state.state import WorkflowState
-from co_scientist.scheduling.models import TaskType, stacked_task_values
+from co_scientist.science.scheduling.models import TaskType, stacked_task_values
 
 logger = logging.getLogger(__name__)
 

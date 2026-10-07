@@ -17,7 +17,6 @@ from co_scientist.domains.research_state.models import (
 )
 from co_scientist.domains.research_state.state import ReplaceHypotheses, WorkflowState
 from co_scientist.platform.telemetry.progress import emit_progress
-from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.safety import (
     ContentSafetyReview,
     SafetyOutcome,
@@ -25,6 +24,7 @@ from co_scientist.safety import (
     review_content_safety,
     review_hypothesis_safety,
 )
+from co_scientist.science.prompts._common import _format_meta_review_context
 
 logger = logging.getLogger(__name__)
 

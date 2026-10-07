@@ -5,12 +5,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
-from co_scientist.agents.ranking import RankingJudgement, RankingJudgingContext
 from co_scientist.core.constants import RANKING_WAVE_SIZE as RANKING_WAVE_SIZE
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.platform import db
 from co_scientist.platform.db.models import ScientificTask
 from co_scientist.platform.llm import scoped_telemetry
+from co_scientist.science.ranking import RankingJudgement, RankingJudgingContext
 
 from app.engine_tasks.support import (
     RANKING_FINALIZE_TASK,
@@ -41,7 +41,7 @@ def _wave_size() -> int:
     """The engine owns both wave width and judge semaphore size so
     throttling cannot silently serialize an oversized wave.
     """
-    from co_scientist.agents.ranking.ranking_debate import (
+    from co_scientist.science.ranking.ranking_debate import (
         effective_ranking_wave_size,
     )
 
@@ -123,7 +123,7 @@ def _prepare_ranking_wave(
     """Concurrent matches share one Elo snapshot; rating adaptation
     deliberately occurs at wave boundaries.
     """
-    from co_scientist.agents.ranking import build_tournament_pairings
+    from co_scientist.science.ranking import build_tournament_pairings
 
     wave_size = _wave_size()
     candidates = build_tournament_pairings(
@@ -146,7 +146,7 @@ async def _judge_one_matchup(
     offset: int,
     judge_context: _WaveJudgeContext,
 ) -> RankingJudgement:
-    from co_scientist.agents.ranking import judge_ranking_matchup
+    from co_scientist.science.ranking import judge_ranking_matchup
 
     result: RankingJudgement = await judge_ranking_matchup(
         pair, judge_context.context, judge_context.index + offset
@@ -184,7 +184,7 @@ async def _judge_wave_matchups(
     state: dict[str, Any],
     eligible: list[Any],
 ) -> _JudgedWave:
-    from co_scientist.agents.ranking import (
+    from co_scientist.science.ranking import (
         prepare_ranking_judging_context,
         prepare_ranking_prompt_context,
     )
@@ -209,8 +209,8 @@ def _apply_wave_elo(
     """Apply verdicts in wave order so shared hypotheses start each rating
     update where their previous matchup left them.
     """
-    from co_scientist.agents.ranking import apply_ranking_matchup
     from co_scientist.core.constants import ELO_K_FACTOR
+    from co_scientist.science.ranking import apply_ranking_matchup
 
     k_factor = int(state.get("elo_k_factor") or ELO_K_FACTOR)
     iteration = int(state.get("current_iteration", 0))
@@ -271,7 +271,7 @@ def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
 
 
 def _ranking_chain_skipped(state: dict[str, Any], eligible: list[Any]) -> bool:
-    from co_scientist.agents.ranking import remaining_ranking_rounds
+    from co_scientist.science.ranking import remaining_ranking_rounds
 
     if len(eligible) < 2:
         return True
@@ -312,7 +312,7 @@ async def _schedule_ranking_chain(
     *,
     db_path: str | None,
 ) -> dict[str, Any] | None:
-    from co_scientist.agents.ranking import prepare_ranking_round
+    from co_scientist.science.ranking import prepare_ranking_round
 
     eligible = _ranking_eligible(state)
     if _ranking_chain_skipped(state, eligible):
@@ -486,7 +486,7 @@ def _fold_ranking_telemetry(update: dict[str, Any], model_usage: dict[str, dict[
 async def execute_ranking_finalize(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    from co_scientist.agents.ranking import finalize_ranking
+    from co_scientist.science.ranking import finalize_ranking
     from co_scientist.task_runtime import apply_task_update
 
     replay, state, current_seq = leased_state(task, db_path, label="ranking finalizer")

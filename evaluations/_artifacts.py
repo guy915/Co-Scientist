@@ -14,7 +14,7 @@ from typing import Any
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _RESULTS_DIR = _ROOT / "evaluations" / "results"
-_PROMPTS_DIR = _ROOT / "engine" / "src" / "co_scientist" / "prompts" / "templates"
+_PROMPTS_DIR = _ROOT / "engine" / "src" / "co_scientist" / "science" / "prompts" / "templates"
 
 # Missing or slow Git must yield unknown provenance, never stall an evaluation.
 _GIT_TIMEOUT_SECONDS = 5

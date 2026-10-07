@@ -129,8 +129,8 @@ def test_app_consumes_public_engine_operations() -> None:
 def test_shared_operations_do_not_import_graph_coordinators(
     owner: str, coordinators: set[str]
 ) -> None:
-    agent_dir = _ROOT / "engine" / "src" / "co_scientist" / "agents"
-    forbidden = {f"co_scientist.agents.{name}" for name in coordinators}
+    agent_dir = _ROOT / "engine" / "src" / "co_scientist" / "science"
+    forbidden = {f"co_scientist.science.{name}" for name in coordinators}
     modules = {module for _, module, _ in _boundaries_imports(agent_dir / owner)}
     assert forbidden.isdisjoint(modules), (owner, forbidden & modules)
 

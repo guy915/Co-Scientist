@@ -5,17 +5,17 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.agents import (
+from co_scientist.agents import safety
+from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.science import (
     evolution,
     generation,
     meta_review,
     proximity,
     ranking,
     reflection,
-    safety,
     supervisor,
 )
-from co_scientist.domains.research_state.state import WorkflowState
 
 NodeCallable = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 

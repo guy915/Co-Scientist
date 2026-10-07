@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from co_scientist.platform.retrieval.research_adapter import McpRetrieval, ResearchRun
-from co_scientist.research import (
+from co_scientist.science.research import (
     CallStatus,
     Finding,
     Question,

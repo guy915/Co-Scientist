@@ -107,7 +107,7 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
         ),
         isolated_db,
     )
-    import co_scientist.agents.ranking.operations as ranking_module
+    import co_scientist.science.ranking.operations as ranking_module
 
     monkeypatch.setattr(ranking_module, "judge_matchup", _judge_with_telemetry)
     await _run_ranking_node(run.id, isolated_db)
