@@ -12,7 +12,7 @@ vi.mock('@/features/report/run_detail', () => {
   imports.run += 1;
   throw new Error('The run page chunk could not be downloaded');
 });
-vi.mock('./pages/chat_workspace', () => ({
+vi.mock('@/features/chat/chat_workspace', () => ({
   ChatWorkspace: () => <p>Chat home</p>,
 }));
 vi.mock('./layout', () => ({
