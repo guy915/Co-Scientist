@@ -260,6 +260,16 @@ async def _run_ownership_response(request: Request, principal: Principal) -> Res
             return JSONResponse({"detail": "shared examples are read-only"}, status_code=403)
         return None
     client_id = principal.subject
+    from app.operator_access import has_admin_token
+
+    if (
+        request.method == "POST"
+        and len(parts) == 6
+        and parts[3] == "safety"
+        and parts[5] == "adjudicate"
+        and has_admin_token(request)
+    ):
+        return None
     if client_id and client_id == run.client_id:
         return None
     return JSONResponse({"detail": "run not found"}, status_code=404)

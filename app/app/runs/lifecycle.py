@@ -22,7 +22,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 import app.engine_adapter as engine_adapter
 import app.engine_tasks as engine_tasks
 import app.task_worker as task_worker
-from app.auth import client_id
+from app.operator_access import has_admin_token
 from app.runs.models import SafetyAdjudicationRequest, StartRunRequest
 from app.runs.support import _run_or_404
 from app.store import events, runs, tasks
@@ -206,11 +206,10 @@ async def adjudicate_safety(
     request: Request,
 ) -> dict[str, Any]:
     """Resolve one held safety decision and update the run lifecycle."""
+    if not has_admin_token(request):
+        raise HTTPException(status_code=403, detail="an operator token is required")
     run, revision = resume_admission_snapshot(run_id)
-    reviewer = client_id(request)
-    if not reviewer:
-        raise HTTPException(status_code=403, detail="an identified reviewer is required")
-    resolved = records.resolve_safety_decision(run_id, decision_id, body.resolution, reviewer)
+    resolved = records.resolve_safety_decision(run_id, decision_id, body.resolution, "operator")
     if not resolved:
         raise HTTPException(
             status_code=409,

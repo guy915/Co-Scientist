@@ -30,7 +30,13 @@ from tests._store_helpers import (
 )
 
 CLIENT_ID = "hold-e2e"
+ADMIN_HEADERS = {"X-Logs-Token": "test-safety-operator"}
 HEADERS = {"X-Client-ID": CLIENT_ID}
+
+
+@pytest.fixture(autouse=True)
+def operator_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "logs_admin_token", ADMIN_HEADERS["X-Logs-Token"])
 
 
 def _held_decision(stage: str) -> SafetyDecision:
@@ -108,7 +114,7 @@ def claimable_engine_tasks(run_id: str, db_path: str) -> list[str]:
 def approve(client: TestClient, run_id: str, decision_id: int) -> None:
     response = client.post(
         f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
-        headers=HEADERS,
+        headers={**HEADERS, **ADMIN_HEADERS},
         json={"resolution": "approved"},
     )
     assert response.status_code == 200, response.text
@@ -185,7 +191,7 @@ def test_rejected_final_hold_blocks_the_run(
     decision_id = held_decision_id(run.id, "final", isolated_db)
     response = held_run.post(
         f"/api/runs/{run.id}/safety/{decision_id}/adjudicate",
-        headers=HEADERS,
+        headers={**HEADERS, **ADMIN_HEADERS},
         json={"resolution": "rejected"},
     )
     assert response.status_code == 200
@@ -217,7 +223,7 @@ def test_only_a_paused_run_with_an_unresolved_review_awaits_a_decision(
     if resolved:
         client.post(
             f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
-            headers=headers,
+            headers={**headers, **ADMIN_HEADERS},
             json={"resolution": "approved"},
         )
     if paused:
@@ -267,14 +273,14 @@ def test_held_hypothesis_adjudication_records_without_blocking(
 
     approved = client.post(
         f"/api/runs/{run_id}/safety/{holds[0]['id']}/adjudicate",
-        headers=headers,
+        headers={**headers, **ADMIN_HEADERS},
         json={"resolution": "approved"},
     )
     assert approved.status_code == 200
 
     rejected = client.post(
         f"/api/runs/{run_id}/safety/{holds[1]['id']}/adjudicate",
-        headers=headers,
+        headers={**headers, **ADMIN_HEADERS},
         json={"resolution": "rejected"},
     )
     assert rejected.status_code == 200
@@ -287,7 +293,7 @@ def test_held_hypothesis_adjudication_records_without_blocking(
     assert by_id[holds[1]["id"]]["resolution"] == "rejected"
     repeated = client.post(
         f"/api/runs/{run_id}/safety/{holds[0]['id']}/adjudicate",
-        headers=headers,
+        headers={**headers, **ADMIN_HEADERS},
         json={"resolution": "rejected"},
     )
     assert repeated.status_code == 409
