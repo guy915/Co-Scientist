@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm,
     call_llm_json,
@@ -66,12 +66,12 @@ async def test_a_recovered_call_logs_one_failure_naming_what_was_sent(
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
     failures = [r for r in caplog.records if "LLM call failed" in r.message]
     assert len(failures) == 1
-    assert failures[0].name == "co_scientist.llm.attempts.retry"
+    assert failures[0].name == "co_scientist.platform.llm.attempts.retry"
     message = failures[0].getMessage()
     assert "max_tokens 18000" in message
     assert "asked for 8000" in message
     assert "ranking_judgment" in message
-    layers = {"co_scientist.llm", "co_scientist.llm.call"}
+    layers = {"co_scientist.platform.llm", "co_scientist.platform.llm.call"}
     assert not [r for r in caplog.records if r.name in layers and r.levelno >= logging.WARNING]
     assert any(
         r.levelno == logging.INFO and "retrying llm call" in r.getMessage() for r in caplog.records

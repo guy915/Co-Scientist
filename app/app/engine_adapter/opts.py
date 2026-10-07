@@ -124,7 +124,7 @@ def _resolve_generator_models(offline: bool) -> tuple[str, str | None]:
         return settings.model_name, settings.supervisor_model_name
     # Import locally after sibling engine discovery, avoiding a hard dependency
     # at app-package import time.
-    from co_scientist.offline.llm import DEFAULT_OFFLINE_MODEL
+    from co_scientist.platform.llm.offline.llm import DEFAULT_OFFLINE_MODEL
 
     return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL
 

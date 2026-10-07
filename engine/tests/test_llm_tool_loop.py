@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from co_scientist.llm import CompletionSpec, ToolLoop, call_llm_with_tools
-from co_scientist.llm.tools.loop import _drop_dead_context
-from co_scientist.llm.tools.transcript import (
+from co_scientist.platform.llm import CompletionSpec, ToolLoop, call_llm_with_tools
+from co_scientist.platform.llm.tools.loop import _drop_dead_context
+from co_scientist.platform.llm.tools.transcript import (
     elide_aged_evidence,
     elide_superseded_writes,
 )

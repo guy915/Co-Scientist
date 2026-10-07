@@ -4,8 +4,8 @@ from typing import Any
 
 import litellm
 import pytest
-from co_scientist.llm import scoped_telemetry
 from co_scientist.models import ExecutionMetrics
+from co_scientist.platform.llm import scoped_telemetry
 
 from app.claims import (
     AssessorDraft,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,

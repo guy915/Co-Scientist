@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.llm import coerce_json_list
+from co_scientist.platform.llm import coerce_json_list
 
 
 @pytest.mark.parametrize(

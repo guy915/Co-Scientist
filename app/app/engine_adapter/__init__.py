@@ -5,12 +5,12 @@ import sys
 from typing import Any
 
 from co_scientist.core.config import any_provider_credential, byok_enabled, settings
+from co_scientist.platform.llm.process_mode import offline_mode as offline_mode
 
 from app.engine_adapter.tools import (
     connectors_report as connectors_report,
 )
 from app.engine_adapter.tools import enabled_tools
-from app.process_mode import offline_mode as offline_mode
 from app.store import runs
 
 # Some Python 3.12 venvs omit editable-install .pth processing; durable tasks

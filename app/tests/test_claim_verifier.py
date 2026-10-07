@@ -9,7 +9,7 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.llm import scoped_telemetry
+from co_scientist.platform.llm import scoped_telemetry
 from litellm.exceptions import RateLimitError
 
 from app.claims import (
@@ -294,7 +294,7 @@ def test_batch_verdicts_map_back_to_claims_by_index(
 
 
 def _zero_price_catalog() -> None:
-    from co_scientist.llm.admission import free_policy as free_catalog
+    from co_scientist.platform.llm.admission import free_policy as free_catalog
 
     free_catalog.install_catalog_reader(
         free_catalog.CatalogReader(

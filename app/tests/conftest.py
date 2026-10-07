@@ -5,8 +5,7 @@ from collections.abc import Iterator
 
 import pytest
 from co_scientist.core.config import PROVIDER_CREDENTIAL_ENV
-
-from app import process_mode
+from co_scientist.platform.llm import process_mode
 
 from ._process_mode_helpers import FakeProcessMode
 
@@ -17,7 +16,7 @@ _PROVIDER_KEYS = tuple(name for names in PROVIDER_CREDENTIAL_ENV.values() for na
 
 @pytest.fixture(scope="session", autouse=True)
 def _offline_router() -> None:
-    from co_scientist.offline.llm import install_offline_router
+    from co_scientist.platform.llm.offline.llm import install_offline_router
 
     install_offline_router()
 
@@ -25,7 +24,7 @@ def _offline_router() -> None:
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     from co_scientist.core.constants import MODEL_PRICING
-    from co_scientist.llm.admission import free_policy as free_catalog
+    from co_scientist.platform.llm.admission import free_policy as free_catalog
 
     catalog = {
         model.removeprefix("openrouter/"): {

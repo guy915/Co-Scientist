@@ -6,9 +6,10 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any
 
+from fastapi import HTTPException
+
 from co_scientist.core.config import settings
 from co_scientist.platform import db
-from fastapi import HTTPException
 
 _client: ContextVar[str] = ContextVar("provider_usage_client", default="")
 

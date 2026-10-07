@@ -136,7 +136,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
 async def test_execute_engine_task_scopes_the_credential(
     byok_deployment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from co_scientist.llm import api_key_for_model, current_api_key
+    from co_scientist.platform.llm import api_key_for_model, current_api_key
 
     _fake_validation(monkeypatch)
     with TestClient(app) as client:

@@ -216,7 +216,7 @@ def _run(dataset: dict[str, Any], model: str, *, live: bool) -> dict[str, Any]:
 
 
 async def _judge_all(dataset: dict[str, Any], model: str) -> list[tuple[str, str, str]]:
-    from co_scientist.llm import CompletionSpec, call_llm_json
+    from co_scientist.platform.llm import CompletionSpec, call_llm_json
 
     spec = CompletionSpec(model_name=model, temperature=0.0, json_schema=_JUDGE_SCHEMA)
     out: list[tuple[str, str, str]] = []

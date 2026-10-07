@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.patch import PatchError
+from co_scientist.platform.llm.tool_effects import declare_local_tool
 from co_scientist.sandbox import (
     SandboxKind,
     SandboxPolicy,
@@ -24,7 +25,6 @@ from co_scientist.skills import (
     record_skill_use,
     skill_environment,
 )
-from co_scientist.tool_effects import declare_local_tool
 from co_scientist.tools.provider import tool_error_message, tool_result_message
 from co_scientist.tools.provider import tracked_executor as track_calls
 from co_scientist.workspace.checks import check_paths

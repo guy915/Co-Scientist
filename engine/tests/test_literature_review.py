@@ -16,7 +16,7 @@ from co_scientist.evidence import (
     search,
     search_support,
 )
-from co_scientist.offline import llm as offline_llm
+from co_scientist.platform.llm.offline import llm as offline_llm
 from tests._llm_fake import install_fake_llm
 from tests._research_fakes import (
     _stub_node,

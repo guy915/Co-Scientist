@@ -24,13 +24,6 @@ from co_scientist.core.constants import (
     THINKING_MAX_TOKENS,
     truncate,
 )
-from co_scientist.llm import (
-    CompletionSpec,
-    LLMCallOptions,
-    call_llm_json,
-    indexed_prompt_name,
-    record_deterministic_fallback,
-)
 from co_scientist.models import (
     ExecutionMetrics,
     Hypothesis,
@@ -39,6 +32,13 @@ from co_scientist.models import (
     phase_message,
 )
 from co_scientist.models.matchup import Matchup
+from co_scientist.platform.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+    indexed_prompt_name,
+    record_deterministic_fallback,
+)
 from co_scientist.prompts import (
     PromptRunContext,
     RankingSide,
@@ -552,7 +552,7 @@ _ranking_semaphores: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asynci
 def effective_ranking_wave_size() -> int:
     """Throttle feedback narrows waves one-way within a process; reopening on
     a quiet wave would provoke the same account-level pressure again."""
-    from co_scientist.llm import rate_limited_attempt_count
+    from co_scientist.platform.llm import rate_limited_attempt_count
 
     if rate_limited_attempt_count():
         return RANKING_WAVE_MIN_SIZE

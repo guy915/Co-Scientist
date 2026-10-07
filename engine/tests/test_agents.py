@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from litellm.exceptions import APIError
 
-import co_scientist.llm as llm
+import co_scientist.platform.llm as llm
 from co_scientist.agents.meta_review import meta_review as mr
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.agents.proximity import proximity as px
@@ -208,8 +208,16 @@ _LAYERS = (
     "request",
     "precall",
     "attempts",
+    "tool_effects",
     "tools",
     "call",
+    "offline",
+    "execution_policy",
+    "process_mode",
+    "provider_usage",
+    "offline_guard",
+    "llm_scope",
+    "llm_request",
 )
 
 
@@ -233,4 +241,4 @@ def _targets(node: ast.ImportFrom, modules: set[str]) -> set[str]:
 _ROOT = pathlib.Path(llm.__file__).parent
 
 
-_PACKAGE = "co_scientist.llm"
+_PACKAGE = "co_scientist.platform.llm"

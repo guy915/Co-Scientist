@@ -23,14 +23,14 @@ from co_scientist.core.exceptions import (
     LLMThinkingOnlyError,
     LLMTimeoutError,
 )
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm,
     scoped_telemetry,
 )
-from co_scientist.llm.attempts import retry
-from co_scientist.llm.attempts.retry import platform_rate_limit_park
-from co_scientist.llm.request import completion
+from co_scientist.platform.llm.attempts import retry
+from co_scientist.platform.llm.attempts.retry import platform_rate_limit_park
+from co_scientist.platform.llm.request import completion
 from tests._llm_fake import (
     TEXT,
     Driver,
@@ -194,7 +194,7 @@ def test_only_a_platform_cap_that_outlasts_a_wait_parks_the_task(
     reason: str | None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist.llm.attempts import retry
+    from co_scientist.platform.llm.attempts import retry
 
     monkeypatch.setattr(retry, "time", SimpleNamespace(time=lambda: float(_NOON_UTC)))
     park = platform_rate_limit_park(make_error(_NOON_UTC))

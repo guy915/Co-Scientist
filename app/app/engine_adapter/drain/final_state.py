@@ -151,7 +151,7 @@ async def _assess_claims(
     stays off-loop so the finalize lease keeps renewing.
     """
     from co_scientist.core.async_bridge import run_off_loop
-    from co_scientist.llm import scoped_telemetry
+    from co_scientist.platform.llm import scoped_telemetry
 
     model = settings.claim_verifier_model or settings.model_name
     assert model is not None

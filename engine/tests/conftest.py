@@ -14,7 +14,7 @@ if str(_SRC) not in sys.path:
 @pytest.fixture
 def clear_capability_cache() -> Iterator[None]:
     """Memoized per-model answers must not leak between patched providers."""
-    from co_scientist.llm.request.completion import (
+    from co_scientist.platform.llm.request.completion import (
         _supports_json_schema_response_format,
     )
 
@@ -50,7 +50,7 @@ def _patch_mcp_seam(
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Synthetic model metadata keeps mocked free requests hermetic."""
     from co_scientist.core.constants import MODEL_PRICING
-    from co_scientist.llm.admission import free_policy as free_catalog
+    from co_scientist.platform.llm.admission import free_policy as free_catalog
 
     catalog = {
         model.removeprefix("openrouter/"): {

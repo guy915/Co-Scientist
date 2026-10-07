@@ -12,7 +12,7 @@ from typing import Any
 
 from co_scientist.core._context import _bind_contextvar
 from co_scientist.core.constants import MODEL_PRICING, estimate_cost_usd
-from co_scientist.llm.request.response import extract_token_usage
+from co_scientist.platform.llm.request.response import extract_token_usage
 
 UNSPECIFIED_PHASE = "unspecified"
 

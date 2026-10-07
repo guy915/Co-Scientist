@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.llm import scoped_zero_cost_admission
+from co_scientist.platform.llm import scoped_zero_cost_admission
 
 import app.qa as qa_stream
 from app import credentials, goal_text, run_start_announcement
@@ -49,7 +49,7 @@ async def _invoke(kind: str, model: str) -> Any:
 
 @pytest.fixture
 def captured(monkeypatch: pytest.MonkeyPatch, reachable_provider: None) -> list[dict[str, Any]]:
-    from co_scientist.llm.admission import free_policy as free_catalog
+    from co_scientist.platform.llm.admission import free_policy as free_catalog
 
     free_catalog.install_catalog_reader(
         free_catalog.CatalogReader(
@@ -188,7 +188,7 @@ async def test_interview_reasoning_retry_rechecks_admission(
     monkeypatch: pytest.MonkeyPatch, captured: list[dict[str, Any]]
 ) -> None:
     from co_scientist.core.exceptions import FreeModelEligibilityError
-    from co_scientist.llm.admission import free_policy as free_catalog
+    from co_scientist.platform.llm.admission import free_policy as free_catalog
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
 
@@ -216,8 +216,8 @@ async def test_interview_reasoning_retry_rechecks_admission(
 async def test_unscoped_flag_cannot_bypass_offline_guard(
     monkeypatch: pytest.MonkeyPatch, captured: list[dict[str, Any]]
 ) -> None:
-    from app import llm_request
-    from app.offline_guard import OfflineModeError
+    from co_scientist.platform.llm import llm_request
+    from co_scientist.platform.llm.offline_guard import OfflineModeError
 
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")

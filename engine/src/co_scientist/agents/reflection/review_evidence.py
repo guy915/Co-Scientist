@@ -21,12 +21,12 @@ from co_scientist.evidence.article_support import (
     build_articles_from_metadata,
     records_from_findings,
 )
-from co_scientist.llm import (
+from co_scientist.models import Article, Hypothesis, rank_by_elo
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
 )
-from co_scientist.models import Article, Hypothesis, rank_by_elo
 from co_scientist.prompts import (
     get_hypothesis_query_generation_prompt,
 )

@@ -12,8 +12,8 @@ from co_scientist.core.constants import (
     LOW_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.models import Article, Hypothesis
+from co_scientist.platform.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.prompts import get_hypothesis_query_generation_prompt
 from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
 from co_scientist.state import WorkflowState

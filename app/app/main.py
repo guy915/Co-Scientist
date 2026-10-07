@@ -63,7 +63,7 @@ def _reclaim_disk_space() -> None:
 
 def _startup_engine_setup() -> None:
     """The offline router is a harmless passthrough for real models."""
-    from co_scientist.offline.llm import install_offline_router
+    from co_scientist.platform.llm.offline.llm import install_offline_router
 
     install_offline_router()
     logger.info("Model: %s", settings.model_name)
@@ -282,7 +282,7 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     ownership_response = await _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response
-    from app.provider_usage import scoped_client
+    from co_scientist.platform.llm.provider_usage import scoped_client
 
     with scoped_client(principal.subject):
         return cast(Response, await call_next(request))

@@ -12,7 +12,7 @@ SCRIPT_PRELUDE = f"""
 def fake_backend(provider):
     import importlib.util
     import sys
-    from co_scientist.llm.request.backend import using_backend
+    from co_scientist.platform.llm.request.backend import using_backend
 
     spec = importlib.util.spec_from_file_location(
         "engine_llm_fake", {str(_ENGINE_FAKE)!r})

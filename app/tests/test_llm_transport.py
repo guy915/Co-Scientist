@@ -18,23 +18,24 @@ from co_scientist.core.async_bridge import (
 )
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     current_api_key,
     current_run_call_count,
+    llm_request,
+    offline_guard,
     release_run_call_budget,
     scoped_api_key,
     scoped_llm_call_budget,
 )
-from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
-
-from app import llm_request, offline_guard
-from app.llm_scope import (
+from co_scientist.platform.llm.llm_scope import (
     app_call_scope,
     budgeted,
     budgeted_stream,
     in_app_call_scope,
     stream_chunks,
 )
+from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
+
 from tests._llm_fake_backend import install_completion_backend
 
 _probe: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -130,7 +131,7 @@ async def test_app_budget_refuses_before_dispatch_and_restores_research_scope(
             with pytest.raises(LLMCallBudgetExceededError):
                 await llm_request.acompletion(model="gpt-4o-mini", timeout=1)
         assert current_run_call_count("separate-app-budget") == 0
-        from co_scientist.llm import complete_request
+        from co_scientist.platform.llm import complete_request
 
         await complete_request(
             {"model": "gpt-4o-mini"},

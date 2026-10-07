@@ -17,11 +17,11 @@ from co_scientist.evidence.search_support import (
     determine_query_source_type,
     parse_mcp_query_result,
 )
-from co_scientist.llm import (
+from co_scientist.mcp_client import MCPToolClient
+from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm_json,
 )
-from co_scientist.mcp_client import MCPToolClient
 from co_scientist.prompts import (
     LiteratureQueryInputs,
     get_literature_review_query_generation_prompt,

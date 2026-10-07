@@ -5,17 +5,17 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from co_scientist.core.env_vars import parse_timeout_env
-from co_scientist.llm.admission.free_policy import (
+from co_scientist.platform.llm.admission.free_policy import (
     api_key_for_model,
     current_api_key,
 )
-from co_scientist.llm.profile import model_profile
-from co_scientist.llm.request.backend import (
+from co_scientist.platform.llm.profile import model_profile
+from co_scientist.platform.llm.request.backend import (
     active_backend,
     litellm_supports_json_schema,
 )
-from co_scientist.llm.request.thinking import _apply_thinking_args
-from co_scientist.llm.request.transport import complete_request
+from co_scientist.platform.llm.request.thinking import _apply_thinking_args
+from co_scientist.platform.llm.request.transport import complete_request
 
 logger = logging.getLogger(__name__)
 

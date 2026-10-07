@@ -21,7 +21,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
 from co_scientist.agents.evolution.evolve_results import _apply_evolution_result
 from co_scientist.agents.generation.citations import ReferenceIndex
 from co_scientist.models import Hypothesis
-from co_scientist.offline.llm import (
+from co_scientist.platform.llm.offline.llm import (
     DEFAULT_OFFLINE_MODEL,
     install_offline_router,
 )

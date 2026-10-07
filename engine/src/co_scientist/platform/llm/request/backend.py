@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 import litellm
 
-from co_scientist.llm.profile import model_profile
+from co_scientist.platform.llm.profile import model_profile
 
 
 class CompletionBackend(Protocol):

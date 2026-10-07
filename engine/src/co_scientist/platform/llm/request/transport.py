@@ -11,11 +11,11 @@ from typing import Any
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from co_scientist.core.exceptions import LLMTimeoutError
-from co_scientist.llm.admission.call_budget import record_provider_request
-from co_scientist.llm.admission.free_policy import enforce_free_request
-from co_scientist.llm.request.backend import active_backend
-from co_scientist.llm.request.thinking import apply_provider_constraints
-from co_scientist.llm.telemetry import (
+from co_scientist.platform.llm.admission.call_budget import record_provider_request
+from co_scientist.platform.llm.admission.free_policy import enforce_free_request
+from co_scientist.platform.llm.request.backend import active_backend
+from co_scientist.platform.llm.request.thinking import apply_provider_constraints
+from co_scientist.platform.llm.telemetry import (
     record_completion_failure,
     record_completion_response,
 )

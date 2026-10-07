@@ -12,7 +12,7 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     ModelCallStats,

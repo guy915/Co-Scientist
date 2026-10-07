@@ -29,7 +29,6 @@ from co_scientist.core.constants import (
     PROGRESS_DEEP_VERIFICATION_START,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import CompletionSpec, call_llm_json
 from co_scientist.models import (
     Article,
     Hypothesis,
@@ -37,6 +36,7 @@ from co_scientist.models import (
     create_metrics_update,
     phase_message,
 )
+from co_scientist.platform.llm import CompletionSpec, call_llm_json
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.schemas.review import (

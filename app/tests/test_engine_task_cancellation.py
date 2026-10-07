@@ -7,10 +7,10 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus as StoreRunStatus
+from co_scientist.platform.llm import ModelCallStats, record_call
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 from app import engine_tasks, task_worker

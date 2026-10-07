@@ -12,9 +12,10 @@ from co_scientist.core.config import (
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
+from co_scientist.platform.llm import llm_request, offline_guard
+from co_scientist.platform.llm.llm_scope import budgeted
 
-from app import credentials, llm_request, offline_guard
-from app.llm_scope import budgeted
+from app import credentials
 
 logger = logging.getLogger(__name__)
 

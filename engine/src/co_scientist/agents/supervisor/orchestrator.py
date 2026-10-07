@@ -24,7 +24,6 @@ from co_scientist.core.constants import (
     INITIAL_ELO_RATING,
     PROGRESS_ORCHESTRATOR_DECISION,
 )
-from co_scientist.llm import current_run_call_count
 from co_scientist.models import (
     Hypothesis,
     MetricDeltas,
@@ -32,6 +31,7 @@ from co_scientist.models import (
     has_peer_review,
     phase_message,
 )
+from co_scientist.platform.llm import current_run_call_count
 from co_scientist.progress import emit_progress
 from co_scientist.scheduling import (
     Budget,

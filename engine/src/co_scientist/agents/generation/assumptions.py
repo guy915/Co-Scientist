@@ -18,12 +18,12 @@ from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
     truncate,
 )
-from co_scientist.llm import (
+from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
 )
-from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts._common import (
     _format_meta_review_context,
     format_lab_constraints_section,

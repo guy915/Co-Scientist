@@ -17,13 +17,13 @@ from co_scientist.core.constants import (
     scaled_max_tokens,
 )
 from co_scientist.core.exceptions import GenerationError
-from co_scientist.llm import (
+from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm,
     call_llm_json,
 )
-from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
     DebatePromptRequest,
     PromptRunContext,

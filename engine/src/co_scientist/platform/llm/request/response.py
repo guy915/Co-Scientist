@@ -8,7 +8,7 @@ from co_scientist.core.exceptions import (
     LLMContentFilteredError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm.profile import model_profile
+from co_scientist.platform.llm.profile import model_profile
 
 logger = logging.getLogger(__name__)
 

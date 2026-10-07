@@ -32,8 +32,8 @@ def install_completion_backend(
 ) -> Any:
     # Install the fake behind the offline router and preserve its JSON-schema
     # capability protocol.
-    from co_scientist.llm.request import backend
-    from co_scientist.offline.llm import OfflineRouter
+    from co_scientist.platform.llm.offline.llm import OfflineRouter
+    from co_scientist.platform.llm.request import backend
 
     engine_fake = load_engine_fake()
     fake = engine_fake.FakeBackend(

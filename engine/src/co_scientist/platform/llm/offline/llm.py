@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.llm.request.backend import (
+from co_scientist.platform.llm.request.backend import (
     CompletionBackend,
     active_backend,
     install_backend,

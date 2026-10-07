@@ -20,7 +20,7 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     ToolLoop,
     call_llm,
@@ -30,17 +30,17 @@ from co_scientist.llm import (
     release_run_call_budget,
     scoped_llm_call_budget,
 )
-from co_scientist.llm.admission.call_budget import (
+from co_scientist.platform.llm.admission.call_budget import (
     _MAX_TRACKED_RUNS,
     current_completion_budget,
     record_provider_request,
     scoped_completion_budget,
 )
-from co_scientist.llm.attempts.escalation import (
+from co_scientist.platform.llm.attempts.escalation import (
     BudgetEscalation,
     escalated_max_tokens,
 )
-from co_scientist.llm.request.response import _extract_completion_content
+from co_scientist.platform.llm.request.response import _extract_completion_content
 from co_scientist.state import WorkflowState
 from tests._llm_fake import (
     SEARCH_TOOL,

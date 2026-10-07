@@ -6,8 +6,8 @@ from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 from co_scientist.agents import NODE_REGISTRY
-from co_scientist.llm import scoped_telemetry
 from co_scientist.models import create_metrics_update, merge_metrics
+from co_scientist.platform.llm import scoped_telemetry
 from co_scientist.state import WorkflowState
 from co_scientist.workflow_topology import (
     WORKFLOW_ROUTES,

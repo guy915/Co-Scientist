@@ -20,7 +20,7 @@ from co_scientist.core.constants import (
     get_draft_max_iterations,
     scaled_max_tokens,
 )
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
     CompletionSpec,
     LLMCallOptions,

@@ -1,7 +1,7 @@
 from dataclasses import replace
 
-from co_scientist.llm.request.completion import _clamp_temperature
-from co_scientist.llm.values import LLMRequest
+from co_scientist.platform.llm.request.completion import _clamp_temperature
+from co_scientist.platform.llm.values import LLMRequest
 
 
 def _prepare_llm_call(request: LLMRequest) -> LLMRequest:

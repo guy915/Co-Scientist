@@ -5,6 +5,9 @@ from typing import Any
 
 from co_scientist.core.run_modes import resolved_run_config
 from co_scientist.platform.db.models import ScientificTask
+from co_scientist.platform.llm.execution_policy import (
+    zero_cost_admission_for_config,
+)
 
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.fanout import (
@@ -50,9 +53,6 @@ from app.engine_tasks.support import (
 from app.engine_tasks.support import NODE_TASK_PREFIX as NODE_TASK_PREFIX
 from app.engine_tasks.support import SafetyHoldError as SafetyHoldError
 from app.engine_tasks.support import SupersededTaskError as SupersededTaskError
-from app.execution_policy import (
-    zero_cost_admission_for_config,
-)
 from app.store import runs
 
 _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
@@ -90,7 +90,7 @@ async def execute_engine_task(
     """Credential and call-budget scopes cover the whole task, including
     nested retries, without mutating shared process state.
     """
-    from co_scientist.llm import (
+    from co_scientist.platform.llm import (
         scoped_api_key,
         scoped_llm_call_budget,
         scoped_zero_cost_admission,

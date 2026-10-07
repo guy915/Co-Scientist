@@ -17,6 +17,7 @@ from co_scientist.patch import (
     read_workspace_bytes,
     write_workspace_file,
 )
+from co_scientist.platform.llm.tool_effects import ToolEffect
 from co_scientist.sandbox import (
     METADATA_NAMES,
     ExecRequest,
@@ -33,7 +34,6 @@ from co_scientist.sandbox.runner import (
     cleanup_cgroup,
     create_command_process,
 )
-from co_scientist.tool_effects import ToolEffect
 
 logger = logging.getLogger(__name__)
 

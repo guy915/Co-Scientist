@@ -8,9 +8,10 @@ from typing import Any
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.platform import db
+from co_scientist.platform.llm import llm_request, offline_guard, provider_usage
 from fastapi import HTTPException
 
-from app import credentials, llm_request, logs_api, offline_guard, provider_usage
+from app import credentials, logs_api
 from app.store import messages
 from tests._client import create_run, fake_litellm, make_client
 from tests._llm_fake_backend import install_completion_backend

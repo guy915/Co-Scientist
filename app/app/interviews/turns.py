@@ -5,6 +5,7 @@ import logging
 import time
 from typing import Any
 
+from co_scientist.platform.llm.llm_scope import budgeted
 from fastapi import HTTPException, Request
 
 import app.credentials as credentials
@@ -20,7 +21,6 @@ from app.interviews.model import (
     _ready,
 )
 from app.interviews.questions import normalized_questions
-from app.llm_scope import budgeted
 from app.store import documents
 from app.store import interviews as store
 from app.store.interviews import NewInterviewTurn

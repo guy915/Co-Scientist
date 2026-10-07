@@ -6,6 +6,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
+import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -13,12 +14,11 @@ from co_scientist.core.config import (
     settings,
     thinking_safe_max_tokens,
 )
+from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
 
 import app.credentials as credentials
-import app.offline_guard as offline_guard
 import app.qa.manifest as qa_ideas
 from app.diagnostic_events import log_chat_turn
-from app.llm_scope import budgeted_stream, stream_chunks
 from app.logging_setup import run_log_context
 from app.qa import artifacts as qa_artifacts
 from app.qa.manifest import QaRunContext as QaRunContext
@@ -69,7 +69,7 @@ async def _stream_completion(
     request: dict[str, Any],
     tool_calls: dict[int, dict[str, Any]],
 ) -> AsyncGenerator[tuple[str, str], None]:
-    import app.llm_request as llm_request
+    import co_scientist.platform.llm.llm_request as llm_request
 
     response = await llm_request.acompletion(**request)
     async for chunk in stream_chunks(
