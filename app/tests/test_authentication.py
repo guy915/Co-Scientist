@@ -150,9 +150,9 @@ def test_host_cannot_hide_another_researchers_run(host: str, isolated_db: str) -
 @pytest.mark.parametrize(
     ("configured_token", "supplied_token", "host", "expected"),
     [
-        ("", "", "127.0.0.1", True),
-        ("", "", "::1", True),
-        ("", "", "localhost", True),
+        ("", "", "127.0.0.1", False),
+        ("", "", "::1", False),
+        ("", "", "localhost", False),
         ("", "", "127.0.0.2", False),
         ("", "", "remote.example", False),
         ("", "", None, False),
@@ -161,8 +161,8 @@ def test_host_cannot_hide_another_researchers_run(host: str, isolated_db: str) -
         ("admin-token", "admin-token", None, True),
         ("admin-token", "wrong-token", "remote.example", False),
         ("admin-token", "", "remote.example", False),
-        ("admin-token", "wrong-token", "127.0.0.1", True),
-        ("admin-token", "", "::1", True),
+        ("admin-token", "wrong-token", "127.0.0.1", False),
+        ("admin-token", "", "::1", False),
     ],
 )
 def test_operator_access(

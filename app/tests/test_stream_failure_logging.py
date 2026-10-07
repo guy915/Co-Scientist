@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist.domains.access import credentials
+from co_scientist.core import byok_scope
 from co_scientist.domains.chat import qa, run_start_announcement
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
@@ -34,7 +34,7 @@ async def test_stream_failures_never_log_worker_or_supervisor_keys(
 ) -> None:
     worker_key = "synthetic-worker-failure-key"
     supervisor_key = "synthetic-supervisor-failure-key"
-    credential = credentials.ByokCredential(
+    credential = byok_scope.ByokCredential(
         provider="deepseek",
         api_key=worker_key,
         model="deepseek/deepseek-v4-flash",
@@ -94,7 +94,7 @@ async def test_stream_failures_never_log_worker_or_supervisor_keys(
     assert supervisor_key not in captured
     assert worker_key not in "".join(frames)
     assert supervisor_key not in "".join(frames)
-    assert credentials.current_byok() is None
+    assert byok_scope.current_byok() is None
     assert frames
     failure_records = [
         row

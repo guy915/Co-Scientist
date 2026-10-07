@@ -6,10 +6,9 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
-import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.chat.qa.manifest as qa_ideas
 import co_scientist.platform.llm.offline_guard as offline_guard
-from co_scientist.api.sse import sse_frame as sse_frame
+from co_scientist.core import byok_scope
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -18,6 +17,7 @@ from co_scientist.core.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.core.sse import sse_frame as sse_frame
 from co_scientist.domains.chat.qa import artifacts as qa_artifacts
 from co_scientist.domains.chat.qa.manifest import QaRunContext as QaRunContext
 from co_scientist.domains.chat.qa.manifest import _tokenize
@@ -157,7 +157,7 @@ async def stream_llm_deltas(
     # it.
     offline_guard.require_remote_chat("Q&A")
     # Scoped BYOK overrides both deployment model and credential.
-    model, api_key = credentials.byok_model_and_key(model)
+    model, api_key = byok_scope.byok_model_and_key(model)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": question},
@@ -429,7 +429,7 @@ async def stream_answer(
     run_id: str,
     question: QaQuestion,
     inputs: QaAnswerInputs,
-    byok: credentials.ByokCredential | None = None,
+    byok: byok_scope.ByokCredential | None = None,
 ) -> AsyncGenerator[str, None]:
     """Scope BYOK through the whole stream so generation and billing use the
     run's authorized credential.
@@ -438,7 +438,7 @@ async def stream_answer(
         yield sse_frame({"type": "error", "message": "run not found"})
         return
     try:
-        with credentials.scoped_byok(byok), run_log_context(run_id):
+        with byok_scope.scoped_byok(byok), run_log_context(run_id):
             deltas = stream_llm_deltas(
                 settings.effective_chat_model,
                 inputs.system_prompt,

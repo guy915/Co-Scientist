@@ -2,7 +2,7 @@ import configparser
 from pathlib import Path
 
 # Lower this with every PR that deletes ignore entries; it never rises.
-IGNORED_IMPORTS_CEILING = 96
+IGNORED_IMPORTS_CEILING = 83
 
 _CONFIG = Path(__file__).resolve().parents[2] / ".importlinter"
 

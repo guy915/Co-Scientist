@@ -1,6 +1,6 @@
 from typing import Any
 
-from co_scientist.science.schemas.builders import obj, str_array
+from co_scientist.core.json_schema import obj, str_array
 
 # These fixed aspects are shared by schema keys, prompts and persisted ranking
 # reviews.

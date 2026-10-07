@@ -7,6 +7,7 @@ from threading import Barrier
 from typing import Any
 
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
 from co_scientist.domains.documents import repository as documents
@@ -120,7 +121,7 @@ def test_changed_byok_key_conflicts_without_echoing_either_secret(
     validated: list[str] = []
 
     async def accept_credential(
-        credential: credentials.ByokCredential,
+        credential: byok_scope.ByokCredential,
     ) -> None:
         validated.append(credential.api_key)
         return None
@@ -205,7 +206,7 @@ def test_late_setup_failure_rolls_back_every_effect_and_allows_retry(
     monkeypatch.setattr(settings, "byok_encryption_key", "rollback-test-secret")
 
     async def accept_credential(
-        _credential: credentials.ByokCredential,
+        _credential: byok_scope.ByokCredential,
     ) -> None:
         return None
 

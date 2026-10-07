@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from co_scientist.core.json_schema import obj
 from co_scientist.domains.safety.types import SafetyDecision
 from co_scientist.platform.llm import (
     CompletionSpec,
@@ -10,7 +11,6 @@ from co_scientist.platform.llm import (
     call_llm_json,
     coerce_json_list,
 )
-from co_scientist.science.schemas.builders import obj
 
 logger = logging.getLogger(__name__)
 
@@ -144,11 +144,11 @@ async def _call_semantic_safety_model(text: str, stage: str, model: str) -> dict
     """Use shared structured parsing and physical-call metering; json_object
     gateways may fence or reshape otherwise valid JSON.
     """
-    from co_scientist.domains.access import credentials
+    from co_scientist.core import byok_scope
 
     # Scoped BYOK selects its own model and credential rather than using the
     # deployment's account.
-    resolved_model, api_key = credentials.byok_model_and_key(model)
+    resolved_model, api_key = byok_scope.byok_model_and_key(model)
     spec = CompletionSpec(
         model_name=resolved_model,
         max_tokens=1_000,

@@ -9,8 +9,8 @@ from typing import Any
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
-import co_scientist.domains.access.credentials as credentials
 import co_scientist.platform.llm.offline_guard as offline_guard
+from co_scientist.core import byok_scope
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -494,7 +494,7 @@ async def _stream_interview_content(
     # Offline admission happens before goal-bearing provider requests.
     offline_guard.require_remote_chat("the interview")
     model, messages = _interview_request(interview)
-    model, api_key = credentials.byok_model_and_key(model)
+    model, api_key = byok_scope.byok_model_and_key(model)
     prose, fields, reasoned = await _run_interview_completion(
         model, messages, api_key, sinks, thinking_enabled=True
     )

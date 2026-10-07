@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator
 from time import perf_counter
 from typing import Any
 
-from co_scientist.api.sse import sse_frame
+from co_scientist.core import byok_scope
 from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -14,7 +14,7 @@ from co_scientist.core.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
-from co_scientist.domains.access import credentials
+from co_scientist.core.sse import sse_frame
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.platform.db.models import MessageRow, RunRow
@@ -93,7 +93,7 @@ async def _stream_model_fragments(
     # Admit before shaping requests because the scientist's goal is sent
     # verbatim.
     offline_guard.require_remote_chat("the session announcement")
-    model, api_key = credentials.byok_model_and_key(settings.effective_chat_model)
+    model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
     thinking_kwargs = (
         deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
     )
@@ -181,14 +181,14 @@ async def _relay_announcement(
 
 async def _announcement_attempts(
     run: RunRow,
-    byok: credentials.ByokCredential | None,
+    byok: byok_scope.ByokCredential | None,
     prose: list[str],
     reasoning: list[str],
 ) -> AsyncGenerator[str, None]:
     """A clean stream ending with reasoning alone gets one thinking-off
     retry; that is distinct from provider failure.
     """
-    with credentials.scoped_byok(byok):
+    with byok_scope.scoped_byok(byok):
         async for frame in _relay_announcement(run, prose, reasoning):
             yield frame
         if "".join(prose).strip() or not "".join(reasoning).strip():
@@ -205,7 +205,7 @@ async def _announcement_attempts(
 async def stream_announcement(
     run: RunRow,
     prompt_message_id: int,
-    byok: credentials.ByokCredential | None = None,
+    byok: byok_scope.ByokCredential | None = None,
 ) -> AsyncGenerator[str, None]:
     """The run already started; announcement failure must yield standby
     confirmation rather than imply scientific execution failed.

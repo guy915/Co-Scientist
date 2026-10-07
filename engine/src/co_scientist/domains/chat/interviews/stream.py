@@ -9,8 +9,8 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
-from co_scientist.api.sse import sse_frame
-from co_scientist.domains.access import credentials
+from co_scientist.core import byok_scope
+from co_scientist.core.sse import sse_frame
 from co_scientist.domains.chat.interviews import turns
 from co_scientist.domains.chat.repository import interviews as store
 
@@ -38,7 +38,7 @@ async def _start_stream_advance(
 
 async def _advance_stream(
     interview_id: str,
-    byok: credentials.ByokCredential | None = None,
+    byok: byok_scope.ByokCredential | None = None,
 ) -> AsyncGenerator[str, None]:
     """One ordered queue carries reasoning and prose; disconnect
     cancellation stops unwatched provider work.
@@ -46,7 +46,7 @@ async def _advance_stream(
     if store.get_interview(interview_id) is None:
         yield sse_frame({"type": "error", "detail": "interview not found"})
         return
-    with credentials.scoped_byok(byok):
+    with byok_scope.scoped_byok(byok):
         queue, task = await _start_stream_advance(interview_id)
         try:
             while (fragment := await queue.get()) is not None:
@@ -90,7 +90,7 @@ async def _resolve_advance_task(
 
 def _interview_stream(
     interview_id: str,
-    byok: credentials.ByokCredential | None = None,
+    byok: byok_scope.ByokCredential | None = None,
 ) -> StreamingResponse:
     return StreamingResponse(
         _advance_stream(interview_id, byok),

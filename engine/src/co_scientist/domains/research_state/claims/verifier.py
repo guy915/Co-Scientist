@@ -12,6 +12,7 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
+from co_scientist.core.json_schema import obj
 from co_scientist.domains.research_state.claims import (
     Assessor,
     BatchAssessor,
@@ -36,7 +37,6 @@ from co_scientist.platform.llm import (
     record_deterministic_fallback,
     scoped_telemetry_phase,
 )
-from co_scientist.science.schemas.builders import obj
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,9 @@ class _EntailmentRequest:
 async def _call_claim_json_async(
     model: str, request: _EntailmentRequest, *, max_attempts: int = 3
 ) -> dict[str, Any]:
-    import co_scientist.domains.access.credentials as credentials
+    from co_scientist.core import byok_scope
 
-    resolved_model, api_key = credentials.byok_model_and_key(model)
+    resolved_model, api_key = byok_scope.byok_model_and_key(model)
     spec = CompletionSpec(
         model_name=resolved_model,
         api_key=api_key,

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import (
     LLMTimeoutError,
@@ -350,7 +351,7 @@ async def test_an_expired_lease_fails_closed_until_the_owner_resumes(
             credentials.store_run_credential(
                 run_id,
                 DEFAULT_TEST_CLIENT_ID,
-                credentials.ByokCredential(
+                byok_scope.ByokCredential(
                     provider="deepseek",
                     api_key=_BYOK_KEY,
                     model="deepseek/deepseek-v4-flash",
