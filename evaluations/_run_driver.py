@@ -45,9 +45,9 @@ class ArmInvocation:
 def persist_arm_run(
     goal: str, tier: str, overrides: dict[str, Any], invocation: ArmInvocation
 ) -> str:
-    from app.store import runs
-    from app.store.runs import RunCreateOptions
     from co_scientist.core.run_modes import resolved_run_config, setup_config
+    from co_scientist.orchestration.repository import runs
+    from co_scientist.orchestration.repository.runs import RunCreateOptions
 
     config = resolved_run_config(
         {
@@ -93,8 +93,8 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
 
 def drain_run(run_id: str, db_path: str, *, worker_prefix: str) -> tuple[int, float]:
     """A failed run also drains its queue; verify persisted terminal status."""
-    from app import task_worker
-    from app.store import events as store
+    from co_scientist.orchestration import task_worker
+    from co_scientist.orchestration.repository import events as store
 
     task_worker.enqueue_run_workflow(run_id, db_path=db_path)
     start = time.monotonic()
@@ -152,7 +152,7 @@ def run_completion_status(run: Any) -> tuple[bool, bool]:
     """Queue drain proves neither completion nor a real backend; inspect both
     persisted facts.
     """
-    from app.store import runs as store
+    from co_scientist.orchestration.repository import runs as store
     from co_scientist.platform.db.models import RunStatus
 
     if run is None:
@@ -187,15 +187,15 @@ def run_arm(
     overrides: dict[str, Any],
     invocation: ArmInvocation,
 ) -> dict[str, Any]:
-    from app.store import runs as store_runs
-    from app.store import tasks
     from co_scientist.domains.research_state.repository import hypotheses as store
     from co_scientist.domains.research_state.repository import records
+    from co_scientist.orchestration.repository import runs as store_runs
+    from co_scientist.orchestration.repository import tasks
 
     db_path = invocation.db_path
     run_id = persist_arm_run(goal, tier, overrides, invocation)
     events, elapsed = drive_arm_run(run_id, db_path)
-    run = store_runs.get_run(run_id, db_path=db_path)
+    run: Any = store_runs.get_run(run_id, db_path=db_path)
     completed, real_backend = run_completion_status(run)
     hyps = store.list_hypotheses(run_id, db_path=db_path)
     claim_edges = records.list_claim_evidence(run_id, db_path=db_path)

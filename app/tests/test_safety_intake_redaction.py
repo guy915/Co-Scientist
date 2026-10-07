@@ -11,13 +11,13 @@ from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.domains.safety.types import REDACTED_PLACEHOLDER
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.engine_tasks import inputs
+from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository.runs import RunCreateOptions
+from co_scientist.orchestration.task_worker.outcomes import LeaseLostError
 from co_scientist.platform import db
 
-from app import engine_tasks, task_worker
-from app.engine_tasks import inputs
-from app.store import runs, tasks
-from app.store.runs import RunCreateOptions
-from app.task_worker.outcomes import _LeaseLostError
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import _install_runtime
@@ -61,7 +61,7 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
 
     _install_runtime(monkeypatch).screen = cancel_then_return_redaction
 
-    with pytest.raises(_LeaseLostError):
+    with pytest.raises(LeaseLostError):
         await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
 
     detail = owner.get(f"/api/runs/{run_id}")
@@ -108,7 +108,7 @@ async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
 
     _install_runtime(monkeypatch).screen = expire_then_allow
 
-    with pytest.raises(_LeaseLostError):
+    with pytest.raises(LeaseLostError):
         await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
 
     persisted = runs.get_run(run_id, db_path=isolated_db)

@@ -15,6 +15,17 @@ from co_scientist.domains.research_state.models import (
     Hypothesis,
 )
 from co_scientist.domains.research_state.repository import records
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.engine_tasks import (
+    fanout_aggregates as engine_tasks_fanout_aggregates,
+)
+from co_scientist.orchestration.engine_tasks import ranking as engine_tasks_ranking
+from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
+from co_scientist.orchestration.engine_tasks.support import TaskCommit
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import tasks as store_tasks
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.platform.llm import (
     current_run_call_count,
@@ -24,15 +35,6 @@ from co_scientist.platform.llm.admission.call_budget import record_provider_requ
 from co_scientist.science.meta_review import research_overview as ro
 from litellm.exceptions import APIError
 
-from app import engine_tasks, task_worker
-from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.engine_tasks import ranking as engine_tasks_ranking
-from app.engine_tasks import support as engine_tasks_support
-from app.engine_tasks.support import TaskCommit
-from app.store import events as store_events
-from app.store import runs
-from app.store import tasks as store_tasks
-from app.store import tasks_lifecycle as lifecycle
 from tests._engine_tasks_helpers import (
     _Generator,
     _milestones,
@@ -319,7 +321,7 @@ async def _commit_node(run_id: str, node: str, db_path: str, *, mcp_available: b
 async def test_durable_successor_follows_a_rerouted_graph(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, node: str
 ) -> None:
-    from co_scientist import workflow_topology
+    from co_scientist.orchestration import workflow_topology
 
     monkeypatch.setitem(workflow_topology.WORKFLOW_ROUTES, node, _DIVERTED_TO)
     run = seed_run("Durable routing")

@@ -13,12 +13,12 @@ from co_scientist.domains.chat.repository.examples import open_example_chat
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
+from co_scientist.orchestration import engine_adapter, engine_tasks
 from co_scientist.platform import db
 from co_scientist.platform.db.models import MessageRow, RunRow, RunStatus
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app import engine_adapter, engine_tasks
 from app.api_contracts import MessagesResponse
 from app.api_contracts.interviews import Interview
 from app.api_contracts.runs import RunMessage

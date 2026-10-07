@@ -7,17 +7,17 @@ from threading import Event
 from typing import Any
 
 import pytest
+from co_scientist.orchestration import engine_tasks
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import engine_tasks
-from app.store import events as store_events
-from app.store import runs
-from app.store import tasks as store
-from app.store import tasks_lifecycle as lifecycle
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._store_helpers import (

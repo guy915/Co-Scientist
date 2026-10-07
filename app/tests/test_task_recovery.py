@@ -5,10 +5,19 @@ import dataclasses
 import json
 from typing import Any
 
+import co_scientist.orchestration.repository.tasks_lifecycle as store_tasks_attempts
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 from co_scientist.domains.access import credentials
+from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.repository import events as store_events
+from co_scientist.orchestration.repository import runs
+from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.orchestration.repository import tasks as store
+from co_scientist.orchestration.repository import tasks as store_tasks
+from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
+from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db.models import (
     UNKNOWN_PROVIDER_OUTCOME_ERROR,
@@ -16,15 +25,6 @@ from co_scientist.platform.db.models import (
     ScientificTask,
 )
 
-import app.store.tasks_lifecycle as store_tasks_attempts
-from app import engine_tasks, task_worker
-from app.store import events as store_events
-from app.store import runs
-from app.store import runs_views as views
-from app.store import tasks as store
-from app.store import tasks as store_tasks
-from app.store import tasks_lifecycle as lifecycle
-from app.store.runs import RunCreateOptions
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._store_helpers import enqueue_task, seed_run

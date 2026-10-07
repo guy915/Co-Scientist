@@ -8,12 +8,12 @@ from typing import Any, cast
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.chat import seed
+from co_scientist.orchestration.repository import runs as store
+from co_scientist.orchestration.repository import runs_views, tasks
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
 import app.main
-from app.store import runs as store
-from app.store import runs_views, tasks
 from tests._client import DEFAULT_TEST_CLIENT_ID
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
