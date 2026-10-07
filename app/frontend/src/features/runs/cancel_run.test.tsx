@@ -2,7 +2,7 @@ import {act, fireEvent, render, screen} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {HttpError} from '@/api/runs';
 import {RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
-import {CancelRunControl} from './layout_cancel_run';
+import {CancelRunControl} from './cancel_run';
 
 const cancelRun = vi.hoisted(() => vi.fn());
 

@@ -1,6 +1,6 @@
 from typing import Any, Final
 
-from co_scientist.science.schemas.builders import obj, str_array
+from co_scientist.core.json_schema import obj, str_array
 from co_scientist.science.schemas.generation import (
     EVOLUTION_SCHEMA as EVOLUTION_SCHEMA,
 )
