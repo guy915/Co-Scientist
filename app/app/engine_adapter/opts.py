@@ -47,10 +47,6 @@ def _apply_capability_opts(initial_opts: dict[str, Any], cfg: dict[str, Any]) ->
     )
 
 
-def _clean_list_field(setup: dict[str, Any], key: str) -> list[str]:
-    return clean_string_list([str(value) for value in setup.get(key) or []])
-
-
 def _setup_opts_from_cfg(setup: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(setup, dict):
         return {}
@@ -61,7 +57,7 @@ def _setup_opts_from_cfg(setup: dict[str, Any] | None) -> dict[str, Any]:
         # Engine attributes need names; anchored rubric text still reaches
         # prompts through run_setup_guidance.
         "attributes": attribute_names(setup.get("attributes")),
-        "constraints": _clean_list_field(setup, "requirements"),
+        "constraints": clean_string_list([str(value) for value in setup.get("requirements") or []]),
         # Legacy prose and structured criteria normalize to the same engine
         # string vocabulary.
         "criteria": criteria_display_strings(setup.get("criteria")),
