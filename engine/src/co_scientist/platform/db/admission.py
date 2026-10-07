@@ -161,3 +161,40 @@ def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: 
                 "SET calls=calls+1,tokens=tokens+excluded.tokens",
                 (day, scope, subject, tokens),
             )
+
+
+def claim_continuation(
+    conn: sqlite3.Connection, run_id: str, input_id: int, owner: str, *, free: bool
+) -> None:
+    from co_scientist.core.config import settings
+
+    day = int(current_time() // 86400)
+    row = conn.execute("SELECT host FROM run_admissions WHERE run_id=?", (run_id,)).fetchone()
+    host = str(row[0]) if row else UNKNOWN_HOST
+    prefix = f"continuation:{run_id}:"
+    counts = conn.execute(
+        "SELECT COUNT(*),COALESCE(SUM(client_id=?),0),COALESCE(SUM(host=?),0),"
+        "COALESCE(SUM(substr(run_id,1,?)=?),0) FROM run_admissions "
+        "WHERE day=? AND run_id LIKE 'continuation:%'",
+        (owner, host, len(prefix), prefix, day),
+    ).fetchone()
+    limits = (
+        settings.continuations_per_day,
+        settings.continuations_per_client_per_day,
+        settings.continuations_per_host_per_day,
+        settings.continuations_per_run_per_day,
+    )
+    if any(count >= limit for count, limit in zip(counts, limits, strict=True)):
+        raise ProviderAdmissionError("daily continuation admission exhausted")
+    key = f"{prefix}{input_id}"
+    if free:
+        used = conn.execute(
+            "SELECT COUNT(*) FROM free_run_usage WHERE client_id=? AND created_at>=?",
+            (owner, day * 86400),
+        ).fetchone()[0]
+        if settings.free_runs_per_day > 0 and used >= settings.free_runs_per_day:
+            raise ProviderAdmissionError("daily free run admission exhausted")
+    # A continuation consumes the shared run envelope, even if its original run is old.
+    claim_run(conn, key, owner, host, free=free)
+    if free:
+        conn.execute("INSERT INTO free_run_usage VALUES (?,?,?)", (key, owner, current_time()))
