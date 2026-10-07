@@ -53,7 +53,7 @@ const SEGMENT_THUMB_CLASSES: Record<SegmentedSize, string> = {
 };
 
 const SEGMENT_ITEM_CLASSES: Record<SegmentedSize, string> = {
-  md: 'min-h-[2.6rem] px-3 text-[0.875rem] font-semibold',
+  md: 'min-h-[2.6rem] px-[0.44rem] text-[0.875rem] font-semibold',
   lg: 'h-10 flex-none px-5 text-[0.9375rem] font-medium max-[900px]:px-3.5',
 };
 
