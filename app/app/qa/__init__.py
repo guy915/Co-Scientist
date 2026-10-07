@@ -380,7 +380,7 @@ def _handle_qa_stream_error(run_id: str, exc: Exception, question_id: int) -> st
     """Persist the emitted fallback on stream failures so chat history matches
     what the user saw.
     """
-    logger.error("Q&A stream error for run %s: %s", run_id, exc)
+    logger.error("Q&A stream error for run %s (%s)", run_id, type(exc).__name__)
     fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."
     store.append_qa_reply(
         NewMessage(run_id=run_id, sender="system", content=fallback, kind="qa"),
@@ -413,7 +413,8 @@ async def stream_answer(
             async for frame in _framed_answer(run_id, question.message_id, inputs.manifest, deltas):
                 yield frame
     except Exception as exc:
-        fallback = _handle_qa_stream_error(run_id, exc, question.message_id)
+        with run_log_context(run_id):
+            fallback = _handle_qa_stream_error(run_id, exc, question.message_id)
         yield sse_frame({"type": "error", "message": fallback})
 
 

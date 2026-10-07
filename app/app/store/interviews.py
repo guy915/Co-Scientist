@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.platform.db import connect, current_time, use_conn
+from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
 
 def create_interview(
@@ -16,6 +17,8 @@ def create_interview(
     *,
     db_path: str | None = None,
 ) -> dict[str, Any]:
+    if client_id == DEMO_CLIENT_ID:
+        raise ValueError("the demo identity is reserved for seeded examples")
     interview_id = str(uuid.uuid4())
     now = current_time()
     fields: dict[str, Any] = {

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
+import threading
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -39,7 +42,7 @@ from co_scientist.workspace import (
     workspaces_root,
 )
 from co_scientist.workspace import tools as workspace_tools
-from co_scientist.workspace.checks import MAX_FINDINGS, check_paths
+from co_scientist.workspace.checks import MAX_CHECKED_BYTES, MAX_FINDINGS, check_paths
 from tests._llm_fake import make_tool_call
 
 _requires_sandbox = pytest.mark.skipif(
@@ -330,6 +333,101 @@ def test_an_edit_comes_back_with_its_syntax_findings(
 def test_a_binary_or_deleted_path_is_not_a_finding(tmp_path: Path) -> None:
     (tmp_path / "blob.json").write_bytes(b"\xff\xfe\x00binary")
     assert check_paths(tmp_path, ["gone.py", "blob.json"]) == ()
+
+
+def test_a_checker_does_not_read_a_path_swapped_after_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspace"
+    root.mkdir()
+    target = root / "module.py"
+    target.write_text("VALUE = 1\n")
+    outside = tmp_path / "outside.py"
+    outside.write_text("def broken(:\n")
+    original_stat: Callable[..., os.stat_result] = os.stat
+    swapped = False
+
+    def stat_then_swap(
+        path: os.PathLike[str] | os.PathLike[bytes] | str | bytes | int,
+        *args: Any,
+        **kwargs: Any,
+    ) -> os.stat_result:
+        nonlocal swapped
+        result = original_stat(path, *args, **kwargs)
+        is_path_based_check = path == target and kwargs.get("dir_fd") is None
+        is_descriptor_check = path == "module.py" and kwargs.get("dir_fd") is not None
+        if not swapped and (is_path_based_check or is_descriptor_check):
+            target.unlink()
+            target.symlink_to(outside)
+            swapped = True
+        return result
+
+    monkeypatch.setattr(os, "stat", stat_then_swap)
+
+    assert check_paths(root, ["module.py"]) == ()
+    assert swapped
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="named pipes require POSIX")
+def test_a_checker_does_not_block_on_a_fifo(tmp_path: Path) -> None:
+    fifo = tmp_path / "blocked.py"
+    os.mkfifo(fifo)
+    findings: list[Any] = []
+
+    def inspect() -> None:
+        try:
+            findings.append(check_paths(tmp_path, [fifo.name]))
+        except BaseException as exc:
+            findings.append(exc)
+
+    worker = threading.Thread(target=inspect, daemon=True)
+    worker.start()
+    worker.join(timeout=0.25)
+    completed_without_writer = not worker.is_alive()
+
+    if not completed_without_writer:
+
+        def release_blocked_open() -> None:
+            fd = os.open(fifo, os.O_WRONLY)
+            os.close(fd)
+
+        writer = threading.Thread(target=release_blocked_open, daemon=True)
+        writer.start()
+        worker.join(timeout=1)
+        writer.join(timeout=1)
+
+    assert completed_without_writer
+    assert findings == [()]
+
+
+def test_a_checker_skips_a_file_that_grows_over_the_limit_after_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspace"
+    root.mkdir()
+    target = root / "large.py"
+    target.write_text("def broken(:\n")
+    original_stat: Callable[..., os.stat_result] = os.stat
+    grew = False
+
+    def stat_then_grow(
+        path: os.PathLike[str] | os.PathLike[bytes] | str | bytes | int,
+        *args: Any,
+        **kwargs: Any,
+    ) -> os.stat_result:
+        nonlocal grew
+        result = original_stat(path, *args, **kwargs)
+        is_path_based_check = path == target and kwargs.get("dir_fd") is None
+        is_descriptor_check = path == "large.py" and kwargs.get("dir_fd") is not None
+        if not grew and (is_path_based_check or is_descriptor_check):
+            target.write_text("def broken(:\n" + " " * MAX_CHECKED_BYTES)
+            grew = True
+        return result
+
+    monkeypatch.setattr(os, "stat", stat_then_grow)
+
+    assert check_paths(root, ["large.py"]) == ()
+    assert grew
 
 
 @pytest.mark.parametrize(

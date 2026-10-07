@@ -3,7 +3,9 @@ from typing import Any
 
 import httpx
 import pytest
-from mcp_server.tests._httpx import stub_failure, stub_responses
+from mcp_server.tests._httpx import stub_failure, stub_responses, transport_responses
+from mcp_server.tests.test_pdf_parser import _pdf
+from mcp_server.tools import web_fetch
 from mcp_server.tools.web_fetch import (
     UrlNotFetchableError,
     check_fetchable,
@@ -140,6 +142,30 @@ async def test_read_url_extracts_readable_text_without_page_furniture(
         assert kept in text
     for noise in ("analytics()", "color:red", "About", "Copyright 2026"):
         assert noise not in text
+
+
+async def test_read_url_extracts_an_ordinary_pdf_in_the_worker(
+    monkeypatch: pytest.MonkeyPatch, resolve_to: Any
+) -> None:
+    resolve_to(_PUBLIC)
+    transport_responses(
+        monkeypatch,
+        _page(200, _pdf(["isolated PDF control"]), "application/pdf"),
+    )
+
+    assert "isolated PDF control" in await read_url("https://example.com/paper.pdf")
+
+
+async def test_read_url_rejects_a_stream_over_the_response_budget(
+    monkeypatch: pytest.MonkeyPatch, resolve_to: Any
+) -> None:
+    resolve_to(_PUBLIC)
+    monkeypatch.setattr(web_fetch, "_MAX_BYTES", 5)
+    transport_responses(monkeypatch, _page(200, b"123456", "text/plain"))
+
+    assert await read_url("https://example.com/large") == (
+        "[error: could not fetch https://example.com/large]"
+    )
 
 
 @pytest.mark.parametrize(

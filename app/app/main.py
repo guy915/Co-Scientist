@@ -15,7 +15,7 @@ from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -38,7 +38,7 @@ from app.logging_setup import (
 )
 from app.logs_api import router as logs_router
 from app.runs import router as runs_router
-from app.seed import seed_demo_runs
+from app.seed import is_current_demo_run, seed_demo_runs
 from app.store import runs, tasks
 from app.store import runs_views as views
 
@@ -252,6 +252,8 @@ async def _run_ownership_response(request: Request, principal: Principal) -> Res
     if run is None:
         return None
     if run.client_id == DEMO_CLIENT_ID:
+        if not is_current_demo_run(run.id):
+            return JSONResponse({"detail": "run not found"}, status_code=404)
         if request.method not in {"GET", "HEAD"} and not (
             request.method == "POST" and parts[3:] == ["example-chat"]
         ):
@@ -271,7 +273,12 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
         return cast(Response, await call_next(request))
     # Authorize routed ASGI paths, not URLs reconstructed from caller-controlled
     # Host headers.
-    principal = principal_for_request(request)
+    try:
+        principal = principal_for_request(request)
+    except HTTPException as exc:
+        return JSONResponse(
+            {"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers
+        )
     ownership_response = await _run_ownership_response(request, principal)
     if ownership_response is not None:
         return ownership_response

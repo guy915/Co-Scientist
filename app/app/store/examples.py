@@ -10,6 +10,7 @@ from typing import Any
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
+from app.seed import is_current_demo_run
 from app.store import interviews, runs
 from app.store.runs import RunCreateOptions
 
@@ -60,6 +61,8 @@ def _insert_copy(
 
 
 def _example_source(conn: sqlite3.Connection, source_id: str) -> tuple[sqlite3.Row, dict[str, Any]]:
+    if not is_current_demo_run(source_id, conn=conn):
+        raise ValueError("example not found")
     source_row = conn.execute(
         "SELECT * FROM runs WHERE id=? AND client_id=?",
         (source_id, DEMO_CLIENT_ID),

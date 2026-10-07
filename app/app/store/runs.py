@@ -8,7 +8,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
-from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow, RunStatus, row_to_run
+from co_scientist.platform.db.models import (
+    DEMO_CLIENT_ID,
+    TERMINAL_STATUSES,
+    RunRow,
+    RunStatus,
+    row_to_run,
+)
 
 from app.store.logs import count_logs_for_run, delete_logs_for_run
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
@@ -354,6 +360,8 @@ def create_run(
     creation cannot appear in the log.
     """
     opts = options or RunCreateOptions()
+    if opts.client_id == DEMO_CLIENT_ID:
+        raise ValueError("the demo identity is reserved for seeded examples")
     now = current_time()
     backend = opts.llm_backend or "real"
     run = RunRow(

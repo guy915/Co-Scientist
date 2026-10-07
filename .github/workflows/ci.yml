@@ -462,6 +462,43 @@ jobs:
       - name: make lint
         run: make lint
 
+  # Preserve the protected check names after splitting their suites into shards.
+  protected-contexts:
+    name: ${{ matrix.name }}
+    if: always()
+    needs: [changes, test-app, evaluations, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: App tests, owner: test-app, target: app}
+          - {name: Evaluations (parity + offline smoke), owner: evaluations, target: evaluations}
+          - {name: Browser e2e (Playwright), owner: e2e, target: e2e}
+    steps:
+      - name: Require the selected suite to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          CHECK_JOB: ${{ matrix.owner }}
+          CHECK_TARGET: ${{ matrix.target }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          jobs = json.loads(os.environ["RESULTS"])
+          changes = jobs["changes"]
+          affected = changes["outputs"].get(os.environ["CHECK_TARGET"])
+          expected = {"true": "success", "false": "skipped"}.get(affected)
+          result = jobs[os.environ["CHECK_JOB"]]["result"]
+          if changes["result"] != "success" or expected is None or result != expected:
+              print(f"Selected suite failed: affected={affected}, result={result}")
+              sys.exit(1)
+          print("The selected suite passed or was correctly excluded.")
+          PY
+
   required-checks:
     name: Required checks
     if: always()
@@ -477,6 +514,7 @@ jobs:
       - e2e
       - docker-build
       - root-config
+      - protected-contexts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

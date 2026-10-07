@@ -6,7 +6,7 @@ import {isModifiedClick} from '@/workbench/dom_events';
 import {GoogleLabsIcon, NAV_ICON_CLASSES} from './layout_primitives';
 import {TruncatedLabel} from './components/truncated_label';
 import {CancelRunControl} from './layout_cancel_run';
-import {DiagnosticsControl} from './layout_diagnostics';
+import {SessionDiagnostics} from './layout_diagnostics';
 import {FeedbackControl} from './components/feedback_dialog';
 import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
 import {joinClasses, tooltipClassNames} from './classes';
@@ -99,7 +99,7 @@ export function ShellHeader({
   toggleNav,
   startNewChat,
   headerTitle,
-  logsControlRef,
+  headerActionsRef,
   session,
   runStatus,
 }: {
@@ -107,7 +107,7 @@ export function ShellHeader({
   toggleNav: () => void;
   startNewChat: () => void;
   headerTitle: string;
-  logsControlRef: RefObject<HTMLDivElement | null>;
+  headerActionsRef: RefObject<HTMLDivElement | null>;
   session: SessionSwitchData | null;
   runStatus: RunStatus | undefined;
 }) {
@@ -129,12 +129,12 @@ export function ShellHeader({
         )}
       </div>
       {/* Navigation dismisses popovers itself, so the session switch may share this anchor. */}
-      <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
+      <div ref={headerActionsRef} className={HEADER_ACTIONS_CLASSES}>
         <CancelRunControl runId={session?.runId} status={runStatus} />
         <SessionSwitch session={session} />
         <SystemStatusIndicator />
         <FeedbackControl runId={session?.runId} />
-        <DiagnosticsControl />
+        <SessionDiagnostics />
       </div>
     </header>
   );

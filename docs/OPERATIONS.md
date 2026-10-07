@@ -313,7 +313,7 @@ Feedback silently uses the existing tab-session anchor and diagnostic exporter
 records. It keeps the newest
 loaded records within the attachment limit; a failed log fetch produces an
 explicit diagnostic-unavailable record so the message can still be submitted.
-The header Logs button copies the same export; there is no log panel.
+Feedback is the only reader of the export; there is no Logs button or log panel.
 
 New metadata captures chat roles, character counts and response durations, tool
 names and execution durations/outcomes, failed-fetch method/path/status (without
