@@ -584,12 +584,12 @@ CREATE INDEX IF NOT EXISTS idx_tasks_run_status
     ON scientific_tasks(run_id, status, task_type);
 
 -- One search: one query, against one source, serving one question. Written
--- by the deep-research capability (co_scientist.research) through
+-- by the deep-research capability (co_scientist.science.research) through
 -- co_scientist.platform.telemetry.retrieval_calls, after the network work returns -- never across
 -- it, since a transaction spanning outbound I/O freezes every other writer
 -- for its duration (see the store gotchas in AGENTS.md).
 CREATE TABLE IF NOT EXISTS retrieval_calls (
-    -- Content id from co_scientist.research.artifacts: a hash over
+    -- Content id from co_scientist.science.research.artifacts: a hash over
     -- (source, question, query), so re-issuing the same search re-derives
     -- the same id and a resumed run recognizes work it already paid for.
     -- Deliberately NOT unique on its own: the id carries no run, so two

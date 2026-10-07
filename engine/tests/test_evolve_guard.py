@@ -4,28 +4,28 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.evolution import (
-    EvolutionContext,
-    build_evolution_context,
-    evolve,
-)
-from co_scientist.agents.evolution.evolve import (
-    evolve_node,
-    evolve_single_hypothesis,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    EvolutionOperator,
-    _build_evolution_prompt,
-    _EvolutionOperation,
-)
-from co_scientist.agents.evolution.evolve_results import _apply_evolution_result
-from co_scientist.agents.generation.citations import ReferenceIndex
 from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm.offline.llm import (
     DEFAULT_OFFLINE_MODEL,
     install_offline_router,
 )
+from co_scientist.science.evolution import (
+    EvolutionContext,
+    build_evolution_context,
+    evolve,
+)
+from co_scientist.science.evolution.evolve import (
+    evolve_node,
+    evolve_single_hypothesis,
+)
+from co_scientist.science.evolution.evolve_prompt import (
+    EvolutionOperator,
+    _build_evolution_prompt,
+    _EvolutionOperation,
+)
+from co_scientist.science.evolution.evolve_results import _apply_evolution_result
+from co_scientist.science.generation.citations import ReferenceIndex
 from tests._llm_fake import stub_call_llm_json
 from tests._mcp import isolate_offline_router
 from tests._state import make_article, make_hypothesis, make_state
@@ -196,7 +196,7 @@ async def test_enhancement_grounding_falls_back_to_run_articles(
 async def test_enhancement_grounding_retrieves_when_mcp_is_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist.agents.evolution import evolve_grounding
+    from co_scientist.science.evolution import evolve_grounding
 
     observed_prompt = ""
     observed_queries: list[str] = []
@@ -236,7 +236,7 @@ async def test_enhancement_grounding_retrieves_when_mcp_is_up(
 
 
 def test_grounding_metrics_extra_counts_only_live_enhancements() -> None:
-    from co_scientist.agents.evolution.evolve_grounding import (
+    from co_scientist.science.evolution.evolve_grounding import (
         grounding_metrics_extra,
     )
 

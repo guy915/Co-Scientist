@@ -13,8 +13,7 @@ from unittest.mock import AsyncMock
 import pytest
 from litellm.exceptions import BadRequestError
 
-import co_scientist.agents.generation.literature_tools.validate as vs
-from co_scientist.agents.reflection import review as rv
+import co_scientist.science.generation.literature_tools.validate as vs
 from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
@@ -30,6 +29,7 @@ from co_scientist.platform.llm.request import backend
 from co_scientist.platform.llm.structured.validate import attempt_json_repair
 from co_scientist.platform.retrieval.mcp_client import MCPToolClient
 from co_scientist.platform.retrieval.tools.provider import MCPToolProvider
+from co_scientist.science.reflection import review as rv
 from tests._llm_fake import (
     FakeBackend,
     install_fake_backend,
@@ -307,7 +307,9 @@ def test_a_synthesis_batch_is_retried_individually_unless_a_cap_is_spent() -> No
             vs._partition_synthesis_results(batches, [[], error])
 
 
-_AGENTS_DIR = pathlib.Path(__file__).resolve().parents[1] / "src/co_scientist/agents"
+_SOURCE_DIR = pathlib.Path(__file__).resolve().parents[1] / "src/co_scientist"
+# agents/ keeps the node registry until the orchestration move.
+_AGENT_DIRS = (_SOURCE_DIR / "science", _SOURCE_DIR / "agents")
 
 
 _LLM_CALLS = {"call_llm", "call_llm_json", "call_llm_with_tools"}
@@ -352,10 +354,10 @@ def _unguarded_llm_fallbacks(tree: ast.AST) -> list[int]:
 
 def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
     unguarded: dict[str, list[int]] = {}
-    for path in sorted(_AGENTS_DIR.rglob("*.py")):
+    for path in sorted(p for d in _AGENT_DIRS for p in d.rglob("*.py")):
         offenders = _unguarded_llm_fallbacks(ast.parse(path.read_text(encoding="utf-8")))
         if offenders:
-            unguarded[str(path.relative_to(_AGENTS_DIR))] = offenders
+            unguarded[str(path.relative_to(_SOURCE_DIR))] = offenders
 
     assert not unguarded, (
         f"these handlers swallow a rate-limit park or the run's call-budget ceiling: {unguarded}"

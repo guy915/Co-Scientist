@@ -4,13 +4,13 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.agents.meta_review.research_overview import is_interim_firing
 from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
 from co_scientist.domains.research_state.state import WorkflowState
-from co_scientist.scheduling import (
+from co_scientist.science.meta_review.research_overview import is_interim_firing
+from co_scientist.science.scheduling import (
     Budget,
     SchedulerStats,
     SupervisorDecision,
@@ -20,7 +20,7 @@ from co_scientist.scheduling import (
     stacked_task_values,
     validate_decision,
 )
-from co_scientist.scheduling.policy import stack_companions
+from co_scientist.science.scheduling.policy import stack_companions
 from co_scientist.workflow_topology import route_after_meta_review
 from tests._state import BUDGET, healthy_stats, make_state
 

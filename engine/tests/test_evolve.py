@@ -4,15 +4,15 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.evolution import EvolutionContext, evolve
-from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
-from co_scientist.agents.evolution.evolve_prompt import (
+from co_scientist.domains.research_state.models import Hypothesis
+from co_scientist.science.evolution import EvolutionContext, evolve
+from co_scientist.science.evolution.evolve import evolve_single_hypothesis
+from co_scientist.science.evolution.evolve_prompt import (
     EvolutionOperator,
     _EvolutionOperation,
     operator_instruction,
     operator_template,
 )
-from co_scientist.domains.research_state.models import Hypothesis
 from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis
 

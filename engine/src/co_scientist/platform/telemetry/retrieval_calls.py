@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from co_scientist.platform.db import connect, current_time, list_by_run, use_conn
 
 if TYPE_CHECKING:
-    from co_scientist.research import ResearchResult
+    from co_scientist.science.research import ResearchResult
 
 
 def save_run_metrics(

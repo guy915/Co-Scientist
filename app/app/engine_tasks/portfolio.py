@@ -74,7 +74,7 @@ def _apply_supervisor_enqueue_actions(
     """Same-run recognized tasks are chained serially; shared edge keys
     deduplicate planned companions and reactive successors.
     """
-    from co_scientist.scheduling import stacked_task_values
+    from co_scientist.science.scheduling import stacked_task_values
     from co_scientist.workflow_topology import TASK_ROUTES
 
     from app.engine_tasks.support import NODE_TASK_PREFIX

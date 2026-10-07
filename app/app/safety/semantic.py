@@ -9,7 +9,7 @@ from co_scientist.platform.llm import (
     call_llm_json,
     coerce_json_list,
 )
-from co_scientist.schemas.builders import obj
+from co_scientist.science.schemas.builders import obj
 
 from app.safety.types import SafetyDecision
 

@@ -5,19 +5,19 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from co_scientist.agents.meta_review import research_overview as ro
-from co_scientist.agents.meta_review import (
-    research_overview_knowledge_base as kb,
-)
-from co_scientist.agents.meta_review import (
-    research_overview_knowledge_base as kbc,
-)
-from co_scientist.agents.meta_review import research_overview_review as ror
 from co_scientist.core.constants import (
     KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS,
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
+from co_scientist.science.meta_review import research_overview as ro
+from co_scientist.science.meta_review import (
+    research_overview_knowledge_base as kb,
+)
+from co_scientist.science.meta_review import (
+    research_overview_knowledge_base as kbc,
+)
+from co_scientist.science.meta_review import research_overview_review as ror
 from tests._state import make_hypothesis, make_state
 from tests.test_research_overview import (
     _RESEARCH_OVERVIEW_OVERVIEW_RESPONSE as _OVERVIEW_RESPONSE,

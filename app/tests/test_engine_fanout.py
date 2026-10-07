@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from co_scientist.agents import reflection as _operations_reflection
 from co_scientist.checkpoint import restore_workflow_state
 from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
@@ -17,6 +16,7 @@ from co_scientist.domains.research_state.models import Hypothesis, HypothesisRev
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import ScientificTask
 from co_scientist.platform.llm import ModelCallStats, record_call
+from co_scientist.science import reflection as _operations_reflection
 
 import app.engine_tasks.fanout as items
 from app import engine_tasks, task_worker
@@ -106,7 +106,7 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     state["hypotheses"] = [Hypothesis(text="alpha"), Hypothesis(text="beta")]
     await _advance_to_review_parent(run.id, monkeypatch, _Generator(state), isolated_db)
 
-    import co_scientist.agents.reflection.review as review_module
+    import co_scientist.science.reflection.review as review_module
 
     monkeypatch.setattr(review_module, "review_single_hypothesis", _fake_review)
     await _run_review_children_and_aggregate(run.id, isolated_db)
@@ -195,8 +195,8 @@ def _seed_mature_review_item(
 def _install_failing_review(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
     # Inject failures inside the review provider seam; replacing the whole
     # handler would hide swallowed parks.
-    import co_scientist.agents.reflection.comprehensive_reflection as comp
-    from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
+    import co_scientist.science.reflection.comprehensive_reflection as comp
+    from co_scientist.science.reflection.review_evidence import _ReviewEvidence
 
     async def _evidence(*_: Any, **__: Any) -> _ReviewEvidence:
         return _ReviewEvidence([], [], [], None)
@@ -243,7 +243,7 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
 ) -> None:
     # gather must propagate parks or waves commit incomplete rounds against an
     # unchanged provider cap.
-    from co_scientist.agents.ranking import RankingJudgement
+    from co_scientist.science.ranking import RankingJudgement
 
     from app.engine_tasks.ranking import _surviving_judgements
 

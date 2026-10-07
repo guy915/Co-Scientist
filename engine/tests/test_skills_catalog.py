@@ -6,8 +6,8 @@ import sys
 
 import pytest
 
-import co_scientist.agents.generation.literature_tools.draft as draft_skills
 import co_scientist.platform.sandbox.skills as catalog
+import co_scientist.science.generation.literature_tools.draft as draft_skills
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.platform.sandbox import workspace_write

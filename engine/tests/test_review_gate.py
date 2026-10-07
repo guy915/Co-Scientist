@@ -5,8 +5,17 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.reflection.review import review_node
-from co_scientist.agents.reflection.review_gate import (
+from co_scientist.core.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
+from co_scientist.domains.research_state.models import (
+    SCIENTIST_REVIEWER,
+    Hypothesis,
+    HypothesisReview,
+    has_peer_review,
+)
+from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.science.prompts.loading import load_prompt_with_schema
+from co_scientist.science.reflection.review import review_node
+from co_scientist.science.reflection.review_gate import (
     ReviewType,
     _apply_initial_review_gate,
     _gate_axes_for_criteria,
@@ -16,22 +25,13 @@ from co_scientist.agents.reflection.review_gate import (
     reviews_needed,
     schema_for,
 )
-from co_scientist.agents.supervisor.orchestrator import (
+from co_scientist.science.scheduling.models import TaskType
+from co_scientist.science.scheduling.policy import required_transition
+from co_scientist.science.schemas.review import FULL_REVIEW_SCHEMA
+from co_scientist.science.supervisor.orchestrator import (
     _compute_stats,
     _default_budget,
 )
-from co_scientist.core.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
-from co_scientist.domains.research_state.models import (
-    SCIENTIST_REVIEWER,
-    Hypothesis,
-    HypothesisReview,
-    has_peer_review,
-)
-from co_scientist.domains.research_state.state import WorkflowState
-from co_scientist.prompts.loading import load_prompt_with_schema
-from co_scientist.scheduling.models import TaskType
-from co_scientist.scheduling.policy import required_transition
-from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
 from tests._state import make_hypothesis, make_state
 
 
@@ -290,7 +290,7 @@ async def test_review_node_revisits_dispositions_with_nothing_to_review(
     async def _fail(*args: Any, **kwargs: Any) -> dict[str, Any]:
         raise AssertionError("review_node must not call the LLM here")
 
-    monkeypatch.setattr("co_scientist.agents.reflection.review.call_llm_json", _fail)
+    monkeypatch.setattr("co_scientist.science.reflection.review.call_llm_json", _fail)
 
     await review_node(state)
 
@@ -298,7 +298,7 @@ async def test_review_node_revisits_dispositions_with_nothing_to_review(
 
 
 def test_evolution_children_re_enter_review_unreviewed() -> None:
-    from co_scientist.agents.evolution.evolve_results import (
+    from co_scientist.science.evolution.evolve_results import (
         _build_evolution_child,
         _RefinedFields,
     )
@@ -364,6 +364,7 @@ def test_full_review_prompt_names_every_reviews_summary_part() -> None:
         pathlib.Path(__file__).resolve().parents[1]
         / "src"
         / "co_scientist"
+        / "science"
         / "prompts"
         / "templates"
         / "full_review.md"

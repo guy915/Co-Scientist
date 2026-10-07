@@ -4,7 +4,6 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.agents.generation import generate as coordinator
 from co_scientist.domains.research_state.models import (
     Article,
     ExecutionMetrics,
@@ -12,7 +11,8 @@ from co_scientist.domains.research_state.models import (
     HypothesisReview,
 )
 from co_scientist.domains.research_state.state import WorkflowState
-from co_scientist.scheduling import Budget, SchedulerStats, TaskType
+from co_scientist.science.generation import generate as coordinator
+from co_scientist.science.scheduling import Budget, SchedulerStats, TaskType
 
 
 def make_article(title: str = "An article", **overrides: Any) -> Article:

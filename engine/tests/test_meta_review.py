@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.safety import safety_screen_node
+from co_scientist.science.safety_screen import safety_screen_node
 from tests._state import make_hypothesis, make_state
 
 
