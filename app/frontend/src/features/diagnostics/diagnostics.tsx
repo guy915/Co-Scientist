@@ -19,6 +19,7 @@ import {
   STORAGE_KEYS,
   writeStorage,
 } from '@/shared/lib/safe_storage';
+import {nowSeconds} from '@/shared/lib/time';
 
 // The feedback export is scoped to records after this anchor, so it must be
 // taken when the shell mounts, not when feedback is first submitted.
@@ -94,7 +95,7 @@ export async function sessionDiagnosticExport(): Promise<string> {
       buildAppLogEntry(
         {
           id: 0,
-          created_at: Date.now() / 1000,
+          created_at: nowSeconds(),
           level: 'WARNING',
           levelno: 30,
           logger: 'ui.feedback',

@@ -15,15 +15,12 @@ import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {Button, CardButton, Chip} from '@/shared/ui';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {Link} from 'react-router-dom';
-import {
-  firstSentenceClause,
-  formatDurationPhrase,
-  capitalizeTerm,
-} from '@/shared/lib/text';
+import {firstSentenceClause, capitalizeTerm} from '@/shared/lib/text';
 import {useNowTick} from '@/shared/hooks/timers';
 import {preferredSessionSide} from '@/shared/hooks/session_side';
 import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
 import {displayTitle} from '@/shared/lib/titles';
+import {formatDurationPhrase} from '@/shared/lib/time';
 
 export interface HomeStageProps {
   input: string;

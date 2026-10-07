@@ -17,6 +17,7 @@ import {
   fieldSetter,
   stageDraftPatch,
 } from './use_chat_session';
+import {nowSeconds} from '@/shared/lib/time';
 
 export function turnToEntry(turn: InterviewTurn): ChatEntry {
   const role = turn.role === 'agent' ? 'assistant' : 'user';
@@ -196,7 +197,7 @@ export function appendChatMessage(
   update: Dispatch<SessionUpdate>,
   message: NewChatMessage,
 ): number {
-  const createdAt = message.createdAt ?? Date.now() / 1000;
+  const createdAt = message.createdAt ?? nowSeconds();
   const entry: ChatEntry = {
     id: makePrefixedId(message.role),
     role: message.role,

@@ -1,9 +1,10 @@
 import {useEffect, useState, useCallback, useRef} from 'react';
+import {nowSeconds} from '@/shared/lib/time';
 
 export function useNowTick(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now() / 1000);
+  const [now, setNow] = useState(nowSeconds);
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now() / 1000), intervalMs);
+    const id = window.setInterval(() => setNow(nowSeconds()), intervalMs);
     return () => window.clearInterval(id);
   }, [intervalMs]);
   return now;

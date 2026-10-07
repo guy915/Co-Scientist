@@ -39,6 +39,7 @@ import {
 } from '@/shared/lib/run_spec';
 import {readStorage, STORAGE_KEYS} from '@/shared/lib/safe_storage';
 import {errorMessage, httpStatus} from '@/shared/lib/errors';
+import {nowSeconds} from '@/shared/lib/time';
 
 export const START_RESEARCH_PROMPT = 'Start research';
 
@@ -72,7 +73,7 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
     appendChatMessage(deps.update, {
       role: 'user',
       content: START_RESEARCH_PROMPT,
-      createdAt: Math.max(Date.now() / 1000, stage.createdAt),
+      createdAt: Math.max(nowSeconds(), stage.createdAt),
       startRequest: true,
     });
   }
@@ -89,7 +90,7 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
   const session: StartedSession = {
     id: target.runId,
     title: conciseTitle(stage.spec.goal),
-    at: Date.now() / 1000,
+    at: nowSeconds(),
     announcing: shouldAnnounce,
   };
   deps.update({pendingAttachments: [], input: '', startedSession: session});
