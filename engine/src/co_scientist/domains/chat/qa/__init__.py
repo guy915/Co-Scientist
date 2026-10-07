@@ -17,6 +17,7 @@ from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
     settings,
+    thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
 from co_scientist.domains.chat.qa import artifacts as qa_artifacts
@@ -45,6 +46,8 @@ def _completion_request(
     api_key: str | None,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None,
+    *,
+    thinking_enabled: bool = True,
 ) -> dict[str, Any]:
     """Both rounds need the same reasoning headroom and deadline; tool results
     must not consume those protections.
@@ -58,7 +61,11 @@ def _completion_request(
         "timeout": _QA_TOTAL_SECONDS,
         "stream": True,
         "api_key": api_key,
-        **deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT),
+        **(
+            deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
+            if thinking_enabled
+            else thinking_off_kwargs(model)
+        ),
     }
     if tools:
         request["tools"] = tools
@@ -160,13 +167,23 @@ async def stream_llm_deltas(
         tools.append(qa_artifacts.tool_declaration())
     tool_calls: dict[int, dict[str, Any]] = {}
     answered = False
+    reasoned = False
     async for kind, fragment in _stream_completion(
         _completion_request(model, api_key, messages, tools), tool_calls
     ):
-        if kind == "chunk":
-            answered = True
+        answered = answered or kind == "chunk"
+        reasoned = reasoned or kind == "reasoning"
         yield kind, fragment
     calls = _resolved_calls(tool_calls)[:4]
+    if not answered and not calls and reasoned:
+        # A turn that spent its budget on reasoning and wrote nothing is not a
+        # provider failure; the interview and the announcement retry it too.
+        logger.warning("Q&A turn reasoned and wrote no answer; retrying once with thinking off")
+        async for kind, fragment in _stream_completion(
+            _completion_request(model, api_key, messages, tools, thinking_enabled=False), {}
+        ):
+            yield kind, fragment
+        return
     if answered or not calls:
         return
     messages += [
@@ -376,12 +393,33 @@ def _persist_qa_answer(
     )
 
 
+_MISSING_PROVIDER_FALLBACK = (
+    "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."
+)
+_REJECTED_KEY_FALLBACK = "Q&A could not use the configured API key; the provider rejected it."
+_UNAVAILABLE_FALLBACK = "Q&A is temporarily unavailable. Please ask again."
+
+
+def _qa_failure_text(exc: Exception) -> str:
+    """Only a credential problem may send the reader to change a credential.
+    Answering a timeout or an outage that way points at settings that are
+    already correct.
+    """
+    from litellm.exceptions import AuthenticationError
+
+    if isinstance(exc, offline_guard.OfflineModeError):
+        return _MISSING_PROVIDER_FALLBACK
+    if isinstance(exc, AuthenticationError):
+        return _REJECTED_KEY_FALLBACK
+    return _UNAVAILABLE_FALLBACK
+
+
 def _handle_qa_stream_error(run_id: str, exc: Exception, question_id: int) -> str:
     """Persist the emitted fallback on stream failures so chat history matches
     what the user saw.
     """
     logger.error("Q&A stream error for run %s (%s)", run_id, type(exc).__name__)
-    fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."
+    fallback = _qa_failure_text(exc)
     store.append_qa_reply(
         NewMessage(run_id=run_id, sender="system", content=fallback, kind="qa"),
         question_id,

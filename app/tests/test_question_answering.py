@@ -9,6 +9,7 @@ from co_scientist.domains.chat import qa
 from co_scientist.domains.chat.qa import build_evidence_manifest
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
+from co_scientist.platform.llm.offline_guard import OfflineModeError
 
 from tests._client import create_run as _create_run
 from tests._client import drain as _drain
@@ -171,3 +172,63 @@ def test_manifest_lists_only_citable_evidence_strongest_state_first(
 
     assert [(m["evidence_id"], m["state"]) for m in manifest] == expected
     assert [m["n"] for m in manifest] == list(range(1, len(expected) + 1))
+
+
+def _failing_backend(exc: Exception) -> Any:
+    async def _acompletion(**_kwargs: Any) -> AsyncIterator[Any]:
+        raise exc
+
+    return SimpleNamespace(acompletion=_acompletion)
+
+
+def test_a_provider_outage_is_not_reported_as_a_missing_api_key(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
+) -> None:
+    """Every Q&A failure used to read as "set an API key", including a
+    timeout against a configured provider.
+    """
+    install_completion_backend(
+        monkeypatch, _failing_backend(TimeoutError("provider timed out")).acompletion
+    )
+
+    body, answer = _stream_answer(isolated_db, [])
+
+    assert "API key" not in body
+    assert "API key" not in answer.content
+    # The reader is told the turn failed, and the persisted reply matches it.
+    assert answer.content in body
+    assert answer.content.strip()
+
+
+def test_an_unconfigured_provider_still_says_so(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
+) -> None:
+    install_completion_backend(
+        monkeypatch,
+        _failing_backend(OfflineModeError("Q&A is not calling a provider")).acompletion,
+    )
+
+    body, answer = _stream_answer(isolated_db, [])
+
+    assert "API key" in body
+    assert answer.content in body
+
+
+def test_a_rejected_key_says_the_provider_rejected_it(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
+) -> None:
+    from litellm.exceptions import AuthenticationError
+
+    rejected = AuthenticationError("bad key", llm_provider="openrouter", model="model")
+    install_completion_backend(monkeypatch, _failing_backend(rejected).acompletion)
+
+    body, answer = _stream_answer(isolated_db, [])
+
+    assert "rejected" in body
+    assert answer.content in body
