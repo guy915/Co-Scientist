@@ -86,14 +86,9 @@ def append_qa_reply(message: NewMessage, question_id: int) -> None:
         )
 
 
-def rewind_qa(
-    run_id: str,
-    message_id: int,
-    question: str | None,
-    db_path: str | None = None,
-) -> MessageRow:
+def rewind_qa(run_id: str, message_id: int, question: str | None) -> MessageRow:
     """Rewind only Q&A; run inputs and scientific state are immutable here."""
-    with transaction(db_path) as conn:
+    with transaction() as conn:
         target = conn.execute(
             "SELECT sender, content, kind FROM messages WHERE run_id=? AND id=?",
             (run_id, message_id),
@@ -145,7 +140,6 @@ def get_pending_steering(run_id: str, db_path: str | None = None) -> list[Messag
 
 def mark_steering_applied(
     ids: list[int],
-    db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
     *,
     decision: str | None = None,
@@ -156,7 +150,7 @@ def mark_steering_applied(
     if not ids:
         return
     placeholders = ",".join("?" * len(ids))
-    with _use_conn(conn, db_path) as conn:
+    with _use_conn(conn, None) as conn:
         conn.execute(
             "UPDATE messages SET applied=1, applied_at=?, applied_decision=? "
             f"WHERE id IN ({placeholders})",

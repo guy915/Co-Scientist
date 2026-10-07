@@ -34,26 +34,6 @@ def is_resolvable_hold(review: SafetyReview) -> bool:
     return bool(review.needs_context) and (review.outcome == SafetyOutcome.UNCERTAIN)
 
 
-def _cleared(review: SafetyReview) -> SafetyReview:
-    return SafetyReview(
-        SafetyOutcome.ALLOW,
-        _CLEARED_REASON,
-        review.matches,
-        POLICY_VERSION,
-        True,
-    )
-
-
-def _raised(review: SafetyReview, reason: str, matches: tuple[str, ...]) -> SafetyReview:
-    return SafetyReview(
-        SafetyOutcome.PROHIBITED,
-        reason,
-        matches or review.matches,
-        POLICY_VERSION,
-        True,
-    )
-
-
 async def resolve_hold(
     review: SafetyReview,
     text: str,
@@ -72,14 +52,26 @@ async def resolve_hold(
     if decision is None:
         return review
     if decision.decision == "block":
-        return _raised(review, decision.reason, tuple(decision.matches))
+        return SafetyReview(
+            SafetyOutcome.PROHIBITED,
+            decision.reason,
+            tuple(decision.matches) or review.matches,
+            POLICY_VERSION,
+            True,
+        )
     if decision.decision == "allow":
         logger.info(
             "Contextual assessment cleared a held hypothesis in run %s (category term %s).",
             run_id,
             ", ".join(review.matches) or "unrecorded",
         )
-        return _cleared(review)
+        return SafetyReview(
+            SafetyOutcome.ALLOW,
+            _CLEARED_REASON,
+            review.matches,
+            POLICY_VERSION,
+            True,
+        )
     return review
 
 
@@ -136,22 +128,6 @@ class EscalatedVerdict:
 _ESCALATION_CONCURRENCY = 8
 
 
-def _escalate_one_on_worker_thread(
-    item: HeldHypothesis, run_id: str, db_path: str | None
-) -> EscalatedVerdict:
-    """Executor threads have no loop; own and close a call-scoped loop
-    without touching the run loop or leaking LiteLLM workers.
-    """
-    escalated = run_in_scoped_loop(
-        escalate_review(item.review, item.text, run_id=run_id, db_path=db_path)
-    )
-    return EscalatedVerdict(
-        hyp_id=item.hyp_id,
-        review=escalated,
-        raised=escalated.outcome != item.review.outcome,
-    )
-
-
 def escalate_held_hypotheses(
     run_id: str,
     held: Sequence[HeldHypothesis],
@@ -171,7 +147,16 @@ def escalate_held_hypotheses(
     )
 
     def _escalate_one(item: HeldHypothesis) -> EscalatedVerdict:
-        return _escalate_one_on_worker_thread(item, run_id, db_path)
+        # Executor threads have no loop; own and close a call-scoped loop
+        # without touching the run loop or leaking LiteLLM workers.
+        escalated = run_in_scoped_loop(
+            escalate_review(item.review, item.text, run_id=run_id, db_path=db_path)
+        )
+        return EscalatedVerdict(
+            hyp_id=item.hyp_id,
+            review=escalated,
+            raised=escalated.outcome != item.review.outcome,
+        )
 
     with ThreadPoolExecutor(max_workers=min(_ESCALATION_CONCURRENCY, len(held))) as pool:
         futures = [pool.submit(propagate_context(_escalate_one), item) for item in held]

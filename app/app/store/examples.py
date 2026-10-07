@@ -73,12 +73,12 @@ def _example_source(conn: sqlite3.Connection, source_id: str) -> tuple[sqlite3.R
     return source_row, interview
 
 
-def open_example_chat(source_id: str, owner: str, *, db_path: str | None = None) -> dict[str, Any]:
+def open_example_chat(source_id: str, owner: str) -> dict[str, Any]:
     if not owner or owner == DEMO_CLIENT_ID:
         raise ValueError("an owned example chat is required")
     # Reuse checks and the entire copy commit together. A double click or two
     # tabs cannot duplicate chats. No network occurs inside this lock.
-    with db.transaction(db_path) as conn:
+    with db.transaction() as conn:
         conn.execute("PRAGMA defer_foreign_keys=ON")
         source_row, interview = _example_source(conn, source_id)
         existing = conn.execute(

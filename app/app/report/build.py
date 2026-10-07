@@ -75,30 +75,7 @@ async def build_report_content(run_id: str, req: ReportRequest) -> _BuiltReport:
     """
     data = _gather_report_data(run_id, req.db_path)
     knowledge_base = _resolve_knowledge_base(data, req)
-    inputs = _report_markdown_inputs(data, req, knowledge_base)
-    return _BuiltReport(
-        payload=_assemble_report_payload(data, req, knowledge_base),
-        markdown=render_report_markdown(inputs),
-        # The knowledge base records findings from the whole claim graph,
-        # including withheld ideas.
-        facts=derive_knowledge_facts(data.claim_edges),
-        exclusion_tally=data.exclusion_tally,
-    )
-
-
-def _hypothesis_title_by_id(hyps: list[dict[str, Any]]) -> dict[str, str]:
-    """Overview examples can name ideas outside the markdown top-five slice, so
-    resolve titles against the full released pool.
-    """
-    return {str(h["id"]): str(h["title"]) for h in hyps if h.get("id") and h.get("title")}
-
-
-def _report_markdown_inputs(
-    data: _ReportData,
-    req: ReportRequest,
-    knowledge_base: list[dict[str, Any]],
-) -> ReportMarkdownInputs:
-    return ReportMarkdownInputs(
+    inputs = ReportMarkdownInputs(
         research_goal=req.research_goal,
         goal_restatement=req.goal_restatement,
         provider=req.provider,
@@ -121,6 +98,21 @@ def _report_markdown_inputs(
         evidence=data.evidence,
         reviews=data.reviews,
     )
+    return _BuiltReport(
+        payload=_assemble_report_payload(data, req, knowledge_base),
+        markdown=render_report_markdown(inputs),
+        # The knowledge base records findings from the whole claim graph,
+        # including withheld ideas.
+        facts=derive_knowledge_facts(data.claim_edges),
+        exclusion_tally=data.exclusion_tally,
+    )
+
+
+def _hypothesis_title_by_id(hyps: list[dict[str, Any]]) -> dict[str, str]:
+    """Overview examples can name ideas outside the markdown top-five slice, so
+    resolve titles against the full released pool.
+    """
+    return {str(h["id"]): str(h["title"]) for h in hyps if h.get("id") and h.get("title")}
 
 
 def _resolve_knowledge_base(data: _ReportData, req: ReportRequest) -> list[dict[str, Any]]:
