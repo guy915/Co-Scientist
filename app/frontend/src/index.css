@@ -163,6 +163,9 @@
   --color-cosci-recent-meta-bg: var(--cosci-menu-row-hover);
   --color-cosci-shell-icon: var(--cosci-shell-icon);
   --color-cosci-menu-row-hover: var(--cosci-menu-row-hover);
+  --color-cosci-selected-row-fg: var(--cosci-selected-row-fg);
+  --color-cosci-settings-segment-bg: var(--cosci-settings-segment-bg);
+  --color-cosci-settings-card-bg: var(--cosci-settings-card-bg);
   --color-cosci-logs-accent-hover: var(--cosci-logs-accent-hover);
   --color-cosci-logs-danger-bg: var(--cosci-danger-bg);
   --color-cosci-logs-danger-fg: var(--cosci-danger-fg);
