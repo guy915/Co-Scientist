@@ -99,7 +99,10 @@ measure again, not a finished diagnosis.
   run driven by `evaluations/claim_support_eval.py --live` on its fixed goal,
   on the free default route. It reports the unsupported-claim rate, requests
   and wall time. The manual `Benchmark` workflow runs it with the
-  `OPENROUTER_API_KEY` repository secret. `citation_usefulness_eval.py` checks
+  `OPENROUTER_API_KEY` repository secret; its MCP server also gets the
+  `OPENALEX_API_KEY` and `TAVILY_API_KEY` secrets (production's keys, so
+  benchmarks share their quota). Runs before 7 October 2026 searched keyless
+  and had no `search_web`. `citation_usefulness_eval.py` checks
   the citation judge. Live runs are rationed to the free allowance:
   - **Baseline,** now: two Express runs, whose spread is the noise floor, and
     one Standard run.

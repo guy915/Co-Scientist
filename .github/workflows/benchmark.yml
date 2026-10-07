@@ -46,8 +46,12 @@ jobs:
           python -m venv .venv-mcp
           .venv-mcp/bin/python -m pip install -q -e engine/mcp_server
       - name: Start MCP server
-        # The server resolves as a directory package from engine/.
+        # The server resolves as a directory package from engine/. The search
+        # keys go to this step only, as in production, where the api lacks them.
         working-directory: engine
+        env:
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
           nohup ../.venv-mcp/bin/python -m uvicorn mcp_server.server:app \
             --host 127.0.0.1 --port 8888 > ../mcp.log 2>&1 &
