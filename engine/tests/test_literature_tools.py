@@ -8,10 +8,11 @@ import pytest
 
 from co_scientist.core.exceptions import ResponseParseError
 from co_scientist.platform.retrieval import config as config_mod
+from co_scientist.platform.retrieval.evidence import search_query
 from co_scientist.science.generation import literature_tools
 from co_scientist.science.generation.generate import generate_node
 from co_scientist.science.generation.literature_tools import draft, validate
-from tests._mcp import make_tool_results_client
+from tests._mcp import FakeToolResultsClient, make_tool_results_client
 from tests._state import make_article, make_generation_response, make_state
 
 
@@ -92,3 +93,25 @@ async def test_tool_generation_resolves_its_warm_literature_citations(
     source = result["hypotheses"].items[0].citation_map["C1"]
     assert source["title"] == "Smith 2020"
     assert source["type"] == "paper"
+
+
+async def test_a_transient_novelty_search_failure_is_retried_not_read_as_no_prior_art(
+    monkeypatch: pytest.MonkeyPatch,
+    tools_node: Callable[..., Awaitable[dict[str, Any]]],
+) -> None:
+    """A single failed call used to return no papers, which novelty
+    validation cannot tell apart from an absence of prior art. The path now
+    uses the literature-review caller, which retries first.
+    """
+    # The repo's retry idiom: zero the backoff, not asyncio.
+    monkeypatch.setattr(search_query, "_search_retry_delay", lambda _attempt: 0.0)
+    attempts: list[str] = []
+
+    class _FlakyClient(FakeToolResultsClient):
+        async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
+            attempts.append(tool_name)
+            raise RuntimeError("connection reset")
+
+    await tools_node(client=_FlakyClient())
+
+    assert len(attempts) > 1

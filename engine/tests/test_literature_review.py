@@ -11,6 +11,7 @@ from co_scientist.platform.llm.offline import llm as offline_llm
 from co_scientist.platform.retrieval.evidence import (
     article_support,
     relevance,
+    retrieval_support,
     search,
     search_support,
 )
@@ -199,3 +200,17 @@ def test_a_cached_missing_value_sentinel_is_read_as_missing() -> None:
     assert by_id["no-abstract"].abstract is None
     # The titles are real metadata and must survive.
     assert by_id["no-doi"].title == "A paper with no DOI"
+
+
+_TOOL_ERROR = "Error calling tool 'pubmed_fetch_fulltext': HTTP 503 from upstream"
+
+
+def test_a_tool_error_is_not_read_as_a_papers_full_text() -> None:
+    """FastMCP returns a tool's exception as an ordinary text result, so an
+    outage used to become the content a hypothesis is scored against.
+    """
+    assert retrieval_support.parse_content_result(_TOOL_ERROR) is None
+    # Ordinary non-JSON bodies are still content.
+    assert retrieval_support.parse_content_result("Plain text body") == "Plain text body"
+    assert retrieval_support.is_tool_reported_error(_TOOL_ERROR)
+    assert not retrieval_support.is_tool_reported_error("Plain text body")
