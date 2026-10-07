@@ -372,9 +372,9 @@ export const SESSION_STEPS: readonly {
 // than a desktop-style scroller; 1181px+ fills the stage column. Mobile never
 // renders the panel.
 const RECENTS_PANEL_CLASSES =
-  'reference-recents-panel grid min-h-0 content-start gap-[1.3rem] overflow-hidden pt-1 ' +
+  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 ' +
   'min-[701px]:mt-4 min-[701px]:min-h-auto min-[701px]:w-[min(100%,43rem)] min-[701px]:grid-rows-[auto_auto] min-[701px]:overflow-visible ' +
-  'min-[1181px]:mt-0 min-[1181px]:h-full min-[1181px]:min-h-0 min-[1181px]:w-full min-[1181px]:max-h-[calc(100vh-4.5rem)] min-[1181px]:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] min-[1181px]:grid-rows-[auto_minmax(0,1fr)] min-[1181px]:justify-self-end min-[1181px]:gap-[1.55rem] min-[1181px]:pt-[clamp(0.35rem,1vh,0.75rem)] min-[1181px]:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
+  'min-[1181px]:mt-0 min-[1181px]:h-full min-[1181px]:min-h-0 min-[1181px]:w-full min-[1181px]:max-h-[calc(100vh-4.5rem)] min-[1181px]:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] min-[1181px]:grid-rows-[auto_minmax(0,1fr)] min-[1181px]:[justify-self:end] min-[1181px]:gap-[1.55rem] min-[1181px]:pt-[clamp(0.35rem,1vh,0.75rem)] min-[1181px]:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
 
 const RECENTS_PANEL_EMPTY_CLASSES = 'grid-rows-[auto_1fr] self-stretch pb-8';
 
@@ -394,7 +394,7 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 // Its transition stays in home_surface.css: the global unlayered `a` rule
 // would beat a utility.
 const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer content-start gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline [box-shadow:0_1px_2px_rgb(0_0_0/15%),0_2px_10px_rgb(0_0_0/10%)] [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline [box-shadow:0_1px_2px_rgb(0_0_0/15%),0_2px_10px_rgb(0_0_0/10%)] [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
 
 // Wrap whole chips rather than split duration labels inside their pills.
 const RECENT_META_CHIP_CLASSES =
@@ -463,7 +463,7 @@ export function HomeRecentsPanel({
           <li className="flex justify-center pt-1 pb-2">
             <button
               type="button"
-              className="inline-flex cursor-pointer items-center gap-1 justify-self-center border-0 bg-transparent px-2 py-1 text-[0.9rem] font-medium text-(--cosci-idea-ref-blue) focus-visible:underline dark:text-cosci-blue [&:hover]:underline"
+              className="inline-flex cursor-pointer items-center gap-1 justify-self-center [border:0] bg-transparent px-2 py-1 text-[0.9rem] font-medium text-(--cosci-idea-ref-blue) focus-visible:underline dark:text-cosci-blue [&:hover]:underline"
               onClick={onToggleShowAll}
             >
               {showAll ? 'Show less' : 'Show more'}
