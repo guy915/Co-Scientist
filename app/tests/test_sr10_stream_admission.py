@@ -6,10 +6,11 @@ from typing import Any, cast
 import pytest
 from co_scientist.api import runs as routes
 from co_scientist.api.runs import events
-from co_scientist.platform.db.models import RunRow
+from co_scientist.orchestration.repository import runs as stored_runs
 from co_scientist.platform.db.storage_admission import scoped_peer
 from fastapi import HTTPException, Request
 from starlette.responses import StreamingResponse
+from starlette.types import Message
 
 from tests._store_helpers import seed_run
 
@@ -33,7 +34,7 @@ def _request(owner: str = "synthetic-owner", peer: str = "127.0.0.1") -> Request
 
 
 async def _finish(response: StreamingResponse, request: Request) -> None:
-    async def send(message: dict[str, Any]) -> None:
+    async def send(message: Message) -> None:
         pass
 
     await response(request.scope, _disconnected, send)
@@ -70,13 +71,11 @@ async def test_abandoned_draft_tail_closes_without_a_terminal_write(
     request._receive = connected
 
     async def consume() -> list[str]:
-        return [
-            frame async for frame in events._event_stream(run.id, request, 0, cast(RunRow, run))
-        ]
+        return [frame async for frame in events._event_stream(run.id, request, 0, run)]
 
     frames = await asyncio.wait_for(consume(), 0.25)
     assert not any('"_terminal"' in frame for frame in frames)
-    current = events.runs.get_run(run.id)
+    current = stored_runs.get_run(run.id)
     assert current is not None and current.status == "draft"
 
 
@@ -116,7 +115,7 @@ async def test_response_failure_releases_admission_before_any_body_iteration(can
     ]
     started = asyncio.Event()
 
-    async def send(message: dict[str, Any]) -> None:
+    async def send(message: Message) -> None:
         started.set()
         if cancel:
             await asyncio.Event().wait()
