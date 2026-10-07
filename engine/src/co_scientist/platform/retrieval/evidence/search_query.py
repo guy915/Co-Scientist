@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -12,6 +11,7 @@ from co_scientist.core.backoff import jittered_backoff_seconds
 from co_scientist.core.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.platform.retrieval.evidence.retrieval_support import (
     describe_exception,
+    is_tool_reported_error,
 )
 from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
@@ -45,22 +45,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# FastMCP returns tool-execution exceptions as ordinary text results;
-# re-asking a rejected query will not fix that permanent failure.
-_TOOL_ERROR_ENVELOPE_RE = re.compile(r"^Error calling tool '[^']*':")
-
-
 _SEARCH_ATTEMPTS = 4
 _SEARCH_RETRY_BASE_DELAY_SECONDS = 0.5
 _SEARCH_RETRY_MAX_DELAY_SECONDS = 8.0
 
 
-def _is_tool_reported_error(payload: Any) -> bool:
-    return isinstance(payload, str) and bool(_TOOL_ERROR_ENVELOPE_RE.match(payload.strip()))
-
-
 def _decode_search_result(result: Any) -> Any:
-    if _is_tool_reported_error(result):
+    # Re-asking a rejected query will not fix that permanent failure.
+    if is_tool_reported_error(result):
         raise ToolException(result)
     return parse_mcp_result(result)
 
@@ -75,7 +67,7 @@ def _search_retry_delay(attempt: int) -> float:
     )
 
 
-async def _call_search_tool(
+async def call_search_tool(
     mcp_client: MCPToolClient,
     tool_name: str,
     tool_params: dict[str, Any],
@@ -184,7 +176,7 @@ async def _attempt_query(
     retrieval stays distinguishable from zero hits."""
     try:
         tool_params = _build_query_tool_params(query, ctx.slug, ctx.run_id, max_papers, tool_config)
-        result_data = await _call_search_tool(
+        result_data = await call_search_tool(
             ctx.mcp_client,
             tool_name,
             tool_params,

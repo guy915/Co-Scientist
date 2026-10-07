@@ -22,7 +22,7 @@ from co_scientist.platform.retrieval.evidence.retrieval_support import (
 )
 from co_scientist.platform.retrieval.evidence.search_query import (
     _build_query_tool_params,
-    _call_search_tool,
+    call_search_tool,
 )
 from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
@@ -255,7 +255,7 @@ class McpRetrieval:
             query, self._run.slug, self._run.run_id, limit, tool_config
         )
         try:
-            raw = await _call_search_tool(self._client, tool_config.mcp_tool_name, params)
+            raw = await call_search_tool(self._client, tool_config.mcp_tool_name, params)
         except Exception as exc:
             raise RetrievalError(source, describe_exception(exc)) from exc
         return self._to_hits(normalize_search_response(raw, tool_config), source, limit)
