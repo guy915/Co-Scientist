@@ -19,10 +19,16 @@ Part 1). Everything else is targeted consolidation in refactor phase 5.
 - **Scope:** `app/`, `engine/` (including `engine/mcp_server/`),
   `evaluations/`, `e2e/`, and the build and CI configuration. `vendor/` is
   excluded.
-- **Revision:** `main` at `a5dfe06`.
-- **Target structure:** the plan in `docs/REARCHITECTURE.md`. That file is not
-  on `main` yet; it is on the open plan PR, branch `main-w6i71q`. The audit
-  changed no code.
+- **Revision:** `main` at `a5dfe06`. Every `path:line` reference is to that
+  revision. Up to `4ad5448`, the only cited code file that later commits
+  touched is `app/frontend/src/workbench/layout_nav_rail.tsx`: on `main` its
+  references from line 100 on sit 3 lines lower, and the inline `700px`
+  media-query count drops from 144 to 143.
+- **Target structure:** the plan in `docs/REARCHITECTURE.md`, with the
+  package names that ADR-001 (`docs/adr/001-module-map.md`) settled. Where
+  ADR-001 places a module, its placement wins. For example, the feedback
+  admission budgets in A-09 belong to `domains/feedback`. The audit changed
+  no code.
 
 ## Contents
 
@@ -2056,9 +2062,11 @@ per-area verdicts.
 These are not duplication, but the audit found them while reading, and they
 mislead the next reader.
 
-- `docs/REARCHITECTURE.md` exists only on the open plan PR
-  ([guy915/Co-Scientist#329](https://github.com/guy915/Co-Scientist/pull/329),
-  branch `main-w6i71q`). This audit used that version.
+- `docs/REARCHITECTURE.md` reached `main` in
+  [guy915/Co-Scientist#335](https://github.com/guy915/Co-Scientist/pull/335)
+  while this audit ran. Its text is identical to the version on the plan PR
+  ([guy915/Co-Scientist#329](https://github.com/guy915/Co-Scientist/pull/329)),
+  which is the one the audit used.
 - `engine/AGENTS.md:253` has two errors:
   - It cites five test files that are not in git:
     `test_llm_layering.py`, `test_llm_completion_routing.py`,
