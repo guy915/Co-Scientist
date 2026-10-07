@@ -8,6 +8,7 @@ import {
   useLayoutEffect,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
+import {IconButton} from '@/shared/ui';
 import {
   type ByokProvider,
   type ModelChoice,
@@ -103,15 +104,14 @@ function SettingsDialogHeader({
   return (
     <header className="flex items-center justify-between gap-4">
       <h2 className={SETTINGS_DIALOG_TITLE_CLASSES}>Settings</h2>
-      <button
+      <IconButton
         ref={closeRef}
-        type="button"
-        className="grid size-10 flex-none cursor-pointer place-items-center rounded-[9999px] bg-transparent p-0 text-[1.35rem] text-cosci-muted [border:0] focus-visible:bg-cosci-menu-row-hover focus-visible:text-cosci-fg [&:hover]:bg-cosci-menu-row-hover [&:hover]:text-cosci-fg"
-        aria-label="Close settings"
+        size="md"
+        icon="close"
+        label="Close settings"
+        tooltipPlacement="left"
         onClick={onClose}
-      >
-        <Icon aria-hidden="true" name="close" />
-      </button>
+      />
     </header>
   );
 }

@@ -18,8 +18,7 @@ import {
   useParams,
   type NavigateFunction,
 } from 'react-router-dom';
-import {Icon} from '@/components/icon';
-import {Button} from '@/shared/ui';
+import {Button, IconButton} from '@/shared/ui';
 import {conciseTitle} from '@/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
 import {useIsMobile} from '../hooks/dom';
@@ -175,7 +174,7 @@ function ToastPortal({toast}: {toast: ToastState | null}) {
   if (!toast) return null;
   return createPortal(
     <div
-      className="reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] font-medium text-cosci-toast-fg [--button-link-fg:var(--cosci-toast-action)]"
+      className="reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] font-medium text-cosci-toast-fg"
       role="status"
     >
       <span>{toast.message}</span>
@@ -511,18 +510,17 @@ function JumpToBottomButton({
   const away = useScrolledAwayFromBottom(scrollRef);
   if (!away) return null;
   return (
-    <button
-      type="button"
-      aria-label="Jump to latest message"
-      title="Jump to latest message"
-      className="reference-jump-to-bottom absolute top-0 left-1/2 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-cosci-border bg-cosci-bg text-cosci-fg shadow-md hover:bg-cosci-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-primary"
+    <IconButton
+      variant="elevated"
+      size="md"
+      icon="arrow_downward"
+      label="Jump to latest message"
+      layoutClassName="reference-jump-to-bottom absolute top-0 left-1/2 -translate-x-1/2"
       onClick={() => {
         const scroller = scrollRef.current;
         scroller?.scrollTo({top: scroller.scrollHeight, behavior: 'smooth'});
       }}
-    >
-      <Icon aria-hidden="true" className="text-xl" name="arrow_downward" />
-    </button>
+    />
   );
 }
 

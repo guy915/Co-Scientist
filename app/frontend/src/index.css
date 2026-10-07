@@ -61,6 +61,7 @@
   --color-icon-button-fg: var(--icon-button-fg);
   --color-icon-button-hover-fg: var(--icon-button-hover-fg);
   --color-icon-button-hover-bg: var(--icon-button-hover-bg);
+  --color-icon-button-disabled-fg: var(--icon-button-disabled-fg);
   --color-segmented-track: var(--segmented-track);
   --color-segmented-border: var(--segmented-border);
   --color-segmented-thumb: var(--segmented-thumb);

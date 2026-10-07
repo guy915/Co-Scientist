@@ -5,7 +5,7 @@ import {
 } from '@/api/runs';
 import {useState} from 'react';
 import {Icon} from '@/components/icon';
-import {Button} from '@/shared/ui';
+import {Button, IconButton} from '@/shared/ui';
 import {joinClasses} from '../classes';
 import {
   OPTION_MARKER_CLASSES,
@@ -219,30 +219,6 @@ function ChooserHead({
         />
       </div>
     </div>
-  );
-}
-
-// Use type=button inside the composer form so minimizing cannot send a
-// message.
-function IconButton({
-  label,
-  icon,
-  onClick,
-}: {
-  label: string;
-  icon: 'expand_less' | 'expand_more' | 'close';
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      className="grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg size-8"
-      onClick={onClick}
-    >
-      <Icon aria-hidden="true" className="size-[1.1rem]" name={icon} />
-    </button>
   );
 }
 

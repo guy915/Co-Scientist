@@ -1,14 +1,12 @@
 import type {RunFocus, RunTier} from '@/api/runs';
-import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {Link} from 'react-router-dom';
-import {Button, buttonClasses} from '@/shared/ui';
+import {Button, buttonClasses, IconButton} from '@/shared/ui';
 import {
   joinClasses,
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
   SETUP_ACTIONS_CLASSES,
-  tooltipClassNames,
 } from '../classes';
 import {TruncatedLabel} from '../components/truncated_label';
 import {useSystemStatus} from '../hooks/system_status_context';
@@ -164,25 +162,7 @@ function PlanHeading({onEdit}: {onEdit?: () => void}) {
       <h2 className="m-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg max-[720px]:text-[clamp(1.5rem,6.8vw,2rem)]">
         Research plan
       </h2>
-      {onEdit && (
-        <button
-          type="button"
-          className={tooltipClassNames({
-            className:
-              'reference-plan-edit size-[2.1rem] grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg',
-            placement: 'top',
-          })}
-          aria-label="Edit plan"
-          data-tooltip="Edit plan"
-          onClick={onEdit}
-        >
-          <Icon
-            aria-hidden="true"
-            className="text-[1.55rem] text-current"
-            name="edit"
-          />
-        </button>
-      )}
+      {onEdit && <IconButton icon="edit" label="Edit plan" onClick={onEdit} />}
     </div>
   );
 }

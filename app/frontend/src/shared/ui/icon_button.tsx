@@ -11,7 +11,7 @@ export type IconButtonSize = 'xs' | 'sm' | 'md';
 // re-point them in its own scope.
 const BASE_CLASSES =
   'inline-grid flex-none cursor-pointer place-items-center rounded-full p-0 ' +
-  'leading-none disabled:cursor-default disabled:text-button-disabled-fg ' +
+  'leading-none disabled:cursor-default disabled:text-icon-button-disabled-fg ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 ' +
   'focus-visible:outline-th-ring';
 

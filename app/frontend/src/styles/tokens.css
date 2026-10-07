@@ -307,6 +307,7 @@ body {
   --icon-button-fg: var(--cosci-muted);
   --icon-button-hover-fg: var(--cosci-text);
   --icon-button-hover-bg: var(--cosci-hover);
+  --icon-button-disabled-fg: var(--cosci-option-marker);
 
   --segmented-track: var(--cosci-settings-segment-bg);
   --segmented-border: var(--cosci-border);
@@ -340,4 +341,28 @@ body {
   --field-placeholder: var(--cosci-muted);
 
   --scrim: rgb(0 0 0 / 45%);
+}
+
+/* Surface scopes: a surface whose background equals a component's default
+   tone re-points that component's tokens here, never at the call site. */
+.ucs-header-action-bar,
+.ucs-nav-panel {
+  --button-text-fg: var(--cosci-shell-icon);
+  --button-text-hover-bg: var(--cosci-shell-hover-bg);
+  --icon-button-fg: var(--cosci-shell-icon);
+  --icon-button-hover-bg: var(--cosci-shell-hover-bg);
+}
+
+.reference-composer {
+  --icon-button-hover-fg: var(--cosci-source-button-hover);
+  --icon-button-hover-bg: var(--cosci-icon-button-hover-bg);
+  --icon-button-disabled-fg: var(--cosci-composer-submit-disabled);
+}
+
+.reference-user-bubble {
+  --icon-button-hover-bg: var(--cosci-user-bubble-hover);
+}
+
+.reference-toast {
+  --button-link-fg: var(--cosci-toast-action);
 }
