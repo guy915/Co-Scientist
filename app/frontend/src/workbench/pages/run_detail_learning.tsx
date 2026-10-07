@@ -10,13 +10,6 @@ import {
   ReportDocument,
 } from './run_detail_shell';
 
-const REPORT_INLINE_ACTION_CLASSES =
-  'cosci-inline-action mt-4 inline-flex cursor-pointer items-center ' +
-  'gap-[0.3rem] border-0 bg-transparent font-[inherit] text-[0.82rem] ' +
-  'text-cosci-fg pointer-coarse:min-h-11';
-
-const REPORT_INLINE_ACTION_ICON_CLASSES = 'text-base';
-
 function useLearningViewState(
   goal: string,
   evidence: Evidence[],
@@ -151,13 +144,13 @@ function LearningSectionToggle({
   return (
     <button
       type="button"
-      className={REPORT_INLINE_ACTION_CLASSES}
+      className="cosci-inline-action mt-4 inline-flex cursor-pointer items-center gap-[0.3rem] border-0 bg-transparent font-[inherit] text-[0.82rem] text-cosci-fg pointer-coarse:min-h-11"
       aria-expanded={expanded}
       onClick={onToggle}
     >
       <span>{expanded ? 'Show less' : 'Show more'}</span>
       <Icon
-        className={REPORT_INLINE_ACTION_ICON_CLASSES}
+        className="text-base"
         aria-hidden="true"
         name={expanded ? 'expand_less' : 'expand_more'}
       />
@@ -335,58 +328,16 @@ function learningTitle(title: string, index: number): string {
     .join(' ');
 }
 
-// Share reference numbering between topic cards and the full list, including
-// while search filters that list.
-
-const REFERENCE_SEARCH_CLASSES =
-  'cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center ' +
-  'gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-cosci-muted';
-
-const REFERENCE_SEARCH_ICON_CLASSES = 'text-base';
-
-const REFERENCE_SEARCH_INPUT_CLASSES =
-  'min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-[0.86rem] ' +
-  'text-cosci-fg outline-0 placeholder:text-cosci-muted';
-
-const REFERENCE_LIST_CLASSES = 'm-0 grid list-none gap-0 p-0';
-
 const REFERENCE_LIST_ITEM_CLASSES =
   'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center ' +
   'gap-[0.8rem] border-b border-cosci-border py-[0.7rem] text-[0.86rem] ' +
   'max-[700px]:grid-cols-[2rem_minmax(0,1fr)] max-[700px]:gap-y-[0.55rem] ' +
   'max-[700px]:py-[0.9rem]';
 
-const REFERENCE_LIST_INDEX_CLASSES = 'text-cosci-muted';
-
-const REFERENCE_LIST_TITLE_CLASSES = 'font-medium leading-[1.35]';
-
-const REFERENCE_LIST_LINK_CLASSES =
-  'reference-open-pill inline-flex items-center gap-[0.35rem] rounded-full ' +
-  'border border-cosci-reference-open-border bg-transparent px-[0.7rem] ' +
-  'py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg ' +
-  'no-underline transition-colors ' +
-  'hover:border-cosci-reference-open-hover-border ' +
-  'hover:bg-cosci-reference-open-hover-bg max-[700px]:col-start-2 ' +
-  'max-[700px]:w-fit';
-
-const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
-
-const REFERENCE_UNAVAILABLE_CLASSES =
-  'reference-unavailable-pill inline-flex items-center gap-[0.35rem] ' +
-  'rounded-full border border-cosci-border bg-transparent px-[0.7rem] ' +
-  'py-[0.3rem] text-[0.78rem] font-medium text-cosci-muted ' +
-  'max-[700px]:col-start-2 max-[700px]:w-fit';
-
 const REFERENCE_UNAVAILABLE_TEXT = 'Unavailable';
 
 const REFERENCE_UNAVAILABLE_TITLE =
   'The full source could not be reached when this evidence was gathered';
-
-const REFERENCE_RETRACTED_CLASSES =
-  'reference-retracted-pill inline-flex items-center gap-[0.35rem] ' +
-  'rounded-full border border-cosci-danger-border bg-cosci-danger-bg ' +
-  'px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium ' +
-  'text-cosci-danger-fg max-[700px]:col-start-2 max-[700px]:w-fit';
 
 const REFERENCE_RETRACTED_TEXT = 'Retracted';
 
@@ -397,6 +348,8 @@ export interface ReferenceCitation {
   number: number;
 }
 
+// Share reference numbering between topic cards and the full list, including
+// while search filters that list.
 export function referenceNumbers(evidence: Evidence[]): Map<string, number> {
   return new Map(evidence.map((item, index) => [item.id, index + 1]));
 }
@@ -444,14 +397,10 @@ function ReferenceSearchBox({
   onQueryChange: (value: string) => void;
 }) {
   return (
-    <label className={REFERENCE_SEARCH_CLASSES}>
-      <Icon
-        className={REFERENCE_SEARCH_ICON_CLASSES}
-        aria-hidden="true"
-        name="search"
-      />
+    <label className="cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-cosci-muted">
+      <Icon className="text-base" aria-hidden="true" name="search" />
       <input
-        className={REFERENCE_SEARCH_INPUT_CLASSES}
+        className="min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-[0.86rem] text-cosci-fg outline-0 placeholder:text-cosci-muted"
         value={query}
         onChange={event => onQueryChange(event.currentTarget.value)}
         placeholder="Search references"
@@ -469,7 +418,7 @@ function ReferenceList({
   referenceNumberById: Map<string, number>;
 }) {
   return (
-    <ol className={REFERENCE_LIST_CLASSES}>
+    <ol className="m-0 grid list-none gap-0 p-0">
       {evidence.length ? (
         evidence.map(item => (
           <ReferenceListItem
@@ -480,8 +429,8 @@ function ReferenceList({
         ))
       ) : (
         <li className={REFERENCE_LIST_ITEM_CLASSES}>
-          <span className={REFERENCE_LIST_INDEX_CLASSES}>[0]</span>
-          <strong className={REFERENCE_LIST_TITLE_CLASSES}>
+          <span className="text-cosci-muted">[0]</span>
+          <strong className="font-medium leading-[1.35]">
             No references match the current search.
           </strong>
         </li>
@@ -493,9 +442,9 @@ function ReferenceList({
 function ReferenceListItem({item, number}: {item: Evidence; number: number}) {
   return (
     <li id={`reference-${item.id}`} className={REFERENCE_LIST_ITEM_CLASSES}>
-      <span className={REFERENCE_LIST_INDEX_CLASSES}>[{number}]</span>
+      <span className="text-cosci-muted">[{number}]</span>
       <strong
-        className={REFERENCE_LIST_TITLE_CLASSES}
+        className="font-medium leading-[1.35]"
         dangerouslySetInnerHTML={{__html: renderInlineHtml(item.title)}}
       />
       <ReferenceSourceState item={item} />
@@ -509,7 +458,7 @@ function ReferenceSourceState({item}: {item: Evidence}) {
   if (item.retracted) {
     return (
       <span
-        className={REFERENCE_RETRACTED_CLASSES}
+        className="reference-retracted-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-danger-border bg-cosci-danger-bg px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-danger-fg max-[700px]:col-start-2 max-[700px]:w-fit"
         title={REFERENCE_RETRACTED_TITLE}
         aria-label={REFERENCE_RETRACTED_TITLE}
       >
@@ -520,7 +469,7 @@ function ReferenceSourceState({item}: {item: Evidence}) {
   if (item.available === false) {
     return (
       <span
-        className={REFERENCE_UNAVAILABLE_CLASSES}
+        className="reference-unavailable-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-border bg-transparent px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-muted max-[700px]:col-start-2 max-[700px]:w-fit"
         title={REFERENCE_UNAVAILABLE_TITLE}
         aria-label={REFERENCE_UNAVAILABLE_TITLE}
       >
@@ -531,16 +480,12 @@ function ReferenceSourceState({item}: {item: Evidence}) {
   if (!item.url) return null;
   return (
     <a
-      className={REFERENCE_LIST_LINK_CLASSES}
+      className="reference-open-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-reference-open-border bg-transparent px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg no-underline transition-colors hover:border-cosci-reference-open-hover-border hover:bg-cosci-reference-open-hover-bg max-[700px]:col-start-2 max-[700px]:w-fit"
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
     >
-      <Icon
-        className={REFERENCE_LIST_LINK_ICON_CLASSES}
-        aria-hidden="true"
-        name="open_in_new"
-      />
+      <Icon className="text-base" aria-hidden="true" name="open_in_new" />
       Open
     </a>
   );

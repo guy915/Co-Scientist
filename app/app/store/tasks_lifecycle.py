@@ -163,7 +163,6 @@ def has_task_of_type(
     type_prefix: str,
     *,
     status: str | None = None,
-    db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Literal prefixes match startswith semantics; SQL LIKE would wildcard
@@ -176,7 +175,7 @@ def has_task_of_type(
         " LIMIT 1"
     )
     params = (run_id, len(type_prefix), type_prefix, status, status)
-    with _use_conn(conn, db_path) as active:
+    with _use_conn(conn, None) as active:
         row = active.execute(query, params).fetchone()
     return row is not None
 
@@ -603,19 +602,14 @@ def _fail_dead_lease_rows(conn: sqlite3.Connection, run_id: str, now: float) -> 
     return [str(row["task_type"]) for row in rows]
 
 
-def abandon_dead_leases(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
+def abandon_dead_leases(run_id: str, *, db_path: str | None = None) -> int:
     """Settle spent orphaned leases once at cohort idle exit, never by
     taking the SQLite write lock on every poll tick.
     """
     from app.store.runs_views import _settle_run_for_failed_task
 
     now = _now()
-    with _use_conn(conn, db_path) as active:
+    with connect(db_path) as active:
         task_types = _fail_dead_lease_rows(active, run_id, now)
         if not task_types:
             return 0

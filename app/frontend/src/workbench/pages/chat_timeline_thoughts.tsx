@@ -8,22 +8,6 @@ import {
 import {Icon} from '@/components/icon';
 import {MarkdownMessage} from '@/components/markdown_message';
 
-// Use a button and panel because native details hides content without an
-// animatable transition.
-const THOUGHTS_CLASSES = 'ucs-thoughts mt-1 mb-4';
-
-const THOUGHTS_SUMMARY_CLASSES =
-  'inline-flex cursor-pointer items-center gap-1 rounded-full border-0 ' +
-  'bg-transparent p-0 text-left ' +
-  'text-base font-medium text-cosci-muted hover:text-cosci-fg ' +
-  'focus-visible:text-cosci-fg';
-
-// Animate the grid track to natural height; streamed reasoning makes measured
-// max-height stale.
-const THOUGHTS_PANEL_CLASSES =
-  'grid transition-[grid-template-rows,opacity] duration-300 ease-out ' +
-  'motion-reduce:transition-none';
-
 function panelStateClasses(open: boolean): string {
   return open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0';
 }
@@ -35,10 +19,6 @@ function chevronClasses(open: boolean): string {
     (open ? 'rotate-0' : 'rotate-180')
   );
 }
-
-// Let reasoning flow in the page rather than require nested scrolling.
-const THOUGHTS_BODY_CLASSES =
-  'reference-thoughts-trail mt-2 max-w-[47rem] text-sm text-cosci-muted';
 
 // The ellipsis is decorative; its neighboring word is what assistive
 // technology announces.
@@ -68,7 +48,7 @@ function ThoughtsSummary({
   return (
     <button
       type="button"
-      className={THOUGHTS_SUMMARY_CLASSES}
+      className="inline-flex cursor-pointer items-center gap-1 rounded-full border-0 bg-transparent p-0 text-left text-base font-medium text-cosci-muted hover:text-cosci-fg focus-visible:text-cosci-fg"
       aria-expanded={open}
       aria-controls={panelId}
       onClick={onToggle}
@@ -105,7 +85,13 @@ function useCollapseOnAnswer(
 
 function ThoughtsTrail({trail}: {trail: string}) {
   if (!trail) return null;
-  return <MarkdownMessage content={trail} className={THOUGHTS_BODY_CLASSES} />;
+  return (
+    // Let reasoning flow in the page rather than require nested scrolling.
+    <MarkdownMessage
+      content={trail}
+      className="reference-thoughts-trail mt-2 max-w-[47rem] text-sm text-cosci-muted"
+    />
+  );
 }
 
 // Live and finished trails mount separately, so seeding from live cannot
@@ -125,7 +111,9 @@ export function ThoughtsDisclosure({
   useCollapseOnAnswer(Boolean(answering), setOpen);
   if (!live && !trail) return null;
   return (
-    <div className={THOUGHTS_CLASSES}>
+    // Use a button and panel because native details hides content without an
+    // animatable transition.
+    <div className="ucs-thoughts mt-1 mb-4">
       <ThoughtsSummary
         live={live}
         open={open}
@@ -138,7 +126,9 @@ export function ThoughtsDisclosure({
       <div
         id={panelId}
         inert={!open}
-        className={`${THOUGHTS_PANEL_CLASSES} ${panelStateClasses(open)}`}
+        // Animate the grid track to natural height; streamed reasoning makes measured
+        // max-height stale.
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${panelStateClasses(open)}`}
       >
         <div className="overflow-hidden">
           <ThoughtsTrail trail={trail} />

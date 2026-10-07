@@ -29,12 +29,6 @@ from app.task_worker.enqueue import is_abandoned_spent_bootstrap
 logger = logging.getLogger(__name__)
 
 
-def _has_paused_engine_task(run_id: str, *, conn: sqlite3.Connection | None = None) -> bool:
-    return lifecycle.has_task_of_type(
-        run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused", conn=conn
-    )
-
-
 def _has_leased_precheckpoint_bootstrap(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
@@ -79,7 +73,9 @@ def _prepare_resume_state(run_id: str, *, conn: sqlite3.Connection | None = None
     checkpoint = checkpoints.get_latest_checkpoint(run_id, conn=conn)
     true_resume = (
         engine_adapter.is_engine_checkpoint(checkpoint)
-        or _has_paused_engine_task(run_id, conn=conn)
+        or lifecycle.has_task_of_type(
+            run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused", conn=conn
+        )
         or _has_leased_precheckpoint_bootstrap(run_id, conn=conn)
         or _has_failed_precheckpoint_bootstrap_while_paused(run_id, conn=conn)
     )
@@ -117,26 +113,6 @@ def _check_resume_admission(
         raise HTTPException(status_code=409, detail="run status changed while resuming")
 
 
-def _record_resume_transition(run_id: str, true_resume: bool, *, conn: sqlite3.Connection) -> None:
-    runs.update_run_status(run_id, RunStatus.QUEUED, conn=conn)
-    events.append_event(
-        run_id,
-        "status",
-        {"status": "resuming", "detail": _resume_detail(true_resume)},
-        conn=conn,
-    )
-
-
-def _log_resume_queue_result(run_id: str, queued: ScientificTask) -> None:
-    logger.info(
-        "Resume for run %s landed on %s task %s (status=%s)",
-        run_id,
-        queued.task_type,
-        queued.id[:8],
-        queued.status,
-    )
-
-
 def _queue_resume_workflow(
     run_id: str,
     *,
@@ -154,14 +130,26 @@ def _queue_resume_workflow(
             run_id, conn=conn
         )
         true_resume = _prepare_resume_state(run_id, conn=conn)
-        _record_resume_transition(run_id, true_resume, conn=conn)
+        runs.update_run_status(run_id, RunStatus.QUEUED, conn=conn)
+        events.append_event(
+            run_id,
+            "status",
+            {"status": "resuming", "detail": _resume_detail(true_resume)},
+            conn=conn,
+        )
         queued = task_worker.enqueue_run_workflow(
             run_id,
             resume=true_resume,
             revive_failed_precheckpoint_bootstrap=revive_failed_bootstrap,
             conn=conn,
         )
-    _log_resume_queue_result(run_id, queued)
+    logger.info(
+        "Resume for run %s landed on %s task %s (status=%s)",
+        run_id,
+        queued.task_type,
+        queued.id[:8],
+        queued.status,
+    )
     return queued
 
 
@@ -180,7 +168,9 @@ async def _apply_adjudication_lifecycle(
     if resolution == "rejected":
         _block_rejected_run_if_current(run, expected_lifecycle_revision=expected_lifecycle_revision)
     elif run.status == RunStatus.PAUSED.value:
-        await _release_approved_hold(
+        # Approval releases the parked boundary through resume; approved stages
+        # must not be screened into another hold.
+        await _launch_resume(
             run.id,
             expected_status=run.status,
             expected_lifecycle_revision=expected_lifecycle_revision,
@@ -203,22 +193,6 @@ def _block_rejected_run_if_current(run: RunRow, *, expected_lifecycle_revision: 
             error="Safety reviewer rejected held content.",
             conn=conn,
         )
-
-
-async def _release_approved_hold(
-    run_id: str,
-    *,
-    expected_status: str,
-    expected_lifecycle_revision: int,
-) -> None:
-    """Approval releases the parked boundary through resume; approved stages
-    must not be screened into another hold.
-    """
-    await _launch_resume(
-        run_id,
-        expected_status=expected_status,
-        expected_lifecycle_revision=expected_lifecycle_revision,
-    )
 
 
 async def adjudicate_safety(

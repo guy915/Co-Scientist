@@ -93,15 +93,10 @@ class NewCitation:
     state: CitationState
 
 
-def add_citation(
-    citation: NewCitation,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> None:
+def add_citation(citation: NewCitation, *, conn: sqlite3.Connection | None = None) -> None:
     values = _record_columns(citation)
     values["state"] = citation.state.value
-    _insert_record("citations", values, db_path, conn)
+    _insert_record("citations", values, None, conn)
 
 
 def list_citations(
@@ -200,15 +195,11 @@ def list_reviews(
     return _list_by_run("reviews", run_id, db_path, conn)
 
 
-def review_exists(
-    review_id: int,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> bool:
+def review_exists(review_id: int, conn: sqlite3.Connection | None = None) -> bool:
     """AUTOINCREMENT never reuses deleted review IDs, so carried scientist
     reviews can safely test whether their own row survived reset.
     """
-    with _use_conn(conn, db_path) as conn:
+    with _use_conn(conn, None) as conn:
         row = conn.execute("SELECT 1 FROM reviews WHERE id=?", (review_id,)).fetchone()
         return row is not None
 
@@ -272,13 +263,8 @@ class NewProximityEdge:
     updated_at: float | None = None
 
 
-def add_proximity_edge(
-    edge: NewProximityEdge,
-    *,
-    conn: sqlite3.Connection | None = None,
-    db_path: str | None = None,
-) -> None:
-    _insert_record("proximity_edges", _record_columns(edge), db_path, conn)
+def add_proximity_edge(edge: NewProximityEdge, *, conn: sqlite3.Connection | None = None) -> None:
+    _insert_record("proximity_edges", _record_columns(edge), None, conn)
 
 
 @dataclass(frozen=True)
@@ -367,13 +353,12 @@ def list_safety_decisions(
 def count_unresolved_review_decisions(
     run_id: str,
     *,
-    db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
     """This run-detail hot path needs one indexed count, not full safety-row
     JSON decoding.
     """
-    with _use_conn(conn, db_path) as conn:
+    with _use_conn(conn, None) as conn:
         row = conn.execute(
             "SELECT COUNT(*) FROM safety_decisions WHERE run_id=? AND "
             "requires_review=1 AND resolution IS NULL",
@@ -387,11 +372,10 @@ def resolve_safety_decision(
     decision_id: int,
     resolution: str,
     resolved_by: str,
-    db_path: str | None = None,
 ) -> bool:
     if resolution not in {"approved", "rejected"}:
         raise ValueError("resolution must be approved or rejected")
-    with connect(db_path) as conn:
+    with connect() as conn:
         cursor = conn.execute(
             "UPDATE safety_decisions SET resolution=?, resolved_by=?, "
             "resolved_at=? WHERE id=? AND run_id=? AND requires_review=1 "

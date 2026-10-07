@@ -4,24 +4,14 @@ import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
 import {capitalizeTerm} from '@/lib/text';
 import {joinClasses} from '../classes';
 
-const IDLE_NOTE_CLASSES =
-  'mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5';
-const IDLE_DOT_CLASSES =
-  'size-2 shrink-0 animate-pulse rounded-full bg-cosci-muted';
-const PULSE_RING_CLASSES =
-  'absolute inline-flex size-full animate-ping rounded-full bg-th-primary';
-const PULSE_DOT_CLASSES =
-  'relative inline-flex size-2.5 rounded-full bg-th-primary';
 const TIMELINE_RAIL_CLASSES =
   'absolute left-[1.0625rem] top-[2.375rem] bottom-1 w-px bg-cosci-border';
-const TIMELINE_ROW_CLASSES =
-  'flex min-h-[2.125rem] items-center justify-between gap-3';
 
 function LivePulse() {
   return (
     <span className="relative flex size-2.5" aria-hidden="true">
-      <span className={PULSE_RING_CLASSES} />
-      <span className={PULSE_DOT_CLASSES} />
+      <span className="absolute inline-flex size-full animate-ping rounded-full bg-th-primary" />
+      <span className="relative inline-flex size-2.5 rounded-full bg-th-primary" />
     </span>
   );
 }
@@ -123,7 +113,7 @@ function ActivityItem({
       <div className="min-w-0 flex-1">
         {/* Sized to the disc and centred on its axis; both paragraphs zero
             their own user-agent margins or the row drifts off-centre. */}
-        <div className={TIMELINE_ROW_CLASSES}>
+        <div className="flex min-h-[2.125rem] items-center justify-between gap-3">
           <p className="my-0 truncate font-medium text-cosci-fg">
             {meta.title}
           </p>
@@ -176,7 +166,7 @@ function ActivityGroupCard({
         isLatest={isLatest}
       />
       <div className="min-w-0 flex-1">
-        <div className={TIMELINE_ROW_CLASSES}>
+        <div className="flex min-h-[2.125rem] items-center justify-between gap-3">
           <p className="my-0 truncate font-medium text-cosci-fg">
             {group.meta.title}
           </p>
@@ -232,8 +222,8 @@ export function ActivityLog({
           ))}
         </ol>
       ) : (
-        <div className={IDLE_NOTE_CLASSES}>
-          <span className={IDLE_DOT_CLASSES} />
+        <div className="mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5">
+          <span className="size-2 shrink-0 animate-pulse rounded-full bg-cosci-muted" />
           <p className="text-sm text-cosci-muted">
             Warming up — the first steps will appear here in a moment.
           </p>

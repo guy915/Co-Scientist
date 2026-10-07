@@ -155,9 +155,9 @@ def count_run_rows(run_id: str, *, db_path: str | None = None) -> dict[str, int]
     return counts
 
 
-def delete_run(run_id: str, *, db_path: str | None = None) -> dict[str, int]:
-    before = count_run_rows(run_id, db_path=db_path)
-    with connect(db_path) as conn:
+def delete_run(run_id: str) -> dict[str, int]:
+    before = count_run_rows(run_id)
+    with connect() as conn:
         conn.execute(
             "UPDATE staged_documents SET run_id=NULL WHERE run_id=?",
             (run_id,),
@@ -237,8 +237,8 @@ def get_run(
         return _row_to_run(row) if row else None
 
 
-def run_exists(run_id: str, db_path: str | None = None) -> bool:
-    with connect(db_path) as conn:
+def run_exists(run_id: str) -> bool:
+    with connect() as conn:
         row = conn.execute("SELECT 1 FROM runs WHERE id = ?", (run_id,)).fetchone()
         return row is not None
 
@@ -286,28 +286,20 @@ def update_run_status_if_current(
     return bool(changed)
 
 
-def set_run_timing(
-    run_id: str,
-    duration_seconds: float,
-    db_path: str | None = None,
-) -> None:
+def set_run_timing(run_id: str, duration_seconds: float) -> None:
     """Reconstructed demos must not report the interval between releases as
     scientific compute time.
     """
     completed_at = _now()
     created_at = completed_at - max(duration_seconds, 1.0)
-    with connect(db_path) as conn:
+    with connect() as conn:
         conn.execute(
             "UPDATE runs SET created_at=?, updated_at=?, completed_at=? WHERE id=?",
             (created_at, completed_at, completed_at, run_id),
         )
 
 
-def summary_counts(
-    run_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> dict[str, int]:
+def summary_counts(run_id: str, conn: sqlite3.Connection | None = None) -> dict[str, int]:
     tables = {
         "events": "run_events",
         "hypotheses": "hypotheses",
@@ -315,7 +307,7 @@ def summary_counts(
         "matches": "matches",
         "reviews": "reviews",
     }
-    with _use_conn(conn, db_path) as conn:
+    with _use_conn(conn, None) as conn:
         return {
             field: conn.execute(
                 f"SELECT COUNT(*) FROM {table} WHERE run_id=?",

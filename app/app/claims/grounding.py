@@ -89,20 +89,18 @@ def combined_fingerprint(claim_fingerprints: Sequence[str]) -> str:
     ).hexdigest()
 
 
-def _span_from_dict(payload: Mapping[str, Any]) -> SupportSpan:
-    return SupportSpan(
-        evidence_id=str(payload.get("evidence_id") or ""),
-        quote=str(payload.get("quote") or ""),
-        start=int(payload.get("start") or 0),
-        end=int(payload.get("end") or 0),
-        source=str(payload.get("source") or ""),
-        url=str(payload.get("url") or ""),
-    )
-
-
 def _spans_from(payload: Mapping[str, Any], key: str) -> tuple[SupportSpan, ...]:
     return tuple(
-        _span_from_dict(span) for span in payload.get(key) or () if isinstance(span, Mapping)
+        SupportSpan(
+            evidence_id=str(span.get("evidence_id") or ""),
+            quote=str(span.get("quote") or ""),
+            start=int(span.get("start") or 0),
+            end=int(span.get("end") or 0),
+            source=str(span.get("source") or ""),
+            url=str(span.get("url") or ""),
+        )
+        for span in payload.get(key) or ()
+        if isinstance(span, Mapping)
     )
 
 
@@ -404,17 +402,6 @@ class GroundingResult:
         return len(self.blocked_ids)
 
 
-@dataclasses.dataclass(frozen=True)
-class GroundingTarget:
-    """Provider assessment and database persistence remain separate to avoid
-    network I/O inside write transactions.
-    """
-
-    allow_speculative: bool = False
-    conn: sqlite3.Connection | None = None
-    db_path: str | None = None
-
-
 def persist_grounding(
     run_id: str,
     assessed: Sequence[tuple[str, list[tuple[ClaimAssessment, str]]]],
@@ -426,12 +413,18 @@ def persist_grounding(
     """Persistence performs database work only; assessment and all provider
     I/O must finish beforehand.
     """
-    target = GroundingTarget(allow_speculative=allow_speculative, conn=conn, db_path=db_path)
     blocked: set[str] = set()
     unverified = 0
     reason_by_id: dict[str, str] = {}
     for hyp_id, assessments in assessed:
-        gate = _ground_one_hypothesis(run_id, hyp_id, assessments, target)
+        gate = _ground_one_hypothesis(
+            run_id,
+            hyp_id,
+            assessments,
+            allow_speculative=allow_speculative,
+            conn=conn,
+            db_path=db_path,
+        )
         reason_by_id[hyp_id] = gate.reason
         if gate.decision is GateDecision.BLOCK:
             blocked.add(hyp_id)
@@ -475,19 +468,15 @@ def _ground_one_hypothesis(
     run_id: str,
     hyp_id: str,
     assessments: list[tuple[ClaimAssessment, str]],
-    target: GroundingTarget,
+    *,
+    allow_speculative: bool,
+    conn: sqlite3.Connection | None,
+    db_path: str | None,
 ) -> GateResult:
     """Persisting a verdict does not itself withhold unsupported proposals;
     report release handles contradictions.
     """
-    allow_speculative = target.allow_speculative
-    _persist_claim_edges(
-        run_id,
-        hyp_id,
-        assessments,
-        conn=target.conn,
-        db_path=target.db_path,
-    )
+    _persist_claim_edges(run_id, hyp_id, assessments, conn=conn, db_path=db_path)
     gate = publication_gate(
         [assessment for assessment, _role in assessments],
         allow_speculative=allow_speculative,
@@ -497,7 +486,21 @@ def _ground_one_hypothesis(
         require_supported_claim=not allow_speculative,
     )
     if gate.decision is GateDecision.BLOCK:
-        _record_blocked_hypothesis(run_id, hyp_id, gate, conn=target.conn, db_path=target.db_path)
+        # Recorded failures use the gate's authoritative failed_claims rather
+        # than a second approximation.
+        store.add_safety_decision(
+            NewSafetyDecision(
+                run_id=run_id,
+                stage="claim_gate",
+                decision="block",
+                reason=f"hypothesis {hyp_id}: {gate.reason}",
+                matches=list(gate.failed_claims),
+            ),
+            db_path=db_path,
+            conn=conn,
+        )
+        # Unsupported proposals still publish; logs must not claim they were
+        # quarantined or escalate normal findings per item.
         logger.info(
             "Hypothesis %s did not clear the claim gate (%s): %s",
             hyp_id,
@@ -541,33 +544,6 @@ def _persist_claim_edges(
             db_path=db_path,
             conn=conn,
         )
-
-
-def _record_blocked_hypothesis(
-    run_id: str,
-    hyp_id: str,
-    gate: GateResult,
-    *,
-    conn: sqlite3.Connection | None,
-    db_path: str | None,
-) -> None:
-    """Recorded failures use the gate's authoritative failed_claims rather
-    than a second approximation.
-    """
-    store.add_safety_decision(
-        NewSafetyDecision(
-            run_id=run_id,
-            stage="claim_gate",
-            decision="block",
-            reason=f"hypothesis {hyp_id}: {gate.reason}",
-            matches=list(gate.failed_claims),
-        ),
-        db_path=db_path,
-        conn=conn,
-    )
-    # Unsupported proposals still publish; logs must not claim they were
-    # quarantined or
-    # escalate normal findings per item.
 
 
 __all__ = ["AssessorSpec", "assess_claim_groups", "assess_hypothesis_claims"]

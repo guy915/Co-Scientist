@@ -12,10 +12,6 @@ import {
   applyEditedInterviewFields,
   buildInterviewFieldsPayload,
 } from '../run_spec';
-const SPEC_EDIT_INPUT_CLASSES =
-  'w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg';
-const SPEC_EDIT_FIELD_CLASSES = 'grid gap-[0.5rem]';
-const SPEC_EDIT_LABEL_CLASSES = 'text-[1.18rem] font-bold text-cosci-fg';
 
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
@@ -74,7 +70,7 @@ function EditableListRow({
     <div className="flex items-center gap-[0.5rem]">
       <input
         type="text"
-        className={SPEC_EDIT_INPUT_CLASSES}
+        className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg"
         aria-label={`${label} item ${index + 1}`}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -150,8 +146,11 @@ function SpecFieldsFormFields({
   const goalId = useId();
   return (
     <>
-      <div className={SPEC_EDIT_FIELD_CLASSES}>
-        <label htmlFor={goalId} className={SPEC_EDIT_LABEL_CLASSES}>
+      <div className="grid gap-[0.5rem]">
+        <label
+          htmlFor={goalId}
+          className="text-[1.18rem] font-bold text-cosci-fg"
+        >
           Research Challenge
         </label>
         <textarea
