@@ -6,6 +6,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
+from co_scientist.core.config import settings
 from co_scientist.models import Hypothesis
 
 import app.citations as citation_resolver
@@ -17,7 +18,6 @@ from app.citations import (
     classify_source_type,
     offline_resolver,
 )
-from app.config import settings
 from app.elo import INITIAL_ELO
 from app.engine_adapter.drain.reviews import (
     _CitationSink,

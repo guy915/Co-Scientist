@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.constants import truncate
+from co_scientist.core.constants import truncate
 from co_scientist.evidence.article_support import (
     build_articles_from_metadata,
     records_from_findings,

@@ -8,10 +8,10 @@ import pathlib
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from co_scientist.safety import SafetyOutcome
 
 from app import safety as app_safety
-from app.config import settings
 from app.hypothesis.safety import (
     HypothesisSafetyReview,
     escalate_review,

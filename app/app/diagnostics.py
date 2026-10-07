@@ -8,7 +8,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from app.config import any_provider_credential, settings
+from co_scientist.core.config import any_provider_credential, settings
+
 from app.engine_adapter import _engine_importable
 from app.store import db
 from app.store.db import default_db_path

@@ -8,11 +8,11 @@ from typing import Any
 
 import httpx
 import pytest
+from co_scientist.core.config import settings
 from fastapi import FastAPI
 from httpx import ASGITransport
 
 from app import seed
-from app.config import settings
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
@@ -366,7 +366,7 @@ def _steer_mid_run_then_crash(
 def test_mid_run_steering_survives_a_crash_and_applies_once(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.config import settings
+    from co_scientist.core.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
     run = _persist_offline_run(isolated_db)
@@ -408,7 +408,7 @@ def _fail_one_judged_matchup(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
 def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.config import settings
+    from co_scientist.core.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
     run = _persist_offline_run(isolated_db)

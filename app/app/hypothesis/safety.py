@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypeAlias
 
+from co_scientist.core.async_bridge import propagate_context, run_in_scoped_loop
 from co_scientist.safety import (
     POLICY_VERSION,
     REDACTED_PLACEHOLDER,
@@ -14,8 +15,6 @@ from co_scientist.safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
-
-from app.async_bridge import propagate_context, run_in_scoped_loop
 
 logger = logging.getLogger(__name__)
 

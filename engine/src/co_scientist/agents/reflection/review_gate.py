@@ -4,7 +4,7 @@ import enum
 from collections.abc import Iterable, Sequence
 from typing import Any
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     _NEUTRAL_SCORE,
     NEEDS_REVISION_SCORE,
     NOT_VIABLE_SCORE,

@@ -3,12 +3,15 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 import pytest
+from co_scientist.core.config import (
+    PROVIDER_CREDENTIAL_ENV,
+)
+from co_scientist.core.run_modes import (
+    resolved_run_config,
+)
 from co_scientist.generator.core import HypothesisGenerator
 
 import app.engine_adapter as provider
-from app.config import (
-    PROVIDER_CREDENTIAL_ENV,
-)
 from app.engine_adapter.events import (
     _canonical_engine_payload,
     _canonical_event_type,
@@ -17,9 +20,6 @@ from app.engine_adapter.events import (
 from app.engine_adapter.opts import (
     build_engine_opts,
     build_generator,
-)
-from app.run_modes import (
-    resolved_run_config,
 )
 from app.store import messages as store
 from tests._store_helpers import seed_run

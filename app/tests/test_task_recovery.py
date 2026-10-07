@@ -6,11 +6,11 @@ import json
 from typing import Any
 
 import pytest
-from co_scientist.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
+from co_scientist.core.config import settings
+from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 
 import app.store.tasks_lifecycle as store_tasks_attempts
 from app import credentials, engine_tasks, task_worker
-from app.config import settings
 from app.store import db as store_db
 from app.store import events as store_events
 from app.store import runs

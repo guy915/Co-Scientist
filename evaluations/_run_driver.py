@@ -45,9 +45,9 @@ class ArmInvocation:
 def persist_arm_run(
     goal: str, tier: str, overrides: dict[str, Any], invocation: ArmInvocation
 ) -> str:
-    from app.run_modes import resolved_run_config, setup_config
     from app.store import runs
     from app.store.runs import RunCreateOptions
+    from co_scientist.core.run_modes import resolved_run_config, setup_config
 
     config = resolved_run_config(
         {

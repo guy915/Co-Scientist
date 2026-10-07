@@ -5,9 +5,9 @@ import contextlib
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi.testclient import TestClient
 
-from app.config import settings
 from app.interviews import model as interviews_model
 from app.interviews import stream as interviews_stream
 from app.main import app

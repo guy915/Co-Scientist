@@ -17,7 +17,7 @@ async def _complete(kwargs: dict[str, Any]) -> Any:
     user_key = credentials.current_byok() is not None
     if not user_key:
         offline_guard.require_remote_chat("chat completion")
-        from app.config import settings
+        from co_scientist.core.config import settings
 
         kwargs.setdefault("max_tokens", settings.app_llm_max_output_tokens)
     timeout = kwargs.get("timeout")

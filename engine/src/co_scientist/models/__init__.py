@@ -8,15 +8,15 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.models.metrics import ExecutionMetrics as ExecutionMetrics
-from co_scientist.models.metrics import MetricDeltas as MetricDeltas
-from co_scientist.models.metrics import _known_field_kwargs
-from co_scientist.models.metrics import (
+from co_scientist.core.constants import INITIAL_ELO_RATING
+from co_scientist.core.metrics import ExecutionMetrics as ExecutionMetrics
+from co_scientist.core.metrics import MetricDeltas as MetricDeltas
+from co_scientist.core.metrics import _known_field_kwargs
+from co_scientist.core.metrics import (
     create_metrics_update as create_metrics_update,
 )
-from co_scientist.models.metrics import merge_metrics as merge_metrics
-from co_scientist.models.metrics import phase_message as phase_message
+from co_scientist.core.metrics import merge_metrics as merge_metrics
+from co_scientist.core.metrics import phase_message as phase_message
 
 
 @dataclass

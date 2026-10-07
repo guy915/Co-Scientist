@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, cast
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     LITERATURE_REVIEW_PAPERS_COUNT,
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
 )

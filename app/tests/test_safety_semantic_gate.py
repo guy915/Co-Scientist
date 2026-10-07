@@ -8,9 +8,9 @@ import logging
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 
 from app import credentials, safety
-from app.config import settings
 
 from ._llm_fake_backend import completion_response, install_completion_backend
 

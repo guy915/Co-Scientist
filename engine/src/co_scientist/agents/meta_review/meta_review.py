@@ -10,7 +10,7 @@ from co_scientist.agents.reflection.review_gate import (
 from co_scientist.agents.safety import (
     monitor_research_direction,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     PROGRESS_META_REVIEW_COMPLETE,
     PROGRESS_META_REVIEW_START,
     THINKING_MAX_TOKENS,

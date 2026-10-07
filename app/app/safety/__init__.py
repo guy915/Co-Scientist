@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core.config import settings
 from co_scientist.safety import (
     POLICY_VERSION,
     SafetyOutcome,
@@ -14,7 +15,6 @@ from co_scientist.safety import (
 )
 
 import app.process_mode as process_mode
-from app.config import settings
 from app.safety.semantic import (
     run_semantic_safety_model,
     semantic_credential_missing_decision,

@@ -13,13 +13,13 @@ from co_scientist.agents.meta_review.research_overview import (
     format_interim_overview,
 )
 from co_scientist.config.schema import EnrichmentConfig, ToolConfig
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
     MAX_CONCURRENT_LLM_CALLS,
     PROGRESS_GENERATE_COMPLETE,
     PROGRESS_GENERATE_START,
 )
-from co_scientist.exceptions import GenerationError
+from co_scientist.core.exceptions import GenerationError
 from co_scientist.mcp_client import get_mcp_client
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.progress import emit_progress

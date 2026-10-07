@@ -7,7 +7,7 @@ import pytest
 from co_scientist.agents.generation.literature_review import (
     literature_review_node,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     LITERATURE_REVIEW_FAILED,
 )
 from co_scientist.evidence import (

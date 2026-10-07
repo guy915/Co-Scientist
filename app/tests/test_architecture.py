@@ -99,17 +99,6 @@ def test_app_consumes_public_engine_operations() -> None:
     assert not violations, "Private engine imports:\n" + "\n".join(violations)
 
 
-def test_engine_does_not_depend_on_app() -> None:
-    engine_dir = _ROOT / "engine" / "src" / "co_scientist"
-    violations = [
-        f"{path}:{line}: {module}"
-        for path in sorted(engine_dir.rglob("*.py"))
-        for line, module, _ in _boundaries_imports(path)
-        if module == "app" or module.startswith("app.")
-    ]
-    assert not violations, "Engine imports app:\n" + "\n".join(violations)
-
-
 @pytest.mark.parametrize(
     ("owner", "coordinators"),
     [

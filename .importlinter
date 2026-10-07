@@ -30,11 +30,11 @@ layers =
     (co_scientist.platform.retrieval) : co_scientist.mcp_client : co_scientist.tools : co_scientist.config.registry : co_scientist.config.schema : co_scientist.evidence : co_scientist.retrieval_degradation : co_scientist.research_adapter : app.pinned_http : app.retraction_set : app.citations : app.run_corpus : app.engine_adapter.tools
     (co_scientist.platform.llm) : co_scientist.llm : co_scientist.offline : co_scientist.tool_effects : app.llm_request : app.llm_scope : app.execution_policy : app.process_mode : app.offline_guard : app.provider_usage : (co_scientist.platform.sandbox) : co_scientist.sandbox : co_scientist.workspace : co_scientist.skills : co_scientist.patch : (co_scientist.platform.db) : app.store.db : app.store.schema : app.store.checkpoints : app.store.models
     (co_scientist.platform.telemetry) : co_scientist.progress : app.logging_setup : app.error_tracking : app.diagnostic_events : app.store.logs : app.store.retrieval_calls
-    (co_scientist.core) : co_scientist.exceptions : co_scientist._context : co_scientist.backoff : co_scientist.config.env_vars : co_scientist.models.metrics : co_scientist.constants : app.config : app.run_modes : app.async_bridge
+    co_scientist.core
 ignore_imports =
     app.claims.grounding -> app.engine_adapter
     app.claims.verifier -> co_scientist.schemas.builders
-    app.config -> co_scientist.llm
+    co_scientist.core.config -> co_scientist.llm
     app.engine_adapter.drain.matches -> co_scientist.agents.ranking.ranking_debate
     app.engine_adapter.drain.matches -> co_scientist.research
     app.engine_adapter.drain.reviews -> app.report
@@ -68,7 +68,7 @@ ignore_imports =
     app.report.finalize -> app.store.runs
     app.retention -> app.store.runs
     app.retention -> app.store.runs_views
-    app.run_modes -> app.elo
+    co_scientist.core.run_modes -> app.elo
     app.run_start_announcement -> app.sse
     app.safety -> app.engine_tasks.support
     app.safety -> app.store.events
@@ -82,14 +82,14 @@ ignore_imports =
     app.store.logs -> app.store.db
     app.store.retrieval_calls -> app.store.db
     app.store.retrieval_calls -> co_scientist.research
-    co_scientist.constants -> co_scientist.llm.profile
+    co_scientist.core.constants -> co_scientist.llm.profile
     co_scientist.evidence.article_support -> co_scientist.models
     co_scientist.evidence.article_support -> co_scientist.research
     co_scientist.evidence.relevance -> co_scientist.prompts
     co_scientist.evidence.relevance -> co_scientist.schemas
     co_scientist.evidence.search -> co_scientist.state
     co_scientist.evidence.search_support -> co_scientist.state
-    co_scientist.models.metrics -> co_scientist.llm
+    co_scientist.core.metrics -> co_scientist.llm
     co_scientist.progress -> co_scientist.state
     co_scientist.research_adapter -> co_scientist.prompts
     co_scientist.research_adapter -> co_scientist.research
@@ -228,15 +228,7 @@ source_modules =
     app.diagnostic_events
     app.store.logs
     app.store.retrieval_calls
-    co_scientist.exceptions
-    co_scientist._context
-    co_scientist.backoff
-    co_scientist.config.env_vars
-    co_scientist.models.metrics
-    co_scientist.constants
-    app.config
-    app.run_modes
-    app.async_bridge
+    co_scientist.core
 forbidden_modules =
     fastapi
     starlette
@@ -358,20 +350,12 @@ source_modules =
     app.diagnostic_events
     app.store.logs
     app.store.retrieval_calls
-    co_scientist.exceptions
-    co_scientist._context
-    co_scientist.backoff
-    co_scientist.config.env_vars
-    co_scientist.models.metrics
-    co_scientist.constants
-    app.config
-    app.run_modes
-    app.async_bridge
+    co_scientist.core
 forbidden_modules =
     litellm
 allow_indirect_imports = True
 ignore_imports =
-    app.async_bridge -> litellm
+    co_scientist.core.async_bridge -> litellm
     app.credentials -> litellm
     app.logging_setup -> litellm
 
@@ -469,15 +453,7 @@ source_modules =
     app.diagnostic_events
     app.store.logs
     app.store.retrieval_calls
-    co_scientist.exceptions
-    co_scientist._context
-    co_scientist.backoff
-    co_scientist.config.env_vars
-    co_scientist.models.metrics
-    co_scientist.constants
-    app.config
-    app.run_modes
-    app.async_bridge
+    co_scientist.core
 forbidden_modules =
     httpx
 allow_indirect_imports = True
@@ -541,15 +517,7 @@ source_modules =
     app.diagnostic_events
     app.store.logs
     app.store.retrieval_calls
-    co_scientist.exceptions
-    co_scientist._context
-    co_scientist.backoff
-    co_scientist.config.env_vars
-    co_scientist.models.metrics
-    co_scientist.constants
-    app.config
-    app.run_modes
-    app.async_bridge
+    co_scientist.core
 forbidden_modules =
     sqlite3
 allow_indirect_imports = True
@@ -561,3 +529,43 @@ ignore_imports =
     app.runs.support -> sqlite3
     app.store.logs -> sqlite3
     app.store.retrieval_calls -> sqlite3
+
+[importlinter:contract:engine-app]
+name = Modules that began in the engine do not import app
+type = forbidden
+source_modules =
+    co_scientist.agents
+    co_scientist.checkpoint
+    co_scientist.config
+    co_scientist.evidence
+    co_scientist.generator
+    co_scientist.llm
+    co_scientist.mcp_client
+    co_scientist.models
+    co_scientist.offline
+    co_scientist.patch
+    co_scientist.progress
+    co_scientist.prompts
+    co_scientist.research
+    co_scientist.research_adapter
+    co_scientist.retrieval_degradation
+    co_scientist.safety
+    co_scientist.sandbox
+    co_scientist.scheduling
+    co_scientist.schemas
+    co_scientist.skills
+    co_scientist.state
+    co_scientist.task_runtime
+    co_scientist.tool_effects
+    co_scientist.tools
+    co_scientist.workflow_topology
+    co_scientist.workspace
+    co_scientist.core.exceptions
+    co_scientist.core._context
+    co_scientist.core.backoff
+    co_scientist.core.env_vars
+    co_scientist.core.metrics
+    co_scientist.core.constants
+forbidden_modules =
+    app
+allow_indirect_imports = True

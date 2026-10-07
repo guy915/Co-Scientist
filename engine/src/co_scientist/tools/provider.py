@@ -3,7 +3,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from co_scientist.exceptions import ConfigError
+from co_scientist.core.exceptions import ConfigError
 from co_scientist.mcp_client import MCPToolClient
 
 logger = logging.getLogger(__name__)

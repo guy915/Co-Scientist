@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 
+from co_scientist.core.async_bridge import off_loop
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from app.async_bridge import off_loop
 from app.auth import require_client_scope
 from app.store import feedback
 

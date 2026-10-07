@@ -2,12 +2,12 @@ import dataclasses
 import enum
 import logging
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     BUDGET_ESCALATION_MAX_INCREMENT,
     BUDGET_ESCALATION_MAX_TOKENS,
     MINIMAL_REASONING_MAX_TOKENS,
 )
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMBudgetExhaustedError,
     LLMContentFilteredError,
     LLMThinkingOnlyError,

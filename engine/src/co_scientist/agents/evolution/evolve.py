@@ -46,7 +46,7 @@ from co_scientist.agents.evolution.operations import (
     EvolutionContext,
     build_evolution_context,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     EVOLVE_MAX_TOKENS_CAP,
     EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
     EXTENDED_MAX_TOKENS,
@@ -55,7 +55,7 @@ from co_scientist.constants import (
     PROGRESS_EVOLVE_START,
     scaled_max_tokens,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

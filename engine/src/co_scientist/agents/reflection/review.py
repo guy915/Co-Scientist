@@ -10,7 +10,7 @@ from co_scientist.agents.reflection.review_gate import (
 from co_scientist.agents.reflection.review_gate import (
     refresh_review_dispositions as refresh_review_dispositions,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     COMPARATIVE_BATCH_THRESHOLD,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
@@ -22,7 +22,7 @@ from co_scientist.constants import (
     THINKING_MAX_TOKENS,
     scaled_max_tokens,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

@@ -32,6 +32,9 @@ dependencies = [
     "typing-extensions~=4.15.0",
     "jsonschema~=4.26.0",
     "pyyaml~=6.0.3",
+    # Runtime dependencies of the app modules that moved into this package (ADR-001).
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -93,6 +96,9 @@ strict = true
 plugins = ["pydantic.mypy"]
 # MCP owns independent strict configuration and Biopython overrides.
 exclude = ["^(mcp_server|build|dist)/"]
+# Moved app modules still import not-yet-moved ones; mypy cannot follow the
+# app's editable install.
+mypy_path = "../app"
 
 [[tool.mypy.overrides]]
 module = ["jsonschema", "jsonschema.*", "yaml", "pypdf", "pypdf.*"]

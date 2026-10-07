@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.core.config import settings
+from co_scientist.core.constants import INITIAL_ELO_RATING
 
-from app.config import settings
 from app.text_utils import coalesce, hypothesis_id, hypothesis_title
 
 # Initial Elo stays engine-owned; the app owns deployment-tunable K-factor.

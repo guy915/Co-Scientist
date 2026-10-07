@@ -4,13 +4,13 @@ import logging
 from collections.abc import Coroutine
 from typing import Any
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
     PROGRESS_REFLECTION_COMPLETE,
     PROGRESS_REFLECTION_START,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from co_scientist.core.async_bridge import off_loop
 from fastapi import (
     APIRouter,
     Query,
@@ -11,7 +12,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import app.runs.crud as runs_deletion
 from app.api_contracts import RunsResponse
 from app.api_contracts.runs import Run, RunWithSummary
-from app.async_bridge import off_loop
 from app.runs import chat as runs_chat
 from app.runs import collections as runs_collections
 from app.runs import contrib as runs_contrib

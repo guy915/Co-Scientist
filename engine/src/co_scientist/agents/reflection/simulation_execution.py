@@ -6,12 +6,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
     truncate_for_prompt,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

@@ -6,12 +6,12 @@ from co_scientist.agents.reflection.deep_verification_evidence import (
     _retrieve_probe_evidence,
     build_evidence_context,
 )
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEFAULT_MAX_TOKENS,
     LITERATURE_REVIEW_MAX_QUERIES,
     LOW_TEMPERATURE,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.models import Article, Hypothesis
 from co_scientist.prompts import get_hypothesis_query_generation_prompt

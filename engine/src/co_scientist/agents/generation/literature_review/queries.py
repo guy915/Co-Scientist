@@ -3,11 +3,12 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEFAULT_MAX_TOKENS,
     HIGH_TEMPERATURE,
     LITERATURE_REVIEW_MAX_QUERIES,
 )
+from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.evidence.retrieval_support import (
     describe_exception,
 )
@@ -16,7 +17,6 @@ from co_scientist.evidence.search_support import (
     determine_query_source_type,
     parse_mcp_query_result,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,

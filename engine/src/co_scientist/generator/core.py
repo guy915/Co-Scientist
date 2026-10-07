@@ -3,7 +3,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from co_scientist.constants import (
+from co_scientist.core.constants import (
     DEFAULT_EVOLUTION_MAX_COUNT,
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_MAX_ITERATIONS,

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 from co_scientist.agents import reflection as _operations_reflection
 from co_scientist.checkpoint import restore_workflow_state
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )

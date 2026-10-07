@@ -7,10 +7,10 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.core.config import settings
 from fastapi.testclient import TestClient
 
 from app import task_worker
-from app.config import settings
 from app.safety import POLICY_VERSION, SafetyDecision, ScreenSubject
 from app.store import (
     records,

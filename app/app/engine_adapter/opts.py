@@ -3,9 +3,8 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from app import run_corpus
-from app.config import settings
-from app.run_modes import (
+from co_scientist.core.config import settings
+from co_scientist.core.run_modes import (
     attribute_names,
     clean_string_list,
     criteria_display_strings,
@@ -14,6 +13,8 @@ from app.run_modes import (
     normalize_run_tier,
     setup_guidance,
 )
+
+from app import run_corpus
 from app.store import interviews, records
 from app.store import messages as store
 from app.store.models import MessageRow

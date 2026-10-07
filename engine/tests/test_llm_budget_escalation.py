@@ -8,14 +8,14 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist import constants
 from co_scientist.agents.supervisor.orchestrator import _compute_stats
-from co_scientist.constants import (
+from co_scientist.core import constants
+from co_scientist.core.constants import (
     BUDGET_ESCALATION_MAX_INCREMENT,
     BUDGET_ESCALATION_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.exceptions import (
+from co_scientist.core.exceptions import (
     LLMBudgetExhaustedError,
     LLMCallBudgetExceededError,
     LLMThinkingOnlyError,

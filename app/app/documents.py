@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+from co_scientist.core.async_bridge import off_loop
 from fastapi import (
     APIRouter,
     File,
@@ -17,7 +18,6 @@ from fastapi import (
 )
 
 from app import document_ingest
-from app.async_bridge import off_loop
 from app.auth import client_id, require_client_scope
 from app.staged_documents import document_summary as document_summary
 from app.staged_documents import (

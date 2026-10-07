@@ -36,7 +36,7 @@ def app_call_scope(surface: str) -> Iterator[None]:
     """Retries and tool rounds share one physical-call cap, separate from
     scientific run spend.
     """
-    from app.config import settings
+    from co_scientist.core.config import settings
 
     token = _active.set(True)
     with (

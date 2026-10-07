@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from co_scientist.constants import corpus_slug
+from co_scientist.core.constants import corpus_slug
 from co_scientist.evidence.relevance import (
     apply_semantic_relevance,
 )
