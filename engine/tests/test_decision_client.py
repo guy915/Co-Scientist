@@ -2,15 +2,17 @@ import asyncio
 import json
 from dataclasses import replace
 from email.utils import formatdate
+from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
 
 from co_scientist.core.config import settings as shared_settings
-from co_scientist.core.exceptions import ProviderAdmissionError
+from co_scientist.core.exceptions import LLMCallBudgetExceededError, ProviderAdmissionError
 from co_scientist.platform.db import connect, decision_usage, transaction
 from co_scientist.platform.db.decision_usage import DecisionQuotaExceededError
+from co_scientist.platform.llm.admission import call_budget
 from co_scientist.platform.llm.admission.service import scoped_client
 from co_scientist.platform.llm.decisions import (
     DecisionSettings,
@@ -329,3 +331,32 @@ def test_threshold_requires_labels_and_rejects_confident_errors() -> None:
     assert agreement_lower_bound(labels, 0.8) < -0.02
     assert choose_threshold([LabeledDecision(1, False)] * 100) is None
     assert expected_calibration_error([LabeledDecision(0.8, True)] * 100) == pytest.approx(0.2)
+
+
+async def test_decisions_retain_the_shared_durable_run_budget_after_client_recreation(
+    tmp_path: Path,
+) -> None:
+    sent = []
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json=_binary())
+
+    path = str(tmp_path / "scoped-decision.db")
+    with scoped_client("owner", host="host", db_path=path):
+        with call_budget.scoped_llm_call_budget("decision-run", 1):
+            client = SystemOneClient(_SETTINGS, transport=httpx.MockTransport(reply))
+            await client.decide("state", _QUESTIONS)
+        call_budget.release_run_call_budget("decision-run")
+        with (
+            call_budget.scoped_llm_call_budget("decision-run", 100),
+            pytest.raises(LLMCallBudgetExceededError),
+        ):
+            recreated = SystemOneClient(_SETTINGS, transport=httpx.MockTransport(reply))
+            await decision_or_fallback(
+                "state", _QUESTIONS, 0.9, lambda result: "accepted", _fallback, client=recreated
+            )
+        assert call_budget.current_run_call_count("decision-run") == 1
+    assert len(sent) == 1
+    with connect(path) as conn:
+        assert conn.execute("SELECT calls FROM decision_usage").fetchone()[0] == 2
