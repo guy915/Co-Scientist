@@ -1,6 +1,6 @@
 from typing import Any, Final
 
-from co_scientist.science.schemas.builders import obj, str_array
+from co_scientist.core.json_schema import obj, str_array
 
 # Parent identity uses prompt indices, bounding output without echoing long
 # hypotheses.

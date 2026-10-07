@@ -1,6 +1,6 @@
 from typing import Any, Final
 
-from co_scientist.science.schemas.builders import obj, str_array
+from co_scientist.core.json_schema import obj, str_array
 
 _MAX_CANDIDATE_COMPARISON_IDEAS: Final = 10
 _MAX_EXISTING_SOLUTIONS_ROWS: Final = 6

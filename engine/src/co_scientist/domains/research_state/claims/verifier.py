@@ -12,6 +12,7 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
+from co_scientist.core.json_schema import obj
 from co_scientist.domains.research_state.claims import (
     Assessor,
     BatchAssessor,
@@ -36,7 +37,6 @@ from co_scientist.platform.llm import (
     record_deterministic_fallback,
     scoped_telemetry_phase,
 )
-from co_scientist.science.schemas.builders import obj
 
 logger = logging.getLogger(__name__)
 
