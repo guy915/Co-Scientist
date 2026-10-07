@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
 COPY mcp_server/pyproject.toml mcp_server/README.md mcp_server/LICENSE mcp_server/NOTICE ./mcp_server/
 
 # Editable root-package mapping needs each listed subpackage directory before source COPY.
-RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review
+RUN mkdir -p ./mcp_server/tools/lit_review
 
 RUN pip install --no-cache-dir -e ./mcp_server
 

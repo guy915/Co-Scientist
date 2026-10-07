@@ -34,7 +34,6 @@ def get_literature_review_query_generation_prompt(
 ) -> str:
     inputs = inputs or LiteratureQueryInputs()
     template_name = {
-        "knowledge_graph": "literature_review_query_generation_indra",
         "pubmed": "literature_review_query_generation_pubmed",
     }.get(source_type, "literature_review_query_generation_generic")
     return load_prompt(
