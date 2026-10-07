@@ -47,7 +47,7 @@ const NAV_PANEL_CLASSES =
 
 const NAV_GROUP_PHONE_CLASSES =
   '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:flex-1 ' +
-  '[@media(max-width:700px)]:flex-col [@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:gap-[0.3rem] [@media(max-width:700px)]:overflow-hidden';
+  '[@media(max-width:700px)]:flex-col [@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:[justify-items:stretch] [@media(max-width:700px)]:gap-[0.3rem] [@media(max-width:700px)]:overflow-hidden';
 
 const NAV_BOTTOM_CLASSES =
   'relative grid items-center justify-items-center gap-[0.8rem] p-0 ' +
