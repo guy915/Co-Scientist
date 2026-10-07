@@ -3,9 +3,6 @@ import json
 import logging
 from typing import Any
 
-from co_scientist.agents.safety import (
-    monitor_research_direction,
-)
 from co_scientist.core.constants import (
     PROGRESS_META_REVIEW_COMPLETE,
     PROGRESS_META_REVIEW_START,
@@ -29,6 +26,9 @@ from co_scientist.science.node_degradation import run_or_degrade
 from co_scientist.science.prompts import PromptRunContext, get_meta_review_prompt
 from co_scientist.science.reflection.review_gate import (
     mature_review_summary,
+)
+from co_scientist.science.safety_screen import (
+    monitor_research_direction,
 )
 
 logger = logging.getLogger(__name__)

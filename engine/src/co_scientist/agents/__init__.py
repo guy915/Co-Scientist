@@ -5,7 +5,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.agents import safety
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.science import (
     evolution,
@@ -16,6 +15,7 @@ from co_scientist.science import (
     reflection,
     supervisor,
 )
+from co_scientist.science import safety_screen as safety
 
 NodeCallable = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 

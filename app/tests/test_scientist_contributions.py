@@ -166,7 +166,7 @@ def test_an_unscreened_row_does_not_suppress_the_engine_safety_screen(
 ) -> None:
     # Pending is a placeholder, not a finished screen; sending it suppresses the
     # real safety decision.
-    from co_scientist.agents.safety import (
+    from co_scientist.science.safety_screen import (
         _screen_one_hypothesis,
     )
 

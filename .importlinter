@@ -21,7 +21,7 @@ layers =
     (co_scientist.main) : app.main
     (co_scientist.api) : app.api_contracts : app.runs : app.diagnostics_api : app.diagnostics : app.logs_api : app.feedback_api : app.documents : app.sse : app.operator_access : app.auth
     co_scientist.orchestration : co_scientist.workflow_topology : co_scientist.task_runtime : co_scientist.checkpoint : co_scientist.generator : app.engine_tasks : app.task_worker : app.run_events : app.notifications : app.engine_adapter.opts : app.engine_adapter.events : app.store.tasks : app.store.tasks_lifecycle : app.store.runs : app.store.runs_views : app.store.events : app.store.supervisor_plan : app.store.receipts
-    co_scientist.science : co_scientist.agents.safety
+    co_scientist.science
     co_scientist.domains.chat
     (co_scientist.domains.report) : app.report : app.store.reports
     (co_scientist.domains.safety) : co_scientist.safety : app.safety : app.hypothesis
@@ -108,7 +108,7 @@ modules =
     co_scientist.science.proximity
     co_scientist.science.meta_review
     co_scientist.science.supervisor
-    co_scientist.agents.safety
+    co_scientist.science.safety_screen
 ignore_imports =
     co_scientist.science.evolution.evolve_grounding -> co_scientist.science.reflection.deep_verification_evidence
     co_scientist.science.evolution.evolve_prompt -> co_scientist.science.generation.assumptions
@@ -119,7 +119,7 @@ ignore_imports =
     co_scientist.science.generation.literature_review.enrichment -> co_scientist.science.reflection.reflection_helpers
     co_scientist.science.generation.operations -> co_scientist.science.meta_review.research_overview
     co_scientist.science.meta_review.meta_review -> co_scientist.science.reflection.review_gate
-    co_scientist.science.meta_review.meta_review -> co_scientist.agents.safety
+    co_scientist.science.meta_review.meta_review -> co_scientist.science.safety_screen
     co_scientist.science.ranking.ranking_debate -> co_scientist.science.reflection.review_gate
     co_scientist.science.supervisor.orchestrator -> co_scientist.science.ranking.ranking_lifecycle
     co_scientist.science.supervisor.orchestrator -> co_scientist.science.reflection.owed_review
@@ -147,7 +147,6 @@ source_modules =
     app.store.supervisor_plan
     app.store.receipts
     co_scientist.science
-    co_scientist.agents.safety
     co_scientist.domains.chat
     app.report
     app.store.reports
@@ -213,7 +212,6 @@ source_modules =
     app.store.supervisor_plan
     app.store.receipts
     co_scientist.science
-    co_scientist.agents.safety
     co_scientist.domains.chat
     app.report
     app.store.reports
@@ -271,7 +269,6 @@ source_modules =
     app.store.supervisor_plan
     app.store.receipts
     co_scientist.science
-    co_scientist.agents.safety
     co_scientist.domains.chat
     app.report
     app.store.reports
@@ -306,7 +303,6 @@ source_modules =
     app.operator_access
     app.auth
     co_scientist.science
-    co_scientist.agents.safety
     co_scientist.platform.retrieval
     co_scientist.platform.llm
     co_scientist.platform.sandbox

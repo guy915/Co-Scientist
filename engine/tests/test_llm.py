@@ -308,7 +308,7 @@ def test_a_synthesis_batch_is_retried_individually_unless_a_cap_is_spent() -> No
 
 
 _SOURCE_DIR = pathlib.Path(__file__).resolve().parents[1] / "src/co_scientist"
-# The science agents moved out of agents/; the safety screen has not yet.
+# agents/ keeps the node registry until the orchestration move.
 _AGENT_DIRS = (_SOURCE_DIR / "science", _SOURCE_DIR / "agents")
 
 

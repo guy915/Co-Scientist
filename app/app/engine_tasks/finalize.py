@@ -113,7 +113,7 @@ def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
     """A missing audit record cannot undo a safety halt; the flag decides
     admission and the record supplies detail.
     """
-    from co_scientist.agents.safety import MONITOR_STAGE
+    from co_scientist.science.safety_screen import MONITOR_STAGE
 
     records = [
         item
