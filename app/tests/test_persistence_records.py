@@ -25,9 +25,9 @@ from co_scientist.orchestration.repository.events import (
 )
 from co_scientist.platform import db as _store_db
 from co_scientist.platform.db import checkpoints as store_checkpoints
+from co_scientist.platform.db import logs
+from co_scientist.platform.db.logs import NewLogRecord
 from co_scientist.platform.db.models import RunStatus
-from co_scientist.platform.telemetry import logs
-from co_scientist.platform.telemetry.logs import NewLogRecord
 from fastapi.testclient import TestClient
 
 from tests._client import create_run as _create_run

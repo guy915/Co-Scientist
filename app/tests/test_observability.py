@@ -9,12 +9,12 @@ from typing import Any
 import pytest
 from co_scientist.core.byok_scope import ByokCredential, scoped_byok
 from co_scientist.domains.research_state import models
-from co_scientist.platform.telemetry import logs
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
+from co_scientist.platform.db import logs
+from co_scientist.platform.db import retrieval_calls as retrieval
+from co_scientist.platform.db.logs import LogFilters
 from co_scientist.platform.telemetry.logging_setup import (
     configure_logging,
 )
-from co_scientist.platform.telemetry.logs import LogFilters
 from fastapi.testclient import TestClient
 
 from tests._client import append_log_row, make_client, make_operator_client

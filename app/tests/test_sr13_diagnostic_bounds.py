@@ -9,8 +9,9 @@ from pathlib import Path
 
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.platform.telemetry import logging_setup, logs
-from co_scientist.platform.telemetry.logs import NewLogRecord
+from co_scientist.platform.db import log_capture as logging_setup
+from co_scientist.platform.db import logs
+from co_scientist.platform.db.logs import NewLogRecord
 
 from tests._client import make_client
 

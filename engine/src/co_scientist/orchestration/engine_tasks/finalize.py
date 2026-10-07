@@ -28,8 +28,8 @@ from co_scientist.orchestration.repository import events, runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.platform import db
+from co_scientist.platform.db import retrieval_calls as retrieval
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 
 def _finalize_replay_or_none(run: RunRow, *, db_path: str | None) -> dict[str, Any] | None:
