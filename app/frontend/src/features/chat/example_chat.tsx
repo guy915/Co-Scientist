@@ -1,11 +1,12 @@
 import {useEffect, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {openExampleChat} from '@/shared/api/runs';
-import {Button} from '@/shared/ui';
+import {Button, StatusText} from '@/shared/ui';
 import {
   useChatHistoryContext,
   useRunHistoryContext,
 } from '@/shared/hooks/history_context';
+import {chatPath} from '@/shared/lib/routes';
 
 export function ExampleChat() {
   const {id} = useParams<{id: string}>();
@@ -22,8 +23,7 @@ export function ExampleChat() {
         if (!id) throw new Error('Example not found');
         const interview = await openExampleChat(id);
         await Promise.all([reloadChats(), reloadRuns()]);
-        if (!cancelled)
-          await navigate(`/chats/${interview.id}`, {replace: true});
+        if (!cancelled) await navigate(chatPath(interview.id), {replace: true});
       } catch {
         if (!cancelled)
           setError('The example could not be opened. Please try again.');
@@ -37,9 +37,7 @@ export function ExampleChat() {
     <div className="p-6 text-cosci-text">
       {error ? (
         <>
-          <p className="ui-motion-enter" role="alert">
-            {error}
-          </p>
+          <StatusText tone="danger">{error}</StatusText>
           <Button
             variant="outlined"
             onClick={() => setAttempt(value => value + 1)}
@@ -48,9 +46,7 @@ export function ExampleChat() {
           </Button>
         </>
       ) : (
-        <p className="ui-motion-enter" role="status">
-          Opening example chat…
-        </p>
+        <StatusText>Opening example chat…</StatusText>
       )}
     </div>
   );

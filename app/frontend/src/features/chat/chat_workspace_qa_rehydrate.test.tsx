@@ -1,5 +1,6 @@
-import {makeChatSummary} from '@/test_fixtures';
-
+import {deferred} from '@/shared/testing/deferred';
+import {makeChat, makeRunWithSummary} from '@/shared/testing/fixtures';
+import {ProviderStack} from '@/shared/testing/render';
 import {
   act,
   fireEvent,
@@ -7,18 +8,12 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {
   apiMock,
   installChatWorkspaceMocks,
-  minimalRun,
   renderWorkspace,
 } from './chat_workspace_test_helpers';
-import {
-  RunHistoryProvider,
-  ChatHistoryProvider,
-} from '@/shared/hooks/history_context';
 import {useChatSession} from './use_chat_session';
 import {useChatRehydration} from './use_chat_rehydrate';
 
@@ -72,14 +67,6 @@ function completedInterview() {
   };
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(done => {
-    resolve = done;
-  });
-  return {promise, resolve};
-}
-
 function rehydrateSession(chatId: string) {
   return renderHook(
     ({id}) => {
@@ -97,13 +84,7 @@ function rehydrateSession(chatId: string) {
     {
       initialProps: {id: chatId},
       reactStrictMode: true,
-      wrapper: ({children}) => (
-        <MemoryRouter>
-          <RunHistoryProvider>
-            <ChatHistoryProvider>{children}</ChatHistoryProvider>
-          </RunHistoryProvider>
-        </MemoryRouter>
-      ),
+      wrapper: ProviderStack,
     },
   );
 }
@@ -145,11 +126,11 @@ it('keeps a linked draft recoverable without treating it as started', async () =
     ...completedInterview(),
     run_id: 'run-1',
   });
-  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
+  apiMock.listInterviews.mockResolvedValue([makeChat()]);
   // The linked-run lookup falls back to getRun until run history loads; without
   // this mock it rejects first and the button only appears on the later,
   // history-triggered lookup, whose timing depends on machine load.
-  const draft = minimalRun({id: 'run-1', status: 'draft'});
+  const draft = makeRunWithSummary({id: 'run-1', status: 'draft'}, 'chat');
   apiMock.getRun.mockResolvedValue(draft);
   apiMock.listRuns.mockResolvedValue([draft]);
 

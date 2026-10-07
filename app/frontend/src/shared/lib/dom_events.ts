@@ -2,8 +2,6 @@ export const HEADER_TITLE_EVENT = 'cosci-header-title';
 
 export const NEW_CHAT_EVENT = 'cosci-new-chat';
 
-export const DIAGNOSTIC_EVENT = 'cosci-diagnostic-event';
-
 export const RUNS_CHANGED_EVENT = 'cosci-runs-changed';
 
 export const CHATS_CHANGED_EVENT = 'cosci-chats-changed';

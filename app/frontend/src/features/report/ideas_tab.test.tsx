@@ -4,7 +4,7 @@ import {render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {IdeasTab} from './ideas_tab';
 import type {Hypothesis} from '@/shared/api/runs';
-import {makeHypothesis} from '@/test_fixtures';
+import {makeHypothesis} from '@/shared/testing/fixtures';
 
 function renderIdeas(ui: ReactElement, path = '/runs/run-1/ideas') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);

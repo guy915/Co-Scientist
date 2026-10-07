@@ -1,5 +1,5 @@
 import {editInterviewFields} from '@/shared/api/runs';
-import {Button, IconButton, TextArea, TextField} from '@/shared/ui';
+import {Button, IconButton, TextArea, TextField, StatusText} from '@/shared/ui';
 import {type ReactNode, useId, useState} from 'react';
 import {SETUP_ACTIONS_CLASSES} from '@/shared/ui/classes';
 import {
@@ -8,6 +8,7 @@ import {
   applyEditedInterviewFields,
   buildInterviewFieldsPayload,
 } from '@/shared/lib/run_spec';
+import {errorMessage} from '@/shared/lib/errors';
 
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
@@ -63,7 +64,7 @@ function EditableListRow({
     ? `Remove "${value}" from ${label}`
     : `Remove empty ${label} entry`;
   return (
-    <div className="flex items-center gap-[0.5rem]">
+    <div className="flex items-center gap-2">
       <TextField
         type="text"
         aria-label={`${label} item ${index + 1}`}
@@ -135,7 +136,7 @@ function SpecFieldsFormFields({
   const goalId = useId();
   return (
     <>
-      <div className="grid gap-[0.5rem]">
+      <div className="grid gap-2">
         <label
           htmlFor={goalId}
           className="text-[1.18rem] font-bold text-cosci-fg"
@@ -173,9 +174,7 @@ function SpecFieldsFormActions(
   const {onSave, onCancel, canSave, isSaving, error} = props;
   return (
     <>
-      {error && (
-        <p className="m-0 text-[0.9rem] text-th-destructive">{error}</p>
-      )}
+      {error && <StatusText tone="danger">{error}</StatusText>}
       <div className={SETUP_ACTIONS_CLASSES}>
         <Button variant="outlined" onClick={onCancel} disabled={isSaving}>
           Cancel
@@ -230,7 +229,7 @@ export function useSpecFieldsEditor(
       onFieldsChange(applyEditedInterviewFields(interview));
       setEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save changes.');
+      setError(errorMessage(err, 'Could not save changes.'));
     } finally {
       setIsSaving(false);
     }

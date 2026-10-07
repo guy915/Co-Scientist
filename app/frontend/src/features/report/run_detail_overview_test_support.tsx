@@ -1,20 +1,8 @@
 import {render} from '@testing-library/react';
 import type {ComponentProps} from 'react';
-import {makeRunWithSummary} from '@/test_fixtures';
-import type {Report, ResearchOverview, RunWithSummary} from '@/shared/api/runs';
+import {makeRunWithSummary} from '@/shared/testing/fixtures';
+import type {Report, ResearchOverview} from '@/shared/api/runs';
 import {ResearchOverviewView} from './run_detail_overview';
-
-export function makeRun(
-  overrides: Partial<RunWithSummary> = {},
-): RunWithSummary {
-  return makeRunWithSummary({
-    id: 'run-1',
-    research_goal: 'Study pathway X',
-    created_at: 1_700_000_000,
-    completed_at: 1_700_000_000 + 3 * 3600,
-    ...overrides,
-  });
-}
 
 export function makeReport(overrides: Partial<Report['payload']> = {}): Report {
   return {
@@ -129,7 +117,7 @@ export function renderOverview(
 ) {
   return render(
     <ResearchOverviewView
-      run={makeRun()}
+      run={makeRunWithSummary({}, 'overview')}
       report={null}
       hypotheses={[]}
       matches={[]}

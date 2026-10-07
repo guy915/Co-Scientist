@@ -2,11 +2,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.science.prompts._common import (
-    _format_authors,
     _format_bullet_list,
     _format_csv_list,
     _format_meta_review_context,
-    _format_year,
 )
 from co_scientist.science.prompts.generation_draft import (
     _build_citation_reference_section,
@@ -14,6 +12,7 @@ from co_scientist.science.prompts.generation_draft import (
     format_articles_metadata,
 )
 from co_scientist.science.prompts.loading import _build_prompt, load_prompt
+from co_scientist.science.prompts.untrusted import untrusted_evidence
 
 
 @dataclass(frozen=True)
@@ -72,10 +71,10 @@ def get_literature_review_paper_analysis_prompt(
         "literature_review_paper_analysis",
         {
             "research_goal": research_goal,
-            "title": title,
-            "authors": _format_authors(authors),
-            "year": _format_year(year),
-            "fulltext": fulltext,
+            "paper_evidence": untrusted_evidence(
+                "retrieved paper",
+                {"title": title, "authors": authors, "year": year, "fulltext": fulltext},
+            ),
         },
     )
 
@@ -115,7 +114,12 @@ def _format_paper_analyses(paper_analyses: list[dict[str, Any]]) -> str:
 
 **relevance:** {analysis.get("relevance", "N/A")}
 """
-        analyses_text.append(paper_section)
+        analyses_text.append(
+            untrusted_evidence(
+                "derived paper analysis",
+                {"paper_id": analysis_data.get("paper_id"), "analysis": paper_section},
+            )
+        )
 
     return "\n\n".join(analyses_text)
 
@@ -133,7 +137,8 @@ def get_literature_review_synthesis_prompt(
         "to supplement the literature. Use it to ground the synthesis"
         " in known causal "
         "relationships and flag where hypotheses can leverage or"
-        " contradict this background.\n\n" + background_context
+        " contradict this background.\n\n"
+        + untrusted_evidence("retrieved knowledge graph", background_context)
         if background_context
         else ""
     )
@@ -159,11 +164,11 @@ def get_hypothesis_novelty_analysis_prompt(
     return load_prompt(
         "hypothesis_novelty_analysis",
         {
-            "hypothesis_text": hypothesis_text,
-            "title": title,
-            "authors": _format_authors(authors),
-            "year": _format_year(year),
-            "fulltext": fulltext,
+            "hypothesis_text": untrusted_evidence("draft hypothesis", hypothesis_text),
+            "paper_evidence": untrusted_evidence(
+                "retrieved paper",
+                {"title": title, "authors": authors, "year": year, "fulltext": fulltext},
+            ),
         },
     )
 
@@ -220,7 +225,7 @@ def _format_hypotheses_with_novelty_analyses(
         _format_novelty_hypothesis_section(i, hyp_data)
         for i, hyp_data in enumerate(hypotheses_with_analyses, 1)
     ]
-    return "\n\n".join(hypotheses_text)
+    return untrusted_evidence("draft hypotheses and derived novelty analyses", hypotheses_text)
 
 
 def _build_already_validated_context(
@@ -228,7 +233,7 @@ def _build_already_validated_context(
 ) -> str:
     if not already_validated_texts:
         return ""
-    lines = "\n".join(f"- {t}" for t in already_validated_texts)
+    lines = untrusted_evidence("previous validated hypotheses", already_validated_texts)
     return f"""
 ## Hypotheses Already Validated (Diversity Constraint)
 
@@ -271,10 +276,18 @@ def _build_validation_synthesis_prompt_variables(
             req.hypotheses_with_analyses
         ),
         "hypotheses_count": len(req.hypotheses_with_analyses),
-        "articles_metadata": format_articles_metadata(req.articles or []),
-        "articles_with_reasoning": req.articles_with_reasoning
-        or "no literature review summary available.",
-        "citation_reference_section": _build_citation_reference_section(req.reference_list or ""),
+        "articles_metadata": untrusted_evidence(
+            "retrieved paper metadata", format_articles_metadata(req.articles or [])
+        ),
+        "articles_with_reasoning": untrusted_evidence(
+            "derived literature summary",
+            req.articles_with_reasoning or "no literature review summary available.",
+        ),
+        "citation_reference_section": _build_citation_reference_section(
+            untrusted_evidence("citation provenance", req.reference_list)
+            if req.reference_list
+            else ""
+        ),
         "max_iterations": req.max_iterations,
         "tool_instructions": _resolve_validation_tool_instructions(req.tool_registry),
         "already_validated_context": _build_already_validated_context(req.already_validated_texts),

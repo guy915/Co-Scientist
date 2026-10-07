@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 from co_scientist.core.constants import strip_citation_markers
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.article import Article
 from co_scientist.science.prompts._common import _format_meta_review_context
@@ -263,25 +262,6 @@ def _retrieved_evidence_context(articles: list[Article]) -> str:
     """Probe keys must not collide with the opening evidence in the same
     prompt."""
     return build_evidence_context(articles, require_analyzed=False, article_label=RETRIEVED_LABEL)
-
-
-def with_researched(
-    state: WorkflowState,
-    hypothesis: Hypothesis,
-    probed: list[Article],
-) -> list[Article]:
-    """Reuse funded research without new retrieval; duplicate sources waste
-    budget and imply independent agreement."""
-    from co_scientist.science.reflection.review_evidence import (
-        researched_articles_for,
-    )
-
-    known = {article.source_id for article in probed}
-    return probed + [
-        article
-        for article in researched_articles_for(state, hypothesis)
-        if article.source_id not in known
-    ]
 
 
 def _augment_evidence_context_with_meta_review(evidence_context: str, state: WorkflowState) -> str:

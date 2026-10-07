@@ -6,6 +6,7 @@ import type {
 } from '@/shared/hooks/use_run_stream';
 import {capitalizeTerm} from '@/shared/lib/text';
 import {joinClasses} from '@/shared/ui/classes';
+import {relativeTime} from '@/shared/lib/time';
 
 const TIMELINE_RAIL_CLASSES =
   'absolute left-[1.0625rem] top-[2.375rem] bottom-1 w-px bg-cosci-border';
@@ -79,7 +80,7 @@ function ActivityDisc({
   return (
     <span
       className={joinClasses(
-        'relative z-[1] grid size-[2.125rem] shrink-0 place-items-center',
+        'relative z-1 grid size-[2.125rem] shrink-0 place-items-center',
         'rounded-full',
         isLatest ? 'animate-pulse bg-th-primary' : 'bg-cosci-hover',
       )}
@@ -389,17 +390,6 @@ function resolveActivity(event: StreamEvent): ResolvedActivity {
 export function activityDetail(event: StreamEvent): string {
   const detail = event.payload.message || event.payload.reason;
   return detail ? String(detail) : '';
-}
-
-export function relativeTime(
-  createdAt: number | undefined,
-  now: number,
-): string {
-  if (!createdAt) return '';
-  const seconds = Math.max(0, Math.round(now - createdAt));
-  if (seconds < 5) return 'just now';
-  if (seconds < 60) return `${seconds}s ago`;
-  return `${Math.round(seconds / 60)}m ago`;
 }
 
 export interface ActivityGroup {

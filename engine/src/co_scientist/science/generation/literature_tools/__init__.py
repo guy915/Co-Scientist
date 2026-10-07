@@ -2,7 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from co_scientist.science.generation.citations import (
+    from co_scientist.science.citations import (
         ReferenceIndex,
     )
 

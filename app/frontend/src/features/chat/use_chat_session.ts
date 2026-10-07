@@ -15,6 +15,7 @@ import type {Interview, StagedDocument} from '@/shared/api/runs';
 import type {ChatEntry} from './chat_timeline_bubble';
 import type {StartedSession} from './chat_timeline_run_spec_card';
 import type {ToastSetter} from '@/shared/hooks/timers';
+import {nowSeconds} from '@/shared/lib/time';
 
 export interface SessionState {
   input: string;
@@ -85,7 +86,7 @@ export function fieldSetter<K extends keyof SessionState>(
 
 export function stageDraftPatch(
   spec: InferredRunSpec,
-  createdAt = Date.now() / 1000,
+  createdAt = nowSeconds(),
   intro?: DraftIntro,
 ): Partial<SessionState> {
   const {message, reasoning, turnId, fallback} = intro ?? {};

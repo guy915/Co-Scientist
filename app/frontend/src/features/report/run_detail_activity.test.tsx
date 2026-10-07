@@ -4,16 +4,13 @@ import {
 } from './run_detail_api_test_support';
 import type {Run} from '@/shared/api/runs';
 import * as runsApi from '@/shared/api/runs';
-import {
-  ChatHistoryProvider,
-  RunHistoryProvider,
-} from '@/shared/hooks/history_context';
-import {render, screen, waitFor} from '@testing-library/react';
+import {screen, waitFor} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import {MemoryRouter, Route, Routes, useNavigate} from 'react-router-dom';
+import {Route, Routes, useNavigate} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {RunDetail} from './run_detail';
-import {makeRun} from './run_detail_test_support';
+import {renderWithProviders} from '@/shared/testing/render';
+import {makeRunWithSetup} from '@/shared/testing/fixtures';
 
 const TAB_NAV = 'Goal report sections';
 
@@ -31,22 +28,23 @@ function RunSwitcher({to}: {to: string}) {
 }
 
 function renderRunDetail(path: string, switchTo?: string) {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <RunHistoryProvider>
-        <ChatHistoryProvider>
-          <Routes>
-            <Route path="/runs/:id/:tab" element={<RunDetail />} />
-          </Routes>
-          {switchTo && <RunSwitcher to={switchTo} />}
-        </ChatHistoryProvider>
-      </RunHistoryProvider>
-    </MemoryRouter>,
+  return renderWithProviders(
+    <>
+      <Routes>
+        <Route path="/runs/:id/:tab" element={<RunDetail />} />
+      </Routes>
+      {switchTo && <RunSwitcher to={switchTo} />}
+    </>,
+    {path},
   );
 }
 
 const runningRun = (id: string): Run =>
-  ({...makeRun('Study pathway X'), id, status: 'running'}) as unknown as Run;
+  ({
+    ...makeRunWithSetup('Study pathway X'),
+    id,
+    status: 'running',
+  }) as unknown as Run;
 
 it('drops the previous run’s content when the route id changes', async () => {
   renderRunDetail('/runs/run-1/details', '/runs/run-2/details');

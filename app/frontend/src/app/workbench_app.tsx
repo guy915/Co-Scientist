@@ -10,6 +10,7 @@ import {Layout} from './layout';
 import {ChatWorkspace} from '@/features/chat/chat_workspace';
 import {ExampleChat} from '@/features/chat/example_chat';
 import {ThemeProvider} from '@/shared/hooks/theme_context';
+import {PageStatus} from '@/shared/ui';
 
 const RunDetail = lazy(() =>
   import('@/features/report/run_detail').then(module => ({
@@ -18,11 +19,7 @@ const RunDetail = lazy(() =>
 );
 
 function PageLoading() {
-  return (
-    <div className="ui-motion-enter grid h-full min-h-0 place-items-center p-6 text-sm text-cosci-muted">
-      <p role="status">Loading page…</p>
-    </div>
-  );
+  return <PageStatus>Loading page…</PageStatus>;
 }
 
 function page(title: string, element: ReactElement) {

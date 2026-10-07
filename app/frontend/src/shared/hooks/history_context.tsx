@@ -16,6 +16,7 @@ import {
 } from '@/shared/api/runs';
 import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import {useLocation} from 'react-router-dom';
+import {usePoll} from './timers';
 
 // Undefined load results preserve the current list after transient failure; only
 // self-advancing run history needs polling.
@@ -79,18 +80,9 @@ export function RunHistoryProvider({children}: {children: ReactNode}) {
   );
 
   // Depend on activity, not the refreshed list identity, so each poll cannot
-  // tear down and restart its own timer.
+  // restart its own timer.
   const hasActiveRun = history.some(run => isActiveStatus(run.status));
-  useEffect(() => {
-    if (!hasActiveRun) return;
-    const timer = window.setInterval(
-      () => void reload(),
-      ACTIVE_RUN_REFRESH_MS,
-    );
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [hasActiveRun, reload]);
+  usePoll(() => void reload(), ACTIVE_RUN_REFRESH_MS, hasActiveRun);
 
   return (
     <RunHistoryContext.Provider value={{history, reload}}>

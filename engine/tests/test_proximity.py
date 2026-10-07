@@ -5,15 +5,12 @@ from typing import Any
 import pytest
 
 from co_scientist.domains.research_state.models import Hypothesis
+from co_scientist.domains.research_state.proximity_edges import PROXIMITY_METHOD
 from co_scientist.science.proximity import (
     proximity,
     proximity_node,
 )
-from co_scientist.science.proximity.proximity_graph import (
-    PROXIMITY_METHOD,
-    SurvivorIndex,
-    build_proximity_graph,
-)
+from co_scientist.science.proximity.proximity_graph import SurvivorIndex, build_proximity_graph
 from tests._state import make_hypothesis, make_state
 
 # Legacy text-echo fixtures exercise fallback; live responses use indices.

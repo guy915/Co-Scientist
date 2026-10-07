@@ -21,7 +21,7 @@ from co_scientist.platform.llm import (
     call_llm,
     call_llm_json,
 )
-from co_scientist.science.generation.citations import (
+from co_scientist.science.citations import (
     ReferenceIndex,
     hypothesis_from_llm_output,
 )

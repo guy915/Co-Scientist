@@ -17,7 +17,7 @@ import {
   useParams,
   type NavigateFunction,
 } from 'react-router-dom';
-import {Button, IconButton, Toast} from '@/shared/ui';
+import {Button, IconButton, Toast, ErrorNotice} from '@/shared/ui';
 import {conciseTitle} from '@/shared/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '@/shared/lib/dom_events';
 import {useIsMobile} from '@/shared/hooks/dom';
@@ -41,6 +41,7 @@ import {
 } from './chat_workspace_timeline';
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 import {scrollBehavior} from '@/shared/lib/reduced_motion';
+import {chatPath} from '@/shared/lib/routes';
 
 // Lazy-load the landing page so chat first paint does not wait for it; it takes
 // no props, so memo keeps composer keystrokes from re-rendering it.
@@ -68,7 +69,7 @@ export function ChatWorkspace() {
   const {history, reload: reloadHistory} = useRunHistoryContext();
   const isMobile = useIsMobile();
   const onChatStarted = useCallback(
-    (id: string) => void navigate(`/chats/${id}`, {replace: true}),
+    (id: string) => void navigate(chatPath(id), {replace: true}),
     [navigate],
   );
   const session = useChatSession({
@@ -109,8 +110,8 @@ export function ChatWorkspace() {
     linkedDraftRecovery.unavailableChatId !== chatId;
 
   return (
-    <div className="reference-workspace grid h-full min-h-full grid-cols-[minmax(0,1fr)] gap-4 [@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:flex-1 [@media(max-width:700px)]:flex-col">
-      <div className="reference-workspace-main relative flex h-full min-h-0 min-w-0 flex-col [@media(max-width:700px)]:flex-1">
+    <div className="reference-workspace grid h-full min-h-full grid-cols-[minmax(0,1fr)] gap-4 phone:flex phone:min-h-0 phone:flex-1 phone:flex-col">
+      <div className="reference-workspace-main relative flex h-full min-h-0 min-w-0 flex-col phone:flex-1">
         {session.hasConversation || awaitingTranscript ? (
           <ConversationView
             scrollRef={scrollRef}
@@ -406,14 +407,7 @@ function TimelineSection({
         {timelineItems.map(item => (
           <Fragment key={item.id}>{item.node}</Fragment>
         ))}
-        {error && (
-          <div
-            role="alert"
-            className="ui-motion-enter rounded-md border border-th-destructive p-3 text-sm text-th-destructive"
-          >
-            {error}
-          </div>
-        )}
+        {error && <ErrorNotice>{error}</ErrorNotice>}
       </div>
     </section>
   );
@@ -459,7 +453,7 @@ function ComposerSection(props: ComposerSectionProps) {
   return (
     <div
       ref={props.composerRef}
-      className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,var(--cosci-bg)_62%,transparent)] px-4 pt-11 pb-8 max-[700px]:pb-[max(0.75rem,env(safe-area-inset-bottom))] [&_.reference-composer]:mt-0 [&>*]:pointer-events-auto"
+      className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,var(--cosci-bg)_62%,transparent)] px-4 pt-11 pb-8 phone:pb-[max(0.75rem,env(safe-area-inset-bottom))] [&_.reference-composer]:mt-0 [&>*]:pointer-events-auto"
     >
       <JumpToBottomButton scrollRef={props.scrollRef} />
       <div className={CHAT_COLUMN_CLASSES}>

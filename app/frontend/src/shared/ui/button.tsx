@@ -127,11 +127,7 @@ export function Button({
       {icon && <SwapIcon className={buttonIconClasses(size)} name={icon} />}
       {children}
       {trailingIcon && (
-        <Icon
-          aria-hidden="true"
-          className={buttonIconClasses(size)}
-          name={trailingIcon}
-        />
+        <Icon className={buttonIconClasses(size)} name={trailingIcon} />
       )}
     </button>
   );

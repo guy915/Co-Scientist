@@ -7,12 +7,12 @@ import {describe, expect, it} from 'vitest';
 import {ActiveRunView} from './run_detail_active';
 import {ActivityLog, windowedActivityGroups} from './run_detail_activity_log';
 import type {RunWithStreamState} from './run_detail_data';
-import {makeRun} from './run_detail_test_support';
+import {makeRunWithSetup} from '@/shared/testing/fixtures';
 
 describe('run detail active', () => {
   function activeRun(connection?: StreamConnectionState): RunWithStreamState {
     return {
-      ...makeRun('Study pathway X'),
+      ...makeRunWithSetup('Study pathway X'),
       status: 'running',
       created_at: Date.now() / 1000 - 5,
       stream_connection: connection,
