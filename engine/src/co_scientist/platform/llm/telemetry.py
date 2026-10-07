@@ -25,6 +25,7 @@ class ModelCallStats:
 
     deterministic_fallbacks: dict[str, int] = field(default_factory=dict)
     calls: int = 0
+    decision_calls: int = 0
     observed_model_calls: int = 0
     reported_usage_calls: int = 0
     priced_usage_calls: int = 0
@@ -51,6 +52,7 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
             Counter(a.deterministic_fallbacks) + Counter(b.deterministic_fallbacks)
         ),
         calls=a.calls + b.calls,
+        decision_calls=a.decision_calls + b.decision_calls,
         observed_model_calls=a.observed_model_calls + b.observed_model_calls,
         reported_usage_calls=a.reported_usage_calls + b.reported_usage_calls,
         priced_usage_calls=a.priced_usage_calls + b.priced_usage_calls,
