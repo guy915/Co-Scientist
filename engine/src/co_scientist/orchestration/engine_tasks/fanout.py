@@ -294,7 +294,7 @@ async def _run_debate_strategy(
     """Parallel debates need their sibling index and whole batch size to
     select distinct diversity angles.
     """
-    from co_scientist.science.generation.citations import ReferenceIndex
+    from co_scientist.science.citations import ReferenceIndex
     from co_scientist.science.generation.debate import (
         DebateBatchPosition,
         generate_with_debate,
@@ -353,7 +353,7 @@ async def execute_generation_strategy(
     """
     from co_scientist.platform.llm import scoped_telemetry
     from co_scientist.platform.sandbox.skills import scoped_skill_usage
-    from co_scientist.science.generation.citations import ReferenceIndex
+    from co_scientist.science.citations import ReferenceIndex
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="generation strategy")
     strategy = str(task.inputs["strategy"])

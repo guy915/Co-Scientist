@@ -13,7 +13,6 @@ from co_scientist.science.ranking.ranking_lifecycle import (
     TournamentGuidance,
     finalize_ranking,
     prepare_ranking_round,
-    remaining_ranking_rounds,
 )
 from co_scientist.science.ranking.ranking_matchmaking import (
     build_tournament_pairings,
@@ -33,5 +32,4 @@ __all__ = [
     "prepare_ranking_prompt_context",
     "prepare_ranking_round",
     "ranking_node",
-    "remaining_ranking_rounds",
 ]

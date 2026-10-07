@@ -1,6 +1,6 @@
 import {act, renderHook} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {useToast} from './timers';
+import {usePoll, useToast} from './timers';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -35,4 +35,36 @@ it('resets the timer when a new toast replaces the current one', async () => {
 
   await act(async () => vi.advanceTimersByTime(1000));
   expect(result.current.toast).toBeNull();
+});
+
+function setVisibility(state: DocumentVisibilityState) {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => state,
+  });
+  document.dispatchEvent(new Event('visibilitychange'));
+}
+
+it('pauses polling in a hidden tab and polls once on return', async () => {
+  const poll = vi.fn();
+  renderHook(() => usePoll(poll, 1000));
+
+  await act(async () => vi.advanceTimersByTime(1000));
+  expect(poll).toHaveBeenCalledTimes(1);
+
+  await act(async () => setVisibility('hidden'));
+  await act(async () => vi.advanceTimersByTime(5000));
+  expect(poll).toHaveBeenCalledTimes(1);
+
+  await act(async () => setVisibility('visible'));
+  expect(poll).toHaveBeenCalledTimes(2);
+  await act(async () => vi.advanceTimersByTime(1000));
+  expect(poll).toHaveBeenCalledTimes(3);
+});
+
+it('does not poll while disabled', async () => {
+  const poll = vi.fn();
+  renderHook(() => usePoll(poll, 1000, false));
+  await act(async () => vi.advanceTimersByTime(5000));
+  expect(poll).not.toHaveBeenCalled();
 });
