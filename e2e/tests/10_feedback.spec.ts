@@ -20,14 +20,8 @@ for (const theme of ['light', 'dark']) {
         name: 'Feedback',
         exact: true,
       });
-      const logs = header.getByRole('button', {name: /^Logs/});
       await expect(feedback).toBeInViewport();
-      await expect(logs).toBeInViewport();
-      const feedbackBox = await feedback.boundingBox();
-      const logsBox = await logs.boundingBox();
-      expect(feedbackBox!.x + feedbackBox!.width).toBeLessThanOrEqual(
-        logsBox!.x,
-      );
+      await expect(header.getByRole('button', {name: /^Logs/})).toHaveCount(0);
       await feedback.click();
       let dialog = page.getByRole('dialog', {name: 'Feedback', exact: true});
       await expect(dialog.getByLabel('Message')).toBeFocused();
@@ -109,9 +103,6 @@ for (const theme of ['light', 'dark']) {
       ])
         expect(row.diagnostics).toContain(marker);
       expect(row.diagnostics).toContain('modal_open: Feedback');
-      await logs.click();
-      await expect(logs.locator('[data-logged]')).toHaveCount(1);
-      await expect(logs).toHaveText(/Copied/);
       await expect(page.getByRole('group', {name: /logs/i})).toHaveCount(0);
     });
   }

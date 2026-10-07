@@ -209,7 +209,7 @@ function ShellWorkspace({
         headerTitle={headerTitle}
         session={session}
         runStatus={runStatus}
-        logsControlRef={chrome.logsControlRef}
+        headerActionsRef={chrome.headerActionsRef}
       />
       <main className={pageClasses}>{children}</main>
     </section>
@@ -347,15 +347,15 @@ function useDismissPanelOnOutsideClick(
   activePanel: ShellPanel | null,
   setActivePanel: (panel: ShellPanel | null) => void,
   settingsControlRef: RefObject<HTMLDivElement | null>,
-  logsControlRef: RefObject<HTMLDivElement | null>,
+  headerActionsRef: RefObject<HTMLDivElement | null>,
 ) {
   useEffect(() => {
     if (!activePanel) return;
     function onPointerDown(event: PointerEvent) {
       const target = event.target as Node;
       const settingsContains = settingsControlRef.current?.contains(target);
-      const logsContains = logsControlRef.current?.contains(target);
-      if (!settingsContains && !logsContains) setActivePanel(null);
+      const headerActionsContains = headerActionsRef.current?.contains(target);
+      if (!settingsContains && !headerActionsContains) setActivePanel(null);
     }
     document.addEventListener('pointerdown', onPointerDown);
     return () => {
@@ -395,7 +395,7 @@ function useChromeState() {
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection | null>(null);
   const settingsControlRef = useRef<HTMLDivElement>(null);
-  const logsControlRef = useRef<HTMLDivElement>(null);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
 
   return {
     navOpen,
@@ -405,14 +405,14 @@ function useChromeState() {
     settingsSection,
     setSettingsSection,
     settingsControlRef,
-    logsControlRef,
+    headerActionsRef,
   };
 }
 
 export function useLayoutChrome(pathname: string) {
   const state = useChromeState();
   const {navOpen, activePanel, setActivePanel, setNavOpen} = state;
-  const {settingsControlRef, logsControlRef} = state;
+  const {settingsControlRef, headerActionsRef} = state;
 
   const {toggleNav, togglePanel, openSettings} = useChromeActions(
     setNavOpen,
@@ -426,7 +426,7 @@ export function useLayoutChrome(pathname: string) {
     activePanel,
     setActivePanel,
     settingsControlRef,
-    logsControlRef,
+    headerActionsRef,
   );
 
   return {
@@ -436,7 +436,7 @@ export function useLayoutChrome(pathname: string) {
     settingsSection: state.settingsSection,
     setSettingsSection: state.setSettingsSection,
     settingsControlRef,
-    logsControlRef,
+    headerActionsRef,
     toggleNav,
     togglePanel,
     openSettings,
