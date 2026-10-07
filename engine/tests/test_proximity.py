@@ -13,7 +13,7 @@ from co_scientist.agents.proximity.proximity_graph import (
     SurvivorIndex,
     build_proximity_graph,
 )
-from co_scientist.models import Hypothesis
+from co_scientist.domains.research_state.models import Hypothesis
 from tests._state import make_hypothesis, make_state
 
 # Legacy text-echo fixtures exercise fallback; live responses use indices.

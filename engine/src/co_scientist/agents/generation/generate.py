@@ -20,9 +20,9 @@ from co_scientist.agents.generation.operations import (
     finalize_generation,
     prepare_generation,
 )
-from co_scientist.models import MetricDeltas, create_metrics_update
+from co_scientist.domains.research_state.models import MetricDeltas, create_metrics_update
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.sandbox.skills import scoped_skill_usage
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

@@ -3,12 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.llm.offline import llm as offline_llm
 from co_scientist.platform.llm.request import backend
 
 from app.store import events as store_events
-from app.store import hypotheses, reports, runs
+from app.store import reports, runs
 from tests._store_helpers import drive_offline_run, seed_run
 
 from ._llm_fake_backend import load_engine_fake

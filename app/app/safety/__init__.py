@@ -8,6 +8,8 @@ from typing import Any
 
 import co_scientist.platform.llm.process_mode as process_mode
 from co_scientist.core.config import settings
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.records import NewSafetyDecision
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.safety import (
@@ -25,8 +27,7 @@ from app.safety.semantic import (
 from app.safety.types import SafetyDecision, redact_matched_spans
 from app.safety.types import redact_payload_text as redact_payload_text
 from app.store import events as store_events
-from app.store import records, runs
-from app.store.records import NewSafetyDecision
+from app.store import runs
 
 logger = logging.getLogger(__name__)
 

@@ -8,6 +8,7 @@ from typing import Any, NamedTuple, Protocol
 import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
+from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
@@ -35,7 +36,7 @@ from app.runs.models import (
 )
 from app.runs.support import _run_or_404
 from app.seed import is_current_demo_run
-from app.store import documents, events, interviews, records, tasks
+from app.store import documents, events, interviews, tasks
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store.runs import RunCreateOptions

@@ -31,7 +31,7 @@ from app.store import events, tasks
 from app.store.tasks import NewTask
 
 if TYPE_CHECKING:
-    from co_scientist.state import WorkflowState
+    from co_scientist.domains.research_state.state import WorkflowState
 
 
 def _hypothesis_for_item(task: ScientificTask, state: dict[str, Any]) -> tuple[str, Any]:
@@ -449,7 +449,7 @@ def _enqueue_review_fanout(
     internal review node deliberately retains its comparative batch
     behavior.
     """
-    from co_scientist.models import has_peer_review
+    from co_scientist.domains.research_state.models import has_peer_review
 
     unreviewed = [
         hypothesis for hypothesis in state["hypotheses"] if not has_peer_review(hypothesis)

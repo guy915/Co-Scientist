@@ -115,7 +115,7 @@ def index_staged_documents_for_run(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    from app.store.records import NewEvidence, add_evidence
+    from co_scientist.domains.research_state.repository.records import NewEvidence, add_evidence
 
     for document in staged:
         add_evidence(

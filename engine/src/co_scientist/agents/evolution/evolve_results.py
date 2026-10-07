@@ -15,14 +15,14 @@ from co_scientist.core.constants import (
     DUPLICATE_SIMILARITY_THRESHOLD,
     INITIAL_ELO_RATING,
 )
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Hypothesis,
     HypothesisOrigin,
     MetricDeltas,
     create_metrics_update,
     phase_message,
 )
-from co_scientist.state import AppendHypotheses
+from co_scientist.domains.research_state.state import AppendHypotheses
 
 logger = logging.getLogger(__name__)
 

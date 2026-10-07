@@ -5,8 +5,8 @@ from co_scientist.agents.generation.citations import (
     ReferenceIndex,
     build_reference_index,
 )
-from co_scientist.models import Hypothesis, rank_by_elo
-from co_scientist.state import WorkflowState
+from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.state import WorkflowState
 
 
 @dataclasses.dataclass(frozen=True)

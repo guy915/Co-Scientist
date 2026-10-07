@@ -6,15 +6,15 @@ from typing import Any
 from co_scientist.agents.reflection.reflection_helpers import (
     extract_entity_names,
 )
-
-from app.claims.gate import ClaimEdge, EntailmentLabel
-from app.evidence_chunking import parent_evidence_id
-from app.hypothesis.safety import is_blocking_status
-from app.text_utils import (
+from co_scientist.domains.research_state.claims.gate import ClaimEdge, EntailmentLabel
+from co_scientist.domains.research_state.text_utils import (
     hypothesis_statement,
     hypothesis_title,
     readable_experiment_summary,
 )
+
+from app.evidence_chunking import parent_evidence_id
+from app.hypothesis.safety import is_blocking_status
 
 logger = logging.getLogger(__name__)
 

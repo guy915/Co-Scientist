@@ -13,7 +13,7 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.models import Hypothesis, HypothesisReview
+from co_scientist.domains.research_state.models import Hypothesis, HypothesisReview
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import ScientificTask
 from co_scientist.platform.llm import ModelCallStats, record_call

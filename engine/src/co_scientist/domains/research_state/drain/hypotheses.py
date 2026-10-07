@@ -8,7 +8,21 @@ from typing import Any, NamedTuple
 
 import co_scientist.platform.retrieval.citations as citation_resolver
 from co_scientist.core.config import settings
-from co_scientist.models import Hypothesis
+from co_scientist.domains.research_state.drain.reviews import (
+    _CitationSink,
+    _persist_engine_citations,
+    _persist_engine_reviews,
+)
+from co_scientist.domains.research_state.elo import INITIAL_ELO
+from co_scientist.domains.research_state.models import Hypothesis
+from co_scientist.domains.research_state.repository import hypotheses as store
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.hypotheses import (
+    HypothesisStateChanges,
+    NewHypothesis,
+)
+from co_scientist.domains.research_state.repository.records import NewEvidence
+from co_scientist.domains.research_state.text_utils import first_sentence
 from co_scientist.platform.retrieval.citations import (
     CitationMetadata,
     Resolvability,
@@ -17,18 +31,6 @@ from co_scientist.platform.retrieval.citations import (
     classify_source_type,
     offline_resolver,
 )
-
-from app.elo import INITIAL_ELO
-from app.engine_adapter.drain.reviews import (
-    _CitationSink,
-    _persist_engine_citations,
-    _persist_engine_reviews,
-)
-from app.store import hypotheses as store
-from app.store import records
-from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
-from app.store.records import NewEvidence
-from app.text_utils import first_sentence
 
 logger = logging.getLogger(__name__)
 

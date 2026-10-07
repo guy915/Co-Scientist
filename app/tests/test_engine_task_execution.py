@@ -3,14 +3,16 @@ from __future__ import annotations
 import time
 from typing import Any
 
+import co_scientist.orchestration.drain as drain_claim_grounding
 import pytest
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.core.exceptions import LLMCallBudgetExceededError
 from co_scientist.core.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
-from co_scientist.models import (
+from co_scientist.domains.research_state.models import (
     Article,
     Hypothesis,
 )
+from co_scientist.domains.research_state.repository import records
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.platform.llm import (
     current_run_call_count,
@@ -19,14 +21,13 @@ from co_scientist.platform.llm import (
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from litellm.exceptions import APIError
 
-import app.engine_adapter.drain.final_state as drain_claim_grounding
 from app import engine_tasks, task_worker
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.support import TaskCommit
 from app.store import events as store_events
-from app.store import messages, records, reports, runs
+from app.store import messages, reports, runs
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.messages import NewMessage

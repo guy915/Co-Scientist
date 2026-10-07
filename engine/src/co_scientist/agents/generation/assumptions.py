@@ -18,7 +18,8 @@ from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
     truncate,
 )
-from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.domains.research_state.models import GenerationMethod, Hypothesis
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -32,7 +33,6 @@ from co_scientist.prompts.generation_draft import (
     _build_citation_reference_section,
 )
 from co_scientist.prompts.loading import load_prompt_with_schema
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

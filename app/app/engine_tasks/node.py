@@ -32,7 +32,7 @@ from app.engine_tasks.support import (
 from app.store import runs
 
 if TYPE_CHECKING:
-    from co_scientist.state import WorkflowState
+    from co_scientist.domains.research_state.state import WorkflowState
 
 ADMISSION_NODE = "orchestrator"
 _SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {

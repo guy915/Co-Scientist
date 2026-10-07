@@ -5,8 +5,8 @@ import time
 from typing import Any
 
 import pytest
+from co_scientist.domains.research_state.repository import hypotheses
 
-from app.store import hypotheses
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._store_helpers import seed_run
 

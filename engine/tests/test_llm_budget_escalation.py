@@ -20,6 +20,7 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMThinkingOnlyError,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     ToolLoop,
@@ -41,7 +42,6 @@ from co_scientist.platform.llm.attempts.escalation import (
     escalated_max_tokens,
 )
 from co_scientist.platform.llm.request.response import _extract_completion_content
-from co_scientist.state import WorkflowState
 from tests._llm_fake import (
     SEARCH_TOOL,
     echo_executor,

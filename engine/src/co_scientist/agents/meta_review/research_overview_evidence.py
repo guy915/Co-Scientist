@@ -5,9 +5,9 @@ from collections.abc import Iterator
 from typing import Any, Final
 
 from co_scientist.core.constants import strip_citation_markers
-from co_scientist.models import Article
+from co_scientist.domains.research_state.models import Article
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.prompts import PromptRunContext
-from co_scientist.state import WorkflowState
 
 _MAX_CONTACT_CANDIDATES: Final = 30
 

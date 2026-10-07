@@ -5,12 +5,12 @@ from typing import Any
 import pytest
 
 from co_scientist.agents.supervisor import supervisor_decision
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
     TaskType,
 )
-from co_scientist.state import WorkflowState
 from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
 from tests._state import make_allocation_response, make_state
 

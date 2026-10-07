@@ -4,8 +4,7 @@ from typing import Any
 
 from co_scientist.core.config import settings
 from co_scientist.core.constants import INITIAL_ELO_RATING
-
-from app.text_utils import coalesce, hypothesis_id, hypothesis_title
+from co_scientist.domains.research_state.text_utils import coalesce, hypothesis_id, hypothesis_title
 
 # Initial Elo stays engine-owned; the app owns deployment-tunable K-factor.
 INITIAL_ELO: int = INITIAL_ELO_RATING

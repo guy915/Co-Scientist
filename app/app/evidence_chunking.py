@@ -4,7 +4,7 @@ import itertools
 import re
 from collections.abc import Sequence
 
-from app.claims.assessor import SENTENCE_SPLIT, EvidencePassage
+from co_scientist.domains.research_state.claims.assessor import SENTENCE_SPLIT, EvidencePassage
 
 # Five retrieved passages should fit dense paragraphs rather than funding five
 # whole papers.

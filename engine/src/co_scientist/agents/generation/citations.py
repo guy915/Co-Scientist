@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.core.constants import INITIAL_ELO_RATING, truncate
-from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.domains.research_state.models import GenerationMethod, Hypothesis
 from co_scientist.schemas.generation import (
     _EXPERIMENT_CRITERION_CHARS,
     _EXPERIMENT_STEP_CHARS,

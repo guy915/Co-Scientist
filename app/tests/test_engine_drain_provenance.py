@@ -4,7 +4,10 @@ import asyncio
 from typing import Any
 
 import pytest
-from co_scientist import models as engine_models
+from co_scientist.domains.research_state import models as engine_models
+from co_scientist.domains.research_state.repository import hypotheses, records
+from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
+from co_scientist.domains.research_state.repository.records import NewClaimEvidence, NewReview
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.telemetry import retrieval_calls as retrieval
 from co_scientist.research import (
@@ -22,10 +25,8 @@ from co_scientist.research import (
 
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.report import gates as report_gates
-from app.store import hypotheses, records, reports, runs
+from app.store import reports, runs
 from app.store import runs_views as views
-from app.store.hypotheses import NewHypothesis
-from app.store.records import NewClaimEvidence, NewReview
 from tests._drain_helpers import (
     _build_report,
     _final_state_with_features,

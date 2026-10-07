@@ -11,7 +11,8 @@ from co_scientist.core.constants import (
     PROGRESS_REFLECTION_START,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.models import Hypothesis, phase_message
+from co_scientist.domains.research_state.models import Hypothesis, phase_message
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -23,7 +24,6 @@ from co_scientist.prompts import PromptRunContext, get_reflection_prompt
 from co_scientist.schemas.review import (
     REFLECTION_MAX_POSITIVE_OBSERVATIONS,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 # Avoid importing state and LangGraph at runtime for a lightweight progress
 # helper.
 if TYPE_CHECKING:
-    from co_scientist.state import WorkflowState
+    from co_scientist.domains.research_state.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

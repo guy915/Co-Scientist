@@ -3,7 +3,7 @@ attempts are spent on issue, with per-idea and run-wide ceilings."""
 
 from collections.abc import Iterable
 
-from co_scientist.models import Hypothesis, has_peer_review
+from co_scientist.domains.research_state.models import Hypothesis, has_peer_review
 
 # Checkpointed issuance prevents a resumed run from reopening a spent override.
 OWED_REVIEW_MARKER = "owed_review_issued"

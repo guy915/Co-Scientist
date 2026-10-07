@@ -3,23 +3,27 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from co_scientist.models import (
+from co_scientist.domains.research_state.drain import hypotheses as drain_hypotheses
+from co_scientist.domains.research_state.models import (
     SCIENTIST_REVIEWER,
 )
+from co_scientist.domains.research_state.repository import hypotheses, records
+from co_scientist.domains.research_state.repository.hypotheses import (
+    HypothesisStateChanges,
+    NewHypothesis,
+)
+from co_scientist.domains.research_state.repository.records import NewReview
 from co_scientist.platform.db import checkpoints
 
 from app import task_worker
-from app.engine_adapter.drain import hypotheses as drain_hypotheses
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_restore
 from app.engine_tasks.support import (
     NODE_TASK_PREFIX,
 )
 from app.store import events as store_events
-from app.store import hypotheses, messages, records, runs
+from app.store import messages, runs
 from app.store import tasks as store
-from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
-from app.store.records import NewReview
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (
@@ -111,7 +115,7 @@ def test_scientist_idea_is_admitted_only_at_the_orchestrator_boundary(
     admitted: bool,
     rankable: bool,
 ) -> None:
-    from co_scientist.models import has_peer_review
+    from co_scientist.domains.research_state.models import has_peer_review
 
     run = seed_run("Admission", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)

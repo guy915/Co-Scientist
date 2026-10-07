@@ -4,7 +4,8 @@ The unsupported-claim rate is the blunt end of the deep-research work: if
 going back for what a first search left open is worth its cost, this is
 the number it has to move. It is deliberately computed from verdicts the
 run already recorded rather than re-judged here -- ``claim_evidence``
-rows are written by the production assessor (``app.claims.verifier``), and
+rows are written by the production assessor
+(``co_scientist.domains.research_state.claims.verifier``), and
 a second, lexical opinion invented inside an eval is how a metric comes
 to disagree with the product it is measuring. That failure has a name in
 this repo: the Jaccard incident, where a short claim scored against a
@@ -86,8 +87,9 @@ def _rate(part: int, total: int) -> float | None:
 
 
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
-    from app.store import hypotheses as store
-    from app.store import records, runs
+    from app.store import runs
+    from co_scientist.domains.research_state.repository import hypotheses as store
+    from co_scientist.domains.research_state.repository import records
     from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
     from evaluations._usage_evidence import summarize_usage

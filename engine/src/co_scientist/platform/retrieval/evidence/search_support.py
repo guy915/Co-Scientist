@@ -7,10 +7,10 @@ from co_scientist.core.constants import (
     LITERATURE_REVIEW_PAPERS_COUNT,
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
 )
+from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.evidence.search_fusion import (
     merge_search_results as merge_search_results,
 )
-from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
     from co_scientist.platform.retrieval.config import (
