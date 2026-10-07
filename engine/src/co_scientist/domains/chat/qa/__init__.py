@@ -27,6 +27,7 @@ from co_scientist.domains.chat.qa.manifest import build_evidence_manifest as bui
 from co_scientist.domains.chat.qa.manifest import build_system_prompt as build_system_prompt
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
+from co_scientist.platform.llm.attempts.retry import is_credential_rejected
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
@@ -405,11 +406,9 @@ def _qa_failure_text(exc: Exception) -> str:
     Answering a timeout or an outage that way points at settings that are
     already correct.
     """
-    from litellm.exceptions import AuthenticationError
-
     if isinstance(exc, offline_guard.OfflineModeError):
         return _MISSING_PROVIDER_FALLBACK
-    if isinstance(exc, AuthenticationError):
+    if is_credential_rejected(exc):
         return _REJECTED_KEY_FALLBACK
     return _UNAVAILABLE_FALLBACK
 
