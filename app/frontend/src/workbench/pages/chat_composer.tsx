@@ -83,7 +83,7 @@ export function Composer({
         if (input.trim()) clearAttachments();
       }}
       className={joinClasses(
-        'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem] [box-shadow:var(--cosci-composer-shadow)]',
+        'reference-composer relative mt-4 min-h-[7.9rem] rounded-4xl border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem] [box-shadow:var(--cosci-composer-shadow)]',
         input.trim() && 'has-input',
         large &&
           'min-[701px]:row-6 min-[1181px]:row-7 min-[1181px]:mt-[clamp(1.25rem,2.4vh,1.9rem)] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[6.35rem] [@media(max-width:700px)]:mt-[0.9rem] [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:pt-[0.9rem] [@media(max-width:700px)]:pb-[0.65rem]',

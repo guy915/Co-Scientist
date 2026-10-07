@@ -1,3 +1,4 @@
+import {Card} from '@/shared/ui';
 import type {StreamEvent} from '@/hooks/use_run_stream';
 import {formatDurationPhrase} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/timers';
@@ -86,11 +87,11 @@ export function ActiveRunView(props: ActiveRunViewProps) {
 
 function RunMetric({label, value}: {label: string; value: string}) {
   return (
-    <div className="rounded-md bg-cosci-hover p-4">
+    <Card size="tile">
       <dt className="text-xs text-cosci-muted">{label}</dt>
       {/* `ms-0`: a <dd>'s user-agent 40px inline indent pushed each value
           out of line with the label it belongs to. */}
       <dd className="mt-1 ms-0 text-xl font-medium">{value}</dd>
-    </div>
+    </Card>
   );
 }

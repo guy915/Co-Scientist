@@ -28,7 +28,7 @@ import {useChatHistoryContext} from './hooks/history_context';
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
 const WORKSPACE_CLASSES =
-  'ucs-workspace relative z-[1] grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-tl-[1.85rem] rounded-bl-[1.9rem] bg-cosci-bg ' +
+  'ucs-workspace relative z-[1] grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
   '[@media(max-width:700px)]:rounded-none';
 
 const REPORT_WORKSPACE_CLASSES =

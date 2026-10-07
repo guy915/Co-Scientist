@@ -1,3 +1,4 @@
+import {Card} from '@/shared/ui';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
@@ -149,8 +150,10 @@ function smoothSectionClick(
 
 export function SectionsRail() {
   return (
-    <aside
-      className="idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start rounded-[10px] bg-cosci-panel p-5 max-[1023px]:hidden"
+    <Card
+      as="aside"
+      size="panel"
+      layoutClassName="idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start max-[1023px]:hidden"
       aria-label="Sections"
     >
       <span className="text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text">
@@ -168,7 +171,7 @@ export function SectionsRail() {
           </a>
         ))}
       </nav>
-    </aside>
+    </Card>
   );
 }
 

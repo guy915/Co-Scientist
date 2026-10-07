@@ -2,7 +2,7 @@ import {useCallback, useState, type ReactNode} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {isCancelledStatus, type TerminalNonCompletedStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
-import {TabNav, TabNavLink} from '@/shared/ui';
+import {Card, TabNav, TabNavLink} from '@/shared/ui';
 import {TruncatedLabel} from '../components/truncated_label';
 import {useIsMobile} from '../hooks/dom';
 import {tabPath, type TabName} from '../run_tabs';
@@ -151,12 +151,13 @@ export function ReportTabNav({
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
-    <div
+    <Card
       role="alert"
-      className="cosci-report-alert mx-8 mt-4 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg"
+      tone="danger"
+      layoutClassName="cosci-report-alert mx-8 mt-4"
     >
       {message}
-    </div>
+    </Card>
   );
 }
 
@@ -207,9 +208,11 @@ export function RunEndState({
       <h2 className={REPORT_H2_CLASSES}>{copy.heading}</h2>
       <p>{copy.description}</p>
       {guidance && (
-        <section
+        <Card
+          as="section"
           aria-labelledby="run-failure-guidance-title"
-          className="mt-6 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3"
+          outlined
+          layoutClassName="mt-6"
         >
           <h3
             id="run-failure-guidance-title"
@@ -218,33 +221,31 @@ export function RunEndState({
             Suggested next step
           </h3>
           <p className="mb-0 mt-2">{guidance.message}</p>
-        </section>
+        </Card>
       )}
       {error && (
-        <div
+        <Card
           role="status"
-          className={
-            isCancelledStatus(status)
-              ? 'mt-8 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3'
-              : 'mt-8 rounded-md bg-th-destructive-container px-4 py-3 text-th-destructive-on-container'
-          }
+          tone={isCancelledStatus(status) ? 'neutral' : 'danger'}
+          outlined
+          layoutClassName="mt-8"
         >
           <strong>Recorded error</strong>
           <p className="mb-0 mt-2">{error}</p>
-        </div>
+        </Card>
       )}
     </article>
   );
 }
 
+const NOTICE_LAYOUT_CLASSES =
+  'mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
+
 // A completed run without literature still needs an explicit ungrounded report
 // notice.
 export function ReportUngroundedNotice() {
   return (
-    <div
-      role="note"
-      className="mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 rounded-md bg-th-warning-container px-4 py-3 text-th-on-warning-container max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none"
-    >
+    <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
       <Icon
         aria-hidden="true"
         name="warning"
@@ -254,7 +255,7 @@ export function ReportUngroundedNotice() {
         No literature was retrieved for this run. The content below is not
         grounded in retrieved sources.
       </p>
-    </div>
+    </Card>
   );
 }
 
@@ -264,10 +265,7 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
   if (count <= 0) return null;
   const decisions = count === 1 ? 'decision' : 'decisions';
   return (
-    <div
-      role="note"
-      className="mx-auto mt-9 flex w-[min(100%_-_3rem,58rem)] items-start gap-3 rounded-md bg-th-warning-container px-4 py-3 text-th-on-warning-container max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none"
-    >
+    <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
       <Icon
         aria-hidden="true"
         name="warning"
@@ -278,7 +276,7 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
         reviewed. Resolve {count === 1 ? 'it' : 'them'} on the Goal Details tab
         to let the run continue.
       </p>
-    </div>
+    </Card>
   );
 }
 

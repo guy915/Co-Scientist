@@ -174,12 +174,7 @@ function SpecFieldsFormActions(
   return (
     <>
       {error && (
-        <p
-          className="m-0 text-[0.9rem]"
-          style={{color: 'var(--md-sys-color-error)'}}
-        >
-          {error}
-        </p>
+        <p className="m-0 text-[0.9rem] text-th-destructive">{error}</p>
       )}
       <div className={SETUP_ACTIONS_CLASSES}>
         <Button variant="outlined" onClick={onCancel} disabled={isSaving}>
