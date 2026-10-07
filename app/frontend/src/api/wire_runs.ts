@@ -22,9 +22,8 @@ export interface Run {
   id: string;
   research_goal: string;
   title?: string | null;
-  run_mode?: 'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
-  profile:
-    'standard' | 'advanced' | 'express' | 'extended' | 'ultra' | 'default';
+  run_mode?: 'standard' | 'express' | 'extended' | 'ultra';
+  profile: 'standard' | 'express' | 'extended' | 'ultra';
   status: RunStatus;
   provider: 'mock' | 'engine';
   config: RunConfig;
@@ -75,9 +74,8 @@ export interface RunWithSummary {
   id: string;
   research_goal: string;
   title?: string | null;
-  run_mode?: 'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
-  profile:
-    'standard' | 'advanced' | 'express' | 'extended' | 'ultra' | 'default';
+  run_mode?: 'standard' | 'express' | 'extended' | 'ultra';
+  profile: 'standard' | 'express' | 'extended' | 'ultra';
   status: RunStatus;
   provider: 'mock' | 'engine';
   config: RunConfig;

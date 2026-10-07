@@ -360,18 +360,14 @@ def evidence_passages(
     conn: sqlite3.Connection | None = None,
     db_path: str | None = None,
 ) -> list[EvidencePassage]:
-    """Offsets index persisted passage_text; legacy title/abstract rows
-    retain their compatibility fallback.
-    """
+    """Offsets index persisted passage_text."""
     from app.evidence_chunking import chunk_evidence_passage
 
     passages: list[EvidencePassage] = []
     for ev in store.list_evidence(run_id, conn=conn, db_path=db_path):
         if not ev.get("available"):
             continue
-        text = str(ev.get("passage_text") or "").strip()
-        if not text:
-            text = " ".join(str(ev.get(k) or "") for k in ("title", "abstract")).strip()
+        text = str(ev["passage_text"] or "").strip()
         if not text:
             continue
         passages.extend(

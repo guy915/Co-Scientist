@@ -113,8 +113,8 @@ class ClaimEvidenceRow(TypedDict):
     claim: str
     label: str
     claim_role: NotRequired[str]
-    supporting: list[SupportSpan | str]
-    contradicting: list[SupportSpan | str]
+    supporting: list[SupportSpan]
+    contradicting: list[SupportSpan]
     assessor: str
     verification_method: NotRequired[str]
 

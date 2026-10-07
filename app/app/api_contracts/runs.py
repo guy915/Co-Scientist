@@ -6,7 +6,6 @@ from pydantic import ConfigDict, with_config
 from typing_extensions import NotRequired, TypedDict
 
 from app.api_contracts.common import (
-    LegacyRunProfile,
     RunConfig,
     RunMode,
     RunStatus,
@@ -33,7 +32,7 @@ class Run(TypedDict):
     research_goal: str
     title: NotRequired[str | None]
     run_mode: NotRequired[RunMode]
-    profile: LegacyRunProfile
+    profile: RunMode
     status: RunStatus
     provider: Literal["mock"] | Literal["engine"]
     config: RunConfig
