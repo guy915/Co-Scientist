@@ -45,7 +45,7 @@ async def resolve_hold(
     """
     if not is_resolvable_hold(review):
         return review
-    import co_scientist.domains.safety as app_safety
+    import co_scientist.domains.safety.gate as app_safety
 
     decision = await app_safety.assess_hold_contextually(run_id, text, _STAGE, db_path=db_path)
     if decision is None:

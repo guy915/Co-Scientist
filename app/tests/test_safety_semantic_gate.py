@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.domains import safety
 from co_scientist.domains.access import credentials
+from co_scientist.domains.safety import gate as safety
 
 from ._llm_fake_backend import completion_response, install_completion_backend
 

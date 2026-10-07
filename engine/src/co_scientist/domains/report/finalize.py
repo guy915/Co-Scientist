@@ -17,7 +17,7 @@ from co_scientist.domains.report.build import (
 from co_scientist.domains.report.gates import _empty_leaderboard_reason
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
-from co_scientist.domains.safety import (
+from co_scientist.domains.safety.gate import (
     SafetyDecision,
     ScreenSubject,
     apply_safety_gate,

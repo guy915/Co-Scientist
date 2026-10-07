@@ -4,8 +4,8 @@ import asyncio
 from typing import Any
 
 import pytest
-from co_scientist.domains import safety
 from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.safety import gate as safety
 from co_scientist.domains.safety.types import SafetyDecision
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints

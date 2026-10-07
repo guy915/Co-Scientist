@@ -9,12 +9,12 @@ from typing import Any
 import co_scientist.platform.retrieval.citations as citation_resolver
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.domains import safety
 from co_scientist.domains.report import markdown as report_markdown
 from co_scientist.domains.research_state.claims.grounding import evidence_passages
 from co_scientist.domains.research_state.drain.matches import _persist_engine_matches
 from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.repository import hypotheses, records
+from co_scientist.domains.safety import gate as safety
 from co_scientist.domains.safety.hypothesis import screen_hypotheses
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunRow

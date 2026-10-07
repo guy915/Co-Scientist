@@ -6,7 +6,7 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from co_scientist.domains.safety import ScreenSubject
+    from co_scientist.domains.safety.gate import ScreenSubject
     from co_scientist.domains.safety.types import SafetyDecision
     from co_scientist.platform.db.models import RunRow, ScientificTask
 
@@ -71,7 +71,7 @@ class ProductionEngineTaskRuntime:
         provider: str,
         db_path: str | None = None,
     ) -> SafetyDecision:
-        from co_scientist.domains.safety import screen_with_escalation
+        from co_scientist.domains.safety.gate import screen_with_escalation
 
         return await screen_with_escalation(run_id, subject, provider=provider, db_path=db_path)
 

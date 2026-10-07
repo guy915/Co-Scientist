@@ -7,7 +7,7 @@ from typing import Any
 from co_scientist.core.run_modes import normalize_run_tier
 from co_scientist.domains.report import ReportRequest, finalize_report
 from co_scientist.domains.report import repository as reports
-from co_scientist.domains.safety import SafetyDecision, apply_safety_gate
+from co_scientist.domains.safety.gate import SafetyDecision, apply_safety_gate
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
 from co_scientist.platform.telemetry import retrieval_calls as retrieval

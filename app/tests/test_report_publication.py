@@ -12,7 +12,7 @@ from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.repository import hypotheses, records
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
-from co_scientist.domains.safety import SafetyDecision
+from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.domains.safety.types import REDACTED_PLACEHOLDER
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus

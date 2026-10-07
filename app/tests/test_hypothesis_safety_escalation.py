@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.domains import safety as app_safety
+from co_scientist.domains.safety import gate as app_safety
 from co_scientist.domains.safety.hypothesis.safety import (
     HypothesisSafetyReview,
     escalate_review,

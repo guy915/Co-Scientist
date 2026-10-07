@@ -4,18 +4,14 @@ import json
 from typing import Any
 
 import pytest
-from co_scientist.domains import safety
 from co_scientist.domains.report import ReportRequest, finalize_report
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.report.gates import exclude_unsafe_hypotheses
 from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
-from co_scientist.domains.safety import (
-    SafetyDecision,
-    screen_final,
-    screen_intake,
-)
+from co_scientist.domains.safety import gate as safety
+from co_scientist.domains.safety.gate import SafetyDecision, screen_final, screen_intake
 from co_scientist.domains.safety.hypothesis import ScreeningResult, screen_hypotheses
 from co_scientist.domains.safety.hypothesis.safety import (
     REDACTED_PLACEHOLDER,

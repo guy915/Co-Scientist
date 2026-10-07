@@ -10,7 +10,7 @@ from co_scientist.domains.report import finalize as report_finalize
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
-from co_scientist.domains.safety import SafetyDecision
+from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.platform.db.models import RunStatus
 
 from app import engine_tasks, task_worker

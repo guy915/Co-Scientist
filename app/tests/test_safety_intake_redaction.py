@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import records
-from co_scientist.domains.safety import SafetyDecision
+from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.domains.safety.types import REDACTED_PLACEHOLDER
 from co_scientist.platform import db
 

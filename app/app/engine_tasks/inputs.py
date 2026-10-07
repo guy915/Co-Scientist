@@ -9,7 +9,7 @@ from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.research_state.elo import INITIAL_ELO
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
-from co_scientist.domains.safety import ScreenSubject, apply_safety_gate, screen_intake
+from co_scientist.domains.safety.gate import ScreenSubject, apply_safety_gate, screen_intake
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,

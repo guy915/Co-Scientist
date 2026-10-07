@@ -70,10 +70,10 @@ ignore_imports =
     co_scientist.domains.access.retention -> app.store.runs_views
     co_scientist.core.run_modes -> co_scientist.domains.research_state.elo
     co_scientist.domains.chat.run_start_announcement -> app.sse
-    co_scientist.domains.safety -> app.engine_tasks.support
-    co_scientist.domains.safety -> app.store.events
-    co_scientist.domains.safety -> app.store.runs
-    co_scientist.domains.safety -> app.task_worker.outcomes
+    co_scientist.domains.safety.gate -> app.engine_tasks.support
+    co_scientist.domains.safety.gate -> app.store.events
+    co_scientist.domains.safety.gate -> app.store.runs
+    co_scientist.domains.safety.gate -> app.task_worker.outcomes
     co_scientist.domains.safety.semantic -> co_scientist.science.schemas.builders
     co_scientist.domains.chat.seed -> app.store.runs_views
     co_scientist.platform.db.checkpoints -> app.store.supervisor_plan
