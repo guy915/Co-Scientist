@@ -11,6 +11,7 @@ import {CopyButton} from './copy_button';
 import {fromMarkdown} from 'mdast-util-from-markdown';
 import {gfm} from 'micromark-extension-gfm';
 import {gfmFromMarkdown} from 'mdast-util-gfm';
+import {ExternalLink} from './external_link';
 
 const REMARK_PLUGINS = [remarkGfm];
 
@@ -27,18 +28,16 @@ const BLOCK = 'first:mt-0 last:mb-0';
 type Props<Tag extends keyof React.JSX.IntrinsicElements> =
   ComponentPropsWithoutRef<Tag>;
 
-// Citation links must not navigate away from live chat or expose this
-// window/referrer to the opened page.
+// Citation links must not navigate away from live chat.
 function MarkdownLink({href, children}: Props<'a'>) {
   return (
-    <a
+    <ExternalLink
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      fallback={children}
       className="text-cosci-blue underline underline-offset-2"
     >
       {children}
-    </a>
+    </ExternalLink>
   );
 }
 

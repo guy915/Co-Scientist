@@ -1,7 +1,8 @@
 import type {RunWithSummary} from '@/shared/api/runs';
 import * as runsApi from '@/shared/api/runs';
 import type {StreamEvent} from '@/shared/hooks/use_run_stream';
-import {makeRunWithSummary} from '@/test_fixtures';
+import {deferred} from '@/shared/testing/deferred';
+import {makeRunWithSummary} from '@/shared/testing/fixtures';
 import {act, renderHook} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {useRunDetailData} from './run_detail_data';
@@ -27,16 +28,6 @@ vi.mock('@/shared/api/runs', async importActual => {
     getReport: vi.fn(),
   };
 });
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: Error) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return {promise, resolve, reject};
-}
 
 function run(id = 'run-1', status: RunWithSummary['status'] = 'running') {
   return makeRunWithSummary({id, status});

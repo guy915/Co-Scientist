@@ -1,10 +1,10 @@
 import {screen} from '@testing-library/react';
+import {makeRunWithSummary} from '@/shared/testing/fixtures';
 import {beforeEach, expect, it, describe} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
   apiMock,
-  minimalRun,
 } from './chat_workspace_test_helpers';
 
 describe('chat workspace home', () => {
@@ -52,14 +52,17 @@ describe('chat workspace home completed cards', () => {
   it('renders the run’s real top hypotheses on a completed card', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue([
-      minimalRun({
-        id: 'run-real-titles',
-        research_goal: 'Rank host-pathogen target hypotheses.',
-        top_hypotheses: [
-          'Metabolic refuge disruption hypothesis',
-          'Biofilm redox-state vulnerability hypothesis',
-        ],
-      }),
+      makeRunWithSummary(
+        {
+          id: 'run-real-titles',
+          research_goal: 'Rank host-pathogen target hypotheses.',
+          top_hypotheses: [
+            'Metabolic refuge disruption hypothesis',
+            'Biofilm redox-state vulnerability hypothesis',
+          ],
+        },
+        'chat',
+      ),
     ]);
 
     renderWorkspace();

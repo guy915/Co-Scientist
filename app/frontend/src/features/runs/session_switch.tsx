@@ -86,11 +86,10 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
           aria-label={label}
         >
           <Icon
-            aria-hidden="true"
             className={joinClasses(HEADER_CONTROL_ICON_CLASSES, 'flex-none')}
             name={icon}
           />
-          <span className="[@media(max-width:700px)]:hidden">{label}</span>
+          <span className="phone:hidden">{label}</span>
         </TabNavLink>
       ))}
     </TabNav>

@@ -26,6 +26,12 @@ _host: ContextVar[str] = ContextVar("provider_usage_host", default=UNKNOWN_HOST)
 _path: ContextVar[str | None] = ContextVar("provider_usage_path", default=None)
 
 
+def current_db_path() -> str:
+    from co_scientist.platform.db import default_db_path
+
+    return _path.get() or default_db_path() or "./coscientist.db"
+
+
 @contextmanager
 def scoped_client(
     owner: str, *, host: str = UNKNOWN_HOST, db_path: str | None = None

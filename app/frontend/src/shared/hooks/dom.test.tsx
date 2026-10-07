@@ -1,6 +1,8 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
-import {useOverflowing} from './dom';
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {MOBILE_MEDIA_QUERY, useOverflowing} from './dom';
 
 describe('use overflowing', () => {
   // jsdom has no layout engine; drive the hook's measurements explicitly.
@@ -49,4 +51,11 @@ describe('use overflowing', () => {
       expect(screen.getByTestId('state')).toHaveTextContent('true');
     });
   });
+});
+
+it('matches the CSS phone breakpoint', () => {
+  const css = readFileSync(resolve(__dirname, '../../index.css'), 'utf8');
+  expect(css).toContain(
+    `@custom-variant phone (@media ${MOBILE_MEDIA_QUERY});`,
+  );
 });

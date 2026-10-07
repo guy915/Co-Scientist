@@ -27,6 +27,11 @@ const stylisticRules = tseslint.configs.stylistic.filter(
 const HEX_COLOR = String.raw`/#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/`;
 const FUNCTION_COLOR = String.raw`/\b(rgba?|hsla?)\(/`;
 const ARBITRARY_RADIUS = String.raw`/rounded(-[a-z]{1,2})?-\[|border-radius:/`;
+const ARBITRARY_TOKEN = String.raw`/\b[a-z]+-\(--cosci-/`;
+const DESTRUCTIVE_RED = String.raw`/\bth-destructive\b/`;
+const ARBITRARY_Z = String.raw`/(^|[\s:])-?z-\[/`;
+const ARBITRARY_HOVER = String.raw`/\[&:hover\]/`;
+const PHONE_BREAKPOINT = String.raw`/(max|min)-\[70[01]px\]|(max|min)-width:70[01]px/`;
 
 function uiBuildingBlockRules() {
   const inText = (pattern, message) => [
@@ -51,6 +56,32 @@ function uiBuildingBlockRules() {
       ARBITRARY_RADIUS,
       'Use a radius from the scale or a named radius token instead of an arbitrary radius.',
     ),
+    ...inText(
+      ARBITRARY_TOKEN,
+      'Use the named utility (bg-cosci-*, text-cosci-*; bridged in index.css) instead of an arbitrary token reference.',
+    ),
+    ...inText(
+      DESTRUCTIVE_RED,
+      'Use StatusText or ErrorNotice (@/shared/ui), whose red is cosci-danger, instead of th-destructive.',
+    ),
+    ...inText(
+      ARBITRARY_Z,
+      'Use a named layer (z-header, z-rail, z-dialog, z-toast; index.css) or a small integer inside one component instead of an arbitrary z-index.',
+    ),
+    ...inText(
+      ARBITRARY_HOVER,
+      'Use hover:, which applies only to pointers that can hover, instead of [&:hover]: (sticky after a tap).',
+    ),
+    ...inText(
+      PHONE_BREAKPOINT,
+      'Use the phone: or above-phone: variant (index.css) instead of writing the breakpoint.',
+    ),
+    {
+      selector:
+        "JSXOpeningElement[name.name=/^(?!iframe$)[a-z]/] > JSXAttribute[name.name='title']",
+      message:
+        'Use a tooltip from @/shared/ui instead of a native title (no keyboard focus, OS delay).',
+    },
     {
       selector: "Property[key.name='borderRadius']",
       message:

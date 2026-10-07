@@ -31,7 +31,7 @@ import {RunSpecificationsView} from './run_detail_specifications';
 import {joinClasses} from '@/shared/ui/classes';
 
 const REPORT_SCROLL_CLASSES =
-  'cosci-report-scroll min-h-0 overflow-auto max-[700px]:overflow-x-hidden';
+  'cosci-report-scroll min-h-0 overflow-auto phone:overflow-x-hidden';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
@@ -48,18 +48,18 @@ function useRunActivity(
 
 const REPORT_ROWS_WITH_TABS =
   'grid-rows-[3.75rem_5rem_minmax(0,1fr)] ' +
-  'max-[700px]:grid-rows-[3.25rem_4.25rem_minmax(0,1fr)] ' +
+  'phone:grid-rows-[3.25rem_4.25rem_minmax(0,1fr)] ' +
   '[@media(max-height:500px)]:grid-rows-[3rem_3rem_minmax(0,1fr)]';
 
 const REPORT_ROWS_WITHOUT_TABS =
   'grid-rows-[3.75rem_minmax(0,1fr)] ' +
-  'max-[700px]:grid-rows-[3.25rem_minmax(0,1fr)] ' +
+  'phone:grid-rows-[3.25rem_minmax(0,1fr)] ' +
   '[@media(max-height:500px)]:grid-rows-[3rem_minmax(0,1fr)]';
 
 function reportPageClasses(showTabs: boolean): string {
   // Keep horizontal overflow available to the mobile shell fallback; inner
   // report content owns vertical scrolling.
-  return `cosci-report-page grid h-full min-h-0 bg-cosci-bg text-cosci-fg max-[700px]:min-w-0 max-[700px]:overflow-x-auto max-[700px]:overflow-y-hidden ${
+  return `cosci-report-page grid h-full min-h-0 bg-cosci-bg text-cosci-fg phone:min-w-0 phone:overflow-x-auto phone:overflow-y-hidden ${
     showTabs ? REPORT_ROWS_WITH_TABS : REPORT_ROWS_WITHOUT_TABS
   }`;
 }
@@ -211,7 +211,7 @@ function IdeasSection({
   data: RunDetailData;
 }) {
   return (
-    <section className="cosci-all-ideas h-full p-0 max-[700px]:h-auto">
+    <section className="cosci-all-ideas h-full p-0 phone:h-auto">
       <IdeasTab
         key={ideasViewKey}
         hypotheses={data.hypotheses}

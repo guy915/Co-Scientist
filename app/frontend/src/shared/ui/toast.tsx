@@ -42,7 +42,7 @@ export function Toast({
       role="status"
       {...presenceProps(state)}
       className={joinClasses(
-        'ui-motion-rise fixed bottom-4 z-[80] flex items-center gap-4 rounded-xl px-4 shadow-overlay',
+        'ui-motion-rise fixed bottom-4 z-toast flex items-center gap-4 rounded-xl px-4 shadow-overlay',
         TONE_CLASSES[tone],
         PLACEMENT_CLASSES[placement],
       )}
