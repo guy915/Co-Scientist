@@ -6,7 +6,6 @@ from typing import Any
 from jsonschema.exceptions import ValidationError
 
 from co_scientist.llm.admission.free_policy import scoped_api_key
-from co_scientist.llm.attempts.escalation import _JsonCallSpec
 from co_scientist.llm.attempts.retry import Accepted, Attempt, Rejected
 from co_scientist.llm.precall import _prepare_llm_call
 
@@ -145,7 +144,7 @@ def _validation_failure(
 @dataclass(frozen=True)
 class JsonJudge:
     original_prompt: str
-    spec: _JsonCallSpec
+    spec: CompletionSpec
 
     def prompt_for(self, attempt: Attempt) -> str:
         return self.original_prompt + (attempt.feedback or "")

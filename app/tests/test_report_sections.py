@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from app.claims.gate import ClaimEdge
 from app.report import build as report_build
 from app.report import content as report_content
 from app.report import gates as report_gates
@@ -63,8 +64,8 @@ def _leaderboard_hypothesis(identifier: str, title: str) -> dict[str, object]:
     }
 
 
-def _contradicted(hypothesis_id: str, claim: str, role: str) -> dict[str, Any]:
-    return {
+def _contradicted(hypothesis_id: str, claim: str, role: str) -> ClaimEdge:
+    row = {
         "hypothesis_id": hypothesis_id,
         "claim": claim,
         "label": "contradicts",
@@ -73,6 +74,7 @@ def _contradicted(hypothesis_id: str, claim: str, role: str) -> dict[str, Any]:
         "contradicting": [{"evidence_id": "ev1", "quote": "A cited passage."}],
         "assessor": "llm",
     }
+    return ClaimEdge.from_row(row)
 
 
 def test_a_contradicted_proposal_is_not_reported_as_withheld() -> None:
@@ -110,10 +112,10 @@ def _edge(
     claim: str,
     label: str,
     evidence_ids: tuple[str, ...] = (),
-) -> dict[str, object]:
+) -> ClaimEdge:
     # Fixtures must use persisted claim/supporting keys to expose drift in the
     # real store contract.
-    return {
+    row = {
         "hypothesis_id": hypothesis_id,
         "claim": claim,
         "label": label,
@@ -125,6 +127,7 @@ def _edge(
         "contradicting": [],
         "assessor": "llm",
     }
+    return ClaimEdge.from_row(row)
 
 
 def test_goal_report_sections_preserve_claim_grounding() -> None:

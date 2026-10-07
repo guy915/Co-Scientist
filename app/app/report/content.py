@@ -7,15 +7,7 @@ from co_scientist.agents.reflection.reflection_helpers import (
     extract_entity_names,
 )
 
-from app.claims.gate import (
-    KNOWLEDGE_CONTRADICTION,
-    KNOWLEDGE_FACT,
-    is_categorical_contradiction,
-    is_contradicting,
-    is_excused,
-    is_supporting,
-    knowledge_kind,
-)
+from app.claims.gate import ClaimEdge, EntailmentLabel
 from app.evidence_chunking import parent_evidence_id
 from app.hypothesis.safety import is_blocking_status
 from app.text_utils import (
@@ -27,12 +19,12 @@ from app.text_utils import (
 logger = logging.getLogger(__name__)
 
 
-def _claim_evidence_ids(edge: dict[str, Any], span_key: str = "supporting") -> list[str]:
+def _claim_evidence_ids(edge: ClaimEdge, span_key: str = "supporting") -> list[str]:
     """Provenance lives on spans, not edges; map chunk passage ids to parent
     article ids for reader references.
     """
     ids: list[str] = []
-    for span in edge.get(span_key) or []:
+    for span in edge.row.get(span_key) or []:
         raw = span.get("evidence_id") if isinstance(span, dict) else None
         if raw:
             ids.append(parent_evidence_id(str(raw)))
@@ -41,14 +33,14 @@ def _claim_evidence_ids(edge: dict[str, Any], span_key: str = "supporting") -> l
 
 def _knowledge_base_topics(
     hypotheses: list[dict[str, Any]],
-    claim_edges: list[dict[str, Any]],
+    claim_edges: list[ClaimEdge],
 ) -> list[dict[str, Any]]:
     references_by_hypothesis: dict[str, list[str]] = {}
     for edge in claim_edges:
-        if not is_supporting(edge):
-            continue
-        hypothesis_id = str(edge.get("hypothesis_id") or "")
-        references_by_hypothesis.setdefault(hypothesis_id, []).extend(_claim_evidence_ids(edge))
+        if edge.is_supporting:
+            references_by_hypothesis.setdefault(edge.hypothesis_id, []).extend(
+                _claim_evidence_ids(edge)
+            )
     topics: list[dict[str, Any]] = []
     for hypothesis in hypotheses[:8]:
         hypothesis_id = str(hypothesis.get("id") or "")
@@ -129,20 +121,18 @@ _PROPOSAL_CONTRADICTION_NOTE = (
 )
 
 
-def _contradicted_claims(claim_edges: list[dict[str, Any]]) -> list[str]:
+def _contradicted_claims(claim_edges: list[ClaimEdge]) -> list[str]:
     """Keep findings from withheld ideas visible: categorical contradictions
     explain withholding, while proposal contradictions stay published. Omit
     textless entries to avoid empty sections.
     """
     claims: list[str] = []
     for edge in claim_edges:
-        if not is_contradicting(edge):
-            continue
-        claim = str(edge.get("claim") or "").strip()
-        if claim:
+        claim = edge.claim.strip()
+        if edge.is_contradicting and claim:
             note = (
                 _WITHHELD_CONTRADICTION_NOTE
-                if is_categorical_contradiction(edge)
+                if edge.is_categorical_contradiction
                 else _PROPOSAL_CONTRADICTION_NOTE
             )
             claims.append(f"{claim} ({note})")
@@ -176,7 +166,7 @@ def _key_findings(hypotheses: list[dict[str, Any]]) -> list[str]:
 
 def _agent_insights(
     hypotheses: list[dict[str, Any]],
-    claim_edges: list[dict[str, Any]],
+    claim_edges: list[ClaimEdge],
     meta_review: dict[str, Any] | None,
 ) -> dict[str, Any]:
     """Read the whole claim graph so withheld ideas do not lose the
@@ -202,17 +192,15 @@ def _agent_insights(
     }
 
 
-def _claim_edge_reasons(
-    claim_edges: list[dict[str, Any]],
-) -> dict[str, set[str]]:
+def _claim_edge_reasons(claim_edges: list[ClaimEdge]) -> dict[str, set[str]]:
     """Partial evidence counts as support; an unsupported reason would
     contradict the cleared Unverified badge.
     """
     edge_reasons: dict[str, set[str]] = {}
     for edge in claim_edges:
-        if is_supporting(edge) or is_excused(edge):
+        if edge.is_supporting or edge.is_excused:
             continue
-        edge_reasons.setdefault(str(edge.get("hypothesis_id")), set()).add(
+        edge_reasons.setdefault(edge.hypothesis_id, set()).add(
             "Evidence verification did not support every material claim."
         )
     return edge_reasons
@@ -279,7 +267,7 @@ def _non_viable_bucket(
 def _idea_buckets(
     safe_hypotheses: list[dict[str, Any]],
     all_hypotheses: list[dict[str, Any]],
-    claim_edges: list[dict[str, Any]],
+    claim_edges: list[ClaimEdge],
 ) -> dict[str, list[dict[str, Any]]]:
     safe_ids = {str(hypothesis.get("id")) for hypothesis in safe_hypotheses}
     edge_reasons = _claim_edge_reasons(claim_edges)
@@ -300,16 +288,16 @@ def _enrich_claim_span(raw_span: Any, sources: dict[str, dict[str, Any]]) -> Any
     return span
 
 
-def _enrich_claim_edge(edge: dict[str, Any], sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    enriched = dict(edge)
+def _enrich_claim_edge(edge: ClaimEdge, sources: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    enriched = dict(edge.row)
     for key in ("supporting", "contradicting"):
-        enriched[key] = [_enrich_claim_span(raw_span, sources) for raw_span in edge.get(key) or []]
+        enriched[key] = [_enrich_claim_span(raw, sources) for raw in edge.row.get(key) or []]
     return enriched
 
 
 def released_claim_evidence(
     hypotheses: list[dict[str, Any]],
-    claim_edges: list[dict[str, Any]],
+    claim_edges: list[ClaimEdge],
     evidence: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     released_ids = {str(hypothesis.get("id") or "") for hypothesis in hypotheses}
@@ -317,7 +305,7 @@ def released_claim_evidence(
     return [
         _enrich_claim_edge(edge, sources)
         for edge in claim_edges
-        if str(edge.get("hypothesis_id") or "") in released_ids
+        if edge.hypothesis_id in released_ids
     ]
 
 
@@ -341,11 +329,11 @@ def format_deep_verification_critique(
     return summary, "\n".join(lines).strip()
 
 
-# Each settled claim kind reads its corresponding span list; partial support is
-# not a knowledge fact.
-_SPAN_KEY_BY_KIND = {
-    KNOWLEDGE_FACT: "supporting",
-    KNOWLEDGE_CONTRADICTION: "contradicting",
+# Each settled label reads its own span list; partial support is not a
+# knowledge fact.
+_FACT_KINDS: dict[EntailmentLabel | None, tuple[str, str]] = {
+    EntailmentLabel.SUPPORTS: ("fact", "supporting"),
+    EntailmentLabel.CONTRADICTS: ("contradiction", "contradicting"),
 }
 
 # Claim statements name both drivers and targets, so allow more entities
@@ -353,27 +341,23 @@ _SPAN_KEY_BY_KIND = {
 _MAX_ENTITIES_PER_FACT = 5
 
 
-def _fact_row(edge: dict[str, Any]) -> dict[str, Any] | None:
-    kind = knowledge_kind(edge)
-    if kind is None:
+def _fact_row(edge: ClaimEdge) -> dict[str, Any] | None:
+    statement = edge.claim.strip()
+    if edge.label not in _FACT_KINDS or not statement:
         return None
-    statement = str(edge.get("claim") or "").strip()
-    if not statement:
-        return None
-    evidence_ids = _claim_evidence_ids(edge, _SPAN_KEY_BY_KIND[kind])
+    kind, span_key = _FACT_KINDS[edge.label]
+    evidence_ids = _claim_evidence_ids(edge, span_key)
     return {
-        "hypothesis_id": str(edge.get("hypothesis_id") or ""),
+        "hypothesis_id": edge.hypothesis_id,
         "evidence_id": evidence_ids[0] if evidence_ids else None,
         "kind": kind,
         "statement": statement,
         "entities": extract_entity_names(statement, max_entities=_MAX_ENTITIES_PER_FACT),
-        "state": str(edge["label"]),
+        "state": str(edge.row["label"]),
     }
 
 
-def derive_knowledge_facts(
-    claim_edges: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+def derive_knowledge_facts(claim_edges: list[ClaimEdge]) -> list[dict[str, Any]]:
     """Record settled findings across the whole claim graph, independent of
     report release filtering.
     """

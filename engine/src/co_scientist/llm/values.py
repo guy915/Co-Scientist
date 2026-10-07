@@ -25,7 +25,6 @@ class LLMCallOptions:
     run_id: str | None = None
     prompt_name: str | None = None
     enable_thinking: bool = True
-    log_failures: bool = True
 
 
 @dataclass(frozen=True)

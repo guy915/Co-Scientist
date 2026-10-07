@@ -5,11 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.agents.ranking.ranking_debate import (
-    _apply_matchup_elo,
-    _build_matchup_detail,
     _DebateContext,
     _matchup_debate_turns,
     _median_elo,
+    build_matchup,
     judge_matchup,
 )
 from co_scientist.agents.ranking.ranking_lifecycle import (
@@ -104,15 +103,12 @@ def apply_ranking_matchup(
     k_factor: int,
     current_iteration: int,
 ) -> RankingMatchResult:
-    outcome = _apply_matchup_elo(
-        pair[0],
-        pair[1],
+    detail = build_matchup(
+        pair,
         judgement.winner,
+        judgement.response,
         k_factor=k_factor,
-        confidence=judgement.response.get("confidence_level"),
-    )
-    detail = _build_matchup_detail(
-        pair, judgement.winner, judgement.response, outcome, current_iteration
-    )
+        iteration=current_iteration,
+    ).to_dict()
     calls = int(judgement.response.get("debate_turns", judgement.budgeted_turns))
     return RankingMatchResult(detail, calls)

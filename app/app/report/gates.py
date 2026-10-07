@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.claims.gate import is_categorical_contradiction, is_supporting
+from app.claims.gate import ClaimEdge
 from app.hypothesis import record_hypothesis_block
 from app.hypothesis.safety import (
     is_blocking_status,
@@ -20,24 +20,21 @@ EXCLUDED_HYPOTHESIS_STATUSES = frozenset({"rejected", "duplicate"})
 def contradicted_hypothesis_ids(
     run_id: str,
     db_path: str | None,
-    claim_edges: list[dict[str, Any]] | None = None,
+    claim_edges: list[ClaimEdge] | None = None,
 ) -> set[str]:
     """Withhold categorical contradictions, but publish speculative proposals
     with their contradiction verdicts; match publication_gate.
     """
-    edges = (
-        claim_edges
-        if claim_edges is not None
-        else store.list_claim_evidence(run_id, db_path=db_path)
-    )
-    return {str(edge["hypothesis_id"]) for edge in edges if is_categorical_contradiction(edge)}
+    if claim_edges is None:
+        claim_edges = store.list_claim_edges(run_id, db_path=db_path)
+    return {edge.hypothesis_id for edge in claim_edges if edge.is_categorical_contradiction}
 
 
-def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
+def _supported_hypothesis_ids(edges: list[ClaimEdge]) -> set[str]:
     """Partial evidence clears Unverified; the badge and verified count must
     share this rule to remain complements.
     """
-    return {str(edge["hypothesis_id"]) for edge in edges if is_supporting(edge)}
+    return {edge.hypothesis_id for edge in edges if edge.is_supporting}
 
 
 def unverified_hypothesis_ids(
@@ -48,7 +45,7 @@ def unverified_hypothesis_ids(
     """No claim edges means unassessed, not unsupported; the Unverified badge
     describes assessed ideas only.
     """
-    edges = store.list_claim_evidence(run_id, db_path=db_path)
+    edges = store.list_claim_edges(run_id, db_path=db_path)
     if not edges:
         return set()
     supported = _supported_hypothesis_ids(edges)
@@ -59,7 +56,7 @@ def unverified_hypothesis_ids(
 
 def _verified_hypothesis_count(
     hyps: list[dict[str, Any]],
-    claim_edges: list[dict[str, Any]],
+    claim_edges: list[ClaimEdge],
 ) -> int:
     """The verified tile complements Unverified using the same support rule;
     unassessed ideas count as neither.
@@ -74,7 +71,7 @@ def exclude_unsafe_hypotheses(
     run_id: str,
     hyps: list[dict[str, Any]],
     db_path: str | None,
-    claim_edges: list[dict[str, Any]] | None = None,
+    claim_edges: list[ClaimEdge] | None = None,
 ) -> list[dict[str, Any]]:
     """Honor persisted gate decisions; re-review and audit only legacy rows with
     no safety status.
