@@ -5,10 +5,10 @@ from typing import Any
 import pytest
 from co_scientist.llm.request import backend
 from co_scientist.offline import llm as offline_llm
+from co_scientist.platform.db.models import RunStatus
 
 from app.store import events as store_events
 from app.store import hypotheses, reports, runs
-from app.store.models import RunStatus
 from tests._store_helpers import drive_offline_run, seed_run
 
 from ._llm_fake_backend import load_engine_fake

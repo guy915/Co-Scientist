@@ -7,9 +7,11 @@ import sqlite3
 import uuid
 from typing import Any
 
+from co_scientist.platform import db
+from co_scientist.platform.db.models import DEMO_CLIENT_ID
+
 from app.seed import is_current_demo_run
-from app.store import db, interviews, runs
-from app.store.models import DEMO_CLIENT_ID
+from app.store import interviews, runs
 from app.store.runs import RunCreateOptions
 
 # Copy scientific artifacts only. No credentials, tasks or logs.
@@ -93,7 +95,7 @@ def open_example_chat(source_id: str, owner: str) -> dict[str, Any]:
             existing_config = json.loads(existing["config_json"])
             result = interviews.get_interview(existing_config["interview_id"], conn=conn)
             if result:
-                opened_at = db._now()
+                opened_at = db.current_time()
                 conn.execute(
                     "UPDATE interviews SET updated_at=? WHERE id=?",
                     (opened_at, result["id"]),

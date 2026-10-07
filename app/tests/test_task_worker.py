@@ -11,14 +11,14 @@ from co_scientist.core.exceptions import (
 )
 from co_scientist.llm import current_run_call_count, scoped_llm_call_budget
 from co_scientist.llm.admission.call_budget import record_provider_request
+from co_scientist.platform import db as _store_db
+from co_scientist.platform import db as store_db
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 
 from app import engine_tasks, task_worker
-from app.store import db as _store_db
-from app.store import db as store_db
 from app.store import events as store_events
 from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus, ScientificTask
 from app.task_worker import outcomes as task_worker_outcomes
 from tests._engine_tasks_helpers import _enqueue, make_cancellable_executor
 from tests._store_helpers import enqueue_task, seed_run
@@ -449,8 +449,8 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
 
 
 def _advance_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
-    real_now = store_db._now()
-    monkeypatch.setattr("app.store.db.time.time", lambda: real_now + seconds)
+    real_now = store_db.current_time()
+    monkeypatch.setattr("co_scientist.platform.db.time.time", lambda: real_now + seconds)
 
 
 def test_rate_limit_park_requeues_without_spending_an_attempt(
@@ -468,7 +468,7 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
     assert leased.attempt == 1
-    resume_at = store_db._now() + 3600
+    resume_at = store_db.current_time() + 3600
     error = LLMRateLimitParkError(resume_at=resume_at, reason="message_per_day")
 
     task_worker_outcomes._handle_task_failure(leased, "worker", error, isolated_db)
@@ -504,7 +504,7 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
     task = enqueue_task(run.id, "engine.node.generate", "generate:seed", db_path=isolated_db)
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
-    resume_at = store_db._now() + 3600
+    resume_at = store_db.current_time() + 3600
     ok = lifecycle.park_task_for_rate_limit(
         task.id, "worker", "rate limited", resume_at, db_path=isolated_db
     )

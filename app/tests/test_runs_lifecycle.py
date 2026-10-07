@@ -9,6 +9,7 @@ from threading import Event, Timer
 from typing import cast
 
 import pytest
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 from fastapi.testclient import TestClient
 
 from app import engine_tasks, task_worker
@@ -16,7 +17,6 @@ from app.store import events as store_events
 from app.store import runs
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
@@ -112,7 +112,7 @@ def test_checkpointed_run_is_resumed_not_restarted(
 def test_blocked_bootstrap_without_checkpoint_requires_new_run(
     manual_worker: None, isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app.store.models import RunStatus
+    from co_scientist.platform.db.models import RunStatus
 
     client = _client()
     rid = _new_run(client, "Do not revive an intake block")

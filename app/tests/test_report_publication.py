@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import RunStatus
 
 from app import engine_tasks, task_worker
 from app.claims.gate import ClaimEdge
@@ -15,12 +17,11 @@ from app.report import finalize as report_finalize
 from app.report import gates as report_gates
 from app.safety import SafetyDecision
 from app.safety.types import REDACTED_PLACEHOLDER
-from app.store import checkpoints, hypotheses, records, reports, runs, tasks
 from app.store import events as store_events
+from app.store import hypotheses, records, reports, runs, tasks
 from app.store import retrieval_calls as retrieval
 from app.store import tasks_lifecycle as lifecycle
 from app.store.hypotheses import NewHypothesis
-from app.store.models import RunStatus
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (

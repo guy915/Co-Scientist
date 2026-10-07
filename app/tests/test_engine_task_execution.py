@@ -16,6 +16,7 @@ from co_scientist.models import (
     Article,
     Hypothesis,
 )
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 from litellm.exceptions import APIError
 
 import app.engine_adapter.drain.final_state as drain_claim_grounding
@@ -29,7 +30,6 @@ from app.store import messages, records, reports, runs
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.messages import NewMessage
-from app.store.models import RunStatus, ScientificTask
 from tests._engine_tasks_helpers import (
     _Generator,
     _milestones,

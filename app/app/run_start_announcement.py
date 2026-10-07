@@ -13,6 +13,7 @@ from co_scientist.core.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.platform.db.models import MessageRow, RunRow
 
 from app import credentials, offline_guard
 from app.diagnostic_events import log_chat_turn
@@ -21,7 +22,6 @@ from app.logging_setup import run_log_context
 from app.sse import sse_frame
 from app.store import messages as store
 from app.store.messages import NewMessage
-from app.store.models import MessageRow, RunRow
 
 logger = logging.getLogger(__name__)
 

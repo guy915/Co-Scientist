@@ -11,13 +11,13 @@ from typing import Any
 
 from co_scientist.core.async_bridge import run_in_scoped_loop
 from co_scientist.core.config import settings
+from co_scientist.platform.db.models import ScientificTask
 
 from app import engine_tasks
 from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import tasks
 from app.store import tasks_lifecycle as store
-from app.store.models import ScientificTask
 from app.task_worker.enqueue import (
     enqueue_run_workflow as enqueue_run_workflow,
 )

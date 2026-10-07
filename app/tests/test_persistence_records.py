@@ -7,6 +7,9 @@ import time
 from typing import Any, cast
 
 import pytest
+from co_scientist.platform import db as _store_db
+from co_scientist.platform.db import checkpoints as store_checkpoints
+from co_scientist.platform.db.models import RunStatus
 from fastapi.testclient import TestClient
 
 from app import retention
@@ -14,8 +17,6 @@ from app.claims.gate import ClaimEdge
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.report.content import derive_knowledge_facts
-from app.store import checkpoints as store_checkpoints
-from app.store import db as _store_db
 from app.store import documents, logs, records, reports
 from app.store import runs as store
 from app.store import tasks as store_tasks
@@ -25,7 +26,6 @@ from app.store.events import (
     activity_for_event,
 )
 from app.store.logs import NewLogRecord
-from app.store.models import RunStatus
 from app.store.records import NewClaimEvidence
 from tests._client import create_run as _create_run
 from tests._client import drain as _drain
@@ -344,7 +344,7 @@ def test_prune_batches_and_folds_the_wal_between_batches(
 ) -> None:
     # Reclamation must survive SQLITE_FULL; commit small batches so headroom
     # shortages cannot roll back all progress.
-    from app.store import checkpoints as checkpoints_module
+    from co_scientist.platform.db import checkpoints as checkpoints_module
 
     run_id = _run(isolated_db)
     _seed_raw_checkpoints(isolated_db, run_id, 11)

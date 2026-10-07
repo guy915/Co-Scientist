@@ -6,8 +6,9 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.platform.db import connect, current_time, use_conn
+
 from app.elo import INITIAL_ELO
-from app.store.db import _now, _use_conn, connect
 
 
 @dataclass(frozen=True)
@@ -85,8 +86,8 @@ def add_hypothesis(
     conn: sqlite3.Connection | None = None,
 ) -> str:
     hyp_id = hypothesis.hypothesis_id or str(uuid.uuid4())
-    with _use_conn(conn, db_path) as conn:
-        now = _now()
+    with use_conn(conn, db_path) as conn:
+        now = current_time()
         conn.execute(
             _HYPOTHESIS_UPSERT,
             (
@@ -158,10 +159,10 @@ def update_hypothesis_state(
     conn: sqlite3.Connection | None = None,
 ) -> None:
     updates = _hypothesis_state_updates(changes)
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
         params: list[Any] = [value for _, value in updates] + [
-            _now(),
+            current_time(),
             hypothesis_id,
         ]
         set_clause = ", ".join(sets)
@@ -191,7 +192,7 @@ def redact_hypothesis_fields(
     # bound values.
     set_clause = ", ".join(f"{column}=?" for column in sorted(fields))
     params = [fields[column] for column in sorted(fields)]
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         conn.execute(
             f"UPDATE hypotheses SET {set_clause} WHERE id=?",
             (*params, hypothesis_id),
@@ -230,7 +231,7 @@ def list_hypotheses(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         # API and Q&A consumers rely on descending Elo with deterministic
         # creation-time ties.
         rows = conn.execute(

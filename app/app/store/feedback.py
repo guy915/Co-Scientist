@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
-from app.store import db
+from co_scientist.platform import db
 
 Category = Literal["Bug", "Security", "Results quality", "Feature request", "Other"]
 MAX_ROWS = 200
@@ -31,7 +31,7 @@ class Submission:
 
 
 def submit(owner: str, host_key: str, submission: Submission) -> str:
-    now = db._now()
+    now = db.current_time()
     identity = str(uuid.uuid4())
     size = (
         sum(

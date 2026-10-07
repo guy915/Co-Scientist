@@ -5,12 +5,13 @@ import json
 from typing import Any
 
 import pytest
+from co_scientist.platform import db
 
 from app.engine_adapter.drain.final_state import fold_grounding_telemetry
 from app.report import build as report_build
 from app.report import finalize as report_finalize
-from app.store import db, records, reports
 from app.store import hypotheses as store_hypotheses
+from app.store import records, reports
 from tests._client import drain as _drain
 from tests._drain_helpers import (
     _build_report,

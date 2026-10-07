@@ -5,6 +5,8 @@ from collections.abc import Iterator
 from typing import Any
 
 from co_scientist.core.run_modes import normalize_run_tier
+from co_scientist.platform import db
+from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
 
 from app.engine_adapter.drain import persist_final_state
 from app.engine_tasks import runtime as engine_tasks_runtime
@@ -25,10 +27,9 @@ from app.engine_tasks.support import (
 from app.report import ReportRequest, finalize_report
 from app.run_events import make_emitter
 from app.safety import SafetyDecision, apply_safety_gate
-from app.store import db, events, reports, runs
+from app.store import events, reports, runs
 from app.store import retrieval_calls as retrieval
 from app.store import runs_views as views
-from app.store.models import RunRow, RunStatus, ScientificTask
 
 
 def _finalize_replay_or_none(run: RunRow, *, db_path: str | None) -> dict[str, Any] | None:

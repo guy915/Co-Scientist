@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from co_scientist.platform import db
 
 import app.store.tasks as task_store
-from app.store import db, tasks
+from app.store import tasks
 from app.store import tasks_lifecycle as lifecycle
 from tests._engine_tasks_helpers import _run
 from tests._store_helpers import enqueue_task

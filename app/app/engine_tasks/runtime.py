@@ -6,9 +6,10 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from co_scientist.platform.db.models import RunRow, ScientificTask
+
     from app.safety import ScreenSubject
     from app.safety.types import SafetyDecision
-    from app.store.models import RunRow, ScientificTask
 
 __all__ = [
     "EngineTaskRuntime",

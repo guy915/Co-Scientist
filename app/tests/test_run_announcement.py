@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform.db.models import MessageRow
 
 from app.store import messages as store_messages
-from app.store.models import MessageRow
 from tests._client import create_run as _create_run
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
