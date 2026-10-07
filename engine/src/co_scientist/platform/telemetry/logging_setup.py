@@ -83,7 +83,7 @@ def _byok_redaction_filter() -> logging.Filter:
     """Lazy import avoids pulling credential cryptography into logging-only
     processes; provider errors still need redaction.
     """
-    from app.credentials import ByokRedactionFilter
+    from co_scientist.domains.access.credentials import ByokRedactionFilter
 
     return ByokRedactionFilter()
 

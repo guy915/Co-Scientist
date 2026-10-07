@@ -145,7 +145,7 @@ async def _call_semantic_safety_model(text: str, stage: str, model: str) -> dict
     """Use shared structured parsing and physical-call metering; json_object
     gateways may fence or reshape otherwise valid JSON.
     """
-    from app import credentials
+    from co_scientist.domains.access import credentials
 
     # Scoped BYOK selects its own model and credential rather than using the
     # deployment's account.

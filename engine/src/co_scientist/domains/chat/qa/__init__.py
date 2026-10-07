@@ -6,10 +6,10 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
-import app.credentials as credentials
 from app.sse import sse_frame as sse_frame
 from app.store import runs
 
+import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.chat.qa.manifest as qa_ideas
 import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core.config import (

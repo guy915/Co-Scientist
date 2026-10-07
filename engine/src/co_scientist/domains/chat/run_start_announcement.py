@@ -6,7 +6,6 @@ from collections.abc import AsyncGenerator
 from time import perf_counter
 from typing import Any
 
-from app import credentials
 from app.sse import sse_frame
 
 from co_scientist.core.config import (
@@ -16,6 +15,7 @@ from co_scientist.core.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.domains.access import credentials
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.platform.db.models import MessageRow, RunRow

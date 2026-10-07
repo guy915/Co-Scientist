@@ -43,7 +43,7 @@ class EnvProcessMode:
         """
         # Import lazily so this leaf stays available from config without
         # credential-module cycles.
-        from app import credentials
+        from co_scientist.domains.access import credentials
 
         return credentials.current_byok() is not None or has_provider_credential(model)
 

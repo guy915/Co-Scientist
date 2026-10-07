@@ -10,7 +10,7 @@ from co_scientist.platform.db import current_time, use_conn
 from co_scientist.platform.db.models import RunRow, row_to_run
 
 if TYPE_CHECKING:
-    from app.credentials import ByokCredential
+    from co_scientist.domains.access.credentials import ByokCredential
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ def _recheck_receipt_and_documents(
     idempotency_key: str | None,
     staged_documents: list[dict[str, object]],
 ) -> tuple[list[dict[str, object]], RunCreationReceipt | None]:
-    from app.store.documents import get_staged_documents
+    from co_scientist.domains.documents.repository import get_staged_documents
 
     if idempotency_key is not None:
         receipt = lookup_run_creation_receipt(client_id, idempotency_key, conn=conn)
@@ -107,10 +107,9 @@ def commit_run_creation(
     """Recheck receipt and staged ownership under the same writer lock as
     setup, credentials and attachment persistence.
     """
+    from co_scientist.domains.access import credentials
+    from co_scientist.domains.documents.repository import index_staged_documents_for_run
     from co_scientist.platform.db import transaction
-
-    from app import credentials
-    from app.store.documents import index_staged_documents_for_run
 
     if (idempotency_key is None) != (request_digest is None):
         raise ValueError("an idempotency key and request digest must be paired")

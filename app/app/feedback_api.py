@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 
 from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.feedback import repository as feedback
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from app.auth import require_client_scope
-from app.store import feedback
 
 router = APIRouter(tags=["feedback"])
 

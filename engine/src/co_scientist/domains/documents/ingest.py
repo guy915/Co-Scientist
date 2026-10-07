@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, UploadFile
@@ -174,12 +175,12 @@ def _extract_pdf(data: bytes) -> str:
     with tempfile.TemporaryFile() as output:
         try:
             process = subprocess.Popen(
-                [sys.executable, "-m", "app.pdf_worker"],
+                [sys.executable, "-m", "co_scientist.domains.documents.pdf_worker"],
                 stdin=subprocess.PIPE,
                 stdout=output,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
-                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                cwd=Path(os.path.abspath(__file__)).parents[3],
             )
         except OSError as exc:
             raise ValueError("PDF extraction is unavailable") from exc
@@ -306,7 +307,7 @@ def _apply_heading_markup(reader: Any, pages: list[Any], page_texts: list[str]) 
     document.
     """
     try:
-        from app.pdf import apply_heading_markup
+        from co_scientist.domains.documents.pdf import apply_heading_markup
 
         return apply_heading_markup(reader, pages, page_texts)
     except Exception:

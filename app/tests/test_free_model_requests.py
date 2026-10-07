@@ -6,11 +6,11 @@ from typing import Any
 import co_scientist.domains.chat.qa as qa_stream
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import goal_text, run_start_announcement
 from co_scientist.domains.chat.interviews import model as interviews_model
 from co_scientist.platform.llm import scoped_zero_cost_admission
 
-from app import credentials
 from tests._llm_fake_backend import (
     completion_response,
     install_completion_backend,

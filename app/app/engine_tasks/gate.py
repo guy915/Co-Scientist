@@ -52,9 +52,8 @@ def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
     """Full text is chunked for passage-specific grounding; title and
     abstract retain their single evidence span.
     """
+    from co_scientist.domains.documents.evidence_chunking import chunk_evidence_passage
     from co_scientist.domains.research_state.claims import EvidencePassage
-
-    from app.evidence_chunking import chunk_evidence_passage
 
     passages: list[EvidencePassage] = []
     for article in state.get("articles") or []:

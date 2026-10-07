@@ -12,12 +12,13 @@ from co_scientist.core.config import settings
 from co_scientist.core.exceptions import (
     LLMTimeoutError,
 )
+from co_scientist.domains.access import credentials
 from co_scientist.platform import db as _store_db
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 
-from app import credentials, engine_tasks, task_worker
+from app import engine_tasks, task_worker
 from app.store import events as store_events
 from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle

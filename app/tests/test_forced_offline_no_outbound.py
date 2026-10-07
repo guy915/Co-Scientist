@@ -6,10 +6,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
+from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import goal_text, run_start_announcement
 from co_scientist.domains.chat.repository import messages as store
 
-from app import credentials
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._store_helpers import seed_run

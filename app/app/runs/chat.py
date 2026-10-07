@@ -5,6 +5,7 @@ from typing import Any
 
 import co_scientist.domains.chat.qa.manifest as qa_run_state
 from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import qa, run_start_announcement
 from co_scientist.domains.chat.qa import snapshot
 from co_scientist.domains.chat.repository import messages as store
@@ -17,7 +18,7 @@ from co_scientist.platform.db.models import MessageRow, RunRow, RunStatus
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app import credentials, engine_adapter, engine_tasks
+from app import engine_adapter, engine_tasks
 from app.api_contracts import MessagesResponse
 from app.api_contracts.interviews import Interview
 from app.api_contracts.runs import RunMessage

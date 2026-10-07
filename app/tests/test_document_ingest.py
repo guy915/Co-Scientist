@@ -3,9 +3,8 @@ from __future__ import annotations
 import io
 
 import pytest
-
-from app import document_ingest
-from app.document_ingest import _extract_pdf
+from co_scientist.domains.documents import ingest as document_ingest
+from co_scientist.domains.documents.ingest import _extract_pdf
 
 Line = tuple[str, str, float, float, float]
 

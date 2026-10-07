@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
+from co_scientist.domains.access import credentials
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db.models import (
     UNKNOWN_PROVIDER_OUTCOME_ERROR,
@@ -16,7 +17,7 @@ from co_scientist.platform.db.models import (
 )
 
 import app.store.tasks_lifecycle as store_tasks_attempts
-from app import credentials, engine_tasks, task_worker
+from app import engine_tasks, task_worker
 from app.store import events as store_events
 from app.store import runs
 from app.store import runs_views as views

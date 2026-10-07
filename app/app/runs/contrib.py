@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+import co_scientist.domains.documents.ingest as document_ingest
 import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.research_state.repository import records
@@ -16,7 +17,6 @@ from fastapi import (
     UploadFile,
 )
 
-import app.document_ingest as document_ingest
 from app.auth import client_id
 from app.runs.models import (
     HumanAttachmentRequest,

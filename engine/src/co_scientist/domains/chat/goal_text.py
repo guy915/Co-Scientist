@@ -5,8 +5,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from app import credentials
-
 from co_scientist.core.config import (
     deepseek_thinking_kwargs,
     settings,
@@ -14,6 +12,7 @@ from co_scientist.core.config import (
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
+from co_scientist.domains.access import credentials
 from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
 

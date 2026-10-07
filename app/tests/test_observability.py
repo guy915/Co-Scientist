@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.domains.access.credentials import ByokCredential, scoped_byok
 from co_scientist.domains.research_state import models
 from co_scientist.platform.telemetry import logs
 from co_scientist.platform.telemetry import retrieval_calls as retrieval
@@ -16,7 +17,6 @@ from co_scientist.platform.telemetry.logging_setup import (
 from co_scientist.platform.telemetry.logs import LogFilters
 from fastapi.testclient import TestClient
 
-from app.credentials import ByokCredential, scoped_byok
 from tests._client import append_log_row, make_client, make_operator_client
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from fastapi import APIRouter
+
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import BYOK_PROVIDER_DEFAULT_MODELS
-from fastapi import APIRouter
 
 WORKER_MODEL_HEADER = "X-LLM-Model"
 SUPERVISOR_MODEL_HEADER = "X-LLM-Supervisor-Model"
