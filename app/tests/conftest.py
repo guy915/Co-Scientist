@@ -54,6 +54,7 @@ def _apply_offline_env(monkeypatch: pytest.MonkeyPatch, db_path: str) -> None:
     from co_scientist.core.config import settings
 
     monkeypatch.setattr(settings, "evidence_resolver", "offline")
+    monkeypatch.setattr(settings, "logs_admin_token", "synthetic-test-operator")
 
 
 @pytest.fixture(autouse=True)
