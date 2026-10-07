@@ -151,12 +151,22 @@ CREATE TABLE IF NOT EXISTS staged_documents (
     sha256 TEXT NOT NULL,
     byte_size INTEGER NOT NULL,
     extraction_tool TEXT NOT NULL,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    peer_hash TEXT NOT NULL DEFAULT 'unknown'
 );
 CREATE INDEX IF NOT EXISTS idx_staged_documents_client
     ON staged_documents(client_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_staged_documents_interview
     ON staged_documents(interview_id, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS input_admissions (
+    day INTEGER NOT NULL,
+    scope TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    requests INTEGER NOT NULL,
+    bytes INTEGER NOT NULL,
+    PRIMARY KEY(day, scope, subject)
+);
 
 -- Append-only timeline of everything that happened during a run. This is the
 -- canonical source the SSE endpoint replays on client reconnect or restart.
@@ -759,6 +769,9 @@ COMMIT;
 # has, so each column added after first release is also listed here and added
 # idempotently at startup.
 ADDED_COLUMNS = (
+    ("staged_documents", "peer_hash", "TEXT NOT NULL DEFAULT 'unknown'"),
+    ("messages", "peer_hash", "TEXT NOT NULL DEFAULT 'unknown'"),
+    ("evidence", "peer_hash", "TEXT NOT NULL DEFAULT 'unknown'"),
     ("run_credentials", "supervisor_provider", "TEXT"),
     ("run_credentials", "encrypted_supervisor_key", "TEXT"),
 )
