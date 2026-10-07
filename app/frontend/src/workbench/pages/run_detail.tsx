@@ -165,13 +165,13 @@ function RunDetailBody({
   const endState = terminalEndStateOf(data.run);
   if (endState) {
     return (
-      <main className={REPORT_SCROLL_CLASSES}>
+      <div className={REPORT_SCROLL_CLASSES}>
         <RunEndState
           status={endState.status}
           error={endState.error}
           failureKind={endState.failureKind}
         />
-      </main>
+      </div>
     );
   }
   if (active && data.run) return <LiveRunSection data={data} />;
@@ -267,7 +267,7 @@ function RunDetailTabContent({
   data,
 }: Omit<RunDetailBodyProps, 'active'>) {
   return (
-    <main
+    <div
       className={REPORT_SCROLL_CLASSES}
       key={activeTab}
       aria-label={reportSectionLabel(activeTab)}
@@ -275,6 +275,6 @@ function RunDetailTabContent({
       <AwaitingDecisionNotice count={awaitingDecisionCount(data)} />
       {reportIsUngrounded(data) && <ReportUngroundedNotice />}
       {tabSection(activeTab, ideasViewKey, data)}
-    </main>
+    </div>
   );
 }
