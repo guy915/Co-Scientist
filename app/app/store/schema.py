@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
+-- Owner listings filter by client and order by recency.
+CREATE INDEX IF NOT EXISTS idx_runs_client_created ON runs(client_id, created_at DESC);
 
 -- Bring-your-own-key credentials (see app/credentials.py). One encrypted
 -- credential per run, persisted for the run's lifetime because a run's
@@ -272,6 +274,8 @@ CREATE TABLE IF NOT EXISTS citations (
     FOREIGN KEY (evidence_id) REFERENCES evidence(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_cit_hyp ON citations(hypothesis_id);
+-- Cascade deletes from evidence scan the whole table without this.
+CREATE INDEX IF NOT EXISTS idx_cit_evidence ON citations(evidence_id);
 -- The per-run listing (store.list_citations) filters on run_id and orders by
 -- created_at; without this it scanned the whole table -- every run's rows, not
 -- just this one's -- and sorted the survivors in a temp b-tree.
@@ -574,6 +578,9 @@ CREATE INDEX IF NOT EXISTS idx_tasks_ready
     ON scientific_tasks(status, priority DESC, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_tasks_run
     ON scientific_tasks(run_id, created_at ASC);
+-- Idle-worker polls and progress counts filter a run's tasks by status.
+CREATE INDEX IF NOT EXISTS idx_tasks_run_status
+    ON scientific_tasks(run_id, status, task_type);
 
 -- One search: one query, against one source, serving one question. Written
 -- by the deep-research capability (co_scientist.research) through
@@ -690,6 +697,9 @@ CREATE TABLE IF NOT EXISTS proximity_edges (
         REFERENCES hypotheses(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
+-- Cascade deletes from hypotheses scan the whole table without these.
+CREATE INDEX IF NOT EXISTS idx_proximity_source ON proximity_edges(source_hypothesis_id);
+CREATE INDEX IF NOT EXISTS idx_proximity_target ON proximity_edges(target_hypothesis_id);
 -- Retired work is explicitly settled without replay; ordinary checkpoint
 -- successors remain claimable after a rolling deployment.
 BEGIN IMMEDIATE;
