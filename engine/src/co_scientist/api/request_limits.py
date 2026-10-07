@@ -46,10 +46,7 @@ class RequestLimitsMiddleware:
             )
             return
         peer = connecting_host(request.client.host if request.client else None)
-        upload = path == "/api/documents" or path.endswith("/attachments/upload")
-        limit = _MAX_UPLOAD_BYTES if upload else _MAX_JSON_BYTES
-        if path.endswith("/attachments"):
-            limit = 1024 * 1024
+        limit, bucket, ceilings = _body_limits(path)
         raw_length = request.headers.get("content-length")
         try:
             declared = int(raw_length) if raw_length is not None else 0
@@ -63,10 +60,10 @@ class RequestLimitsMiddleware:
                 scope, receive, send
             )
             return
-        keys = ("global", f"owner:{owner}", f"host:{peer}")
+        keys = (f"global:{bucket}", f"owner:{bucket}:{owner}", f"host:{bucket}:{peer}")
         with _lock:
             admitted = all(
-                _buffering[key] < ceiling for key, ceiling in zip(keys, (8, 2, 2), strict=True)
+                _buffering[key] < ceiling for key, ceiling in zip(keys, ceilings, strict=True)
             )
             if admitted:
                 _buffering.update(keys)
@@ -152,3 +149,10 @@ def _body_replay(
         return {"type": "http.request", "body": chunk, "more_body": more}
 
     return replay
+
+
+def _body_limits(path: str) -> tuple[int, str, tuple[int, int, int]]:
+    if path == "/api/documents" or path.endswith("/attachments/upload"):
+        return _MAX_UPLOAD_BYTES, "upload", (8, 2, 2)
+    limit = 1024 * 1024 if path.endswith("/attachments") else _MAX_JSON_BYTES
+    return limit, "json", (64, 16, 32)
