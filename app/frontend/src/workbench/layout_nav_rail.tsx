@@ -1,14 +1,12 @@
 import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
-import {Icon, type IconName} from '@/components/icon';
-import {Button, Menu, MenuItem} from '@/shared/ui';
+import {Button, Menu, MenuItem, NavItemButton, NavItemLink} from '@/shared/ui';
 import {isModifiedClick} from '@/workbench/dom_events';
 import {
   SETTINGS_SECTIONS,
   type SettingsSection,
 } from './components/settings_dialog';
 import type {ShellPanel} from './layout';
-import {NAV_ICON_CLASSES} from './layout_primitives';
 import {joinClasses, tooltipClassNames} from './classes';
 import type {ChatSummary, Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
@@ -38,7 +36,7 @@ const NAV_PANEL_CLASSES =
   '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:[inset:0_auto_0_0] [@media(max-width:700px)]:z-[60] ' +
   '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:w-[21rem] [@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:max-w-[85vw] ' +
   '[@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:px-[0.75rem] [@media(max-width:700px)]:py-[1rem] ' +
-  '[@media(max-width:700px)]:[border-radius:0_1.85rem_1.9rem_0]';
+  '[@media(max-width:700px)]:rounded-r-workspace';
 
 const NAV_GROUP_PHONE_CLASSES =
   '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:flex-1 ' +
@@ -47,20 +45,6 @@ const NAV_GROUP_PHONE_CLASSES =
 const NAV_BOTTOM_CLASSES =
   'relative grid items-center justify-items-center gap-[0.8rem] p-0 ' +
   '[@media(max-width:700px)]:w-full [@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:[justify-items:stretch] [@media(max-width:700px)]:gap-[0.3rem]';
-
-// The transition and the pressed color stay in shell_surface.css: the global
-// a/button transition is unlayered, and Tailwind sorts an arbitrary :hover
-// after :active, so a utility could not let pressed beat hover.
-const NAV_ITEM_CLASSES =
-  'ucs-nav-item grid size-[2.5rem] min-h-[2.5rem] min-w-[2.5rem] cursor-pointer place-items-center [border:0] rounded-[9999px] bg-transparent p-0 text-cosci-shell-icon no-underline ' +
-  '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
-  '[@media(max-width:700px)]:h-[2.75rem] [@media(max-width:700px)]:min-h-[2.75rem] [@media(max-width:700px)]:w-full ' +
-  '[@media(max-width:700px)]:grid-cols-[1.5rem_minmax(0,1fr)] [@media(max-width:700px)]:[justify-items:start] [@media(max-width:700px)]:gap-x-[0.72rem] ' +
-  '[@media(max-width:700px)]:px-[0.75rem] [@media(max-width:700px)]:text-left';
-
-const NAV_LABEL_CLASSES =
-  'text-[0.875rem] font-medium tracking-[0.01em] whitespace-nowrap ' +
-  '[transition:opacity_180ms_cubic-bezier(0.2,0,0,1),max-width_240ms_cubic-bezier(0.2,0,0,1)] motion-reduce:[transition:none]';
 
 const SIDE_CONTENT_CLASSES =
   'mt-[1rem] grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
@@ -85,13 +69,6 @@ const NAV_RAIL_VARIANTS = {
       NAV_GROUP_PHONE_CLASSES,
     ),
     bottom: NAV_BOTTOM_CLASSES,
-    item: joinClasses(
-      NAV_ITEM_CLASSES,
-      'min-[701px]:h-[2.45rem] min-[701px]:min-h-[2.45rem] min-[701px]:w-full min-[701px]:grid-cols-[1.5rem_minmax(0,1fr)]',
-      'min-[701px]:[justify-content:stretch] min-[701px]:[justify-items:start] min-[701px]:gap-x-[0.72rem] min-[701px]:px-[0.75rem]',
-      'min-[701px]:text-left min-[701px]:leading-none',
-    ),
-    label: NAV_LABEL_CLASSES,
     sideContent: SIDE_CONTENT_CLASSES,
     settingsControl: `${SETTINGS_CONTROL_CLASSES} min-[701px]:w-full`,
   },
@@ -110,17 +87,6 @@ const NAV_RAIL_VARIANTS = {
     bottom: joinClasses(
       NAV_BOTTOM_CLASSES,
       'min-[701px]:w-full min-[701px]:gap-[0.74rem]',
-    ),
-    item: joinClasses(
-      NAV_ITEM_CLASSES,
-      'grid-cols-[1fr] justify-self-center min-[701px]:h-[2.45rem] min-[701px]:min-h-[2.45rem]',
-    ),
-    // display:none, not visibility:hidden, which would keep a grid row and
-    // shift the icon. Width and overflow persist on phones, where labels show.
-    label: joinClasses(
-      NAV_LABEL_CLASSES,
-      'hidden invisible w-0 max-w-0 overflow-hidden opacity-0',
-      '[@media(max-width:700px)]:block [@media(max-width:700px)]:max-w-none [@media(max-width:700px)]:opacity-100 [@media(max-width:700px)]:[visibility:inherit]',
     ),
     sideContent: joinClasses(
       SIDE_CONTENT_CLASSES,
@@ -150,11 +116,10 @@ function NavRailTop({
 }: NavRailTopProps) {
   return (
     <div className={nav.group}>
-      <NavActionButton
+      <NavItemButton
         label="Menu"
         icon="menu"
-        className={nav.item}
-        labelClassName={nav.label}
+        open={navOpen}
         expanded={navOpen}
         controls="primary-navigation"
         onClick={toggleNav}
@@ -162,11 +127,7 @@ function NavRailTop({
       {/* display:contents keeps navigation semantics while giving all controls
           one grid gap source, so the first item carries the separation. */}
       <nav id="primary-navigation" className="contents">
-        <NavNewChatLink
-          className={joinClasses(nav.item, 'mt-[0.5rem]')}
-          labelClassName={nav.label}
-          onNewChat={startNewChat}
-        />
+        <NavNewChatLink open={navOpen} onNewChat={startNewChat} />
       </nav>
       <ChatHistorySidebar sideContentClasses={nav.sideContent} rail={rail} />
     </div>
@@ -208,6 +169,7 @@ export function NavRail({
       <div className={nav.bottom}>
         <RailSettingsControl
           nav={nav}
+          open={navOpen}
           activePanel={activePanel}
           onTogglePanel={onTogglePanel}
           onOpenSettings={onOpenSettings}
@@ -220,12 +182,14 @@ export function NavRail({
 
 function RailSettingsControl({
   nav,
+  open,
   activePanel,
   onTogglePanel,
   onOpenSettings,
   settingsControlRef,
 }: {
   nav: NavRailVariant;
+  open: boolean;
   activePanel: ShellPanel | null;
   onTogglePanel: (panel: ShellPanel) => void;
   onOpenSettings: (section: SettingsSection) => void;
@@ -233,11 +197,10 @@ function RailSettingsControl({
 }) {
   return (
     <div ref={settingsControlRef} className={nav.settingsControl}>
-      <NavActionButton
+      <NavItemButton
         label="Settings"
         icon="settings"
-        className={nav.item}
-        labelClassName={nav.label}
+        open={open}
         expanded={activePanel === 'settings'}
         onClick={() => onTogglePanel('settings')}
       />
@@ -265,66 +228,24 @@ function RailSettingsControl({
 // Only ordinary navigation resets the current chat; modified clicks must leave
 // this tab unchanged.
 function NavNewChatLink({
-  className,
-  labelClassName,
+  open,
   onNewChat,
 }: {
-  className: string;
-  labelClassName: string;
+  open: boolean;
   onNewChat: () => void;
 }) {
   return (
-    <Link
+    <NavItemLink
       to="/"
       state={{cosciAction: 'new-chat'}}
-      className={tooltipClassNames({className, placement: 'right'})}
-      aria-label="New chat"
-      data-tooltip="New chat"
+      icon="edit_square"
+      label="New chat"
+      open={open}
+      layoutClassName="mt-[0.5rem]"
       onClick={event => {
         if (!isModifiedClick(event)) onNewChat();
       }}
-    >
-      <Icon
-        aria-hidden="true"
-        className={NAV_ICON_CLASSES}
-        name="edit_square"
-      />
-      <span className={labelClassName}>New chat</span>
-    </Link>
-  );
-}
-
-// Collapsed labels retain their accessible names through aria-label.
-function NavActionButton({
-  label,
-  icon,
-  className,
-  labelClassName,
-  expanded,
-  controls,
-  onClick,
-}: {
-  label: string;
-  icon: IconName;
-  className: string;
-  labelClassName: string;
-  expanded?: boolean;
-  controls?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={tooltipClassNames({className, placement: 'right'})}
-      aria-label={label}
-      data-tooltip={label}
-      aria-expanded={expanded}
-      aria-controls={controls}
-      onClick={onClick}
-    >
-      <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name={icon} />
-      <span className={labelClassName}>{label}</span>
-    </button>
+    />
   );
 }
 
@@ -344,7 +265,7 @@ const CHAT_LIST_SCROLLABLE_CLASSES =
   'min-[701px]:overflow-x-hidden min-[701px]:overflow-y-auto';
 
 const CHAT_HISTORY_LINK_CLASSES =
-  'flex min-h-[2.35rem] min-w-0 items-center rounded-[9999px] px-[0.75rem] text-[0.875rem] leading-[2.35rem] no-underline';
+  'flex min-h-[2.35rem] min-w-0 items-center rounded-full px-[0.75rem] text-[0.875rem] leading-[2.35rem] no-underline';
 
 const CHAT_HISTORY_LINK_IDLE_CLASSES =
   'text-cosci-shell-icon [&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg';

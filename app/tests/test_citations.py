@@ -250,3 +250,33 @@ def test_the_shipped_data_file_loads_and_is_non_empty() -> None:
     doi_set = retraction_set._load_doi_set(retraction_set.DEFAULT_RETRACTIONS_PATH)
 
     assert len(doi_set) > 0
+
+
+def test_an_abstract_stating_the_claim_verbatim_reaches_the_top_band() -> None:
+    """docs/OPERATIONS.md requires this sanity check of the citation metric.
+    The claim's own words, written with ordinary commas and a semicolon, used
+    to be three different tokens from the same words written bare.
+    """
+    claim = "TP53 loss impairs apoptosis in colorectal tumour cells"
+    abstract = (
+        "We asked whether TP53 loss, acting early, impairs apoptosis; "
+        "in colorectal tumour cells, it did."
+    )
+
+    record = CitationRecord(url="https://example.org/1", abstract=abstract, claim=claim)
+
+    assert classify_citation(record) is CitationState.VERIFIED
+
+
+def test_punctuation_does_not_change_the_citation_score() -> None:
+    bare = "mitochondrial biogenesis drives thermogenesis"
+    punctuated = "mitochondrial biogenesis, which drives thermogenesis."
+
+    scored = [
+        classify_citation(
+            CitationRecord(url="https://example.org/1", abstract=abstract, claim=bare)
+        )
+        for abstract in (bare, punctuated)
+    ]
+
+    assert scored == [CitationState.VERIFIED, CitationState.VERIFIED]

@@ -130,6 +130,10 @@ html:has(.ucs-landing) body {
   --l-bg: var(--cosci-bg);
   --l-surface: #f3f6fb;
   --l-ink: var(--cosci-text);
+  --l-dot-blue: #4285f4;
+  --l-dot-green: #34a853;
+  --l-dot-yellow: #fbbc04;
+  --l-dot-red: #ea4335;
   --l-muted: #5f6368;
   --l-line: #e1e5ea;
   --l-accent: #0b57d0;
@@ -401,93 +405,6 @@ html:has(.ucs-landing) body {
   font-weight: 500;
 }
 
-.ucs-landing-flow {
-  display: none;
-  gap: 22px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.ucs-landing-flow > li {
-  position: relative;
-  display: grid;
-  gap: 2px;
-  padding: 16px 20px;
-  border-radius: 24px;
-  background: var(--l-bg);
-  color: var(--l-muted);
-  font-size: 14px;
-}
-
-.ucs-landing-flow > li + li::before {
-  position: absolute;
-  top: -22px;
-  left: 50%;
-  height: 22px;
-  border-left: 1.5px solid var(--l-line);
-  content: '';
-}
-
-.ucs-landing-flow b {
-  color: var(--l-ink);
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.ucs-landing-flow > li.is-you {
-  background: var(--l-c-blue);
-  color: var(--l-o-blue);
-}
-
-.ucs-landing-flow > li.is-supervisor {
-  background: var(--l-ink);
-  color: var(--l-bg);
-}
-
-.ucs-landing-flow > li.is-supervisor b {
-  color: inherit;
-}
-
-.ucs-landing-flow > li.is-output {
-  background: var(--l-c-teal);
-  color: var(--l-o-teal);
-}
-
-.ucs-landing-flow > li.is-you b,
-.ucs-landing-flow > li.is-output b {
-  color: inherit;
-}
-
-.ucs-landing-flow-ring {
-  grid-template-columns: 1fr 1fr;
-  gap: 8px !important;
-  border: 1.5px solid var(--l-line);
-}
-
-.ucs-landing-flow-ring button {
-  cursor: pointer;
-  font: inherit;
-  text-align: start;
-  padding: 10px 14px;
-  border: 2px solid transparent;
-  border-radius: 9999px;
-  background: var(--tone-c);
-  color: var(--tone-o);
-  transition: border-color 0.3s;
-}
-
-.ucs-landing-flow-ring button.is-active {
-  border-color: var(--tone-o);
-}
-
-.ucs-landing-flow-ring em {
-  grid-column: 1 / -1;
-  font-size: 13px;
-  font-style: normal;
-  text-align: center;
-}
-
 .ucs-landing-tree {
   gap: 20px;
   margin-top: 48px;
@@ -667,30 +584,6 @@ html:has(.ucs-landing) body {
 @keyframes ucs-landing-slide {
   to {
     transform: translateX(calc(-50% - 28px));
-  }
-}
-
-@media (max-width: 700px) {
-  .ucs-landing-diagram-svg {
-    display: none;
-  }
-
-  .ucs-landing-flow {
-    display: grid;
-  }
-
-  /* Scroll the tree sideways rather than shrink it below a readable size. */
-  .ucs-landing-tree {
-    padding: 24px 20px;
-  }
-
-  .ucs-landing-tree-scroll {
-    overflow-x: auto;
-    padding-bottom: 8px;
-  }
-
-  .ucs-landing-tree-scroll svg {
-    min-width: 720px;
   }
 }
 

@@ -1,11 +1,11 @@
-import type {HTMLAttributes, ReactNode} from 'react';
+import type {ButtonHTMLAttributes, HTMLAttributes, ReactNode} from 'react';
 import {joinClasses} from './cx';
 
 export type CardTone = 'neutral' | 'raised' | 'warning' | 'danger';
-export type CardSize = 'block' | 'panel';
+export type CardSize = 'block' | 'tile' | 'panel';
 
 // Cards are tonal layers, never shadows (elevation is for overlays). A block
-// is a data block or notice; a panel groups controls.
+// is a notice, a tile a stat or summary, and a panel groups controls.
 const TONE_CLASSES: Record<CardTone, string> = {
   neutral: 'bg-cosci-panel text-cosci-fg',
   raised: 'bg-cosci-settings-card-bg text-cosci-fg',
@@ -16,6 +16,7 @@ const TONE_CLASSES: Record<CardTone, string> = {
 
 const SIZE_CLASSES: Record<CardSize, string> = {
   block: 'rounded-md px-4 py-3',
+  tile: 'rounded-md p-4',
   panel: 'rounded-2xl px-[1.4rem] pt-5 pb-[1.4rem]',
 };
 
@@ -61,5 +62,48 @@ export function Card({
     >
       {children}
     </Tag>
+  );
+}
+
+// The phone layout turns the card into a borderless pill row, so the
+// highlighted row must also win over the resting transparent background.
+const CARD_BUTTON_CLASSES =
+  'cursor-pointer rounded-2xl border border-cosci-border text-left text-cosci-fg [outline:0] ' +
+  'transition-[background-color,border-color] duration-short ease-standard ' +
+  '[&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
+  '[@media(max-width:700px)]:rounded-full [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent]';
+
+const CARD_BUTTON_REST_CLASSES =
+  'bg-(--cosci-suggestion-bg) [@media(max-width:700px)]:bg-transparent';
+
+const CARD_BUTTON_HIGHLIGHTED_CLASSES =
+  'bg-cosci-hover [@media(max-width:700px)]:[&&]:[border-color:transparent]';
+
+// A card that is one action as a whole (home suggestions); a list row on
+// phones. `highlighted` holds the hover look while its preview shows.
+export function CardButton({
+  highlighted = false,
+  layoutClassName,
+  children,
+  ...rest
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'type'> & {
+  highlighted?: boolean;
+  layoutClassName?: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={joinClasses(
+        CARD_BUTTON_CLASSES,
+        highlighted
+          ? CARD_BUTTON_HIGHLIGHTED_CLASSES
+          : CARD_BUTTON_REST_CLASSES,
+        layoutClassName,
+      )}
+      {...rest}
+    >
+      {children}
+    </button>
   );
 }

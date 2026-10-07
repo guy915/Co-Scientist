@@ -15,6 +15,7 @@ from co_scientist.platform.retrieval.citations import (
     classify_date,
     classify_source_type,
 )
+from co_scientist.platform.retrieval.evidence.article_support import present_value
 
 # Anchor the drain citation prefix so unrelated seeded claims remain unresolved
 # rather than mismatched.
@@ -78,6 +79,13 @@ def _render_references_markdown(
     return lines
 
 
+def _identifier(evidence: dict[str, Any], field: str) -> str:
+    """Runs recorded before the PubMed parser fix hold a missing-value
+    sentinel here, which is one identifier every unidentified paper shares.
+    """
+    return str(present_value(evidence.get(field)) or "").strip()
+
+
 def _normalized_title(title: str) -> str:
     return " ".join(title.strip().lower().split())
 
@@ -86,13 +94,13 @@ def _evidence_identity(evidence: dict[str, Any]) -> str:
     """Unidentifiable synthetic rows keep distinct ids rather than being merged
     with equally unidentifiable rows.
     """
-    doi = str(evidence.get("doi") or "").strip().lower()
+    doi = _identifier(evidence, "doi").lower()
     if doi:
         return f"doi:{doi}"
-    pmid = str(evidence.get("pmid") or "").strip()
+    pmid = _identifier(evidence, "pmid")
     if pmid:
         return f"pmid:{pmid}"
-    url = str(evidence.get("url") or "").strip()
+    url = _identifier(evidence, "url")
     if url:
         return f"url:{url}"
     title = _normalized_title(str(evidence.get("title") or ""))
@@ -113,10 +121,10 @@ def _dedupe_evidence(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _identifier_suffix(evidence: dict[str, Any]) -> str:
     """Display the same authoritative identifier used for deduplication."""
-    doi = str(evidence.get("doi") or "").strip()
+    doi = _identifier(evidence, "doi")
     if doi:
         return f" (DOI: {doi})"
-    pmid = str(evidence.get("pmid") or "").strip()
+    pmid = _identifier(evidence, "pmid")
     if pmid:
         return f" (PMID: {pmid})"
     return ""
