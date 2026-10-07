@@ -9,10 +9,12 @@ This plan sets the goal, the guardrails and the starting evidence. It does not
 list every task. The campaign finds them, ranks them and works through them.
 
 **Status:** in progress since 6 October 2026. The audit is recorded in
-`docs/optimization/findings.md`; CI speed and launch-readiness PRs are open.
-The first baselines ran without retrieval and are being re-run; model changes
-start after the engine cuts merge. Live progress is on the
-`Campaign board: optimization` issue.
+`docs/optimization/findings.md`. Merged: CI (5:51 → 3:49 wall), launch files,
+image, Vercel and monitoring docs; store indexes, run-listing queries and
+upload extraction are in review. The baseline with retrieval is measured; the
+Standard and second Express baselines come next, then the first model batch.
+Prefill-only prompt changes were judged not worth their risk (findings M7–M9).
+Live progress is on the `Campaign board: optimization` issue.
 
 ## Scope
 

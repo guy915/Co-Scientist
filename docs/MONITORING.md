@@ -34,13 +34,22 @@ protocol) with one project for the API and one for the frontend.
 | Vercel, build (optional) | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | source-map upload for readable stack traces |
 
 Both SDKs stay off while their DSN is unset, so local runs, CI and forks
-send nothing. Researcher data must not leave through error reports: the
-API sends no request bodies, no personal data and no performance traces,
-and it scrubs provider keys with the same filter as the logs.
+send nothing. Researcher data must not leave through error reports.
+
+The API (`app/app/error_tracking.py`) reports unhandled exceptions and
+`ERROR` log records. Each report:
+- drops request headers (including `X-Client-ID`), cookies, bodies and query
+  strings;
+- has no stack-frame variables, personal data or performance traces;
+- replaces the run's own provider key and every environment value whose name
+  ends in `KEY`, `SECRET`, `TOKEN`, `PASSWORD` or `DSN` with `[REDACTED]`.
+
+Only the Starlette and FastAPI integrations are on; Sentry's auto-enabled AI
+and HTTP-client integrations would attach prompts and model output.
 
 ## Status
 
 - Uptime monitors: owner action (accounts and alert contacts).
-- Error tracking: the API and frontend hooks land after the production cuts
-  free `app/requirements-app.txt` and the frontend entry point; until then
-  the variables above have no effect.
+- Error tracking, API: in the code; set `SENTRY_DSN` and
+  `SENTRY_ENVIRONMENT` on the Railway api service to turn it on.
+- Error tracking, frontend: the `VITE_SENTRY_DSN` hook is next.
