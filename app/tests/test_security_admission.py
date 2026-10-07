@@ -164,3 +164,25 @@ def test_streamed_http_calls_keep_owner_budget_across_tasks(
         "pytest-default-client": 1,
         "other": 1,
     }
+
+
+def test_concurrent_log_ingestion_does_not_crash_the_rate_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """post_logs runs on a four-thread handler pool, and the window expired
+    stale scopes by deleting from the dict it was iterating.
+    """
+    monkeypatch.setattr(settings, "logs_ingest_per_minute", 10_000)
+
+    def hammer(worker: int) -> None:
+        for index in range(400):
+            request = SimpleNamespace(
+                client=SimpleNamespace(host=f"10.0.{worker}.{index % 255}"),
+                headers={"X-Client-ID": f"client-{worker}-{index}"},
+                cookies={},
+            )
+            logs_api._check_ingest_rate(request)  # type: ignore[arg-type]
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for outcome in [pool.submit(hammer, worker) for worker in range(8)]:
+            outcome.result()
