@@ -1,4 +1,4 @@
-from co_scientist.science.research import string_items, stripped_string_items
+from co_scientist.platform.retrieval.research import string_items, stripped_string_items
 
 
 def test_string_items_keep_every_string_exactly() -> None:

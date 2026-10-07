@@ -5,7 +5,7 @@ import pathlib
 import re
 from pathlib import Path
 
-from co_scientist.science.research import (
+from co_scientist.platform.retrieval.research import (
     ThreadStatus,
     conduct_research,
 )
@@ -93,7 +93,8 @@ def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
     outside = {
         name
         for name in borrowed
-        if name.startswith("co_scientist") and not name.startswith("co_scientist.science.research")
+        if name.startswith("co_scientist")
+        and not name.startswith("co_scientist.platform.retrieval.research")
     }
     assert not outside
 

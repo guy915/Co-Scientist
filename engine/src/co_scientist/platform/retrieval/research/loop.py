@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from typing import Union
 
-from co_scientist.science.research.artifacts import (
+from co_scientist.platform.retrieval.research.artifacts import (
     CallStatus,
     Document,
     ExtractedFinding,

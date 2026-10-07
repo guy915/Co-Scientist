@@ -42,7 +42,7 @@ after the campaign.
 | 1 | `co_scientist.main` | Composition root: builds the FastAPI app, lifespan, wiring |
 | 2 | `co_scientist.api` | Routers, SSE, wire contracts, request auth; the only `fastapi` user |
 | 3 | `co_scientist.orchestration` | Workflow, node registry, durable runtime (queue, leases, cohorts, recovery), run lifecycle, drain, finalize |
-| 4 | `co_scientist.science` | One package per agent; shared `prompts`, `schemas`, `research` and `node_degradation` |
+| 4 | `co_scientist.science` | One package per agent; shared `prompts`, `schemas`, `research_model` and `node_degradation` |
 | 5 | `co_scientist.domains` | `research_state`, `safety`, `report`, `chat`, `documents`, `access`, `feedback` |
 | 6 | `co_scientist.platform` | `db`, `llm`, `retrieval`, `sandbox`, `telemetry` |
 | 7 | `co_scientist.core` | Types, errors, configuration, run modes, context and async helpers; no I/O |
@@ -54,8 +54,9 @@ is added for the feedback tables and admission budgets.
 
 **Within layers:**
 
-- `science` agents are independent of each other; they share only `prompts`,
-  `schemas`, `research` and `node_degradation`.
+- `science` agents are independent of each other; they share only modules
+  outside the agent packages (`prompts`, `schemas`, `scheduling`,
+  `node_degradation` and the other `science/*.py` leaves).
 - `domains` are layered: `chat` > `report` > `safety` > `research_state` >
   `documents` | `access` | `feedback`. These are the only cross-domain edges.
 - `platform` adapters are independent of each other except that `retrieval`
@@ -82,7 +83,7 @@ location makes redundant.
 | `core/` | engine `exceptions.py`, `_context.py`, `backoff.py`, `config/env_vars.py`, `models/metrics.py`, `constants/`; app `config.py`, `run_modes/`, `async_bridge.py` |
 | `platform/db/` | app `store/db.py`, `store/schema.py`, `store/checkpoints.py`, `store/models.py` |
 | `platform/llm/` | engine `llm/`, `offline/`, `tool_effects.py`; app `llm_request.py`, `llm_scope.py`, `execution_policy.py`, `process_mode.py`, `offline_guard.py`, `provider_usage.py` |
-| `platform/retrieval/` | engine `mcp_client/`, `tools/`, `config/` (registry, schema, `tools.yaml`), `evidence/`, `retrieval_degradation.py`, `research_adapter/`; app `pinned_http.py`, `retraction_set.py` (+ `data/retractions.txt.gz`), `citations/`, `run_corpus.py`, `engine_adapter/tools.py` |
+| `platform/retrieval/` | engine `mcp_client/`, `tools/`, `config/` (registry, schema, `tools.yaml`), `evidence/`, `retrieval_degradation.py`, `research_adapter/`, `research/` (the deep-research loop: it imports nothing from the repo, and research-state and retrieval read its types, so it sits below them); app `pinned_http.py`, `retraction_set.py` (+ `data/retractions.txt.gz`), `citations/`, `run_corpus.py`, `engine_adapter/tools.py` |
 | `platform/sandbox/` | engine `sandbox/`, `workspace/`, `skills/`, `patch/` |
 | `platform/telemetry/` | engine `progress.py`; app `logging_setup.py`, `error_tracking.py`, `diagnostic_events.py`, `store/logs.py`, `store/retrieval_calls.py` |
 | `domains/research_state/` | engine `models/` (rest), `state/`; app `elo.py`, `text_utils.py`, `claims/` (with `evidence_chunking.py` as `claims/chunking.py`), `store/hypotheses.py`, `store/records.py`, `engine_adapter/drain/{hypotheses,reviews,matches}.py` |
@@ -92,7 +93,7 @@ location makes redundant.
 | `domains/documents/` | app `document_ingest.py`, `pdf.py`, `pdf_worker.py`, `staged_documents.py`, `store/documents.py` |
 | `domains/access/` | app `credentials.py`, `byok_models.py`, `free_usage.py`, `retention.py` |
 | `domains/feedback/` | app `store/feedback.py` |
-| `science/` | engine `agents/{generation,reflection,ranking,evolution,proximity,meta_review,supervisor}` → `science/<agent>`; `agents/safety.py` → `science/safety_screen`; `agents/node_degradation.py`; `scheduling/` → `science/scheduling` (meta-review and orchestration read it too, so it is not the supervisor's alone); `prompts/`, `schemas/`, `research/` |
+| `science/` | engine `agents/{generation,reflection,ranking,evolution,proximity,meta_review,supervisor}` → `science/<agent>`; `agents/safety.py` → `science/safety_screen`; `agents/node_degradation.py`; `scheduling/` → `science/scheduling` (meta-review and orchestration read it too, so it is not the supervisor's alone); `prompts/`, `schemas/`; the LLM research model from `research_adapter/` → `science/research_model.py` |
 | `orchestration/` | engine `agents/__init__.py` (node registry), `workflow_topology.py`, `task_runtime.py`, `checkpoint.py`, `generator/`; app `engine_tasks/`, `task_worker/`, `run_events.py`, `notifications.py`, `engine_adapter/{__init__,opts,events}.py`, `engine_adapter/drain/{__init__,final_state}.py`, `store/{tasks,tasks_lifecycle,runs,runs_views,events,supervisor_plan,receipts}.py` |
 | `api/` | app `api_contracts/` → `api/contracts`, `runs/`, `diagnostics_api.py`, `diagnostics.py`, `logs_api.py`, `feedback_api.py`, `documents.py`, `sse.py`, `operator_access.py`, `auth.py` |
 | `main.py` | app `main.py`, `__init__.py` (`API_VERSION`) |

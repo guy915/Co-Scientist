@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from co_scientist.science.research.artifacts import (
+from co_scientist.platform.retrieval.research.artifacts import (
     CallStatus,
     Finding,
     Question,
@@ -17,7 +17,7 @@ from co_scientist.science.research.artifacts import (
     ThreadRecord,
     ThreadStatus,
 )
-from co_scientist.science.research.strings import string_items
+from co_scientist.platform.retrieval.research.strings import string_items
 
 
 def result_to_dict(result: ResearchResult) -> dict[str, Any]:
