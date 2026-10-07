@@ -1,13 +1,13 @@
 import {editInterviewFields} from '@/api/runs';
 import {Button, IconButton, TextArea, TextField} from '@/shared/ui';
 import {type ReactNode, useId, useState} from 'react';
-import {SETUP_ACTIONS_CLASSES} from '../classes';
+import {SETUP_ACTIONS_CLASSES} from '@/shared/ui/classes';
 import {
   type EditedSpecFields,
   type InferredRunSpec,
   applyEditedInterviewFields,
   buildInterviewFieldsPayload,
-} from '../run_spec';
+} from '@/shared/lib/run_spec';
 
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (

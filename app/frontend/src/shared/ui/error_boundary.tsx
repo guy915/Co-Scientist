@@ -1,7 +1,7 @@
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {Component} from 'react';
-import {logUiError} from '@/lib/ui_logging';
+import {logUiError} from '@/shared/lib/ui_logging';
 import {Button} from '@/shared/ui';
 import {Icon} from './icon';
 

@@ -10,10 +10,10 @@ import {
 } from 'react';
 import {useLocation} from 'react-router-dom';
 import {createPortal} from 'react-dom';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {Button, SegmentedControl} from '@/shared/ui';
 import helixArt from '../../assets/landing/helix.webp';
-import {joinClasses} from '../classes';
+import {joinClasses} from '@/shared/ui/classes';
 import {
   LANDING_SECTIONS,
   FAQ,
@@ -35,7 +35,7 @@ import {
   type ShapeName,
   useShapeMorph,
 } from './home_landing_hooks';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from '@/shared/ui/icon';
 import {
   SlidingPill,
   useSlidingIndicator,

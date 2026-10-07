@@ -5,9 +5,9 @@ import {
   useId,
   useState,
 } from 'react';
-import {Icon} from '@/components/icon';
+import {Icon} from '@/shared/ui/icon';
 import {Button} from '@/shared/ui';
-import {MarkdownMessage} from '@/components/markdown_message';
+import {MarkdownMessage} from '@/shared/ui/markdown_message';
 
 function panelStateClasses(open: boolean): string {
   return open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0';

@@ -1,4 +1,7 @@
-import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
+import type {
+  StreamConnectionState,
+  StreamEvent,
+} from '@/shared/hooks/use_run_stream';
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import {ActiveRunView} from './run_detail_active';

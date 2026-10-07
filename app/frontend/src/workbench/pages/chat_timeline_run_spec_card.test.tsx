@@ -6,7 +6,7 @@ const statusState = vi.hoisted(() => ({
   unreachable: false,
 }));
 
-vi.mock('../hooks/system_status_context', () => ({
+vi.mock('@/shared/hooks/system_status_context', () => ({
   useSystemStatus: () => statusState,
 }));
 

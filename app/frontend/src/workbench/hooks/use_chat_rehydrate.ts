@@ -2,7 +2,7 @@ import {
   recoverySpecForRun,
   type LinkedRunTarget,
   type PendingRunCreatePayload,
-} from '../run_spec';
+} from '@/shared/lib/run_spec';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {
   type Interview,
@@ -15,11 +15,11 @@ import {
   type Run,
   type RunMessage,
 } from '@/api/runs';
-import {conciseTitle} from '@/lib/text';
-import {type InferredRunSpec} from '../run_spec';
+import {conciseTitle} from '@/shared/lib/text';
+import {type InferredRunSpec} from '@/shared/lib/run_spec';
 import type {StartedSession} from '../pages/chat_timeline_run_spec_card';
-import {useChatHistoryContext} from './history_context';
-import {useRunHistoryContext} from './history_context';
+import {useChatHistoryContext} from '@/shared/hooks/history_context';
+import {useRunHistoryContext} from '@/shared/hooks/history_context';
 import {
   applyInterview,
   qaMessagesToEntries,
