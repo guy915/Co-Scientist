@@ -78,7 +78,7 @@ const SUGGESTION_ROW_CLASSES =
 // Its transition stays in home_surface.css: the global unlayered `button` rule
 // would beat a utility.
 const SUGGESTION_BUTTON_CLASSES =
-  'reference-suggestion-button flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full cursor-pointer items-center overflow-hidden rounded-[1rem] border border-cosci-border p-3 text-left leading-[1.35] text-cosci-fg [outline:0] [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover ' +
+  'reference-suggestion-button flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full cursor-pointer items-center overflow-hidden rounded-[1rem] border border-cosci-border p-3 text-left leading-[1.35] text-cosci-fg [outline:0] [&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:max-h-[3.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[3.9rem] ' +
   '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:max-h-none [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:gap-[0.85rem] [@media(max-width:700px)]:rounded-[9999px] [@media(max-width:700px)]:[border:0] [@media(max-width:700px)]:[&:hover]:[border-color:transparent] [@media(max-width:700px)]:focus-visible:[border-color:transparent] [@media(max-width:700px)]:px-[0.85rem] [@media(max-width:700px)]:py-[0.6rem]';
 
