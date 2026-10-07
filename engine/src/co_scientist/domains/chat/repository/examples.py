@@ -13,6 +13,7 @@ from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
+from co_scientist.platform.db.storage_admission import current_peer, reserve_write
 
 # Copy scientific artifacts only. No credentials, tasks or logs.
 _TABLES = (
@@ -147,12 +148,27 @@ def open_example_chat(source_id: str, owner: str) -> dict[str, Any]:
             updated_at=target.updated_at,
             completed_at=target.updated_at,
         )
+        turns = [
+            dict(turn)
+            for turn in conn.execute(
+                "SELECT * FROM interview_turns WHERE interview_id=? ORDER BY id",
+                (interview["id"],),
+            )
+        ]
+        copied_rows = [
+            dict(source_row),
+            interview_row,
+            *turns,
+            *(row for table_rows in rows.values() for row in table_rows),
+        ]
+        copied_bytes = sum(
+            len(json.dumps(row, ensure_ascii=False).encode()) + 256 for row in copied_rows
+        )
+        # Tiny copy requests must pay for their persisted amplification, under the same writer.
+        reserve_write(owner, current_peer(), copied_bytes, conn=conn, requests=0)
         _insert_copy(conn, "interviews", interview_row, identities)
-        for turn in conn.execute(
-            "SELECT * FROM interview_turns WHERE interview_id=? ORDER BY id",
-            (interview["id"],),
-        ).fetchall():
-            _insert_copy(conn, "interview_turns", dict(turn), identities)
+        for turn in turns:
+            _insert_copy(conn, "interview_turns", turn, identities)
         for table, table_rows in rows.items():
             for row in table_rows:
                 _insert_copy(conn, table, row, identities)
