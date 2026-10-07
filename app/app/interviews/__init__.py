@@ -252,11 +252,12 @@ def edit_interview_fields(
     """Persist scientist edits and finalize when required fields are ready."""
     interview = _owned_interview(interview_id, request)
     fields = body.model_dump()
-    if "title" not in body.model_fields_set:
-        fields["title"] = interview["fields"].get("title")
+    for kept in ("title", "lab_constraints"):
+        if kept not in body.model_fields_set:
+            fields[kept] = interview["fields"].get(kept)
     fields["focus_area"] = _clean_list(fields["focus_area"])
     fields["preferences"] = _clean_list(fields["preferences"])
-    fields["lab_constraints"] = _clean_list(fields["lab_constraints"])
+    fields["lab_constraints"] = _clean_list(fields["lab_constraints"] or [])
     completed = _ready(fields)
     store.update_interview(
         interview_id,
