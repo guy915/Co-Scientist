@@ -394,7 +394,7 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 // Its transition stays in home_surface.css: the global unlayered `a` rule
 // would beat a utility.
 const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer content-start gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline [box-shadow:0_1px_2px_rgb(0_0_0/15%),0_2px_10px_rgb(0_0_0/10%)] hover:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer content-start gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline [box-shadow:0_1px_2px_rgb(0_0_0/15%),0_2px_10px_rgb(0_0_0/10%)] [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) min-[1181px]:min-h-0 min-[1181px]:border-transparent';
 
 // Wrap whole chips rather than split duration labels inside their pills.
 const RECENT_META_CHIP_CLASSES =
@@ -463,7 +463,7 @@ export function HomeRecentsPanel({
           <li className="flex justify-center pt-1 pb-2">
             <button
               type="button"
-              className="inline-flex cursor-pointer items-center gap-1 justify-self-center border-0 bg-transparent px-2 py-1 text-[0.9rem] font-medium text-(--cosci-idea-ref-blue) hover:underline focus-visible:underline dark:text-cosci-blue"
+              className="inline-flex cursor-pointer items-center gap-1 justify-self-center border-0 bg-transparent px-2 py-1 text-[0.9rem] font-medium text-(--cosci-idea-ref-blue) focus-visible:underline dark:text-cosci-blue [&:hover]:underline"
               onClick={onToggleShowAll}
             >
               {showAll ? 'Show less' : 'Show more'}
