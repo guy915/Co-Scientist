@@ -35,6 +35,7 @@ their risk are at the end with the reason.
 | B1, B3 | #273 | Run delete 1133 → 25 ms |
 | B2 | #278 | `GET /api/runs` 187 → 20 ms at 3,000 runs |
 | B4 | #292 | Idle claim write transactions 145/s → 0; write p99 24 → 9 ms while idle |
+| B6 | #296 | Trivial-request latency under 8 readers p50 35 → 5 ms; with a held write lock p99 250 → 7 ms |
 | B5 | #284 | Checkpoint guard 0.91 → 0.004 ms per commit |
 | B7 | #280 | Upload loop stall 350 → 24 ms |
 | B8 | #285 | Run detail 2.19 → 0.81 ms (finished runs) |
@@ -42,7 +43,9 @@ their risk are at the end with the reason.
 | B10 | #288 | Report 185 → 19 KB on the wire |
 | B13 | #291 | Status polls 381 → 0 ms after the first |
 | F1, F4 | #274 | Markdown chunk 103 → 70 KB gzip; stale-chunk reload |
+| F5 | #297 | API refusals shown as their message, not `409 {"detail":…}` |
 | F6 | #294 | Closed mobile drawer out of the tab order; one `main` landmark |
+| F8 | #298 | Re-download after an app-only deploy 161 → 79 KB gzip |
 | M1 | #243 | Benchmark retrieval enabled |
 
 ## CI and development
@@ -197,3 +200,12 @@ zero (M4).
 | B12 | Batch the persisted-log writes | Records are already written on a background `QueueListener` thread, off the request path; batching would rework that thread's drain and shutdown for a few milliseconds of writer time per second |
 | I10 | `--no-install-recommends` for tesseract | `tesseract-ocr` has no Recommends of its own in Debian; only transitive font recommends could drop, and OCR must keep working |
 | B11/I8 | `LITELLM_LOCAL_MODEL_COST_MAP=True` (0.9 s faster import, no boot fetch) | litellm's bundled map has 2,426 entries against 4,481 remote; six newer BYOK models (Gemini 3.x, GPT-6) lose `json_schema` support under it, changing their structured-output path |
+| B14 | One connection per thread, mmap | 0.67 ms per open, two or three per request, now off the event loop (#296); a shared connection changes snapshot and transaction scope across the store |
+| B15 | Resolve interview links in SQL | 4.1 → 0.33 ms at 200 runs, about 0.4 ms for a typical client with under 20 runs, and off the event loop since #296 |
+| B18 | Replace the `@app.middleware` ownership check with pure ASGI | Its per-request overhead is a fraction of a millisecond, and its store lookup already runs off the loop (#296); a rewrite risks the ownership 404/403 paths |
+| B16 | Schedule retention | It deletes researcher data; whether and when is the owner's decision (on the board) |
+| B17 | Restore less state per fan-out task | High risk on the commit path, and its memory effect is unmeasured; instrument first |
+| C5, C6 | mypy and Docker layer caches in CI | Not on the critical path: e2e shard 1 takes 2:28 of a 2:43 CI wall, typecheck 1:55 and Docker 1:43 run beside it |
+| I9 | Trim the Docker build context | Every `COPY` is explicit; excluding tests and frontend sources would only shrink an 11 MB context upload by 3 MB |
+| F13 | Memoize idea list rows | Runs hold a few dozen ideas at most and each row is cheap; lever 7 is restyling the file |
+| F5 (stack) | Hide the error boundary's component stack | It is collapsed behind `<details>` and is what a researcher pastes into a bug report |
