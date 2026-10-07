@@ -1,5 +1,5 @@
 import type {QaSource} from '@/api/runs';
-import {MarkdownMessage} from '@/components/markdown_message';
+import {MarkdownMessage} from '@/shared/ui/markdown_message';
 import {Button, IconButton, TextArea} from '@/shared/ui';
 import {
   useEffect,

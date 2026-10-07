@@ -11,7 +11,7 @@ import {
   submitFeedback,
   type FeedbackCategory,
 } from '@/api/feedback';
-import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '../classes';
+import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
 import {Button, Dialog, DIALOG_TITLE_CLASSES, TextArea} from '@/shared/ui';
 
 import {sessionDiagnosticExport} from '../layout_diagnostics';

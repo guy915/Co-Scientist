@@ -1,6 +1,6 @@
 import {useRef, type ReactNode} from 'react';
 import {Link, type LinkProps} from 'react-router-dom';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from './icon';
 import {
   type IndicatorBox,
   useSlidingIndicator,

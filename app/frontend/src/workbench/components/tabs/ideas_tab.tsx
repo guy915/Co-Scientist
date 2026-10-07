@@ -5,11 +5,11 @@ import {
   presentedHypotheses,
   ratingLabel,
   sortByEloDesc,
-} from '@/lib/hypotheses';
+} from '@/shared/lib/hypotheses';
 import {useMemo} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
-import {useIsMobile} from '../../hooks/dom';
-import {TruncatedLabel} from '../truncated_label';
+import {useIsMobile} from '@/shared/hooks/dom';
+import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {
   DETAIL_PANE_ID,
   HypothesisDetail,

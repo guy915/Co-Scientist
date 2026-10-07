@@ -5,7 +5,7 @@ import {
   logsApiMock,
   renderLayout,
 } from './layout_test_support';
-import {DIAGNOSTIC_EVENT} from './dom_events';
+import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
 
 describe('session diagnostics', () => {
   beforeEach(() => {

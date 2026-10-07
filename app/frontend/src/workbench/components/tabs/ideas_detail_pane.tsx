@@ -1,7 +1,7 @@
 import {Card} from '@/shared/ui';
 import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
-import {Icon} from '@/components/icon';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {Icon} from '@/shared/ui/icon';
+import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {useMemo, type MouseEvent, type ReactNode} from 'react';
 import {
   claimEvidenceSummary,
