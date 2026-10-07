@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useState,
   Fragment,
   type RefObject,
@@ -257,13 +258,83 @@ export function useConversationLayout(
 ) {
   const composerRef = useRef<HTMLDivElement>(null);
 
-  const timelineItems = buildTimelineItems({
-    ...session,
-    navigate,
-    resetWorkspace,
-    focusComposer,
-    linkedDraftRecovery,
-  });
+  const {
+    messages,
+    handleEditMessage,
+    handleCopyRequest,
+    handleRetryMessage,
+    draft,
+    setDraft,
+    isStarting,
+    isAwaitingAgent,
+    agentReasoning,
+    agentDraft,
+    handleCancelDraftSpec,
+    handleRetryDraftSpec,
+    handleStartRun,
+    confirmed,
+    stageDraftSpec,
+    startedSession,
+  } = session;
+  const {canContinueLinkedDraft, spec, status, retryStatusLookup} =
+    linkedDraftRecovery;
+  // Keyed on everything but the composer text, so a keystroke does not rebuild
+  // and re-render every bubble of a long transcript.
+  const timelineItems = useMemo(
+    () =>
+      buildTimelineItems({
+        messages,
+        handleEditMessage,
+        handleCopyRequest,
+        handleRetryMessage,
+        draft,
+        setDraft,
+        isStarting,
+        isAwaitingAgent,
+        agentReasoning,
+        agentDraft,
+        handleCancelDraftSpec,
+        handleRetryDraftSpec,
+        handleStartRun,
+        confirmed,
+        stageDraftSpec,
+        startedSession,
+        navigate,
+        resetWorkspace,
+        focusComposer,
+        linkedDraftRecovery: {
+          canContinueLinkedDraft,
+          spec,
+          status,
+          retryStatusLookup,
+        },
+      }),
+    [
+      messages,
+      handleEditMessage,
+      handleCopyRequest,
+      handleRetryMessage,
+      draft,
+      setDraft,
+      isStarting,
+      isAwaitingAgent,
+      agentReasoning,
+      agentDraft,
+      handleCancelDraftSpec,
+      handleRetryDraftSpec,
+      handleStartRun,
+      confirmed,
+      stageDraftSpec,
+      startedSession,
+      navigate,
+      resetWorkspace,
+      focusComposer,
+      canContinueLinkedDraft,
+      spec,
+      status,
+      retryStatusLookup,
+    ],
+  );
 
   const scrollRef = useChatTimelineScroll(
     timelineItems,
@@ -305,7 +376,7 @@ export interface ConversationViewProps {
 export function ConversationView(props: ConversationViewProps) {
   return (
     <>
-      <TimelineSection
+      <MemoizedTimelineSection
         scrollRef={props.scrollRef}
         timelineItems={props.timelineItems}
         error={props.session.error}
@@ -357,6 +428,8 @@ function TimelineSection({
     </section>
   );
 }
+
+const MemoizedTimelineSection = memo(TimelineSection);
 
 interface ComposerSectionProps {
   composerRef: RefObject<HTMLDivElement | null>;
