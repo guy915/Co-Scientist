@@ -11,7 +11,7 @@ import './shared/ui/motion.css';
 import {
   installUiErrorLogging,
   installUiInteractionLogging,
-} from './lib/ui_logging';
+} from '@/shared/lib/ui_logging';
 import {WorkbenchApp} from './workbench/workbench_app';
 
 // Install error capture before mounting so first-render crashes survive outside
@@ -23,7 +23,7 @@ installUiInteractionLogging();
 // bundle and builds without one are unchanged.
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
 if (sentryDsn) {
-  void import('./lib/error_tracking').then(({initErrorTracking}) =>
+  void import('@/shared/lib/error_tracking').then(({initErrorTracking}) =>
     initErrorTracking(sentryDsn),
   );
 }

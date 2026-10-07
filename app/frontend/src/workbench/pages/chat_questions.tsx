@@ -4,13 +4,13 @@ import {
   type InterviewTurn,
 } from '@/api/runs';
 import {useState} from 'react';
-import {Icon} from '@/components/icon';
+import {Icon} from '@/shared/ui/icon';
 import {Button, IconButton, TextField} from '@/shared/ui';
-import {joinClasses} from '../classes';
+import {joinClasses} from '@/shared/ui/classes';
 import {
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
-} from '../classes';
+} from '@/shared/ui/classes';
 
 // Key answers by question position: separate turns can ask identical text.
 export interface QuestionSelections {

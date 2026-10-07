@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import co_scientist.orchestration.engine_tasks as engine_tasks
 import co_scientist.orchestration.task_worker as task_worker
-from co_scientist.api.auth import client_id
+from co_scientist.api.operator_access import has_admin_token
 from co_scientist.api.runs.models import SafetyAdjudicationRequest, StartRunRequest
 from co_scientist.api.runs.support import _run_or_404
 from co_scientist.core.async_bridge import off_loop
@@ -211,11 +211,10 @@ async def adjudicate_safety(
     request: Request,
 ) -> dict[str, Any]:
     """Resolve one held safety decision and update the run lifecycle."""
+    if not has_admin_token(request):
+        raise HTTPException(status_code=403, detail="an operator token is required")
     run, revision = resume_admission_snapshot(run_id)
-    reviewer = client_id(request)
-    if not reviewer:
-        raise HTTPException(status_code=403, detail="an identified reviewer is required")
-    resolved = records.resolve_safety_decision(run_id, decision_id, body.resolution, reviewer)
+    resolved = records.resolve_safety_decision(run_id, decision_id, body.resolution, "operator")
     if not resolved:
         raise HTTPException(
             status_code=409,

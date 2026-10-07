@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = resolve(HERE, '../node_modules/@material-symbols/svg-400/rounded');
-const DEST = resolve(HERE, '../src/components/icon.tsx');
+const DEST = resolve(HERE, '../src/shared/ui/icon.tsx');
 
 // Public icon name -> Material Symbols glyph file stem. Same name unless the
 // current Material Symbols set renamed the glyph.

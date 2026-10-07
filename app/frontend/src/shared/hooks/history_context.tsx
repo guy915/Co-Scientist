@@ -14,7 +14,7 @@ import {
   type ChatSummary,
   type Run,
 } from '@/api/runs';
-import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '../dom_events';
+import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import {useLocation} from 'react-router-dom';
 
 // Undefined load results preserve the current list after transient failure; only
