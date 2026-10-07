@@ -198,8 +198,7 @@ def _save_paused_checkpoint(
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
     task = commit.task
-    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-    latest_seq = int(latest["seq"]) if latest else 0
+    latest_seq = store.latest_checkpoint_seq(task.run_id, conn)
     if latest_seq != commit.current_seq:
         raise RuntimeError("checkpoint changed while pausing task")
     _ack_consumed_steering(commit, conn, state)
@@ -413,8 +412,7 @@ def _save_node_checkpoint(
     """
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
-    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-    latest_seq = int(latest["seq"]) if latest else 0
+    latest_seq = store.latest_checkpoint_seq(task.run_id, conn)
     if latest_seq != expected_checkpoint_seq:
         raise RuntimeError("checkpoint changed while scientific task was executing")
     return store.save_checkpoint(
@@ -476,8 +474,7 @@ def _save_exact_checkpoint(
 ) -> int:
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
-    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-    latest_seq = int(latest["seq"]) if latest else 0
+    latest_seq = store.latest_checkpoint_seq(task.run_id, conn)
     if latest_seq != expected_checkpoint_seq:
         raise RuntimeError(changed_message)
     return store.save_checkpoint(
