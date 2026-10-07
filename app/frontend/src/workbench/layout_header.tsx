@@ -107,16 +107,6 @@ export function ShellHeader({
   );
 }
 
-const STATUS_CHIP_BASE_CLASSES =
-  'ucs-system-status inline-flex h-[1.7rem] items-center gap-[0.3rem] ' +
-  'rounded-full px-[0.62rem] text-[0.72rem] font-semibold whitespace-nowrap';
-
-const STATUS_CHIP_NEUTRAL_CLASSES =
-  'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg';
-
-const STATUS_CHIP_DANGER_CLASSES =
-  'bg-cosci-logs-danger-bg text-cosci-logs-danger-fg';
-
 export interface SystemStatusChip {
   label: string;
   detail: string;
@@ -156,13 +146,13 @@ export function SystemStatusIndicator() {
   if (!chip) return null;
 
   const tone = chip.danger
-    ? STATUS_CHIP_DANGER_CLASSES
-    : STATUS_CHIP_NEUTRAL_CLASSES;
+    ? 'bg-cosci-logs-danger-bg text-cosci-logs-danger-fg'
+    : 'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg';
   return (
     <span
       role="status"
       className={tooltipClassNames({
-        className: `${STATUS_CHIP_BASE_CLASSES} ${tone}`,
+        className: `ucs-system-status inline-flex h-[1.7rem] items-center gap-[0.3rem] rounded-full px-[0.62rem] text-[0.72rem] font-semibold whitespace-nowrap ${tone}`,
         placement: 'bottom',
         wrap: true,
       })}

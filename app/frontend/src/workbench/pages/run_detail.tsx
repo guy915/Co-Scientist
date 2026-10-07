@@ -29,17 +29,8 @@ import {
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
 
-// Keep horizontal overflow available to the mobile shell fallback; inner
-// report content owns vertical scrolling.
-const REPORT_PAGE_CLASSES =
-  'cosci-report-page grid h-full min-h-0 bg-cosci-bg text-cosci-fg ' +
-  'max-[700px]:min-w-0 max-[700px]:overflow-x-auto ' +
-  'max-[700px]:overflow-y-hidden';
-
 const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto max-[700px]:overflow-x-hidden';
-
-const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[700px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
@@ -65,7 +56,9 @@ const REPORT_ROWS_WITHOUT_TABS =
   '[@media(max-height:500px)]:grid-rows-[3rem_minmax(0,1fr)]';
 
 function reportPageClasses(showTabs: boolean): string {
-  return `${REPORT_PAGE_CLASSES} ${
+  // Keep horizontal overflow available to the mobile shell fallback; inner
+  // report content owns vertical scrolling.
+  return `cosci-report-page grid h-full min-h-0 bg-cosci-bg text-cosci-fg max-[700px]:min-w-0 max-[700px]:overflow-x-auto max-[700px]:overflow-y-hidden ${
     showTabs ? REPORT_ROWS_WITH_TABS : REPORT_ROWS_WITHOUT_TABS
   }`;
 }
@@ -222,7 +215,7 @@ function IdeasSection({
   data: RunDetailData;
 }) {
   return (
-    <section className={ALL_IDEAS_CLASSES}>
+    <section className="cosci-all-ideas h-full p-0 max-[700px]:h-auto">
       <IdeasTab
         key={ideasViewKey}
         hypotheses={data.hypotheses}
