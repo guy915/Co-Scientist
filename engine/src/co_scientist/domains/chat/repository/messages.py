@@ -7,6 +7,7 @@ from typing import Any
 
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.models import MessageRow, row_to_message
+from co_scientist.platform.db.storage_admission import check_run_input_storage, current_peer
 
 
 @dataclass(frozen=True)
@@ -20,17 +21,26 @@ class NewMessage:
 
 def append_message(message: NewMessage, db_path: str | None = None) -> MessageRow:
     now = current_time()
-    with connect(db_path) as conn:
+    meta_json = json.dumps(message.meta) if message.meta is not None else None
+    with transaction(db_path) as conn:
+        if message.sender == "user" or message.kind == "steering":
+            check_run_input_storage(
+                conn,
+                message.run_id,
+                "messages",
+                len(message.content.encode()) + len((meta_json or "").encode()),
+            )
         cursor = conn.execute(
             "INSERT INTO messages (run_id, sender, content, kind, "
-            "created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",
+            "created_at, applied, meta_json, peer_hash) VALUES (?,?,?,?,?,0,?,?)",
             (
                 message.run_id,
                 message.sender,
                 message.content,
                 message.kind,
                 now,
-                json.dumps(message.meta) if message.meta is not None else None,
+                meta_json,
+                current_peer(),
             ),
         )
         msg_id = cursor.lastrowid or 0
@@ -78,10 +88,11 @@ def claim_start_prompt(run_id: str, prompt: str) -> tuple[MessageRow, bool]:
         ).fetchone()
         fresh = claim is None and row is None
         if fresh:
+            check_run_input_storage(conn, run_id, "messages", len(prompt.encode()))
             cursor = conn.execute(
-                "INSERT INTO messages (run_id,sender,content,kind,created_at,applied) "
-                "VALUES (?,'user',?,'start',?,0)",
-                (run_id, prompt, current_time()),
+                "INSERT INTO messages (run_id,sender,content,kind,created_at,applied,peer_hash) "
+                "VALUES (?,'user',?,'start',?,0,?)",
+                (run_id, prompt, current_time(), current_peer()),
             )
             row = conn.execute(
                 f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE id=?",
@@ -147,11 +158,12 @@ def rewind_qa(run_id: str, message_id: int, question: str | None) -> MessageRow:
             "DELETE FROM messages WHERE run_id=? AND kind='qa' AND id>=?",
             (run_id, question_id),
         )
+        check_run_input_storage(conn, run_id, "messages", len(text.encode()))
         cursor = conn.execute(
             "INSERT INTO messages "
-            "(run_id,sender,content,kind,created_at,applied) "
-            "VALUES (?,'user',?,'qa',?,0)",
-            (run_id, text, current_time()),
+            "(run_id,sender,content,kind,created_at,applied,peer_hash) "
+            "VALUES (?,'user',?,'qa',?,0,?)",
+            (run_id, text, current_time(), current_peer()),
         )
         row = conn.execute(
             f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE id=?",

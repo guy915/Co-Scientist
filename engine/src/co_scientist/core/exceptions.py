@@ -121,3 +121,7 @@ class ContinuationAdmissionError(CoScientistError):
     def __init__(self, reason: str, *, capacity: bool = False) -> None:
         self.capacity = capacity
         super().__init__(reason)
+
+
+class StorageAdmissionError(CoScientistError):
+    pass
