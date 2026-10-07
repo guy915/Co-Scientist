@@ -25,7 +25,7 @@ def summarize(runs: list[dict]) -> str:
         "are counted separately and excluded from timing medians. Workflow medians",
         "include every sampled terminal run, including cancelled runs. Matrices skipped",
         "before expansion appear under their literal expression names. Samples are the",
-        "latest 20 completed CI main-push runs and latest 20 completed CI PR runs at",
+        "latest completed CI main-push runs and CI PR runs in each snapshot at",
         "collection time; attempts use the latest available jobs. No success-only filter.",
         "",
     ]
@@ -38,10 +38,12 @@ def summarize(runs: list[dict]) -> str:
         dispatch = [
             seconds(min(job["created_at"] for job in run["jobs"]), run["created_at"])
             for run in selected
+            if run["jobs"]
         ]
+        dispatch_max = f"{max(dispatch):g}" if dispatch else "—"
         lines += [
             f"Workflow wall median **{show(walls)} s**; max **{max(walls):g} s**.",
-            f"Initial dispatch median **{show(dispatch)} s**; max **{max(dispatch):g} s**.",
+            f"Initial dispatch median **{show(dispatch)} s**; max **{dispatch_max} s** ({len(dispatch)} observed).",
             "",
             "| Job | Timed n | Skipped | Cancelled | Wall median | Queue median | Queue max | Execution median |",
             "|---|---:|---:|---:|---:|---:|---:|---:|",
@@ -49,7 +51,10 @@ def summarize(runs: list[dict]) -> str:
         jobs = defaultdict(list)
         for run in selected:
             for job in run["jobs"]:
-                jobs[job["name"]].append(job)
+                name = job["name"]
+                if job.get("kind") == "excluded-target context":
+                    name += " [excluded-target context]"
+                jobs[name].append(job)
         for name, samples in sorted(jobs.items()):
             active = [
                 job
@@ -76,6 +81,11 @@ def summarize(runs: list[dict]) -> str:
                 f"- [Run {run['id']}]({run['html_url']}): {run['created_at']}, "
                 f"{run['conclusion']}, attempt {run['run_attempt']}, `{run['head_sha'][:12]}`"
             )
+        notes = [run for run in selected if run.get("note")]
+        if notes:
+            lines += ["", "### Incident notes", ""]
+            for run in notes:
+                lines.append(f"- Run {run['id']}: {run['note']}")
         lines.append("")
     return "\n".join(lines).rstrip()
 

@@ -13,7 +13,9 @@ add actual collaborators when they receive repository access.
 `ci.yml` uses the PR diff for presubmit and the merge group's base/head diff
 for queue checks. Markdown and `docs/` changes alone exclude typecheck/test
 targets in those events. Lint remains selected where its original filter
-matches. Main pushes, manual runs, and nightly calls select every target.
+matches. Main pushes, manual runs, and nightly calls select every target. Their CI
+concurrency groups are unique per run, so GitHub cannot replace a pending
+postsubmit when another commit arrives. PRs still supersede older runs.
 The Chromium cache is tied to OS, architecture, and the e2e lock; installation
 still checks system dependencies. Mypy restores incremental data for the same
 Python/dependency/config identity and validates source changes as usual.
