@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from app.runs import collections
+from app.store import hypotheses
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._store_helpers import seed_run
 
@@ -16,14 +16,15 @@ def test_a_handler_blocked_in_the_store_does_not_stall_other_requests(
 ) -> None:
     run = seed_run("Blocked read", client_id=DEFAULT_TEST_CLIENT_ID, db_path=isolated_db)
     entered, release = threading.Event(), threading.Event()
-    real = collections.hypotheses.list_hypotheses
+    real = hypotheses.list_hypotheses
 
     def blocked(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         entered.set()
         release.wait(10)
-        return real(*args, **kwargs)
+        rows: list[dict[str, Any]] = real(*args, **kwargs)
+        return rows
 
-    monkeypatch.setattr(collections.hypotheses, "list_hypotheses", blocked)
+    monkeypatch.setattr(hypotheses, "list_hypotheses", blocked)
     with make_client() as client:
         slow = threading.Thread(target=client.get, args=(f"/api/runs/{run.id}/hypotheses",))
         slow.start()
