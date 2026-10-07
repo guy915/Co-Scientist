@@ -12,7 +12,6 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   /runs/:id          -> redirect to the details tab                |
 |   /runs/:id/:tab     -> RunDetail (active tab persisted in URL)    |
 |   /chats/:id         -> ChatWorkspace   (one saved conversation)   |
-|   /access            -> researcher access-code exchange            |
 |   *                  -> NotFoundPage                               |
 |                                                                    |
 | useChatSession (chat timeline, steering + Q&A)                     |
@@ -137,8 +136,8 @@ Desktop Recents and a mobile example strip open `/examples/:id`, which requests
 SQLite transaction, remapping identities and lineage. It reuses one copy per
 owner and source on later opens, preserving continued chat. No engine tasks,
 credentials, logs or free-generation allowance are copied or
-consumed; the copy makes no provider or retrieval call. Existing researcher
-authentication still applies. Shared examples allow reads and this copy endpoint;
+consumed; the copy makes no provider or retrieval call. Existing client-id
+ownership still applies. Shared examples allow reads and this copy endpoint;
 other mutations return 403. Each run loads in one transaction, so the version
 markers in its config are visible only once the whole bundle is present.
 
@@ -171,8 +170,7 @@ like a Redux store of fetched entities. On mount it:
 2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getClaimEvidence / getSafety / getReport` in parallel.
 3. Streams `/api/runs/{id}/events?after=0`, which replays every event since the run
    started and then tails live. Not an `EventSource`: the browser API cannot set
-   request headers, and the stream is authenticated (`Authorization` for a
-   researcher session, `X-Client-ID` otherwise), so it is a `fetch` whose body is
+   request headers, and the stream carries `X-Client-ID`, so it is a `fetch` whose body is
    read by the frame reader in `src/api/runs_http.ts::readSseFrames`.
 4. Run-scoped Q&A (`POST /api/runs/{id}/messages/ask`) and steering
    (`POST /api/runs/{id}/messages`) remain available to API clients. The
@@ -185,8 +183,8 @@ re-fetched from the API, never read back from a client cache.
 
 It does persist a handful of small, non-content keys, all via
 `localStorage`/`sessionStorage` (not a state-management library): the
-client id and (when a researcher session is active) its bearer token
-(`lib/client_id.ts` — `co_scientist_client_id`, `co_scientist_access_token`),
+client id
+(`lib/client_id.ts` — `co_scientist_client_id`),
 the light/dark theme (`workbench/theme_context.tsx` —
 `cosci-theme`), a scientist's own BYOK provider key when set
 (`lib/api_key.ts` — `cosci-api-key`, `cosci-api-provider`), and the Logs

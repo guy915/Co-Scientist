@@ -1,17 +1,9 @@
 import {jsonResponse, errorResponse, fetchMock} from '@/http_test_support';
-import {
-  clearAccessToken,
-  getAccessToken,
-  setAccessToken,
-  setStoredApiKey,
-  setStoredModel,
-} from '@/lib/client_id';
+import {setStoredApiKey, setStoredModel} from '@/lib/client_id';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   cancelRun,
-  createInterview,
   createRun,
-  exchangeAccessCode,
   getEvidence,
   getHypotheses,
   getMatches,
@@ -39,7 +31,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  clearAccessToken();
   localStorage.clear();
 });
 
@@ -252,70 +243,5 @@ describe('BYOK headers', () => {
         'gemini/gemini-3.1-pro-preview',
       );
     });
-  });
-});
-
-describe('researcher session expiry', () => {
-  function pendingResponse() {
-    let respond!: (response: Response) => void;
-    fetchMock().mockReturnValue(
-      new Promise<Response>(resolve => {
-        respond = resolve;
-      }),
-    );
-    return (response: Response) => respond(response);
-  }
-
-  it.each([
-    ['JSON', () => getRun('r1')],
-    ['streaming', () => createInterview('a goal')],
-  ])('clears the token when a %s request returns 401', async (_kind, call) => {
-    setAccessToken('expired-token');
-    fetchMock().mockResolvedValue(errorResponse(401, 'token expired'));
-
-    await expect(call()).rejects.toThrow('401');
-
-    expect(getAccessToken()).toBeNull();
-  });
-
-  it('keeps the token on a non-401 error', async () => {
-    setAccessToken('good-token');
-    fetchMock().mockResolvedValue(errorResponse(500, 'server error'));
-
-    await expect(getRun('r1')).rejects.toThrow('500');
-
-    expect(getAccessToken()).toBe('good-token');
-  });
-
-  it('keeps a new session when an anonymous background request returns 401', async () => {
-    const respond = pendingResponse();
-    const pending = listDemoRuns();
-    setAccessToken('new-session');
-    respond(errorResponse(401, 'researcher access required'));
-    await expect(pending).rejects.toThrow('401');
-    expect(getAccessToken()).toBe('new-session');
-  });
-
-  it.each([
-    ['JSON', () => getRun('r1')],
-    ['streaming', () => createInterview('a goal')],
-  ])(
-    'keeps a replacement session when an old %s request returns 401',
-    async (_kind, call) => {
-      const respond = pendingResponse();
-      setAccessToken('old-session');
-      const pending = call();
-      setAccessToken('replacement-session');
-      respond(errorResponse(401, 'token expired'));
-      await expect(pending).rejects.toThrow('401');
-      expect(getAccessToken()).toBe('replacement-session');
-    },
-  );
-
-  it('keeps a session when an access-code exchange is refused', async () => {
-    setAccessToken('valid-session');
-    fetchMock().mockResolvedValue(errorResponse(401, 'invalid access code'));
-    await expect(exchangeAccessCode('wrong-invite')).rejects.toThrow('401');
-    expect(getAccessToken()).toBe('valid-session');
   });
 });
