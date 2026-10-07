@@ -558,7 +558,8 @@ function RecentRunCard({
               : runPath(run.id, 'details')
         }
         className={joinClasses(RECENT_CARD_CLASSES, active && 'is-active-run')}
-        title={run.research_goal}
+        // The labels below are cut to fit; assistive tech still gets the goal.
+        aria-description={run.research_goal}
       >
         <RecentCardMeta run={run} />
         <TruncatedLabel

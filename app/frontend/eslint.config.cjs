@@ -72,6 +72,12 @@ function uiBuildingBlockRules() {
       'Use the phone: or above-phone: variant (index.css) instead of writing the breakpoint.',
     ),
     {
+      selector:
+        "JSXOpeningElement[name.name=/^(?!iframe$)[a-z]/] > JSXAttribute[name.name='title']",
+      message:
+        'Use a tooltip from @/shared/ui instead of a native title (no keyboard focus, OS delay).',
+    },
+    {
       selector: "Property[key.name='borderRadius']",
       message:
         'Use a radius from the scale or a named radius token instead of an inline radius.',
