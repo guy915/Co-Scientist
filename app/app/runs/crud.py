@@ -28,6 +28,7 @@ from app.runs.models import (
     _build_create_run_config,
 )
 from app.runs.support import _run_or_404
+from app.seed import is_current_demo_run
 from app.store import (
     checkpoints,
     db,
@@ -591,7 +592,7 @@ def list_runs(
 def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
     runs = views.list_runs(client_id=DEMO_CLIENT_ID)
-    return _runs_payload(runs)
+    return _runs_payload([run for run in runs if is_current_demo_run(run.id)])
 
 
 @off_loop

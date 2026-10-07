@@ -4,6 +4,7 @@ import asyncio
 import logging
 import smtplib
 import sqlite3
+import ssl
 from email.message import EmailMessage
 from typing import Any
 
@@ -29,8 +30,11 @@ def _send_smtp(recipient: str, subject: str, body: str) -> None:
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(body)
+    context = ssl.create_default_context()
+    if settings.smtp_ca_bundle:
+        context.load_verify_locations(cafile=settings.smtp_ca_bundle)
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
-        smtp.starttls()
+        smtp.starttls(context=context)
         if settings.smtp_username:
             smtp.login(settings.smtp_username, settings.smtp_password)
         smtp.send_message(message)

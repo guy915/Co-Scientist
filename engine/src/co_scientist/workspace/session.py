@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import stat
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,7 +34,6 @@ from co_scientist.sandbox.runner import (
     create_command_process,
 )
 from co_scientist.tool_effects import ToolEffect
-from co_scientist.workspace.output import SPILL_DIRECTORY
 
 logger = logging.getLogger(__name__)
 
@@ -241,14 +242,6 @@ class SessionRegistry:
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 300.0
 
 
-def _ensure_metadata_directory(root: Path) -> None:
-    """Create metadata before commands can symlink it."""
-    try:
-        (root / SPILL_DIRECTORY).mkdir(parents=True, exist_ok=True)
-    except OSError as exc:  # pragma: no cover - filesystem-dependent
-        logger.warning("could not create the workspace metadata dir: %s", exc)
-
-
 def _is_metadata(relative: Path) -> bool:
     return any(part in METADATA_NAMES for part in relative.parts)
 
@@ -287,7 +280,6 @@ class WorkspaceSession:
     ) -> None:
         root.mkdir(parents=True, exist_ok=True)
         self.root = root.resolve()
-        _ensure_metadata_directory(self.root)
         self.policy = policy or workspace_write(self.root, network_allowed=network_allowed)
         self.skills_enabled = skills_enabled
         self.sessions = SessionRegistry()
@@ -350,13 +342,53 @@ class WorkspaceSession:
         """Exclude harness metadata so the model cannot treat its own
         transcript as research input.
         """
-        return tuple(
-            sorted(
-                str(relative)
-                for path in self.root.rglob("*")
-                if path.is_file() and not _is_metadata(relative := path.relative_to(self.root))
-            )
-        )
+        files = []
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+        try:
+            root_fd = os.open(self.root, directory_flags)
+        except OSError:
+            return ()
+
+        def collect(directory_fd: int, parents: tuple[str, ...]) -> None:
+            try:
+                with os.scandir(directory_fd) as entries:
+                    for entry in entries:
+                        parts = (*parents, entry.name)
+                        relative = Path(*parts)
+                        if _is_metadata(relative):
+                            continue
+                        try:
+                            info = os.stat(
+                                entry.name,
+                                dir_fd=directory_fd,
+                                follow_symlinks=False,
+                            )
+                        except OSError:
+                            continue
+                        if stat.S_ISREG(info.st_mode):
+                            files.append(str(relative))
+                        elif stat.S_ISDIR(info.st_mode):
+                            try:
+                                child_fd = os.open(
+                                    entry.name,
+                                    directory_flags,
+                                    dir_fd=directory_fd,
+                                )
+                            except OSError:
+                                continue
+                            try:
+                                collect(child_fd, parts)
+                            finally:
+                                os.close(child_fd)
+            except OSError:
+                # A command may remove or replace entries during a listing.
+                return
+
+        try:
+            collect(root_fd, ())
+        finally:
+            os.close(root_fd)
+        return tuple(sorted(files))
 
     def resolve_path(self, relative: str) -> Path:
         """Non-tool callers must receive the same containment check as tool

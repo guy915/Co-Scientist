@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from co_scientist.scheduling import (
     Budget,
@@ -12,13 +14,12 @@ from co_scientist.scheduling.policy import (
 )
 from fastapi.testclient import TestClient
 
-from app import run_modes
+from app import run_modes, seed
 from app.engine_adapter.opts import _generator_kwargs
-from app.store import logs, runs
+from app.store import logs, runs, runs_views
 from app.store.models import DEMO_CLIENT_ID, RunStatus
 from tests._client import append_log_row, make_client, wait_for
 from tests._client import create_run as _create_run
-from tests._store_helpers import seed_run
 
 _DELETION_OWNER = {"X-Client-ID": "delete-owner"}
 _DELETION_OTHER = {"X-Client-ID": "someone-else"}
@@ -193,12 +194,12 @@ def test_renaming_a_run_persists_the_cleaned_title() -> None:
     assert [r["title"] for r in listed if r["id"] == run_id] == [_TITLE]
 
 
-def test_rename_and_delete_refuse_foreign_demo_and_unknown_runs() -> None:
+def test_rename_and_delete_refuse_foreign_demo_and_unknown_runs(isolated_db: str) -> None:
     client = make_client()
     run_id = _draft_run(client)
     stranger = {"X-Client-ID": "someone-else"}
-    demo = seed_run("Demo goal", client_id=DEMO_CLIENT_ID)
-    runs.update_run_status(demo.id, RunStatus.COMPLETED)
+    asyncio.run(seed.seed_demo_runs(isolated_db))
+    demo = runs_views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)[0]
 
     def refused(method: str, run: str, headers: dict[str, str]) -> int:
         return client.request(

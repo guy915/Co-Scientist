@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 import time
 from typing import Any, cast
@@ -8,9 +9,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.main
+from app import seed
 from app.config import settings
 from app.store import runs as store
-from app.store import tasks
+from app.store import runs_views, tasks
 from app.store.models import DEMO_CLIENT_ID, RunStatus
 from tests._client import DEFAULT_TEST_CLIENT_ID
 from tests._client import create_run as _create_run
@@ -162,17 +164,18 @@ def test_safety_block_at_intake_short_circuits_workflow() -> None:
 
 
 def test_demo_route_precedes_run_id_route(isolated_db: str) -> None:
-    demo = seed_run("Demo route fixture", client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    asyncio.run(seed.seed_demo_runs(isolated_db))
+    canonical_demos = runs_views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     client = _client()
-    _new_run(client, "Private run excluded from demo list")
+    private_id = _new_run(client, "Private run excluded from demo list")
 
     response = client.get("/api/runs/demo")
 
     assert response.status_code == 200
     runs = response.json()["runs"]
-    assert [run["id"] for run in runs] == [demo.id]
-    assert runs[0]["research_goal"] == "Demo route fixture"
-    assert runs[0]["is_demo"] is True
+    assert {run["id"] for run in runs} == {demo.id for demo in canonical_demos}
+    assert private_id not in {run["id"] for run in runs}
+    assert all(run["is_demo"] is True for run in runs)
 
 
 def _run_views(client: TestClient, run_id: str) -> dict[str, Any]:

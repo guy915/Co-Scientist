@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from co_scientist.patch import PatchError, read_workspace_bytes
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,12 +74,13 @@ _CHECKERS = {
 }
 
 
-def _read_source(target: Path) -> str | None:
+def _read_source(root: Path, relative: str) -> str | None:
     try:
-        if target.stat().st_size > MAX_CHECKED_BYTES:
+        raw = read_workspace_bytes(root, relative, max_bytes=MAX_CHECKED_BYTES + 1)
+        if len(raw) > MAX_CHECKED_BYTES:
             return None
-        return target.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        return raw.decode("utf-8")
+    except (OSError, PatchError, UnicodeDecodeError):
         # Deleted/nontext files are not findings; report only parser rejections.
         return None
 
@@ -86,7 +89,7 @@ def _check_one(root: Path, relative: str) -> CheckFinding | None:
     checker = _CHECKERS.get(Path(relative).suffix.lower())
     if checker is None:
         return None
-    source = _read_source(root / relative)
+    source = _read_source(root, relative)
     if source is None:
         return None
     problem = checker(source)
