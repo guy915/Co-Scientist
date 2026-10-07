@@ -3,94 +3,41 @@ from __future__ import annotations
 from typing import Any, cast
 
 import pytest
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
 
-from app import auth
-from app.config import Settings, settings
+from app.config import settings
 from app.operator_access import is_operator
 from app.store import runs
 from app.store import runs_views as views
 from app.store.models import RunStatus
 from tests._client import create_run as _create_run
-from tests._client import make_client
 
 
-def _configure_auth(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "auth_mode", "required")
-    monkeypatch.setattr(settings, "auth_secret", "test-signing-secret")
-    monkeypatch.setattr(
-        settings,
-        "researcher_access_codes",
-        '{"researcher-a":"invite-a","researcher-b":"invite-b"}',
-    )
-
-
-def test_signed_session_rejects_tampering_and_expiry(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _configure_auth(monkeypatch)
-    token = auth.create_session_token("researcher-a", now=100)
-    assert auth.verify_session_token(token, now=101).subject == "researcher-a"
-
-    with pytest.raises(HTTPException):
-        auth.verify_session_token(f"{token}x", now=101)
-    with pytest.raises(HTTPException):
-        auth.verify_session_token(token, now=100 + 12 * 3600)
-
-
-def test_required_auth_exchanges_invite_and_isolates_runs(
+def test_client_ids_isolate_runs_across_cors_and_event_streams(
     monkeypatch: pytest.MonkeyPatch,
     isolated_db: str,
 ) -> None:
-    _configure_auth(monkeypatch)
     app = _configure_allowlisted_cors(monkeypatch)
-    client = TestClient(app, headers={"X-Client-ID": "pytest-default-client"})
-    unauthenticated = client.get("/api/runs")
-    assert unauthenticated.status_code == 401
-
-    session_a = client.post("/api/auth/exchange", json={"access_code": "invite-a"})
-    session_b = client.post("/api/auth/exchange", json={"access_code": "invite-b"})
-    assert session_a.status_code == 200
-    headers_a = {"Authorization": f"Bearer {session_a.json()['access_token']}"}
-    headers_b = {"Authorization": f"Bearer {session_b.json()['access_token']}"}
+    client = TestClient(app)
+    origin = {"Origin": "https://ai-co-scientist.com"}
+    headers_a = {"X-Client-ID": "researcher-a"}
+    headers_b = {"X-Client-ID": "researcher-b"}
     created = _create_run(client, "Private researcher goal", headers=headers_a)
     assert created.status_code == 200
     run_id = created.json()["id"]
 
-    owned = client.get(
-        f"/api/runs/{run_id}",
-        headers={**headers_a, "Origin": "https://ai-co-scientist.com"},
-    )
+    owned = client.get(f"/api/runs/{run_id}", headers={**headers_a, **origin})
     assert owned.status_code == 200
     assert owned.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
 
     runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
-    events = client.get(
-        f"/api/runs/{run_id}/events",
-        headers={**headers_a, "Origin": "https://ai-co-scientist.com"},
-    )
+    events = client.get(f"/api/runs/{run_id}/events", headers={**headers_a, **origin})
     assert events.status_code == 200
     assert events.headers["content-type"].startswith("text/event-stream")
     assert events.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
 
     assert client.get(f"/api/runs/{run_id}", headers=headers_b).status_code == 404
-
-
-@pytest.mark.parametrize("auth_mode", ["compatibility", "required"])
-def test_invalid_bearer_returns_401_json(monkeypatch: pytest.MonkeyPatch, auth_mode: str) -> None:
-    _configure_auth(monkeypatch)
-    monkeypatch.setattr(settings, "auth_mode", auth_mode)
-    expired = auth.create_session_token("researcher-a", now=100)
-    from app.main import app
-
-    client = TestClient(app, raise_server_exceptions=False)
-    for token in ("invalid", expired):
-        response = client.get("/api/runs", headers={"Authorization": f"Bearer {token}"})
-        assert response.status_code == 401
-        assert response.json() == {"detail": "invalid session"}
-    client.close()
 
 
 def _configure_allowlisted_cors(
@@ -114,7 +61,6 @@ def _configure_allowlisted_cors(
 def test_allowed_origin_can_read_ownership_denial(
     monkeypatch: pytest.MonkeyPatch, isolated_db: str
 ) -> None:
-    monkeypatch.setattr(settings, "auth_mode", "compatibility")
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, raise_server_exceptions=False)
     created = _create_run(client, "Private run", headers={"X-Client-ID": "run-owner"})
@@ -183,44 +129,21 @@ def test_headerless_caller_is_refused_and_creates_nothing(
     assert views.list_runs(client_id="") == []
 
 
-def test_configuration_failure_does_not_print_access_codes() -> None:
-    invite = "private-invite"
-    with pytest.raises(ValidationError) as captured:
-        Settings(
-            _env_file=None,
-            auth_mode="required",
-            auth_secret="",
-            researcher_access_codes='{"p":"' + invite + '"}',
-        )
-    assert invite not in str(captured.value)
-    assert "AUTH_SECRET" in str(captured.value)
-
-
 @pytest.mark.parametrize("host", ["example.com/#", "example.com/?"])
-def test_host_cannot_bypass_required_auth(host: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "auth_mode", "required")
-    client = make_client()
-    response = client.get("/api/runs", headers={"Host": host})
-    assert response.status_code == 401
-
-
-@pytest.mark.parametrize("host", ["example.com/#", "example.com/?"])
-def test_host_cannot_hide_another_researchers_run(
-    host: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "auth_mode", "required")
-    monkeypatch.setattr(settings, "auth_secret", "test-signing-secret")
+def test_host_cannot_hide_another_researchers_run(host: str, isolated_db: str) -> None:
     from app.main import app
 
     client = TestClient(app)
-    owner = {"Authorization": f"Bearer {auth.create_session_token('owner')}"}
-    stranger = {
-        "Authorization": f"Bearer {auth.create_session_token('stranger')}",
-        "Host": host,
-    }
-    created = _create_run(client, "Explore mitochondrial dynamics in neurons", headers=owner)
+    created = _create_run(
+        client,
+        "Explore mitochondrial dynamics in neurons",
+        headers={"X-Client-ID": "owner"},
+    )
     assert created.status_code == 200
-    response = client.get(f"/api/runs/{created.json()['id']}", headers=stranger)
+    response = client.get(
+        f"/api/runs/{created.json()['id']}",
+        headers={"X-Client-ID": "stranger", "Host": host},
+    )
     assert response.status_code == 404
 
 

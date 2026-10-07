@@ -198,7 +198,7 @@ class _Session:
         return StopReason.NO_FOLLOW_UPS, levels_run
 
     def _continue_from(self, depth: int) -> _Continuation:
-        if not self._level_found_anything(depth):
+        if not any(thread.finding_ids for thread in self.threads if thread.depth == depth):
             logger.warning(
                 "Research level %s produced no findings; stopping descent",
                 depth,
@@ -211,9 +211,6 @@ class _Session:
         if not questions:
             return StopReason.NO_FOLLOW_UPS
         return questions, next_budget
-
-    def _level_found_anything(self, depth: int) -> bool:
-        return any(thread.finding_ids for thread in self.threads if thread.depth == depth)
 
     def _follow_up_questions(self, depth: int) -> list[Question]:
         """Deduplicate across levels as well as siblings to avoid paying

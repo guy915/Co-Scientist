@@ -48,19 +48,6 @@ from co_scientist.schemas.review import RANKING_COMPARISON_CRITERIA
 logger = logging.getLogger(__name__)
 
 
-@dataclasses.dataclass(frozen=True)
-class _MatchupPromptContext:
-    research_goal: str
-    supervisor_guidance: dict[str, Any] | None = None
-    meta_review: dict[str, Any] | None = None
-    tool_registry: Any | None = None
-    run_setup_guidance: str | None = None
-    run_focus_guidance: str | None = None
-    criteria: list[str] | None = None
-    preferences: str | None = None
-    debate: bool = False
-
-
 def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     """Quadratic matchup volume needs numeric review context without repeated
     prose."""
@@ -80,34 +67,6 @@ def _ranking_side(hypothesis: Hypothesis) -> RankingSide:
         reflection_notes=hypothesis.reflection_notes,
         deep_verification=hypothesis.deep_verification_summary(),
         mature_reviews=mature_review_summary(hypothesis.enrichments),
-    )
-
-
-def _build_matchup_prompt(
-    hypothesis_a: Hypothesis,
-    hypothesis_b: Hypothesis,
-    context: _MatchupPromptContext,
-) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
-    prompt, schema = get_ranking_prompt(
-        research_goal=context.research_goal,
-        side_a=_ranking_side(hypothesis_a),
-        side_b=_ranking_side(hypothesis_b),
-        context=PromptRunContext(
-            supervisor_guidance=context.supervisor_guidance,
-            meta_review=context.meta_review,
-            tool_registry=context.tool_registry,
-            run_setup_guidance=context.run_setup_guidance,
-            run_focus_guidance=context.run_focus_guidance,
-            preferences=context.preferences,
-            criteria=context.criteria,
-        ),
-        debate=context.debate,
-    )
-    return (
-        prompt,
-        schema,
-        hypothesis_a.reflection_notes,
-        hypothesis_b.reflection_notes,
     )
 
 
@@ -167,10 +126,6 @@ def _presented_first(entry: dict[str, Any]) -> str:
     return "2" if str(entry.get("presentation_order") or "ab") == "ba" else "1"
 
 
-def _turn_argument(reasoning: str) -> str:
-    return _TRAILING_VERDICT_RE.sub("", (reasoning or "").rstrip()).rstrip()
-
-
 def debate_transcript_document(transcript: list[dict[str, Any]], verdict: str) -> dict[str, Any]:
     """Persist the readable exchange and one verdict, excluding loop
     bookkeeping."""
@@ -180,7 +135,9 @@ def debate_transcript_document(transcript: list[dict[str, Any]], verdict: str) -
             {
                 "turn": int(entry.get("turn") or index),
                 "favored": _verdict_number(str(entry.get("winner") or "a")),
-                "text": _turn_argument(str(entry.get("reasoning") or "")),
+                "text": _TRAILING_VERDICT_RE.sub(
+                    "", str(entry.get("reasoning") or "").rstrip()
+                ).rstrip(),
                 "first": _presented_first(entry),
             }
             for index, entry in enumerate(transcript, 1)
@@ -284,29 +241,29 @@ class _DebateContext(NamedTuple):
     debate: bool = False
 
 
-def _prompt_context(ctx: _DebateContext) -> _MatchupPromptContext:
-    return _MatchupPromptContext(
-        research_goal=ctx.research_goal,
-        supervisor_guidance=ctx.supervisor_guidance,
-        meta_review=ctx.meta_review,
-        tool_registry=ctx.tool_registry,
-        run_setup_guidance=ctx.run_setup_guidance,
-        run_focus_guidance=ctx.run_focus_guidance,
-        criteria=ctx.criteria,
-        preferences=ctx.preferences,
-        debate=ctx.debate,
-    )
-
-
 def _render_ordered_prompt(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
     ctx: _DebateContext,
 ) -> _MatchupPrompt:
-    prompt, schema, notes_a, notes_b = _build_matchup_prompt(
-        hypothesis_a, hypothesis_b, _prompt_context(ctx)
+    prompt, schema = get_ranking_prompt(
+        research_goal=ctx.research_goal,
+        side_a=_ranking_side(hypothesis_a),
+        side_b=_ranking_side(hypothesis_b),
+        context=PromptRunContext(
+            supervisor_guidance=ctx.supervisor_guidance,
+            meta_review=ctx.meta_review,
+            tool_registry=ctx.tool_registry,
+            run_setup_guidance=ctx.run_setup_guidance,
+            run_focus_guidance=ctx.run_focus_guidance,
+            preferences=ctx.preferences,
+            criteria=ctx.criteria,
+        ),
+        debate=ctx.debate,
     )
-    return _MatchupPrompt(prompt, schema, notes_a, notes_b)
+    return _MatchupPrompt(
+        prompt, schema, hypothesis_a.reflection_notes, hypothesis_b.reflection_notes
+    )
 
 
 def _build_turn_prompt(
@@ -452,10 +409,6 @@ def match_tier(winner_elo_before: int, loser_elo_before: int, confidence: str) -
     return "narrow"
 
 
-def _format_judgment_explanation(judgment: dict[str, Any]) -> str:
-    return " | ".join(f"{k}: {v}" for k, v in judgment.items() if v)
-
-
 def _extract_criteria_comparisons(
     response: dict[str, Any],
 ) -> dict[str, str]:
@@ -474,7 +427,9 @@ def _extract_criteria_comparisons(
 def _extract_reasoning(response: dict[str, Any]) -> str:
     reasoning: str = response.get("decision_summary", "")
     if not reasoning and "judgment_explanation" in response:
-        reasoning = _format_judgment_explanation(response["judgment_explanation"])
+        reasoning = " | ".join(
+            f"{k}: {v}" for k, v in response["judgment_explanation"].items() if v
+        )
     if not reasoning:
         reasoning = "No reasoning provided"
     return reasoning
@@ -667,34 +622,26 @@ def _get_ranking_semaphore() -> asyncio.Semaphore:
     return semaphore
 
 
-async def _invoke_matchup_judge_call(
-    mp: _MatchupPrompt,
-    ctx: _DebateContext,
-    prompt_name: str,
-) -> dict[str, Any]:
-    """Quadratic matchup volume requires reasoning within the token budget."""
-    return await call_llm_json(
-        prompt=mp.prompt,
-        spec=CompletionSpec(
-            model_name=ctx.model_name,
-            max_tokens=THINKING_MAX_TOKENS,
-            temperature=LOW_TEMPERATURE,
-            json_schema=mp.schema,
-        ),
-        options=LLMCallOptions(
-            run_id=ctx.run_id,
-            prompt_name=prompt_name,
-        ),
-    )
-
-
 async def _call_matchup_judge(
     mp: _MatchupPrompt,
     ctx: _DebateContext,
 ) -> dict[str, Any]:
     prompt_name = indexed_prompt_name("ranking_matchup", ctx.matchup_index)
     async with _get_ranking_semaphore():
-        return await _invoke_matchup_judge_call(mp, ctx, prompt_name)
+        # Quadratic matchup volume requires reasoning within the token budget.
+        return await call_llm_json(
+            prompt=mp.prompt,
+            spec=CompletionSpec(
+                model_name=ctx.model_name,
+                max_tokens=THINKING_MAX_TOKENS,
+                temperature=LOW_TEMPERATURE,
+                json_schema=mp.schema,
+            ),
+            options=LLMCallOptions(
+                run_id=ctx.run_id,
+                prompt_name=prompt_name,
+            ),
+        )
 
 
 async def _run_debate_turn(

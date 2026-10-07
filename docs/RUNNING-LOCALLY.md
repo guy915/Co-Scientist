@@ -80,8 +80,8 @@ make docker-build  # production image builds; no deployment
 `make test-all` includes backend and frontend unit tests and the evaluation harness tests.
 `make e2e` runs Playwright with a fresh temporary SQLite store, offline model
 responses, API port 8108, and UI port 5273. `make e2e-production` builds the
-frontend and serves its bundled assets with required researcher authentication.
-It checks login, report retrieval after a reload, and ownership isolation.
+frontend and serves its bundled assets.
+It checks deep links, report retrieval after a reload, and ownership isolation.
 Both targets typecheck the browser harness, disable local dotenv loading,
 and explicitly select offline evidence/claim checks. Chromium is normally
 installed

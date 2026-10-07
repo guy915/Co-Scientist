@@ -32,10 +32,7 @@ from co_scientist.agents.meta_review.research_overview_review import (
 from co_scientist.agents.meta_review.research_overview_review import (
     review_research_overview as review_research_overview,
 )
-from co_scientist.agents.node_degradation import (
-    durable_retries_remain,
-    run_or_degrade,
-)
+from co_scientist.agents.node_degradation import run_or_degrade
 from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
@@ -118,7 +115,7 @@ async def _interim_or_degrade(
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as exc:
-        if durable_retries_remain(state):
+        if state.get("durable_retries_remain"):
             raise
         logger.error(
             "Interim research overview could not reach the provider (%s); "
@@ -189,38 +186,6 @@ def _run_prompt_context(state: WorkflowState) -> PromptRunContext:
         tool_registry=state.get("tool_registry"),
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
-    )
-
-
-def build_synthesis_prompt(
-    state: WorkflowState,
-    summary: str,
-    contact_candidates: dict[str, dict[str, Any]],
-    evidence_corpus: dict[str, dict[str, Any]],
-) -> tuple[str, dict[str, Any] | None]:
-    """Strategic synthesis uses the supervisor model and the run's shared
-    guidance."""
-    return get_research_overview_prompt(
-        research_goal=state["research_goal"],
-        hypotheses_summary=summary,
-        contact_candidates=_format_contact_candidates(contact_candidates),
-        evidence_corpus=_format_evidence_corpus(evidence_corpus),
-        context=_run_prompt_context(state),
-    )
-
-
-def build_interim_synthesis_prompt(
-    state: WorkflowState,
-    summary: str,
-    evidence_corpus: dict[str, dict[str, Any]],
-) -> tuple[str, dict[str, Any] | None]:
-    """Interim schema asks for no contacts, so candidate context would buy no
-    output."""
-    return get_research_overview_interim_prompt(
-        research_goal=state["research_goal"],
-        hypotheses_summary=summary,
-        evidence_corpus=_format_evidence_corpus(evidence_corpus),
-        context=_run_prompt_context(state),
     )
 
 
@@ -300,7 +265,13 @@ async def _interim_overview_result(
 ) -> dict[str, Any]:
     """The lean periodic call leaves terminal report/UI output untouched and
     buys neither accuracy review nor deep knowledge-base work."""
-    prompt, schema = build_interim_synthesis_prompt(state, summary, evidence_corpus)
+    # The interim schema asks for no contacts, so candidate context would buy no output.
+    prompt, schema = get_research_overview_interim_prompt(
+        research_goal=state["research_goal"],
+        hypotheses_summary=summary,
+        evidence_corpus=_format_evidence_corpus(evidence_corpus),
+        context=_run_prompt_context(state),
+    )
     response = await _call_research_overview_llm(
         state, prompt, schema, max_tokens=RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS
     )
@@ -342,7 +313,13 @@ async def _synthesize_research_overview(
 ) -> tuple[dict[str, Any], int]:
     """Accuracy revision replaces the raw draft; validate grounding once,
     last, on the version that will actually publish."""
-    prompt, schema = build_synthesis_prompt(state, summary, contact_candidates, evidence_corpus)
+    prompt, schema = get_research_overview_prompt(
+        research_goal=state["research_goal"],
+        hypotheses_summary=summary,
+        contact_candidates=_format_contact_candidates(contact_candidates),
+        evidence_corpus=_format_evidence_corpus(evidence_corpus),
+        context=_run_prompt_context(state),
+    )
     response = await _call_research_overview_llm(state, prompt, schema)
     response, review_meta, review_calls = await _maybe_review_overview(
         state, summary, contact_candidates, evidence_corpus, response

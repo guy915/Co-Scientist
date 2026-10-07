@@ -285,21 +285,17 @@ def get_papers_needing_content(
     )
 
 
-def _content_or_text_field(data: dict[str, Any]) -> str | None:
-    return cast(str | None, data.get("content") or data.get("text"))
-
-
 def _parse_content_from_string(result: str) -> str | None:
     try:
         result_data = json.loads(result)
     except json.JSONDecodeError:
         return result
-    field = _content_or_text_field(cast(dict[str, Any], result_data))
+    field = cast(str | None, result_data.get("content") or result_data.get("text"))
     return field or result
 
 
 def _parse_content_from_dict(result: dict[str, Any]) -> str:
-    field = _content_or_text_field(result)
+    field = cast(str | None, result.get("content") or result.get("text"))
     return field or str(result)
 
 

@@ -335,17 +335,6 @@ def _owed_review_override_marks(
     return hypotheses
 
 
-def _owed_review_hypotheses_delta(state: WorkflowState, stats: SchedulerStats) -> list[Hypothesis]:
-    budget = _default_budget(state)
-    return _owed_review_override_marks(stats, budget, state["hypotheses"])
-
-
-def _initial_settlement_allowance(hypotheses: list[Hypothesis]) -> int:
-    """Use the tournament floor; zero-match counts miss ideas one match short
-    and would underfund the settlement allowance."""
-    return _coverage_floor(hypotheses)
-
-
 def _settled_allowance(
     book: dict[str, Any],
     stats: SchedulerStats,
@@ -357,7 +346,9 @@ def _settled_allowance(
     if _is_settlement_rank(stats, decision):
         allowance = book.get("settlement_allowance")
         if allowance is None:
-            allowance = _initial_settlement_allowance(hypotheses)
+            # Use the tournament floor; zero-match counts miss ideas one match
+            # short and would underfund the settlement allowance.
+            allowance = _coverage_floor(hypotheses)
         return (
             max(0, int(allowance) - 1),
             stats.owed_coverage_rounds,
@@ -464,15 +455,6 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
         termination_reason_value=termination_reason_value,
         llm_calls=llm_calls,
     )
-    return await _finalize_orchestrator_decision(state, book, stats, outcome)
-
-
-async def _finalize_orchestrator_decision(
-    state: WorkflowState,
-    book: dict[str, Any],
-    stats: SchedulerStats,
-    outcome: _DecisionOutcome,
-) -> dict[str, Any]:
     await _emit_orchestrator_decision(state, outcome)
     return _orchestrator_result(state, book, stats, outcome)
 
@@ -548,7 +530,9 @@ def _orchestrator_result(
             state, decision, outcome.iteration, outcome.observable_reason
         ),
         "orchestrator_state": _next_bookkeeping(book, stats, decision, state["hypotheses"]),
-        "hypotheses": _owed_review_hypotheses_delta(state, stats),
+        "hypotheses": _owed_review_override_marks(
+            stats, _default_budget(state), state["hypotheses"]
+        ),
         "supervisor_decision_provenance": outcome.decision_provenance,
         "current_iteration": outcome.iteration,
         # Consume steering once work to incorporate it is scheduled; do not
