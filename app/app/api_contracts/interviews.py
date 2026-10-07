@@ -13,7 +13,7 @@ class InterviewFields(TypedDict):
     research_challenge: str
     focus_area: list[str]
     preferences: list[str]
-    lab_constraints: NotRequired[list[str]]
+    lab_constraints: list[str]
     title: str | None
 
 
