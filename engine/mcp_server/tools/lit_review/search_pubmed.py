@@ -11,6 +11,7 @@ from Bio import Entrez
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import search_with_relaxation
+from mcp_server.pubmed_storage import confined_path, validate_cache_identifier
 from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
 
 logger = logging.getLogger(__name__)
@@ -184,9 +185,13 @@ def _read_and_extract_fulltext(html_file: Path) -> str:
     return extract_text_from_pmc_html(html_file.read_text(encoding="utf-8"))
 
 
-async def _extract_fulltext(pmc_id: str, metadata: dict[str, Any], run_dir: Path) -> bool:
+async def _extract_fulltext(
+    pmc_id: str, metadata: dict[str, Any], run_dir: Path, cache_root: Path
+) -> bool:
     try:
-        html_file = run_dir / f"{pmc_id}.fulltext.html"
+        validate_cache_identifier(pmc_id, label="PMC ID", numeric=True)
+        relative_run_dir = run_dir.relative_to(cache_root)
+        html_file = confined_path(cache_root, *relative_run_dir.parts, f"{pmc_id}.fulltext.html")
         if not html_file.exists():
             logger.warning("Fulltext file not found for %s at %s", pmc_id, html_file)
             return False
@@ -201,7 +206,7 @@ async def _extract_fulltext(pmc_id: str, metadata: dict[str, Any], run_dir: Path
 def _pubmed_cache_dir() -> Path:
     cache_dir = Path(os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review"))
     cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir
+    return cache_dir.resolve()
 
 
 async def pubmed_search_with_fulltext(
@@ -228,6 +233,9 @@ async def pubmed_search_with_fulltext(
         Metadata keyed by PubMed ID, with fulltext where available.
     """
     lit_review_dir = _pubmed_cache_dir()
+    validate_cache_identifier(slug, label="slug")
+    if run_id is not None:
+        validate_cache_identifier(run_id, label="run ID")
     source = PubmedSource(lit_review_dir / "pubmed")
     results = await source.pubmed_search(
         query,
@@ -238,12 +246,12 @@ async def pubmed_search_with_fulltext(
         include_fulltext=include_fulltext,
     )
     if include_fulltext:
-        base_dir = lit_review_dir / "pubmed" / slug
-        run_dir = base_dir / "runs" / run_id if run_id else base_dir
+        base_dir = confined_path(lit_review_dir, "pubmed", slug)
+        run_dir = confined_path(base_dir, "runs", run_id) if run_id else base_dir
         extracted = sum(
             await asyncio.gather(
                 *(
-                    _extract_fulltext(pmc_id, metadata, run_dir)
+                    _extract_fulltext(str(pmc_id), metadata, run_dir, lit_review_dir)
                     for metadata in results.values()
                     if (pmc_id := metadata.get("pmc_full_text_id"))
                 )

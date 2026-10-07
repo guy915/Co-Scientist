@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import pathlib
+import sys
 
 import pytest
 
 import co_scientist.agents.generation.literature_tools.draft as draft_skills
 import co_scientist.skills as catalog
 from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
+from co_scientist.sandbox import workspace_write
 from co_scientist.state import WorkflowState
+from co_scientist.workspace.output import OutputRecorder
+from co_scientist.workspace.session import SessionRead, WorkspaceSession
 from co_scientist.workspace.tool_schemas import READ_SKILL
+from co_scientist.workspace.tools import _handle_run_command, _ToolContext
 
 
 @pytest.fixture
@@ -51,6 +57,147 @@ def _install_skill(root: pathlib.Path, name: str, description: str = "Queries th
 
 @pytest.mark.usefixtures("_clear_distribution_cache", "_skills_catalog_clear_cache")
 class TestSkillsCatalog:
+    def test_run_command_only_dispatches_credentials_to_authorized_skill(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    ) -> None:
+        skill_root = tmp_path / "skills"
+        skill = _write_skill(
+            skill_root,
+            "ncbi_sequence_fetch",
+            "name: ncbi_sequence_fetch\ndescription: Queries NCBI.",
+        )
+        script = skill / "scripts" / "cli.py"
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        interpreter_alias = workspace / "python"
+        interpreter_alias.symlink_to(sys.executable)
+        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skill_root))
+        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, sys.executable)
+        monkeypatch.setenv("NCBI_API_KEY", "ncbi-secret")
+        monkeypatch.setenv("FDA_API_KEY", "fda-secret")
+
+        session = WorkspaceSession(
+            workspace, policy=workspace_write(workspace), skills_enabled=True
+        )
+        context = _ToolContext(session, OutputRecorder(session.root))
+        dispatched: list[tuple[list[str], dict[str, str] | None]] = []
+
+        class _FakeCommandSession:
+            async def wait_for(self, seconds: float) -> None:
+                del seconds
+
+            def read(self) -> SessionRead:
+                return SessionRead(
+                    session_id="fake-session",
+                    running=False,
+                    exit_code=0,
+                    stdout="",
+                    stderr="",
+                    cursor={"stdout": 0, "stderr": 0},
+                    truncated={"stdout": False, "stderr": False},
+                )
+
+        async def _fake_start(argv: list[str], **kwargs: object) -> _FakeCommandSession:
+            env_extra = kwargs.get("env_extra")
+            assert env_extra is None or isinstance(env_extra, dict)
+            dispatched.append((argv, env_extra))
+            return _FakeCommandSession()
+
+        monkeypatch.setattr(session.sessions, "start", _fake_start)
+
+        async def invoke(argv: list[str]) -> None:
+            await _handle_run_command(context, {"argv": argv})
+
+        asyncio.run(invoke([sys.executable, "-c", "print(1)", str(script)]))
+        asyncio.run(invoke([str(interpreter_alias), str(script)]))
+        asyncio.run(invoke([sys.executable, str(script)]))
+
+        assert dispatched == [
+            ([sys.executable, "-c", "print(1)", str(script)], None),
+            ([str(interpreter_alias), str(script)], None),
+            ([sys.executable, str(script)], {"NCBI_API_KEY": "ncbi-secret"}),
+        ]
+
+    def test_skill_credentials_require_the_declared_script_operand(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    ) -> None:
+        skill_root = tmp_path / "skills"
+        _install_skill(skill_root, "ncbi_sequence_fetch")
+        _install_skill(skill_root, "openfda_database")
+        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skill_root))
+        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, sys.executable)
+        monkeypatch.setenv("NCBI_API_KEY", "ncbi-secret")
+        monkeypatch.setenv("FDA_API_KEY", "fda-secret")
+        script = skill_root / "ncbi_sequence_fetch" / "scripts" / "cli.py"
+
+        assert catalog.invoked_skill([sys.executable, str(script)]) == "ncbi_sequence_fetch"
+        assert catalog.invoked_skill([sys.executable, "-c", "print(1)", str(script)]) is None
+        assert catalog.invoked_skill([sys.executable, "-m", "json.tool", str(script)]) is None
+        assert catalog.invoked_skill([sys.executable, "--", str(script)]) is None
+        assert catalog.invoked_skill([sys.executable, str(script.parent)]) is None
+        assert catalog.skill_environment("ncbi_sequence_fetch") == {"NCBI_API_KEY": "ncbi-secret"}
+        assert catalog.skill_environment("openfda_database") == {"FDA_API_KEY": "fda-secret"}
+        assert catalog.skill_environment("unrecognized") == {}
+
+    def test_skill_recognition_rejects_symlinks_and_writable_script_roots(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    ) -> None:
+        skill_root = tmp_path / "skills"
+        skill = _write_skill(
+            skill_root,
+            "ncbi_sequence_fetch",
+            "name: ncbi_sequence_fetch\ndescription: Queries NCBI.",
+        )
+        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skill_root))
+        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, sys.executable)
+        script = skill / "scripts" / "cli.py"
+        link = skill / "scripts" / "alias.py"
+        link.symlink_to(script)
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        interpreter_alias = workspace / "python"
+        interpreter_alias.symlink_to(sys.executable)
+
+        assert catalog.invoked_skill([sys.executable, str(link)]) is None
+        assert (
+            catalog.invoked_skill(
+                [sys.executable, str(script)], writable_roots=(skill_root.resolve(),)
+            )
+            is None
+        )
+        assert (
+            catalog.invoked_skill(
+                [str(interpreter_alias), str(script)],
+                cwd=workspace,
+                writable_roots=(workspace.resolve(),),
+            )
+            is None
+        )
+
+        trusted_venv = tmp_path / "trusted-venv"
+        (trusted_venv / "nested").mkdir(parents=True)
+        trusted_python = trusted_venv / "python"
+        trusted_python.symlink_to(sys.executable)
+        configured_with_parent = trusted_venv / "nested" / ".." / "python"
+        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, str(configured_with_parent))
+        assert (
+            catalog.invoked_skill(
+                [str(configured_with_parent), str(script)],
+                cwd=workspace,
+                writable_roots=(workspace.resolve(),),
+            )
+            == "ncbi_sequence_fetch"
+        )
+        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, str(interpreter_alias))
+        assert (
+            catalog.invoked_skill(
+                [str(interpreter_alias), str(script)],
+                cwd=workspace,
+                writable_roots=(workspace.resolve(),),
+            )
+            is None
+        )
+
     def test_a_reference_file_is_reachable_but_never_outside_the_skill(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
     ) -> None:
@@ -108,6 +255,10 @@ class TestSkillsDraftPhase:
             "co_scientist.workspace.run_workspace.workspaces_root",
             lambda: tmp_path / "ws",
         )
+        monkeypatch.setattr(
+            "co_scientist.workspace.tools.command_lifecycle_available", lambda: True
+        )
+        monkeypatch.setattr("co_scientist.workspace.tools.sandbox_backend", lambda: "test")
 
         attached = draft_skills.attach_skills(_STATE, _StubProvider(), _MCP_TOOLS)
 

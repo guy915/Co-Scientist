@@ -19,6 +19,7 @@ from co_scientist.sandbox import (
     HARNESS_METADATA_NAME,
     METADATA_NAMES,
     PROTECTED_METADATA_NAMES,
+    command_lifecycle_available,
     sandbox_backend,
 )
 from co_scientist.workspace import (
@@ -42,6 +43,11 @@ from co_scientist.workspace.tool_schemas import (
     RUN_COMMAND as _WORKSPACE_SESSIONS_RUN_COMMAND,
 )
 from tests._llm_fake import make_tool_call
+
+_requires_sandbox = pytest.mark.skipif(
+    sandbox_backend() is None or not command_lifecycle_available(),
+    reason="no filesystem and lifecycle sandbox on this platform",
+)
 
 
 def _workspace_sessions_call(name: str, arguments: Any) -> SimpleNamespace:
@@ -129,6 +135,7 @@ async def provider(tmp_path: Path) -> AsyncIterator[WorkspaceToolProvider]:
         await _close_registry(value.session.sessions)
 
 
+@_requires_sandbox
 class TestStillRunningIsAnAnswer:
     async def test_a_slow_command_comes_back_with_a_session(
         self, provider: WorkspaceToolProvider
@@ -200,6 +207,7 @@ class TestStillRunningIsAnAnswer:
         assert "first" not in polled["stdout"]
 
 
+@_requires_sandbox
 class TestDrivingIt:
     async def test_input_reaches_a_waiting_command(self, provider: WorkspaceToolProvider) -> None:
         started = await _execute(
@@ -267,6 +275,7 @@ class TestDrivingIt:
         assert "restart" in json.dumps(payload)
 
 
+@_requires_sandbox
 class TestBounds:
     async def test_output_is_capped_and_says_so(self, tmp_path: Path) -> None:
         registry = SessionRegistry()
@@ -317,6 +326,7 @@ class TestBounds:
         await _close_registry(registry)
 
 
+@_requires_sandbox
 class TestAnInterruptedCommand:
     """Worker restarts lose sessions; the model needs explicit aborts, not
     unmatched calls."""
@@ -360,10 +370,6 @@ class TestAnInterruptedCommand:
         payload = await _execute(provider, POLL_COMMAND, session_id=started["session_id"])
         assert "restart" in json.dumps(payload)
 
-
-_requires_sandbox = pytest.mark.skipif(
-    sandbox_backend() is None, reason="no sandbox backend on this platform"
-)
 
 _SECRET = "sk-live-9f3c2b71aa4d8e60"
 

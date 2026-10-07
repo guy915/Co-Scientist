@@ -14,6 +14,7 @@ from co_scientist.patch import PatchError
 from co_scientist.sandbox import (
     SandboxKind,
     SandboxPolicy,
+    command_lifecycle_available,
     sandbox_backend,
     workspace_write,
 )
@@ -42,7 +43,8 @@ from co_scientist.workspace.checks import MAX_FINDINGS, check_paths
 from tests._llm_fake import make_tool_call
 
 _requires_sandbox = pytest.mark.skipif(
-    sandbox_backend() is None, reason="no sandbox backend on this platform"
+    sandbox_backend() is None or not command_lifecycle_available(),
+    reason="no filesystem and lifecycle sandbox on this platform",
 )
 
 
@@ -51,6 +53,7 @@ def _session(tmp_path: Path) -> WorkspaceSession:
 
 
 @pytest.mark.asyncio
+@_requires_sandbox
 async def test_a_command_runs_inside_the_workspace(tmp_path: Path) -> None:
     session = _session(tmp_path)
     outcome = await session.run_command(["/bin/pwd"], timeout_seconds=30)
@@ -63,6 +66,7 @@ async def test_a_command_runs_inside_the_workspace(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+@_requires_sandbox
 async def test_an_unrecognized_command_is_flagged_for_approval(
     tmp_path: Path,
 ) -> None:
@@ -73,6 +77,7 @@ async def test_an_unrecognized_command_is_flagged_for_approval(
 
 
 @pytest.mark.asyncio
+@_requires_sandbox
 async def test_a_command_cannot_write_outside_the_workspace(
     tmp_path: Path,
 ) -> None:
@@ -84,6 +89,7 @@ async def test_a_command_cannot_write_outside_the_workspace(
 
 
 @pytest.mark.asyncio
+@_requires_sandbox
 async def test_the_host_environment_is_not_inherited(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -238,6 +244,15 @@ def test_command_tool_is_withheld_without_a_backend(
     assert READ_FILE in _names(schemas)
 
 
+def test_command_tool_is_withheld_without_lifecycle_isolation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(workspace_tools, "sandbox_backend", lambda: "landlock")
+    monkeypatch.setattr(workspace_tools, "command_lifecycle_available", lambda: False)
+    schemas = workspace_tool_schemas(workspace_write(tmp_path))
+    assert RUN_COMMAND not in _names(schemas)
+
+
 def test_external_confinement_keeps_the_command_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -329,9 +344,15 @@ def test_a_binary_or_deleted_path_is_not_a_finding(tmp_path: Path) -> None:
     ],
 )
 async def test_a_bad_call_is_answered_not_raised(
-    tmp_path: Path, tool: str, arguments: Any, error: str
+    tmp_path: Path,
+    tool: str,
+    arguments: Any,
+    error: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Providers reject a transcript containing unanswered tool calls."""
+    monkeypatch.setattr(workspace_tools, "sandbox_backend", lambda: "landlock")
+    monkeypatch.setattr(workspace_tools, "command_lifecycle_available", lambda: True)
     raw = arguments if isinstance(arguments, str) else json.dumps(arguments)
     result = await _provider(tmp_path).execute_tool_call(_call(tool, raw))
     assert result["tool_call_id"] == f"call_{tool}"
