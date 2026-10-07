@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.api.runs import lifecycle as runs_lifecycle
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
@@ -17,7 +18,6 @@ from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 
-from app.runs import lifecycle as runs_lifecycle
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._store_helpers import (

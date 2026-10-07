@@ -5,8 +5,8 @@ from typing import Any
 from pydantic import ConfigDict, with_config
 from typing_extensions import NotRequired, TypedDict
 
-from app.api_contracts.common import RunMode
-from app.api_contracts.science import ClaimEvidenceRow
+from co_scientist.api.contracts.common import RunMode
+from co_scientist.api.contracts.science import ClaimEvidenceRow
 
 
 @with_config(ConfigDict(extra="allow"))

@@ -2,13 +2,6 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-import co_scientist.domains.documents.ingest as document_ingest
-import co_scientist.platform.retrieval.run_corpus as run_corpus
-from co_scientist.core.async_bridge import off_loop
-from co_scientist.domains.research_state.repository import records
-from co_scientist.domains.research_state.repository.records import NewEvidence
-from co_scientist.orchestration.repository import events as store
-from co_scientist.platform.db.models import ScientificTask
 from fastapi import (
     APIRouter,
     File,
@@ -18,11 +11,18 @@ from fastapi import (
     UploadFile,
 )
 
-from app.auth import client_id
-from app.runs.models import (
+import co_scientist.domains.documents.ingest as document_ingest
+import co_scientist.platform.retrieval.run_corpus as run_corpus
+from co_scientist.api.auth import client_id
+from co_scientist.api.runs.models import (
     HumanAttachmentRequest,
 )
-from app.runs.support import _require_run, _steer_and_continue
+from co_scientist.api.runs.support import _require_run, _steer_and_continue
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.research_state.repository import records
+from co_scientist.domains.research_state.repository.records import NewEvidence
+from co_scientist.orchestration.repository import events as store
+from co_scientist.platform.db.models import ScientificTask
 
 attachments_router = APIRouter()
 
