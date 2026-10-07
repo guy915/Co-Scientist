@@ -125,3 +125,48 @@ def test_run_artifact_lookup_uses_same_bounded_two_round_stream(
     messages = scripted.sent[1]["messages"]
     assert messages[-1]["tool_call_id"] == "run_lookup"
     assert "Replication remains necessary" in messages[-1]["content"]
+
+
+# A model whose profile honours an explicit disable, so the retry's request
+# shape is observable.
+_THINKING_MODEL = "deepseek/deepseek-r1"
+
+
+def _reasoning_chunk(text: str) -> Any:
+    delta = SimpleNamespace(content=None, tool_calls=None, reasoning_content=text)
+    return SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+
+def test_a_turn_that_reasons_and_writes_nothing_is_retried_without_thinking(
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    """The interview and the announcement already retry this case once. Q&A
+    used to persist the empty answer instead.
+    """
+    fake = _scripted_litellm(
+        [[_reasoning_chunk("thinking at length")], [_chunk("The report says X.")]]
+    )
+    install_completion_backend(monkeypatch, fake.acompletion)
+
+    deltas = _drain(qa.stream_llm_deltas(_THINKING_MODEL, "sys", "what does it say?", []))
+
+    assert ("chunk", "The report says X.") in deltas
+    assert len(fake.sent) == 2
+    # The retry re-asks the same question with thinking off, as the interview
+    # and the announcement paths do.
+    assert fake.sent[1]["messages"] == fake.sent[0]["messages"]
+    assert fake.sent[0]["extra_body"]["thinking"] == {"type": "enabled"}
+    assert fake.sent[1]["extra_body"]["thinking"] == {"type": "disabled"}
+    assert "reasoning_effort" not in fake.sent[1]
+
+
+def test_a_turn_that_writes_prose_is_never_retried(
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    fake = _scripted_litellm([[_reasoning_chunk("brief thought"), _chunk("An answer.")]])
+    install_completion_backend(monkeypatch, fake.acompletion)
+
+    deltas = _drain(qa.stream_llm_deltas(_THINKING_MODEL, "sys", "what does it say?", []))
+
+    assert deltas == [("reasoning", "brief thought"), ("chunk", "An answer.")]
+    assert len(fake.sent) == 1
