@@ -12,6 +12,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 import app.engine_adapter as engine_adapter
@@ -277,6 +278,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Reports and collections are large, repetitive JSON; the run event stream
+# (text/event-stream) is excluded by Starlette so events are never held back.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 app.include_router(runs_router)
