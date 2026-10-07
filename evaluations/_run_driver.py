@@ -195,7 +195,7 @@ def run_arm(
     db_path = invocation.db_path
     run_id = persist_arm_run(goal, tier, overrides, invocation)
     events, elapsed = drive_arm_run(run_id, db_path)
-    run = store_runs.get_run(run_id, db_path=db_path)
+    run: Any = store_runs.get_run(run_id, db_path=db_path)
     completed, real_backend = run_completion_status(run)
     hyps = store.list_hypotheses(run_id, db_path=db_path)
     claim_edges = records.list_claim_evidence(run_id, db_path=db_path)
