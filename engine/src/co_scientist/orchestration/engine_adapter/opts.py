@@ -20,7 +20,7 @@ from co_scientist.platform.db.models import MessageRow
 from co_scientist.platform.retrieval import run_corpus
 
 if TYPE_CHECKING:
-    from co_scientist.domains.access.credentials import ByokCredential
+    from co_scientist.core.byok_scope import ByokCredential
 
 # Consumed steering IDs are commit bookkeeping: acknowledgement must share the
 # checkpoint that actually honored the guidance.

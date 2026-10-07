@@ -10,7 +10,7 @@ from co_scientist.platform.db import current_time, use_conn
 from co_scientist.platform.db.models import RunRow, row_to_run
 
 if TYPE_CHECKING:
-    from co_scientist.domains.access.credentials import ByokCredential
+    from co_scientist.core.byok_scope import ByokCredential
 
 
 @dataclass(frozen=True)
