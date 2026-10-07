@@ -11,6 +11,7 @@ export {DIALOG_TITLE_CLASSES, Dialog} from './dialog';
 export {IconButton, iconButtonClasses} from './icon_button';
 export {MENU_ITEM_CLASSES, Menu, MenuItem, SelectTrigger} from './menu';
 export {NavItemButton, NavItemLink} from './nav_item';
+export {Select} from './select';
 export {
   SectionNav,
   SegmentedControl,
