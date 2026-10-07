@@ -4,10 +4,10 @@ import datetime as dt
 import sqlite3
 from typing import Any
 
-from app.auth import client_id
-from app.runs.models import CreateRunRequest
 from fastapi import APIRouter, HTTPException, Request
 
+from co_scientist.api.auth import client_id
+from co_scientist.api.runs.models import CreateRunRequest
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials

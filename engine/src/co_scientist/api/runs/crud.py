@@ -5,12 +5,21 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
 
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.access.free_usage as free_usage
 import co_scientist.domains.documents.staged as staged_documents
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import co_scientist.orchestration.repository.receipts as run_creation_receipts
 import co_scientist.platform.retrieval.run_corpus as run_corpus
+from co_scientist.api.auth import client_id, require_client_scope
+from co_scientist.api.runs.models import (
+    CreateRunRequest,
+    RenameRunRequest,
+    _build_create_run_config,
+)
+from co_scientist.api.runs.support import _run_or_404
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
 from co_scientist.domains.chat.goal_text import (
@@ -33,15 +42,6 @@ from co_scientist.platform.llm.execution_policy import (
     ZERO_COST_CONFIG_KEY,
     deployment_routes_are_free,
 )
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
-
-from app.auth import client_id, require_client_scope
-from app.runs.models import (
-    CreateRunRequest,
-    RenameRunRequest,
-    _build_create_run_config,
-)
-from app.runs.support import _run_or_404
 
 
 async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
@@ -664,7 +664,7 @@ def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
             before this handler runs); 403 for a shared demo run, which
             that middleware deliberately exempts from ownership so every
             caller can read it, and which is therefore no one caller's to
-            rename (the same guard ``app.runs.crud`` applies).
+            rename (the same guard ``co_scientist.api.runs.crud`` applies).
     """
     run = _run_or_404(run_id)
     if run.client_id == DEMO_CLIENT_ID:
