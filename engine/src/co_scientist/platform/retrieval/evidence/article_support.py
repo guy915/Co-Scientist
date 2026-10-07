@@ -46,6 +46,16 @@ def _source_of(result: ResearchResult, finding: Finding) -> str:
 logger = logging.getLogger(__name__)
 
 
+# One PubMed parser writes this where a value is absent, and cached metadata
+# files still hold it. Left as a string it is a truthy DOI that every
+# unidentified paper shares: it resolves as a URL and merges distinct papers.
+_MISSING_VALUE_SENTINEL = "<not found>"
+
+
+def present_value(value: Any) -> Any:
+    return None if value == _MISSING_VALUE_SENTINEL else value
+
+
 def _metadata_is_retracted(metadata: dict[str, Any]) -> bool:
     publication_types = metadata.get("publication_types") or []
     if isinstance(publication_types, str):
@@ -88,11 +98,11 @@ def build_article_from_metadata(
         year=year,
         venue=metadata.get("publication") or metadata.get("venue"),
         citations=0,
-        abstract=metadata.get("abstract"),
+        abstract=present_value(metadata.get("abstract")),
         content=metadata.get("fulltext"),
         source_id=paper_id,
         source=source_name,
-        doi=metadata.get("doi"),
+        doi=present_value(metadata.get("doi")),
         is_retracted=is_retracted,
         correction_status=str(
             metadata.get("correction_status") or ("retracted" if is_retracted else "current")

@@ -130,6 +130,10 @@ html:has(.ucs-landing) body {
   --l-bg: var(--cosci-bg);
   --l-surface: #f3f6fb;
   --l-ink: var(--cosci-text);
+  --l-dot-blue: #4285f4;
+  --l-dot-green: #34a853;
+  --l-dot-yellow: #fbbc04;
+  --l-dot-red: #ea4335;
   --l-muted: #5f6368;
   --l-line: #e1e5ea;
   --l-accent: #0b57d0;

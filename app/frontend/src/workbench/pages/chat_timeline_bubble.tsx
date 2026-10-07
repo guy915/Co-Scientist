@@ -155,7 +155,7 @@ function UserBubble({
         <div className="min-w-0">
           <ThoughtsDisclosure reasoning={message.reasoning} />
           <BubbleText
-            bubbleClassName="reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] bg-cosci-user-bubble-bg py-3 pr-[0.9rem] pl-4 text-base leading-[1.45] text-cosci-fg"
+            bubbleClassName="reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-bubble rounded-tr-sm bg-cosci-user-bubble-bg py-3 pr-[0.9rem] pl-4 text-base leading-[1.45] text-cosci-fg"
             content={message.content}
             {...bubbleText}
           />
@@ -259,7 +259,7 @@ export function BubbleEditor({
   return (
     // Do not compose flex and block classes: Tailwind output order, not class
     // string order, decides which wins.
-    <div className="reference-user-bubble-editor block w-[36rem] max-w-full rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] bg-cosci-user-bubble-bg px-4 py-3 text-base leading-[1.45] text-cosci-fg">
+    <div className="reference-user-bubble-editor block w-[36rem] max-w-full rounded-bubble rounded-tr-sm bg-cosci-user-bubble-bg px-4 py-3 text-base leading-[1.45] text-cosci-fg">
       <TextArea
         ref={ref}
         rows={1}

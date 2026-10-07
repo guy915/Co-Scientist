@@ -38,7 +38,7 @@ const NAV_PANEL_CLASSES =
   '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:[inset:0_auto_0_0] [@media(max-width:700px)]:z-[60] ' +
   '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:w-[21rem] [@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:max-w-[85vw] ' +
   '[@media(max-width:700px)]:items-stretch [@media(max-width:700px)]:px-[0.75rem] [@media(max-width:700px)]:py-[1rem] ' +
-  '[@media(max-width:700px)]:[border-radius:0_1.85rem_1.9rem_0]';
+  '[@media(max-width:700px)]:rounded-r-workspace';
 
 const NAV_GROUP_PHONE_CLASSES =
   '[@media(max-width:700px)]:flex [@media(max-width:700px)]:min-h-0 [@media(max-width:700px)]:w-full [@media(max-width:700px)]:flex-1 ' +
@@ -52,7 +52,7 @@ const NAV_BOTTOM_CLASSES =
 // a/button transition is unlayered, and Tailwind sorts an arbitrary :hover
 // after :active, so a utility could not let pressed beat hover.
 const NAV_ITEM_CLASSES =
-  'ucs-nav-item grid size-[2.5rem] min-h-[2.5rem] min-w-[2.5rem] cursor-pointer place-items-center [border:0] rounded-[9999px] bg-transparent p-0 text-cosci-shell-icon no-underline ' +
+  'ucs-nav-item grid size-[2.5rem] min-h-[2.5rem] min-w-[2.5rem] cursor-pointer place-items-center [border:0] rounded-full bg-transparent p-0 text-cosci-shell-icon no-underline ' +
   '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
   '[@media(max-width:700px)]:h-[2.75rem] [@media(max-width:700px)]:min-h-[2.75rem] [@media(max-width:700px)]:w-full ' +
   '[@media(max-width:700px)]:grid-cols-[1.5rem_minmax(0,1fr)] [@media(max-width:700px)]:[justify-items:start] [@media(max-width:700px)]:gap-x-[0.72rem] ' +
@@ -344,7 +344,7 @@ const CHAT_LIST_SCROLLABLE_CLASSES =
   'min-[701px]:overflow-x-hidden min-[701px]:overflow-y-auto';
 
 const CHAT_HISTORY_LINK_CLASSES =
-  'flex min-h-[2.35rem] min-w-0 items-center rounded-[9999px] px-[0.75rem] text-[0.875rem] leading-[2.35rem] no-underline';
+  'flex min-h-[2.35rem] min-w-0 items-center rounded-full px-[0.75rem] text-[0.875rem] leading-[2.35rem] no-underline';
 
 const CHAT_HISTORY_LINK_IDLE_CLASSES =
   'text-cosci-shell-icon [&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg';

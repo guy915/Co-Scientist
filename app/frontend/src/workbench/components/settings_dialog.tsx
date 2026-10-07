@@ -8,6 +8,7 @@ import {
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {
+  cardClasses,
   Dialog,
   DIALOG_TITLE_CLASSES,
   IconButton,
@@ -41,8 +42,7 @@ import {
 } from '@/api/system';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '../classes';
 
-const CARD_CLASSES =
-  'rounded-2xl bg-cosci-settings-card-bg px-[1.4rem] pt-5 pb-[1.4rem]';
+const CARD_CLASSES = cardClasses({tone: 'raised', size: 'panel'});
 const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';
 const HINT_CLASSES = 'm-0 mt-[0.55rem] text-[0.78rem] text-cosci-muted';
 

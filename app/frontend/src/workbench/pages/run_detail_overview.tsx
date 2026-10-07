@@ -1,3 +1,4 @@
+import {Card} from '@/shared/ui';
 import type {
   AgentInsights,
   Hypothesis,
@@ -179,10 +180,10 @@ function SummaryStats({payload}: {payload: ReportPayload | undefined}) {
   return (
     <dl className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2">
       {stats.map(([label, value]) => (
-        <div key={label} className="rounded-md bg-cosci-panel p-4">
+        <Card key={label} size="tile">
           <dt className="text-sm text-cosci-muted">{label}</dt>
           <dd className="mt-1 text-2xl font-medium">{value}</dd>
-        </div>
+        </Card>
       ))}
     </dl>
   );

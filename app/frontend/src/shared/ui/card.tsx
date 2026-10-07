@@ -2,10 +2,10 @@ import type {HTMLAttributes, ReactNode} from 'react';
 import {joinClasses} from './cx';
 
 export type CardTone = 'neutral' | 'raised' | 'warning' | 'danger';
-export type CardSize = 'block' | 'panel';
+export type CardSize = 'block' | 'tile' | 'panel';
 
 // Cards are tonal layers, never shadows (elevation is for overlays). A block
-// is a data block or notice; a panel groups controls.
+// is a notice, a tile a stat or summary, and a panel groups controls.
 const TONE_CLASSES: Record<CardTone, string> = {
   neutral: 'bg-cosci-panel text-cosci-fg',
   raised: 'bg-cosci-settings-card-bg text-cosci-fg',
@@ -16,6 +16,7 @@ const TONE_CLASSES: Record<CardTone, string> = {
 
 const SIZE_CLASSES: Record<CardSize, string> = {
   block: 'rounded-md px-4 py-3',
+  tile: 'rounded-md p-4',
   panel: 'rounded-2xl px-[1.4rem] pt-5 pb-[1.4rem]',
 };
 
