@@ -95,6 +95,17 @@ const RAIL_TAB_CLASSES =
 const SLIDER_CLASSES =
   'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-[9999px] bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
 
+const CARD_H3_CLASSES = 'm-0 font-(family-name:--l-display) font-normal';
+
+const FEATURE_P_CLASSES = 'leading-[1.5] text-(--l-muted)';
+
+const OV_ITEM_CLASSES = 'bg-(--l-surface) px-[18px] py-[14px]';
+
+const OV_PANEL_CLASSES =
+  'm-0 flex list-none flex-col gap-[6px] rounded-[24px] bg-(--l-bg) p-[12px]';
+
+const CHIPS_CLASSES = 'flex flex-wrap items-center gap-[8px]';
+
 export function scrollToLandingSection(id: string, reduceMotion: boolean) {
   smoothScrollToSection(
     id,
@@ -447,16 +458,19 @@ function ShapeBadge({
   tone,
   icon,
   pathRef,
+  compact,
 }: {
   shape: ShapeName;
   tone: LandingTone;
   icon: IconName;
   pathRef?: Ref<SVGPathElement>;
+  compact?: boolean;
 }) {
   return (
     <span
       className={joinClasses(
-        'ucs-landing-badge relative block w-[104px] text-(--tone-o)',
+        'relative block text-(--tone-o)',
+        compact ? 'w-[88px]' : 'w-[104px]',
         `tone-${tone}`,
       )}
     >
@@ -470,7 +484,10 @@ function ShapeBadge({
       <Icon
         aria-hidden="true"
         name={icon}
-        className="absolute inset-0 m-auto h-[40px] w-[40px]"
+        className={joinClasses(
+          'absolute inset-0 m-auto',
+          compact ? 'h-[34px] w-[34px]' : 'h-[40px] w-[40px]',
+        )}
       />
     </span>
   );
@@ -488,7 +505,10 @@ function AgentCard({
   const morph = useShapeMorph(agent.shape, reduceMotion);
   return (
     <article
-      className={joinClasses('ucs-landing-agent', wide && 'is-wide')}
+      className={joinClasses(
+        'grid grid-cols-[104px_1fr] items-center gap-[24px] rounded-[32px] bg-(--l-surface) p-[28px] outline-offset-[3px]',
+        wide && '[grid-column:span_3] [@media(max-width:900px)]:col-auto',
+      )}
       tabIndex={0}
       onPointerEnter={morph.toCircle}
       onPointerLeave={morph.toRest}
@@ -502,8 +522,10 @@ function AgentCard({
         pathRef={morph.pathRef}
       />
       <div>
-        <h3>{agent.name}</h3>
-        <p>{agent.summary}</p>
+        <h3 className={`${CARD_H3_CLASSES} text-[28px] tracking-[-0.01em]`}>
+          {agent.name}
+        </h3>
+        <p className={`${FEATURE_P_CLASSES} m-[6px_0_0]`}>{agent.summary}</p>
       </div>
     </article>
   );
@@ -517,7 +539,7 @@ export function HowSection({reduceMotion}: MotionProps) {
         lede="A Supervisor plans the run and hands work to six specialist agents. The loop repeats until the rankings settle, then you get a research overview back."
       />
       <LandingDiagram />
-      <div className="ucs-landing-agents">
+      <div className="mt-[16px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         {LANDING_AGENTS.map((agent, i) => (
           <AgentCard
             key={agent.name}
@@ -539,12 +561,12 @@ export function TournamentSection({reduceMotion}: MotionProps) {
         lede="Ideas meet in pairwise debates. Every win and loss moves their Elo rating, so the ranking reflects many arguments, not one score."
       />
       <LandingBracket reduceMotion={reduceMotion} />
-      <div className="ucs-landing-duo">
+      <div className="mt-[16px] grid grid-cols-[7fr_5fr] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <LandingEloChart reduceMotion={reduceMotion} />
-        <div className="ucs-landing-panel ucs-landing-podium">
+        <div className="relative grid [align-content:space-between] gap-[16px] overflow-hidden rounded-[32px] bg-(--l-c-blue) p-[32px] text-(--l-o-blue)">
           <div>
-            <h3>Ranked ideas</h3>
-            <p>
+            <h3 className={`${CARD_H3_CLASSES} text-[28px]`}>Ranked ideas</h3>
+            <p className="m-[8px_0_0] max-w-[26rem] leading-[1.5] opacity-80">
               Every hypothesis comes back with its Elo rating, its reviews, and
               the ideas it was bred from.
             </p>
@@ -553,6 +575,7 @@ export function TournamentSection({reduceMotion}: MotionProps) {
             src={podiumArt}
             width={1300}
             height={1027}
+            className="block h-auto w-[min(100%,420px)] justify-self-center"
             loading="lazy"
             decoding="async"
             alt="3D render: seven pedestals of falling height, the top three crowned with blue, teal and yellow spheres."
@@ -566,12 +589,20 @@ export function TournamentSection({reduceMotion}: MotionProps) {
 function SourcesMarquee() {
   const items = [...LANDING_SOURCES, ...LANDING_SOURCES];
   return (
-    <div className="ucs-landing-marquee">
+    <div className="mt-[64px]">
       <p className={LABEL_CLASSES}>Built on the literature</p>
-      <div className="ucs-landing-marquee-window" aria-hidden="true">
-        <div className="ucs-landing-marquee-track">
+      <div
+        className="ucs-landing-marquee-window mt-[16px] overflow-hidden border-y border-y-(--l-line) py-[22px] [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
+        aria-hidden="true"
+      >
+        <div className="flex w-max gap-[56px] motion-safe:[animation:ucs-landing-slide_40s_linear_infinite] motion-safe:[.ucs-landing-marquee-window:hover_&]:[animation-play-state:paused]">
           {items.map((source, i) => (
-            <span key={i}>{source}</span>
+            <span
+              key={i}
+              className="font-(family-name:--l-display) text-[clamp(2.4rem,5.6vw,4.8rem)] tracking-[-0.01em] whitespace-nowrap text-(--l-ink)"
+            >
+              {source}
+            </span>
           ))}
         </div>
       </div>
@@ -584,9 +615,9 @@ export function EvidenceSection() {
   return (
     <section className="ucs-landing-sec" id="landing-evidence">
       <SectionHeading title="Evidence" />
-      <div className="ucs-landing-evidence">
+      <div className="mt-[40px] grid grid-cols-[4fr_7fr] items-center gap-[48px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <svg
-          className="ucs-landing-specimen tone-green"
+          className="tone-green block h-auto w-full overflow-visible [&>path]:fill-(--tone-c)"
           viewBox="0 0 100 100"
           role="img"
           aria-label="3D render of a small-molecule drug inside a flower shape."
@@ -613,10 +644,13 @@ export function EvidenceSection() {
             literature are matched to every claim and judged before the idea may
             enter the tournament.
           </p>
-          <div className="ucs-landing-verdicts">
+          <div className="mt-[28px] grid gap-[12px]">
             {LANDING_VERDICTS.map(v => (
-              <div key={v.label} className={`tone-${v.tone}`}>
-                <b>{v.label}</b>
+              <div
+                key={v.label}
+                className={`tone-${v.tone} grid grid-cols-[120px_1fr] items-center gap-[16px] rounded-[24px] bg-(--tone-c) px-[22px] py-[18px] text-[15px] leading-[1.45] text-(--tone-o) [@media(max-width:900px)]:grid-cols-[1fr] [@media(max-width:900px)]:gap-[4px]`}
+              >
+                <b className="font-medium">{v.label}</b>
                 <span>{v.body}</span>
               </div>
             ))}
@@ -638,6 +672,7 @@ function SafetyCard({
   const morph = useShapeMorph(layer.shape, reduceMotion);
   return (
     <article
+      className="grid [align-content:start] gap-[12px] rounded-[32px] border border-(--l-line) p-[28px]"
       tabIndex={0}
       onPointerEnter={morph.toCircle}
       onPointerLeave={morph.toRest}
@@ -649,9 +684,10 @@ function SafetyCard({
         tone={layer.tone}
         icon={layer.icon}
         pathRef={morph.pathRef}
+        compact
       />
-      <h3>{layer.title}</h3>
-      <p>{layer.body}</p>
+      <h3 className={`${CARD_H3_CLASSES} text-[24px]`}>{layer.title}</h3>
+      <p className={`${FEATURE_P_CLASSES} m-0`}>{layer.body}</p>
     </article>
   );
 }
@@ -660,7 +696,7 @@ export function SafetySection({reduceMotion}: MotionProps) {
   return (
     <section className="ucs-landing-sec" id="landing-safety">
       <SectionHeading title="Safety" />
-      <div className="ucs-landing-safety">
+      <div className="mt-[48px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         {LANDING_SAFETY.map(layer => (
           <SafetyCard
             key={layer.title}
@@ -759,73 +795,122 @@ const RANKED: readonly {title: string; elo: number}[] = [
   {title: 'Disulfiram–copper targets ALDH+ cells', elo: 1226},
 ];
 
+function OverviewCard({
+  title,
+  sub,
+  children,
+}: {
+  title: string;
+  sub: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="ucs-landing-ov-card grid [grid-row:span_3] grid-rows-subgrid gap-[8px] rounded-[32px] bg-(--l-surface) p-[28px]">
+      <h3 className={`${CARD_H3_CLASSES} text-[26px]`}>{title}</h3>
+      <p className="m-[0_0_12px] text-[15px] leading-[1.5] text-(--l-muted)">
+        {sub}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function Chip({tone, children}: {tone: LandingTone; children: string}) {
+  return (
+    <span
+      className={`tone-${tone} rounded-[9999px] bg-(--tone-c) px-[12px] py-[4px] text-[13px] font-medium text-(--tone-o)`}
+    >
+      {children}
+    </span>
+  );
+}
+
 function InputCard() {
   return (
-    <div className="ucs-landing-ov-card">
-      <h3>You write</h3>
-      <p className="ucs-landing-ov-sub">
-        A research goal in plain language. Add your own papers and choose the
-        sources to search if you like.
-      </p>
-      <div className="ucs-landing-ov-panel">
-        <div className="ucs-landing-ov-item ucs-landing-ov-goal">
-          <b>{GOAL_TITLE}</b>
-          <p>{GOAL_BODY}</p>
+    <OverviewCard
+      title="You write"
+      sub="A research goal in plain language. Add your own papers and choose the sources to search if you like."
+    >
+      <div className={OV_PANEL_CLASSES}>
+        <div className={`${OV_ITEM_CLASSES} flex-1 rounded-[18px]`}>
+          <b className="mb-[8px] block font-(family-name:--l-display) text-[18px] leading-[1.35] font-normal">
+            {GOAL_TITLE}
+          </b>
+          <p className="m-0 text-[15px] leading-[1.55] text-(--l-muted)">
+            {GOAL_BODY}
+          </p>
         </div>
-        <div className="ucs-landing-ov-chips">
-          <span className="tone-blue">PubMed</span>
-          <span className="tone-blue">Europe PMC</span>
-          <span className="tone-teal">Standard tier</span>
+        <div className={`${CHIPS_CLASSES} p-[6px_6px_2px]`}>
+          <Chip tone="blue">PubMed</Chip>
+          <Chip tone="blue">Europe PMC</Chip>
+          <Chip tone="teal">Standard tier</Chip>
         </div>
       </div>
-    </div>
+    </OverviewCard>
   );
 }
 
 function RunCard() {
   return (
-    <div className="ucs-landing-ov-card">
-      <h3>The agents</h3>
-      <p className="ucs-landing-ov-sub">
-        Work through the goal in a loop, as many cycles as the tier allows.
-      </p>
-      <ol className="ucs-landing-ov-panel ucs-landing-ov-steps">
+    <OverviewCard
+      title="The agents"
+      sub="Work through the goal in a loop, as many cycles as the tier allows."
+    >
+      <ol className={OV_PANEL_CLASSES}>
         {STAGES.map(stage => (
-          <li key={stage.label} className="ucs-landing-ov-item">
-            <Icon aria-hidden="true" name={stage.icon} />
+          <li
+            key={stage.label}
+            className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-[12px] rounded-[9999px] text-[14px] leading-[1.35]`}
+          >
+            <Icon
+              aria-hidden="true"
+              name={stage.icon}
+              className="size-[20px] flex-none fill-(--l-accent)"
+            />
             <span>{stage.label}</span>
           </li>
         ))}
       </ol>
-    </div>
+    </OverviewCard>
   );
 }
 
 function OutputCard() {
   return (
-    <div className="ucs-landing-ov-card">
-      <h3>You get</h3>
-      <p className="ucs-landing-ov-sub">
-        Ranked hypotheses, each with its reviews, Elo rating, and claims checked
-        against sources, plus a report you can share.
-      </p>
-      <ol className="ucs-landing-ov-panel ucs-landing-ov-ranks">
+    <OverviewCard
+      title="You get"
+      sub="Ranked hypotheses, each with its reviews, Elo rating, and claims checked against sources, plus a report you can share."
+    >
+      <ol className={OV_PANEL_CLASSES}>
         {RANKED.map((idea, i) => (
-          <li key={idea.title} className="ucs-landing-ov-item">
-            <span className="ucs-landing-ov-meta">
+          <li
+            key={idea.title}
+            className={`${OV_ITEM_CLASSES} flex flex-col justify-center rounded-[18px] ${
+              i === 0 ? 'gap-[10px] [flex:1.7_1_0%]' : 'flex-1 gap-[6px]'
+            }`}
+          >
+            <span className="text-[13px] text-(--l-muted) tabular-nums">
               #{i + 1} · Elo {idea.elo}
             </span>
-            <b>{idea.title}</b>
+            <b
+              className={
+                i === 0
+                  ? 'font-(family-name:--l-display) text-[20px] leading-[1.3] font-normal'
+                  : 'text-[15px] leading-[1.35] font-medium'
+              }
+            >
+              {idea.title}
+            </b>
             {i === 0 && (
-              <div className="ucs-landing-ov-chips">
-                <span className="tone-green">Supports 3</span>
-                <span className="tone-yellow">Partial 1</span>
+              <div className={CHIPS_CLASSES}>
+                <Chip tone="green">Supports 3</Chip>
+                <Chip tone="yellow">Partial 1</Chip>
               </div>
             )}
           </li>
         ))}
       </ol>
-    </div>
+    </OverviewCard>
   );
 }
 
@@ -837,7 +922,7 @@ export function OverviewSection() {
         One run, end to end. The example uses the first suggestion on the home
         screen; the output shown is illustrative.
       </p>
-      <div className="ucs-landing-ov">
+      <div className="mt-[40px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
         <InputCard />
         <RunCard />
         <OutputCard />
