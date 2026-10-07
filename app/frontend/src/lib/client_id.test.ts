@@ -17,7 +17,9 @@ describe('client id', () => {
   it('uses a secure UUID when available', () => {
     const randomUUID = vi.fn(() => '00000000-0000-4000-8000-000000000001');
     vi.stubGlobal('crypto', {randomUUID});
-    expect(makePrefixedId('client')).toBe('client-00000000-0000-4000-8000-000000000001');
+    expect(makePrefixedId('client')).toBe(
+      'client-00000000-0000-4000-8000-000000000001',
+    );
     expect(randomUUID).toHaveBeenCalledOnce();
   });
 

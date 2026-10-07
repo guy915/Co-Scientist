@@ -17,7 +17,9 @@ export function makePrefixedId(prefix: string): string {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   const bytes = crypto.getRandomValues(new Uint8Array(16));
-  const id = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  const id = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
   return `${prefix}-${id}`;
 }
 
