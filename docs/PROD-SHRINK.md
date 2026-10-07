@@ -4,11 +4,11 @@ Bring the code that stays after `docs/PROD-CUTS.md` down to the size its
 features need. Behavior does not change; only how the code is written does.
 The owner approved every lever below on 6 October 2026.
 
-**Status (7 October 2026): done for v0.** Every lever is merged, deferred or
-reported as not worth its risk; board #240 holds each decision and its
-evidence. The format change removed 7,510 lines, reported separately. The
-levers removed 3,729 more: 884 in Python and 2,845 in the frontend, net of
-the markup the styling moves added.
+**Status (7 October 2026): done.** Every lever is merged or reported as not
+worth its risk; board #240 holds each decision and its evidence. The format
+change removed 7,510 lines, reported separately. The levers removed 3,793
+more: 936 in Python and 2,857 in the frontend, net of the markup the styling
+moves added.
 
 | # | Result | PRs | Net lines |
 |---|---|---|---:|
@@ -18,11 +18,11 @@ the markup the styling moves added.
 | 4 | Reduced: never-passed store parameters removed; an ambient connection is not worth its risk | #282 | −114 |
 | 5 | Merged (app groups land inside #281); test-fixture clones are left | #276 | −43 |
 | 6 | Merged; the hashed-file part landed after the model lane closed | #320, #325 | −112 |
-| 7 | Merged; the remaining `index.css` tidy is not worth its own PR | #277, #299, #301, #305–#308, #317, #318 | −2,845 |
+| 7 | Merged | #277, #299, #301, #305–#308, #317, #318, #326 | −2,857 |
 | 8 | Already done before the campaign | — | 0 |
 | 9 | Not worth its risk (library weight and a dropped-reload hazard) | — | — |
-| 10 | Deferred to after v0: unchanged tests force a dict adapter, so the pilot grew | — | — |
-| 11 | Not worth its risk for v0 | — | — |
+| 10 | Claims and matches merged. Evidence (flat at best) and hypotheses with reviews (−27, all of it compatibility code on the checkpoint read path) are not worth their risk | #327, #328 | −25 |
+| 11 | Not worth its risk: about −250 lines for about 48k moved lines, plus a Railway watch-path change | — | — |
 
 Every styling PR was checked against its base with a computed-style and
 screenshot comparison in light and dark, at the breakpoint edges each one
