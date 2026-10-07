@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from co_scientist.core.config import BYOK_PROVIDER_DEFAULT_MODELS, Settings
-from co_scientist.core.constants import MODEL_PRICING
+from co_scientist.platform.llm.profile import MODEL_PRICING
 
 # Unknown model pricing silently reports zero spend and removes gateway price
 # caps.
@@ -34,11 +34,8 @@ def test_every_default_and_byok_model_is_priced() -> None:
 
 
 def test_the_free_default_route_reasons_at_medium_effort_in_chat() -> None:
-    from co_scientist.core.config import (
-        CONVERSATIONAL_REASONING_EFFORT,
-        DEFAULT_MODEL,
-        deepseek_thinking_kwargs,
-    )
+    from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT, DEFAULT_MODEL
+    from co_scientist.platform.llm.request.thinking import deepseek_thinking_kwargs
 
     kwargs = deepseek_thinking_kwargs(DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT)
 

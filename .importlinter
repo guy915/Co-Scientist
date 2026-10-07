@@ -29,7 +29,6 @@ layers =
     co_scientist.platform.telemetry
     co_scientist.core
 ignore_imports =
-    co_scientist.core.config -> co_scientist.platform.llm
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.ranking.ranking_debate
     co_scientist.domains.research_state.drain.matches -> co_scientist.science.research
     co_scientist.domains.documents.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
@@ -63,14 +62,12 @@ ignore_imports =
     co_scientist.platform.telemetry.logs -> co_scientist.platform.db
     co_scientist.platform.telemetry.retrieval_calls -> co_scientist.platform.db
     co_scientist.platform.telemetry.retrieval_calls -> co_scientist.science.research
-    co_scientist.core.constants -> co_scientist.platform.llm.profile
     co_scientist.platform.retrieval.evidence.article_support -> co_scientist.domains.research_state.models
     co_scientist.platform.retrieval.evidence.article_support -> co_scientist.science.research
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
     co_scientist.platform.retrieval.evidence.search -> co_scientist.domains.research_state.state
     co_scientist.platform.retrieval.evidence.search_support -> co_scientist.domains.research_state.state
-    co_scientist.core.metrics -> co_scientist.platform.llm
     co_scientist.platform.telemetry.progress -> co_scientist.domains.research_state.state
     co_scientist.platform.retrieval.research_adapter -> co_scientist.science.prompts
     co_scientist.platform.retrieval.research_adapter -> co_scientist.science.research
