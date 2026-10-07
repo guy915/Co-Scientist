@@ -37,6 +37,7 @@ import {
   type LinkedRunTarget,
   type PendingRunCreatePayload,
 } from '@/shared/lib/run_spec';
+import {readStorage, STORAGE_KEYS} from '@/shared/lib/safe_storage';
 
 export const START_RESEARCH_PROMPT = 'Start research';
 
@@ -241,7 +242,7 @@ function stageFromClosing(
   };
 }
 
-const STORAGE_PREFIX = 'co_scientist_pending_run_create:';
+const STORAGE_PREFIX = STORAGE_KEYS.pendingRunCreatePrefix;
 
 interface StoredIntent {
   version: 1;
@@ -392,7 +393,7 @@ function matchesIntent(
 
 function readIntent(key: string): StoredIntent | undefined {
   try {
-    const parsed: unknown = JSON.parse(sessionStorage.getItem(key) ?? 'null');
+    const parsed: unknown = JSON.parse(readStorage('session', key) ?? 'null');
     return isStoredIntent(parsed) ? parsed : undefined;
   } catch {
     // Corrupt session storage cannot authorize an intent; create a fresh one.
