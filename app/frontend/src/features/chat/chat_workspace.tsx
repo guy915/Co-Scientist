@@ -27,8 +27,8 @@ import {
   useChatSession,
   type SpecStage,
   type LinkedDraftRecovery,
-} from '../hooks/use_chat_session';
-import {useChatRehydration} from '../hooks/use_chat_rehydrate';
+} from './use_chat_session';
+import {useChatRehydration} from './use_chat_rehydrate';
 import {type ConnectorToggleProps, Composer} from './chat_composer';
 import {HomeStage} from './chat_home_stage';
 import type {StartedSession} from './chat_timeline_run_spec_card';
