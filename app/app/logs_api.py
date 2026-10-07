@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from app.async_bridge import off_loop
 from app.auth import client_id
 from app.config import settings
 from app.logging_setup import level_to_number
@@ -161,7 +162,8 @@ class ClientLogBatch(BaseModel):
 
 
 @router.post("/api/logs")
-async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
+@off_loop
+def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     """Ingest frontend log records into the persisted app-wide log.
 
     Records are namespaced under the ``ui.`` logger prefix so their origin
@@ -194,7 +196,8 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
 
 
 @router.get("/api/logs")
-async def get_logs(
+@off_loop
+def get_logs(
     request: Request,
     query: Annotated[LogQuery, Query()],
 ) -> dict[str, Any]:

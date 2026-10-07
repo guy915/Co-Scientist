@@ -5,6 +5,7 @@ import hashlib
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
+from app.async_bridge import off_loop
 from app.auth import require_client_scope
 from app.store import feedback
 
@@ -29,7 +30,8 @@ class FeedbackRequest(BaseModel):
 
 
 @router.post("/api/feedback", status_code=201)
-async def submit_feedback(body: FeedbackRequest, request: Request) -> dict[str, str]:
+@off_loop
+def submit_feedback(body: FeedbackRequest, request: Request) -> dict[str, str]:
     owner = require_client_scope(request)
     host = request.client.host if request.client else "unknown"
     host_key = hashlib.sha256(host.encode()).hexdigest()

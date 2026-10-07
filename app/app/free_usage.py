@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from app import credentials, engine_adapter
+from app.async_bridge import off_loop
 from app.auth import client_id
 from app.config import settings
 from app.runs.models import CreateRunRequest
@@ -113,6 +114,7 @@ def usage_payload(owner: str) -> dict[str, Any]:
 
 
 @router.get("/api/free-usage")
-async def get_free_usage(request: Request) -> dict[str, Any]:
+@off_loop
+def get_free_usage(request: Request) -> dict[str, Any]:
     """Return how many free runs the caller has left today."""
     return usage_payload(client_id(request))
