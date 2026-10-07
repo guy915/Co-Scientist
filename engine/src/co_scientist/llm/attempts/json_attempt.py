@@ -5,7 +5,6 @@ from typing import Any
 
 from jsonschema.exceptions import ValidationError
 
-from co_scientist.exceptions import short_error_text
 from co_scientist.llm.admission.free_policy import scoped_api_key
 from co_scientist.llm.attempts.escalation import _JsonCallSpec
 from co_scientist.llm.attempts.retry import Accepted, Attempt, Rejected
@@ -21,10 +20,7 @@ from co_scientist.llm.request.completion import (
     _supports_json_schema_response_format,
 )
 from co_scientist.llm.request.response import _extract_completion_content
-from co_scientist.llm.request.thinking import (
-    annotate_failure_context,
-    effective_max_tokens,
-)
+from co_scientist.llm.request.thinking import annotate_failure_context
 from co_scientist.llm.structured.validate import (
     _validation_feedback,
     attempt_json_repair,
@@ -36,86 +32,51 @@ from co_scientist.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
 logger = logging.getLogger(__name__)
 
 
-# Keep the persisted failure logger stable for the Logs panel filter.
-_failure_logger = logging.getLogger("co_scientist.llm")
-
-
-def _failure_call_site(spec: CompletionSpec, opt: LLMCallOptions) -> str | None:
-    """Prompt names distinguish concurrent items; the schema name identifies
-    their family.
-    """
-    if opt.prompt_name:
-        return opt.prompt_name
-    schema_name = (spec.json_schema or {}).get("name")
-    return schema_name if isinstance(schema_name, str) else None
-
-
-def _report_call_llm_failure(
-    spec: CompletionSpec,
-    opt: LLMCallOptions,
-    error: Exception,
-) -> None:
-    """Report the actual sent budget; only the retry boundary knows whether
-    failure is terminal.
-    """
-    annotate_failure_context(
-        error,
-        spec.model_name,
-        spec.max_tokens,
-        opt.enable_thinking,
-        _failure_call_site(spec, opt),
-    )
-    if not opt.log_failures:
-        return
-    _failure_logger.warning(
-        "LLM call failed (model %s, max_tokens %s, call site asked for %s): %s",
-        spec.model_name,
-        effective_max_tokens(spec.model_name, spec.max_tokens, opt.enable_thinking),
-        spec.max_tokens,
-        short_error_text(error),
-    )
-
-
-async def _call_llm_once(request: LLMRequest, enable_thinking: bool) -> str:
-    """The request stays credential-free; the effective key comes from this
-    task context after temperature clamping.
-    """
-    completion_args = _build_completion_args(
-        request.prompt,
-        request.model_name,
-        request.max_tokens,
-        request.temperature,
-        CompletionShape(
-            force_json=bool(request.force_json),
-            json_schema=request.json_schema,
-            enable_thinking=enable_thinking,
-        ),
-    )
-    _apply_api_key(completion_args)
-    response = await _acompletion_within_timeout(completion_args, request.model_name)
-    return _extract_completion_content(response, request.model_name)
-
-
 async def _call_llm_single_attempt(
     prompt: str,
     spec: CompletionSpec,
     opt: LLMCallOptions,
 ) -> str:
-    # An explicit key overrides this task context only for this call.
+    """The request stays credential-free; an explicit key overrides this task
+    context only for this call, after temperature clamping.
+    """
     with scoped_api_key(spec.api_key):
-        request = LLMRequest(
-            prompt=prompt,
-            model_name=spec.model_name,
-            temperature=spec.temperature,
-            max_tokens=spec.max_tokens,
-            json_schema=spec.json_schema,
-            force_json=spec.force_json,
+        request = _prepare_llm_call(
+            LLMRequest(
+                prompt=prompt,
+                model_name=spec.model_name,
+                temperature=spec.temperature,
+                max_tokens=spec.max_tokens,
+                json_schema=spec.json_schema,
+                force_json=spec.force_json,
+            )
         )
-        request = _prepare_llm_call(request)
         try:
-            return await _call_llm_once(request, opt.enable_thinking)
+            completion_args = _build_completion_args(
+                request.prompt,
+                request.model_name,
+                request.max_tokens,
+                request.temperature,
+                CompletionShape(
+                    force_json=bool(request.force_json),
+                    json_schema=request.json_schema,
+                    enable_thinking=opt.enable_thinking,
+                ),
+            )
+            _apply_api_key(completion_args)
+            response = await _acompletion_within_timeout(completion_args, request.model_name)
+            return _extract_completion_content(response, request.model_name)
         except Exception as e:
-            _report_call_llm_failure(spec, opt, e)
+            # Report the actual sent budget; only the retry boundary knows
+            # whether failure is terminal, so it owns the log.
+            schema_name = (spec.json_schema or {}).get("name")
+            annotate_failure_context(
+                e,
+                spec.model_name,
+                spec.max_tokens,
+                opt.enable_thinking,
+                schema_name if isinstance(schema_name, str) else None,
+            )
             raise
 
 
