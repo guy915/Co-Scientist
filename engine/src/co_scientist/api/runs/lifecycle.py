@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -22,7 +21,7 @@ from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.orchestration.task_worker.enqueue import is_abandoned_spent_bootstrap
 from co_scientist.platform import db
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import Connection, checkpoints
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,
     RunRow,
@@ -33,16 +32,14 @@ from co_scientist.platform.db.models import (
 logger = logging.getLogger(__name__)
 
 
-def _has_leased_precheckpoint_bootstrap(
-    run_id: str, *, conn: sqlite3.Connection | None = None
-) -> bool:
+def _has_leased_precheckpoint_bootstrap(run_id: str, *, conn: Connection | None = None) -> bool:
     return not checkpoints.has_checkpoint(run_id, conn=conn) and lifecycle.has_task_of_type(
         run_id, engine_tasks.BOOTSTRAP_TASK, status="leased", conn=conn
     )
 
 
 def _has_failed_precheckpoint_bootstrap_while_paused(
-    run_id: str, *, conn: sqlite3.Connection | None = None
+    run_id: str, *, conn: Connection | None = None
 ) -> bool:
     if checkpoints.has_checkpoint(run_id, conn=conn):
         return False
@@ -52,7 +49,7 @@ def _has_failed_precheckpoint_bootstrap_while_paused(
     return any(is_abandoned_spent_bootstrap(task) for task in tasks.list_tasks(run_id, conn=conn))
 
 
-def lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
+def lifecycle_revision(run_id: str, *, conn: Connection) -> int:
     row = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) FROM run_events "
         "WHERE run_id=? AND type IN ('status', 'lifecycle')",
@@ -70,7 +67,7 @@ def resume_admission_snapshot(run_id: str) -> tuple[RunRow, int]:
     return run, revision
 
 
-def _prepare_resume_state(run_id: str, *, conn: sqlite3.Connection | None = None) -> bool:
+def _prepare_resume_state(run_id: str, *, conn: Connection | None = None) -> bool:
     """True engine resume retains committed artifacts and events; legacy
     envelopes clear derived data before fresh bootstrap.
     """
@@ -107,7 +104,7 @@ def _check_resume_admission(
     expected_status: str,
     expected_lifecycle_revision: int,
     *,
-    conn: sqlite3.Connection,
+    conn: Connection,
 ) -> None:
     run = _run_or_404(run_id, conn=conn)
     if (

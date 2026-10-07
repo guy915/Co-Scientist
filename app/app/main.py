@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import sqlite3
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any, cast
@@ -53,7 +52,7 @@ def _reclaim_disk_space() -> None:
     """
     try:
         superseded = store.prune_superseded_checkpoints()
-    except sqlite3.Error:
+    except db.Error:
         logger.warning("Could not prune superseded checkpoints", exc_info=True)
     else:
         if superseded:

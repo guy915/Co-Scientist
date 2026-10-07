@@ -14,6 +14,10 @@ from typing import Any
 from co_scientist.platform.db.schema import ADDED_COLUMNS as _ADDED_COLUMNS
 from co_scientist.platform.db.schema import SCHEMA as _SCHEMA
 
+# Layers above the store name these instead of importing sqlite3.
+Connection = sqlite3.Connection
+Error = sqlite3.Error
+
 logger = logging.getLogger(__name__)
 
 
