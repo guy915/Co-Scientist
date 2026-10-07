@@ -1,10 +1,4 @@
-import type {ReactNode, SVGProps} from 'react';
-
-// Width and padding come from the call site: Tailwind stylesheet order, not
-// class order, decides conflicting utilities. `ucs-popover` carries the shadow
-// (index.css).
-const SHELL_POPOVER_CLASSES =
-  'ucs-popover absolute z-[35] grid gap-[0.35rem] rounded-[1rem] border border-cosci-border bg-cosci-menu-bg text-cosci-fg';
+import type {SVGProps} from 'react';
 
 export const NAV_ICON_CLASSES =
   'grid size-[1.5rem] min-h-[1.5rem] min-w-[1.5rem] place-items-center justify-self-center text-[1.25rem] leading-none';
@@ -16,30 +10,6 @@ export const HEADER_PILL_SHAPE_CLASSES =
   'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap';
 
 export const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
-
-// Interactive popovers are not status live regions; provide accessible
-// names/roles without announcing the whole panel on every change.
-export function ShellPopover({
-  children,
-  className,
-  role,
-  ariaLabel,
-}: {
-  children: ReactNode;
-  className: string;
-  role?: 'group' | 'dialog';
-  ariaLabel?: string;
-}) {
-  return (
-    <div
-      className={`${SHELL_POPOVER_CLASSES} ${className}`}
-      role={role}
-      aria-label={ariaLabel}
-    >
-      {children}
-    </div>
-  );
-}
 
 // Official Google Labs science mark used in the Co-Scientist references.
 export function GoogleLabsIcon(props: SVGProps<SVGSVGElement>) {
