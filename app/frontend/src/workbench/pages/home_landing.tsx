@@ -62,6 +62,39 @@ const HOME_SCROLLER = '.ucs-page--home';
 
 const RAIL_OFFSET = 72;
 
+const LANDING_WIDTH = 'mx-auto w-[min(100%_-_32px,1240px)]';
+
+const LABEL_CLASSES =
+  'm-0 font-(family-name:--l-body) text-[14px] font-medium text-(--l-muted)';
+
+const H2_CLASSES =
+  'm-0 font-(family-name:--l-display) text-[clamp(2.2rem,4.6vw,3.8rem)] leading-[1.05] font-normal tracking-[-0.01em] text-balance';
+
+const LEDE_CLASSES =
+  'm-[16px_0_0] max-w-[36rem] text-[1.15rem] leading-[1.55] text-(--l-muted)';
+
+const SR_ONLY_CLASSES =
+  'absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)]';
+
+// `ucs-landing-pill` and `is-solid` are CSS hooks: the transition and the CTA's
+// recolor stay in home_landing.css.
+const PILL_CLASSES =
+  'ucs-landing-pill inline-flex h-[48px] cursor-pointer items-center gap-[8px] rounded-[9999px] px-[24px] [font:500_16px_var(--l-body)]';
+const PILL_SOLID_CLASSES = `${PILL_CLASSES} is-solid [border:0] bg-(--l-ink) text-(--l-bg)`;
+const PILL_LINE_CLASSES = `${PILL_CLASSES} border border-(--l-line) bg-transparent text-(--l-ink) [&:hover]:bg-(--l-surface)`;
+
+const RAIL_CLASSES =
+  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
+
+const RAIL_NAV_CLASSES =
+  'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-[9999px] bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
+
+const RAIL_TAB_CLASSES =
+  'relative z-[1] grid h-[38px] flex-none place-items-center rounded-[9999px] px-[16px] text-[14px] font-medium no-underline';
+
+const SLIDER_CLASSES =
+  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-[9999px] bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
+
 export function scrollToLandingSection(id: string, reduceMotion: boolean) {
   smoothScrollToSection(
     id,
@@ -99,24 +132,32 @@ function LandingHero({
 }) {
   const cookie = shapePath('cookie12');
   return (
-    <section className="ucs-landing-hero" aria-labelledby="ucs-landing-word">
-      <h2 id="ucs-landing-word" className="ucs-landing-word">
+    <section
+      className={`${LANDING_WIDTH} border-t border-t-(--l-line) pt-[72px] pb-[40px]`}
+      aria-labelledby="ucs-landing-word"
+    >
+      <h2
+        id="ucs-landing-word"
+        className="relative z-[1] m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
+      >
         Co-Scientist
       </h2>
-      <div className="ucs-landing-hero-grid">
-        <div className="ucs-landing-hero-copy">
-          <p>A multi-agent partner for scientific discovery.</p>
-          <div className="ucs-landing-pills">
+      <div className="mt-[32px] grid grid-cols-[6fr_5fr] [align-items:start] gap-[32px] [@media(max-width:900px)]:mt-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
+        <div className="grid gap-[28px] pt-[8px]">
+          <p className="m-0 font-(family-name:--l-display) text-[clamp(1.4rem,2.2vw,2rem)] leading-[1.25] tracking-[-0.01em]">
+            A multi-agent partner for scientific discovery.
+          </p>
+          <div className="flex flex-wrap gap-[12px]">
             <button
               type="button"
-              className="ucs-landing-pill is-solid"
+              className={PILL_SOLID_CLASSES}
               onClick={onStart}
             >
               Start a research goal
             </button>
             <button
               type="button"
-              className="ucs-landing-pill is-line"
+              className={PILL_LINE_CLASSES}
               onClick={() =>
                 scrollToLandingSection('landing-how', reduceMotion)
               }
@@ -125,7 +166,7 @@ function LandingHero({
             </button>
           </div>
           <iframe
-            className="ucs-landing-trailer"
+            className="block aspect-[16/9] w-full rounded-[12px] [border:0] bg-(--l-surface)"
             title="Co-Scientist trailer"
             src="https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0"
             loading="lazy"
@@ -135,7 +176,7 @@ function LandingHero({
           />
         </div>
         <svg
-          className="ucs-landing-hero-art tone-teal"
+          className="tone-teal w-[min(100%,440px)] [align-self:center] [justify-self:end] overflow-visible [&>path]:fill-(--tone-c) [@media(max-width:900px)]:justify-self-center"
           viewBox="0 0 100 100"
           role="img"
           aria-label="3D render of a DNA double helix whose base pairs are blue, red, yellow and green, inside a scalloped cookie shape."
@@ -294,7 +335,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   return (
     <div
       ref={anchorRef}
-      className={joinClasses('ucs-landing-rail-anchor', sticky && 'is-sticky')}
+      className={joinClasses('min-h-[66px]', sticky && 'sticky top-0 z-[5]')}
     >
       <div inert={inHeader} aria-hidden={inHeader || undefined}>
         <LandingTabs reduceMotion={reduceMotion} />
@@ -303,7 +344,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
         createPortal(
           <div
             ref={copyRef}
-            className="ucs-landing ucs-landing-header-tabs"
+            className="ucs-landing ucs-landing-header-tabs absolute top-0 left-0 [transform:translateY(-200%)]"
             inert={!inHeader}
             aria-hidden={!inHeader || undefined}
           >
@@ -325,19 +366,26 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
     scrollToLandingSection(id, reduceMotion);
   };
   return (
-    <div className="ucs-landing-rail">
+    <div className={RAIL_CLASSES}>
       <nav
         ref={navRef}
         aria-label="Landing sections"
-        className={joinClasses(more && 'has-more')}
+        className={joinClasses(
+          RAIL_NAV_CLASSES,
+          more &&
+            '[@media(max-width:700px)]:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
+        )}
       >
-        <SlidingPill box={pill} className="ucs-landing-slider" />
+        <SlidingPill box={pill} className={SLIDER_CLASSES} />
         {LANDING_SECTIONS.map(({id, label}) => (
           <a
             key={id}
             href={`#${id}`}
             data-section={id}
-            className={joinClasses(active === id && 'is-active')}
+            className={joinClasses(
+              RAIL_TAB_CLASSES,
+              active === id ? 'is-active text-(--l-bg)' : 'text-(--l-muted)',
+            )}
             aria-current={active === id ? 'true' : undefined}
             onClick={e => go(e, id)}
           >
@@ -371,7 +419,7 @@ export default function HomeLanding() {
     <div ref={rootRef} id={LANDING_ID} className="ucs-landing">
       <LandingHero onStart={onStart} reduceMotion={reduceMotion} />
       <LandingRail reduceMotion={reduceMotion} />
-      <div className="ucs-landing-body">
+      <div className={LANDING_WIDTH}>
         <OverviewSection />
         <HowSection reduceMotion={reduceMotion} />
         <TournamentSection reduceMotion={reduceMotion} />
@@ -388,8 +436,8 @@ export default function HomeLanding() {
 function SectionHeading({title, lede}: {title: string; lede?: string}) {
   return (
     <>
-      <h2 className="ucs-landing-h2">{title}</h2>
-      {lede && <p className="ucs-landing-lede">{lede}</p>}
+      <h2 className={H2_CLASSES}>{title}</h2>
+      {lede && <p className={LEDE_CLASSES}>{lede}</p>}
     </>
   );
 }
@@ -406,11 +454,24 @@ function ShapeBadge({
   pathRef?: Ref<SVGPathElement>;
 }) {
   return (
-    <span className={joinClasses('ucs-landing-badge', `tone-${tone}`)}>
-      <svg viewBox="0 0 100 100" aria-hidden="true">
+    <span
+      className={joinClasses(
+        'ucs-landing-badge relative block w-[104px] text-(--tone-o)',
+        `tone-${tone}`,
+      )}
+    >
+      <svg
+        viewBox="0 0 100 100"
+        aria-hidden="true"
+        className="block h-auto w-full overflow-visible [&_path]:fill-(--tone-c)"
+      >
         <path ref={pathRef} d={shapePath(shape)} />
       </svg>
-      <Icon aria-hidden="true" name={icon} />
+      <Icon
+        aria-hidden="true"
+        name={icon}
+        className="absolute inset-0 m-auto h-[40px] w-[40px]"
+      />
     </span>
   );
 }
@@ -506,7 +567,7 @@ function SourcesMarquee() {
   const items = [...LANDING_SOURCES, ...LANDING_SOURCES];
   return (
     <div className="ucs-landing-marquee">
-      <p className="ucs-landing-label">Built on the literature</p>
+      <p className={LABEL_CLASSES}>Built on the literature</p>
       <div className="ucs-landing-marquee-window" aria-hidden="true">
         <div className="ucs-landing-marquee-track">
           {items.map((source, i) => (
@@ -514,9 +575,7 @@ function SourcesMarquee() {
           ))}
         </div>
       </div>
-      <p className="ucs-landing-sr-only">
-        Sources: {LANDING_SOURCES.join(', ')}.
-      </p>
+      <p className={SR_ONLY_CLASSES}>Sources: {LANDING_SOURCES.join(', ')}.</p>
     </div>
   );
 }
@@ -549,7 +608,7 @@ export function EvidenceSection() {
           />
         </svg>
         <div>
-          <p className="ucs-landing-lede">
+          <p className={LEDE_CLASSES}>
             Each hypothesis is split into atomic claims. Passages from the
             literature are matched to every claim and judged before the idea may
             enter the tournament.
@@ -650,15 +709,15 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
     <section className="ucs-landing-sec ucs-landing-sec--tight">
       <div className="ucs-landing-cta">
         <div>
-          <h2 className="ucs-landing-h2">Start with a question.</h2>
+          <h2 className={H2_CLASSES}>Start with a question.</h2>
           <p>
             Describe what you want to find out.{' '}
-            <span className="ucs-landing-nowrap">Co-Scientist</span> asks what a
+            <span className="whitespace-nowrap">Co-Scientist</span> asks what a
             strong answer needs, then sends its agents to work.
           </p>
           <button
             type="button"
-            className="ucs-landing-pill is-solid"
+            className={PILL_SOLID_CLASSES}
             onClick={onStart}
           >
             Start a research goal
@@ -773,8 +832,8 @@ function OutputCard() {
 export function OverviewSection() {
   return (
     <section className="ucs-landing-sec" id="landing-overview">
-      <h2 className="ucs-landing-h2">From a question to ranked ideas</h2>
-      <p className="ucs-landing-lede">
+      <h2 className={H2_CLASSES}>From a question to ranked ideas</h2>
+      <p className={LEDE_CLASSES}>
         One run, end to end. The example uses the first suggestion on the home
         screen; the output shown is illustrative.
       </p>
@@ -865,7 +924,7 @@ export function LandingTiers({reduceMotion}: MotionProps) {
         role="group"
         aria-label="Run tier"
       >
-        <SlidingPill box={pill} className="ucs-landing-slider" />
+        <SlidingPill box={pill} className={SLIDER_CLASSES} />
         {LANDING_TIERS.map(t => (
           <button
             key={t.name}
