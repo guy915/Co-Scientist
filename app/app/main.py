@@ -21,6 +21,7 @@ from app.byok_models import router as byok_models_router
 from app.config import settings
 from app.diagnostics_api import router as diagnostics_api_router
 from app.documents import router as documents_router
+from app.error_tracking import init_error_tracking
 from app.feedback_api import router as feedback_router
 from app.free_usage import router as free_usage_router
 from app.interviews import router as interviews_router
@@ -148,6 +149,7 @@ load_dotenv()
 
 
 configure_logging(level=logging.INFO)
+init_error_tracking(settings.sentry_dsn, settings.sentry_environment)
 
 
 def _install_log_capture() -> None:
