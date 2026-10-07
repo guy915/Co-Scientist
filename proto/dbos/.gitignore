@@ -1,0 +1,3 @@
+results/*.err
+results/serial.log
+__pycache__/
