@@ -179,6 +179,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 **Fix:** Require verified recipient opt-in and durable per-recipient/host/global delivery limits. Keep completion mail disabled for anonymous public launch until those controls exist.
 
+**Fixing PR:** [#427](https://github.com/guy915/Co-Scientist/pull/427) withholds public completion mail irrespective of SMTP configuration and completes old queued mail without delivery. Request fields and private SMTP/TLS controls remain compatible. Recipient verification and durable delivery admission must exist before public mail is offered again; no real notifications or hosting settings were configured during the fix.
+
 ### SR-13 — Diagnostic capture has an unbounded in-memory queue
 
 **Area:** denial of service; data. **Severity:** medium. **Owner:** lane X.
