@@ -12,7 +12,7 @@ from app.claims import (
     as_passages,
     assess_claim,
 )
-from app.claims.gate import claim_status
+from app.claims.gate import ClaimEdge
 from app.claims.grounding import (
     AssessorSpec,
     assess_hypothesis_claims,
@@ -64,7 +64,8 @@ def _matrix_edge(label: str | None, role: str | None) -> dict[str, Any]:
 def test_every_reader_agrees_on_what_a_label_and_role_mean(
     label: str | None, role: str | None
 ) -> None:
-    edge = _matrix_edge(label, role)
+    row = _matrix_edge(label, role)
+    edge = ClaimEdge.from_row(row)
     speculative = role == "speculative"
     excused = label == "insufficient" and speculative
 
@@ -88,8 +89,8 @@ def test_every_reader_agrees_on_what_a_label_and_role_mean(
             if speculative
             else "Unsupported categorical claim"
         )
-    assert claim_status(edge) == expected_status
-    line = _render_claim_evidence([edge])[2]
+    assert edge.status == expected_status
+    line = _render_claim_evidence([row])[2]
     assert line.startswith(f"- **{expected_status} · {role or 'categorical'}**")
 
     topics = report_content._knowledge_base_topics([{"id": "h1", "title": "T"}], [edge])

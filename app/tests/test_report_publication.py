@@ -6,6 +6,7 @@ from typing import Any, cast
 import pytest
 
 from app import engine_tasks, task_worker
+from app.claims.gate import ClaimEdge
 from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
@@ -74,8 +75,8 @@ def _hypothesis(identifier: str, status: str) -> dict[str, object]:
     }
 
 
-def _contradicting_edge(hypothesis_id: str) -> dict[str, object]:
-    return {
+def _contradicting_edge(hypothesis_id: str) -> ClaimEdge:
+    row = {
         "hypothesis_id": hypothesis_id,
         "claim": "The idea contradicts prior data.",
         "label": "contradicts",
@@ -84,6 +85,7 @@ def _contradicting_edge(hypothesis_id: str) -> dict[str, object]:
         "contradicting": [],
         "assessor": "llm",
     }
+    return ClaimEdge.from_row(row)
 
 
 @pytest.mark.parametrize(

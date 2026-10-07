@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import retention
+from app.claims.gate import ClaimEdge
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.report.content import derive_knowledge_facts
@@ -39,7 +40,7 @@ def _edge(
     label: str,
     claim: str = "IL-6 increases inflammation via STAT3 signaling.",
     **over: Any,
-) -> dict[str, Any]:
+) -> ClaimEdge:
     base: dict[str, Any] = {
         "hypothesis_id": "h1",
         "claim": claim,
@@ -48,7 +49,7 @@ def _edge(
         "contradicting": [],
     }
     base.update(over)
-    return base
+    return ClaimEdge.from_row(base)
 
 
 def test_only_settled_edges_become_facts_with_their_own_evidence() -> None:
