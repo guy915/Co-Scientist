@@ -7,7 +7,7 @@ import type {
   RunFocus,
   RunTier,
 } from '@/api/runs';
-import {keyedProviders} from '@/lib/client_id';
+import {keyedProviders} from './client_id';
 
 // The backend permits only express for keyless free runs.
 export const FREE_RUN_TIER: RunTier = 'express';

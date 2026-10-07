@@ -8,7 +8,7 @@ import {
 import {makeMessage, makeSpec} from '@/test_fixtures';
 import {MemoryRouter, type NavigateFunction} from 'react-router-dom';
 
-vi.mock('../hooks/system_status_context', () => ({
+vi.mock('@/shared/hooks/system_status_context', () => ({
   useSystemStatus: () => ({
     status: {email_notifications_available: true},
     unreachable: false,

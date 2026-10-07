@@ -12,7 +12,7 @@ import {
   retryInterviewTurn,
   stageDocument,
 } from '@/api/runs';
-import {copyText} from '@/lib/clipboard';
+import {copyText} from '@/shared/lib/clipboard';
 import type {FormEvent} from 'react';
 import type {ChatEntry} from '../pages/chat_timeline_bubble';
 import {promoteDraftToRun} from './chat_session_start_run';
@@ -24,7 +24,7 @@ import {
   isAbortError,
   qaMessagesToEntries,
 } from './chat_session_transcript';
-import {announceChatsChanged} from './history_context';
+import {announceChatsChanged} from '@/shared/hooks/history_context';
 import {type HandlerDeps, clearedLifecycle} from './use_chat_session';
 
 type SubmitComposerDeps = HandlerDeps & {

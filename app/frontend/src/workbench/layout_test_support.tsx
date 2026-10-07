@@ -4,10 +4,10 @@ import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {resetSessionBaselineForTest} from './layout_diagnostics';
-import {ChatHistoryProvider} from './hooks/history_context';
-import {RunHistoryProvider} from './hooks/history_context';
+import {ChatHistoryProvider} from '@/shared/hooks/history_context';
+import {RunHistoryProvider} from '@/shared/hooks/history_context';
 import {Layout} from './layout';
-import {ThemeProvider} from './theme_context';
+import {ThemeProvider} from '@/shared/hooks/theme_context';
 
 // Hoist mocks before imports bind real network modules.
 const apiMock = vi.hoisted(() => {

@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   useLayoutEffect,
 } from 'react';
-import {Icon, type IconName} from '@/components/icon';
+import {Icon, type IconName} from '@/shared/ui/icon';
 import {
   cardClasses,
   Dialog,
@@ -32,15 +32,15 @@ import {
   setStoredApiKey,
   setStoredApiProvider,
   setStoredModel,
-} from '@/lib/client_id';
-import {type Mode, useTheme} from '../theme_context';
+} from '@/shared/lib/client_id';
+import {type Mode, useTheme} from '@/shared/hooks/theme_context';
 import {
   type ByokModelCatalog,
   type FreeUsage,
   fetchByokModelCatalog,
   fetchFreeUsage,
 } from '@/api/system';
-import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '../classes';
+import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
 
 const CARD_CLASSES = cardClasses({tone: 'raised', size: 'panel'});
 const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';

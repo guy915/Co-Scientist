@@ -7,10 +7,10 @@ import {
   type RunWithSummary,
   type TerminalNonCompletedStatus,
 } from '@/api/runs';
-import {useRunHistoryContext} from '@/workbench/hooks/history_context';
+import {useRunHistoryContext} from '@/shared/hooks/history_context';
 import {useParams} from 'react-router-dom';
 import {IdeasTab} from '../components/tabs/ideas_tab';
-import {normalizeTab, TABS, type TabName} from '../run_tabs';
+import {normalizeTab, TABS, type TabName} from '@/shared/lib/run_tabs';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
 import {LearningView} from './run_detail_learning';
@@ -28,7 +28,7 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
-import {joinClasses} from '../classes';
+import {joinClasses} from '@/shared/ui/classes';
 
 const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto max-[700px]:overflow-x-hidden';

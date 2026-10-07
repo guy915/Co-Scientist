@@ -1,4 +1,4 @@
-import {getClientId, resolveByokRoutes} from '@/lib/client_id';
+import {getClientId, resolveByokRoutes} from '@/shared/lib/client_id';
 import type {RunFocus, RunStatus, RunTier} from './wire_common';
 import type {ChatSummary, Interview} from './wire_interviews';
 import type {Report} from './wire_reports';
@@ -11,7 +11,7 @@ import type {
   Review,
   SafetyDecision,
 } from './wire_science';
-import {DIAGNOSTIC_EVENT} from '@/workbench/dom_events';
+import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
 
 export type * from './wire_common';
 export type * from './wire_interviews';

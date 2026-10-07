@@ -1,5 +1,5 @@
 import {useEffect, useRef, type RefObject} from 'react';
-import {logModalOpen} from '@/lib/ui_logging';
+import {logModalOpen} from '@/shared/lib/ui_logging';
 
 // Restore only siblings this pass made inert; nested dialogs or independent
 // owners may already control the others.
