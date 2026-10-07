@@ -17,7 +17,6 @@ export function SwapIcon({
   return (
     <Icon
       key={name}
-      aria-hidden="true"
       className={joinClasses(className, changed && 'ui-motion-swap')}
       name={name}
     />

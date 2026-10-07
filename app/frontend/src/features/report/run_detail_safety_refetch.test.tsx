@@ -1,12 +1,9 @@
 import {resetRunDetailMocks, setStream} from './run_detail_api_test_support';
 import * as runsApi from '@/shared/api/runs';
 import {type SafetyDecision} from '@/shared/api/runs';
-import {
-  ChatHistoryProvider,
-  RunHistoryProvider,
-} from '@/shared/hooks/history_context';
+import {ProviderStack} from '@/shared/testing/render';
 import {render, screen, waitFor} from '@testing-library/react';
-import {MemoryRouter, Route, Routes} from 'react-router-dom';
+import {Route, Routes} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {RunDetail} from './run_detail';
 import {renderAt} from './run_detail_test_support';
@@ -40,16 +37,12 @@ it('refetches on a coalesced batch ending in status with data', async () => {
   const getRun = vi.mocked(runsApi.getRun);
   // Create a fresh React element per render so mutated stream state is reread.
   const makeUi = () => (
-    <MemoryRouter initialEntries={['/runs/run-1/specifications']}>
-      <RunHistoryProvider>
-        <ChatHistoryProvider>
-          <Routes>
-            <Route path="/runs/:id" element={<RunDetail />} />
-            <Route path="/runs/:id/:tab" element={<RunDetail />} />
-          </Routes>
-        </ChatHistoryProvider>
-      </RunHistoryProvider>
-    </MemoryRouter>
+    <ProviderStack path="/runs/run-1/specifications">
+      <Routes>
+        <Route path="/runs/:id" element={<RunDetail />} />
+        <Route path="/runs/:id/:tab" element={<RunDetail />} />
+      </Routes>
+    </ProviderStack>
   );
   const {rerender} = render(makeUi());
   await screen.findByText('Run Specifications');

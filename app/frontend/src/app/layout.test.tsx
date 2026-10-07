@@ -1,11 +1,7 @@
 import {fireEvent, screen} from '@testing-library/react';
+import {makeChat} from '@/shared/testing/fixtures';
 import {beforeEach, expect, it, describe} from 'vitest';
-import {
-  installLayoutMocks,
-  renderLayout,
-  apiMock,
-  chatFixture,
-} from './layout_test_support';
+import {installLayoutMocks, renderLayout, apiMock} from './layout_test_support';
 
 describe('layout sidebar', () => {
   beforeEach(() => {
@@ -15,9 +11,12 @@ describe('layout sidebar', () => {
   function renderTwelveSidebarChats() {
     apiMock.listInterviews.mockResolvedValue(
       Array.from({length: 12}, (_, index) =>
-        chatFixture(
-          `chat-${index + 1}`,
-          `Very long sidebar research question ${index + 1}`,
+        makeChat(
+          {
+            id: `chat-${index + 1}`,
+            challenge: `Very long sidebar research question ${index + 1}`,
+          },
+          'active',
         ),
       ),
     );
@@ -26,14 +25,24 @@ describe('layout sidebar', () => {
 
   it('opens a started session at its run, not back at the chat', async () => {
     apiMock.listInterviews.mockResolvedValue([
-      chatFixture('chat-running', 'Map senolytic clearance in aged tissue.', {
-        title: 'Senolytic clearance',
-        run_id: 'run-senolytic',
-        status: 'completed',
-      }),
-      chatFixture('chat-draft', 'Explore ferroptosis in pancreatic cancer.', {
-        title: 'Ferroptosis draft',
-      }),
+      makeChat(
+        {
+          id: 'chat-running',
+          challenge: 'Map senolytic clearance in aged tissue.',
+          title: 'Senolytic clearance',
+          run_id: 'run-senolytic',
+          status: 'completed',
+        },
+        'active',
+      ),
+      makeChat(
+        {
+          id: 'chat-draft',
+          challenge: 'Explore ferroptosis in pancreatic cancer.',
+          title: 'Ferroptosis draft',
+        },
+        'active',
+      ),
     ]);
 
     renderLayout();

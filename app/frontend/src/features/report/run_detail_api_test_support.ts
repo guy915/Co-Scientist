@@ -1,7 +1,7 @@
 import * as runsApi from '@/shared/api/runs';
 import type {StreamConnectionState} from '@/shared/hooks/use_run_stream';
 import {vi} from 'vitest';
-import {makeRun} from './run_detail_test_support';
+import {makeRunWithSetup} from '@/shared/testing/fixtures';
 
 interface Event {
   seq: number;
@@ -57,7 +57,9 @@ export function resetRunDetailMocks() {
   stream.events = [];
   stream.terminal = false;
   stream.connection = undefined;
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  vi.mocked(runsApi.getRun).mockResolvedValue(
+    makeRunWithSetup('Study pathway X'),
+  );
   for (const fetchRows of [
     runsApi.getHypotheses,
     runsApi.getEvidence,

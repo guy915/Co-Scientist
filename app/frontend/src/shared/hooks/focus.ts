@@ -29,6 +29,7 @@ function inertAncestorSiblings(start: Element): Element[] {
 // attributes, not browser behavior.
 export function useBackgroundInert(
   containerRef: RefObject<HTMLElement | null>,
+  label = 'Dialog',
 ): void {
   useEffect(() => {
     const container = containerRef.current;
@@ -36,12 +37,12 @@ export function useBackgroundInert(
     const dialog = container.matches('[role="dialog"]')
       ? container
       : container.querySelector('[role="dialog"]');
-    logModalOpen(dialog?.getAttribute('aria-label') ?? 'Dialog');
+    logModalOpen(dialog?.getAttribute('aria-label') ?? label);
     const touched = inertAncestorSiblings(container);
     return () => {
       for (const element of touched) element.removeAttribute('inert');
     };
-  }, [containerRef]);
+  }, [containerRef, label]);
 }
 
 export function useEscapeKey(onEscape: () => void, enabled: boolean): void {

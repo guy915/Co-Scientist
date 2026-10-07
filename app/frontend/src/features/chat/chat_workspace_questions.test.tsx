@@ -1,4 +1,4 @@
-import {makeQuestion} from '@/test_fixtures';
+import {makeQuestion} from '@/shared/testing/fixtures';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import type {Interview, InterviewQuestion} from '@/shared/api/runs';

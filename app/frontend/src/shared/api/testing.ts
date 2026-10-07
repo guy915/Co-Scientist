@@ -5,23 +5,24 @@ export function fetchMock() {
 }
 
 export function jsonResponse(body: unknown): Response {
-  return {
-    ok: true,
+  return new Response(JSON.stringify(body), {
     status: 200,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response;
+    headers: {'Content-Type': 'application/json'},
+  });
 }
 
 export function errorResponse(status: number, text = 'boom'): Response {
-  return {
-    ok: false,
-    status,
-    statusText: 'Error',
-    body: null,
-    json: async () => ({}),
-    text: async () => text,
-  } as unknown as Response;
+  return new Response(text, {status, statusText: 'Error'});
+}
+
+export function unreadableErrorResponse(
+  status: number,
+  statusText: string,
+): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start: controller => controller.error(new Error('stream closed')),
+  });
+  return new Response(body, {status, statusText});
 }
 
 export class FakeSseBody {
@@ -47,11 +48,8 @@ export class FakeSseBody {
 }
 
 export function streamingResponse(body: FakeSseBody): Response {
-  return {
-    ok: true,
+  return new Response(body.stream, {
     status: 200,
-    statusText: 'OK',
-    body: body.stream,
-    text: async () => '',
-  } as unknown as Response;
+    headers: {'Content-Type': 'text/event-stream'},
+  });
 }
