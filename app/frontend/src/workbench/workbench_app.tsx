@@ -12,7 +12,9 @@ import {ExampleChat} from './pages/example_chat';
 import {ThemeProvider} from '@/shared/hooks/theme_context';
 
 const RunDetail = lazy(() =>
-  import('./pages/run_detail').then(module => ({default: module.RunDetail})),
+  import('@/features/report/run_detail').then(module => ({
+    default: module.RunDetail,
+  })),
 );
 
 function PageLoading() {
