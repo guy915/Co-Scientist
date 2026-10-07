@@ -266,6 +266,11 @@ async def _ainvoke_within_timeout(tool: Any, tool_args: Any, tool_name: str) -> 
         ) from exc
 
 
+class UnknownToolError(ValueError):
+    """The server never registered the tool (web search without a key), so
+    asking again cannot succeed."""
+
+
 class MCPToolClient:
     def __init__(
         self,
@@ -341,7 +346,7 @@ class MCPToolClient:
     @staticmethod
     def _require_tool(tools_dict: dict[str, Any], tool_name: str) -> Any:
         if tool_name not in tools_dict:
-            raise ValueError(
+            raise UnknownToolError(
                 f"tool '{tool_name}' not found. available tools: {list(tools_dict.keys())}"
             )
         return tools_dict[tool_name]

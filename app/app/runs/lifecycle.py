@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 import app.engine_adapter as engine_adapter
 import app.engine_tasks as engine_tasks
 import app.task_worker as task_worker
+from app.async_bridge import off_loop
 from app.auth import client_id
 from app.config import settings
 from app.runs.models import SafetyAdjudicationRequest, StartRunRequest
@@ -288,9 +289,8 @@ def _enqueue_workflow_and_maybe_launch_worker(
 
 
 @router.post("/{run_id}/start")
-async def start_run(
-    run_id: str, req: StartRunRequest, background: BackgroundTasks
-) -> dict[str, Any]:
+@off_loop
+def start_run(run_id: str, req: StartRunRequest, background: BackgroundTasks) -> dict[str, Any]:
     """Queue a run and launch its workflow through the durable worker.
 
     Args:
@@ -327,7 +327,8 @@ async def start_run(
 
 
 @router.post("/{run_id}/cancel")
-async def cancel_run(run_id: str) -> dict[str, Any]:
+@off_loop
+def cancel_run(run_id: str) -> dict[str, Any]:
     """Cancel a run by revoking its durable tasks and marking it CANCELLED.
 
     Cancellation is durable, not in-process: revoking the run's queued and
