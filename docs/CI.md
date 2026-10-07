@@ -59,7 +59,10 @@ that is what makes them deterministic and trustworthy as merge gates.
   loading, offline models and offline evidence/claim checks. The launch check
   exercises built-asset deep links, report reloads and anonymous ownership
   isolation. Both
-  targets typecheck the TypeScript harness before running Chromium.
+  targets typecheck the TypeScript harness before running Chromium. CI runs
+  the development suite as two Playwright file shards and the launch check
+  as a third job, each on its own stack; `make e2e E2E_ARGS=--shard=1/2`
+  reproduces one shard locally.
 - Frontend, browser and root-tooling jobs explicitly install Node 24.19.0 and
   Bun 1.3.14; frontend scripts do not inherit the runner image's Node version.
 - Evaluations: `evaluations.smoke` is by construction the *offline* (no-LLM,
