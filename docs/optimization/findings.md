@@ -183,8 +183,8 @@ Two Express baselines on `main` at `df08134` (Ling 3.1 Flash default):
 | M5 | Ling is slow per call | Ranking: Ling 61 s/call (6.4k completion), Nemotron Super 13 s/call (1.4k), Ultra 87 s/call; per-token rate about 105 tok/s on both Ling and Super, so time follows tokens | M | — | — |
 | M6 | Ling's output cap is 32,768 tokens | Endpoint `max_completion_tokens` 32,768; the largest engine budget is 24k (`BUDGET_ESCALATION_MAX_TOKENS`), so escalation stays within it | — | — | — |
 | M10 | Searches retry a tool the server never registered | Without a web-search key the MCP server has no `search_web`; the engine retried it as transient, four attempts with backoff per search (Express r2: 135 wasted calls). Production registers it | M (benchmark, self-hosting) | S | none |
-| M11 | Most fallbacks land on the slowest route | Ling's chain tries Nemotron Ultra before Super. Express r2 ([37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903)): Ultra served 71 of 150 calls at 104 s each (37 tok/s), 63% of all call time; Super 41 s (120 tok/s). Batch 1 tries Super first | H (time) | S | med (answer-changing; benchmarked) |
-| M12 | Ling ignores the minimal-reasoning cap | Claim checks request reasoning off; Ling gets a 2,048-token cap but reasoned 15.4k tokens per claim-gate call (154 s), exhausted its budget and retried 12 times, and 5 of 63 claims fell back to the lexical assessor. Super honors the cap (2.0k). Batch 2 sent Ling the low effort tier and was rejected (below); batch 3 funds those calls | M (time, quality) | S | med (answer-changing; benchmarked) |
+| M11 | Most fallbacks land on the slowest route | Ling's chain tries Nemotron Ultra before Super. Express r2 ([37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903)): Ultra served 71 of 150 calls at 104 s each (37 tok/s), 63% of all call time; Super 41 s (120 tok/s). Batch 1 tried Super first and was rejected (below) | H (time) | S | med (answer-changing; benchmarked) |
+| M12 | Ling ignores the minimal-reasoning cap | Claim checks request reasoning off; Ling gets a 2,048-token cap but reasoned 15.4k tokens per claim-gate call (154 s), exhausted its budget and retried 12 times, and 5 of 63 claims fell back to the lexical assessor. Super honors the cap (2.0k). Batches 2 and 3 (the low effort tier, then a 30k budget) were rejected (below) | M (time, quality) | S | med (answer-changing; benchmarked) |
 | M14 | OpenAlex refuses searches in long benchmarks | OpenAlex's keyless budget is shared per IP; GitHub runners exhausted it during the Standard baseline (16 refused searches). Production showed none. A free key as a repository secret is an owner action (on the board) | M (benchmark validity) | S | none |
 
 With retrieval on (#243), Express
@@ -202,7 +202,7 @@ can be confirmed on Ling; each run had one retry. Caching remains near
 zero (M4).
 
 M2–M6 describe the routes rather than defects with a fix of their own: M2's
-fallback pattern is measured as M11, M3's reasoning share is what the batches
+fallback pattern is measured as M11 and its cause is under Not worth the risk, M3's reasoning share is what the batches
 change, M4 is answered by M7 below, and M5 and M6 are properties of the free
 endpoint.
 
@@ -213,19 +213,25 @@ and Standard
 157 min, 283 calls, 19 ideas, unsupported claim rate 0.84, unverified idea
 rate 0.67). Model batches, each one Express run against r2:
 
-| | r2 | Batch 1: Super before Ultra (M11) | Batch 2: Ling's low tier for claim checks (M12) |
-|---|---|---|---|
-| Run | [37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903) | [37566987457](https://github.com/guy915/Co-Scientist/actions/runs/37566987457) | [37572259558](https://github.com/guy915/Co-Scientist/actions/runs/37572259558) |
-| Wall time | 92.3 min | 77.2 min | 135.1 min |
-| Unsupported claim rate | 0.76 | 0.97 | 0.76 |
-| Unverified idea rate | 0.20 | 0.83 | 0.20 |
-| Claim checks on the lexical fallback | 5 | 11 | 20 |
+| | r2 | Batch 1: Super before Ultra (M11) | Batch 2: Ling's low tier for claim checks (M12) | Batch 3: a 30k budget for claim checks (M12) |
+|---|---|---|---|---|
+| Run | [37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903) | [37566987457](https://github.com/guy915/Co-Scientist/actions/runs/37566987457) | [37572259558](https://github.com/guy915/Co-Scientist/actions/runs/37572259558) | [37598146898](https://github.com/guy915/Co-Scientist/actions/runs/37598146898) |
+| Wall time | 92.3 min | 77.2 min | 135.1 min | 77.8 min |
+| Unsupported claim rate | 0.76 | 0.97 | 0.76 | 1.00 |
+| Unverified idea rate | 0.20 | 0.83 | 0.20 | 1.00 |
+| Claim checks on the lexical fallback | 5 | 11 | 20 | 24 |
 
-Batch 2 is rejected: Ling still reasoned 15.4k tokens per claim check at the
-low tier, and Super's rose from 2.0k to 11.2k. Batch 1 is 16% faster, but its
-quality loss is not small; it tracks its claim-check fallbacks, so batch 1 is
-re-run together with batch 3, which funds Ling's reasoning-off calls instead of
-capping them.
+All three batches are rejected, and `main` keeps its configuration. Each trades
+claim verification for speed, a quality loss far beyond what a speed gain may
+cost:
+
+- Batch 1 is 16% faster, but the unsupported claim rate rises outside the
+  r1–r2 noise (0.64–0.76).
+- Batch 2 is slower: Ling still reasoned 15.4k tokens per claim check at the
+  low tier, and Super's rose from 2.0k to 11.2k.
+- Batch 3 gives Ling the budget it ignores the cap for. Ling then wrote its
+  reasoning into the answer, so 24 claim batches failed to parse, and none of
+  62 claims was supported.
 
 ## Not worth the risk
 
@@ -253,3 +259,4 @@ capping them.
 | F12 | Pause polling in hidden tabs and resume streams mid-way | The campaigns leave frontend fetching and polling to shrink lever 9, which judged its rework not worth the risk (board #240) |
 | M13 | Run proximity beside the research overview | The overview does not read proximity's output, but the workflow commits one node per checkpoint; running two nodes at once means concurrent checkpoint writers for one run, an invariant change in `docs/OPERATIONS.md`, to save about 4 minutes of an Express run |
 | M15 | Count tool schemas and echoed reasoning in the tool-loop transcript budget | `transcript_tokens` counts message text and tool calls only, so an offline simulation sent 22% more than it counted (up to 64% if a route echoes reasoning). The 300k budget never binds: no loop reached it in the Express r2 or Standard job logs, whose largest call prompt was about 53k tokens. Counting more would only move when loops wrap up, which can change answers, for no measured gain |
+| M2 | Keep more calls on Ling | OpenRouter falls back server-side (the request lists the free chain with `allow_fallbacks`), so the client sees only the serving model; the reason is in the owner's OpenRouter activity log. Fan-outs fall back most (comprehensive reflection 1 of 31 on Ling), which fits rate limiting on Ling's single free host. Keeping calls on Ling would need a client-side concurrency cap that serializes fan-outs, and Ling is slower per call than Super (86 s against 38 s in batch 3) |
