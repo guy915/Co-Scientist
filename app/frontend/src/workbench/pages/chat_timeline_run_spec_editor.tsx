@@ -1,11 +1,8 @@
 import {editInterviewFields} from '@/api/runs';
 import {Icon} from '@/components/icon';
+import {Button} from '@/shared/ui';
 import {type ReactNode, useId, useState} from 'react';
-import {
-  SETUP_ACTIONS_CLASSES,
-  SETUP_PRIMARY_BUTTON_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
-} from '../classes';
+import {SETUP_ACTIONS_CLASSES} from '../classes';
 import {
   type EditedSpecFields,
   type InferredRunSpec,
@@ -117,14 +114,15 @@ function EditableList({
           onRemove={() => removeAt(index)}
         />
       ))}
-      <button
-        type="button"
-        className="reference-spec-edit-add flex w-fit cursor-pointer items-center gap-[0.3rem] rounded-full border-0 bg-transparent px-[0.2rem] py-[0.3rem] text-[0.9rem] font-medium text-cosci-muted hover:text-cosci-fg focus-visible:text-cosci-fg"
+      <Button
+        variant="text"
+        size="sm"
+        icon="add"
+        layoutClassName="w-fit -ml-2"
         onClick={() => onChange([...values, ''])}
       >
-        <Icon aria-hidden="true" name="add" className="text-[1.05rem]" />
         Add {label.toLowerCase()}
-      </button>
+      </Button>
     </fieldset>
   );
 }
@@ -193,22 +191,12 @@ function SpecFieldsFormActions(
         </p>
       )}
       <div className={SETUP_ACTIONS_CLASSES}>
-        <button
-          type="button"
-          className={SETUP_SECONDARY_BUTTON_CLASSES}
-          onClick={onCancel}
-          disabled={isSaving}
-        >
+        <Button variant="outlined" onClick={onCancel} disabled={isSaving}>
           Cancel
-        </button>
-        <button
-          type="button"
-          className={SETUP_PRIMARY_BUTTON_CLASSES}
-          onClick={onSave}
-          disabled={!canSave || isSaving}
-        >
+        </Button>
+        <Button onClick={onSave} disabled={!canSave || isSaving}>
           {isSaving ? 'Saving...' : 'Save'}
-        </button>
+        </Button>
       </div>
     </>
   );

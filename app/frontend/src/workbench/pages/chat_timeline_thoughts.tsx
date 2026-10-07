@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import {Icon} from '@/components/icon';
+import {Button} from '@/shared/ui';
 import {MarkdownMessage} from '@/components/markdown_message';
 
 function panelStateClasses(open: boolean): string {
@@ -46,9 +47,10 @@ function ThoughtsSummary({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className="inline-flex cursor-pointer items-center gap-1 rounded-full border-0 bg-transparent p-0 text-left text-base font-medium text-cosci-muted hover:text-cosci-fg focus-visible:text-cosci-fg"
+    <Button
+      variant="text"
+      size="lg"
+      layoutClassName="-ml-3 text-left"
       aria-expanded={open}
       aria-controls={panelId}
       onClick={onToggle}
@@ -68,7 +70,7 @@ function ThoughtsSummary({
         className={chevronClasses(open)}
         name="expand_more"
       />
-    </button>
+    </Button>
   );
 }
 

@@ -12,6 +12,7 @@ import {useChatHistoryContext} from '../hooks/history_context';
 import {GoogleLabsIcon} from '../layout_primitives';
 import {Icon, type IconName} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {Button} from '@/shared/ui';
 import {TruncatedLabel} from '../components/truncated_label';
 import {Link} from 'react-router-dom';
 import {
@@ -118,14 +119,15 @@ function HomeScrollHint() {
     );
   };
   return (
-    <button
-      type="button"
-      className="reference-home-scroll-hint"
+    <Button
+      variant="outlined"
+      size="sm"
+      trailingIcon="expand_more"
+      layoutClassName="reference-home-scroll-hint"
       onClick={onClick}
     >
       Scroll to see how Co-Scientist works
-      <Icon aria-hidden="true" name="expand_more" />
-    </button>
+    </Button>
   );
 }
 
@@ -536,17 +538,14 @@ export function HomeRecentsPanel({
         )}
         {runs.length > 4 && (
           <li className="flex justify-center pt-1 pb-2">
-            <button
-              type="button"
-              className="inline-flex cursor-pointer items-center gap-1 justify-self-center [border:0] bg-transparent px-2 py-1 text-[0.9rem] font-medium text-(--cosci-idea-ref-blue) focus-visible:underline dark:text-cosci-blue [&:hover]:underline"
+            <Button
+              variant="link"
+              size="sm"
+              trailingIcon={showAll ? 'expand_less' : 'expand_more'}
               onClick={onToggleShowAll}
             >
               {showAll ? 'Show less' : 'Show more'}
-              <Icon
-                aria-hidden="true"
-                name={showAll ? 'expand_less' : 'expand_more'}
-              />
-            </button>
+            </Button>
           </li>
         )}
       </ol>

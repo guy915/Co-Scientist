@@ -29,18 +29,19 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      engine: ${{ steps.filter.outputs.engine || steps.all.outputs.engine }}
-      app: ${{ steps.filter.outputs.app || steps.all.outputs.app }}
+      engine: ${{ steps.select.outputs.engine || steps.all.outputs.engine }}
+      app: ${{ steps.select.outputs.app || steps.all.outputs.app }}
       frontend: >-
-        ${{ steps.filter.outputs.frontend || steps.all.outputs.frontend }}
+        ${{ steps.select.outputs.frontend || steps.all.outputs.frontend }}
       evaluations: >-
-        ${{ steps.filter.outputs.evaluations || steps.all.outputs.evaluations }}
+        ${{ steps.select.outputs.evaluations || steps.all.outputs.evaluations }}
       mcp_server: >-
-        ${{ steps.filter.outputs.mcp_server || steps.all.outputs.mcp_server }}
-      e2e: ${{ steps.filter.outputs.e2e || steps.all.outputs.e2e }}
-      docker: ${{ steps.filter.outputs.docker || steps.all.outputs.docker }}
+        ${{ steps.select.outputs.mcp_server || steps.all.outputs.mcp_server }}
+      e2e: ${{ steps.select.outputs.e2e || steps.all.outputs.e2e }}
+      docker: ${{ steps.select.outputs.docker || steps.all.outputs.docker }}
       root_config: >-
-        ${{ steps.filter.outputs.root_config || steps.all.outputs.root_config }}
+        ${{ steps.select.outputs.root_config || steps.all.outputs.root_config }}
+      python_lint: ${{ steps.select.outputs.python_lint || steps.all.outputs.python_lint }}
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request'
@@ -50,8 +51,11 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          list-files: json
           # App imports the engine.
           filters: |
+            files:
+              - '**'
             engine:
               - 'engine/**'
               - '.ruff.toml'
@@ -140,24 +144,48 @@ jobs:
               - '.importlinter'
               - '.github/actions/**'
               - '.github/workflows/ci.yml'
+      - name: Exclude documentation-only test targets
+        id: select
+        if: github.event_name == 'pull_request'
+        env:
+          FILTERS: ${{ toJSON(steps.filter.outputs) }}
+        run: |
+          python - <<'PYSELECT'
+          import json
+          import os
+
+          filters = json.loads(os.environ["FILTERS"])
+          paths = json.loads(filters["files_files"])
+          docs_only = bool(paths) and all(
+              path.startswith("docs/") or path.endswith(".md") for path in paths
+          )
+          test_targets = {"engine", "app", "frontend", "evaluations", "mcp_server", "e2e"}
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              lint = any(filters[target] == "true" for target in ("engine", "app", "evaluations"))
+              print(f"python_lint={str(lint).lower()}", file=output)
+              for target in (*sorted(test_targets), "docker", "root_config"):
+                  selected = filters[target] == "true" and not (docs_only and target in test_targets)
+                  print(f"{target}={str(selected).lower()}", file=output)
+          print(f"Documentation-only: {docs_only}")
+          PYSELECT
       - name: Select all targets (postsubmit / nightly)
         id: all
         if: github.event_name != 'pull_request'
         run: |
           for target in engine app frontend evaluations mcp_server e2e \
-            docker root_config; do
+            docker root_config python_lint; do
             echo "${target}=true" >> "$GITHUB_OUTPUT"
           done
 
+  # MCP and Ruff share an interpreter, while retaining independent step failures.
   format-lint:
     name: Format and lint (ruff)
     needs: changes
     if: >-
-      needs.changes.outputs.engine == 'true' ||
-      needs.changes.outputs.app == 'true' ||
-      needs.changes.outputs.evaluations == 'true'
+      needs.changes.outputs.python_lint == 'true' ||
+      needs.changes.outputs.mcp_server == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -166,25 +194,55 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install ruff
+        if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         # Pin formatters so unrelated releases cannot change formatting checks.
         run: python -m pip install ruff==0.15.21
       - name: Check formatting (engine)
+        if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         working-directory: engine
         run: python -m ruff format --check .
       - name: Lint (engine)
+        if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         working-directory: engine
         run: python -m ruff check .
       - name: Check formatting (app)
+        if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         working-directory: app
         run: python -m ruff format --check app tests
       - name: Lint (app)
+        if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         working-directory: app
         run: python -m ruff check app tests
       - name: Check formatting (evaluations)
+        if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         run: python -m ruff format --check evaluations
       - name: Lint (evaluations)
+        if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         run: python -m ruff check evaluations
 
+      - name: Set up uv
+        if: ${{ !cancelled() && needs.changes.outputs.mcp_server == 'true' }}
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.11.32'
+          enable-cache: false
+      - name: Install MCP server
+        if: ${{ !cancelled() && needs.changes.outputs.mcp_server == 'true' }}
+        # MCP dev extras omit mypy and the defusedxml stubs required by strict arxiv checking.
+        run: uv pip install --system -e "engine/mcp_server[dev]" mypy types-defusedxml
+      - name: Run MCP server test suite
+        if: ${{ !cancelled() && needs.changes.outputs.mcp_server == 'true' }}
+        # The MCP editable install has no import map; resolve it as a directory package from
+        # engine/.
+        working-directory: engine
+        run: python -m pytest mcp_server/tests -q
+      - name: Typecheck MCP server
+        if: ${{ !cancelled() && needs.changes.outputs.mcp_server == 'true' }}
+        # MCP has independent strict configuration; engine mypy excludes it.
+        working-directory: engine/mcp_server
+        run: python -m mypy .
+
+  # Root smoke uses its venv; mypy keeps the setup-backend system environment.
   typecheck:
     name: Typecheck (mypy, strict)
     needs: changes
@@ -194,17 +252,53 @@ jobs:
       needs.changes.outputs.evaluations == 'true' ||
       needs.changes.outputs.root_config == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up backend
         uses: ./.github/actions/setup-backend
+      - name: Cache mypy incremental data
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            app/.mypy_cache
+            engine/.mypy_cache
+            evaluations/.mypy_cache
+          key: ${{ runner.os }}-mypy-3.12-${{ hashFiles('requirements/*.txt', 'engine/pyproject.toml', 'app/pyproject.toml', 'evaluations/pyproject.toml', '.github/actions/setup-backend/action.yml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-mypy-3.12-${{ hashFiles('requirements/*.txt', 'engine/pyproject.toml', 'app/pyproject.toml', 'evaluations/pyproject.toml', '.github/actions/setup-backend/action.yml') }}-
       - name: Typecheck app, engine and evaluations
+        if: ${{ !cancelled() }}
         # The Makefile recipe itself, so root-config need not run mypy again.
         run: make typecheck PY=python
       - name: Import contracts
+        if: ${{ !cancelled() }}
         run: make arch PY=python
+
+      - name: Set up Node.js
+        if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.19.0'
+      - name: Set up Bun
+        if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.3.14'
+      - name: Validate vercel.json syntax
+        if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
+        run: python -m json.tool vercel.json > /dev/null
+      - name: make setup
+        if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
+        # Other jobs encode most commands directly; this gate checks the setup and lint
+        # recipes, and the typecheck job runs the typecheck recipe.
+        env:
+          VIRTUAL_ENV: ${{ github.workspace }}/.venv
+        run: make setup PIP="uv pip"
+      - name: make lint
+        if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
+        run: make lint
 
   test-engine:
     name: Engine tests (py${{ matrix.python-version }})
@@ -312,37 +406,6 @@ jobs:
       - name: Build (tsc + vite + prerender)
         run: bun run build
 
-  mcp-server:
-    name: MCP server tests
-    needs: changes
-    if: needs.changes.outputs.mcp_server == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.12'
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          version: '0.11.32'
-          enable-cache: false
-      - name: Install MCP server
-        # MCP dev extras omit mypy and the defusedxml stubs required by strict arxiv checking.
-        run: uv pip install --system -e "engine/mcp_server[dev]" mypy types-defusedxml
-      - name: Run MCP server test suite
-        # The MCP editable install has no import map; resolve it as a directory package from
-        # engine/.
-        working-directory: engine
-        run: python -m pytest mcp_server/tests -q
-      - name: Typecheck MCP server
-        # MCP has independent strict configuration; engine mypy excludes it.
-        working-directory: engine/mcp_server
-        run: python -m mypy .
-
   e2e:
     name: Browser e2e (${{ matrix.name }})
     needs: changes
@@ -386,6 +449,11 @@ jobs:
         env:
           VIRTUAL_ENV: ${{ github.workspace }}/.venv
         run: make setup PIP="uv pip"
+      - name: Cache Playwright Chromium
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('e2e/bun.lock') }}
       - name: Install Chromium with system dependencies
         # Install Chromium OS dependencies only in CI, avoiding sudo locally.
         # Install Bun dependencies first so bunx uses the pinned Playwright version.
@@ -425,54 +493,18 @@ jobs:
         working-directory: app
         run: docker compose config --quiet
 
-  root-config:
-    name: Root config smoke (Makefile, vercel.json)
-    needs: changes
-    if: needs.changes.outputs.root_config == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.12'
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          version: '0.11.32'
-          enable-cache: false
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24.19.0'
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: '1.3.14'
-      - name: Validate vercel.json syntax
-        run: python -m json.tool vercel.json > /dev/null
-      - name: make setup
-        # Other jobs encode most commands directly; this gate checks the setup and lint
-        # recipes, and the typecheck job runs the typecheck recipe.
-        env:
-          VIRTUAL_ENV: ${{ github.workspace }}/.venv
-        run: make setup PIP="uv pip"
-      - name: make lint
-        run: make lint
-
-  # Preserve the protected check names after splitting their suites into shards.
+  # Preserve legacy protected names until the owner requires only Required checks.
   protected-contexts:
     name: ${{ matrix.name }}
     if: always()
-    needs: [changes, test-app, evaluations, e2e]
+    needs: [changes, format-lint, test-app, evaluations, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
         include:
+          - {name: MCP server tests, owner: format-lint, target: mcp_server, combined: true}
           - {name: App tests, owner: test-app, target: app}
           - {name: Evaluations (parity + offline smoke), owner: evaluations, target: evaluations}
           - {name: Browser e2e (Playwright), owner: e2e, target: e2e}
@@ -482,6 +514,7 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
           CHECK_JOB: ${{ matrix.owner }}
           CHECK_TARGET: ${{ matrix.target }}
+          COMBINED: ${{ matrix.combined || false }}
         run: |
           python - <<'PY'
           import json
@@ -493,7 +526,10 @@ jobs:
           affected = changes["outputs"].get(os.environ["CHECK_TARGET"])
           expected = {"true": "success", "false": "skipped"}.get(affected)
           result = jobs[os.environ["CHECK_JOB"]]["result"]
-          if changes["result"] != "success" or expected is None or result != expected:
+          valid = result == expected or (
+              affected == "false" and os.environ["COMBINED"] == "true" and result == "success"
+          )
+          if changes["result"] != "success" or expected is None or not valid:
               print(f"Selected suite failed: affected={affected}, result={result}")
               sys.exit(1)
           print("The selected suite passed or was correctly excluded.")
@@ -510,10 +546,8 @@ jobs:
       - test-app
       - evaluations
       - frontend
-      - mcp-server
       - e2e
       - docker-build
-      - root-config
       - protected-contexts
     runs-on: ubuntu-latest
     timeout-minutes: 5
