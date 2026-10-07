@@ -1,8 +1,18 @@
 import json
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast
+
+# FastMCP returns a tool's exception as an ordinary text result, so every
+# reader of a tool result has to recognise it. Left unrecognised it reads as a
+# paper's full text, or as zero search hits.
+_TOOL_ERROR_ENVELOPE_RE = re.compile(r"^Error calling tool '[^']*':")
+
+
+def is_tool_reported_error(payload: Any) -> bool:
+    return isinstance(payload, str) and bool(_TOOL_ERROR_ENVELOPE_RE.match(payload.strip()))
 
 
 def describe_exception(exc: BaseException) -> str:
@@ -286,6 +296,8 @@ def get_papers_needing_content(
 
 
 def _parse_content_from_string(result: str) -> str | None:
+    if is_tool_reported_error(result):
+        return None
     try:
         result_data = json.loads(result)
     except json.JSONDecodeError:

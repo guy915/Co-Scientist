@@ -30,6 +30,7 @@ from co_scientist.platform.llm import (
     call_llm_with_tools,
     parse_tool_loop_json,
 )
+from co_scientist.platform.retrieval.evidence.search_query import call_search_tool
 from co_scientist.platform.retrieval.tools.provider import MCPToolProvider
 from co_scientist.platform.retrieval.tools.response_parser import ResponseParser, parse_mcp_result
 from co_scientist.science.generation.citations import (
@@ -125,7 +126,10 @@ async def _search_papers_via_tool_config(
     )
     mapped_params = tool_config.map_parameters(canonical_params)
 
-    result = await ctx.mcp_client.call_tool(tool_config.mcp_tool_name, **mapped_params)
+    # The literature-review path's caller, so a tool-reported error raises
+    # here instead of parsing as zero prior art, and a transient failure is
+    # retried rather than read as an absence of evidence.
+    result = await call_search_tool(ctx.mcp_client, tool_config.mcp_tool_name, mapped_params)
 
     parser = ResponseParser(tool_config)
     articles = parser.parse_to_articles(result)
@@ -140,12 +144,15 @@ async def _search_papers_legacy_fallback(
 ) -> dict[str, dict[str, Any]]:
     """No-registry callers retain direct PubMed retrieval; an explicit
     registry with no validation source instead skips search."""
-    result = await ctx.mcp_client.call_tool(
+    result = await call_search_tool(
+        ctx.mcp_client,
         "pubmed_search_with_fulltext",
-        query=hypothesis_text[:200],
-        max_papers=max_papers,
-        slug=ctx.shared_slug,
-        run_id=ctx.run_id,
+        {
+            "query": hypothesis_text[:200],
+            "max_papers": max_papers,
+            "slug": ctx.shared_slug,
+            "run_id": ctx.run_id,
+        },
     )
 
     return cast(dict[str, dict[str, Any]], parse_mcp_result(result))
