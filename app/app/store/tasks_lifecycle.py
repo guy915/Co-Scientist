@@ -6,12 +6,12 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect, transaction
-from app.store.models import (
+from co_scientist.platform.db import connect, current_time, transaction, use_conn
+from co_scientist.platform.db.models import (
     UNKNOWN_PROVIDER_OUTCOME_ERROR,
     ScientificTask,
     TaskFailure,
-    _decode,
+    row_to_task,
 )
 
 
@@ -22,7 +22,7 @@ def complete_task(
     *,
     db_path: str | None = None,
 ) -> bool:
-    now = _now()
+    now = current_time()
     with transaction(db_path) as conn:
         changed = conn.execute(
             "UPDATE scientific_tasks SET status='completed', result_json=?, "
@@ -49,7 +49,7 @@ def renew_task_lease(
 ) -> bool:
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")
-    now = _now()
+    now = current_time()
     with transaction(db_path) as conn:
         changed = conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=?, updated_at=? "
@@ -101,7 +101,7 @@ def _persist_failed_attempt(
     """Join the caller's transaction so a failed settlement also rolls back
     the attempt and retry-state write.
     """
-    now = _now()
+    now = current_time()
     retry_left = retryable and task.attempt < task.max_attempts
     status = "queued" if retry_left else "failed"
     attempts_json = _record_failed_attempt(task, worker_id, error, retryable, now)
@@ -155,7 +155,7 @@ def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
     queued tasks still waiting on upstream work; claim rechecks under the
     writer lock, so advisory races cannot double-lease.
     """
-    now = _now()
+    now = current_time()
     query = (
         "SELECT 1 FROM scientific_tasks WHERE "
         f"{_ENGINE_RUN_STATUS_GUARD} AND {_QUEUED_AND_DUE} AND {_DEPENDENCIES_READY}"
@@ -188,7 +188,7 @@ def has_task_of_type(
         " LIMIT 1"
     )
     params = (run_id, len(type_prefix), type_prefix, status, status)
-    with _use_conn(conn, None) as active:
+    with use_conn(conn, None) as active:
         row = active.execute(query, params).fetchone()
     return row is not None
 
@@ -239,7 +239,7 @@ def queue_health_snapshot(
     """A stalled run has no queued, live or rescuable work; this independent
     read-only probe detects broken settlement.
     """
-    now = _now()
+    now = current_time()
     placeholders = ",".join("?" for _ in _ACTIVE_RUN_STATUSES)
     query = (
         "SELECT r.id AS run_id,"
@@ -282,7 +282,7 @@ def cohort_poll(run_id: str, db_path: str | None = None) -> tuple[bool, bool, fl
         "        AND available_at IS NOT NULL"
         "        AND available_at>?) AS parked_until"
     )
-    now = _now()
+    now = current_time()
     with connect(db_path) as conn:
         row = conn.execute(query, (run_id, now, run_id, now, run_id, now, run_id, now)).fetchone()
     parked_until = row["parked_until"]
@@ -367,7 +367,7 @@ def _fail_ambiguous_expired_leases(conn: sqlite3.Connection, now: float) -> int:
     failed_runs: set[str] = set()
     failed_count = 0
     for row in _ambiguous_expired_engine_leases(conn, now):
-        task = _decode(row)
+        task = row_to_task(row)
         if task.run_id in failed_runs:
             continue
         if _fail_ambiguous_engine_lease(conn, task, failure, now):
@@ -395,7 +395,7 @@ def reprioritize_task(
     conn: sqlite3.Connection | None = None,
 ) -> bool:
     bounded = clamp_task_priority(priority)
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT provenance_json FROM scientific_tasks WHERE id=? AND status='queued'",
             (task_id,),
@@ -407,7 +407,7 @@ def reprioritize_task(
         active.execute(
             "UPDATE scientific_tasks SET priority=?, provenance_json=?, "
             "updated_at=? WHERE id=? AND status='queued'",
-            (bounded, json.dumps(provenance, sort_keys=True), _now(), task_id),
+            (bounded, json.dumps(provenance, sort_keys=True), current_time(), task_id),
         )
     return True
 
@@ -419,8 +419,8 @@ def cancel_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    now = _now()
-    with _use_conn(conn, db_path) as active:
+    now = current_time()
+    with use_conn(conn, db_path) as active:
         changed = active.execute(
             "UPDATE scientific_tasks SET status='cancelled', error=?, "
             "completed_at=?, updated_at=? WHERE id=? "
@@ -437,8 +437,8 @@ def retry_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    now = _now()
-    with _use_conn(conn, db_path) as active:
+    now = current_time()
+    with use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT provenance_json FROM scientific_tasks WHERE id=? AND status='failed'",
             (task_id,),
@@ -462,8 +462,8 @@ def cancel_run_tasks(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    now = _now()
-    with _use_conn(conn, db_path) as active:
+    now = current_time()
+    with use_conn(conn, db_path) as active:
         changed = active.execute(
             "UPDATE scientific_tasks SET status='cancelled', "
             "lease_owner=NULL, lease_expires_at=NULL, completed_at=?, "
@@ -485,7 +485,7 @@ def park_task(
     attempts so repeated adjudications cannot strand the same idempotent
     boundary.
     """
-    now = _now()
+    now = current_time()
     with transaction(db_path) as conn:
         changed = conn.execute(
             "UPDATE scientific_tasks SET status='paused', attempt=0, "
@@ -507,7 +507,7 @@ def park_task_for_rate_limit(
     """Clock waits release the lease without spending an attempt; keep work
     queued so the cohort resumes it without operator action.
     """
-    now = _now()
+    now = current_time()
     with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM scientific_tasks WHERE id=? AND status='leased' AND lease_owner=?",
@@ -515,7 +515,7 @@ def park_task_for_rate_limit(
         ).fetchone()
         if row is None:
             return False
-        task = _decode(row)
+        task = row_to_task(row)
         attempts_json = _record_failed_attempt(task, worker_id, reason, True, now)
         changed = conn.execute(
             "UPDATE scientific_tasks SET status='queued', "
@@ -537,8 +537,8 @@ def resume_run_tasks(
     """Join lifecycle admission's transaction so unpause and continuation
     discovery cannot race another resume.
     """
-    now = _now()
-    with _use_conn(conn, db_path) as active:
+    now = current_time()
+    with use_conn(conn, db_path) as active:
         changed = active.execute(
             "UPDATE scientific_tasks SET status='queued', updated_at=? "
             "WHERE run_id=? AND status='paused'",
@@ -585,8 +585,8 @@ def revive_task_for_retry(
     """Idempotent enqueue cannot resurrect a dead boundary; explicit
     recovery authorizes fresh work without replaying completed tasks.
     """
-    now = _now()
-    with _use_conn(conn, db_path) as active:
+    now = current_time()
+    with use_conn(conn, db_path) as active:
         changed = _revive_task_row(active, run_id, idempotency_key, now)
     return changed > 0
 
@@ -621,7 +621,7 @@ def abandon_dead_leases(run_id: str, *, db_path: str | None = None) -> int:
     """
     from app.store.runs_views import _settle_run_for_failed_task
 
-    now = _now()
+    now = current_time()
     with connect(db_path) as active:
         task_types = _fail_dead_lease_rows(active, run_id, now)
         if not task_types:

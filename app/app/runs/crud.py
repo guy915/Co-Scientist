@@ -7,6 +7,9 @@ from typing import Any, NamedTuple, Protocol
 
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
+from co_scientist.platform import db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
 import app.credentials as credentials
@@ -28,18 +31,10 @@ from app.runs.models import (
     _build_create_run_config,
 )
 from app.runs.support import _run_or_404
-from app.store import (
-    checkpoints,
-    db,
-    documents,
-    events,
-    interviews,
-    records,
-    tasks,
-)
+from app.seed import is_current_demo_run
+from app.store import documents, events, interviews, records, tasks
 from app.store import runs as store
 from app.store import runs_views as views
-from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from app.store.runs import RunCreateOptions
 
 
@@ -591,7 +586,7 @@ def list_runs(
 def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
     runs = views.list_runs(client_id=DEMO_CLIENT_ID)
-    return _runs_payload(runs)
+    return _runs_payload([run for run in runs if is_current_demo_run(run.id)])
 
 
 @off_loop

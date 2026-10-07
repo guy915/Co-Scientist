@@ -153,7 +153,7 @@ def run_completion_status(run: Any) -> tuple[bool, bool]:
     persisted facts.
     """
     from app.store import runs as store
-    from app.store.models import RunStatus
+    from co_scientist.platform.db.models import RunStatus
 
     if run is None:
         return False, False

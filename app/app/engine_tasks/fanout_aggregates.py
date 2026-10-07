@@ -5,6 +5,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 
+from co_scientist.platform.db.models import ScientificTask
+
 from app.engine_tasks.support import (
     NodeCompletion,
     TaskCommit,
@@ -15,7 +17,6 @@ from app.engine_tasks.support import (
     merge_usage_snapshots,
 )
 from app.store import tasks
-from app.store.models import ScientificTask
 from app.store.tasks import NewTask
 
 if TYPE_CHECKING:

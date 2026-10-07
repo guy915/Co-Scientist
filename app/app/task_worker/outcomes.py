@@ -12,16 +12,16 @@ from co_scientist.core.exceptions import (
     LLMRateLimitParkError,
     LLMTimeoutError,
 )
+from co_scientist.platform.db.models import (
+    UNKNOWN_PROVIDER_OUTCOME_ERROR,
+    ScientificTask,
+    TaskFailure,
+)
 
 from app import engine_tasks
 from app.engine_tasks.portfolio import cancel_downstream_portfolio_chain
 from app.store import tasks
 from app.store import tasks_lifecycle as store
-from app.store.models import (
-    UNKNOWN_PROVIDER_OUTCOME_ERROR,
-    ScientificTask,
-    TaskFailure,
-)
 
 logger = logging.getLogger(__name__)
 

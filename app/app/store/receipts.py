@@ -6,8 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from app.store.db import _now, _use_conn
-from app.store.models import RunRow, _row_to_run
+from co_scientist.platform.db import current_time, use_conn
+from co_scientist.platform.db.models import RunRow, row_to_run
 
 if TYPE_CHECKING:
     from app.credentials import ByokCredential
@@ -40,7 +40,7 @@ def lookup_run_creation_receipt(
     """Owner-check the current run even when a stored receipt exists;
     ownership changes must not expose its data.
     """
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         receipt = active.execute(
             "SELECT request_digest, run_id FROM run_creation_receipts "
             "WHERE client_id=? AND idempotency_key=?",
@@ -54,7 +54,7 @@ def lookup_run_creation_receipt(
         ).fetchone()
     return RunCreationReceipt(
         request_digest=str(receipt["request_digest"]),
-        run=_row_to_run(row) if row is not None else None,
+        run=row_to_run(row) if row is not None else None,
     )
 
 
@@ -67,12 +67,12 @@ def add_run_creation_receipt(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO run_creation_receipts "
             "(client_id, idempotency_key, request_digest, run_id, created_at) "
             "VALUES (?,?,?,?,?)",
-            (client_id, idempotency_key, request_digest, run_id, _now()),
+            (client_id, idempotency_key, request_digest, run_id, current_time()),
         )
 
 
@@ -107,8 +107,9 @@ def commit_run_creation(
     """Recheck receipt and staged ownership under the same writer lock as
     setup, credentials and attachment persistence.
     """
+    from co_scientist.platform.db import transaction
+
     from app import credentials
-    from app.store.db import transaction
     from app.store.documents import index_staged_documents_for_run
 
     if (idempotency_key is None) != (request_digest is None):

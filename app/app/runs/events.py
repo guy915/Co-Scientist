@@ -4,12 +4,12 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow, RunStatus
 from fastapi import Request
 
 from app.sse import sse_frame
 from app.store import events as store
 from app.store import runs
-from app.store.models import TERMINAL_STATUSES, RunRow, RunStatus
 
 # Paused runs are resumable but stop producing events; close the stream until
 # clients

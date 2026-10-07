@@ -18,6 +18,8 @@ from co_scientist.models import (
     GenerationMethod,
     Hypothesis,
 )
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.state import WorkflowState
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
@@ -28,10 +30,9 @@ from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support
 from app.engine_tasks import support as engine_tasks_support
-from app.store import checkpoints, runs
+from app.store import runs
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus, ScientificTask
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (

@@ -1,16 +1,7 @@
-import {useEffect, useId, useRef, useState} from 'react';
-import {
-  APP_LOGS_CHANGED_EVENT,
-  getAppLogs,
-  postAppLogs,
-  type AppLogsPayload,
-} from '@/api/logs';
-import {Icon} from '@/components/icon';
-import {copyText} from '@/lib/clipboard';
+import {useEffect, useRef} from 'react';
+import {getAppLogs, postAppLogs, type AppLogsPayload} from '@/api/logs';
 import {useLocation} from 'react-router-dom';
-import {joinClasses, tooltipClassNames} from './classes';
 import {DIAGNOSTIC_EVENT} from './dom_events';
-import {useResetTimer} from './hooks/timers';
 import {
   EXPORT_LIMIT,
   browserExportContext,
@@ -22,123 +13,25 @@ import {
   type DiagnosticLogEventDetail,
   type PersistedAppLogs,
 } from './layout_diagnostics_data';
-import {
-  HEADER_CONTROL_ICON_CLASSES,
-  headerControlButtonClasses,
-} from './layout_primitives';
 
-const LOGS_BUTTON_CLASSES = headerControlButtonClasses(
-  'inline-flex px-[0.62rem] py-0 pl-[0.72rem]',
-);
-
-const STATUS_DOT_CLASSES = 'h-2 w-2 shrink-0 rounded-full';
-
-const COPIED_RESET_MS = 2_000;
-
-// Rescheduling replaces the prior expiry; cleanup prevents stale timers
-// clearing a later copy label.
-function useCopiedFlag() {
-  const [copied, setCopied] = useState(false);
-  const timer = useResetTimer();
-
-  return {
-    copied,
-    markCopied() {
-      setCopied(true);
-      timer.schedule(() => setCopied(false), COPIED_RESET_MS);
-    },
-  };
-}
-
-// Refreshes on writes and tab focus, never on a timer, so an idle tab costs the
-// database nothing.
-function useWarningLogged(): boolean {
-  const [logged, setLogged] = useState(false);
-
+// The feedback export is scoped to records after this anchor, so it must be
+// taken when the shell mounts, not when feedback is first submitted.
+function useSessionLogAnchor() {
   useEffect(() => {
-    let disposed = false;
-    let latestRequest = 0;
-    const load = () => {
-      const request = ++latestRequest;
-      const afterId = sessionAfterId();
-      getAppLogs(afterId, 1, 'WARNING')
-        .then(payload => {
-          // Even a disposed mount must anchor the session before a later
-          // response includes session-owned records.
-          ensureSessionBaseline(payload);
-          if (disposed || request !== latestRequest) return;
-          setLogged(
-            afterId >= (readBaseline()?.id ?? 0) && payload.session_total > 0,
-          );
-        })
-        .catch(() => {
-          if (disposed || request !== latestRequest) return;
-          setLogged(false);
-        });
-    };
-    const loadIfVisible = () => {
-      if (!document.hidden) load();
-    };
-    load();
-    document.addEventListener('visibilitychange', loadIfVisible);
-    window.addEventListener(APP_LOGS_CHANGED_EVENT, load);
-    return () => {
-      disposed = true;
-      document.removeEventListener('visibilitychange', loadIfVisible);
-      window.removeEventListener(APP_LOGS_CHANGED_EVENT, load);
-    };
+    getAppLogs(sessionAfterId(), 1, 'WARNING')
+      .then(ensureSessionBaseline)
+      .catch(() => {
+        // Without an anchor the export falls back to its first fetch.
+      });
   }, []);
-
-  return logged;
 }
 
-export function DiagnosticsControl() {
-  const copiedFlag = useCopiedFlag();
-  const warningLogged = useWarningLogged();
-  const statusId = useId();
+// Mounted for the shell lifetime; renders nothing.
+export function SessionDiagnostics() {
+  useSessionLogAnchor();
   useDiagnosticIngest();
   useNavigationLog();
-
-  async function onCopy() {
-    await copyText(await sessionDiagnosticExport());
-    copiedFlag.markCopied();
-  }
-
-  return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className: LOGS_BUTTON_CLASSES,
-        placement: 'bottom',
-      })}
-      aria-label="Logs — copy session logs"
-      aria-describedby={statusId}
-      data-tooltip="Copy session logs"
-      onClick={() => void onCopy()}
-    >
-      <Icon
-        aria-hidden="true"
-        className={HEADER_CONTROL_ICON_CLASSES}
-        name="content_copy"
-      />
-      <span>{copiedFlag.copied ? 'Copied' : 'Logs'}</span>
-      <span
-        aria-hidden="true"
-        data-logged={warningLogged}
-        className={joinClasses(
-          STATUS_DOT_CLASSES,
-          warningLogged
-            ? 'bg-cosci-logs-danger-fg'
-            : 'bg-cosci-logs-accent-fg opacity-40',
-        )}
-      />
-      <span id={statusId} className="sr-only">
-        {warningLogged
-          ? 'A warning or error was logged this session'
-          : 'No warnings or errors logged this session'}
-      </span>
-    </button>
-  );
+  return null;
 }
 
 // sessionStorage preserves the log anchor across tab reloads but ends it on tab
@@ -185,7 +78,7 @@ export function sessionAfterId(): number {
   return readBaseline()?.id ?? 0;
 }
 
-// The Logs button and feedback share the session anchor and exporter.
+// Feedback attaches this export of the current browsing session.
 export async function sessionDiagnosticExport(): Promise<string> {
   let entries: DiagnosticLogEntry[] = [];
   let total = 0;

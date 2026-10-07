@@ -13,11 +13,11 @@ from co_scientist.core.run_modes import (
     normalize_run_tier,
     setup_guidance,
 )
+from co_scientist.platform.db.models import MessageRow
 
 from app import run_corpus
 from app.store import interviews, records
 from app.store import messages as store
-from app.store.models import MessageRow
 
 if TYPE_CHECKING:
     from app.credentials import ByokCredential

@@ -13,7 +13,9 @@ test('home renders at the required desktop viewport', async ({page}) => {
     }),
   ).toBeVisible();
   await expect(page.locator('.reference-home-main')).toHaveCSS('opacity', '1');
-  await expect(page.getByRole('button', {name: /Logs/i})).toBeVisible();
+  await expect(
+    page.getByRole('button', {name: 'Feedback', exact: true}),
+  ).toBeVisible();
   await captureViewport(page, {
     ...DESKTOP_VIEWPORT,
     name: 'faithful-home-desktop-2026-07-13.png',

@@ -5,6 +5,13 @@ from typing import Any
 
 from co_scientist.core.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
 from co_scientist.core.run_modes import resolved_run_config
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import (
+    TERMINAL_STATUSES,
+    RunRow,
+    RunStatus,
+    ScientificTask,
+)
 
 from app.elo import INITIAL_ELO
 from app.engine_adapter import sync_engine_llm_backend
@@ -20,14 +27,8 @@ from app.engine_tasks.support import (
 )
 from app.run_events import make_emitter
 from app.safety import ScreenSubject, apply_safety_gate, screen_intake
-from app.store import checkpoints, events, messages, records, runs, tasks
+from app.store import events, messages, records, runs, tasks
 from app.store import hypotheses as store_hypotheses
-from app.store.models import (
-    TERMINAL_STATUSES,
-    RunRow,
-    RunStatus,
-    ScientificTask,
-)
 from app.store.tasks import NewTask
 
 # Human categorical verdicts share agents' 1-10 rubric because the latest review

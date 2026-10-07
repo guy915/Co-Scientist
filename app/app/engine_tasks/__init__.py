@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from co_scientist.core.run_modes import resolved_run_config
+from co_scientist.platform.db.models import ScientificTask
 
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.fanout import (
@@ -53,7 +54,6 @@ from app.execution_policy import (
     zero_cost_admission_for_config,
 )
 from app.store import runs
-from app.store.models import ScientificTask
 
 _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     BOOTSTRAP_TASK: execute_bootstrap,

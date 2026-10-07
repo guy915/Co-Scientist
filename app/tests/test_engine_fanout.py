@@ -15,6 +15,8 @@ from co_scientist.core.exceptions import (
 )
 from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Hypothesis, HypothesisReview
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import ScientificTask
 
 import app.engine_tasks.fanout as items
 from app import engine_tasks, task_worker
@@ -23,10 +25,8 @@ from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.fanout import _mature_reflection_specs
 from app.engine_tasks.fanout_aggregates import _apply_review_items
 from app.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
-from app.store import checkpoints
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import ScientificTask
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,

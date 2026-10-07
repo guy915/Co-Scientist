@@ -7,9 +7,16 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect, transaction
+from co_scientist.platform.db import connect, current_time, transaction, use_conn
+from co_scientist.platform.db.models import (
+    DEMO_CLIENT_ID,
+    TERMINAL_STATUSES,
+    RunRow,
+    RunStatus,
+    row_to_run,
+)
+
 from app.store.logs import count_logs_for_run, delete_logs_for_run
-from app.store.models import TERMINAL_STATUSES, RunRow, RunStatus, _row_to_run
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -23,7 +30,7 @@ def _bootstrap_lease_matches(row: sqlite3.Row, worker_id: str | None, attempt: i
             row["attempt"] == attempt,
             row["task_type"] == "engine.bootstrap",
             row["lease_expires_at"] is not None,
-            float(row["lease_expires_at"] or 0) > _now(),
+            float(row["lease_expires_at"] or 0) > current_time(),
         )
     )
 
@@ -69,7 +76,7 @@ def _advance_bootstrap_status(conn: sqlite3.Connection, run_id: str, status: str
     }:
         return False
     if status != RunStatus.RUNNING.value:
-        now = _now()
+        now = current_time()
         conn.execute(
             "UPDATE runs SET status=?, error=NULL, updated_at=?, "
             "completed_at=NULL WHERE id=? AND status=?",
@@ -200,7 +207,7 @@ def redact_run_goal(
     """Redact title and clear restatement with the goal: both are derived
     text that could otherwise disclose the same sensitive span.
     """
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         active.execute(
             "UPDATE runs SET research_goal = ?, title = ?, goal_restatement = NULL WHERE id = ?",
             (goal, title, run_id),
@@ -214,7 +221,7 @@ def set_run_config(run_id: str, config: dict[str, Any], db_path: str | None = No
     with connect(db_path) as conn:
         conn.execute(
             "UPDATE runs SET config_json=?, updated_at=? WHERE id=?",
-            (json.dumps(config), _now(), run_id),
+            (json.dumps(config), current_time(), run_id),
         )
 
 
@@ -223,9 +230,9 @@ def get_run(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> RunRow | None:
-    with _use_conn(conn, db_path) as conn:
+    with use_conn(conn, db_path) as conn:
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-        return _row_to_run(row) if row else None
+        return row_to_run(row) if row else None
 
 
 def run_exists(run_id: str) -> bool:
@@ -241,9 +248,9 @@ def update_run_status(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    now = _now()
+    now = current_time()
     completed_at = now if status in TERMINAL_STATUSES else None
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         active.execute(
             "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",
             (status.value, error, now, completed_at, run_id),
@@ -259,7 +266,7 @@ def update_run_status_if_current(
 ) -> bool:
     if not expected_statuses:
         return False
-    now = _now()
+    now = current_time()
     completed_at = now if status in TERMINAL_STATUSES else None
     placeholders = ",".join("?" for _ in expected_statuses)
     changed = conn.execute(
@@ -281,7 +288,7 @@ def set_run_timing(run_id: str, duration_seconds: float) -> None:
     """Reconstructed demos must not report the interval between releases as
     scientific compute time.
     """
-    completed_at = _now()
+    completed_at = current_time()
     created_at = completed_at - max(duration_seconds, 1.0)
     with connect() as conn:
         conn.execute(
@@ -298,7 +305,7 @@ def summary_counts(run_id: str, conn: sqlite3.Connection | None = None) -> dict[
         "matches": "matches",
         "reviews": "reviews",
     }
-    with _use_conn(conn, None) as conn:
+    with use_conn(conn, None) as conn:
         return {
             field: conn.execute(
                 f"SELECT COUNT(*) FROM {table} WHERE run_id=?",
@@ -353,7 +360,9 @@ def create_run(
     creation cannot appear in the log.
     """
     opts = options or RunCreateOptions()
-    now = _now()
+    if opts.client_id == DEMO_CLIENT_ID:
+        raise ValueError("the demo identity is reserved for seeded examples")
+    now = current_time()
     backend = opts.llm_backend or "real"
     run = RunRow(
         id=str(uuid.uuid4()),
@@ -370,7 +379,7 @@ def create_run(
         error=None,
         llm_backend=backend,
     )
-    with _use_conn(opts.conn, opts.db_path) as active:
+    with use_conn(opts.conn, opts.db_path) as active:
         active.execute(
             "INSERT INTO runs (id, research_goal, title, profile, status, "
             "provider, config_json, client_id, created_at, updated_at, "
@@ -439,5 +448,5 @@ def reserve_run_capacity_in_transaction(
     count = _count_other_active_runs(conn, run_id, client_id)
     if count >= limit:
         return False
-    changed = _queue_run_if_startable(conn, run_id, _now(), expected_status)
+    changed = _queue_run_if_startable(conn, run_id, current_time(), expected_status)
     return bool(changed)

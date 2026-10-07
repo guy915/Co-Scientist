@@ -8,21 +8,21 @@ from typing import Any
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
+from co_scientist.platform import db as store_db
+from co_scientist.platform.db.models import (
+    UNKNOWN_PROVIDER_OUTCOME_ERROR,
+    RunStatus,
+    ScientificTask,
+)
 
 import app.store.tasks_lifecycle as store_tasks_attempts
 from app import credentials, engine_tasks, task_worker
-from app.store import db as store_db
 from app.store import events as store_events
 from app.store import runs
 from app.store import runs_views as views
 from app.store import tasks as store
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import (
-    UNKNOWN_PROVIDER_OUTCOME_ERROR,
-    RunStatus,
-    ScientificTask,
-)
 from app.store.runs import RunCreateOptions
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
@@ -52,8 +52,8 @@ def _stamped_run_with_expired_lease(
         "restarted-worker", run_id=run.id, lease_seconds=1, db_path=isolated_db
     )
     assert leased is not None
-    now = store_db._now()
-    monkeypatch.setattr("app.store.db.time.time", lambda: now + 2)
+    now = store_db.current_time()
+    monkeypatch.setattr("co_scientist.platform.db.time.time", lambda: now + 2)
     return run.id, task.id
 
 
@@ -123,8 +123,8 @@ async def test_expired_standard_lease_without_the_stamp_fails_closed(
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
     task = enqueue_task(run.id, "engine.node.generate", "generate:seed", db_path=isolated_db)
     assert store.claim_task("restarted-worker", run_id=run.id, lease_seconds=1, db_path=isolated_db)
-    now = store_db._now()
-    monkeypatch.setattr("app.store.db.time.time", lambda: now + 2)
+    now = store_db.current_time()
+    monkeypatch.setattr("co_scientist.platform.db.time.time", lambda: now + 2)
 
     assert not await task_worker.run_once("new-worker", db_path=isolated_db)
 

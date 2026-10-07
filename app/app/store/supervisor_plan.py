@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect
+from co_scientist.platform.db import connect, current_time, use_conn
 
 
 @dataclass(frozen=True)
@@ -22,8 +22,8 @@ def save_supervisor_plan(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    now = _now()
-    with _use_conn(conn, None) as active:
+    now = current_time()
+    with use_conn(conn, None) as active:
         active.execute(
             "INSERT INTO supervisor_plan (run_id, plan_json, "
             "orchestrator_state_json, decision_provenance, "
@@ -53,7 +53,7 @@ def get_supervisor_plan(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         row = active.execute("SELECT * FROM supervisor_plan WHERE run_id=?", (run_id,)).fetchone()
     if row is None:
         return None
@@ -72,9 +72,9 @@ def replace_supervisor_allocations(
     """Ledger sequence follows scheduling order; shared drain timestamps
     cannot recover that order.
     """
-    with _use_conn(conn, None) as active:
+    with use_conn(conn, None) as active:
         active.execute("DELETE FROM supervisor_allocations WHERE run_id = ?", (run_id,))
-        now = _now()
+        now = current_time()
         active.executemany(
             "INSERT INTO supervisor_allocations (run_id, seq, iteration, "
             "task_type, status, reason, planner_reason, priority, "

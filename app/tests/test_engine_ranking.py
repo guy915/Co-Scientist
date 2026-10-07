@@ -8,6 +8,7 @@ from co_scientist.models import (
     Article,
     Hypothesis,
 )
+from co_scientist.platform.db.models import RunStatus
 
 from app.claims import (
     ClaimAssessment,
@@ -24,7 +25,6 @@ from app.engine_tasks.gate import (
     _GatePlan,
 )
 from app.store import runs, tasks
-from app.store.models import RunStatus
 from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (

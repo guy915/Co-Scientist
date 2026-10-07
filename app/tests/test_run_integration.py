@@ -9,6 +9,8 @@ from typing import Any
 import httpx
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform import db
+from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from fastapi import FastAPI
 from httpx import ASGITransport
 
@@ -18,14 +20,13 @@ from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
-from app.store import db, messages, records, reports
 from app.store import events as store_events
 from app.store import hypotheses as store_hypotheses
+from app.store import messages, records, reports
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
 from app.store.messages import NewMessage
-from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from tests._client import (
     DEFAULT_TEST_CLIENT_ID,
 )

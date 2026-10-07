@@ -7,10 +7,11 @@ import re
 from collections.abc import Iterator
 from typing import Any
 
+from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow
+
 from app.citations import STATE_RANK
 from app.store import events as store
 from app.store import reports, tasks
-from app.store.models import TERMINAL_STATUSES, RunRow
 
 logger = logging.getLogger(__name__)
 

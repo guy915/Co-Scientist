@@ -1,5 +1,4 @@
 import asyncio
-import io
 import logging
 from typing import Any
 from urllib.parse import ParseResult, urlparse
@@ -7,6 +6,7 @@ from urllib.parse import ParseResult, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from mcp_server.pdf_parser import extract_text_from_pdf
 from mcp_server.safe_http import UnsafeUrlError, get_with_screened_redirects, validate_http_url
 from mcp_server.text_extraction import truncate_markdown
 
@@ -53,8 +53,6 @@ def check_fetchable(url: str) -> None:
 
 _REQUEST_TIMEOUT = 30
 _MAX_REDIRECTS = 5
-# httpx buffers before extraction; this cap bounds parsing/output, not response-
-# body transfer.
 _MAX_BYTES = 10 * 1024 * 1024
 
 _USER_AGENT = "co-scientist-mcp/0.1 (research agent; +https://ai-co-scientist.com)"
@@ -114,35 +112,18 @@ def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
     return truncate_markdown(text, max_chars)
 
 
-def extract_text_from_pdf(data: bytes, max_chars: int = 50_000) -> str:
-    """Scanned PDFs may lack a text layer; report unreadability instead of
-    inviting repeated fetches.
-    """
-    try:
-        from pypdf import PdfReader
-
-        reader = PdfReader(io.BytesIO(data))
-        pages = []
-        for page in reader.pages:
-            pages.append(page.extract_text() or "")
-            if sum(len(p) for p in pages) > max_chars:
-                break
-        text = "\n\n".join(p for p in pages if p.strip())
-    except Exception as exc:
-        logger.warning("PDF extraction failed: %s", exc)
-        return "[error: could not extract text from PDF]"
-
-    if not text.strip():
-        return "[note: PDF has no extractable text layer, likely a scan]"
-    return truncate_markdown(text, max_chars)
-
-
 async def _get_with_screened_redirects(client: httpx.AsyncClient, url: str) -> httpx.Response:
     """Automatic redirects would bypass target screening; recheck each hop
     manually.
     """
     try:
-        return await get_with_screened_redirects(client, url, max_redirects=_MAX_REDIRECTS)
+        return await get_with_screened_redirects(
+            client,
+            url,
+            max_redirects=_MAX_REDIRECTS,
+            max_bytes=_MAX_BYTES,
+            timeout_seconds=_REQUEST_TIMEOUT,
+        )
     except UnsafeUrlError as exc:
         raise UrlNotFetchableError(str(exc)) from exc
 
@@ -151,7 +132,7 @@ def _render_response(response: httpx.Response) -> str:
     content_type = response.headers.get("content-type", "").lower()
 
     if "pdf" in content_type:
-        return extract_text_from_pdf(response.content[:_MAX_BYTES])
+        return extract_text_from_pdf(response.content)
     if "html" in content_type or "xml" in content_type:
         return extract_text_from_html(response.text)
     if content_type.startswith("text/") or "json" in content_type:

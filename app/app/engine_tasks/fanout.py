@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
+from co_scientist.platform import db
+from co_scientist.platform.db.models import ScientificTask
+
 from app.engine_tasks.fanout_aggregates import (
     _AggregateSpec,
     _enqueue_aggregate_task,
@@ -24,8 +27,7 @@ from app.engine_tasks.support import (
     _save_exact_checkpoint,
     assert_task_commit_allowed,
 )
-from app.store import db, events, tasks
-from app.store.models import ScientificTask
+from app.store import events, tasks
 from app.store.tasks import NewTask
 
 if TYPE_CHECKING:

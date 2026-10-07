@@ -12,14 +12,15 @@ from co_scientist.core.config import settings
 from co_scientist.core.exceptions import (
     LLMTimeoutError,
 )
+from co_scientist.platform import db as _store_db
+from co_scientist.platform import db as store_db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 
 from app import credentials, engine_tasks, task_worker
-from app.store import checkpoints, runs, tasks
-from app.store import db as _store_db
-from app.store import db as store_db
 from app.store import events as store_events
+from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
 from tests._store_helpers import (
@@ -396,11 +397,11 @@ async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
     queued = tasks.get_task(task.id, db_path=isolated_db)
     assert queued is not None and queued.status == "queued"
     assert queued.attempt == 1
-    assert queued.available_at is not None and queued.available_at > store_db._now()
+    assert queued.available_at is not None and queued.available_at > store_db.current_time()
     assert not await task_worker.run_once("free-timeout-worker", db_path=isolated_db)
     assert accepted == [1]
 
-    monkeypatch.setattr("app.store.db.time.time", lambda: queued.available_at + 1)
+    monkeypatch.setattr("co_scientist.platform.db.time.time", lambda: queued.available_at + 1)
     assert await task_worker.run_once("free-timeout-worker", db_path=isolated_db)
     completed = tasks.get_task(task.id, db_path=isolated_db)
     assert completed is not None and completed.status == "completed"

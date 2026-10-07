@@ -6,6 +6,7 @@ import pytest
 from co_scientist.models import (
     SCIENTIST_REVIEWER,
 )
+from co_scientist.platform.db import checkpoints
 
 from app import task_worker
 from app.engine_adapter.drain import hypotheses as drain_hypotheses
@@ -14,8 +15,8 @@ from app.engine_tasks import node as engine_tasks_restore
 from app.engine_tasks.support import (
     NODE_TASK_PREFIX,
 )
-from app.store import checkpoints, hypotheses, messages, records, runs
 from app.store import events as store_events
+from app.store import hypotheses, messages, records, runs
 from app.store import tasks as store
 from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
 from app.store.records import NewReview

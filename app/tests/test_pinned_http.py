@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+from collections.abc import Iterator
 
 import httpx
 import pytest
@@ -42,3 +43,41 @@ def test_redirect_private_hop_is_blocked(monkeypatch: pytest.MonkeyPatch) -> Non
         pytest.raises(pinned_http.UnsafeUrlError, match="non-public"),
     ):
         pinned_http.request_with_screened_redirects(client, "HEAD", "https://example.org/")
+
+
+@pytest.mark.parametrize("first_status", [302, 403, 405])
+def test_citation_probe_closes_every_hop_without_consuming_response_bodies(
+    monkeypatch: pytest.MonkeyPatch, first_status: int
+) -> None:
+    monkeypatch.setattr(socket, "getaddrinfo", _dns)
+    streams: list[_UnreadBody] = []
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        stream = _UnreadBody()
+        streams.append(stream)
+        status = first_status if len(requests) == 1 else 200
+        headers = {"location": "/paper"} if status == 302 else {}
+        return httpx.Response(status, headers=headers, stream=stream, request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        response = pinned_http.request_with_screened_redirects(
+            client, "HEAD", "https://example.org/"
+        )
+
+    assert response.status_code == 200
+    assert all(stream.closed for stream in streams)
+    assert requests[-1].method == ("HEAD" if first_status == 302 else "GET")
+
+
+class _UnreadBody(httpx.SyncByteStream):
+    def __init__(self) -> None:
+        self.closed = False
+
+    def __iter__(self) -> Iterator[bytes]:
+        raise AssertionError("a status-only probe consumed an unbounded response body")
+        yield b""
+
+    def close(self) -> None:
+        self.closed = True

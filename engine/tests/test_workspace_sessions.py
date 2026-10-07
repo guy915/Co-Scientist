@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -15,6 +16,7 @@ from typing import Any
 
 import pytest
 
+import co_scientist.patch as patch_module
 from co_scientist.sandbox import (
     HARNESS_METADATA_NAME,
     METADATA_NAMES,
@@ -34,6 +36,7 @@ from co_scientist.workspace import (
     WorkspaceToolProvider,
 )
 from co_scientist.workspace import RUN_COMMAND as _WORKSPACE_OUTPUT_RUN_COMMAND
+from co_scientist.workspace import output as workspace_output
 from co_scientist.workspace.session import (
     MAX_SESSION_OUTPUT_BYTES,
     SessionRegistry,
@@ -497,14 +500,75 @@ def test_spilled_output_is_redacted_before_it_is_written(
     assert _SECRET not in (tmp_path / pointer.path).read_text()
 
 
+def test_a_symlinked_spill_file_does_not_redirect_output(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    spill_directory = root / SPILL_DIRECTORY
+    spill_directory.mkdir(parents=True)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("keep")
+    text = "x" * 5000
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    target = spill_directory / f"stdout-{digest[:12]}.txt"
+    target.symlink_to(outside)
+
+    bounded = OutputRecorder(root, preview_chars=100).record("stdout", text)
+
+    assert bounded.pointer is None
+    assert target.is_symlink()
+    assert outside.read_text() == "keep"
+
+
+def test_a_swapped_spill_parent_does_not_redirect_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspace"
+    spill_directory = root / SPILL_DIRECTORY
+    spill_directory.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    held_directory = spill_directory.with_name("output-held")
+    swapped = False
+
+    def swap_directory() -> None:
+        nonlocal swapped
+        if swapped:
+            return
+        spill_directory.rename(held_directory)
+        spill_directory.symlink_to(outside, target_is_directory=True)
+        swapped = True
+
+    original_mkdir = Path.mkdir
+
+    def mkdir_then_swap(path: Path, *args: Any, **kwargs: Any) -> None:
+        original_mkdir(path, *args, **kwargs)
+        if path == spill_directory:
+            swap_directory()
+
+    original_parent_fd = patch_module._parent_fd
+
+    def pin_then_swap(root_fd: int, parts: tuple[str, ...], *, create: bool = False) -> int:
+        fd = original_parent_fd(root_fd, parts, create=create)
+        if parts[:-1] == tuple(SPILL_DIRECTORY.split("/")):
+            swap_directory()
+        return fd
+
+    monkeypatch.setattr(Path, "mkdir", mkdir_then_swap)
+    monkeypatch.setattr(patch_module, "_parent_fd", pin_then_swap)
+
+    bounded = OutputRecorder(root, preview_chars=100).record("stdout", "x" * 5000)
+
+    assert swapped
+    assert list(outside.iterdir()) == []
+    assert bounded.truncated
+
+
 def test_a_failed_spill_costs_the_middle_not_the_command(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-
     def _explode(*args: Any, **kwargs: Any) -> None:
         raise OSError("no space left on device")
 
-    monkeypatch.setattr(Path, "mkdir", _explode)
+    monkeypatch.setattr(workspace_output, "write_workspace_file", _explode)
     recorder = OutputRecorder(tmp_path, preview_chars=100)
 
     bounded = recorder.record("stdout", "x" * 5000)
@@ -533,6 +597,86 @@ def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:
         )
     )
     assert payload["files"] == ["analysis.py"]
+
+
+def test_listing_files_omits_symlinks_to_existing_and_missing_targets(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "present.txt").write_text("outside")
+    (root / "present-link.txt").symlink_to(outside / "present.txt")
+    (root / "missing-link.txt").symlink_to(outside / "missing.txt")
+    (root / "directory-link").symlink_to(outside, target_is_directory=True)
+    (root / "ordinary.txt").write_text("inside")
+
+    assert WorkspaceSession(root).list_files() == ("ordinary.txt",)
+
+
+def test_listing_files_does_not_follow_a_directory_swapped_for_a_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "workspace"
+    nested = root / "sub"
+    nested.mkdir(parents=True)
+    (nested / "secret.txt").write_text("inside")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("outside")
+    held = root / "held"
+    swapped = False
+
+    def swap_directory() -> None:
+        nonlocal swapped
+        if swapped:
+            return
+        nested.rename(held)
+        nested.symlink_to(outside, target_is_directory=True)
+        swapped = True
+
+    original_lstat = Path.lstat
+
+    def lstat_then_swap(path: Path, *args: Any, **kwargs: Any) -> os.stat_result:
+        if path == nested / "secret.txt":
+            swap_directory()
+        return original_lstat(path, *args, **kwargs)
+
+    original_open = os.open
+
+    def open_then_swap(path: Any, *args: Any, **kwargs: Any) -> int:
+        flags = args[0] if args else kwargs.get("flags", 0)
+        if (
+            path == "sub"
+            and kwargs.get("dir_fd") is not None
+            and flags & getattr(os, "O_DIRECTORY", 0)
+        ):
+            swap_directory()
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", lstat_then_swap)
+    monkeypatch.setattr(os, "open", open_then_swap)
+
+    assert WorkspaceSession(root).list_files() == ()
+    assert swapped
+
+
+def test_reopening_a_workspace_does_not_create_output_under_metadata_symlink(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "workspace"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    initial = WorkspaceSession(root)
+    initial_spill = OutputRecorder(initial.root, preview_chars=100).record("stdout", "x" * 5000)
+    assert initial_spill.pointer is not None
+    shutil.rmtree(root / HARNESS_METADATA_NAME)
+    (root / HARNESS_METADATA_NAME).symlink_to(outside, target_is_directory=True)
+
+    reopened = WorkspaceSession(root)
+    bounded = OutputRecorder(reopened.root, preview_chars=100).record("stdout", "x" * 5000)
+
+    assert bounded.pointer is None
+    assert not (outside / "output").exists()
 
 
 def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(

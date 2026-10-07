@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Literal, TypeAlias
 
+from co_scientist.platform.db.models import RunStatus as RunStatus
 from pydantic import ConfigDict, with_config
 from typing_extensions import NotRequired, TypeAliasType, TypedDict
-
-from app.store.models import RunStatus as RunStatus
 
 RunMode: TypeAlias = Literal["standard", "express", "extended", "ultra"]
 

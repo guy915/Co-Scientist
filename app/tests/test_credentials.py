@@ -5,10 +5,10 @@ from collections.abc import Callable
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform import db
+from co_scientist.platform.db.models import RunRow
 
 from app import credentials
-from app.store import db
-from app.store.models import RunRow
 from tests._store_helpers import seed_run
 
 _SECRET = "unit-test-byok-secret"

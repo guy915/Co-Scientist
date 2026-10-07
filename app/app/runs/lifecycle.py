@@ -8,6 +8,14 @@ from typing import Any
 
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
+from co_scientist.platform import db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import (
+    TERMINAL_STATUSES,
+    RunRow,
+    RunStatus,
+    ScientificTask,
+)
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 import app.engine_adapter as engine_adapter
@@ -16,15 +24,9 @@ import app.task_worker as task_worker
 from app.auth import client_id
 from app.runs.models import SafetyAdjudicationRequest, StartRunRequest
 from app.runs.support import _run_or_404
-from app.store import checkpoints, db, events, records, runs, tasks
+from app.store import events, records, runs, tasks
 from app.store import runs_views as views
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import (
-    TERMINAL_STATUSES,
-    RunRow,
-    RunStatus,
-    ScientificTask,
-)
 from app.task_worker.enqueue import is_abandoned_spent_bootstrap
 
 logger = logging.getLogger(__name__)

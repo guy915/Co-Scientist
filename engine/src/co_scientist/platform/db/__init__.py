@@ -11,8 +11,8 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
-from app.store.schema import ADDED_COLUMNS as _ADDED_COLUMNS
-from app.store.schema import SCHEMA as _SCHEMA
+from co_scientist.platform.db.schema import ADDED_COLUMNS as _ADDED_COLUMNS
+from co_scientist.platform.db.schema import SCHEMA as _SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ _lock = threading.RLock()
 _initialized: set[str] = set()
 
 
-def _now() -> float:
+def current_time() -> float:
     return time.time()
 
 
@@ -98,7 +98,7 @@ def transaction(
 
 
 @contextlib.contextmanager
-def _use_conn(
+def use_conn(
     conn: sqlite3.Connection | None,
     path: str | None,
 ) -> Generator[sqlite3.Connection, None, None]:
@@ -139,7 +139,7 @@ def checkpoint_wal(db_path: str | None = None) -> None:
         logger.warning("WAL checkpoint failed: %s", exc)
 
 
-def _list_by_run(
+def list_by_run(
     table: str,
     run_id: str,
     db_path: str | None = None,
@@ -147,7 +147,7 @@ def _list_by_run(
     *,
     json_fields: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
-    with _use_conn(conn, db_path) as active:
+    with use_conn(conn, db_path) as active:
         rows = active.execute(
             f"SELECT * FROM {table} WHERE run_id=? ORDER BY created_at ASC",
             (run_id,),

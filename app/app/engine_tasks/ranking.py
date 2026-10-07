@@ -9,6 +9,8 @@ from co_scientist.agents.ranking import RankingJudgement, RankingJudgingContext
 from co_scientist.core.constants import RANKING_WAVE_SIZE as RANKING_WAVE_SIZE
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import scoped_telemetry
+from co_scientist.platform import db
+from co_scientist.platform.db.models import ScientificTask
 
 from app.engine_tasks.support import (
     RANKING_FINALIZE_TASK,
@@ -23,8 +25,7 @@ from app.engine_tasks.support import (
     leased_state,
     merge_usage_snapshots,
 )
-from app.store import db, events, runs
-from app.store.models import ScientificTask
+from app.store import events, runs
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 if TYPE_CHECKING:

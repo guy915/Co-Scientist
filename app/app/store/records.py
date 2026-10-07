@@ -7,9 +7,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, fields
 from typing import Any
 
+from co_scientist.platform.db import connect, current_time, list_by_run, use_conn
+
 from app.citations import CitationState
 from app.claims.gate import DEFAULT_CLAIM_ROLE, ClaimEdge
-from app.store.db import _list_by_run, _now, _use_conn, connect
 
 
 @dataclass(frozen=True)
@@ -74,7 +75,7 @@ def list_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    rows = _list_by_run("evidence", run_id, db_path, conn, json_fields=("authors",))
+    rows = list_by_run("evidence", run_id, db_path, conn, json_fields=("authors",))
     for row in rows:
         row["available"] = bool(row["available"])
         row["retracted"] = bool(row["retracted"])
@@ -101,7 +102,7 @@ def list_citations(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    return _list_by_run("citations", run_id, db_path, conn)
+    return list_by_run("citations", run_id, db_path, conn)
 
 
 @dataclass(frozen=True)
@@ -146,7 +147,7 @@ def list_claim_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    return _list_by_run(
+    return list_by_run(
         "claim_evidence",
         run_id,
         db_path,
@@ -197,14 +198,14 @@ def list_reviews(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    return _list_by_run("reviews", run_id, db_path, conn)
+    return list_by_run("reviews", run_id, db_path, conn)
 
 
 def review_exists(review_id: int, conn: sqlite3.Connection | None = None) -> bool:
     """AUTOINCREMENT never reuses deleted review IDs, so carried scientist
     reviews can safely test whether their own row survived reset.
     """
-    with _use_conn(conn, None) as conn:
+    with use_conn(conn, None) as conn:
         row = conn.execute("SELECT 1 FROM reviews WHERE id=?", (review_id,)).fetchone()
         return row is not None
 
@@ -251,7 +252,7 @@ def list_matches(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    return _list_by_run("matches", run_id, db_path, conn)
+    return list_by_run("matches", run_id, db_path, conn)
 
 
 @dataclass(frozen=True)
@@ -328,8 +329,8 @@ def _insert_record(
     db_path: str | None,
     conn: sqlite3.Connection | None,
 ) -> None:
-    with _use_conn(conn, db_path) as active:
-        values["created_at"] = _now()
+    with use_conn(conn, db_path) as active:
+        values["created_at"] = current_time()
         columns = ", ".join(values)
         placeholders = ",".join("?" for _ in values)
         active.execute(
@@ -343,7 +344,7 @@ def list_safety_decisions(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    rows = _list_by_run(
+    rows = list_by_run(
         "safety_decisions",
         run_id,
         db_path,
@@ -363,7 +364,7 @@ def count_unresolved_review_decisions(
     """This run-detail hot path needs one indexed count, not full safety-row
     JSON decoding.
     """
-    with _use_conn(conn, None) as conn:
+    with use_conn(conn, None) as conn:
         row = conn.execute(
             "SELECT COUNT(*) FROM safety_decisions WHERE run_id=? AND "
             "requires_review=1 AND resolution IS NULL",
@@ -385,7 +386,7 @@ def resolve_safety_decision(
             "UPDATE safety_decisions SET resolution=?, resolved_by=?, "
             "resolved_at=? WHERE id=? AND run_id=? AND requires_review=1 "
             "AND resolution IS NULL",
-            (resolution, resolved_by, _now(), decision_id, run_id),
+            (resolution, resolved_by, current_time(), decision_id, run_id),
         )
         return cursor.rowcount == 1
 

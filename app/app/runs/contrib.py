@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from co_scientist.core.async_bridge import off_loop
+from co_scientist.platform.db.models import ScientificTask
 from fastapi import (
     APIRouter,
     File,
@@ -21,7 +22,6 @@ from app.runs.models import (
 from app.runs.support import _require_run, _steer_and_continue
 from app.store import events as store
 from app.store import records
-from app.store.models import ScientificTask
 from app.store.records import NewEvidence
 
 attachments_router = APIRouter()

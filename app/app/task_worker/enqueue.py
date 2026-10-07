@@ -6,12 +6,13 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.platform import db as store_db
+from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db.models import ScientificTask
+
 from app import engine_tasks
-from app.store import checkpoints
-from app.store import db as store_db
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.models import ScientificTask
 from app.store.tasks import NewTask
 from app.store.tasks_lifecycle import _DEAD_LEASE_ERROR
 

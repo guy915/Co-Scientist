@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from co_scientist.platform import db as store_db
 
 from app.citations import CitationState
-from app.store import db as store_db
 from app.store import events as store_events
 from app.store import hypotheses as store
 from app.store import records
@@ -152,7 +152,7 @@ def test_startup_surfaces_other_migration_failures(
 def test_wal_checkpoint_failure_is_logged_not_raised(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    with caplog.at_level(logging.WARNING, logger="app.store.db"):
+    with caplog.at_level(logging.WARNING, logger="co_scientist.platform.db"):
         store_db.checkpoint_wal(str(tmp_path))
     assert "WAL checkpoint failed" in caplog.text
 

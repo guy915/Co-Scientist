@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core.config import settings
+from co_scientist.platform import db
+from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.safety import (
     POLICY_VERSION,
     SafetyOutcome,
@@ -22,9 +24,8 @@ from app.safety.semantic import (
 )
 from app.safety.types import SafetyDecision, redact_matched_spans
 from app.safety.types import redact_payload_text as redact_payload_text
-from app.store import db, records, runs
 from app.store import events as store_events
-from app.store.models import RunStatus, ScientificTask
+from app.store import records, runs
 from app.store.records import NewSafetyDecision
 
 logger = logging.getLogger(__name__)

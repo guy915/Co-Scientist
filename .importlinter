@@ -28,7 +28,7 @@ layers =
     (co_scientist.domains.research_state) : co_scientist.models.matchup : co_scientist.state : app.elo : app.text_utils : app.claims : app.store.hypotheses : app.store.records : app.engine_adapter.drain.hypotheses : app.engine_adapter.drain.reviews : app.engine_adapter.drain.matches
     (co_scientist.domains.documents) : app.document_ingest : app.pdf : app.pdf_worker : app.evidence_chunking : app.staged_documents : app.store.documents : (co_scientist.domains.access) : app.credentials : app.byok_models : app.free_usage : app.retention : (co_scientist.domains.feedback) : app.store.feedback
     (co_scientist.platform.retrieval) : co_scientist.mcp_client : co_scientist.tools : co_scientist.config.registry : co_scientist.config.schema : co_scientist.evidence : co_scientist.retrieval_degradation : co_scientist.research_adapter : app.pinned_http : app.retraction_set : app.citations : app.run_corpus : app.engine_adapter.tools
-    (co_scientist.platform.llm) : co_scientist.llm : co_scientist.offline : co_scientist.tool_effects : app.llm_request : app.llm_scope : app.execution_policy : app.process_mode : app.offline_guard : app.provider_usage : (co_scientist.platform.sandbox) : co_scientist.sandbox : co_scientist.workspace : co_scientist.skills : co_scientist.patch : (co_scientist.platform.db) : app.store.db : app.store.schema : app.store.checkpoints : app.store.models
+    (co_scientist.platform.llm) : co_scientist.llm : co_scientist.offline : co_scientist.tool_effects : app.llm_request : app.llm_scope : app.execution_policy : app.process_mode : app.offline_guard : app.provider_usage : (co_scientist.platform.sandbox) : co_scientist.sandbox : co_scientist.workspace : co_scientist.skills : co_scientist.patch : co_scientist.platform.db
     (co_scientist.platform.telemetry) : co_scientist.progress : app.logging_setup : app.error_tracking : app.diagnostic_events : app.store.logs : app.store.retrieval_calls
     co_scientist.core
 ignore_imports =
@@ -76,11 +76,11 @@ ignore_imports =
     app.safety -> app.task_worker.outcomes
     app.safety.semantic -> co_scientist.schemas.builders
     app.seed -> app.store.runs_views
-    app.store.checkpoints -> app.store.supervisor_plan
+    co_scientist.platform.db.checkpoints -> app.store.supervisor_plan
     app.store.documents -> app.store.records
     app.store.examples -> app.store.runs
-    app.store.logs -> app.store.db
-    app.store.retrieval_calls -> app.store.db
+    app.store.logs -> co_scientist.platform.db
+    app.store.retrieval_calls -> co_scientist.platform.db
     app.store.retrieval_calls -> co_scientist.research
     co_scientist.core.constants -> co_scientist.llm.profile
     co_scientist.evidence.article_support -> co_scientist.models
@@ -218,10 +218,7 @@ source_modules =
     co_scientist.workspace
     co_scientist.skills
     co_scientist.patch
-    app.store.db
-    app.store.schema
-    app.store.checkpoints
-    app.store.models
+    co_scientist.platform.db
     co_scientist.progress
     app.logging_setup
     app.error_tracking
@@ -340,10 +337,7 @@ source_modules =
     co_scientist.workspace
     co_scientist.skills
     co_scientist.patch
-    app.store.db
-    app.store.schema
-    app.store.checkpoints
-    app.store.models
+    co_scientist.platform.db
     co_scientist.progress
     app.logging_setup
     app.error_tracking
@@ -443,10 +437,7 @@ source_modules =
     co_scientist.workspace
     co_scientist.skills
     co_scientist.patch
-    app.store.db
-    app.store.schema
-    app.store.checkpoints
-    app.store.models
+    co_scientist.platform.db
     co_scientist.progress
     app.logging_setup
     app.error_tracking
