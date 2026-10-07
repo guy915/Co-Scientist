@@ -19,13 +19,13 @@ import {
   RunHistoryProvider,
   ChatHistoryProvider,
 } from '@/shared/hooks/history_context';
-import {useChatSession} from '../hooks/use_chat_session';
-import {useChatRehydration} from '../hooks/use_chat_rehydrate';
+import {useChatSession} from './use_chat_session';
+import {useChatRehydration} from './use_chat_rehydrate';
 
 const pendingIntentMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../hooks/chat_session_start_run', async importOriginal => ({
-  ...(await importOriginal<typeof import('../hooks/chat_session_start_run')>()),
+vi.mock('./chat_session_start_run', async importOriginal => ({
+  ...(await importOriginal<typeof import('./chat_session_start_run')>()),
   readPendingCreateIntent: pendingIntentMock,
 }));
 
