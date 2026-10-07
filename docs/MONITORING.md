@@ -1,8 +1,8 @@
 # Monitoring
 
-Production has no error tracking or external uptime check yet. Railway's
-healthcheck runs only while a deploy goes live; after that nothing polls the
-service. This guide lists what to create and where the code hooks in.
+Railway's healthcheck runs only while a deploy goes live; after that only
+the monitors below poll the service. This guide lists what exists and where
+the code hooks in.
 
 ## Uptime
 
@@ -49,11 +49,16 @@ and HTTP-client integrations would attach prompts and model output.
 
 ## Status
 
-- Uptime monitors: owner action (accounts and alert contacts).
-- Error tracking, API: in the code; set `SENTRY_DSN` and
-  `SENTRY_ENVIRONMENT` on the Railway api service to turn it on.
-- Error tracking, frontend: in the code (`src/lib/error_tracking.ts`, loaded
-  as its own chunk only when built with a DSN); set `VITE_SENTRY_DSN` for
-  Vercel production builds to turn it on. Reports carry no PII or console
-  breadcrumbs, and the browser's client ID and saved provider keys are
-  redacted.
+Live since 7 October 2026:
+- Uptime (UptimeRobot, free plan, five-minute checks, email alerts): a
+  keyword monitor on `/health` for `"status":"healthy"`, which also alerts
+  when the API is down or not 200, and an HTTP monitor on the site. Together
+  they cover the three rows above.
+- Error tracking, API: Sentry project `co-scientist-api`; `SENTRY_DSN` and
+  `SENTRY_ENVIRONMENT=production` are set on the Railway api service.
+- Error tracking, frontend: Sentry project `co-scientist-ui`
+  (`src/lib/error_tracking.ts`, loaded as its own chunk only when built with
+  a DSN); `VITE_SENTRY_DSN` is set for Vercel production builds. Reports
+  carry no PII or console breadcrumbs, and the browser's client ID and saved
+  provider keys are redacted. The DSN is read at build time, so the launch's
+  frontend host needs it set again.
