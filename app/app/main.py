@@ -11,6 +11,8 @@ from typing import Any, cast
 import uvicorn
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
+from co_scientist.domains.access.byok_models import router as byok_models_router
+from co_scientist.domains.access.free_usage import router as free_usage_router
 from co_scientist.domains.chat.interviews import router as interviews_router
 from co_scientist.domains.chat.seed import is_current_demo_run, seed_demo_runs
 from co_scientist.platform import db
@@ -32,11 +34,9 @@ from fastapi.responses import JSONResponse
 import app.engine_adapter as engine_adapter
 from app import API_VERSION
 from app.auth import Principal, principal_for_request
-from app.byok_models import router as byok_models_router
 from app.diagnostics_api import router as diagnostics_api_router
 from app.documents import router as documents_router
 from app.feedback_api import router as feedback_router
-from app.free_usage import router as free_usage_router
 from app.logs_api import router as logs_router
 from app.runs import router as runs_router
 from app.store import runs, tasks

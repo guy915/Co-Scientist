@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app.store import documents as store
+from co_scientist.domains.documents import repository as store
 
 
 def resolve_owned_documents(document_ids: list[str], owner: str) -> list[dict[str, Any]]:

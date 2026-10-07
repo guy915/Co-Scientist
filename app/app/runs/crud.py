@@ -5,6 +5,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
 
+import co_scientist.domains.access.credentials as credentials
+import co_scientist.domains.access.free_usage as free_usage
+import co_scientist.domains.documents.staged as staged_documents
 import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
@@ -15,6 +18,7 @@ from co_scientist.domains.chat.goal_text import (
 )
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.chat.seed import is_current_demo_run
+from co_scientist.domains.documents import repository as documents
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
@@ -25,10 +29,7 @@ from co_scientist.platform.llm.execution_policy import (
 )
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
-import app.credentials as credentials
 import app.engine_adapter as engine_adapter
-import app.free_usage as free_usage
-import app.staged_documents as staged_documents
 import app.store.receipts as run_creation_receipts
 from app.auth import client_id, require_client_scope
 from app.runs.models import (
@@ -37,7 +38,7 @@ from app.runs.models import (
     _build_create_run_config,
 )
 from app.runs.support import _run_or_404
-from app.store import documents, events, tasks
+from app.store import events, tasks
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store.runs import RunCreateOptions

@@ -91,7 +91,7 @@ def _passage_lookup(
     """
     # Import lazily: evidence_chunking also imports claims, creating a module
     # cycle.
-    from app.evidence_chunking import parent_evidence_id
+    from co_scientist.domains.documents.evidence_chunking import parent_evidence_id
 
     lookup: dict[str, list[EvidencePassage]] = (
         {}

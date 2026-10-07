@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app import credentials, engine_adapter
+from app import engine_adapter
+
+from co_scientist.domains.access import credentials
 
 __all__ = ["OfflineModeError", "remote_chat_allowed", "require_remote_chat"]
 

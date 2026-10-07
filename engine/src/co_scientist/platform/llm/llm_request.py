@@ -1,7 +1,6 @@
 from typing import Any
 
-from app import credentials
-
+from co_scientist.domains.access import credentials
 from co_scientist.platform.llm import offline_guard, provider_usage
 from co_scientist.platform.llm.llm_scope import app_call_scope, in_app_call_scope
 from co_scientist.platform.llm.request.transport import complete_request

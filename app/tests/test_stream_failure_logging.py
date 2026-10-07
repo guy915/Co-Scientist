@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import qa, run_start_announcement
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
@@ -17,7 +18,6 @@ from co_scientist.platform.telemetry.logging_setup import (
     shutdown_log_capture,
 )
 
-from app import credentials
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
 from tests._store_helpers import seed_run

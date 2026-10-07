@@ -6,10 +6,11 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.domains.access import credentials
 from co_scientist.platform.db import checkpoints
 from fastapi.testclient import TestClient
 
-from app import credentials, engine_tasks
+from app import engine_tasks
 from app.main import app
 from app.store import runs
 from tests._client import create_run as _create_run

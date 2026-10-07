@@ -371,9 +371,8 @@ def assert_task_commit_allowed(task: ScientificTask, conn: sqlite3.Connection) -
 
 
 def _generator_and_opts(task: ScientificTask, db_path: str | None) -> tuple[Any, dict[str, Any]]:
+    from co_scientist.domains.access.credentials import get_run_credential
     from co_scientist.generator.core import HypothesisGenerator
-
-    from app.credentials import get_run_credential
 
     run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
@@ -387,9 +386,8 @@ def _generator_and_opts(task: ScientificTask, db_path: str | None) -> tuple[Any,
 
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
+    from co_scientist.domains.access.credentials import get_run_credential
     from co_scientist.generator.core import HypothesisGenerator
-
-    from app.credentials import get_run_credential
 
     run = _require_run(task, db_path)
     return build_generator(

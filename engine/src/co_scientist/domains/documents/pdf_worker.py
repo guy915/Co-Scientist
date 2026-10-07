@@ -3,7 +3,7 @@ from __future__ import annotations
 import resource
 import sys
 
-from app.document_ingest import _pdf_worker_main
+from co_scientist.domains.documents.ingest import _pdf_worker_main
 
 
 def _set_resource_limits() -> None:

@@ -4,9 +4,10 @@ import logging
 import os
 import time
 
-from app.store import documents as store
 from app.store import runs as store_runs
 from app.store import runs_views as views
+
+from co_scientist.domains.documents import repository as store
 
 logger = logging.getLogger(__name__)
 

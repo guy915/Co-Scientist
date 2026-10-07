@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-import app.staged_documents as staged_documents
 from app.api_contracts.interviews import ChatSummary, Interview
 from app.auth import client_id, require_client_scope
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 import co_scientist.domains.chat.interviews.turns as support
+import co_scientist.domains.documents.staged as staged_documents
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.chat.interviews.model import (
     CreateInterviewRequest as CreateInterviewRequest,

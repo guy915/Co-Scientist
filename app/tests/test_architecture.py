@@ -18,9 +18,8 @@ from app.api_contracts.generate import (
 from app.store.events import ACTIVITY_VALUES
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
-_INTERVIEWS_DIR = (
-    Path(__file__).resolve().parents[2] / "engine/src/co_scientist/domains/chat/interviews"
-)
+_ENGINE_DIR = Path(__file__).resolve().parents[2] / "engine/src/co_scientist"
+_INTERVIEWS_DIR = _ENGINE_DIR / "domains/chat/interviews"
 _INTERVIEW_MODULES = {path.stem for path in _INTERVIEWS_DIR.glob("*.py")} - {"__init__"}
 
 
@@ -42,7 +41,7 @@ def _layering_imports(path: Path) -> list[str]:
     "source",
     [
         _APP_DIR / "operator_access.py",
-        _APP_DIR / "staged_documents.py",
+        _ENGINE_DIR / "domains/documents/staged.py",
         _INTERVIEWS_DIR / "turns.py",
     ],
 )

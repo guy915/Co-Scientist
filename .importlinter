@@ -26,7 +26,7 @@ layers =
     (co_scientist.domains.report) : app.report : app.store.reports
     (co_scientist.domains.safety) : co_scientist.safety : app.safety : app.hypothesis
     co_scientist.domains.research_state
-    (co_scientist.domains.documents) : app.document_ingest : app.pdf : app.pdf_worker : app.evidence_chunking : app.staged_documents : app.store.documents : (co_scientist.domains.access) : app.credentials : app.byok_models : app.free_usage : app.retention : (co_scientist.domains.feedback) : app.store.feedback
+    co_scientist.domains.documents : co_scientist.domains.access : co_scientist.domains.feedback
     co_scientist.platform.retrieval
     co_scientist.platform.llm : co_scientist.platform.sandbox : co_scientist.platform.db
     co_scientist.platform.telemetry
@@ -38,21 +38,21 @@ ignore_imports =
     co_scientist.domains.research_state.drain.matches -> co_scientist.agents.ranking.ranking_debate
     co_scientist.domains.research_state.drain.matches -> co_scientist.research
     co_scientist.domains.research_state.drain.reviews -> app.report
-    co_scientist.platform.telemetry.error_tracking -> app.credentials
-    app.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
-    app.free_usage -> app.auth
-    app.free_usage -> app.engine_adapter
-    app.free_usage -> app.runs.models
+    co_scientist.platform.telemetry.error_tracking -> co_scientist.domains.access.credentials
+    co_scientist.domains.documents.evidence_chunking -> co_scientist.domains.research_state.claims.assessor
+    co_scientist.domains.access.free_usage -> app.auth
+    co_scientist.domains.access.free_usage -> app.engine_adapter
+    co_scientist.domains.access.free_usage -> app.runs.models
     co_scientist.domains.chat.interviews -> app.api_contracts.interviews
     co_scientist.domains.chat.interviews -> app.auth
     co_scientist.domains.chat.interviews.questions -> co_scientist.schemas.builders
     co_scientist.domains.chat.interviews.stream -> app.sse
     co_scientist.domains.chat.interviews.turns -> app.auth
-    co_scientist.platform.llm.llm_request -> app.credentials
-    co_scientist.platform.telemetry.logging_setup -> app.credentials
-    co_scientist.platform.llm.offline_guard -> app.credentials
+    co_scientist.platform.llm.llm_request -> co_scientist.domains.access.credentials
+    co_scientist.platform.telemetry.logging_setup -> co_scientist.domains.access.credentials
+    co_scientist.platform.llm.offline_guard -> co_scientist.domains.access.credentials
     co_scientist.platform.llm.offline_guard -> app.engine_adapter
-    co_scientist.platform.llm.process_mode -> app.credentials
+    co_scientist.platform.llm.process_mode -> co_scientist.domains.access.credentials
     co_scientist.domains.chat.qa -> app.sse
     co_scientist.domains.chat.qa -> app.store.runs
     co_scientist.domains.chat.qa.manifest -> app.store.events
@@ -66,8 +66,8 @@ ignore_imports =
     app.report.finalize -> app.run_events
     app.report.finalize -> app.store.events
     app.report.finalize -> app.store.runs
-    app.retention -> app.store.runs
-    app.retention -> app.store.runs_views
+    co_scientist.domains.access.retention -> app.store.runs
+    co_scientist.domains.access.retention -> app.store.runs_views
     co_scientist.core.run_modes -> co_scientist.domains.research_state.elo
     co_scientist.domains.chat.run_start_announcement -> app.sse
     app.safety -> app.engine_tasks.support
@@ -77,7 +77,7 @@ ignore_imports =
     app.safety.semantic -> co_scientist.schemas.builders
     co_scientist.domains.chat.seed -> app.store.runs_views
     co_scientist.platform.db.checkpoints -> app.store.supervisor_plan
-    app.store.documents -> co_scientist.domains.research_state.repository.records
+    co_scientist.domains.documents.repository -> co_scientist.domains.research_state.repository.records
     co_scientist.domains.chat.repository.examples -> app.store.runs
     co_scientist.platform.telemetry.logs -> co_scientist.platform.db
     co_scientist.platform.telemetry.retrieval_calls -> co_scientist.platform.db
@@ -166,17 +166,9 @@ source_modules =
     app.safety
     app.hypothesis
     co_scientist.domains.research_state
-    app.document_ingest
-    app.pdf
-    app.pdf_worker
-    app.evidence_chunking
-    app.staged_documents
-    app.store.documents
-    app.credentials
-    app.byok_models
-    app.free_usage
-    app.retention
-    app.store.feedback
+    co_scientist.domains.documents
+    co_scientist.domains.access
+    co_scientist.domains.feedback
     co_scientist.platform.retrieval
     co_scientist.platform.llm
     co_scientist.platform.sandbox
@@ -188,15 +180,15 @@ forbidden_modules =
     starlette
 allow_indirect_imports = True
 ignore_imports =
-    app.byok_models -> fastapi
-    app.document_ingest -> fastapi
-    app.free_usage -> fastapi
+    co_scientist.domains.access.byok_models -> fastapi
+    co_scientist.domains.documents.ingest -> fastapi
+    co_scientist.domains.access.free_usage -> fastapi
     co_scientist.domains.chat.interviews -> fastapi
     co_scientist.domains.chat.interviews.model -> fastapi
     co_scientist.domains.chat.interviews.stream -> fastapi
     co_scientist.domains.chat.interviews.turns -> fastapi
     co_scientist.platform.llm.provider_usage -> fastapi
-    app.staged_documents -> fastapi
+    co_scientist.domains.documents.staged -> fastapi
 
 [importlinter:contract:litellm]
 name = litellm only in the LLM gateway
@@ -251,17 +243,9 @@ source_modules =
     app.safety
     app.hypothesis
     co_scientist.domains.research_state
-    app.document_ingest
-    app.pdf
-    app.pdf_worker
-    app.evidence_chunking
-    app.staged_documents
-    app.store.documents
-    app.credentials
-    app.byok_models
-    app.free_usage
-    app.retention
-    app.store.feedback
+    co_scientist.domains.documents
+    co_scientist.domains.access
+    co_scientist.domains.feedback
     co_scientist.platform.retrieval
     co_scientist.platform.sandbox
     co_scientist.platform.db
@@ -272,7 +256,7 @@ forbidden_modules =
 allow_indirect_imports = True
 ignore_imports =
     co_scientist.core.async_bridge -> litellm
-    app.credentials -> litellm
+    co_scientist.domains.access.credentials -> litellm
     co_scientist.platform.telemetry.logging_setup -> litellm
 
 [importlinter:contract:httpx]
@@ -328,17 +312,9 @@ source_modules =
     app.safety
     app.hypothesis
     co_scientist.domains.research_state
-    app.document_ingest
-    app.pdf
-    app.pdf_worker
-    app.evidence_chunking
-    app.staged_documents
-    app.store.documents
-    app.credentials
-    app.byok_models
-    app.free_usage
-    app.retention
-    app.store.feedback
+    co_scientist.domains.documents
+    co_scientist.domains.access
+    co_scientist.domains.feedback
     co_scientist.platform.sandbox
     co_scientist.platform.db
     co_scientist.platform.telemetry

@@ -13,9 +13,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from co_scientist.core.config import byok_default_model, settings
+from co_scientist.domains.access import byok_models
 from co_scientist.platform.llm.llm_scope import budgeted
-
-from app import byok_models
 
 if TYPE_CHECKING:
     from cryptography.fernet import Fernet

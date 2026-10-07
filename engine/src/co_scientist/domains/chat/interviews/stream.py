@@ -6,11 +6,11 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from app import credentials
 from app.sse import sse_frame
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
+from co_scientist.domains.access import credentials
 from co_scientist.domains.chat.interviews import turns
 from co_scientist.domains.chat.repository import interviews as store
 

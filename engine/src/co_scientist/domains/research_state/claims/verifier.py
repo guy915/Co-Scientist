@@ -52,7 +52,7 @@ class _EntailmentRequest:
 async def _call_claim_json_async(
     model: str, request: _EntailmentRequest, *, max_attempts: int = 3
 ) -> dict[str, Any]:
-    import app.credentials as credentials
+    import co_scientist.domains.access.credentials as credentials
 
     resolved_model, api_key = credentials.byok_model_and_key(model)
     spec = CompletionSpec(

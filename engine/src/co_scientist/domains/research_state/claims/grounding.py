@@ -363,7 +363,7 @@ def evidence_passages(
     db_path: str | None = None,
 ) -> list[EvidencePassage]:
     """Offsets index persisted passage_text."""
-    from app.evidence_chunking import chunk_evidence_passage
+    from co_scientist.domains.documents.evidence_chunking import chunk_evidence_passage
 
     passages: list[EvidencePassage] = []
     for ev in store.list_evidence(run_id, conn=conn, db_path=db_path):

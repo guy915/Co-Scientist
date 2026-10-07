@@ -27,7 +27,7 @@ def _client_with_run(goal: str) -> tuple[TestClient, str]:
 def test_pdf_ocr_includes_figures_on_text_pages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app import document_ingest
+    from co_scientist.domains.documents import ingest as document_ingest
 
     class _Image:
         data = b"x" * 1200
@@ -92,7 +92,7 @@ def test_text_upload_is_extracted_with_immutable_provenance(
 def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app import document_ingest
+    from co_scientist.domains.documents import ingest as document_ingest
 
     monkeypatch.setattr(
         document_ingest,
@@ -119,7 +119,7 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
 def test_invalid_image_is_rejected_without_persisting_evidence(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app import document_ingest
+    from co_scientist.domains.documents import ingest as document_ingest
 
     def _raise_decode_failure(_data: bytes) -> str:
         raise ValueError("image could not be decoded or OCR failed")
@@ -242,7 +242,7 @@ def test_only_the_owner_can_delete_a_staged_document(
 def test_structured_uploads_preserve_their_structure(
     content: bytes, mime_type: str, tool: str, expected: list[str]
 ) -> None:
-    from app.document_ingest import extract_document
+    from co_scientist.domains.documents.ingest import extract_document
 
     document = extract_document(content, mime_type)
 
