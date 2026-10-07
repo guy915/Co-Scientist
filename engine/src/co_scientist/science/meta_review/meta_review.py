@@ -16,6 +16,7 @@ from co_scientist.domains.research_state.models import (
     phase_message,
 )
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.domains.safety.monitor import monitor_research_direction
 from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
@@ -24,12 +25,7 @@ from co_scientist.platform.llm import (
 from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.science.node_degradation import run_or_degrade
 from co_scientist.science.prompts import PromptRunContext, get_meta_review_prompt
-from co_scientist.science.reflection.review_gate import (
-    mature_review_summary,
-)
-from co_scientist.science.safety_screen import (
-    monitor_research_direction,
-)
+from co_scientist.science.review_summary import mature_review_summary
 
 logger = logging.getLogger(__name__)
 

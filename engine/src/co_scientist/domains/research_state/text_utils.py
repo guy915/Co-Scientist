@@ -55,3 +55,12 @@ def readable_experiment_summary(text: str) -> str:
         line = line.replace("**Go:**", "Go:").replace("**No-Go:**", "No-Go:")
         parts.append(line)
     return " ".join(parts)
+
+
+def token_coverage(text: str, reference: str) -> float:
+    """Union denominators hide contained short ideas; divide by the derived
+    text tokens so true coverage remains detectable across lengths."""
+    words = set(text.lower().split())
+    if not words:
+        return 0.0
+    return len(words & set(reference.lower().split())) / len(words)

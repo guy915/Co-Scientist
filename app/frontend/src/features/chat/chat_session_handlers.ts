@@ -26,6 +26,7 @@ import {
 } from './chat_session_transcript';
 import {announceChatsChanged} from '@/shared/hooks/history_context';
 import {type HandlerDeps, clearedLifecycle} from './use_chat_session';
+import {errorMessage} from '@/shared/lib/errors';
 
 type SubmitComposerDeps = HandlerDeps & {
   files: File[];
@@ -243,9 +244,7 @@ export function applyAgentTurn(
 }
 
 export function describeSubmitError(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : 'The Agent could not continue the interview.';
+  return errorMessage(error, 'The Agent could not continue the interview.');
 }
 
 // Clear streamed text with its awaiting flag; otherwise starting research can
@@ -277,9 +276,7 @@ function beginAskTurn(deps: AskComposerDeps): string | null {
 }
 
 function describeAskError(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : 'The Agent could not answer the question.';
+  return errorMessage(error, 'The Agent could not answer the question.');
 }
 
 function buildAskSinks(deps: Pick<HandlerDeps, 'update'>) {
