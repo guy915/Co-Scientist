@@ -131,6 +131,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 **Fix:** Treat external text as explicitly untrusted evidence and retain its provenance through summaries; do not elevate its instructions into the authoritative task. Constrain tool capabilities and outbound parameters outside the model, and evaluate adversarial retrieval fixtures for tool use, report contamination and final safety behavior before launch.
 
+**Fixing PR:** [#417](https://github.com/guy915/Co-Scientist/pull/417) preserves untrusted source/derived provenance, withholds validation tools, restricts physical dispatch to advertised names and binds draft retrieval to the workflow run/corpus. Offline regressions reproduce the original data and dispatch boundaries and retain ordinary citations/owned retrieval. JSON fencing mitigates instruction confusion; it does not prove immunity to poisoned conclusions or real-model obedience.
+
 ### SR-08 — Markdown remote images cause automatic third-party requests
 
 **Area:** web; prompt injection. **Severity:** medium. **Owner:** lane F.
