@@ -437,14 +437,18 @@ function RecoveryLookupStatus({
 }) {
   if (status === 'checking') {
     return (
-      <p role="status" aria-live="polite" className="text-sm text-cosci-muted">
+      <p
+        role="status"
+        aria-live="polite"
+        className="ui-motion-enter text-sm text-cosci-muted"
+      >
         Checking saved research session status…
       </p>
     );
   }
   if (status === 'error') {
     return (
-      <div role="alert" className="text-sm text-th-destructive">
+      <div role="alert" className="ui-motion-enter text-sm text-th-destructive">
         <p>Could not verify the saved run status.</p>
         <Button variant="outlined" onClick={onRetry}>
           Retry status check
@@ -454,7 +458,7 @@ function RecoveryLookupStatus({
   }
   if (status === 'cancelled') {
     return (
-      <p role="status" className="text-sm text-cosci-muted">
+      <p role="status" className="ui-motion-enter text-sm text-cosci-muted">
         The linked research session was cancelled.
       </p>
     );

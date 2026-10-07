@@ -89,3 +89,44 @@
       var(--motion-ease-enter) backwards;
   }
 }
+
+/* A swapped icon scales and fades in over the outgoing one's place. */
+@keyframes ui-motion-swap {
+  from {
+    opacity: 0;
+    scale: var(--motion-pop-scale);
+  }
+}
+
+@layer components {
+  .ui-motion-swap {
+    animation: ui-motion-swap var(--motion-duration-short)
+      var(--motion-ease-enter) backwards;
+  }
+}
+
+/* Disclosures (debate transcript, FAQ) grow open and closed instead of
+   jumping. Browsers without ::details-content keep the instant toggle. */
+@supports selector(::details-content) {
+  details {
+    interpolate-size: allow-keywords;
+  }
+
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition:
+      block-size var(--motion-duration-medium) var(--motion-ease-standard),
+      content-visibility var(--motion-duration-medium) allow-discrete;
+  }
+
+  details[open]::details-content {
+    block-size: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    details::details-content {
+      transition: none;
+    }
+  }
+}

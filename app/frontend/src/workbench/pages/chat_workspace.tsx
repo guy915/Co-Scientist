@@ -408,7 +408,7 @@ function TimelineSection({
         {error && (
           <div
             role="alert"
-            className="rounded-md border border-th-destructive p-3 text-sm text-th-destructive"
+            className="ui-motion-enter rounded-md border border-th-destructive p-3 text-sm text-th-destructive"
           >
             {error}
           </div>

@@ -10,7 +10,7 @@ const TIMELINE_RAIL_CLASSES =
 function LivePulse() {
   return (
     <span className="relative flex size-2.5" aria-hidden="true">
-      <span className="absolute inline-flex size-full animate-ping rounded-full bg-th-primary" />
+      <span className="absolute inline-flex size-full motion-safe:animate-ping rounded-full bg-th-primary" />
       <span className="relative inline-flex size-2.5 rounded-full bg-th-primary" />
     </span>
   );
@@ -55,7 +55,7 @@ function StreamStatusNote({
     <span
       role="status"
       className={joinClasses(
-        'text-xs',
+        'ui-motion-enter text-xs',
         connection === 'connecting' ? 'text-cosci-muted' : 'text-th-warning',
       )}
     >
@@ -223,7 +223,7 @@ export function ActivityLog({
         </ol>
       ) : (
         <div className="mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5">
-          <span className="size-2 shrink-0 animate-pulse rounded-full bg-cosci-muted" />
+          <span className="size-2 shrink-0 motion-safe:animate-pulse rounded-full bg-cosci-muted" />
           <p className="text-sm text-cosci-muted">
             Warming up — the first steps will appear here in a moment.
           </p>
