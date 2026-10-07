@@ -9,7 +9,6 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.core.async_bridge import run_in_scoped_loop
 from co_scientist.core.config import settings
 from co_scientist.orchestration import engine_tasks
 from co_scientist.orchestration.notifications import deliver_completion_notification
@@ -31,6 +30,7 @@ from co_scientist.orchestration.task_worker.outcomes import (
     _record_success as _record_success,
 )
 from co_scientist.platform.db.models import ScientificTask
+from co_scientist.platform.llm.scoped_loop import run_in_scoped_loop
 from co_scientist.platform.telemetry.logging_setup import run_log_context
 
 logger = logging.getLogger(__name__)

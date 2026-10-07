@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING, Any
 # Keep the supported co_scientist.platform.llm.litellm.acompletion patch seam.
 import litellm as litellm
 
+# LiteLLM's provider banner is a print that only suppress_debug_info stops.
+litellm.suppress_debug_info = True
+
 if TYPE_CHECKING:
     from co_scientist.core.metrics import ModelCallStats
     from co_scientist.platform.llm.admission.call_budget import (
