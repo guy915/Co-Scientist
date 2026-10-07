@@ -6,9 +6,10 @@ impact for effort and risk within its area. "Unmeasured" marks an estimate.
 Folder ownership and timing follow `docs/CAMPAIGNS.md`: a finding in a folder
 waits for that folder's cuts.
 
-**Status:** audit done 6 October 2026 (backend, frontend, infrastructure, CI,
-launch readiness). Fixes are listed under Progress; findings judged not worth
-their risk are at the end with the reason.
+**Status:** campaign closed 7 October 2026. The audit covered backend,
+frontend, infrastructure, CI and launch readiness. Fixes are listed under
+Progress; findings judged not worth their risk are at the end with the reason;
+the rest are owner actions on the board.
 
 ## Order of work
 
