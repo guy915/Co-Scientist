@@ -7,6 +7,9 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.domains.chat import qa, run_start_announcement
+from co_scientist.domains.chat.repository import messages
+from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.platform.telemetry import logs
 from co_scientist.platform.telemetry.logging_setup import (
     configure_log_capture,
@@ -14,9 +17,7 @@ from co_scientist.platform.telemetry.logging_setup import (
     shutdown_log_capture,
 )
 
-from app import credentials, qa, run_start_announcement
-from app.store import messages
-from app.store.messages import NewMessage
+from app import credentials
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
 from tests._store_helpers import seed_run
@@ -96,7 +97,10 @@ async def test_stream_failures_never_log_worker_or_supervisor_keys(
     assert credentials.current_byok() is None
     assert frames
     failure_records = [
-        row for row in persisted if row["logger"] in {"app.qa", "app.run_start_announcement"}
+        row
+        for row in persisted
+        if row["logger"]
+        in {"co_scientist.domains.chat.qa", "co_scientist.domains.chat.run_start_announcement"}
     ]
     assert failure_records
     assert all(row["run_id"] == run.id for row in failure_records)

@@ -6,13 +6,13 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from app import credentials
+from app.sse import sse_frame
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
-from app import credentials
-from app.interviews import turns
-from app.sse import sse_frame
-from app.store import interviews as store
+from co_scientist.domains.chat.interviews import turns
+from co_scientist.domains.chat.repository import interviews as store
 
 logger = logging.getLogger(__name__)
 

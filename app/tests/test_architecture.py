@@ -18,7 +18,10 @@ from app.api_contracts.generate import (
 from app.store.events import ACTIVITY_VALUES
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
-_INTERVIEW_MODULES = {path.stem for path in (_APP_DIR / "interviews").glob("*.py")} - {"__init__"}
+_INTERVIEWS_DIR = (
+    Path(__file__).resolve().parents[2] / "engine/src/co_scientist/domains/chat/interviews"
+)
+_INTERVIEW_MODULES = {path.stem for path in _INTERVIEWS_DIR.glob("*.py")} - {"__init__"}
 
 
 def _layering_imports(path: Path) -> list[str]:
@@ -38,19 +41,19 @@ def _layering_imports(path: Path) -> list[str]:
 @pytest.mark.parametrize(
     "source",
     [
-        "operator_access.py",
-        "staged_documents.py",
-        "interviews/turns.py",
+        _APP_DIR / "operator_access.py",
+        _APP_DIR / "staged_documents.py",
+        _INTERVIEWS_DIR / "turns.py",
     ],
 )
-def test_shared_services_do_not_import_endpoint_owners(source: str) -> None:
+def test_shared_services_do_not_import_endpoint_owners(source: Path) -> None:
     forbidden = {
         "app.main",
         "app.documents",
         "app.logs_api",
         "app.diagnostics_api",
     }
-    assert forbidden.isdisjoint(_layering_imports(_APP_DIR / source)), source
+    assert forbidden.isdisjoint(_layering_imports(source)), source
 
 
 @pytest.mark.parametrize(
@@ -58,12 +61,17 @@ def test_shared_services_do_not_import_endpoint_owners(source: str) -> None:
     ["turns.py", "stream.py"],
 )
 def test_interview_modules_do_not_reach_into_router_facade(source: str) -> None:
-    path = _APP_DIR / "interviews" / source
+    path = _INTERVIEWS_DIR / source
     for node in ast.walk(ast.parse(path.read_text())):
-        if isinstance(node, ast.ImportFrom) and node.module == "app.interviews":
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "co_scientist.domains.chat.interviews"
+        ):
             assert {alias.name for alias in node.names} <= _INTERVIEW_MODULES, path
         if isinstance(node, ast.Import):
-            assert all(alias.name != "app.interviews" for alias in node.names), path
+            assert all(
+                alias.name != "co_scientist.domains.chat.interviews" for alias in node.names
+            ), path
 
 
 _ROOT = Path(__file__).resolve().parents[2]

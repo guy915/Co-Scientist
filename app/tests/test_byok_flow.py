@@ -272,7 +272,9 @@ def test_interview_turn_scopes_the_header_credential(
             ' "focus_area": [], "preferences": [], "completed": true}'
         )
 
-    monkeypatch.setattr("app.interviews.model._stream_interview_content", fake_stream)
+    monkeypatch.setattr(
+        "co_scientist.domains.chat.interviews.model._stream_interview_content", fake_stream
+    )
     with TestClient(app) as client:
         response = client.post(
             "/api/interviews",

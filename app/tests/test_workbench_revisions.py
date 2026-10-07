@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from app.store import messages
-from app.store.messages import NewMessage
+from co_scientist.domains.chat.repository import messages
+from co_scientist.domains.chat.repository.messages import NewMessage
+
 from tests._store_helpers import seed_run
 
 

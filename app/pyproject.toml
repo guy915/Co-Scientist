@@ -43,7 +43,7 @@ where = ["."]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["py.typed", "content/*.md", "data/*.gz"]
+app = ["py.typed", "content/*.md"]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]

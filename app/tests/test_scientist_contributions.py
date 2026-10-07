@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.research_state.drain import hypotheses as drain_hypotheses
 from co_scientist.domains.research_state.models import (
     SCIENTIST_REVIEWER,
@@ -22,7 +23,7 @@ from app.engine_tasks.support import (
     NODE_TASK_PREFIX,
 )
 from app.store import events as store_events
-from app.store import messages, runs
+from app.store import runs
 from app.store import tasks as store
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client

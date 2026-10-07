@@ -5,11 +5,11 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.domains.chat import qa
+from co_scientist.domains.chat.qa import build_evidence_manifest
+from co_scientist.domains.chat.repository import messages as store
+from co_scientist.domains.chat.repository.messages import NewMessage
 
-from app import qa
-from app.qa import build_evidence_manifest
-from app.store import messages as store
-from app.store.messages import NewMessage
 from tests._client import create_run as _create_run
 from tests._client import drain as _drain
 from tests._client import fake_litellm as _fake_litellm

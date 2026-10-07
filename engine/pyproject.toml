@@ -63,6 +63,7 @@ include = ["co_scientist*"]
 co_scientist = [
     "prompts/templates/*.md",
     "platform/retrieval/config/*.yaml",
+    "domains/chat/data/*.gz",
     "platform/retrieval/data/*.gz",
     "platform/sandbox/*.sbpl",
     "py.typed",

@@ -2,56 +2,58 @@ from __future__ import annotations
 
 from typing import Any
 
-from co_scientist.core.async_bridge import off_loop
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
-
-import app.interviews.turns as support
 import app.staged_documents as staged_documents
 from app.api_contracts.interviews import ChatSummary, Interview
 from app.auth import client_id, require_client_scope
-from app.interviews.model import (
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
+
+import co_scientist.domains.chat.interviews.turns as support
+from co_scientist.core.async_bridge import off_loop
+from co_scientist.domains.chat.interviews.model import (
     CreateInterviewRequest as CreateInterviewRequest,
 )
-from app.interviews.model import (
+from co_scientist.domains.chat.interviews.model import (
     InterviewFieldsRequest as InterviewFieldsRequest,
 )
-from app.interviews.model import InterviewTurnRequest
-from app.interviews.model import ProseSink as ProseSink
-from app.interviews.model import ReasoningSink as ReasoningSink
-from app.interviews.model import _call_interview_model as _call_interview_model
-from app.interviews.model import _clean_list as _clean_list
-from app.interviews.model import _essentials_ready as _essentials_ready
-from app.interviews.model import (
+from co_scientist.domains.chat.interviews.model import InterviewTurnRequest
+from co_scientist.domains.chat.interviews.model import ProseSink as ProseSink
+from co_scientist.domains.chat.interviews.model import ReasoningSink as ReasoningSink
+from co_scientist.domains.chat.interviews.model import (
+    _call_interview_model as _call_interview_model,
+)
+from co_scientist.domains.chat.interviews.model import _clean_list as _clean_list
+from co_scientist.domains.chat.interviews.model import _essentials_ready as _essentials_ready
+from co_scientist.domains.chat.interviews.model import (
     _fallback_interview_response as _fallback_interview_response,
 )
-from app.interviews.model import _normalized_fields as _normalized_fields
-from app.interviews.model import _ready as _ready
-from app.interviews.questions import (
+from co_scientist.domains.chat.interviews.model import _normalized_fields as _normalized_fields
+from co_scientist.domains.chat.interviews.model import _ready as _ready
+from co_scientist.domains.chat.interviews.questions import (
     normalized_questions as normalized_questions,
 )
-from app.interviews.questions import repair_questions as repair_questions
-from app.interviews.stream import _interview_stream
-from app.interviews.turns import _attach_documents as _attach_documents
-from app.interviews.turns import (
+from co_scientist.domains.chat.interviews.questions import repair_questions as repair_questions
+from co_scientist.domains.chat.interviews.stream import _interview_stream
+from co_scientist.domains.chat.interviews.turns import _attach_documents as _attach_documents
+from co_scientist.domains.chat.interviews.turns import (
     _interview_turn_completed as _interview_turn_completed,
 )
-from app.interviews.turns import (
+from co_scientist.domains.chat.interviews.turns import (
     _persist_interview_turn as _persist_interview_turn,
 )
-from app.interviews.turns import _reasoning_capture as _reasoning_capture
-from app.interviews.turns import _resolved_turn as _resolved_turn
-from app.interviews.turns import _ResolvedTurn as _ResolvedTurn
-from app.interviews.turns import _run_interview_turn as _run_interview_turn
-from app.interviews.turns import _with_documents as _with_documents
-from app.interviews.turns import (
+from co_scientist.domains.chat.interviews.turns import _reasoning_capture as _reasoning_capture
+from co_scientist.domains.chat.interviews.turns import _resolved_turn as _resolved_turn
+from co_scientist.domains.chat.interviews.turns import _ResolvedTurn as _ResolvedTurn
+from co_scientist.domains.chat.interviews.turns import _run_interview_turn as _run_interview_turn
+from co_scientist.domains.chat.interviews.turns import _with_documents as _with_documents
+from co_scientist.domains.chat.interviews.turns import (
     _with_repaired_questions as _with_repaired_questions,
 )
-from app.interviews.turns import advance_turn as advance_turn
-from app.interviews.turns import owned_interview as _owned_interview
-from app.interviews.turns import request_byok as _request_byok
-from app.store import interviews as store
-from app.store.interviews import NewInterviewTurn
+from co_scientist.domains.chat.interviews.turns import advance_turn as advance_turn
+from co_scientist.domains.chat.interviews.turns import owned_interview as _owned_interview
+from co_scientist.domains.chat.interviews.turns import request_byok as _request_byok
+from co_scientist.domains.chat.repository import interviews as store
+from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
 
 _revision_router = APIRouter()
 

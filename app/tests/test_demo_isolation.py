@@ -4,14 +4,15 @@ import asyncio
 import json
 
 import pytest
+from co_scientist.domains.chat import seed
+from co_scientist.domains.chat.repository import interviews
+from co_scientist.domains.chat.repository.examples import open_example_chat
 from co_scientist.platform import db
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from fastapi.testclient import TestClient
 
-from app import seed
 from app.main import app
-from app.store import interviews, runs, runs_views
-from app.store.examples import open_example_chat
+from app.store import runs, runs_views
 from app.store.runs import RunCreateOptions
 
 

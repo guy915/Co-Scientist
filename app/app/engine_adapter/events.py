@@ -4,10 +4,10 @@ from collections.abc import Callable
 from typing import Any
 
 from co_scientist.agents.proximity.proximity_graph import is_judged_edge
+from co_scientist.domains.chat.repository import messages as store
+from co_scientist.domains.chat.repository.messages import NewMessage
 
 from app.run_events import hypothesis_stub
-from app.store import messages as store
-from app.store.messages import NewMessage
 
 
 def _canonical_event_type(node_name: str) -> str:

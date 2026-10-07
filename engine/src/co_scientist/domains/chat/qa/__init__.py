@@ -6,6 +6,11 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
+import app.credentials as credentials
+from app.sse import sse_frame as sse_frame
+from app.store import runs
+
+import co_scientist.domains.chat.qa.manifest as qa_ideas
 import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
@@ -14,21 +19,16 @@ from co_scientist.core.config import (
     settings,
     thinking_safe_max_tokens,
 )
+from co_scientist.domains.chat.qa import artifacts as qa_artifacts
+from co_scientist.domains.chat.qa.manifest import QaRunContext as QaRunContext
+from co_scientist.domains.chat.qa.manifest import _tokenize
+from co_scientist.domains.chat.qa.manifest import build_evidence_manifest as build_evidence_manifest
+from co_scientist.domains.chat.qa.manifest import build_system_prompt as build_system_prompt
+from co_scientist.domains.chat.repository import messages as store
+from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
-
-import app.credentials as credentials
-import app.qa.manifest as qa_ideas
-from app.qa import artifacts as qa_artifacts
-from app.qa.manifest import QaRunContext as QaRunContext
-from app.qa.manifest import _tokenize
-from app.qa.manifest import build_evidence_manifest as build_evidence_manifest
-from app.qa.manifest import build_system_prompt as build_system_prompt
-from app.sse import sse_frame as sse_frame
-from app.store import messages as store
-from app.store import runs
-from app.store.messages import NewMessage
 
 logger = logging.getLogger(__name__)
 
