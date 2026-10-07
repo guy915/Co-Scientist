@@ -665,7 +665,8 @@ async def _invoke_synthesis_llm(
             temperature=HIGH_TEMPERATURE,
         ),
         loop=ToolLoop(
-            tools=ctx.openai_tools,
+            # Source-derived analyses cannot authorize new outbound actions.
+            tools=[],
             executor=tracked_executor,
             max_iterations=ctx.max_iterations,
             tool_contract=_synthesis_tool_contract(ctx.tool_registry),

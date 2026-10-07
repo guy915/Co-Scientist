@@ -191,12 +191,15 @@ def _setup_tool_provider(
     workflow_name: str,
     label: str,
     log: logging.Logger,
+    *,
+    run_id: str | None = None,
+    corpus: str | None = None,
 ) -> tuple[MCPToolProvider, list[Any], Optional["ToolRegistry"]]:
     """A missing registry permits all available tools for maintenance callers
     that do not thread configuration through state."""
     tool_registry = _resolve_tool_registry_fallback(tool_registry, label, log)
 
-    provider = MCPToolProvider(mcp_client=mcp_client)
+    provider = MCPToolProvider(mcp_client=mcp_client, run_id=run_id, corpus=corpus)
 
     mcp_whitelist = _resolve_mcp_whitelist(tool_registry, workflow_name, label, log)
 
@@ -408,7 +411,13 @@ def _prepare_draft_call(
 ) -> tuple[DraftSkills, int, str]:
 
     provider, openai_tools, tool_registry = _setup_tool_provider(
-        mcp_client, tool_registry, "draft_generation", "draft", logger
+        mcp_client,
+        tool_registry,
+        "draft_generation",
+        "draft",
+        logger,
+        run_id=state.get("run_id"),
+        corpus=corpus_slug(state["research_goal"]),
     )
 
     skills = attach_skills(state, provider, openai_tools)

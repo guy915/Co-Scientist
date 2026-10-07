@@ -5,13 +5,8 @@ You are analyzing a research paper to identify opportunities for novel hypothesi
 ## Research Goal
 {{research_goal}}
 
-## Paper Details
-**Title:** {{title}}
-**Authors:** {{authors}}
-**Year:** {{year}}
-
-## Paper Content
-{{fulltext}}
+## Paper Evidence
+{{paper_evidence}}
 
 ---
 

@@ -5,13 +5,8 @@ You are analyzing a research paper to assess whether a proposed hypothesis is no
 ## Hypothesis to Validate
 {{hypothesis_text}}
 
-## Paper Details
-**Title:** {{title}}
-**Authors:** {{authors}}
-**Year:** {{year}}
-
-## Paper Content
-{{fulltext}}
+## Paper Evidence
+{{paper_evidence}}
 
 ---
 
