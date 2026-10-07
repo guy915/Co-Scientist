@@ -20,7 +20,7 @@ import {useNowTick} from '@/shared/hooks/timers';
 import {preferredSessionSide} from '@/shared/hooks/session_side';
 import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
 import {displayTitle} from '@/shared/lib/titles';
-import {formatDurationPhrase} from '@/shared/lib/time';
+import {formatDate, formatDurationPhrase} from '@/shared/lib/time';
 
 export interface HomeStageProps {
   input: string;
@@ -529,7 +529,7 @@ function RecentCardMeta({run}: {run: Run}) {
   const nowSeconds = useNowTick(1000);
   return (
     <span className="flex flex-wrap gap-[0.35rem]">
-      <Chip size="xs">{formatHomeRunDate(run.updated_at)}</Chip>
+      <Chip size="xs">{formatDate(run.updated_at)}</Chip>
       <Chip size="xs">{formatHomeRunTimeChip(run, nowSeconds)}</Chip>
     </span>
   );
@@ -618,16 +618,6 @@ function RecentRunResults({run}: {run: Run}) {
       )}
     </>
   );
-}
-
-const HOME_RUN_DATE_FMT = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-});
-
-export function formatHomeRunDate(timestamp: number): string {
-  return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
 }
 
 export function formatHomeRunTimeChip(run: Run, nowSeconds: number): string {

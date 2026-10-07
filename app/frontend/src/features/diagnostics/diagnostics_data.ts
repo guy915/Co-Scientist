@@ -1,4 +1,5 @@
 import {type AppLogRecord, type ClientLogRecord} from '@/shared/api/logs';
+import {formatClockTime} from '@/shared/lib/time';
 
 export type DiagnosticLogLevel = 'info' | 'warning' | 'error';
 
@@ -35,16 +36,6 @@ export interface PersistedAppLogs {
   total: number;
 }
 
-const DIAGNOSTIC_TIME_FMT = new Intl.DateTimeFormat(undefined, {
-  hour: 'numeric',
-  minute: '2-digit',
-  second: '2-digit',
-});
-
-function formatDiagnosticTime(date = new Date()): string {
-  return DIAGNOSTIC_TIME_FMT.format(date);
-}
-
 function clientLevel(level: DiagnosticLogLevel | undefined): string {
   return level === 'error' || level === 'warning' ? level : 'info';
 }
@@ -76,7 +67,7 @@ export function buildAppLogEntry(
   return {
     id: record.id,
     number,
-    time: formatDiagnosticTime(new Date(record.created_at * 1000)),
+    time: formatClockTime(record.created_at),
     run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : SERVER_LOG_SOURCE,
     stage: record.logger,
     level: appLogLevel(record),

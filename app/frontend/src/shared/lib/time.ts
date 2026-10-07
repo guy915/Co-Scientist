@@ -35,3 +35,23 @@ export function relativeTime(
     return `${Math.round(seconds / MINUTE_SECONDS)}m ago`;
   return `${Math.round(seconds / HOUR_SECONDS)}h ago`;
 }
+
+const DATE_FMT = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+const CLOCK_FMT = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+export function formatDate(epochSeconds: number): string {
+  return DATE_FMT.format(new Date(epochSeconds * 1000));
+}
+
+export function formatClockTime(epochSeconds: number): string {
+  return CLOCK_FMT.format(new Date(epochSeconds * 1000));
+}
