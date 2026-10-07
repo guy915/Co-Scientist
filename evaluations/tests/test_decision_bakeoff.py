@@ -157,6 +157,7 @@ async def test_account_metadata_excludes_key_and_identifying_fields(
                     "key": "synthetic-key",
                     "is_free_tier": False,
                     "free_model_daily_requests": 7,
+                    "usage_daily": "synthetic-key",
                 }
             },
         )

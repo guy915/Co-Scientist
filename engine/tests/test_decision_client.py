@@ -1,6 +1,7 @@
 import asyncio
 import json
 from dataclasses import replace
+from email.utils import formatdate
 from typing import Any
 
 import httpx
@@ -108,6 +109,31 @@ async def test_force_offline_refuses_real_transport(monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     with pytest.raises(DecisionUnavailableError):
         await SystemOneClient(_SETTINGS).decide("state", _QUESTIONS)
+
+
+async def test_rate_limit_headers_and_http_date_cooldown_exclude_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(decision_usage, "current_time", lambda: 100)
+    monkeypatch.setattr("co_scientist.platform.llm.decisions.client.time.time", lambda: 100)
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            429,
+            headers={
+                "Retry-After": formatdate(280, usegmt=True),
+                "x-ratelimit-limit-requests-day": "100",
+                "x-ratelimit-reset": "synthetic-liquid-key",
+                "authorization": "Bearer synthetic-liquid-key",
+            },
+        )
+    )
+    with pytest.raises(DecisionUnavailableError) as raised:
+        await SystemOneClient(_SETTINGS, transport=transport).decide("state", _QUESTIONS)
+    assert raised.value.status_code == 429
+    assert raised.value.rate_limits["x-ratelimit-limit-requests-day"] == "100"
+    assert "synthetic-liquid-key" not in json.dumps(raised.value.rate_limits)
+    with connect() as conn:
+        assert conn.execute("SELECT blocked_until FROM decision_usage").fetchone()[0] == 280
 
 
 async def test_oversize_state_is_never_truncated_or_dispatched() -> None:
