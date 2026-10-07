@@ -78,13 +78,18 @@ def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
             title="H",
             statement="keep me",
             mechanism="secret mechanism",
+            expected_effect="secret effect",
             experimental_context="secret protocol",
         )
     )
-    store.redact_hypothesis_fields(hid, {"mechanism": "[X]", "experimental_context": "[X]"})
+    store.redact_hypothesis_fields(
+        hid,
+        {"mechanism": "[X]", "expected_effect": "[X]", "experimental_context": "[X]"},
+    )
     row = store.get_hypothesis(hid)
     assert row is not None
     assert row["mechanism"] == "[X]"
+    assert row["expected_effect"] == "[X]"
     assert row["experimental_context"] == "[X]"
     assert row["statement"] == "keep me"
 

@@ -18,6 +18,7 @@ from app.hypothesis.safety import (
     review_hypothesis_safety,
 )
 from app.report import ReportRequest, finalize_report
+from app.report.gates import exclude_unsafe_hypotheses
 from app.run_events import make_emitter
 from app.safety import (
     SafetyDecision,
@@ -150,6 +151,7 @@ def test_screen_redacts_detail_fields_and_rescreening_keeps_the_redaction(
             title="Sensitive detail",
             statement="A therapeutic approach for a viral disease.",
             mechanism="A step-by-step synthesis protocol for the compound.",
+            expected_effect="The compound clears the infection in days.",
             experimental_context="Follow the synthesis route in a BSL-2 lab.",
         ),
         db_path=isolated_db,
@@ -163,7 +165,9 @@ def test_screen_redacts_detail_fields_and_rescreening_keeps_the_redaction(
     row = store.get_hypothesis(hyp_id, db_path=isolated_db)
     assert row is not None
     assert row["mechanism"] == REDACTED_PLACEHOLDER
+    assert row["expected_effect"] == REDACTED_PLACEHOLDER
     assert row["experimental_context"] == REDACTED_PLACEHOLDER
+    # The statement alone survives, so the hypothesis stays rankable.
     assert row["statement"] == "A therapeutic approach for a viral disease."
     assert payloads[0]["mechanism"] == REDACTED_PLACEHOLDER
 
@@ -475,3 +479,29 @@ def test_a_healthy_run_is_never_halted(isolated_db: str) -> None:
         verdicts = client.get(f"/api/runs/{run_id}/safety").json()["safety"]
         assert not [s for s in verdicts if s["stage"] == "research_direction"]
         assert client.get(f"/api/runs/{run_id}/report").status_code == 200
+
+
+def test_the_legacy_report_gate_reads_the_detail_fields_too(isolated_db: str) -> None:
+    run = seed_run("legacy gate", provider="mock")
+    hyp_id = store.add_hypothesis(
+        NewHypothesis(
+            run_id=run.id,
+            title="Innocuous headline",
+            statement="A therapeutic approach for a viral disease.",
+            mechanism=_GATE_PARITY_CASES[1][0],
+        ),
+        db_path=isolated_db,
+    )
+    # An unscreened row reaches the report gate as its only screen.
+    rows = [dict(row) for row in store.list_hypotheses(run.id, db_path=isolated_db)]
+    assert [r["safety_status"] for r in rows] == ["pending"]
+
+    kept = exclude_unsafe_hypotheses(run.id, rows, isolated_db)
+
+    assert kept == []
+    blocks = [
+        d
+        for d in records.list_safety_decisions(run.id, db_path=isolated_db)
+        if d["decision"] == "block"
+    ]
+    assert any(hyp_id in d["reason"] for d in blocks)

@@ -412,9 +412,14 @@ def redact_hypothesis_fields(
     text: str | None,
     explanation: str | None,
     experiment: str | None,
-) -> tuple[str | None, str | None, str | None]:
+    literature_grounding: str | None,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """Every free-text field but the statement is hidden, so the hypothesis
+    stays rankable while no screened detail survives a redact verdict.
+    """
     return (
         text,
         REDACTED_PLACEHOLDER if explanation else explanation,
         REDACTED_PLACEHOLDER if experiment else experiment,
+        REDACTED_PLACEHOLDER if literature_grounding else literature_grounding,
     )

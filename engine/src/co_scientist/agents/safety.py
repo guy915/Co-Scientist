@@ -33,12 +33,8 @@ __all__ = [
 
 
 def _screen_text(h: Hypothesis) -> str:
-    parts = [h.text]
-    if h.explanation:
-        parts.append(h.explanation)
-    if h.experiment:
-        parts.append(h.experiment)
-    return " ".join(parts)
+    parts = [h.text, h.explanation, h.literature_grounding, h.experiment]
+    return " ".join(part for part in parts if part)
 
 
 def _build_safety_decision(
@@ -60,8 +56,8 @@ def _build_safety_decision(
 
 def _redact_if_needed(h: Hypothesis, review: Any) -> None:
     if review.outcome in (SafetyOutcome.DUAL_USE, SafetyOutcome.REDACT):
-        _, h.explanation, h.experiment = redact_hypothesis_fields(
-            h.text, h.explanation, h.experiment
+        _, h.explanation, h.experiment, h.literature_grounding = redact_hypothesis_fields(
+            h.text, h.explanation, h.experiment, h.literature_grounding
         )
 
 
