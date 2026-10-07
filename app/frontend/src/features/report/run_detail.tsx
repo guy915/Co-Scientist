@@ -9,7 +9,7 @@ import {
 } from '@/api/runs';
 import {useRunHistoryContext} from '@/shared/hooks/history_context';
 import {useParams} from 'react-router-dom';
-import {IdeasTab} from '../components/tabs/ideas_tab';
+import {IdeasTab} from './ideas_tab';
 import {normalizeTab, TABS, type TabName} from '@/shared/lib/run_tabs';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';

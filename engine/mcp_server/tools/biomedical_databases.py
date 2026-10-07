@@ -5,6 +5,7 @@ from typing import Any, TypedDict, Unpack
 
 import httpx
 
+from mcp_server.http_client import make_client
 from mcp_server.tools._pacing import RequestPacer
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ class _GetOptions(TypedDict, total=False):
 
 
 async def _get_json(url: str, **options: Unpack[_GetOptions]) -> Any:
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with make_client(30) as client:
         response = await client.get(url, **options)
         response.raise_for_status()
     return response.json()
@@ -298,7 +299,7 @@ async def search_gnomad_constraint(query: str, max_results: int = 1) -> dict[str
     """
     del max_results
     try:
-        async with httpx.AsyncClient(timeout=45) as client:
+        async with make_client(45) as client:
             response = await client.post(
                 _GNOMAD_URL,
                 json={"query": _GNOMAD_QUERY, "variables": {"symbol": query}},
@@ -432,7 +433,7 @@ async def search_reactome_pathways(query: str, max_results: int = 10) -> dict[st
     """
     limit = _capped(max_results)
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with make_client(30) as client:
             entity = await _reactome_entity(client, query)
             if entity is None:
                 return _systems_biology_empty_result("Reactome", query)
@@ -503,7 +504,7 @@ async def search_open_targets(query: str, max_results: int = 10) -> dict[str, An
     """
     limit = _capped(max_results)
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with make_client(30) as client:
             response = await client.post(
                 _OPENTARGETS_URL,
                 json={
@@ -653,11 +654,10 @@ def _association(row: dict[str, Any], rs_id: str) -> dict[str, Any]:
 
 async def _request_page(params: dict[str, str | int]) -> Any:
     await _wait_for_request_slot()
-    async with httpx.AsyncClient(
-        timeout=_REQUEST_TIMEOUT_SECONDS,
-        follow_redirects=False,
-        trust_env=False,
+    async with make_client(
+        _REQUEST_TIMEOUT_SECONDS,
         headers={"Accept": "application/json"},
+        honour_proxy_env=False,
     ) as client:
         response = await client.get(_API_URL, params=params)
         response.raise_for_status()
