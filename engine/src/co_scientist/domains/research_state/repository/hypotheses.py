@@ -173,7 +173,7 @@ def update_hypothesis_state(
 
 # Safety redaction is the sole sanctioned mutation of otherwise append-only
 # hypothesis text.
-_REDACTABLE_COLUMNS = frozenset({"mechanism", "experimental_context"})
+_REDACTABLE_COLUMNS = frozenset({"mechanism", "expected_effect", "experimental_context"})
 
 
 def redact_hypothesis_fields(

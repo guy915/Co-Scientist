@@ -81,7 +81,15 @@ HypothesisSafetyReview: TypeAlias = SafetyReview
 
 
 def redact_fields(fields: dict[str, str]) -> dict[str, str]:
-    sensitive = {"mechanism", "experiment", "experimental_context"}
+    # Both naming conventions, because engine and store names reach this.
+    sensitive = {
+        "mechanism",
+        "expected_effect",
+        "explanation",
+        "experiment",
+        "experimental_context",
+        "literature_grounding",
+    }
     return {
         key: (REDACTED_PLACEHOLDER if key in sensitive and value else value)
         for key, value in fields.items()
