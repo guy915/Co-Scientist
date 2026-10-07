@@ -14,6 +14,14 @@ Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
 Search [open issues](https://github.com/guy915/Open-Co-Scientist/issues) before
 starting. The project labels are defined in [.github/labels.yml](.github/labels.yml).
+Start with `good first issue` for bounded work with context, or `help wanted`
+for work the maintainer has opened to contributors. Filter by area, such as
+`area: evaluations`, `area: engine`, `area: frontend` or `area: docs`.
+Types include `type: bug`, `type: feature`, `type: docs`, `type: maintenance`
+and `type: question`. Priority labels range from `priority: critical` to
+`priority: low`. An issue marked `needs triage` still needs its scope,
+reproduction, ownership or priority reviewed.
+
 Choose a small issue that matches your interests. Comment with your proposed
 approach before starting, especially while folders are moving. If the scope
 is unclear, ask in the issue. This helps avoid overlapping work.
@@ -54,9 +62,9 @@ The folders below these are changing during the re-architecture. Read
 
 ## Checks and evidence
 
-Run `make check` before requesting review. It covers lint, types, backend and
-frontend suites, evaluation smoke, the frontend build and isolated browser
-tests. CI tests are offline: they must not need network access or provider keys.
+For code changes, run `make check` before requesting review. It covers lint,
+types, backend and frontend suites, evaluation smoke, the frontend build and
+isolated browser tests. CI tests must not need network access or provider keys.
 
 For documentation changes, run `make lint` and
 `.venv/bin/python -m pytest evaluations/tests -q` explicitly. Record each
