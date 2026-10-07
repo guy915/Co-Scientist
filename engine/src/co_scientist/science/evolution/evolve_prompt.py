@@ -9,14 +9,14 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
+from co_scientist.domains.research_state.proximity_edges import is_judged_edge
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.domains.research_state.text_utils import token_coverage
 from co_scientist.science.evolution.evolve_grounding import (
     not_applicable_block,
 )
 from co_scientist.science.evolution.operations import EvolutionContext
-from co_scientist.science.generation.assumptions import (
-    build_falsified_assumptions_section,
-)
+from co_scientist.science.falsified_assumptions import build_falsified_assumptions_section
 from co_scientist.science.prompts import (
     format_lab_constraints_section,
     format_preferences,
@@ -31,13 +31,7 @@ from co_scientist.science.prompts.generation_draft import (
     _build_citation_reference_section,
 )
 from co_scientist.science.prompts.loading import _get_domain_variables
-from co_scientist.science.proximity.proximity_graph import is_judged_edge
-from co_scientist.science.proximity.proximity_graph import (
-    token_coverage as token_coverage,
-)
-from co_scientist.science.reflection.review_gate import (
-    mature_review_summary,
-)
+from co_scientist.science.review_summary import mature_review_summary
 
 logger = logging.getLogger(__name__)
 

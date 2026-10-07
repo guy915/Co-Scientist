@@ -270,7 +270,7 @@ def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
 
 
 def _ranking_chain_skipped(state: dict[str, Any], eligible: list[Any]) -> bool:
-    from co_scientist.science.ranking import remaining_ranking_rounds
+    from co_scientist.science.scheduling.tournament import remaining_ranking_rounds
 
     if len(eligible) < 2:
         return True

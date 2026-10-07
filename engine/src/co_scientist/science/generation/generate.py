@@ -6,10 +6,10 @@ from typing import Any
 from co_scientist.domains.research_state.models import MetricDeltas, create_metrics_update
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.sandbox.skills import scoped_skill_usage
+from co_scientist.science.citations import ReferenceIndex
 from co_scientist.science.generation.assumptions import (
     generate_with_assumptions,
 )
-from co_scientist.science.generation.citations import ReferenceIndex
 from co_scientist.science.generation.debate import generate_with_debate
 from co_scientist.science.generation.expansion_research import (
     research_for_expansion,

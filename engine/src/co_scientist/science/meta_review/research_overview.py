@@ -176,10 +176,6 @@ def _question_lines(raw: Any) -> list[str]:
     return ["**Open questions:**", *bullets, ""] if bullets else []
 
 
-def format_interim_overview(state: WorkflowState) -> str:
-    return str(state.get("interim_overview") or "").strip()
-
-
 def _run_prompt_context(state: WorkflowState) -> PromptRunContext:
     return PromptRunContext(
         meta_review=state.get("meta_review"),

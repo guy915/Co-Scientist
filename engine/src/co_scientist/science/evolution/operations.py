@@ -3,7 +3,7 @@ from typing import Any
 
 from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
 from co_scientist.domains.research_state.state import WorkflowState
-from co_scientist.science.generation.citations import (
+from co_scientist.science.citations import (
     ReferenceIndex,
     build_reference_index,
 )
