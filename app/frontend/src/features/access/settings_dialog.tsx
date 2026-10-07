@@ -195,11 +195,7 @@ function ApiKeyHint({provider}: {provider: ByokProvider}) {
         href={url}
       >
         Get {article} {PROVIDER_LABELS[provider]} API key
-        <Icon
-          aria-hidden="true"
-          className="text-[0.95rem]"
-          name="open_in_new"
-        />
+        <Icon className="text-[0.95rem]" name="open_in_new" />
       </ExternalLink>
     </p>
   );

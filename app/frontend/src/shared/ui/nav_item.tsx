@@ -57,7 +57,7 @@ function itemClasses({open, layoutClassName}: NavItemStyle): string {
 function NavItemContent({icon, label, open}: NavItemStyle) {
   return (
     <>
-      <Icon aria-hidden="true" className={ICON_CLASSES} name={icon} />
+      <Icon className={ICON_CLASSES} name={icon} />
       <span
         className={joinClasses(LABEL_CLASSES, !open && LABEL_COLLAPSED_CLASSES)}
       >

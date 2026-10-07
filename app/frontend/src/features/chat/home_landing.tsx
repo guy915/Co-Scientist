@@ -477,7 +477,6 @@ function ShapeBadge({
         <path ref={pathRef} d={shapePath(shape)} />
       </svg>
       <Icon
-        aria-hidden="true"
         name={icon}
         className={joinClasses(
           'absolute inset-0 m-auto',
@@ -729,7 +728,6 @@ export function FaqSection() {
             <summary className="flex cursor-pointer items-center justify-between gap-[16px] py-[22px] text-[19px] [list-style:none] [&::-webkit-details-marker]:hidden">
               <span>{entry.question}</span>
               <Icon
-                aria-hidden="true"
                 name="expand_more"
                 className="size-[24px] flex-none fill-(--l-muted) [transition:transform_0.3s_var(--l-ease)] [details[open]_&]:[transform:rotate(180deg)]"
               />
@@ -864,7 +862,6 @@ function RunCard() {
             className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-[12px] rounded-full text-[14px] leading-[1.35]`}
           >
             <Icon
-              aria-hidden="true"
               name={stage.icon}
               className="size-[20px] flex-none fill-(--l-accent)"
             />

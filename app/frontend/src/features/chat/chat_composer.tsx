@@ -109,11 +109,7 @@ export function Composer({
             input.trim() && 'hidden',
           )}
         >
-          <Icon
-            aria-hidden="true"
-            className="text-[1.15rem]"
-            name="encrypted"
-          />
+          <Icon className="text-[1.15rem]" name="encrypted" />
           {referenceLabel}
         </span>
         <TextArea

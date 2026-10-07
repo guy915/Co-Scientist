@@ -173,7 +173,6 @@ export function MenuItem({
     >
       {icon && (
         <Icon
-          aria-hidden="true"
           className="flex-none text-[1.15rem] text-cosci-menu-icon"
           name={icon}
         />
@@ -182,7 +181,6 @@ export function MenuItem({
       {indicator && kind === 'checkbox' && <SwitchIndicator on={!!checked} />}
       {indicator && kind === 'radio' && checked && (
         <Icon
-          aria-hidden="true"
           className="ml-auto flex-none text-[1.05rem] text-cosci-blue"
           name="check"
         />
@@ -215,7 +213,6 @@ export function SelectTrigger({
     >
       {children}
       <Icon
-        aria-hidden="true"
         className={joinClasses(
           'flex-none text-[1.15rem] text-cosci-muted',
           'transition-[rotate] duration-medium ease-standard',

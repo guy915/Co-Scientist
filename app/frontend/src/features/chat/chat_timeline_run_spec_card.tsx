@@ -130,7 +130,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
       anchorId={props.anchorId}
       attachment={
         <MessageAttachment>
-          <p className={`reference-review-copy ${'m-0 text-base leading-6'}`}>
+          <p className="reference-review-copy m-0 text-base leading-6">
             {planInstructions(props.recoveryAction, locked)}
           </p>
           <RecoveryLookupStatus
@@ -600,7 +600,7 @@ function SessionLinkCard({
   return (
     <Link
       to={href}
-      className={`${'reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-started-card-fg'} no-underline`}
+      className="reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-started-card-fg no-underline"
     >
       <span className="block min-w-0">
         <strong className="block min-w-0 text-[1.18rem] leading-[1.25]">

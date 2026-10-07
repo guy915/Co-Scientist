@@ -406,7 +406,7 @@ function ReferenceSearchBox({
 }) {
   return (
     <label className="cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-[0.86rem] text-cosci-muted">
-      <Icon className="text-base" aria-hidden="true" name="search" />
+      <Icon className="text-base" name="search" />
       <TextField
         variant="bare"
         layoutClassName="min-w-0 flex-1"
@@ -497,11 +497,7 @@ function ReferenceSourceState({item}: {item: Evidence}) {
       )}
       href={item.url}
     >
-      <Icon
-        className={chipIconClasses()}
-        aria-hidden="true"
-        name="open_in_new"
-      />
+      <Icon className={chipIconClasses()} name="open_in_new" />
       Open
     </ExternalLink>
   );

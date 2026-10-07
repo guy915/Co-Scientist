@@ -81,7 +81,7 @@ export function ReportTitlebar({
           className="cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-cosci-muted no-underline hover:bg-cosci-hover"
           aria-label={back.label}
         >
-          <Icon aria-hidden="true" name="arrow_back" />
+          <Icon name="arrow_back" />
         </Link>
         <h1 className="m-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] font-normal tracking-normal phone:text-[0.9rem]">
           <TruncatedLabel
@@ -126,7 +126,6 @@ export function ReportTabNav({
         >
           <Icon
             className="text-[1.35rem] phone:text-[1.12rem] [@media(max-height:500px)]:hidden"
-            aria-hidden="true"
             name={TAB_META[tabName].icon}
           />
           <TruncatedLabel
@@ -244,11 +243,7 @@ const NOTICE_LAYOUT_CLASSES =
 export function ReportUngroundedNotice() {
   return (
     <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
-      <Icon
-        aria-hidden="true"
-        name="warning"
-        className="mt-[0.1rem] shrink-0 text-[1.25rem]"
-      />
+      <Icon name="warning" className="mt-[0.1rem] shrink-0 text-[1.25rem]" />
       <p className="m-0">
         No literature was retrieved for this run. The content below is not
         grounded in retrieved sources.
@@ -264,11 +259,7 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
   const decisions = count === 1 ? 'decision' : 'decisions';
   return (
     <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
-      <Icon
-        aria-hidden="true"
-        name="warning"
-        className="mt-[0.1rem] shrink-0 text-[1.25rem]"
-      />
+      <Icon name="warning" className="mt-[0.1rem] shrink-0 text-[1.25rem]" />
       <p className="m-0">
         This run is paused, waiting on {count} safety {decisions} to be
         reviewed. Resolve {count === 1 ? 'it' : 'them'} on the Goal Details tab

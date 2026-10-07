@@ -86,7 +86,6 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
           aria-label={label}
         >
           <Icon
-            aria-hidden="true"
             className={joinClasses(HEADER_CONTROL_ICON_CLASSES, 'flex-none')}
             name={icon}
           />

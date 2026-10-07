@@ -93,7 +93,7 @@ export function HypothesisDetail({
   if (!hypothesis) {
     return (
       <section id={DETAIL_PANE_ID} className={IDEA_DETAIL_EMPTY_CLASSES}>
-        <Icon aria-hidden="true" name="format_list_numbered" />
+        <Icon name="format_list_numbered" />
         <p>Select a hypothesis to inspect the review and tournament details.</p>
       </section>
     );

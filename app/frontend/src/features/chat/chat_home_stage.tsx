@@ -311,7 +311,6 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
           are text-only. */}
       {isMobile && (
         <Icon
-          aria-hidden="true"
           className="size-[1.4rem] flex-none text-[1.4rem] text-cosci-shell-icon"
           name={suggestion.icon}
         />
@@ -476,11 +475,7 @@ export function HomeRecentsPanel({
       aria-label="Recent runs"
     >
       <div className="flex items-center gap-2 text-th-muted-fg">
-        <Icon
-          aria-hidden="true"
-          className="size-5 desktop:size-[1.375rem]"
-          name="history"
-        />
+        <Icon className="size-5 desktop:size-[1.375rem]" name="history" />
         <h2 className="m-0 text-[1.15rem] font-semibold text-cosci-fg desktop:text-[1rem] desktop:leading-[1.5] desktop:font-medium">
           Recents
         </h2>
@@ -738,7 +733,6 @@ function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   return (
     <div className={RUN_STEP_CLASSES}>
       <Icon
-        aria-hidden="true"
         className="reference-run-step-icon size-5 shrink-0 text-cosci-shell-icon"
         name={icon}
       />

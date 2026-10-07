@@ -111,11 +111,7 @@ export function SegmentedControl<T extends string>({
           )}
         >
           {option.icon && (
-            <Icon
-              aria-hidden="true"
-              className="text-[1.15rem]"
-              name={option.icon}
-            />
+            <Icon className="text-[1.15rem]" name={option.icon} />
           )}
           <span>{option.label}</span>
         </button>
@@ -162,7 +158,6 @@ export function SectionNav<T extends string>({
         >
           {item.icon && (
             <Icon
-              aria-hidden="true"
               className="flex-none text-[1.25rem] max-[360px]:hidden"
               name={item.icon}
             />
