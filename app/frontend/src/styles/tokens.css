@@ -342,6 +342,7 @@ body {
   --field-placeholder: var(--cosci-muted);
 
   --scrim: rgb(0 0 0 / 45%);
+  --drawer-shadow: 0.75rem 0 2.5rem rgb(0 0 0 / 38%);
 }
 
 /* Dark muted text is nearly as bright as typed text, so placeholders take the

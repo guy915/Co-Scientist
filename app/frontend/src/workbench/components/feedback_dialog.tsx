@@ -1,35 +1,30 @@
-import {useEffect, useRef, useState, type FormEvent} from 'react';
-import {createPortal} from 'react-dom';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type RefObject,
+} from 'react';
 import {useLocation} from 'react-router-dom';
 import {
   FEEDBACK_CATEGORIES,
   submitFeedback,
   type FeedbackCategory,
 } from '@/api/feedback';
-import {
-  useBackgroundInert,
-  useEscapeKey,
-  useFocusTrap,
-  useRestoreFocusOnClose,
-} from '../hooks/dom';
-import {
-  joinClasses,
-  SETTINGS_DIALOG_CLASSES,
-  SETTINGS_DIALOG_TITLE_CLASSES,
-  SETTINGS_FIELD_LABEL_CLASSES,
-  SETTINGS_SCRIM_CLASSES,
-} from '../classes';
-import {Button, TextArea} from '@/shared/ui';
+import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '../classes';
+import {Button, Dialog, DIALOG_TITLE_CLASSES, TextArea} from '@/shared/ui';
 
 import {sessionDiagnosticExport} from '../layout_diagnostics';
 import {SettingsSelect} from './settings_dialog';
 
 export function FeedbackControl({runId}: {runId?: string}) {
   const [open, setOpen] = useState(false);
+  const messageRef = useRef<HTMLTextAreaElement>(null);
   const {pathname} = useLocation();
   const currentRunId =
     runId ??
     (pathname.startsWith('/runs/') ? pathname.split('/')[2] : undefined);
+  const close = () => setOpen(false);
   return (
     <>
       <Button
@@ -45,43 +40,49 @@ export function FeedbackControl({runId}: {runId?: string}) {
       >
         <span>Feedback</span>
       </Button>
-      {open &&
-        createPortal(
-          <FeedbackDialog
-            runId={currentRunId}
-            onClose={() => setOpen(false)}
-          />,
-          document.body,
-        )}
+      <Dialog
+        open={open}
+        onClose={close}
+        label="Feedback"
+        initialFocusRef={messageRef}
+      >
+        <FeedbackForm
+          open={open}
+          runId={currentRunId}
+          messageRef={messageRef}
+          onClose={close}
+        />
+      </Dialog>
     </>
   );
 }
 
-export function FeedbackDialog({
+// Remounts with each opening, so a new report starts empty.
+function FeedbackForm({
+  open,
   runId,
+  messageRef,
   onClose,
 }: {
+  open: boolean;
   runId?: string;
+  messageRef: RefObject<HTMLTextAreaElement | null>;
   onClose: () => void;
 }) {
-  const root = useRef<HTMLDivElement>(null);
-  const messageRef = useRef<HTMLTextAreaElement>(null);
-  const mounted = useRef(true);
+  // A closed dialog lingers for its exit motion; a submission that resolves
+  // after the user closed it must still be dropped.
+  const live = useRef(open);
+  live.current = open;
   const [category, setCategory] = useState<FeedbackCategory>('Bug');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useRestoreFocusOnClose();
-  useFocusTrap(root);
-  useBackgroundInert(root);
-  useEscapeKey(onClose, true);
-  useEffect(() => {
-    mounted.current = true;
-    messageRef.current?.focus();
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  useEffect(
+    () => () => {
+      live.current = false;
+    },
+    [],
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -90,7 +91,7 @@ export function FeedbackDialog({
     setError('');
     try {
       const diagnostics = await sessionDiagnosticExport();
-      if (!mounted.current) return;
+      if (!live.current) return;
       await submitFeedback({
         category,
         message: message.trim(),
@@ -98,9 +99,9 @@ export function FeedbackDialog({
         url: window.location.href.slice(0, 2048),
         ...(runId ? {run_id: runId} : {}),
       });
-      if (mounted.current) onClose();
+      if (live.current) onClose();
     } catch {
-      if (mounted.current) {
+      if (live.current) {
         setError(
           'Feedback could not be sent. Please wait a minute and try again.',
         );
@@ -110,67 +111,55 @@ export function FeedbackDialog({
   }
 
   return (
-    <div className="ucs-settings-dialog-root" ref={root}>
-      <div
-        className={SETTINGS_SCRIM_CLASSES}
-        aria-hidden="true"
-        onClick={onClose}
-      />
-      <form
-        className={joinClasses(
-          SETTINGS_DIALOG_CLASSES,
-          'h-auto max-h-[calc(100dvh-2rem)] w-[min(32rem,calc(100vw-2rem))] gap-5 overflow-y-auto p-6',
-        )}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Feedback"
-        onSubmit={event => void submit(event)}
-      >
-        <h2 className={SETTINGS_DIALOG_TITLE_CLASSES}>Feedback</h2>
-        <div>
-          <label
-            id="feedback-category-label"
-            className={joinClasses('grid gap-2', SETTINGS_FIELD_LABEL_CLASSES)}
-            htmlFor="feedback-category"
-          >
-            Category
-          </label>
-          <SettingsSelect
-            value={category}
-            options={FEEDBACK_CATEGORIES}
-            optionLabel={option => option}
-            name="Category"
-            triggerId="feedback-category"
-            labelId="feedback-category-label"
-            disabled={busy}
-            onChange={setCategory}
-          />
-        </div>
+    <form
+      className="grid gap-5"
+      noValidate
+      onSubmit={event => void submit(event)}
+    >
+      <h2 className={DIALOG_TITLE_CLASSES}>Feedback</h2>
+      <div>
         <label
+          id="feedback-category-label"
           className={joinClasses('grid gap-2', SETTINGS_FIELD_LABEL_CLASSES)}
+          htmlFor="feedback-category"
         >
-          Message
-          <TextArea
-            ref={messageRef}
-            layoutClassName="min-h-32 resize-y"
-            rows={6}
-            maxLength={8000}
-            value={message}
-            onChange={event => setMessage(event.target.value)}
-            required
-            disabled={busy}
-          />
+          Category
         </label>
-        {error && <p role="alert">{error}</p>}
-        <div className="flex gap-3 [justify-content:end]">
-          <Button variant="outlined" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={busy || !message.trim()}>
-            {busy ? 'Submitting…' : 'Submit'}
-          </Button>
-        </div>
-      </form>
-    </div>
+        <SettingsSelect
+          value={category}
+          options={FEEDBACK_CATEGORIES}
+          optionLabel={option => option}
+          name="Category"
+          triggerId="feedback-category"
+          labelId="feedback-category-label"
+          disabled={busy}
+          onChange={setCategory}
+        />
+      </div>
+      <label
+        className={joinClasses('grid gap-2', SETTINGS_FIELD_LABEL_CLASSES)}
+      >
+        Message
+        <TextArea
+          ref={messageRef}
+          layoutClassName="min-h-32 resize-y"
+          rows={6}
+          maxLength={8000}
+          value={message}
+          onChange={event => setMessage(event.target.value)}
+          required
+          disabled={busy}
+        />
+      </label>
+      {error && <p role="alert">{error}</p>}
+      <div className="flex gap-3 [justify-content:end]">
+        <Button variant="outlined" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={busy || !message.trim()}>
+          {busy ? 'Submitting…' : 'Submit'}
+        </Button>
+      </div>
+    </form>
   );
 }
