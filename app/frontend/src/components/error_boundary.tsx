@@ -16,38 +16,16 @@ interface ErrorBoundaryState {
   errorInfo: React.ErrorInfo | null;
 }
 
-const FALLBACK_CARD_CLASSES =
-  'w-full max-w-2xl rounded-xl border border-th-border bg-th-card ' +
-  'text-th-card-fg';
-
-const FALLBACK_TITLE_CLASSES =
-  'flex items-center gap-2 text-lg font-semibold leading-none ' +
-  'text-th-destructive';
-
-const FALLBACK_DESCRIPTION_CLASSES = 'mt-2 text-sm text-th-muted-fg';
-
-const FALLBACK_BUTTON_CLASSES =
-  'inline-flex min-h-10 cursor-pointer items-center justify-center ' +
-  'rounded-full border border-transparent bg-th-primary px-5 text-sm ' +
-  'font-medium text-th-primary-fg hover:opacity-90 focus-visible:outline-2 ' +
-  'focus-visible:outline-offset-2 focus-visible:outline-th-ring';
-
-const FALLBACK_OUTLINE_BUTTON_CLASSES =
-  'inline-flex min-h-10 cursor-pointer items-center justify-center ' +
-  'rounded-full border border-th-border bg-transparent px-5 text-sm ' +
-  'font-medium text-th-fg hover:bg-th-muted focus-visible:outline-2 ' +
-  'focus-visible:outline-offset-2 focus-visible:outline-th-ring';
-
 function FallbackHeader() {
   return (
     <header className="p-6">
-      <h1 className={FALLBACK_TITLE_CLASSES}>
+      <h1 className="flex items-center gap-2 text-lg font-semibold leading-none text-th-destructive">
         <span aria-hidden="true">
           <Icon name="warning" />
         </span>
         Something went wrong
       </h1>
-      <p className={FALLBACK_DESCRIPTION_CLASSES}>
+      <p className="mt-2 text-sm text-th-muted-fg">
         An error occurred while rendering this component
       </p>
     </header>
@@ -87,14 +65,14 @@ function FallbackActions({onReset}: {onReset: () => void}) {
     <div className="flex gap-2">
       <button
         type="button"
-        className={FALLBACK_BUTTON_CLASSES}
+        className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-transparent bg-th-primary px-5 text-sm font-medium text-th-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring"
         onClick={onReset}
       >
         Try Again
       </button>
       <button
         type="button"
-        className={FALLBACK_OUTLINE_BUTTON_CLASSES}
+        className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-th-border bg-transparent px-5 text-sm font-medium text-th-fg hover:bg-th-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-th-ring"
         onClick={() => window.location.reload()}
       >
         Reload Page
@@ -114,7 +92,7 @@ function ErrorFallbackCard({
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <section className={FALLBACK_CARD_CLASSES}>
+      <section className="w-full max-w-2xl rounded-xl border border-th-border bg-th-card text-th-card-fg">
         <FallbackHeader />
         <div className="space-y-4 p-6 pt-0">
           <FallbackErrorMessage error={error} />

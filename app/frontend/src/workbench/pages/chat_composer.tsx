@@ -9,11 +9,7 @@ import {
   type RefObject,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {
-  joinClasses,
-  COMPOSER_SOURCE_ICON_CLASSES,
-  tooltipClassNames,
-} from '../classes';
+import {joinClasses, tooltipClassNames} from '../classes';
 import type {Connector, SystemStatus} from '@/api/system';
 import {useSystemStatus} from '../hooks/system_status_context';
 
@@ -87,7 +83,7 @@ export function Composer({
         'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem]',
         input.trim() && 'has-input',
         large && 'reference-home-composer',
-        attachments.length > 0 && REFERENCE_COMPOSER_ATTACHED_CLASSES,
+        attachments.length > 0 && 'has-attachments !min-h-[13.5rem] !pt-4',
       )}
     >
       {aboveInput}
@@ -155,56 +151,6 @@ export function Composer({
     </form>
   );
 }
-
-export const REFERENCE_COMPOSER_ATTACHED_CLASSES =
-  'has-attachments !min-h-[13.5rem] !pt-4';
-
-const ATTACHMENT_STRIP_CLASSES =
-  'reference-attachment-strip flex min-w-0 flex-wrap gap-[0.8rem] ' +
-  'pb-[1.35rem] pointer-events-auto';
-
-const ATTACHMENT_CARD_CLASSES =
-  'reference-attachment-card group relative box-border grid h-[4.85rem] ' +
-  'w-[13.75rem] flex-none items-center rounded-2xl border-0 ' +
-  'bg-cosci-attach-bg py-[0.85rem] pr-[3.2rem] pl-4 ' +
-  'text-cosci-attach-fg';
-
-const ATTACHMENT_IMAGE_CARD_CLASSES =
-  'reference-attachment-card reference-attachment-card--image group relative ' +
-  'box-border grid size-[4.85rem] flex-none items-center overflow-hidden ' +
-  'rounded-2xl border-0 bg-cosci-attach-bg p-0 ' +
-  'text-cosci-attach-fg';
-
-const ATTACHMENT_PREVIEW_IMAGE_CLASSES =
-  'absolute inset-0 size-full rounded-2xl object-cover';
-
-const ATTACHMENT_TEXT_CLASSES =
-  'reference-attachment-text grid min-w-0 gap-[0.48rem]';
-
-const ATTACHMENT_NAME_CLASSES =
-  'overflow-hidden text-ellipsis whitespace-nowrap text-base font-medium ' +
-  'leading-[1.15]';
-
-const ATTACHMENT_META_CLASSES =
-  'flex min-w-0 items-center gap-[0.55rem] text-[0.9rem] leading-[1.2] ' +
-  'text-cosci-attach-meta';
-
-const ATTACHMENT_EXTENSION_CLASSES =
-  'reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] ' +
-  'place-items-center rounded-[0.18rem] bg-cosci-attach-badge ' +
-  'text-[0.48rem] ' +
-  'leading-none font-bold text-white';
-
-const ATTACHMENT_REMOVE_BUTTON_CLASSES =
-  'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] ' +
-  'cursor-pointer place-items-center rounded-full border-0 ' +
-  'bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 ' +
-  'group-hover:opacity-100 group-focus-within:opacity-100 ' +
-  'pointer-coarse:opacity-100 ' +
-  'hover:bg-cosci-hover focus-visible:bg-cosci-hover ' +
-  'focus-visible:outline-none';
-
-const ATTACHMENT_REMOVE_ICON_CLASSES = 'text-[1.35rem]';
 
 export interface ComposerAttachment {
   id: string;
@@ -278,7 +224,10 @@ export function AttachmentStrip({
 }) {
   if (attachments.length === 0) return null;
   return (
-    <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
+    <div
+      className="reference-attachment-strip flex min-w-0 flex-wrap gap-[0.8rem] pb-[1.35rem] pointer-events-auto"
+      aria-label="Attachments"
+    >
       {attachments.map(attachment => (
         <AttachmentCard
           key={attachment.id}
@@ -328,7 +277,8 @@ function ImageAttachmentCard({
   return (
     <div
       className={tooltipClassNames({
-        className: ATTACHMENT_IMAGE_CARD_CLASSES,
+        className:
+          'reference-attachment-card reference-attachment-card--image group relative box-border grid size-[4.85rem] flex-none items-center overflow-hidden rounded-2xl border-0 bg-cosci-attach-bg p-0 text-cosci-attach-fg',
         placement: 'top',
         wrap: true,
         alignStart: true,
@@ -338,7 +288,7 @@ function ImageAttachmentCard({
       <img
         src={previewUrl}
         alt={name}
-        className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
+        className="absolute inset-0 size-full rounded-2xl object-cover"
       />
       {removeButton}
     </div>
@@ -355,17 +305,20 @@ function FileAttachmentCard({
   return (
     <div
       className={tooltipClassNames({
-        className: ATTACHMENT_CARD_CLASSES,
+        className:
+          'reference-attachment-card group relative box-border grid h-[4.85rem] w-[13.75rem] flex-none items-center rounded-2xl border-0 bg-cosci-attach-bg py-[0.85rem] pr-[3.2rem] pl-4 text-cosci-attach-fg',
         placement: 'top',
         wrap: true,
         alignStart: true,
       })}
       data-tooltip={attachment.name}
     >
-      <div className={ATTACHMENT_TEXT_CLASSES}>
-        <strong className={ATTACHMENT_NAME_CLASSES}>{attachment.name}</strong>
-        <span className={ATTACHMENT_META_CLASSES}>
-          <span className={ATTACHMENT_EXTENSION_CLASSES}>
+      <div className="reference-attachment-text grid min-w-0 gap-[0.48rem]">
+        <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-base font-medium leading-[1.15]">
+          {attachment.name}
+        </strong>
+        <span className="flex min-w-0 items-center gap-[0.55rem] text-[0.9rem] leading-[1.2] text-cosci-attach-meta">
+          <span className="reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] place-items-center rounded-[0.18rem] bg-cosci-attach-badge text-[0.48rem] leading-none font-bold text-white">
             {attachment.badge}
           </span>
           {attachment.kind}
@@ -387,18 +340,15 @@ function AttachmentRemoveButton({
     <button
       type="button"
       className={tooltipClassNames({
-        className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
+        className:
+          'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] cursor-pointer place-items-center rounded-full border-0 bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100 hover:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-none',
         placement: 'top',
       })}
       aria-label={`Remove ${attachment.name}`}
       data-tooltip={`Remove ${attachment.name}`}
       onClick={() => onRemove(attachment.id)}
     >
-      <Icon
-        aria-hidden="true"
-        className={ATTACHMENT_REMOVE_ICON_CLASSES}
-        name="close"
-      />
+      <Icon aria-hidden="true" className="text-[1.35rem]" name="close" />
     </button>
   );
 }
@@ -565,11 +515,7 @@ function SourceToolbarButton({
       data-tooltip={label}
       onClick={onClick}
     >
-      <Icon
-        aria-hidden="true"
-        className={COMPOSER_SOURCE_ICON_CLASSES}
-        name={icon}
-      />
+      <Icon aria-hidden="true" className="text-xl" name={icon} />
     </button>
   );
 }

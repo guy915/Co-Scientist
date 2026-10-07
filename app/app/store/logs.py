@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _use_conn
+from app.store.db import _use_conn, connect
 
 
 @dataclass(frozen=True)
@@ -91,29 +91,19 @@ def list_logs(
         return _fetch_log_page(c, filters or LogFilters(), limit)
 
 
-def count_logs(
-    *,
-    filters: LogFilters | None = None,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
+def count_logs(*, filters: LogFilters | None = None, conn: sqlite3.Connection | None = None) -> int:
     """Retention and scoped clears invalidate arithmetic against stale
     totals; count the matching set independently of its window.
     """
     where, params = _log_filters(filters or LogFilters())
     query = "SELECT COUNT(*) AS n FROM app_logs WHERE " + where
-    with _use_conn(conn, db_path) as c:
+    with _use_conn(conn, None) as c:
         row = c.execute(query, params).fetchone()
     return int(row["n"])
 
 
-def prune_logs(
-    *,
-    max_rows: int,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
-    with _use_conn(conn, db_path) as c:
+def prune_logs(*, max_rows: int, db_path: str | None = None) -> int:
+    with connect(db_path) as c:
         # A primary-key cutoff avoids materializing and scanning the surviving
         # keep-set under SQLite's single writer lock.
         row = c.execute(
@@ -126,12 +116,8 @@ def prune_logs(
         return int(cur.rowcount or 0)
 
 
-def latest_log_id(
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
-    with _use_conn(conn, db_path) as c:
+def latest_log_id(*, conn: sqlite3.Connection | None = None) -> int:
+    with _use_conn(conn, None) as c:
         row = c.execute("SELECT MAX(id) AS max_id FROM app_logs").fetchone()
     return int(row["max_id"] or 0)
 
@@ -150,12 +136,7 @@ def count_logs_for_run(
     return int(row["n"])
 
 
-def delete_logs_for_run(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> int:
-    with _use_conn(conn, db_path) as c:
+def delete_logs_for_run(run_id: str, *, conn: sqlite3.Connection | None = None) -> int:
+    with _use_conn(conn, None) as c:
         cur = c.execute("DELETE FROM app_logs WHERE run_id=?", (run_id,))
         return int(cur.rowcount or 0)

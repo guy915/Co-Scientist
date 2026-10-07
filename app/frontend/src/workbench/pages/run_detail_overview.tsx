@@ -21,15 +21,8 @@ import {
   REPORT_H4_CLASSES,
   REPORT_LIST_CLASSES,
   REPORT_SECTION_CLASSES,
-  REPORT_SECTION_LIST_ITEM_CLASSES,
-  REPORT_SECTION_LIST_META_CLASSES,
   ReportDocument,
 } from './run_detail_shell';
-
-const STAT_GRID_CLASSES = 'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2';
-
-const REPORT_LEAD_STAT_CLASSES =
-  'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';
 
 // Keep an empty leaderboard's identity stable so it cannot invalidate
 // downstream memos on every render.
@@ -138,7 +131,9 @@ export function ResearchOverviewView({
     <>
       <ReportDocument title="Summary">
         {leadStat ? (
-          <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p>
+          <p className="cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg">
+            {leadStat}
+          </p>
         ) : null}
         <RetrievalDegradationNotice report={report} />
         <SummaryStats payload={report?.payload} />
@@ -182,7 +177,7 @@ function SummaryStats({payload}: {payload: ReportPayload | undefined}) {
   if (!payload) return null;
   const stats = reportStats(payload);
   return (
-    <dl className={STAT_GRID_CLASSES}>
+    <dl className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2">
       {stats.map(([label, value]) => (
         <div key={label} className="rounded-md bg-cosci-panel p-4">
           <dt className="text-sm text-cosci-muted">{label}</dt>
@@ -283,9 +278,9 @@ function WinningIdeasSection({
       <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
       <ol className={REPORT_LIST_CLASSES}>
         {items.map(item => (
-          <li className={REPORT_SECTION_LIST_ITEM_CLASSES} key={item.id}>
+          <li className="my-[0.6rem] grid gap-[0.15rem]" key={item.id}>
             <strong>{item.title}</strong>
-            <span className={REPORT_SECTION_LIST_META_CLASSES}>
+            <span className="text-[0.88rem] text-cosci-muted">
               Elo rating: {item.elo}
             </span>
           </li>
@@ -597,9 +592,6 @@ export function ResearchDirectionsSection({
   );
 }
 
-export const DEGRADED_SECTION_NOTICE_CLASSES =
-  'text-[0.86rem] italic text-cosci-muted';
-
 export const DEGRADED_SECTION_NOTICE_TEXT =
   'This section could not be generated after repeated attempts.';
 
@@ -608,7 +600,7 @@ export const RESEARCH_OVERVIEW_SCHEMA = 'research_overview';
 
 export function DegradedSectionNotice() {
   return (
-    <p className={DEGRADED_SECTION_NOTICE_CLASSES}>
+    <p className="text-[0.86rem] italic text-cosci-muted">
       {DEGRADED_SECTION_NOTICE_TEXT}
     </p>
   );
@@ -637,7 +629,7 @@ export function RetrievalDegradationNotice({report}: {report: Report | null}) {
   const degradation = report?.payload.retrieval_degradation;
   if (!degradation) return null;
   return (
-    <p className={DEGRADED_SECTION_NOTICE_CLASSES}>
+    <p className="text-[0.86rem] italic text-cosci-muted">
       {retrievalDegradationText(degradation)}
     </p>
   );

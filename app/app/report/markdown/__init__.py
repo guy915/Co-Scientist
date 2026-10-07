@@ -17,7 +17,7 @@ from app.report.markdown.document import (
 from app.report.markdown.hypothesis import (
     _render_hypothesis_entry,
     _render_references_section,
-    _reviews_by_hypothesis,
+    group_by_hypothesis,
     references_by_hypothesis,
 )
 from app.report.markdown.overview import (
@@ -256,16 +256,6 @@ def _render_tournament_debates_markdown(
     return lines
 
 
-def _claim_evidence_by_hypothesis(
-    claim_evidence: list[dict[str, Any]],
-) -> dict[str, list[dict[str, Any]]]:
-    grouped: dict[str, list[dict[str, Any]]] = {}
-    for edge in claim_evidence:
-        key = str(edge.get("hypothesis_id") or "")
-        grouped.setdefault(key, []).append(edge)
-    return grouped
-
-
 # Normal app runs do not corpus-check model novelty; disclose that novelty
 # judgments remain directional.
 _NOVELTY_DISCLOSURE = (
@@ -290,9 +280,9 @@ def _render_top_hypotheses_markdown(
     evidence: list[dict[str, Any]],
     reviews: list[dict[str, Any]],
 ) -> list[str]:
-    edges_by_hypothesis = _claim_evidence_by_hypothesis(claim_evidence)
+    edges_by_hypothesis = group_by_hypothesis(claim_evidence)
     refs_by_hypothesis = references_by_hypothesis(citations, evidence)
-    reviews_by_hypothesis = _reviews_by_hypothesis(reviews)
+    reviews_by_hypothesis = group_by_hypothesis(reviews)
     lines: list[str] = ["## Top hypotheses", ""]
     lines += _render_novelty_disclosure(top_hypotheses)
     for i, hyp in enumerate(top_hypotheses, 1):

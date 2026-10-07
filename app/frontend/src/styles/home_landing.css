@@ -230,18 +230,12 @@ html:has(.ucs-landing) body {
   padding-top: 0;
 }
 
-.ucs-landing-label,
-.ucs-landing-cap {
+.ucs-landing-label {
   margin: 0;
   color: var(--l-muted);
   font-family: var(--l-body);
   font-size: 14px;
   font-weight: 500;
-}
-
-.ucs-landing-cap {
-  font-size: 13px;
-  font-weight: 400;
 }
 
 .ucs-landing-h2 {
@@ -1279,9 +1273,6 @@ html:has(.ucs-landing) body {
   cursor: pointer;
   font: 500 15px var(--l-body);
   padding-inline: 20px;
-}
-
-.ucs-landing-seg button {
   transition: color 0.25s;
 }
 
@@ -1318,6 +1309,7 @@ html:has(.ucs-landing) body {
 
 .ucs-landing-field i[class] {
   transform: scale(1);
+  background: var(--dot);
 }
 
 .ucs-landing .g0 {
@@ -1334,10 +1326,6 @@ html:has(.ucs-landing) body {
 }
 .ucs-landing .g4 {
   --dot: #ea4335;
-}
-
-.ucs-landing-field i[class] {
-  background: var(--dot);
 }
 
 .ucs-landing-gens {
