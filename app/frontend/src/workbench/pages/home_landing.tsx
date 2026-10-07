@@ -84,7 +84,7 @@ const PILL_SOLID_CLASSES = `${PILL_CLASSES} is-solid [border:0] bg-(--l-ink) tex
 const PILL_LINE_CLASSES = `${PILL_CLASSES} border border-(--l-line) bg-transparent text-(--l-ink) [&:hover]:bg-(--l-surface)`;
 
 const RAIL_CLASSES =
-  'ucs-landing-rail flex justify-center border-b border-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
+  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
 
 const RAIL_NAV_CLASSES =
   'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-[9999px] bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
@@ -93,7 +93,7 @@ const RAIL_TAB_CLASSES =
   'relative z-[1] grid h-[38px] flex-none place-items-center rounded-[9999px] px-[16px] text-[14px] font-medium no-underline';
 
 const SLIDER_CLASSES =
-  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-[9999px] bg-(--l-ink) motion-safe:[&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)]';
+  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-[9999px] bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
 
 export function scrollToLandingSection(id: string, reduceMotion: boolean) {
   smoothScrollToSection(
@@ -133,7 +133,7 @@ function LandingHero({
   const cookie = shapePath('cookie12');
   return (
     <section
-      className={`${LANDING_WIDTH} border-t border-(--l-line) pt-[72px] pb-[40px]`}
+      className={`${LANDING_WIDTH} border-t border-t-(--l-line) pt-[72px] pb-[40px]`}
       aria-labelledby="ucs-landing-word"
     >
       <h2
