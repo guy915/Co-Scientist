@@ -130,3 +130,15 @@
     }
   }
 }
+
+/* View transitions (theme changes) cross-fade over the long token and never
+   hold input: the overlay lets pointer events through to the live page. */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--motion-duration-long);
+  animation-timing-function: var(--motion-ease-standard);
+}
