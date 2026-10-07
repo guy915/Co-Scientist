@@ -14,9 +14,11 @@ numbers: CI 5:51 → 2:43 wall, store and API latency, request handlers off the
 event loop, bundle size and caching, typing latency, contrast and focus, error
 tracking and launch files. Every delivery finding is fixed, judged not worth
 its risk (listed with the reason) or an owner action on the board. Standard and
-Express baselines with per-stage timings are recorded; of the first two model
-batches one is rejected and the other is re-run with a third that funds Ling's
-claim-check reasoning, next after the daily request reset.
+Express baselines with per-stage timings are recorded. The model lane removed
+retries against a missing tool (M10); its three answer-changing batches each
+lost claim verification and are rejected, so the model configuration is
+unchanged. The final Express and Standard check runs after the daily request
+reset.
 Live progress is on the `Campaign board: optimization` issue.
 
 ## Scope
