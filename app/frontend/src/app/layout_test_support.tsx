@@ -1,7 +1,7 @@
 import {render} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {vi} from 'vitest';
-import type {ChatSummary, Run} from '@/api/runs';
+import type {ChatSummary, Run} from '@/shared/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {resetSessionBaselineForTest} from '@/features/diagnostics/diagnostics';
 import {ChatHistoryProvider} from '@/shared/hooks/history_context';
@@ -43,19 +43,19 @@ const logsApiMock = vi.hoisted(() => ({
 }));
 
 // Keep lifecycle helpers real so network mocks cannot change status semantics.
-vi.mock('@/api/runs', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/api/runs')>()),
+vi.mock('@/shared/api/runs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/api/runs')>()),
   ...apiMock,
 }));
 
-vi.mock('@/api/system', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/api/system')>()),
+vi.mock('@/shared/api/system', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/api/system')>()),
   ...systemApiMock,
 }));
 
 // Keep real log constants while replacing network calls.
-vi.mock('@/api/logs', async importOriginal => ({
-  ...(await importOriginal<typeof import('@/api/logs')>()),
+vi.mock('@/shared/api/logs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/shared/api/logs')>()),
   ...logsApiMock,
 }));
 

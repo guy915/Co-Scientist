@@ -1,5 +1,5 @@
 // Persist browser failures so diagnostics survive reloads.
-import {postAppLogs, type ClientLogRecord} from '@/api/logs';
+import {postAppLogs, type ClientLogRecord} from '@/shared/api/logs';
 
 // Logging is best-effort: reporting an unavailable API must never break the
 // page being diagnosed.

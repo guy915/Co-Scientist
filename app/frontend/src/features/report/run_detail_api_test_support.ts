@@ -1,4 +1,4 @@
-import * as runsApi from '@/api/runs';
+import * as runsApi from '@/shared/api/runs';
 import type {StreamConnectionState} from '@/shared/hooks/use_run_stream';
 import {vi} from 'vitest';
 import {makeRun} from './run_detail_test_support';
@@ -23,8 +23,8 @@ vi.mock('@/shared/hooks/timers', async importOriginal => {
   return {...actual, useResetTimer: () => timer};
 });
 
-vi.mock('@/api/runs', async importActual => {
-  const actual = await importActual<typeof import('@/api/runs')>();
+vi.mock('@/shared/api/runs', async importActual => {
+  const actual = await importActual<typeof import('@/shared/api/runs')>();
   return {
     ...actual,
     getRun: vi.fn(),

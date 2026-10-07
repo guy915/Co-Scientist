@@ -8,7 +8,7 @@ import type {
   ReportPayload,
   ResearchOverview,
   RunWithSummary,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {sortByEloDesc} from '@/shared/lib/hypotheses';
 import {
   formatDurationPhrase,

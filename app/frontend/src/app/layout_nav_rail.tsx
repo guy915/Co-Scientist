@@ -8,7 +8,7 @@ import {
 } from '@/features/access/settings_dialog';
 import type {ShellPanel} from './layout';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
-import type {ChatSummary, Run} from '@/api/runs';
+import type {ChatSummary, Run} from '@/shared/api/runs';
 import {conciseTitle} from '@/shared/lib/text';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {useFittingRows, useOverflowing} from '@/shared/hooks/dom';

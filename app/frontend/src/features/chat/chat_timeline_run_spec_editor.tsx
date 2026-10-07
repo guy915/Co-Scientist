@@ -1,4 +1,4 @@
-import {editInterviewFields} from '@/api/runs';
+import {editInterviewFields} from '@/shared/api/runs';
 import {Button, IconButton, TextArea, TextField} from '@/shared/ui';
 import {type ReactNode, useId, useState} from 'react';
 import {SETUP_ACTIONS_CLASSES} from '@/shared/ui/classes';

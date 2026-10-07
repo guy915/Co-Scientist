@@ -1,5 +1,5 @@
-import type {RunWithSummary} from '@/api/runs';
-import * as runsApi from '@/api/runs';
+import type {RunWithSummary} from '@/shared/api/runs';
+import * as runsApi from '@/shared/api/runs';
 import type {StreamEvent} from '@/shared/hooks/use_run_stream';
 import {makeRunWithSummary} from '@/test_fixtures';
 import {act, renderHook} from '@testing-library/react';
@@ -13,8 +13,8 @@ const stream = vi.hoisted(() => ({
 }));
 
 vi.mock('@/shared/hooks/use_run_stream', () => ({useRunStream: () => stream}));
-vi.mock('@/api/runs', async importActual => {
-  const actual = await importActual<typeof import('@/api/runs')>();
+vi.mock('@/shared/api/runs', async importActual => {
+  const actual = await importActual<typeof import('@/shared/api/runs')>();
   return {
     ...actual,
     getRun: vi.fn(),

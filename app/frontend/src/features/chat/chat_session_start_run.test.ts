@@ -1,15 +1,15 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {SessionState} from './use_chat_session';
 import {sessionRuntime, stagedDocument} from './session_test_helpers';
-import {cancelRun, createRun, getRun, startRun} from '@/api/runs';
+import {cancelRun, createRun, getRun, startRun} from '@/shared/api/runs';
 import {
   readPendingCreateIntent,
   promoteDraftToRun,
 } from './chat_session_start_run';
 import type {InferredRunSpec} from '@/shared/lib/run_spec';
 
-vi.mock('@/api/runs', async importActual => ({
-  ...(await importActual<typeof import('@/api/runs')>()),
+vi.mock('@/shared/api/runs', async importActual => ({
+  ...(await importActual<typeof import('@/shared/api/runs')>()),
   createRun: vi.fn(),
   startRun: vi.fn(),
   cancelRun: vi.fn(),

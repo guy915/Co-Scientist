@@ -1,6 +1,6 @@
 import {resetRunDetailMocks} from './run_detail_api_test_support';
-import * as runsApi from '@/api/runs';
-import {type Evidence, type RunWithSummary} from '@/api/runs';
+import * as runsApi from '@/shared/api/runs';
+import {type Evidence, type RunWithSummary} from '@/shared/api/runs';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
