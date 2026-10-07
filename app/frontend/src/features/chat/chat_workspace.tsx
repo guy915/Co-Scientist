@@ -41,6 +41,7 @@ import {
 } from './chat_workspace_timeline';
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 import {scrollBehavior} from '@/shared/lib/reduced_motion';
+import {chatPath} from '@/shared/lib/routes';
 
 // Lazy-load the landing page so chat first paint does not wait for it; it takes
 // no props, so memo keeps composer keystrokes from re-rendering it.
@@ -68,7 +69,7 @@ export function ChatWorkspace() {
   const {history, reload: reloadHistory} = useRunHistoryContext();
   const isMobile = useIsMobile();
   const onChatStarted = useCallback(
-    (id: string) => void navigate(`/chats/${id}`, {replace: true}),
+    (id: string) => void navigate(chatPath(id), {replace: true}),
     [navigate],
   );
   const session = useChatSession({

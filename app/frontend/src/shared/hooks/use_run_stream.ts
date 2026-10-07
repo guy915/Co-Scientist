@@ -24,6 +24,16 @@ export interface UseRunStreamResult {
 }
 
 export const RECONNECT_DELAY_MS = 2000;
+const MAX_RECONNECT_DELAY_MS = 30_000;
+
+// Back off while the server keeps failing, so an outage is not met with a
+// request every two seconds from every open run page.
+export function reconnectDelayMs(failures: number): number {
+  return Math.min(
+    RECONNECT_DELAY_MS * 2 ** Math.max(0, failures - 1),
+    MAX_RECONNECT_DELAY_MS,
+  );
+}
 
 // Batch replay bursts and deduplicate reconnects by sequence.
 function createEventBatcher(
@@ -76,6 +86,7 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
     let opened = false;
     let controller: AbortController | null = null;
     let retryTimer = 0;
+    let failures = 0;
 
     async function connect(): Promise<void> {
       while (!cancelled) {
@@ -94,6 +105,7 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
             throw new Error('Events stream unavailable');
           }
           opened = true;
+          failures = 0;
           setConnection('open');
           for await (const ev of readSseFrames<StreamEvent>(res)) {
             if (cancelled) return;
@@ -113,7 +125,8 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
         if (cancelled) return;
         setConnection(opened ? 'reconnecting' : 'connecting');
         await new Promise<void>(resolve => {
-          retryTimer = window.setTimeout(resolve, RECONNECT_DELAY_MS);
+          failures += 1;
+          retryTimer = window.setTimeout(resolve, reconnectDelayMs(failures));
         });
       }
     }

@@ -8,6 +8,7 @@ import {
   applyEditedInterviewFields,
   buildInterviewFieldsPayload,
 } from '@/shared/lib/run_spec';
+import {errorMessage} from '@/shared/lib/errors';
 
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
@@ -230,7 +231,7 @@ export function useSpecFieldsEditor(
       onFieldsChange(applyEditedInterviewFields(interview));
       setEditing(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save changes.');
+      setError(errorMessage(err, 'Could not save changes.'));
     } finally {
       setIsSaving(false);
     }

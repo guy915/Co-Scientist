@@ -1,11 +1,16 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import {getSystemStatus, type SystemStatus} from '@/shared/api/system';
+import {usePoll} from './timers';
+
+const STATUS_REFRESH_MS = 60_000;
 
 interface SystemStatusState {
   status: SystemStatus | null;
@@ -19,24 +24,26 @@ function usePolledSystemStatus(enabled = true): SystemStatusState {
     status: null,
     unreachable: false,
   });
+  // Set on mount too: StrictMode remounts after a simulated unmount.
+  const live = useRef(true);
   useEffect(() => {
-    if (!enabled) return;
-    let disposed = false;
-    async function refresh() {
-      try {
-        const status = await getSystemStatus();
-        if (!disposed) setState({status, unreachable: false});
-      } catch {
-        if (!disposed) setState(current => ({...current, unreachable: true}));
-      }
-    }
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 60_000);
+    live.current = true;
     return () => {
-      disposed = true;
-      window.clearInterval(timer);
+      live.current = false;
     };
-  }, [enabled]);
+  }, []);
+  const refresh = useCallback(async () => {
+    try {
+      const status = await getSystemStatus();
+      if (live.current) setState({status, unreachable: false});
+    } catch {
+      if (live.current) setState(current => ({...current, unreachable: true}));
+    }
+  }, []);
+  useEffect(() => {
+    if (enabled) void refresh();
+  }, [enabled, refresh]);
+  usePoll(() => void refresh(), STATUS_REFRESH_MS, enabled);
   return state;
 }
 

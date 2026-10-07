@@ -38,6 +38,8 @@ import {
   type PendingRunCreatePayload,
 } from '@/shared/lib/run_spec';
 import {readStorage, STORAGE_KEYS} from '@/shared/lib/safe_storage';
+import {errorMessage, httpStatus} from '@/shared/lib/errors';
+import {nowSeconds} from '@/shared/lib/time';
 
 export const START_RESEARCH_PROMPT = 'Start research';
 
@@ -71,7 +73,7 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
     appendChatMessage(deps.update, {
       role: 'user',
       content: START_RESEARCH_PROMPT,
-      createdAt: Math.max(Date.now() / 1000, stage.createdAt),
+      createdAt: Math.max(nowSeconds(), stage.createdAt),
       startRequest: true,
     });
   }
@@ -88,7 +90,7 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
   const session: StartedSession = {
     id: target.runId,
     title: conciseTitle(stage.spec.goal),
-    at: Date.now() / 1000,
+    at: nowSeconds(),
     announcing: shouldAnnounce,
   };
   deps.update({pendingAttachments: [], input: '', startedSession: session});
@@ -187,7 +189,7 @@ async function startDraftRun(deps: StartDeps): Promise<void> {
     // write the same session state; Stop still reaches its controller.
     if (outcome.shouldAnnounce) await announceStart(deps, session.id);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     deps.update({error: message});
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
@@ -782,10 +784,8 @@ function rememberCreatedRun(
 }
 
 function isDefinitiveCreateRejection(error: unknown): boolean {
+  const status = httpStatus(error);
   return (
-    error instanceof Error &&
-    'status' in error &&
-    typeof error.status === 'number' &&
-    [400, 401, 403, 404, 413, 415, 422].includes(error.status)
+    status !== undefined && [400, 401, 403, 404, 413, 415, 422].includes(status)
   );
 }
