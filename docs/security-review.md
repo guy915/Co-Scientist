@@ -33,7 +33,7 @@ The root and nested `AGENTS.md`, `docs/OPERATIONS.md`, `docs/DEPLOYMENT.md`, and
 
 ### SR-01 — Caller-controlled identities multiply run admission; scientific calls omit daily global quotas
 
-**Fixing PR:** [#383 — Enforce durable global admission](https://github.com/guy915/Co-Scientist/pull/383) (lane S).
+**Fixing PR:** [#389 — Reapply durable global admission](https://github.com/guy915/Co-Scientist/pull/389) (lane S). The tested implementation first merged in [#383](https://github.com/guy915/Co-Scientist/pull/383); [#385](https://github.com/guy915/Co-Scientist/pull/385) reverted it after an unchanged-frontend Vercel quota failure. The owner subsequently approved backend-only deployment when Railway succeeds.
 
 **Area:** cost abuse; denial of service. **Severity:** high. **Owner:** lane X.
 
