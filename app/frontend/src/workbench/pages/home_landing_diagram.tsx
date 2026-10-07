@@ -1,8 +1,10 @@
 import {useState, useEffect, useMemo, useRef} from 'react';
+import {ChipButton, type ChipTone} from '@/shared/ui';
 import {joinClasses} from '../classes';
 import {
   LANDING_AGENTS,
   type LandingAgent,
+  type LandingTone,
   INITIAL_ELO,
   expectedScore,
   simulateEloHistory,
@@ -258,6 +260,15 @@ function DiagramSvg({
   );
 }
 
+// The landing scope paints the chip tones from its own palette.
+const CHIP_TONES: Record<LandingTone, ChipTone> = {
+  teal: 'accent',
+  blue: 'info',
+  green: 'success',
+  yellow: 'warning',
+  red: 'danger',
+};
+
 function DiagramList({
   active,
   onHold,
@@ -275,18 +286,14 @@ function DiagramList({
       </li>
       <li className="ucs-landing-flow-ring">
         {SPECIALISTS.map(agent => (
-          <button
+          <ChipButton
             key={agent.name}
-            type="button"
-            aria-pressed={active === agent.name}
-            className={joinClasses(
-              `tone-${agent.tone}`,
-              active === agent.name && 'is-active',
-            )}
+            tone={CHIP_TONES[agent.tone]}
+            pressed={active === agent.name}
             onClick={() => onHold(agent.name)}
           >
             {agent.name}
-          </button>
+          </ChipButton>
         ))}
         <em>Repeats until the rankings settle</em>
       </li>

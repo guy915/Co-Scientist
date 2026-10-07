@@ -194,6 +194,20 @@ html:has(.ucs-landing) body {
   --l-o-red: #ffdad6;
 }
 
+/* Landing chips paint the shared chip tones from the landing palette. */
+.ucs-landing {
+  --chip-accent-bg: var(--l-c-teal);
+  --chip-accent-fg: var(--l-o-teal);
+  --chip-info-bg: var(--l-c-blue);
+  --chip-info-fg: var(--l-o-blue);
+  --chip-success-bg: var(--l-c-green);
+  --chip-success-fg: var(--l-o-green);
+  --chip-warning-bg: var(--l-c-yellow);
+  --chip-warning-fg: var(--l-o-yellow);
+  --chip-danger-bg: var(--l-c-red);
+  --chip-danger-fg: var(--l-o-red);
+}
+
 .ucs-landing .tone-teal {
   --tone-c: var(--l-c-teal);
   --tone-o: var(--l-o-teal);
@@ -467,22 +481,6 @@ html:has(.ucs-landing) body {
   grid-template-columns: 1fr 1fr;
   gap: 8px !important;
   border: 1.5px solid var(--l-line);
-}
-
-.ucs-landing-flow-ring button {
-  cursor: pointer;
-  font: inherit;
-  text-align: start;
-  padding: 10px 14px;
-  border: 2px solid transparent;
-  border-radius: 9999px;
-  background: var(--tone-c);
-  color: var(--tone-o);
-  transition: border-color 0.3s;
-}
-
-.ucs-landing-flow-ring button.is-active {
-  border-color: var(--tone-o);
 }
 
 .ucs-landing-flow-ring em {
