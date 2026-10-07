@@ -8,7 +8,7 @@ import pytest
 from co_scientist.core.constants import MODEL_PRICING
 from co_scientist.generator.core import HypothesisGenerator
 from co_scientist.generator.run_setup import GeneratorOptions
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     ToolLoop,
     call_llm,
@@ -18,11 +18,11 @@ from co_scientist.llm import (
     model_profile,
     scoped_api_key,
 )
-from co_scientist.llm.profile import (
+from co_scientist.platform.llm.profile import (
     gateway_routes,
     priced_routes,
 )
-from co_scientist.llm.request.thinking import (
+from co_scientist.platform.llm.request.thinking import (
     _GATEWAY_MAX_FALLBACKS,
     _gateway_provider,
 )

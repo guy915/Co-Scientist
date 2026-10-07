@@ -16,7 +16,7 @@ from co_scientist.evidence.article_support import (
     get_papers_with_content,
     parse_year_from_metadata,
 )
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm,

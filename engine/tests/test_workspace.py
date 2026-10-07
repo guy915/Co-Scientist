@@ -12,8 +12,9 @@ from typing import Any
 
 import pytest
 
-from co_scientist.llm import ToolLoop
 from co_scientist.patch import PatchError
+from co_scientist.platform.llm import ToolLoop
+from co_scientist.platform.llm.tool_effects import batch_by_effects
 from co_scientist.sandbox import (
     SandboxKind,
     SandboxPolicy,
@@ -21,7 +22,6 @@ from co_scientist.sandbox import (
     sandbox_backend,
     workspace_write,
 )
-from co_scientist.tool_effects import batch_by_effects
 from co_scientist.workspace import (
     APPLY_PATCH,
     LIST_FILES,

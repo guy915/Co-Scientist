@@ -8,7 +8,7 @@ import pytest
 
 import co_scientist.agents.generation.literature_tools.draft as draft_skills
 import co_scientist.skills as catalog
-from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
+from co_scientist.platform.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 from co_scientist.sandbox import workspace_write
 from co_scientist.state import WorkflowState
 from co_scientist.workspace.output import OutputRecorder

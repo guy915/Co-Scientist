@@ -7,18 +7,18 @@ from typing import Any
 
 import pytest
 
-from co_scientist import tool_effects
-from co_scientist.llm.tools.loop import (
+from co_scientist.platform.llm import tool_effects
+from co_scientist.platform.llm.tool_effects import (
+    is_barrier,
+    parse_effects,
+    resolve_tool_effects,
+)
+from co_scientist.platform.llm.tools.loop import (
     _execute_logged_tool,
     _execute_tool_calls,
 )
 from co_scientist.task_runtime import (
     plan_portfolio,
-)
-from co_scientist.tool_effects import (
-    is_barrier,
-    parse_effects,
-    resolve_tool_effects,
 )
 from tests._llm_fake import (
     make_tool_call,
@@ -105,7 +105,7 @@ async def test_tool_diagnostics_preserve_outcome_without_arguments_or_output(
             raise asyncio.CancelledError()
         return {"role": "tool", "content": "private result"}
 
-    with caplog.at_level(logging.INFO, logger="co_scientist.llm.tools.loop"):
+    with caplog.at_level(logging.INFO, logger="co_scientist.platform.llm.tools.loop"):
         if outcome == "failed":
             with pytest.raises(ValueError):
                 await _execute_logged_tool(call, execute)

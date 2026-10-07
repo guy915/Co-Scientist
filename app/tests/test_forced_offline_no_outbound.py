@@ -25,7 +25,7 @@ def _forced_offline_with_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def attempts(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     import litellm
-    from co_scientist.offline.llm import is_offline_model
+    from co_scientist.platform.llm.offline.llm import is_offline_model
 
     original = litellm.acompletion
     recorded: list[dict[str, Any]] = []
@@ -104,7 +104,7 @@ def test_qa_dispatch_stays_on_the_offline_answer(
 async def test_announcement_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    from app.offline_guard import OfflineModeError
+    from co_scientist.platform.llm.offline_guard import OfflineModeError
 
     with pytest.raises(OfflineModeError):
         async for _ in run_start_announcement._stream_model_fragments(

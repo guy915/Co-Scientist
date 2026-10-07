@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from co_scientist.core.config import byok_default_model, settings
+from co_scientist.platform.llm.llm_scope import budgeted
 
 from app import byok_models
-from app.llm_scope import budgeted
 
 if TYPE_CHECKING:
     from cryptography.fernet import Fernet
@@ -283,7 +283,7 @@ async def _acompletion(**kwargs: Any) -> object:
     """Forwarded parameters retain Any because LiteLLM's heterogeneous
     completion signature cannot be represented by object.
     """
-    from app import llm_request
+    from co_scientist.platform.llm import llm_request
 
     return await llm_request.acompletion(**kwargs)
 

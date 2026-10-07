@@ -5,28 +5,28 @@ from typing import Any
 
 from jsonschema.exceptions import ValidationError
 
-from co_scientist.llm.admission.free_policy import scoped_api_key
-from co_scientist.llm.attempts.retry import Accepted, Attempt, Rejected
-from co_scientist.llm.precall import _prepare_llm_call
+from co_scientist.platform.llm.admission.free_policy import scoped_api_key
+from co_scientist.platform.llm.attempts.retry import Accepted, Attempt, Rejected
+from co_scientist.platform.llm.precall import _prepare_llm_call
 
 # Validation deliberately binds the default capability answer; request shaping
 # asks the active backend.
-from co_scientist.llm.request.completion import (
+from co_scientist.platform.llm.request.completion import (
     CompletionShape,
     _acompletion_within_timeout,
     _apply_api_key,
     _build_completion_args,
     _supports_json_schema_response_format,
 )
-from co_scientist.llm.request.response import _extract_completion_content
-from co_scientist.llm.request.thinking import annotate_failure_context
-from co_scientist.llm.structured.validate import (
+from co_scientist.platform.llm.request.response import _extract_completion_content
+from co_scientist.platform.llm.request.thinking import annotate_failure_context
+from co_scientist.platform.llm.structured.validate import (
     _validation_feedback,
     attempt_json_repair,
     reshape_json_output,
     validate_json_schema,
 )
-from co_scientist.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
+from co_scientist.platform.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
 
 logger = logging.getLogger(__name__)
 

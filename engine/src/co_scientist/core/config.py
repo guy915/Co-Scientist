@@ -7,11 +7,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from co_scientist.core.constants import (
     THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.llm import deepseek_thinking_extra_body as _thinking_body
-from co_scientist.llm import effective_max_tokens as _effective_max_tokens
-from co_scientist.llm import model_profile as _model_profile
-from co_scientist.llm import model_reasons as _model_reasons
-from co_scientist.llm import reasoning_effort_args as _effort_args
+from co_scientist.platform.llm import deepseek_thinking_extra_body as _thinking_body
+from co_scientist.platform.llm import effective_max_tokens as _effective_max_tokens
+from co_scientist.platform.llm import model_profile as _model_profile
+from co_scientist.platform.llm import model_reasons as _model_reasons
+from co_scientist.platform.llm import reasoning_effort_args as _effort_args
 
 CONVERSATIONAL_REASONING_EFFORT = "medium"
 DEFAULT_MODEL = "openrouter/inclusionai/ling-3.1-flash"

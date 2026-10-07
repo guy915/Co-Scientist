@@ -10,7 +10,7 @@ from co_scientist.core.constants import (
     THINKING_FLOOR_MAX_TOKENS,
 )
 from co_scientist.core.env_vars import parse_list_env
-from co_scientist.llm.profile import ModelProfile, Thinking, model_profile
+from co_scientist.platform.llm.profile import ModelProfile, Thinking, model_profile
 
 logger = logging.getLogger(__name__)
 

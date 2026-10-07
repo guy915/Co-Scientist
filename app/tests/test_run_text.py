@@ -81,7 +81,7 @@ async def test_goal_text_retries_keep_separate_operation_budgets(
     fake = install_completion_backend(monkeypatch, reasoning_only)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
     monkeypatch.setattr(settings, "app_llm_max_calls", 1)
-    with caplog.at_level(logging.INFO, logger="app.llm_scope"):
+    with caplog.at_level(logging.INFO, logger="co_scientist.platform.llm.llm_scope"):
         assert await generate_run_title("Map the feedback loop.") is None
         assert await generate_goal_restatement("Map the feedback loop.") is None
 

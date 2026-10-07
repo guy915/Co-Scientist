@@ -6,7 +6,7 @@ import pytest
 
 from co_scientist import mcp_client
 from co_scientist.generator.core import HypothesisGenerator
-from co_scientist.offline.llm import DEFAULT_OFFLINE_MODEL
+from co_scientist.platform.llm.offline.llm import DEFAULT_OFFLINE_MODEL
 from co_scientist.scheduling import ALLOWED_LOOP_TASKS
 from co_scientist.workflow_topology import TASK_ROUTES
 from tests._mcp import stub_mcp_availability

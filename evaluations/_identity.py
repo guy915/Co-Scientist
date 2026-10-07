@@ -13,13 +13,13 @@ from typing import Any
 _ROOT = Path(__file__).resolve().parents[1]
 _POLICY_FILES = (
     "core/constants/__init__.py",
-    "llm/values.py",
-    "llm/profile/__init__.py",
-    "llm/request/backend.py",
-    "llm/request/completion.py",
-    "llm/admission/free_policy.py",
-    "llm/request/thinking.py",
-    "llm/attempts/escalation.py",
+    "platform/llm/values.py",
+    "platform/llm/profile/__init__.py",
+    "platform/llm/request/backend.py",
+    "platform/llm/request/completion.py",
+    "platform/llm/admission/free_policy.py",
+    "platform/llm/request/thinking.py",
+    "platform/llm/attempts/escalation.py",
 )
 
 
@@ -76,7 +76,7 @@ def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
 
 
 def _model_policy() -> dict[str, Any]:
-    from co_scientist.llm import deepseek_thinking_extra_body
+    from co_scientist.platform.llm import deepseek_thinking_extra_body
 
     models = _configured_models()
     policy = request_policy()
@@ -161,7 +161,7 @@ def _identity(
     model: str,
     live: bool,
 ) -> dict[str, Any]:
-    from co_scientist.llm import deepseek_thinking_extra_body
+    from co_scientist.platform.llm import deepseek_thinking_extra_body
 
     source = Path(__file__).parent / PANEL_FILES[panel]
     fields = {

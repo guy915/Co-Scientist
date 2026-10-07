@@ -3,28 +3,28 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from co_scientist.llm.admission.free_policy import scoped_api_key
-from co_scientist.llm.attempts.escalation import (
+from co_scientist.platform.llm.admission.free_policy import scoped_api_key
+from co_scientist.platform.llm.attempts.escalation import (
     BudgetEscalation,
     escalated_spec,
 )
-from co_scientist.llm.attempts.json_attempt import (
+from co_scientist.platform.llm.attempts.json_attempt import (
     JsonJudge,
     _call_llm_single_attempt,
 )
-from co_scientist.llm.attempts.retry import (
+from co_scientist.platform.llm.attempts.retry import (
     Attempt,
     AttemptPlan,
     Judge,
     Rejected,
     run_attempts,
 )
-from co_scientist.llm.request.thinking import scoped_minimal_reasoning
-from co_scientist.llm.structured.validate import (
+from co_scientist.platform.llm.request.thinking import scoped_minimal_reasoning
+from co_scientist.platform.llm.structured.validate import (
     _handle_json_retries_exhausted,
     extract_response_json,
 )
-from co_scientist.llm.values import CompletionSpec, LLMCallOptions
+from co_scientist.platform.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)
 

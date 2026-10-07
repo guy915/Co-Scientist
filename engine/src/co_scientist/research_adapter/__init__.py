@@ -27,8 +27,8 @@ from co_scientist.evidence.search_support import (
     SearchConfig,
     normalize_search_response,
 )
-from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.mcp_client import MCPToolClient
+from co_scientist.platform.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.research import (
     Document,

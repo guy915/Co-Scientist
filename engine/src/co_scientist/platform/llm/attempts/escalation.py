@@ -12,8 +12,8 @@ from co_scientist.core.exceptions import (
     LLMContentFilteredError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm.request.thinking import effective_thinking_enabled
-from co_scientist.llm.values import CompletionSpec
+from co_scientist.platform.llm.request.thinking import effective_thinking_enabled
+from co_scientist.platform.llm.values import CompletionSpec
 
 logger = logging.getLogger(__name__)
 

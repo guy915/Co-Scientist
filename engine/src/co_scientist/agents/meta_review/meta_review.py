@@ -16,16 +16,16 @@ from co_scientist.core.constants import (
     THINKING_MAX_TOKENS,
     truncate,
 )
-from co_scientist.llm import (
-    CompletionSpec,
-    LLMCallOptions,
-    call_llm_json,
-)
 from co_scientist.models import (
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
     phase_message,
+)
+from co_scientist.platform.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
 )
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import PromptRunContext, get_meta_review_prompt

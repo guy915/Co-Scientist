@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from co_scientist.llm.request import backend
-from co_scientist.offline import llm as offline_llm
 from co_scientist.platform.db.models import RunStatus
+from co_scientist.platform.llm.offline import llm as offline_llm
+from co_scientist.platform.llm.request import backend
 
 from app.store import events as store_events
 from app.store import hypotheses, reports, runs

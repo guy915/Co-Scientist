@@ -1,9 +1,10 @@
 from typing import Any
 
-from co_scientist.llm import complete_request
+from app import credentials
 
-from app import credentials, offline_guard, provider_usage
-from app.llm_scope import app_call_scope, in_app_call_scope
+from co_scientist.platform.llm import offline_guard, provider_usage
+from co_scientist.platform.llm.llm_scope import app_call_scope, in_app_call_scope
+from co_scientist.platform.llm.request.transport import complete_request
 
 
 async def acompletion(**kwargs: Any) -> Any:

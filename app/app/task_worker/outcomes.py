@@ -152,7 +152,7 @@ def _fail_permanent_task(
         db_path=db_path,
     )
     if isinstance(exc, LLMCallBudgetExceededError):
-        from co_scientist.llm import release_run_call_budget
+        from co_scientist.platform.llm import release_run_call_budget
 
         release_run_call_budget(task.run_id)
         logger.error("Task %s aborted: %s", task.id, exc)
@@ -167,7 +167,7 @@ def _fail_retryable_task(
     retryable = not isinstance(exc, LLMTimeoutError) or exc.zero_cost_admitted
     retry_at = None
     if isinstance(exc, LLMTimeoutError) and exc.zero_cost_admitted:
-        from co_scientist.llm import provider_outage_backoff_seconds
+        from co_scientist.platform.llm import provider_outage_backoff_seconds
 
         retry_at = time.time() + provider_outage_backoff_seconds(task.attempt)
     unknown_provider_outcome = isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted

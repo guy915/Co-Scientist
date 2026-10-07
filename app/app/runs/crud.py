@@ -10,6 +10,10 @@ from co_scientist.core.config import byok_enabled
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
+from co_scientist.platform.llm.execution_policy import (
+    ZERO_COST_CONFIG_KEY,
+    deployment_routes_are_free,
+)
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
 import app.credentials as credentials
@@ -19,7 +23,6 @@ import app.run_corpus as run_corpus
 import app.staged_documents as staged_documents
 import app.store.receipts as run_creation_receipts
 from app.auth import client_id, require_client_scope
-from app.execution_policy import ZERO_COST_CONFIG_KEY, deployment_routes_are_free
 from app.goal_text import (
     clean_title,
     generate_goal_restatement,

@@ -26,7 +26,8 @@ from co_scientist.core.constants import (
     truncate_for_prompt,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import (
+from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     ToolLoop,
@@ -34,7 +35,6 @@ from co_scientist.llm import (
     call_llm_with_tools,
     parse_tool_loop_json,
 )
-from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
     ValidationSynthesisRequest,
     get_hypothesis_novelty_analysis_prompt,

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+import co_scientist.platform.llm.process_mode as process_mode
 from co_scientist.core.config import settings
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunStatus, ScientificTask
@@ -16,7 +17,6 @@ from co_scientist.safety import (
     review_hypothesis_safety,
 )
 
-import app.process_mode as process_mode
 from app.safety.semantic import (
     run_semantic_safety_model,
     semantic_credential_missing_decision,

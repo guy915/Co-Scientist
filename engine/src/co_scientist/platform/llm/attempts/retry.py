@@ -21,14 +21,14 @@ from co_scientist.core.exceptions import (
     LLMTimeoutError,
     short_error_text,
 )
-from co_scientist.llm.attempts.escalation import (
+from co_scientist.platform.llm.attempts.escalation import (
     BudgetEscalation,
     escalation_for_error,
     is_transient_provider_error,
     log_escalation,
 )
-from co_scientist.llm.request.thinking import failure_context_text
-from co_scientist.llm.telemetry import record_retry
+from co_scientist.platform.llm.request.thinking import failure_context_text
+from co_scientist.platform.llm.telemetry import record_retry
 
 logger = logging.getLogger(__name__)
 

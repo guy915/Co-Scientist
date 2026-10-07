@@ -229,7 +229,7 @@ def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
     """Call-budget tracking is released on nonterminal exits as well as
     final settlement.
     """
-    from co_scientist.llm import release_run_call_budget
+    from co_scientist.platform.llm import release_run_call_budget
 
     outcome = _settle_finalize_outcome(run_id, db_path)
     release_run_call_budget(run_id)

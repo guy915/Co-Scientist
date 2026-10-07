@@ -56,13 +56,13 @@ from co_scientist.core.constants import (
     scaled_max_tokens,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import (
+from co_scientist.models import Hypothesis, rank_by_elo
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
     indexed_prompt_name,
 )
-from co_scientist.models import Hypothesis, rank_by_elo
 from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 

@@ -7,16 +7,16 @@ import pytest
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.core.exceptions import LLMCallBudgetExceededError
 from co_scientist.core.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
-from co_scientist.llm import (
-    current_run_call_count,
-    release_run_call_budget,
-)
-from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.models import (
     Article,
     Hypothesis,
 )
 from co_scientist.platform.db.models import RunStatus, ScientificTask
+from co_scientist.platform.llm import (
+    current_run_call_count,
+    release_run_call_budget,
+)
+from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from litellm.exceptions import APIError
 
 import app.engine_adapter.drain.final_state as drain_claim_grounding

@@ -39,17 +39,17 @@ from co_scientist.core.constants import (
     LOW_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import (
-    CompletionSpec,
-    LLMCallOptions,
-    call_llm_json,
-)
 from co_scientist.models import (
     Article,
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
     phase_message,
+)
+from co_scientist.platform.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
 )
 from co_scientist.prompts import build_tool_instructions
 from co_scientist.prompts._common import _format_meta_review_context

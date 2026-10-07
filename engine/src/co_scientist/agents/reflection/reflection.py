@@ -11,13 +11,13 @@ from co_scientist.core.constants import (
     PROGRESS_REFLECTION_START,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import (
+from co_scientist.models import Hypothesis, phase_message
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
     indexed_prompt_name,
 )
-from co_scientist.models import Hypothesis, phase_message
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import PromptRunContext, get_reflection_prompt
 from co_scientist.schemas.review import (

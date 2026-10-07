@@ -286,7 +286,7 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
     # Entailment must use the engine admission seam so its provider calls
     # consume the run ceiling.
     from co_scientist.core.exceptions import LLMCallBudgetExceededError
-    from co_scientist.llm import scoped_llm_call_budget
+    from co_scientist.platform.llm import scoped_llm_call_budget
 
     _install_fake_acompletion(monkeypatch)
     state = _tasks_gate_multi_claim_state()

@@ -16,7 +16,7 @@ from co_scientist.core.constants import (
     THINKING_FLOOR_MAX_TOKENS,
 )
 from co_scientist.core.exceptions import FreeModelEligibilityError
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     ToolLoop,
@@ -29,7 +29,7 @@ from co_scientist.llm import (
     scoped_llm_call_budget,
     scoped_zero_cost_admission,
 )
-from co_scientist.llm.admission import free_policy as free_catalog
+from co_scientist.platform.llm.admission import free_policy as free_catalog
 from tests._llm_fake import (
     SEARCH_TOOL,
     _catalog,

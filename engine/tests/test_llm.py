@@ -19,16 +19,16 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.llm import (
+from co_scientist.mcp_client import MCPToolClient
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     call_llm_json,
     complete_request,
     scoped_telemetry,
 )
-from co_scientist.llm.request import backend
-from co_scientist.llm.structured.validate import attempt_json_repair
-from co_scientist.mcp_client import MCPToolClient
+from co_scientist.platform.llm.request import backend
+from co_scientist.platform.llm.structured.validate import attempt_json_repair
 from co_scientist.tools.provider import MCPToolProvider
 from tests._llm_fake import (
     FakeBackend,
@@ -375,7 +375,7 @@ def test_importing_a_foundation_module_first_does_not_cycle() -> None:
     """Only a fresh interpreter exposes cycles involving a half-initialized
     module."""
     result = subprocess.run(
-        [sys.executable, "-c", "import co_scientist.llm.precall"],
+        [sys.executable, "-c", "import co_scientist.platform.llm.precall"],
         capture_output=True,
         text=True,
         check=False,

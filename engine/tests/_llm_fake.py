@@ -22,7 +22,7 @@ from litellm.exceptions import Timeout as LiteLLMTimeout
 from co_scientist.core.exceptions import LLMCallBudgetExceededError
 from co_scientist.generator.core import HypothesisGenerator
 from co_scientist.generator.run_setup import GeneratorOptions
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     ToolLoop,
@@ -32,15 +32,15 @@ from co_scientist.llm import (
     rate_limited_attempt_count,
     scoped_telemetry,
 )
-from co_scientist.llm.request import backend
-from co_scientist.offline.llm import (
+from co_scientist.platform.llm.offline.llm import (
     _ARRAY_LENGTH_HINTS,
     _fill_schema,
     _FillHints,
     _prompt_text,
     _supervisor_allocation_response,
 )
-from co_scientist.offline.llm import _build_response as _fake_response
+from co_scientist.platform.llm.offline.llm import _build_response as _fake_response
+from co_scientist.platform.llm.request import backend
 
 # Shared across every fake call in a test run so no two generated leaves
 # (hypothesis text, free-form turns, etc.) ever collide.
@@ -510,7 +510,7 @@ WAITED_THEN_GAVE_UP: list[Line] = [
 
 @pytest.fixture
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    from co_scientist.llm.admission import free_policy as free_catalog
+    from co_scientist.platform.llm.admission import free_policy as free_catalog
 
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
     with free_catalog.using_catalog_reader(free_catalog.CatalogReader()):

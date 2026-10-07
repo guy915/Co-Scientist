@@ -4,7 +4,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from co_scientist.llm.tools.loop import ToolLoop
+    from co_scientist.platform.llm.tools.loop import ToolLoop
 
 logger = logging.getLogger(__name__)
 

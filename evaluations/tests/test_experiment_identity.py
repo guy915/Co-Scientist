@@ -94,7 +94,7 @@ def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
 def test_model_and_fallback_changes_change_persisted_identity(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import co_scientist.llm.profile as routes
+    import co_scientist.platform.llm.profile as routes
     from co_scientist.core.config import settings
 
     monkeypatch.setattr(settings, "model_name", "openrouter/minimax/minimax-m3:free")

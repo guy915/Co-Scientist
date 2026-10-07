@@ -289,7 +289,7 @@ def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
 
 
 async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
-    from co_scientist.llm import scoped_telemetry
+    from co_scientist.platform.llm import scoped_telemetry
 
     from app.claims.grounding import (
         AssessorSpec,

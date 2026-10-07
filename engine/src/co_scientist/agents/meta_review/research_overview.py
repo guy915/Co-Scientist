@@ -42,16 +42,16 @@ from co_scientist.core.constants import (
     RESEARCH_OVERVIEW_TOP_K,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS, short_error_text
-from co_scientist.llm import (
-    CompletionSpec,
-    call_llm_json,
-)
 from co_scientist.models import (
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
     phase_message,
     rank_for_publication,
+)
+from co_scientist.platform.llm import (
+    CompletionSpec,
+    call_llm_json,
 )
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import (

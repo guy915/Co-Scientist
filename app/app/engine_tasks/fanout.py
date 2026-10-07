@@ -52,7 +52,7 @@ async def execute_review_item(
         ReviewContext,
         review_single_hypothesis,
     )
-    from co_scientist.llm import scoped_telemetry
+    from co_scientist.platform.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="review item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
@@ -75,7 +75,7 @@ async def execute_verification_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     from co_scientist.agents.reflection import verify_hypothesis
-    from co_scientist.llm import scoped_telemetry
+    from co_scientist.platform.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="verification item")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
@@ -95,7 +95,7 @@ async def execute_mature_reflection_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     from co_scientist.agents.reflection import ReviewType, review_hypothesis
-    from co_scientist.llm import scoped_telemetry
+    from co_scientist.platform.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="mature reflection")
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
@@ -353,7 +353,7 @@ async def execute_generation_strategy(
     usage travels to the report for attribution.
     """
     from co_scientist.agents.generation.citations import ReferenceIndex
-    from co_scientist.llm import scoped_telemetry
+    from co_scientist.platform.llm import scoped_telemetry
     from co_scientist.skills import scoped_skill_usage
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="generation strategy")

@@ -8,7 +8,7 @@ from co_scientist.core.constants import (
     MEDIUM_TEMPERATURE,
     RESEARCH_OVERVIEW_MAX_TOKENS,
 )
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     call_llm_json,
     scoped_telemetry_phase,

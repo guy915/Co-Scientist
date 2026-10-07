@@ -14,7 +14,7 @@ from co_scientist.core.constants import (
     RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import (
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     scoped_telemetry_phase,

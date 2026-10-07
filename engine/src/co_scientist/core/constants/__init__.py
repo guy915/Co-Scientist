@@ -2,7 +2,7 @@ import hashlib
 import re
 from typing import Final
 
-from co_scientist.llm.profile import ModelPrice, priced_routes
+from co_scientist.platform.llm.profile import ModelPrice, priced_routes
 
 # Pricing uses exact case-sensitive routes; capability lookup does not.
 MODEL_PRICING: Final[dict[str, ModelPrice]] = priced_routes()

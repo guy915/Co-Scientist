@@ -107,8 +107,8 @@ import litellm
 from evaluations._run_driver import configure_environment
 configure_environment("/tmp/eval.db", live=True)
 from co_scientist.core.config import settings
-from co_scientist.llm.admission import free_policy as free_catalog
-from co_scientist.llm import call_llm, CompletionSpec
+from co_scientist.platform.llm.admission import free_policy as free_catalog
+from co_scientist.platform.llm import call_llm, CompletionSpec
 from co_scientist.core.exceptions import FreeModelEligibilityError
 
 async def check():

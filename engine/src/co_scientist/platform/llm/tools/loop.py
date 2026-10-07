@@ -12,21 +12,22 @@ from co_scientist.core.exceptions import (
     FreeModelEligibilityError,
     LLMCallBudgetExceededError,
 )
-from co_scientist.llm.admission.free_policy import scoped_api_key
-from co_scientist.llm.attempts.escalation import (
+from co_scientist.platform.llm.admission.free_policy import scoped_api_key
+from co_scientist.platform.llm.attempts.escalation import (
     BudgetEscalation,
     escalated_max_tokens,
 )
-from co_scientist.llm.attempts.retry import Attempt, AttemptPlan, run_attempts
-from co_scientist.llm.precall import _prepare_llm_call
-from co_scientist.llm.request.completion import (
+from co_scientist.platform.llm.attempts.retry import Attempt, AttemptPlan, run_attempts
+from co_scientist.platform.llm.precall import _prepare_llm_call
+from co_scientist.platform.llm.request.completion import (
     _acompletion_within_timeout,
     _apply_api_key,
     _apply_timeout,
 )
-from co_scientist.llm.request.response import _extract_completion_content
-from co_scientist.llm.request.thinking import _apply_thinking_args
-from co_scientist.llm.tools.policy import (
+from co_scientist.platform.llm.request.response import _extract_completion_content
+from co_scientist.platform.llm.request.thinking import _apply_thinking_args
+from co_scientist.platform.llm.tool_effects import batch_by_effects
+from co_scientist.platform.llm.tools.policy import (
     DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
     _handoff_iteration,
     _handoff_message,
@@ -35,7 +36,7 @@ from co_scientist.llm.tools.policy import (
     closing_message,
     transcript_tokens,
 )
-from co_scientist.llm.tools.transcript import (
+from co_scientist.platform.llm.tools.transcript import (
     INVALID_ARGUMENTS_ERROR,
     _message_to_history_dict,
     elide_aged_evidence,
@@ -44,8 +45,7 @@ from co_scientist.llm.tools.transcript import (
     normalize_tool_transcript,
     object_arguments,
 )
-from co_scientist.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
-from co_scientist.tool_effects import batch_by_effects
+from co_scientist.platform.llm.values import CompletionSpec, LLMCallOptions, LLMRequest
 
 logger = logging.getLogger(__name__)
 

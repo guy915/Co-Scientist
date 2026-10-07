@@ -14,7 +14,8 @@ from contextvars import ContextVar
 from functools import wraps
 from typing import Any, ParamSpec, TypeVar
 
-from co_scientist.llm import scoped_completion_budget, scoped_telemetry
+from co_scientist.platform.llm.admission.call_budget import scoped_completion_budget
+from co_scientist.platform.llm.telemetry import scoped_telemetry
 
 logger = logging.getLogger(__name__)
 

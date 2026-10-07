@@ -9,11 +9,11 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.llm import current_run_call_count, scoped_llm_call_budget
-from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.platform import db as _store_db
 from co_scientist.platform import db as store_db
 from co_scientist.platform.db.models import RunStatus, ScientificTask
+from co_scientist.platform.llm import current_run_call_count, scoped_llm_call_budget
+from co_scientist.platform.llm.admission.call_budget import record_provider_request
 
 from app import engine_tasks, task_worker
 from app.store import events as store_events

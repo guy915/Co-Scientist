@@ -4,7 +4,7 @@ import logging
 import re
 from collections.abc import Callable, Sequence
 
-from co_scientist.llm import record_deterministic_fallback
+from co_scientist.platform.llm import record_deterministic_fallback
 
 from app.claims.assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,

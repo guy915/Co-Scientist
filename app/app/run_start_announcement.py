@@ -14,10 +14,11 @@ from co_scientist.core.config import (
     thinking_safe_max_tokens,
 )
 from co_scientist.platform.db.models import MessageRow, RunRow
+from co_scientist.platform.llm import offline_guard
+from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
 
-from app import credentials, offline_guard
+from app import credentials
 from app.diagnostic_events import log_chat_turn
-from app.llm_scope import budgeted_stream, stream_chunks
 from app.logging_setup import run_log_context
 from app.sse import sse_frame
 from app.store import messages as store
@@ -88,7 +89,7 @@ def _delta_text(chunk: Any) -> tuple[str, str]:
 async def _stream_model_fragments(
     run: RunRow, *, thinking_enabled: bool = True
 ) -> AsyncGenerator[tuple[str, str], None]:
-    from app import llm_request
+    from co_scientist.platform.llm import llm_request
 
     # Admit before shaping requests because the scientist's goal is sent
     # verbatim.

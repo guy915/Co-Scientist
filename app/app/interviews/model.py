@@ -6,6 +6,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -14,13 +15,12 @@ from co_scientist.core.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
-from co_scientist.llm import coerce_json_list
+from co_scientist.platform.llm import coerce_json_list
+from co_scientist.platform.llm.llm_scope import budgeted, stream_chunks
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 import app.credentials as credentials
-import app.offline_guard as offline_guard
-from app.llm_scope import budgeted, stream_chunks
 from app.store import documents as store
 
 logger = logging.getLogger(__name__)
@@ -516,7 +516,7 @@ async def _run_interview_completion(
     *,
     thinking_enabled: bool,
 ) -> tuple[str, dict[str, Any] | None, bool]:
-    import app.llm_request as llm_request
+    import co_scientist.platform.llm.llm_request as llm_request
 
     thinking_kwargs = (
         deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)

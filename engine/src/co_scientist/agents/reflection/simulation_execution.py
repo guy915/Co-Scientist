@@ -12,13 +12,13 @@ from co_scientist.core.constants import (
     truncate_for_prompt,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import (
+from co_scientist.models import Hypothesis
+from co_scientist.platform.llm import (
     CompletionSpec,
     LLMCallOptions,
     ToolLoop,
     call_llm_with_tools,
 )
-from co_scientist.models import Hypothesis
 from co_scientist.prompts import load_prompt
 from co_scientist.state import WorkflowState
 from co_scientist.workspace.run_workspace import open_review_workspace

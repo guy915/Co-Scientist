@@ -18,9 +18,9 @@ from co_scientist.core.exceptions import (
     LLMThinkingOnlyError,
     LLMTimeoutError,
 )
-from co_scientist.llm import LLMCallOptions, rate_limited_attempt_count
-from co_scientist.llm.attempts.escalation import BudgetEscalation
-from co_scientist.llm.attempts.retry import Attempt, AttemptPlan, run_attempts
+from co_scientist.platform.llm import LLMCallOptions, rate_limited_attempt_count
+from co_scientist.platform.llm.attempts.escalation import BudgetEscalation
+from co_scientist.platform.llm.attempts.retry import Attempt, AttemptPlan, run_attempts
 from tests._llm_fake import (
     GATEWAY_MODEL,
     JSON,
@@ -461,7 +461,7 @@ async def test_escalation_only_plan_stops_before_revisiting_a_rung(
 ) -> None:
     import asyncio
 
-    from co_scientist.llm import scoped_telemetry
+    from co_scientist.platform.llm import scoped_telemetry
 
     mandatory = reasoning_mandatory()
     thinking = LLMThinkingOnlyError("reasoning stopped without an answer")

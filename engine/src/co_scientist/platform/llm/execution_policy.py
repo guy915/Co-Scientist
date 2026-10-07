@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from co_scientist.core.config import settings
-from co_scientist.llm.profile import is_free_route
+from co_scientist.platform.llm.profile import is_free_route
 
 # Engine tasks of a run stamped with this key admit only zero-price requests,
 # so a lost lease can replay without an unknown spend.

@@ -77,7 +77,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     """Measure elapsed time here: durable execution does not fill the
     standalone total_time metric.
     """
-    from co_scientist.offline.llm import install_offline_router
+    from co_scientist.platform.llm.offline.llm import install_offline_router
 
     from evaluations._identity import validate_stored_arm
 

@@ -137,7 +137,7 @@ async def test_expired_standard_lease_without_the_stamp_fails_closed(
 async def test_a_zero_cost_stamped_task_admits_only_zero_price_requests(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from co_scientist.llm.admission import free_policy
+    from co_scientist.platform.llm.admission import free_policy
 
     run = seed_run(
         "Stamped run",
