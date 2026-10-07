@@ -257,3 +257,87 @@ body {
 .hljs-subst {
   color: var(--cosci-code-attr);
 }
+
+/* Motion is defined once here; shared/ui components and surface sheets read
+   these instead of writing their own durations or curves. */
+:root {
+  --motion-duration-short: 120ms;
+  --motion-duration-medium: 200ms;
+  --motion-duration-long: 250ms;
+  --motion-duration-exit: 150ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --motion-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --motion-pop-scale: 0.96;
+  --motion-shift: 0.5rem;
+}
+
+/* Reduced motion keeps a short fade so state changes stay legible, and drops
+   every scale and travel. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-medium: 100ms;
+    --motion-duration-long: 100ms;
+    --motion-duration-exit: 100ms;
+    --motion-pop-scale: 1;
+    --motion-shift: 0px;
+  }
+}
+
+/* Component roles default to the shell palette; a surface with its own palette
+   (the landing page) re-points them in its own scope. */
+:root {
+  --button-filled-bg: var(--cosci-blue);
+  --button-filled-fg: var(--cosci-btn-primary-fg);
+  --button-filled-hover: var(--cosci-btn-primary-hover);
+  --button-outlined-border: var(--cosci-btn-secondary-border);
+  --button-outlined-fg: var(--cosci-source-button-hover);
+  --button-outlined-hover: var(--cosci-icon-button-hover-bg);
+  --button-tonal-bg: var(--cosci-accent);
+  --button-tonal-fg: var(--cosci-accent-fg);
+  --button-tonal-hover: var(--cosci-logs-accent-hover);
+  --button-text-fg: var(--cosci-muted);
+  --button-text-hover-fg: var(--cosci-text);
+  --button-text-hover-bg: var(--cosci-hover);
+  --button-link-fg: var(--cosci-blue);
+  --button-disabled-border: var(--cosci-border);
+  --button-disabled-bg: var(--cosci-icon-button-hover-bg);
+  --button-disabled-fg: var(--cosci-option-marker);
+
+  --icon-button-fg: var(--cosci-muted);
+  --icon-button-hover-fg: var(--cosci-text);
+  --icon-button-hover-bg: var(--cosci-hover);
+
+  --segmented-track: var(--cosci-settings-segment-bg);
+  --segmented-border: var(--cosci-border);
+  --segmented-thumb: var(--cosci-toggle-on-track);
+  --segmented-fg: var(--cosci-text);
+  --segmented-selected-fg: var(--cosci-selected-row-fg);
+  --segmented-hover: var(--cosci-menu-row-hover);
+
+  --tab-pill-track: var(--cosci-menu-row-hover);
+  --tab-pill-thumb: var(--cosci-accent);
+  --tab-pill-fg: var(--cosci-shell-icon);
+  --tab-pill-selected-fg: var(--cosci-accent-fg);
+  --tab-pill-hover: var(--cosci-hover);
+
+  --chip-neutral-bg: var(--cosci-menu-row-hover);
+  --chip-neutral-fg: var(--cosci-text);
+  --chip-info-bg: var(--cosci-idea-chip-bg);
+  --chip-info-fg: var(--cosci-text);
+  --chip-success-bg: var(--cosci-recent-chip-bg);
+  --chip-success-fg: var(--cosci-text);
+  --chip-accent-bg: var(--cosci-accent);
+  --chip-accent-fg: var(--cosci-accent-fg);
+  --chip-warning-bg: var(--cosci-warning-bg);
+  --chip-warning-fg: var(--cosci-warning-fg);
+  --chip-danger-bg: var(--cosci-danger-bg);
+  --chip-danger-fg: var(--cosci-danger-fg);
+  --chip-danger-border: var(--cosci-danger-border);
+
+  --field-border: var(--cosci-border);
+  --field-focus: var(--cosci-blue);
+  --field-placeholder: var(--cosci-muted);
+
+  --scrim: rgb(0 0 0 / 45%);
+}

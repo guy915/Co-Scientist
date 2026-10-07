@@ -1,0 +1,73 @@
+/* Enter and exit motion for every overlay. Elements start from these styles on
+   insertion (@starting-style) and return to them while `data-state="closed"`
+   keeps them mounted for the exit. */
+@layer components {
+  .ui-motion-pop,
+  .ui-motion-fade,
+  .ui-motion-rise {
+    transition-property: opacity, scale, translate;
+    transition-duration: var(--motion-duration-medium);
+    transition-timing-function: var(--motion-ease-enter);
+  }
+
+  .ui-motion-pop[data-motion='long'],
+  .ui-motion-fade[data-motion='long'],
+  .ui-motion-rise[data-motion='long'] {
+    transition-duration: var(--motion-duration-long);
+  }
+
+  .ui-motion-pop[data-state='closed'],
+  .ui-motion-fade[data-state='closed'],
+  .ui-motion-rise[data-state='closed'] {
+    pointer-events: none;
+    transition-duration: var(--motion-duration-exit);
+    transition-timing-function: var(--motion-ease-exit);
+  }
+
+  .ui-motion-pop[data-state='closed'] {
+    opacity: 0;
+    scale: var(--motion-pop-scale);
+  }
+
+  .ui-motion-fade[data-state='closed'] {
+    opacity: 0;
+  }
+
+  .ui-motion-rise[data-state='closed'] {
+    opacity: 0;
+    translate: 0 var(--motion-shift);
+  }
+
+  @starting-style {
+    .ui-motion-pop {
+      opacity: 0;
+      scale: var(--motion-pop-scale);
+    }
+
+    .ui-motion-fade {
+      opacity: 0;
+    }
+
+    .ui-motion-rise {
+      opacity: 0;
+      translate: 0 var(--motion-shift);
+    }
+  }
+}
+
+/* Selection thumbs slide between items. The first placement does not animate,
+   and a theme choice made with the thumb keeps its slide through the theme
+   swap's transition freeze. */
+.ui-sliding-thumb[data-animate='true'],
+.theme-switching .ui-sliding-thumb[data-animate='true'] {
+  transition-property: translate, width !important;
+  transition-duration: var(--motion-duration-medium) !important;
+  transition-timing-function: var(--motion-ease-standard) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-sliding-thumb[data-animate='true'],
+  .theme-switching .ui-sliding-thumb[data-animate='true'] {
+    transition: none !important;
+  }
+}

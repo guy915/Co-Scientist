@@ -1,28 +1,6 @@
-export function joinClasses(
-  ...classes: (string | false | null | undefined)[]
-): string {
-  return classes.filter(Boolean).join(' ');
-}
-
-export function tooltipClassNames({
-  className,
-  placement,
-  wrap,
-  alignStart,
-}: {
-  className?: string;
-  placement: 'top' | 'right' | 'bottom' | 'left';
-  wrap?: boolean;
-  alignStart?: boolean;
-}): string {
-  return joinClasses(
-    className,
-    'ucs-tooltip-anchor',
-    `ucs-tooltip-${placement}`,
-    wrap ? 'ucs-tooltip-wrap' : 'ucs-tooltip-nowrap',
-    alignStart && 'ucs-tooltip-align-start',
-  );
-}
+// Re-exported while call sites move to the shared building blocks.
+export {joinClasses} from '@/shared/ui/cx';
+export {tooltipClassNames} from '@/shared/ui/tooltip';
 
 export const SETTINGS_SCRIM_CLASSES =
   'fixed inset-0 z-[70] bg-[rgb(0_0_0/45%)]';

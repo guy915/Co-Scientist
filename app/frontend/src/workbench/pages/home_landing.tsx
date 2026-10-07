@@ -35,7 +35,10 @@ import {
   useShapeMorph,
 } from './home_landing_hooks';
 import {Icon, type IconName} from '@/components/icon';
-import {SlidingPill, useSlidingIndicator} from '../hooks/sliding_indicator';
+import {
+  SlidingPill,
+  useSlidingIndicator,
+} from '@/shared/hooks/use_sliding_indicator';
 import moleculeArt from '../../assets/landing/molecule.webp';
 import podiumArt from '../../assets/landing/podium.webp';
 import flaskArt from '../../assets/landing/flask.webp';

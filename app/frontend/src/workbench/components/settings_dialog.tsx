@@ -35,7 +35,10 @@ import {
   fetchByokModelCatalog,
   fetchFreeUsage,
 } from '@/api/system';
-import {SlidingPill, useSlidingIndicator} from '../hooks/sliding_indicator';
+import {
+  SlidingPill,
+  useSlidingIndicator,
+} from '@/shared/hooks/use_sliding_indicator';
 import {
   joinClasses,
   SETTINGS_DIALOG_CLASSES,
