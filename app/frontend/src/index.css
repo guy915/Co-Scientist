@@ -6,11 +6,8 @@
 @import 'tailwindcss/utilities' layer(utilities) source(none);
 
 @source "./app";
-@source "./components";
 @source "./features";
-@source "./public";
 @source "./shared";
-@source "./workbench";
 @source not "./shared/lib";
 @source not "./**/*.test.ts";
 @source not "./**/*.test.tsx";
