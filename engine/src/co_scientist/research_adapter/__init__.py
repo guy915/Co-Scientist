@@ -353,9 +353,7 @@ _TIER_CEILINGS: dict[str, tuple[int, int, int]] = {
 _CONCURRENCY = 3
 
 
-def budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
-    """No sources or an unfunded tier means skip research, not a failed run."""
-    ceilings = _TIER_CEILINGS.get(tier)
+def _budget(ceilings: tuple[int, int, int] | None, sources: Sequence[str]) -> ResearchBudget | None:
     if ceilings is None or not sources:
         return None
     depth, breadth, hits = ceilings
@@ -366,6 +364,11 @@ def budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
         hits_per_question=hits,
         sources=tuple(sources),
     )
+
+
+def budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
+    """No sources or an unfunded tier means skip research, not a failed run."""
+    return _budget(_TIER_CEILINGS.get(tier), sources)
 
 
 def tier_researches(tier: str) -> bool:
@@ -388,17 +391,7 @@ _REVIEW_HYPOTHESES: dict[str, int] = {
 
 
 def review_budget_for_tier(tier: str, sources: Sequence[str]) -> ResearchBudget | None:
-    ceilings = _REVIEW_CEILINGS.get(tier)
-    if ceilings is None or not sources:
-        return None
-    depth, breadth, hits = ceilings
-    return ResearchBudget(
-        depth=depth,
-        breadth=breadth,
-        concurrency=_CONCURRENCY,
-        hits_per_question=hits,
-        sources=tuple(sources),
-    )
+    return _budget(_REVIEW_CEILINGS.get(tier), sources)
 
 
 def reviewed_hypothesis_limit(tier: str) -> int:
