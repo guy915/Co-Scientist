@@ -38,6 +38,7 @@ import {
   type PendingRunCreatePayload,
 } from '@/shared/lib/run_spec';
 import {readStorage, STORAGE_KEYS} from '@/shared/lib/safe_storage';
+import {errorMessage, httpStatus} from '@/shared/lib/errors';
 
 export const START_RESEARCH_PROMPT = 'Start research';
 
@@ -187,7 +188,7 @@ async function startDraftRun(deps: StartDeps): Promise<void> {
     // write the same session state; Stop still reaches its controller.
     if (outcome.shouldAnnounce) await announceStart(deps, session.id);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     deps.update({error: message});
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
@@ -782,10 +783,8 @@ function rememberCreatedRun(
 }
 
 function isDefinitiveCreateRejection(error: unknown): boolean {
+  const status = httpStatus(error);
   return (
-    error instanceof Error &&
-    'status' in error &&
-    typeof error.status === 'number' &&
-    [400, 401, 403, 404, 413, 415, 422].includes(error.status)
+    status !== undefined && [400, 401, 403, 404, 413, 415, 422].includes(status)
   );
 }

@@ -619,7 +619,9 @@ export function jsonRequest(
 }
 
 export async function* readSseFrames<T>(res: Response): AsyncGenerator<T> {
-  if (!res.ok || !res.body) throw new Error(await responseErrorMessage(res));
+  if (!res.ok || !res.body) {
+    throw new HttpError(await responseErrorMessage(res), res.status);
+  }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let pending = '';

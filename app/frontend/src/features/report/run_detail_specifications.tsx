@@ -6,7 +6,7 @@ import {
   runGoal,
   uploadRunDocument,
 } from '@/shared/api/runs';
-import {errorMessage} from '@/shared/lib/text';
+
 import {type ChangeEvent, useState} from 'react';
 import {
   FOCUS_OPTIONS,
@@ -19,6 +19,7 @@ import {
   ReportDocument,
   ReportList,
 } from './run_detail_shell';
+import {errorMessage} from '@/shared/lib/errors';
 
 export {attributeDisplayString};
 
