@@ -202,7 +202,7 @@ can be confirmed on Ling; each run had one retry. Caching remains near
 zero (M4).
 
 M2–M6 describe the routes rather than defects with a fix of their own: M2's
-fallback pattern is measured as M11, M3's reasoning share is what the batches
+fallback pattern is measured as M11 and its cause is under Not worth the risk, M3's reasoning share is what the batches
 change, M4 is answered by M7 below, and M5 and M6 are properties of the free
 endpoint.
 
@@ -259,3 +259,4 @@ cost:
 | F12 | Pause polling in hidden tabs and resume streams mid-way | The campaigns leave frontend fetching and polling to shrink lever 9, which judged its rework not worth the risk (board #240) |
 | M13 | Run proximity beside the research overview | The overview does not read proximity's output, but the workflow commits one node per checkpoint; running two nodes at once means concurrent checkpoint writers for one run, an invariant change in `docs/OPERATIONS.md`, to save about 4 minutes of an Express run |
 | M15 | Count tool schemas and echoed reasoning in the tool-loop transcript budget | `transcript_tokens` counts message text and tool calls only, so an offline simulation sent 22% more than it counted (up to 64% if a route echoes reasoning). The 300k budget never binds: no loop reached it in the Express r2 or Standard job logs, whose largest call prompt was about 53k tokens. Counting more would only move when loops wrap up, which can change answers, for no measured gain |
+| M2 | Keep more calls on Ling | OpenRouter falls back server-side (the request lists the free chain with `allow_fallbacks`), so the client sees only the serving model; the reason is in the owner's OpenRouter activity log. Fan-outs fall back most (comprehensive reflection 1 of 31 on Ling), which fits rate limiting on Ling's single free host. Keeping calls on Ling would need a client-side concurrency cap that serializes fan-outs, and Ling is slower per call than Super (86 s against 38 s in batch 3) |
