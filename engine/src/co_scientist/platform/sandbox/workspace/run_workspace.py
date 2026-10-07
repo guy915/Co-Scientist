@@ -87,7 +87,7 @@ def open_draft_workspace(run_id: str, draft_id: str) -> WorkspaceSession:
     # Restrict the parent before creating a child so it is never briefly world-
     # readable.
     open_run_workspace(run_id)
-    return WorkspaceSession(root, network_allowed=True, skills_enabled=True)
+    return WorkspaceSession(root, skills_enabled=True)
 
 
 def review_workspace_path(run_id: str, hypothesis_id: str) -> Path:
