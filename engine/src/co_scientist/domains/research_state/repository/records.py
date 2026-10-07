@@ -87,6 +87,7 @@ def list_evidence(
 ) -> list[dict[str, Any]]:
     rows = list_by_run("evidence", run_id, db_path, conn, json_fields=("authors",))
     for row in rows:
+        row.pop("peer_hash", None)
         row["available"] = bool(row["available"])
         row["retracted"] = bool(row["retracted"])
     return rows

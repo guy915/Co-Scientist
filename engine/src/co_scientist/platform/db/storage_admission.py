@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from typing import Literal
 
@@ -25,7 +25,9 @@ def scoped_peer(peer: str) -> Iterator[None]:
         _peer.reset(token)
 
 
-def reserve_write(owner: str, peer: str, size: int) -> None:
+def reserve_write(
+    owner: str, peer: str, size: int, *, conn: sqlite3.Connection | None = None, requests: int = 1
+) -> None:
     from co_scientist.core.config import settings
 
     day = int(current_time() // 86400)
@@ -50,7 +52,7 @@ def reserve_write(owner: str, peer: str, size: int) -> None:
         ),
     )
     # Denied handlers, failed parses and deletions never refund daily admission.
-    with transaction() as conn:
+    with nullcontext(conn) if conn is not None else transaction() as conn:
         pages = int(conn.execute("PRAGMA page_count").fetchone()[0])
         free = int(conn.execute("PRAGMA freelist_count").fetchone()[0])
         page_size = int(conn.execute("PRAGMA page_size").fetchone()[0])
@@ -62,15 +64,15 @@ def reserve_write(owner: str, peer: str, size: int) -> None:
                 (day, scope, subject),
             ).fetchone()
             count, used = (int(row[0]), int(row[1])) if row else (0, 0)
-            if count + 1 > row_limit or used + max(size, 512) > byte_limit:
+            if count + requests > row_limit or used + max(size, 512) > byte_limit:
                 raise StorageAdmissionError("daily input admission exhausted")
         conn.execute("DELETE FROM input_admissions WHERE day<?", (day,))
         for scope, subject, _, _ in budgets:
             conn.execute(
-                "INSERT INTO input_admissions VALUES (?,?,?,1,?) "
+                "INSERT INTO input_admissions VALUES (?,?,?,?,?) "
                 "ON CONFLICT(day,scope,subject) DO UPDATE SET "
-                "requests=requests+1,bytes=bytes+excluded.bytes",
-                (day, scope, subject, max(size, 512)),
+                "requests=requests+excluded.requests,bytes=bytes+excluded.bytes",
+                (day, scope, subject, requests, max(size, 512)),
             )
 
 

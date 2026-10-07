@@ -273,3 +273,26 @@ def test_retention_releases_logical_storage_headroom(monkeypatch: pytest.MonkeyP
     assert free > 0
     _limit(monkeypatch, "anonymous_store_max_bytes", (pages - free) * page_size + 8192)
     reserve_write("owner", "peer", 512)
+
+
+def test_example_copy_charges_stored_bytes_before_commit(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    from co_scientist.domains.chat import seed
+    from co_scientist.orchestration.repository import runs_views
+    from co_scientist.platform.db.models import DEMO_CLIENT_ID
+
+    asyncio.run(seed.seed_demo_runs(isolated_db))
+    source = runs_views.list_runs(client_id=DEMO_CLIENT_ID)[0]
+    _limit(monkeypatch, "anonymous_write_client_bytes_per_day", 1024)
+    response = make_client().post(f"/api/runs/{source.id}/example-chat")
+    assert response.status_code == 429
+    with db.connect() as conn:
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM runs WHERE client_id!=?", (DEMO_CLIENT_ID,)
+            ).fetchone()[0]
+            == 0
+        )
