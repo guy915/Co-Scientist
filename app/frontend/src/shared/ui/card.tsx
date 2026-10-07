@@ -70,8 +70,8 @@ export function Card({
 const CARD_BUTTON_CLASSES =
   'cursor-pointer rounded-2xl border border-cosci-border text-left text-cosci-fg [outline:0] ' +
   'transition-[background-color,border-color] duration-short ease-standard ' +
-  '[&:hover]:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
-  'phone:rounded-full phone:[border:0] phone:[&:hover]:[border-color:transparent] phone:focus-visible:[border-color:transparent]';
+  'hover:bg-cosci-hover focus-visible:bg-cosci-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring ' +
+  'phone:rounded-full phone:[border:0] phone:hover:[border-color:transparent] phone:focus-visible:[border-color:transparent]';
 
 const CARD_BUTTON_REST_CLASSES =
   'bg-(--cosci-suggestion-bg) phone:bg-transparent';

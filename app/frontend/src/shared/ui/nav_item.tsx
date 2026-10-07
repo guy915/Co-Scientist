@@ -4,12 +4,11 @@ import {Icon, type IconName} from './icon';
 import {joinClasses} from './cx';
 import {tooltipClassNames} from './tooltip';
 
-// The pressed colour stays in shell_surface.css (`ucs-nav-item`): Tailwind
-// sorts an arbitrary :hover after :active, so a utility could not let pressed
-// beat hover.
+// The pressed colour stays in shell_surface.css (`ucs-nav-item`), which is
+// unlayered and so beats the hover utility.
 const ITEM_CLASSES =
   'ucs-nav-item grid size-[2.5rem] min-h-[2.5rem] min-w-[2.5rem] cursor-pointer place-items-center [border:0] rounded-full bg-transparent p-0 text-cosci-shell-icon no-underline ' +
-  '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
+  'hover:bg-cosci-shell-hover-bg hover:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
   'phone:h-[2.75rem] phone:min-h-[2.75rem] phone:w-full ' +
   'phone:grid-cols-[1.5rem_minmax(0,1fr)] phone:[justify-items:start] phone:gap-x-[0.72rem] ' +
   'phone:px-[0.75rem] phone:text-left';

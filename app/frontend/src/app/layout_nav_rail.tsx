@@ -268,7 +268,7 @@ const CHAT_HISTORY_LINK_CLASSES =
   'flex min-h-[2.35rem] min-w-0 items-center rounded-full px-[0.75rem] text-[0.875rem] leading-[2.35rem] no-underline';
 
 const CHAT_HISTORY_LINK_IDLE_CLASSES =
-  'text-cosci-shell-icon [&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg';
+  'text-cosci-shell-icon hover:bg-cosci-shell-hover-bg hover:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg';
 
 const CHAT_HISTORY_LINK_ACTIVE_CLASSES =
   'bg-cosci-shell-hover-bg text-cosci-fg';

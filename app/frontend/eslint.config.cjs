@@ -27,6 +27,7 @@ const stylisticRules = tseslint.configs.stylistic.filter(
 const HEX_COLOR = String.raw`/#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/`;
 const FUNCTION_COLOR = String.raw`/\b(rgba?|hsla?)\(/`;
 const ARBITRARY_RADIUS = String.raw`/rounded(-[a-z]{1,2})?-\[|border-radius:/`;
+const ARBITRARY_HOVER = String.raw`/\[&:hover\]/`;
 const PHONE_BREAKPOINT = String.raw`/(max|min)-\[70[01]px\]|(max|min)-width:70[01]px/`;
 
 function uiBuildingBlockRules() {
@@ -51,6 +52,10 @@ function uiBuildingBlockRules() {
     ...inText(
       ARBITRARY_RADIUS,
       'Use a radius from the scale or a named radius token instead of an arbitrary radius.',
+    ),
+    ...inText(
+      ARBITRARY_HOVER,
+      'Use hover:, which applies only to pointers that can hover, instead of [&:hover]: (sticky after a tap).',
     ),
     ...inText(
       PHONE_BREAKPOINT,

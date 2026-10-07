@@ -191,7 +191,7 @@ function ApiKeyHint({provider}: {provider: ByokProvider}) {
   return (
     <p className={HINT_CLASSES}>
       <ExternalLink
-        className="inline-flex items-center gap-1 text-[0.82rem] font-medium text-cosci-blue no-underline focus-visible:underline [&:hover]:underline"
+        className="inline-flex items-center gap-1 text-[0.82rem] font-medium text-cosci-blue no-underline focus-visible:underline hover:underline"
         href={url}
       >
         Get {article} {PROVIDER_LABELS[provider]} API key

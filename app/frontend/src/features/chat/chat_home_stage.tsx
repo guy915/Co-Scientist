@@ -450,7 +450,7 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 // Its transition stays in home_surface.css: the global unlayered `a` rule
 // would beat a utility.
 const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card [&:hover]:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) desktop:min-h-0 desktop:border-transparent';
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-(--cosci-suggestion-bg) bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card hover:bg-(--cosci-recent-card-hover-bg) focus-visible:bg-(--cosci-recent-card-hover-bg) desktop:min-h-0 desktop:border-transparent';
 
 interface HomeRecentsPanelProps {
   runs: Run[];
