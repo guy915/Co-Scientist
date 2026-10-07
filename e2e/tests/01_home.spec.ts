@@ -21,12 +21,16 @@ test('closed phone drawer keeps its chat links out of the tab order', async ({
 }) => {
   await page.setViewportSize(MOBILE_VIEWPORT);
   await page.goto('/');
-  const nav = page.getByRole('complementary', {name: 'Primary navigation'});
-  const chatLinks = nav.locator('.ucs-chat-list a');
-  await expect(chatLinks.first()).toBeHidden();
-
-  await page.getByRole('button', {name: 'Open navigation'}).click();
-  await expect(chatLinks.first()).toBeVisible();
+  await expect(
+    page.getByRole('heading', {name: /what breakthrough/i}),
+  ).toBeVisible();
+  for (let step = 0; step < 30; step++) {
+    await page.keyboard.press('Tab');
+    const inDrawer = await page.evaluate(
+      () => !!document.activeElement?.closest('.ucs-nav-panel'),
+    );
+    expect(inDrawer).toBe(false);
+  }
 });
 });
 
