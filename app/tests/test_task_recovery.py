@@ -7,6 +7,7 @@ from typing import Any
 
 import co_scientist.orchestration.repository.tasks_lifecycle as store_tasks_attempts
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 from co_scientist.domains.access import credentials
@@ -96,7 +97,7 @@ async def test_expired_provably_free_lease_with_byok_still_fails_closed(
     credentials.store_run_credential(
         run_id,
         DEFAULT_TEST_CLIENT_ID,
-        credentials.ByokCredential(
+        byok_scope.ByokCredential(
             provider="deepseek",
             api_key="sk-synthetic-zero-cost-lease-12345",
             model="deepseek/deepseek-v4-flash",
@@ -369,7 +370,7 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
         credentials.store_run_credential(
             run_id,
             "failure-owner",
-            credentials.ByokCredential(
+            byok_scope.ByokCredential(
                 provider="deepseek",
                 api_key=_BYOK_KEY,
                 model="deepseek/deepseek-v4-flash",

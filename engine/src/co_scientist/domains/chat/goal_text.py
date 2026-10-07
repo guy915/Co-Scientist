@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core import byok_scope
 from co_scientist.core.config import (
     deepseek_thinking_kwargs,
     settings,
@@ -12,7 +13,6 @@ from co_scientist.core.config import (
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
-from co_scientist.domains.access import credentials
 from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
 
@@ -126,7 +126,7 @@ async def _request_completion(
     construction; both attempts keep their token and timeout floors.
     """
     offline_guard.require_remote_chat(request.purpose)
-    model, api_key = credentials.byok_model_and_key(settings.effective_chat_model)
+    model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
     thinking_kwargs = (
         deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
     )

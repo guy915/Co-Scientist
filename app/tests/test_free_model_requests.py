@@ -5,6 +5,7 @@ from typing import Any
 
 import co_scientist.domains.chat.qa as qa_stream
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
 from co_scientist.domains.chat import goal_text, run_start_announcement
@@ -43,7 +44,7 @@ async def _invoke(kind: str, model: str) -> Any:
         return await goal_text._request_completion("Public research", goal_text._RESTATEMENT)
     if kind == "probe":
         return await credentials.validate_byok_credential(
-            credentials.ByokCredential("openrouter", "test-user-key", model)
+            byok_scope.ByokCredential("openrouter", "test-user-key", model)
         )
     return await _stream_call(kind, model)
 
@@ -129,19 +130,19 @@ async def test_concurrent_zero_cost_scope_and_standard_byok_stay_isolated(
     captured: list[dict[str, Any]],
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    credential = credentials.ByokCredential("openrouter", "test-user-key", "openrouter/free/paid")
+    credential = byok_scope.ByokCredential("openrouter", "test-user-key", "openrouter/free/paid")
 
     async def zero_cost_call() -> None:
         with (
             scoped_zero_cost_admission(True),
-            credentials.scoped_byok(credential),
+            byok_scope.scoped_byok(credential),
             pytest.raises(Exception, match="zero-cost"),
         ):
             await _invoke("title", credential.model)
 
     async def standard_call() -> None:
         with (
-            credentials.scoped_byok(credential),
+            byok_scope.scoped_byok(credential),
         ):
             await _invoke("title", credential.model)
 
