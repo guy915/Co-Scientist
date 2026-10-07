@@ -10,9 +10,11 @@ from typing import Any
 
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
+from co_scientist.core.config import settings
 from co_scientist.core.exceptions import LLMTimeoutError
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.free_policy import enforce_free_request
+from co_scientist.platform.llm.admission.service import reserve_physical
 from co_scientist.platform.llm.request.backend import active_backend
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
@@ -97,6 +99,12 @@ async def complete_request(
     apply_provider_constraints(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
+    if not byok:
+        # Bound requests that previously delegated an unbounded output default
+        # to the SDK. Admission covers every scientific and app retry here.
+        if "max_completion_tokens" not in completion_args:
+            completion_args.setdefault("max_tokens", settings.app_llm_max_output_tokens)
+        reserve_physical(completion_args)
     if before_dispatch is not None:
         before_dispatch()
     start = time.monotonic()
