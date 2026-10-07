@@ -109,17 +109,11 @@ def add_retrieval_calls(
         return active.total_changes - before
 
 
-def list_retrieval_calls(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> list[dict[str, Any]]:
+def list_retrieval_calls(run_id: str, *, db_path: str | None = None) -> list[dict[str, Any]]:
     return _list_by_run(
         "retrieval_calls",
         run_id,
         db_path,
-        conn,
         json_fields=("hits", "admitted", "dropped"),
     )
 

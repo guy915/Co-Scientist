@@ -143,12 +143,6 @@ function highlightedText(node: ReactNode): string {
 
 const COPIED_LABEL_MS = 2_000;
 
-const CODE_COPY_BUTTON_CLASSES =
-  'ml-auto grid size-6 shrink-0 cursor-pointer place-items-center ' +
-  'rounded-md border-0 bg-transparent p-0 text-cosci-muted ' +
-  'hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover ' +
-  'focus-visible:text-cosci-fg focus-visible:outline-none';
-
 // Shared clipboard handling contains absent/rejected Clipboard API failures
 // instead of leaking an unhandled rejection.
 function CodeCopyButton({text}: {text: string}) {
@@ -165,7 +159,7 @@ function CodeCopyButton({text}: {text: string}) {
   return (
     <button
       type="button"
-      className={CODE_COPY_BUTTON_CLASSES}
+      className="ml-auto grid size-6 shrink-0 cursor-pointer place-items-center rounded-md border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg focus-visible:outline-none"
       aria-label={copied ? 'Copied' : 'Copy code'}
       onClick={() => void copyText(text).then(() => setCopied(true))}
     >

@@ -112,10 +112,6 @@ The turn:
 """
 
 
-def _prompt(message: str) -> str:
-    return _PROMPT.format(min=MIN_OPTIONS, max=MAX_OPTIONS, message=message.strip())
-
-
 async def repair_questions(message: str) -> list[dict[str, Any]]:
     if not message.strip() or not offline_guard.remote_chat_allowed():
         return []
@@ -129,7 +125,7 @@ async def repair_questions(message: str) -> list[dict[str, Any]]:
     )
     try:
         result = await call_llm_json(
-            _prompt(message),
+            _PROMPT.format(min=MIN_OPTIONS, max=MAX_OPTIONS, message=message.strip()),
             spec,
             max_attempts=2,
             options=LLMCallOptions(prompt_name="interview_question_repair", enable_thinking=False),

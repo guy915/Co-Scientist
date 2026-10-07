@@ -230,76 +230,6 @@ def _render_tree_section(nodes: list[_AssumptionNode]) -> str:
     return "".join(lines)
 
 
-def _build_tree_prompt(
-    state: WorkflowState,
-    reference_text: str,
-    literature_context: str,
-) -> tuple[str, Any]:
-    return load_prompt_with_schema(
-        "generation_assumption_tree",
-        {
-            "research_goal": state["research_goal"],
-            "max_top_assumptions": ASSUMPTION_TREE_MAX_TOP,
-            "meta_review_context": _format_meta_review_context(state.get("meta_review")),
-            "domain_context": "",
-            "citation_reference_section": _build_citation_reference_section(reference_text),
-            "literature_context": literature_context,
-            "research_expansion_section": build_expansion_section(state),
-            "falsified_assumptions_section": (
-                build_falsified_assumptions_section(state.get("hypotheses"))
-            ),
-        },
-    )
-
-
-def _build_sub_prompt(
-    state: WorkflowState,
-    parents: list[_AssumptionNode],
-    reference_text: str,
-    literature_context: str,
-) -> tuple[str, Any]:
-    """Numbered parents join responses positionally without requiring the
-    model to echo their text."""
-    parents_list = "".join(f"{index}. {parent.text}\n" for index, parent in enumerate(parents))
-    return load_prompt_with_schema(
-        "generation_assumption_sub",
-        {
-            "research_goal": state["research_goal"],
-            "parents_list": parents_list,
-            "max_sub_per_parent": ASSUMPTION_TREE_MAX_SUB_PER_PARENT,
-            "domain_context": "",
-            "citation_reference_section": _build_citation_reference_section(reference_text),
-            "literature_context": literature_context,
-        },
-    )
-
-
-def _build_assumptions_prompt(
-    state: WorkflowState,
-    count: int,
-    reference_text: str,
-    literature_context: str,
-    tree_section: str,
-) -> tuple[str, Any]:
-    return load_prompt_with_schema(
-        "generation_assumptions",
-        {
-            "research_goal": state["research_goal"],
-            "num_hypotheses": count,
-            "meta_review_context": _format_meta_review_context(state.get("meta_review")),
-            "domain_context": "",
-            "citation_reference_section": _build_citation_reference_section(reference_text),
-            "lab_constraints_section": format_lab_constraints_section(state.get("lab_constraints")),
-            "literature_context": literature_context,
-            "assumption_tree_section": tree_section,
-            "research_expansion_section": build_expansion_section(state),
-            "falsified_assumptions_section": (
-                build_falsified_assumptions_section(state.get("hypotheses"))
-            ),
-        },
-    )
-
-
 async def _call_assumptions_llm(
     state: WorkflowState,
     prompt: str,
@@ -328,7 +258,21 @@ async def _build_assumption_tree(
 ) -> tuple[list[_AssumptionNode], int]:
     """A failed tree must still reach final ideation; its template supports
     the no-tree case."""
-    prompt, schema = _build_tree_prompt(state, reference_text, literature_context)
+    prompt, schema = load_prompt_with_schema(
+        "generation_assumption_tree",
+        {
+            "research_goal": state["research_goal"],
+            "max_top_assumptions": ASSUMPTION_TREE_MAX_TOP,
+            "meta_review_context": _format_meta_review_context(state.get("meta_review")),
+            "domain_context": "",
+            "citation_reference_section": _build_citation_reference_section(reference_text),
+            "literature_context": literature_context,
+            "research_expansion_section": build_expansion_section(state),
+            "falsified_assumptions_section": (
+                build_falsified_assumptions_section(state.get("hypotheses"))
+            ),
+        },
+    )
     response = await _call_assumptions_llm(state, prompt, schema, _TREE_LEVEL_PARAMS)
     nodes = _parse_top_assumptions(response)
     logger.info(
@@ -340,7 +284,19 @@ async def _build_assumption_tree(
     parents = _select_parents(nodes)
     if not parents:
         return nodes, 1
-    sub_prompt, sub_schema = _build_sub_prompt(state, parents, reference_text, literature_context)
+    # Numbered parents join responses positionally without requiring the model to echo their text.
+    parents_list = "".join(f"{index}. {parent.text}\n" for index, parent in enumerate(parents))
+    sub_prompt, sub_schema = load_prompt_with_schema(
+        "generation_assumption_sub",
+        {
+            "research_goal": state["research_goal"],
+            "parents_list": parents_list,
+            "max_sub_per_parent": ASSUMPTION_TREE_MAX_SUB_PER_PARENT,
+            "domain_context": "",
+            "citation_reference_section": _build_citation_reference_section(reference_text),
+            "literature_context": literature_context,
+        },
+    )
     sub_response = await _call_assumptions_llm(state, sub_prompt, sub_schema, _SUB_LEVEL_PARAMS)
     _parse_sub_assumptions(sub_response, parents)
     logger.info(
@@ -362,8 +318,22 @@ async def generate_with_assumptions(
     )
     nodes, tree_calls = await _build_assumption_tree(state, reference_text, literature_context)
     tree_section = _render_tree_section(nodes)
-    prompt, schema = _build_assumptions_prompt(
-        state, count, reference_text, literature_context, tree_section
+    prompt, schema = load_prompt_with_schema(
+        "generation_assumptions",
+        {
+            "research_goal": state["research_goal"],
+            "num_hypotheses": count,
+            "meta_review_context": _format_meta_review_context(state.get("meta_review")),
+            "domain_context": "",
+            "citation_reference_section": _build_citation_reference_section(reference_text),
+            "lab_constraints_section": format_lab_constraints_section(state.get("lab_constraints")),
+            "literature_context": literature_context,
+            "assumption_tree_section": tree_section,
+            "research_expansion_section": build_expansion_section(state),
+            "falsified_assumptions_section": (
+                build_falsified_assumptions_section(state.get("hypotheses"))
+            ),
+        },
     )
     response = await _call_assumptions_llm(state, prompt, schema, _FINAL_LEVEL_PARAMS)
     raw: list[dict[str, Any]] = response.get("hypotheses", [])

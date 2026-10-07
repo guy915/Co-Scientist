@@ -1,12 +1,11 @@
-import asyncio
 import logging
 import re
-import threading
-import time
 from datetime import datetime, timezone
 from typing import Any, TypedDict, Unpack
 
 import httpx
+
+from mcp_server.tools._pacing import RequestPacer
 
 logger = logging.getLogger(__name__)
 
@@ -552,9 +551,8 @@ _RS_ID_RE = re.compile(r"^rs[0-9]+$", re.IGNORECASE)
 MAX_PAGE_SIZE = 100
 MAX_PAGE = 100
 _REQUEST_TIMEOUT_SECONDS = 15
-_REQUEST_INTERVAL_SECONDS = 0.1
-_request_pacing_lock = threading.Lock()
-_next_request_at = 0.0
+# Process-wide start slots stay below EBI's documented 15 qps cap.
+_wait_for_request_slot = RequestPacer(0.1).wait
 
 
 def _gwas_catalog_empty_result(
@@ -651,22 +649,6 @@ def _association(row: dict[str, Any], rs_id: str) -> dict[str, Any]:
     }
     result.update(_record_urls(association_id, accession, pubmed_id))
     return result
-
-
-def _reserve_request_slot(now: float) -> float:
-    """Reserve a process-wide start slot below EBI's documented 15 qps cap."""
-    global _next_request_at
-    with _request_pacing_lock:
-        start = max(now, _next_request_at)
-        _next_request_at = start + _REQUEST_INTERVAL_SECONDS
-    return start
-
-
-async def _wait_for_request_slot() -> None:
-    now = time.monotonic()
-    delay = _reserve_request_slot(now) - now
-    if delay > 0:
-        await asyncio.sleep(delay)
 
 
 async def _request_page(params: dict[str, str | int]) -> Any:

@@ -105,26 +105,12 @@ export function HypothesisDetail({
   );
 }
 
-// The pane and rail share section vocabulary so links cannot drift from
-// headings.
-
-const IDEA_SECTIONS_RAIL_CLASSES =
-  'idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start ' +
-  'rounded-[10px] bg-cosci-panel p-5 max-[1023px]:hidden';
-
-const IDEA_SECTIONS_LABEL_CLASSES =
-  'text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text';
-
-const IDEA_SECTIONS_LIST_CLASSES = 'mt-5 grid gap-6';
-
-const IDEA_SECTION_LINK_CLASSES =
-  'block whitespace-nowrap text-[0.85rem] leading-6 font-medium ' +
-  'text-cosci-blue no-underline';
-
 // Rail jumps target the stacked detail pane or desktop report scroller; the
 // scroll utility stays independent of app classes.
 const IDEA_SCROLL_PANE_SELECTOR = '.idea-detail-pane, .cosci-report-scroll';
 
+// The pane and rail share section vocabulary so links cannot drift from
+// headings.
 export const SECTIONS = {
   overview: 'Hypothesis overview',
   description: 'Description',
@@ -163,14 +149,19 @@ function smoothSectionClick(
 
 export function SectionsRail() {
   return (
-    <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
-      <span className={IDEA_SECTIONS_LABEL_CLASSES}>Sections</span>
-      <nav className={IDEA_SECTIONS_LIST_CLASSES}>
+    <aside
+      className="idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start rounded-[10px] bg-cosci-panel p-5 max-[1023px]:hidden"
+      aria-label="Sections"
+    >
+      <span className="text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text">
+        Sections
+      </span>
+      <nav className="mt-5 grid gap-6">
         {RAIL_SECTIONS.map(item => (
           <a
             key={item}
             href={`#${sectionSlug(item)}`}
-            className={IDEA_SECTION_LINK_CLASSES}
+            className="block whitespace-nowrap text-[0.85rem] leading-6 font-medium text-cosci-blue no-underline"
             onClick={event => smoothSectionClick(event, sectionSlug(item))}
           >
             {item} &gt;
@@ -257,18 +248,6 @@ export function ReviewCritiquesContent({reviews}: {reviews: Review[]}) {
 }
 
 export const DETAIL_PANE_ID = 'hypothesis-detail-pane';
-
-const IDEA_DETAIL_SECTION_CLASSES =
-  'idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 ' +
-  '[&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] ' +
-  '[&_h2]:leading-10 [&_h2]:font-normal ' +
-  'max-[700px]:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] ' +
-  'max-[700px]:[&_h2]:leading-[1.2] ' +
-  '[&_h2]:text-cosci-idea-title-text [&_h3]:m-0 ' +
-  '[&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case ' +
-  '[&_h3]:text-cosci-idea-title-text [&_p]:m-0 ' +
-  '[&_p]:[overflow-wrap:anywhere] [&_p]:text-base ' +
-  '[&_p]:leading-6 [&_p]:text-cosci-idea-detail-text';
 
 interface DetailSectionsProps {
   paneClasses: string;
@@ -587,7 +566,10 @@ function DetailSection({
   children: ReactNode;
 }) {
   return (
-    <section className={IDEA_DETAIL_SECTION_CLASSES} id={sectionSlug(title)}>
+    <section
+      className="idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 [&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] [&_h2]:leading-10 [&_h2]:font-normal max-[700px]:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] max-[700px]:[&_h2]:leading-[1.2] [&_h2]:text-cosci-idea-title-text [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case [&_h3]:text-cosci-idea-title-text [&_p]:m-0 [&_p]:[overflow-wrap:anywhere] [&_p]:text-base [&_p]:leading-6 [&_p]:text-cosci-idea-detail-text"
+      id={sectionSlug(title)}
+    >
       <h2>{title}</h2>
       <div>{children}</div>
     </section>

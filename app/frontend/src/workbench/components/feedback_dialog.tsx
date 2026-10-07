@@ -20,11 +20,6 @@ import {SettingsSelect} from './settings_dialog';
 
 // The dialog surface shares the page hover tone, so actions need the menu-row
 // tone and the filled button needs elevation to show hover.
-const CANCEL_CLASSES =
-  'min-h-[2.6rem] cursor-pointer rounded-full border ' +
-  'border-cosci-btn-secondary-border bg-transparent px-[1.45rem] font-medium ' +
-  'text-cosci-btn-secondary-fg hover:bg-cosci-menu-row-hover ' +
-  'focus-visible:bg-cosci-menu-row-hover';
 const SUBMIT_CLASSES = joinClasses(
   SETUP_PRIMARY_BUTTON_CLASSES,
   'transition-shadow enabled:hover:shadow-md',
@@ -160,7 +155,11 @@ export function FeedbackDialog({
         </label>
         {error && <p role="alert">{error}</p>}
         <div className="ucs-feedback-actions">
-          <button type="button" className={CANCEL_CLASSES} onClick={onClose}>
+          <button
+            type="button"
+            className="min-h-[2.6rem] cursor-pointer rounded-full border border-cosci-btn-secondary-border bg-transparent px-[1.45rem] font-medium text-cosci-btn-secondary-fg hover:bg-cosci-menu-row-hover focus-visible:bg-cosci-menu-row-hover"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button

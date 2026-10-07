@@ -7,8 +7,6 @@ import {useState} from 'react';
 import {Icon} from '@/components/icon';
 import {joinClasses} from '../classes';
 import {
-  OPTION_INPUT_CLASSES,
-  OPTION_LABEL_CLASSES,
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
   SETUP_SECONDARY_BUTTON_CLASSES,
@@ -409,14 +407,16 @@ function AnswerRow(props: AnswerRowProps) {
     >
       <input
         type={multiSelect ? 'checkbox' : 'radio'}
-        className={OPTION_INPUT_CLASSES}
+        className="absolute pointer-events-none opacity-0"
         checked={selected}
         onChange={() => undefined}
         onClick={onSelect}
       />
       <AnswerMarker multiSelect={multiSelect} selected={selected} />
       <span className="flex min-w-0 flex-wrap items-baseline gap-x-[0.5rem]">
-        <strong className={OPTION_LABEL_CLASSES}>{label}</strong>
+        <strong className="min-w-0 text-base leading-[1.2] font-bold">
+          {label}
+        </strong>
         {description && (
           <small className="min-w-0 text-[0.92rem] leading-[1.3] text-cosci-muted">
             {description}
