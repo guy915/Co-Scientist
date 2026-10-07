@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 import pytest
-from co_scientist.domains.report import ReportRequest, finalize_report
+from co_scientist.domains.report import ReportRequest
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.report.gates import exclude_unsafe_hypotheses
 from co_scientist.domains.research_state.repository import hypotheses as store
@@ -23,6 +23,7 @@ from co_scientist.domains.safety.rules import (
 )
 from co_scientist.domains.safety.semantic import _build_semantic_decision
 from co_scientist.domains.safety.types import redact_matched_spans
+from co_scientist.orchestration.engine_tasks.report_finalize import finalize_report
 from co_scientist.orchestration.repository import events as store_events
 from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.science.meta_review import meta_review as meta_review_module

@@ -6,12 +6,12 @@ from typing import Any
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.report import build as report_build
-from co_scientist.domains.report import finalize as report_finalize
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.orchestration import engine_tasks, task_worker
+from co_scientist.orchestration.engine_tasks import report_finalize
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
 from co_scientist.orchestration.repository import events as store_events
 from co_scientist.orchestration.repository import runs

@@ -5,12 +5,13 @@ from collections.abc import Iterator
 from typing import Any
 
 from co_scientist.core.run_modes import normalize_run_tier
-from co_scientist.domains.report import ReportRequest, finalize_report
+from co_scientist.domains.report import ReportRequest
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.safety.gate import SafetyDecision, apply_safety_gate
 from co_scientist.orchestration.drain import persist_final_state
 from co_scientist.orchestration.engine_tasks import runtime as engine_tasks_runtime
 from co_scientist.orchestration.engine_tasks.inputs import reopen_for_pending_scientist_input
+from co_scientist.orchestration.engine_tasks.report_finalize import finalize_report
 from co_scientist.orchestration.engine_tasks.support import (
     FINALIZE_TASK,
     SafetyHoldError,
