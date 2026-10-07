@@ -6,7 +6,7 @@ import {WorkbenchApp} from './workbench_app';
 
 const imports = vi.hoisted(() => ({run: 0}));
 
-vi.mock('../lib/ui_logging', () => ({logUiError: vi.fn()}));
+vi.mock('@/shared/lib/ui_logging', () => ({logUiError: vi.fn()}));
 
 vi.mock('./pages/run_detail', () => {
   imports.run += 1;
@@ -24,13 +24,13 @@ vi.mock('./layout', () => ({
     </>
   ),
 }));
-vi.mock('./theme_context', () => ({
+vi.mock('@/shared/hooks/theme_context', () => ({
   ThemeProvider: ({children}: {children: ReactNode}) => children,
 }));
-vi.mock('./hooks/system_status_context', () => ({
+vi.mock('@/shared/hooks/system_status_context', () => ({
   SystemStatusProvider: ({children}: {children: ReactNode}) => children,
 }));
-vi.mock('./hooks/history_context', () => ({
+vi.mock('@/shared/hooks/history_context', () => ({
   RunHistoryProvider: ({children}: {children: ReactNode}) => children,
   ChatHistoryProvider: ({children}: {children: ReactNode}) => children,
 }));

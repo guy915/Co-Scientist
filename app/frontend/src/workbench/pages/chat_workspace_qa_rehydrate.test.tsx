@@ -18,7 +18,7 @@ import {
 import {
   RunHistoryProvider,
   ChatHistoryProvider,
-} from '../hooks/history_context';
+} from '@/shared/hooks/history_context';
 import {useChatSession} from '../hooks/use_chat_session';
 import {useChatRehydration} from '../hooks/use_chat_rehydrate';
 

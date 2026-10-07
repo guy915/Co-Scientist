@@ -7,7 +7,7 @@ import type {
   RunMessage,
   RunWithSummary,
 } from '@/api/runs';
-import type {InferredRunSpec} from '@/workbench/run_spec';
+import type {InferredRunSpec} from '@/shared/lib/run_spec';
 import {type ChatEntry} from '@/workbench/pages/chat_timeline_bubble';
 
 export function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {

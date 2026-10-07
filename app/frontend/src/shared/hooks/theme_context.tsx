@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 import {flushSync} from 'react-dom';
-import {MD3_SCHEMES} from './md3_scheme';
+import {MD3_SCHEMES} from '@/shared/ui/md3_scheme';
 
 export type Mode = 'system' | 'light' | 'dark';
 type ResolvedMode = 'light' | 'dark';

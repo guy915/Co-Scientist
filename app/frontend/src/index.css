@@ -9,6 +9,7 @@
 @source "./public";
 @source "./shared";
 @source "./workbench";
+@source not "./shared/lib";
 @source not "./**/*.test.ts";
 @source not "./**/*.test.tsx";
 

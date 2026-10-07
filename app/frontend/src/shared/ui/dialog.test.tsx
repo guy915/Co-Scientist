@@ -3,7 +3,7 @@ import {useRef, useState} from 'react';
 import {expect, it, vi} from 'vitest';
 import {Dialog} from './dialog';
 
-vi.mock('@/lib/ui_logging', () => ({logModalOpen: vi.fn()}));
+vi.mock('@/shared/lib/ui_logging', () => ({logModalOpen: vi.fn()}));
 
 function Harness({onSubmit}: {onSubmit?: () => void}) {
   const [open, setOpen] = useState(false);

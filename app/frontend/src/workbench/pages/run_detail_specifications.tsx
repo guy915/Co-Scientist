@@ -6,14 +6,14 @@ import {
   runGoal,
   uploadRunDocument,
 } from '@/api/runs';
-import {errorMessage} from '@/lib/text';
+import {errorMessage} from '@/shared/lib/text';
 import {type ChangeEvent, useState} from 'react';
 import {
   FOCUS_OPTIONS,
   TIER_OPTIONS,
   attributeDisplayString,
   runOptionLabel,
-} from '../run_spec';
+} from '@/shared/lib/run_spec';
 import {
   REPORT_H3_CLASSES,
   ReportDocument,
