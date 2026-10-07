@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {openExampleChat} from '@/api/runs';
+import {Button} from '@/shared/ui';
 import {
   useChatHistoryContext,
   useRunHistoryContext,
@@ -37,9 +38,12 @@ export function ExampleChat() {
       {error ? (
         <>
           <p role="alert">{error}</p>
-          <button type="button" onClick={() => setAttempt(value => value + 1)}>
+          <Button
+            variant="outlined"
+            onClick={() => setAttempt(value => value + 1)}
+          >
             Try again
-          </button>
+          </Button>
         </>
       ) : (
         <p role="status">Opening example chat…</p>

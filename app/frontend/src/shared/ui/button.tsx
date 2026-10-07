@@ -10,7 +10,7 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
 // button. No preflight runs, so the UA border and padding are reset too.
 const BASE_CLASSES =
   'inline-flex cursor-pointer items-center justify-center rounded-full border ' +
-  'font-[inherit] whitespace-nowrap no-underline select-none ' +
+  'text-center font-[inherit] no-underline select-none ' +
   'disabled:cursor-default focus-visible:outline-2 ' +
   'focus-visible:outline-offset-2 focus-visible:outline-th-ring';
 
@@ -39,13 +39,19 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'min-h-[2.35rem] gap-[0.45rem] px-[0.85rem] text-[0.875rem] font-semibold',
-  md: 'min-h-[2.6rem] gap-2 px-[1.45rem] font-medium',
-  lg: 'min-h-12 gap-2 px-6 text-base font-medium',
+  sm: 'min-h-[2.35rem] gap-[0.45rem] whitespace-nowrap px-[0.72rem] text-[0.875rem] font-semibold',
+  // Long labels wrap on phones rather than overflow.
+  md: 'min-h-[2.6rem] gap-2 px-[1.45rem] py-1.5 font-medium',
+  lg: 'min-h-12 gap-2 whitespace-nowrap px-6 text-base font-medium',
 };
 
-// Link buttons sit inline with text, so they keep the text's own height.
-const LINK_SIZE_CLASSES = 'gap-1 px-1 py-0.5 font-medium';
+// Text and link buttons sit among text, so they stay compact; `md` keeps the
+// surrounding font size.
+const COMPACT_SIZE_CLASSES: Record<ButtonSize, string> = {
+  sm: 'gap-1 px-2 py-1 text-[0.875rem] font-medium',
+  md: 'gap-1 px-2 py-1 font-medium',
+  lg: 'gap-1.5 px-3 py-1.5 text-base font-medium',
+};
 
 const ICON_CLASSES: Record<ButtonSize, string> = {
   sm: 'text-[1.05rem]',
@@ -66,7 +72,9 @@ export function buttonClasses({
   return joinClasses(
     BASE_CLASSES,
     VARIANT_CLASSES[variant],
-    variant === 'link' ? LINK_SIZE_CLASSES : SIZE_CLASSES[size],
+    variant === 'text' || variant === 'link'
+      ? COMPACT_SIZE_CLASSES[size]
+      : SIZE_CLASSES[size],
   );
 }
 

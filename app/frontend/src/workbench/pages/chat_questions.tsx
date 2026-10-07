@@ -5,11 +5,11 @@ import {
 } from '@/api/runs';
 import {useState} from 'react';
 import {Icon} from '@/components/icon';
+import {Button} from '@/shared/ui';
 import {joinClasses} from '../classes';
 import {
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
 } from '../classes';
 
 // Key answers by question position: separate turns can ask identical text.
@@ -271,14 +271,9 @@ function ChooserBody(props: ChooserBodyProps) {
         />
       ))}
       <div className="flex justify-end">
-        <button
-          type="button"
-          className={SETUP_SECONDARY_BUTTON_CLASSES}
-          disabled={!answered}
-          onClick={send}
-        >
+        <Button variant="outlined" disabled={!answered} onClick={send}>
           Send answer
-        </button>
+        </Button>
       </div>
     </>
   );
