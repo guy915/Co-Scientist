@@ -138,14 +138,27 @@ _DEAD_LEASE = (
 )
 
 
+# A superset of tasks._dependencies_complete: any non-null failure flag
+# admits failed upstreams, so the advisory probe never hides a leasable task.
+_DEPENDENCIES_READY = (
+    "(NOT json_valid(scientific_tasks.dependencies_json) OR NOT EXISTS ("
+    "SELECT 1 FROM json_each(scientific_tasks.dependencies_json) AS dep"
+    " LEFT JOIN scientific_tasks AS upstream ON upstream.id = dep.value"
+    " WHERE upstream.status IS NULL OR NOT (upstream.status='completed'"
+    " OR (upstream.status IN ('failed','cancelled') AND json_extract("
+    "scientific_tasks.provenance_json, '$.allow_failed_dependencies') IS NOT NULL))))"
+)
+
+
 def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
-    """Read-only polling avoids empty BEGIN IMMEDIATE storms; claim rechecks
-    under the writer lock, so advisory races cannot double-lease.
+    """Read-only polling avoids empty BEGIN IMMEDIATE storms, including for
+    queued tasks still waiting on upstream work; claim rechecks under the
+    writer lock, so advisory races cannot double-lease.
     """
     now = _now()
     query = (
         "SELECT 1 FROM scientific_tasks WHERE "
-        f"{_ENGINE_RUN_STATUS_GUARD} AND {_QUEUED_AND_DUE}"
+        f"{_ENGINE_RUN_STATUS_GUARD} AND {_QUEUED_AND_DUE} AND {_DEPENDENCIES_READY}"
         " AND (? IS NULL OR run_id=?)"
         " UNION ALL "
         "SELECT 1 FROM scientific_tasks WHERE "
