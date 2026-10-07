@@ -65,14 +65,6 @@ def _admit_hypotheses_to_tournament(hypotheses: list[Hypothesis]) -> None:
         add_to_tournament(hypothesis)
 
 
-def _sort_hypotheses_for_tournament(hypotheses: list[Hypothesis]) -> None:
-    hypotheses.sort(key=lambda h: (h.score, h.text), reverse=True)
-    logger.info(
-        "Sorted hypotheses by review score (top score: %.2f)",
-        hypotheses[0].score,
-    )
-
-
 def consumed_tournament_rounds(state: WorkflowState) -> int:
     """Dedup removes hypotheses and their tallies; only accumulated run
     metrics keep spent match budget from being refunded."""
@@ -130,7 +122,11 @@ async def prepare_ranking_round(
     hypotheses: list[Hypothesis],
 ) -> tuple[int, TournamentGuidance]:
     _admit_hypotheses_to_tournament(hypotheses)
-    _sort_hypotheses_for_tournament(hypotheses)
+    hypotheses.sort(key=lambda h: (h.score, h.text), reverse=True)
+    logger.info(
+        "Sorted hypotheses by review score (top score: %.2f)",
+        hypotheses[0].score,
+    )
 
     await emit_progress(
         state,
@@ -143,14 +139,6 @@ async def prepare_ranking_round(
     return tournament_rounds, _gather_tournament_context(state)
 
 
-def _sort_hypotheses_by_elo(
-    hypotheses: list[Hypothesis],
-) -> list[Hypothesis]:
-    """Canonical ordering aligns tournament ties and research top-k;
-    publication bands demote undermined ideas despite high Elo."""
-    return sorted(rank_for_publication(hypotheses), key=lambda h: not h.is_rankable())
-
-
 async def finalize_ranking(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
@@ -158,7 +146,9 @@ async def finalize_ranking(
     tournament_rounds: int,
     total_llm_calls: int,
 ) -> dict[str, Any]:
-    hypotheses = _sort_hypotheses_by_elo(hypotheses)
+    # Canonical ordering aligns tournament ties and research top-k; publication
+    # bands demote undermined ideas despite high Elo.
+    hypotheses = sorted(rank_for_publication(hypotheses), key=lambda h: not h.is_rankable())
 
     logger.info("Tournament complete. Top Elo: %s", hypotheses[0].elo_rating)
     logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])

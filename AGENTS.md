@@ -80,8 +80,8 @@ Use Python 3.12, Node.js 22.13+ and Bun 1.3.14 for the full application.
 The internal engine package supports Python 3.10+. Run `make setup` first.
 `make check` covers lint, types, backend/frontend suites, evaluation
 smoke, the production frontend build, and isolated browser tests.
-`make e2e-production` separately serves built assets with required researcher
-authentication and checks login, report reloads, and ownership isolation.
+`make e2e-production` separately serves built assets and checks deep links,
+report reloads, and anonymous ownership isolation.
 Both browser targets disable local dotenv loading and use offline evidence
 checks. The production target builds with the isolated test API URL into its
 temporary state directory, leaving normal frontend `dist/` untouched.

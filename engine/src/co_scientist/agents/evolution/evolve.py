@@ -260,20 +260,6 @@ def _context_sample_seed(context: EvolutionContext, hypothesis: Hypothesis) -> s
     return f"{context.run_id or 'evolution'}:context:{hypothesis.id}"
 
 
-def _sampled_context(
-    state: WorkflowState, context: EvolutionContext, hyp: Hypothesis
-) -> list[Hypothesis]:
-    """Whole-pool peers expose duplicates beyond top-k and exercise capped
-    diversity sampling even with small parent sets."""
-    return sample_context_hypotheses(
-        all_hypotheses=state["hypotheses"],
-        exclude_hypothesis=hyp,
-        max_context=15,
-        ranked_hypotheses=list(context.ranked_hypotheses),
-        rng=random.Random(_context_sample_seed(context, hyp)),
-    )
-
-
 async def _evolve_or_none(
     hypothesis: Hypothesis,
     other_hypotheses: list[Hypothesis],
@@ -315,9 +301,17 @@ def _build_single_evolution_task(
         specialist_feedback=_specialist_feedback_for(state, hyp),
         partners=partners,
     )
+    # Whole-pool peers expose duplicates beyond top-k and exercise capped
+    # diversity sampling even with small parent sets.
     return _evolve_or_none(
         hyp,
-        _sampled_context(state, context, hyp),
+        sample_context_hypotheses(
+            all_hypotheses=state["hypotheses"],
+            exclude_hypothesis=hyp,
+            max_context=15,
+            ranked_hypotheses=list(context.ranked_hypotheses),
+            rng=random.Random(_context_sample_seed(context, hyp)),
+        ),
         context,
         i,
         operation,

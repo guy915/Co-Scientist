@@ -26,14 +26,10 @@ TASK_ROUTES: dict[str, str] = {
 }
 
 
-def _stacked_companions(state: WorkflowState) -> tuple[str, ...]:
-    """Companions precede the primary; next_task keeps its primary identity."""
-    return stacked_task_values(state.get("supervisor_queue_actions") or [])
-
-
 def _companion_successor(state: WorkflowState, after: str) -> str | None:
     """None delegates non-companions to their ordinary route."""
-    companions = _stacked_companions(state)
+    # Companions precede the primary; next_task keeps its primary identity.
+    companions = stacked_task_values(state.get("supervisor_queue_actions") or [])
     if after not in companions:
         return None
     remaining = companions[companions.index(after) + 1 :]
@@ -44,7 +40,7 @@ def _companion_successor(state: WorkflowState, after: str) -> str | None:
 def route_next_task(state: WorkflowState) -> str:
     """A missing scheduler decision falls back to terminal synthesis."""
     next_task = state.get("next_task") or "terminate"
-    companions = _stacked_companions(state)
+    companions = stacked_task_values(state.get("supervisor_queue_actions") or [])
     node = TASK_ROUTES.get(companions[0] if companions else next_task, "research_overview")
     logger.info("Orchestrator routing next_task=%s -> %s", next_task, node)
     return node

@@ -103,17 +103,6 @@ async def _run_simulation_loop(
             )
 
 
-def _simulation_loop(provider: WorkspaceToolProvider, schemas: list[dict[str, Any]]) -> ToolLoop:
-    """Turn limits cannot bound transcript spend: each call resends
-    accumulated text."""
-    return ToolLoop(
-        tools=schemas,
-        executor=provider.execute_tool_call,
-        max_iterations=MAX_SIMULATION_TURNS,
-        max_prompt_tokens=SIMULATION_TOKEN_BUDGET,
-    )
-
-
 async def _observe(
     state: WorkflowState,
     hypothesis: Hypothesis,
@@ -136,7 +125,13 @@ async def _observe(
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,
             ),
-            loop=_simulation_loop(provider, schemas),
+            # Turn limits cannot bound transcript spend: each call resends accumulated text.
+            loop=ToolLoop(
+                tools=schemas,
+                executor=provider.execute_tool_call,
+                max_iterations=MAX_SIMULATION_TURNS,
+                max_prompt_tokens=SIMULATION_TOKEN_BUDGET,
+            ),
             options=LLMCallOptions(
                 run_id=state.get("run_id"),
                 prompt_name=f"simulation_execution_{hypothesis.id}",

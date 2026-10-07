@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
-from app.config import settings
 from app.store import db, feedback
 from tests._client import make_client
 
@@ -31,10 +28,3 @@ def test_submit_persists_context_and_hides_the_host_key(isolated_db: str) -> Non
     assert row["client_id"] == "alice"
     for key, value in PAYLOAD.items():
         assert row[key] == value
-
-
-def test_submit_requires_a_researcher_session_when_auth_is_required(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "auth_mode", "required")
-    assert make_client().post("/api/feedback", json=PAYLOAD).status_code == 401

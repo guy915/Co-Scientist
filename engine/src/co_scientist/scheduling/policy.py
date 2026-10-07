@@ -165,10 +165,6 @@ def _check_research_overview_cadence(
     )
 
 
-def _evolve(reason: str) -> SupervisorDecision:
-    return SupervisorDecision(next_task=TaskType.EVOLVE, reason=reason)
-
-
 def _generate(reason: str) -> SupervisorDecision:
     return SupervisorDecision(next_task=TaskType.GENERATE, reason=reason)
 
@@ -177,8 +173,12 @@ def _generation_vs_evolution(stats: SchedulerStats) -> SupervisorDecision:
     gen_y, evo_y = stats.generation_yield, stats.evolution_yield
     can_evolve = stats.reviewed_count >= 2
     if evo_y > gen_y and can_evolve:
-        return _evolve(
-            f"evolution out-yields generation (evo={evo_y:.2f} > gen={gen_y:.2f}); evolve leaders"
+        return SupervisorDecision(
+            next_task=TaskType.EVOLVE,
+            reason=(
+                f"evolution out-yields generation (evo={evo_y:.2f} > gen={gen_y:.2f}); "
+                "evolve leaders"
+            ),
         )
     if gen_y > evo_y:
         return _generate(
@@ -193,10 +193,13 @@ def _tie_break(stats: SchedulerStats, can_evolve: bool) -> SupervisorDecision:
     descendants; let evolution try once before exploring a new region."""
     just_evolved = stats.last_work_task is TaskType.EVOLVE
     if can_evolve and stats.rank_stable_cycles >= 1 and not just_evolved:
-        return _evolve(
-            f"yield tie (gen=evo={stats.generation_yield:.2f}) on the "
-            f"transition into a stagnant leaderboard "
-            f"({stats.rank_stable_cycles} stable cycle(s)); evolve leaders"
+        return SupervisorDecision(
+            next_task=TaskType.EVOLVE,
+            reason=(
+                f"yield tie (gen=evo={stats.generation_yield:.2f}) on the "
+                f"transition into a stagnant leaderboard "
+                f"({stats.rank_stable_cycles} stable cycle(s)); evolve leaders"
+            ),
         )
     if stats.rank_stable_cycles >= 1:
         return _generate(
@@ -463,7 +466,6 @@ __all__ = [
     "_correct_evolve_precondition",
     "_correct_for_steering",
     "_correct_rank_precondition",
-    "_evolve",
     "_generate",
     "_generation_vs_evolution",
     "_ordered_checks",
