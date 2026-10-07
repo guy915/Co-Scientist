@@ -426,7 +426,7 @@ Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 **Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt lookups, INDRA CoGex queries, and web search/fetch.
 
 **Style conventions:**
-- Ruff formats and lints Python at 80 columns; config is in `pyproject.toml`.
+- Ruff formats and lints Python at 100 columns; config is in `pyproject.toml`.
 - Apply the hidden-reasons documentation policy in [`../AGENTS.md`](../AGENTS.md); docstrings are optional.
 - `logger.debug()` lowercase; `info`/`warning`/`error` capitalized.
 - No emojis or unicode decoration in code or logs.
