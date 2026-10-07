@@ -45,6 +45,7 @@ dev = [
     "types-jsonschema",
     "python-dotenv~=1.2.1",
     "absl-py~=2.1",
+    "import-linter~=2.15",
 ]
 
 

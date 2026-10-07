@@ -85,6 +85,7 @@ jobs:
               - '**/*.md'
               - '.github/actions/**'
               - '.ruff.toml'
+              - '.importlinter'
               - 'evaluations/**'
               - 'docs/**'
               - 'app/**'
@@ -136,6 +137,7 @@ jobs:
               - '.env.example'
               - 'app/.env.example'
               - '.ruff.toml'
+              - '.importlinter'
               - '.github/actions/**'
               - '.github/workflows/ci.yml'
       - name: Select all targets (postsubmit / nightly)
@@ -201,6 +203,8 @@ jobs:
       - name: Typecheck app, engine and evaluations
         # The Makefile recipe itself, so root-config need not run mypy again.
         run: make typecheck PY=python
+      - name: Import contracts
+        run: make arch PY=python
 
   test-engine:
     name: Engine tests (py${{ matrix.python-version }})

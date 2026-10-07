@@ -53,6 +53,7 @@ changing a service. Confirm these settings on the intended release:
 | Models | Matching provider credentials and explicit role settings; confirm `/status`; retain free-route spend bounds |
 | Notifications | Correct SMTP settings and `PUBLIC_APP_URL` if enabled |
 | Operations | Retained logs, disk monitoring, private operator token, tested backups and recovery |
+| Monitoring | `VITE_SENTRY_DSN` set on the new frontend host (read at build time); UptimeRobot pointed at the live URLs ([MONITORING.md](MONITORING.md)); only `VITE_` variables on the frontend host, since the old Vercel project also holds the api's secrets |
 
 Ownership is a per-browser client ID: neither CORS nor client-selected IDs
 establish identity, so treat runs as private-by-obscurity, not authenticated.
@@ -102,6 +103,8 @@ or persisted state; validate compatibility before restoring an older release.
 The first-party software is Apache 2.0; [NOTICE](../NOTICE) and the vendored
 license files preserve third-party terms. Review the rights for included paper
 excerpts, screenshots, protocols, and data independently of the software license.
+The favicon and app icons come from an unidentified icon set (see NOTICE):
+identify its license or replace the mark before publication.
 
 Before changing repository visibility, review **all reachable Git history**
 for secrets and private researcher data, rotate any discovered credentials,
