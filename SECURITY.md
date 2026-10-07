@@ -1,53 +1,59 @@
-# Security policy
+# Open Co-Scientist security policy
 
-## Reporting a vulnerability
+## Report a vulnerability
 
-Report vulnerabilities privately. Do not open a public issue, pull request or
-discussion.
+Use [GitHub private vulnerability reporting](https://github.com/guy915/Open-Co-Scientist/security/advisories/new).
+You can also open the repository's **Security** tab and select
+**Report a vulnerability**. Do not post vulnerabilities in public issues,
+pull requests or discussions.
 
-1. Open the repository's **Security** tab.
-2. Select **Report a vulnerability**, or go to
-   [the advisory form](https://github.com/guy915/Co-Scientist/security/advisories/new).
-3. Describe the problem, the affected component, and the steps to reproduce it.
+Include the affected component and revision, impact, steps to reproduce, and
+any suggested fix. Use a small proof of concept against your own local
+checkout. Do not include real credentials, other users' data or a production
+database.
 
-Do not include real credentials, researcher data, or the contents of a
-production database. A minimal proof of concept against your own local
-checkout is enough.
+## Scope and supported versions
 
-We aim to acknowledge a report within 7 days. After that we will keep you
-informed while we confirm, fix and disclose the issue, and we will credit you
-in the advisory if you want to be named.
-
-## Scope
+Security fixes cover the latest commit on `main` and the current hosted
+Open Co-Scientist deployment at https://open-coscientist.com. There are no
+maintained release branches.
 
 In scope:
 
-- The API (`app/`), including session and ownership checks.
-- The reference MCP server (`engine/mcp_server/`), including its URL guards.
-- The sandbox that confines model-written programs, and the rule that
-  execution tools are absent when confinement is unavailable.
-- Handling of bring-your-own-key (BYOK) provider credentials.
-- The hosted site at https://ai-co-scientist.com/ and its API.
+- API authentication, session and ownership checks.
+- Provider credential handling and private research data.
+- Reference MCP server URL guards and retrieval boundaries.
+- The sandbox for model-written programs, including disabling execution when
+  confinement is unavailable.
+- Vulnerabilities in dependencies as used by this project.
 
-Out of scope:
+Report flaws in model providers, data sources and other upstream services to
+those services. For unmodified third-party code, also notify its upstream
+maintainer; see [NOTICE](NOTICE). Tell us privately if our use is affected.
+Findings that require an already compromised account, browser or machine,
+volume-only denial of service, and scanner output without demonstrated impact
+are outside this policy's scope.
 
-- Vulnerabilities in third-party model providers, scientific data sources or
-  other upstream services. Report those to the provider.
-- Findings that require an already compromised machine, browser or account.
-- Vendored code under `vendor/` that is unmodified upstream; report it
-  upstream (see [NOTICE](NOTICE)).
-- Denial of service through volume alone, and automated scanner output without
-  a demonstrated impact.
+## Response and disclosure
 
-## Supported versions
+This project has one maintainer. The maintainer aims to acknowledge reports
+within 7 calendar days and provide an initial assessment within 14 calendar
+days. While a confirmed issue remains open, the aim is to send an update at
+least every 14 calendar days. These are targets, not guaranteed deadlines.
+There is no guaranteed fix date or round-the-clock response service.
 
-Only the latest commit on `main` and the current hosted deployment receive
-security fixes. There are no maintained release branches.
+The maintainer coordinates a fix and disclosure with the reporter. Please
+allow reasonable time to assess and fix the issue before public disclosure.
+Reports can be credited in the advisory with the reporter's consent.
 
-## Safe harbor
+There is no bug bounty or paid reward program.
 
-We will not pursue or support legal action against good-faith security
-research that follows this policy. Act in good faith: test against your own
-local checkout or your own hosted account, do not access or change other
-users' data, do not degrade the service for others, and give us reasonable
-time to fix an issue before you disclose it.
+## Good-faith research
+
+Test locally where possible. On the hosted service, use only your own account
+and data. Do not access other users' data, change their data, or disrupt their
+work. Stop and report privately if you encounter someone else's data.
+
+We will not pursue or support legal action against good-faith research that
+follows this policy. This commitment applies to this project; it cannot bind
+third-party services.
