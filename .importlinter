@@ -60,7 +60,6 @@ ignore_imports =
     co_scientist.domains.report.finalize -> co_scientist.orchestration.repository.runs
     co_scientist.domains.access.retention -> co_scientist.orchestration.repository.runs
     co_scientist.domains.access.retention -> co_scientist.orchestration.repository.runs_views
-    co_scientist.core.run_modes -> co_scientist.domains.research_state.elo
     co_scientist.domains.safety.gate -> co_scientist.orchestration.engine_tasks.support
     co_scientist.domains.safety.gate -> co_scientist.orchestration.repository.events
     co_scientist.domains.safety.gate -> co_scientist.orchestration.repository.runs
