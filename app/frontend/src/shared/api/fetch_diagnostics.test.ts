@@ -1,6 +1,6 @@
 import {afterEach, expect, it, vi} from 'vitest';
 import {fetchWithSession} from './runs';
-import {DIAGNOSTIC_EVENT} from '@/shared/lib/dom_events';
+import {DIAGNOSTIC_EVENT} from '@/shared/lib/diagnostic_events';
 
 afterEach(() => vi.unstubAllGlobals());
 

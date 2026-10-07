@@ -15,13 +15,12 @@ import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {Button, CardButton, Chip} from '@/shared/ui';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {Link} from 'react-router-dom';
-import {
-  firstSentenceClause,
-  formatDurationPhrase,
-  capitalizeTerm,
-} from '@/shared/lib/text';
+import {firstSentenceClause, capitalizeTerm} from '@/shared/lib/text';
 import {useNowTick} from '@/shared/hooks/timers';
 import {preferredSessionSide} from '@/shared/hooks/session_side';
+import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
+import {displayTitle} from '@/shared/lib/titles';
+import {formatDate, formatDurationPhrase} from '@/shared/lib/time';
 
 export interface HomeStageProps {
   input: string;
@@ -527,10 +526,10 @@ export function HomeRecentsPanel({
 }
 
 function RecentCardMeta({run}: {run: Run}) {
-  const nowSeconds = useNowTick(1000);
+  const nowSeconds = useNowTick(1000, isActiveStatus(run.status));
   return (
     <span className="flex flex-wrap gap-[0.35rem]">
-      <Chip size="xs">{formatHomeRunDate(run.updated_at)}</Chip>
+      <Chip size="xs">{formatDate(run.updated_at)}</Chip>
       <Chip size="xs">{formatHomeRunTimeChip(run, nowSeconds)}</Chip>
     </span>
   );
@@ -553,10 +552,10 @@ function RecentRunCard({
       <Link
         to={
           run.is_demo
-            ? `/examples/${run.id}`
+            ? examplePath(run.id)
             : chat
-              ? `/chats/${chat.id}`
-              : `/runs/${run.id}/details`
+              ? chatPath(chat.id)
+              : runPath(run.id, 'details')
         }
         className={joinClasses(RECENT_CARD_CLASSES, active && 'is-active-run')}
         title={run.research_goal}
@@ -565,8 +564,7 @@ function RecentRunCard({
         <TruncatedLabel
           className="line-clamp-2 text-[1rem] leading-[1.5] font-medium"
           text={
-            run.title ||
-            firstSentenceClause(run.research_goal) ||
+            displayTitle(run.title, run.research_goal, firstSentenceClause) ||
             'Untitled session'
           }
           lines={2}
@@ -620,16 +618,6 @@ function RecentRunResults({run}: {run: Run}) {
       )}
     </>
   );
-}
-
-const HOME_RUN_DATE_FMT = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-});
-
-export function formatHomeRunDate(timestamp: number): string {
-  return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
 }
 
 export function formatHomeRunTimeChip(run: Run, nowSeconds: number): string {

@@ -1,5 +1,6 @@
 // Persist browser failures so diagnostics survive reloads.
 import {postAppLogs, type ClientLogRecord} from '@/shared/api/logs';
+import {DIAGNOSTIC_EVENT, type DiagnosticDetail} from './diagnostic_events';
 
 // Logging is best-effort: reporting an unavailable API must never break the
 // page being diagnosed.
@@ -12,6 +13,38 @@ function postBestEffort(records: ClientLogRecord[]): void {
 export function logUiError(message: string, detail?: string): void {
   const full = detail ? `${message} | ${detail}` : message;
   postBestEffort([{message: full, level: 'error', logger: 'error'}]);
+}
+
+export function logNavigation(message: string): void {
+  postBestEffort([{message, logger: 'navigation'}]);
+}
+
+export function diagnosticRecord(detail: DiagnosticDetail): ClientLogRecord {
+  const payload = detail.payload || {};
+  const suffix = Object.keys(payload).length
+    ? ` ${JSON.stringify(payload)}`
+    : '';
+  return {
+    message: `${detail.stage}${suffix}`,
+    level:
+      detail.level === 'error' || detail.level === 'warning'
+        ? detail.level
+        : 'info',
+    logger: 'session',
+    ...(detail.runId ? {run_id: detail.runId} : {}),
+  };
+}
+
+// Installed before the app mounts, so no record depends on which shell
+// controls happen to be on screen.
+export function installDiagnosticLogging(): () => void {
+  function onDiagnostic(event: Event) {
+    const {detail} = event as CustomEvent<DiagnosticDetail | undefined>;
+    if (!detail?.stage) return;
+    postBestEffort([diagnosticRecord(detail)]);
+  }
+  window.addEventListener(DIAGNOSTIC_EVENT, onDiagnostic);
+  return () => window.removeEventListener(DIAGNOSTIC_EVENT, onDiagnostic);
 }
 
 export function logModalOpen(name: string): void {
