@@ -1,30 +1,33 @@
+from __future__ import annotations
+
 import asyncio
 import contextvars
 import logging
-from typing import TYPE_CHECKING, Any
+from collections.abc import Awaitable, Callable
+from typing import Any, TypedDict
 
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
 
-# Avoid importing state and LangGraph at runtime for a lightweight progress
-# helper.
-if TYPE_CHECKING:
-    from co_scientist.domains.research_state.state import WorkflowState
+# The WorkflowState keys progress reads and writes; telemetry sits below the
+# domain state, which satisfies this structurally.
+class ProgressState(TypedDict):
+    degraded_nodes: list[str]
+    progress_callback: None | (Callable[[str, dict[str, Any]], Awaitable[None]])
+
 
 logger = logging.getLogger(__name__)
 
 # Task-local state keeps concurrent runs' fallback records isolated.
-_ACTIVE_WORKFLOW_STATE: contextvars.ContextVar["WorkflowState | None"] = contextvars.ContextVar(
+_ACTIVE_WORKFLOW_STATE: contextvars.ContextVar[ProgressState | None] = contextvars.ContextVar(
     "co_scientist_active_workflow_state", default=None
 )
 
 # Keep strong references until asynchronous delivery completes; loops may
 # otherwise drop tasks.
-_BACKGROUND_TASKS: set["asyncio.Task[None]"] = set()
+_BACKGROUND_TASKS: set[asyncio.Task[None]] = set()
 
 
 async def emit_progress(
-    state: "WorkflowState",
+    state: ProgressState,
     event: str,
     message: str,
     progress: float,
@@ -43,7 +46,7 @@ async def emit_progress(
         )
 
 
-def record_schema_degradation(schema_name: str, state: "WorkflowState | None" = None) -> None:
+def record_schema_degradation(schema_name: str, state: ProgressState | None = None) -> None:
     """Prefer losing a degradation label to recording it in another run.
     Explicit state avoids depending on whether the node emitted progress
     first.
@@ -62,7 +65,7 @@ def record_schema_degradation(schema_name: str, state: "WorkflowState | None" = 
     _emit_degradation_event(state, schema_name)
 
 
-def _emit_degradation_event(state: "WorkflowState", schema_name: str) -> None:
+def _emit_degradation_event(state: ProgressState, schema_name: str) -> None:
     """A synchronous fallback schedules delivery; missing loops or callback
     failures cannot fail science.
     """
@@ -79,7 +82,7 @@ def _emit_degradation_event(state: "WorkflowState", schema_name: str) -> None:
 
 
 async def _safe_degradation_callback(
-    callback: "Callable[[str, dict[str, Any]], Awaitable[None]]",
+    callback: Callable[[str, dict[str, Any]], Awaitable[None]],
     schema_name: str,
 ) -> None:
     """Progress is observational: listener failure must not fail a gracefully

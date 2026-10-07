@@ -3,7 +3,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from co_scientist.core.constants import corpus_slug
-from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.retrieval.evidence.relevance import (
     apply_semantic_relevance,
 )
@@ -21,6 +20,7 @@ from co_scientist.platform.retrieval.evidence.search_query import (
 )
 from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
+    SearchState,
     extract_source_name,
     merge_search_results,
 )
@@ -29,7 +29,7 @@ from co_scientist.platform.retrieval.mcp_client import MCPToolClient
 
 async def collect_papers(
     queries: list[str],
-    state: WorkflowState,
+    state: SearchState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
     search_errors: list[str],
