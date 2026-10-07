@@ -124,13 +124,9 @@ def prune_superseded_checkpoints(db_path: str | None = None) -> int:
         checkpoint_wal(db_path)
 
 
-def clear_checkpoints(
-    run_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> None:
+def clear_checkpoints(run_id: str, conn: sqlite3.Connection | None = None) -> None:
     """Rebootstrap expects sequence zero; true engine resume instead retains
     its latest checkpoint.
     """
-    with _use_conn(conn, db_path) as conn:
+    with _use_conn(conn, None) as conn:
         conn.execute("DELETE FROM checkpoints WHERE run_id=?", (run_id,))

@@ -237,9 +237,9 @@ def _latest_stage_by_run(conn: sqlite3.Connection, run_ids: list[str]) -> dict[s
     return {row["run_id"]: row["type"] for row in rows}
 
 
-def list_expired_terminal_runs(cutoff: float, db_path: str | None = None) -> list[RunRow]:
+def list_expired_terminal_runs(cutoff: float) -> list[RunRow]:
     placeholders = ",".join("?" for _ in TERMINAL_STATUSES)
-    with connect(db_path) as conn:
+    with connect() as conn:
         rows = conn.execute(
             "SELECT * FROM runs WHERE status IN "
             f"({placeholders}) AND COALESCE(completed_at, updated_at) < ? "
@@ -317,11 +317,7 @@ def _reset_retained_hypothesis_state(conn: sqlite3.Connection, run_id: str) -> N
     )
 
 
-def clear_run_derived_data(
-    run_id: str,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> None:
+def clear_run_derived_data(run_id: str, conn: sqlite3.Connection | None = None) -> None:
     """Replay retains scientist input and lifecycle revisions; reviews of
     removed agent hypotheses still cascade with their parent.
     """
@@ -331,7 +327,7 @@ def clear_run_derived_data(
         "safety_decisions",
         *_REPLAYABLE_ARTIFACT_TABLES,
     )
-    with _use_conn(conn, db_path) as conn:
+    with _use_conn(conn, None) as conn:
         _delete_agent_derived_rows(conn, run_id)
         for table in run_scoped:
             if table == "run_events":
