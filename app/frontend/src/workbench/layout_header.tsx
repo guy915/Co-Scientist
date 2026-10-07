@@ -9,17 +9,32 @@ import {CancelRunControl} from './layout_cancel_run';
 import {DiagnosticsControl} from './layout_diagnostics';
 import {FeedbackControl} from './components/feedback_dialog';
 import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
-import {tooltipClassNames} from './classes';
+import {joinClasses, tooltipClassNames} from './classes';
 import type {SystemStatus} from '@/api/system';
 import {useSystemStatus} from './hooks/system_status_context';
 
-const HEADER_CLASSES = 'ucs-header-action-bar';
+const HEADER_CLASSES =
+  'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4rem] items-center justify-between gap-[1rem] [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
+  '[@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:gap-[0.35rem] [@media(max-width:700px)]:px-[0.5rem]';
 
-const PRODUCT_LOCKUP_CLASSES = 'ucs-product-lockup';
+const PRODUCT_LOCKUP_CLASSES =
+  'inline-flex cursor-pointer items-center gap-[0.5rem] [border:0] bg-transparent p-0 font-gsans text-[1.25rem] font-medium tracking-[-0.6px] text-cosci-fg no-underline';
 
-const HEADER_TITLE_CLASSES = 'ucs-header-title';
+const HEADER_TITLE_CLASSES =
+  'ucs-header-title absolute top-1/2 left-1/2 min-w-0 max-w-[min(52rem,44vw)] overflow-hidden text-center text-[1rem] font-medium text-cosci-fg [transform:translate(-50%,-50%)] [@media(max-width:700px)]:hidden';
 
-const HEADER_ACTIONS_CLASSES = 'ucs-header-actions';
+// Keep the session switch on phones: it is the route back to the transcript
+// after leaving a run.
+const HEADER_ACTIONS_CLASSES =
+  'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-[0.55rem] [transform:translateY(-50%)] ' +
+  '[@media(max-width:700px)]:[&>:not(.ucs-session-switch)]:hidden';
+
+// Its transition stays in shell_surface.css: the unlayered global button
+// transition outranks utilities.
+const HAMBURGER_CLASSES =
+  'ucs-nav-hamburger hidden size-[2.5rem] flex-none cursor-pointer place-items-center [border:0] rounded-[9999px] bg-transparent p-0 text-cosci-shell-icon ' +
+  '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
+  '[@media(max-width:700px)]:inline-grid';
 
 function HamburgerButton({
   navOpen,
@@ -31,7 +46,7 @@ function HamburgerButton({
   return (
     <button
       type="button"
-      className="ucs-nav-hamburger"
+      className={HAMBURGER_CLASSES}
       aria-label="Open navigation"
       aria-expanded={navOpen}
       aria-controls="primary-navigation"
@@ -44,13 +59,24 @@ function HamburgerButton({
 
 // Only ordinary link navigation resets this tab’s chat; modified clicks must
 // preserve it.
-function ProductLockup({onNewChat}: {onNewChat: () => void}) {
+function ProductLockup({
+  onNewChat,
+  hasSession,
+}: {
+  onNewChat: () => void;
+  hasSession: boolean;
+}) {
   return (
     <Link
       to="/"
       state={{cosciAction: 'new-chat'}}
       className={tooltipClassNames({
-        className: PRODUCT_LOCKUP_CLASSES,
+        className: joinClasses(
+          PRODUCT_LOCKUP_CLASSES,
+          hasSession
+            ? '[@media(max-width:700px)]:mr-auto'
+            : '[@media(max-width:700px)]:mr-[0.5rem]',
+        ),
         placement: 'right',
       })}
       aria-label="Go to Co-Scientist home"
@@ -59,7 +85,10 @@ function ProductLockup({onNewChat}: {onNewChat: () => void}) {
         if (!isModifiedClick(event)) onNewChat();
       }}
     >
-      <GoogleLabsIcon aria-hidden="true" />
+      <GoogleLabsIcon
+        aria-hidden="true"
+        className="size-[1.32rem] flex-[0_0_1.32rem] text-cosci-accent [@media(max-width:700px)]:hidden"
+      />
       <span>Co-Scientist</span>
     </Link>
   );
@@ -85,12 +114,13 @@ export function ShellHeader({
   return (
     <header className={HEADER_CLASSES}>
       <HamburgerButton navOpen={navOpen} onClick={toggleNav} />
-      <ProductLockup onNewChat={startNewChat} />
+      <ProductLockup onNewChat={startNewChat} hasSession={session !== null} />
       <div
         id="header-landing-tabs"
         className="pointer-events-none absolute inset-0 overflow-hidden"
       />
-      <div className={HEADER_TITLE_CLASSES}>
+      {/* Session controls replace the title; the run/transcript already presents it. */}
+      <div className={joinClasses(HEADER_TITLE_CLASSES, session && 'hidden')}>
         {headerTitle && (
           <TruncatedLabel
             className="block min-w-0 overflow-hidden whitespace-nowrap"

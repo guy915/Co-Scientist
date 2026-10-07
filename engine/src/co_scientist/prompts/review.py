@@ -204,7 +204,6 @@ def _format_supervisor_guidance_for_review(
 def get_reflection_prompt(
     articles_with_reasoning: str,
     hypothesis_text: str,
-    indra_evidence: str = "",
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     ctx = context or PromptRunContext()
@@ -213,7 +212,6 @@ def get_reflection_prompt(
         {
             "articles_with_reasoning": articles_with_reasoning,
             "hypothesis": hypothesis_text,
-            "indra_evidence": indra_evidence,
         },
         sections=PromptSections(meta_review_context=_format_meta_review_context(ctx.meta_review)),
         tool_registry=ctx.tool_registry,

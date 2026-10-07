@@ -32,7 +32,6 @@ from tests._store_helpers import seed_run
         ("standard", "standard", False),
         ("extended", "extended", True),
         ("ultra", "ultra", True),
-        ("advanced", "ultra", True),
         (None, "standard", False),
     ],
 )

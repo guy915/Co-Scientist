@@ -5,7 +5,7 @@ export interface AgentInsights {
   key_findings?: string[];
   uncertainties?: string[];
   contradictions?: string[];
-  recommended_directions?: (RecommendedDirection | string)[];
+  recommended_directions?: RecommendedDirection[];
   next_experiments?: string[];
 }
 
@@ -57,7 +57,7 @@ export interface Report {
 
 export interface ReportPayload {
   research_goal?: string;
-  run_mode?: 'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
+  run_mode?: 'standard' | 'express' | 'extended' | 'ultra';
   provider?: string;
   hypothesis_count?: number;
   idea_count?: number;

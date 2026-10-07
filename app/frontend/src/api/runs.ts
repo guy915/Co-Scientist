@@ -374,9 +374,17 @@ export function getInterview(interviewId: string): Promise<Interview> {
   });
 }
 
+// The request's lab_constraints is optional (the server defaults it), unlike the
+// response's.
+export type InterviewFieldsEdit = Omit<
+  Interview['fields'],
+  'title' | 'lab_constraints'
+> &
+  Partial<Pick<Interview['fields'], 'lab_constraints'>>;
+
 export function editInterviewFields(
   interviewId: string,
-  fields: Omit<Interview['fields'], 'title'>,
+  fields: InterviewFieldsEdit,
 ): Promise<Interview> {
   return fetchJson(`/api/interviews/${interviewId}/fields`, {
     ...jsonRequest(fields, true),
@@ -517,14 +525,16 @@ export class HttpError extends Error {
 async function responseErrorMessage(res: Response): Promise<string> {
   const text = await res.text().catch(() => res.statusText);
   if (res.status === 500 && !text.trim()) return 'API unavailable';
-  // Usage-limit refusal details contain instructions the reader needs.
-  if (res.status === 403 || res.status === 429) {
-    try {
-      const detail: unknown = (JSON.parse(text) as {detail?: unknown}).detail;
-      if (typeof detail === 'string' && detail) return detail;
-    } catch {
-      // Non-JSON error bodies retain their ordinary status/message fallback.
-    }
+  // The API writes string details for the reader; validation lists are not.
+  let detail: unknown;
+  try {
+    detail = (JSON.parse(text) as {detail?: unknown} | null)?.detail;
+  } catch {
+    // Non-JSON error bodies retain their ordinary status/message fallback.
+  }
+  if (typeof detail === 'string' && detail) return detail;
+  if (detail !== undefined) {
+    return `Request failed (${res.status}${res.statusText ? ` ${res.statusText}` : ''})`;
   }
   return `${res.status} ${text || res.statusText}`;
 }

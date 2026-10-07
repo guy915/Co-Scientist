@@ -44,8 +44,6 @@ the status manifest. It includes:
 - Biomedical databases: ChEMBL, UniProt, STRING interactions, Reactome
   pathways, Open Targets, Ensembl genes, gnomAD constraints, GWAS Catalog,
   and ClinicalTrials.gov.
-- INDRA CoGex: gene associations, drug and trial information, pathways,
-  causal networks, mechanistic statements, and enrichment.
 - Web: `read_url`, plus `search_web` and `check_web_search_available` when
   a Brave or Tavily key is configured.
 
@@ -76,8 +74,7 @@ into markdown, keeping abstracts and section headings. Set
 `include_fulltext=false` to retain metadata selection and provenance while
 skipping downloads and extraction.
 
-`tools/lit_review/` implements the literature providers, `tools/indra_cogex/`
-contains graph queries, and `tools/web_providers.py` and `tools/web_fetch.py` handle search and page extraction.
+`tools/lit_review/` implements the literature providers, and `tools/web_providers.py` and `tools/web_fetch.py` handle search and page extraction.
 `read_url` screens resolved addresses and every redirect before fetching.
 The registration wrapper logs tool outcomes while preserving the signatures
 FastMCP uses to advertise parameters.

@@ -211,17 +211,11 @@ def _merge_scientist_hypotheses(
 
 
 def _row_verdict(row: dict[str, Any]) -> str:
-    """Legacy reviews recover verdicts from prose; unknown verdicts default
-    to neutral revise rather than endorsement or condemnation.
+    """Unknown verdicts default to neutral revise rather than endorsement or
+    condemnation.
     """
     verdict = str(row.get("verdict") or "").strip().lower()
-    if verdict in VERDICT_REVIEW_SCORES:
-        return verdict
-    summary = str(row.get("summary") or "").lower()
-    return next(
-        (value for value in VERDICT_REVIEW_SCORES if value in summary),
-        "revise",
-    )
+    return verdict if verdict in VERDICT_REVIEW_SCORES else "revise"
 
 
 def _scientist_hypothesis_review(row: dict[str, Any]) -> Any:
