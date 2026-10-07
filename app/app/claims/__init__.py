@@ -186,6 +186,30 @@ def _dedupe_capped(passages: Sequence[EvidencePassage], cap: int) -> list[Eviden
     return union
 
 
+def _assess_candidates(
+    claim: str,
+    draft: AssessorDraft,
+    passages: Sequence[EvidencePassage],
+    assessor_id: str,
+    verification_method: str,
+) -> ClaimAssessment:
+    supporting = _locate_all(
+        draft.supporting, passages, cites_evidence_ids=draft.cites_evidence_ids
+    )
+    contradicting = _locate_all(
+        draft.contradicting, passages, cites_evidence_ids=draft.cites_evidence_ids
+    )
+    label = _downgrade_unproven_label(draft.label, supporting, contradicting)
+    return ClaimAssessment(
+        claim=claim,
+        label=label,
+        supporting_passages=tuple(supporting),
+        contradicting_passages=tuple(contradicting),
+        assessor=assessor_id,
+        verification_method=verification_method,
+    )
+
+
 def _fallback_assessment(
     claim: str,
     candidates: Sequence[EvidencePassage],
@@ -195,25 +219,7 @@ def _fallback_assessment(
     deterministic verification method.
     """
     draft = deterministic_assessor(claim, candidates)
-    supporting = _locate_all(
-        draft.supporting,
-        candidates,
-        cites_evidence_ids=draft.cites_evidence_ids,
-    )
-    contradicting = _locate_all(
-        draft.contradicting,
-        candidates,
-        cites_evidence_ids=draft.cites_evidence_ids,
-    )
-    label = _downgrade_unproven_label(draft.label, supporting, contradicting)
-    return ClaimAssessment(
-        claim=claim,
-        label=label,
-        supporting_passages=tuple(supporting),
-        contradicting_passages=tuple(contradicting),
-        assessor=assessor_id,
-        verification_method=draft.verification_method,
-    )
+    return _assess_candidates(claim, draft, candidates, assessor_id, draft.verification_method)
 
 
 def assess_claims_batch(
@@ -291,19 +297,7 @@ def _assess_from_draft(
         if shown and assessor_id.startswith("llm:"):
             record_deterministic_fallback(assessor_id[4:], "claim_batch")
         return _fallback_assessment(claim, own_candidates, assessor_id)
-    supporting = _locate_all(draft.supporting, shown, cites_evidence_ids=draft.cites_evidence_ids)
-    contradicting = _locate_all(
-        draft.contradicting, shown, cites_evidence_ids=draft.cites_evidence_ids
-    )
-    label = _downgrade_unproven_label(draft.label, supporting, contradicting)
-    return ClaimAssessment(
-        claim=claim,
-        label=label,
-        supporting_passages=tuple(supporting),
-        contradicting_passages=tuple(contradicting),
-        assessor=assessor_id,
-        verification_method=draft.verification_method,
-    )
+    return _assess_candidates(claim, draft, shown, assessor_id, draft.verification_method)
 
 
 _MIN_CLAIM_WORDS = 4
@@ -371,25 +365,8 @@ def assess_claim(
     """
     candidates = retrieve_passages(claim, passages, top_k=top_k)
     draft = assessor(claim, candidates)
-    supporting = _locate_all(
-        draft.supporting,
-        candidates,
-        cites_evidence_ids=draft.cites_evidence_ids,
-    )
-    contradicting = _locate_all(
-        draft.contradicting,
-        candidates,
-        cites_evidence_ids=draft.cites_evidence_ids,
-    )
-    label = _downgrade_unproven_label(draft.label, supporting, contradicting)
-    return ClaimAssessment(
-        claim=claim,
-        label=label,
-        supporting_passages=tuple(supporting),
-        contradicting_passages=tuple(contradicting),
-        assessor=assessor_id,
-        verification_method=(draft.verification_method if candidates else "no_evidence"),
-    )
+    method = draft.verification_method if candidates else "no_evidence"
+    return _assess_candidates(claim, draft, candidates, assessor_id, method)
 
 
 __all__ = [
