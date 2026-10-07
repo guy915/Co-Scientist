@@ -229,10 +229,6 @@ html:has(.ucs-landing) body {
   transition: background-color 0.2s;
 }
 
-.ucs-landing-specimen > path {
-  fill: var(--tone-c);
-}
-
 .ucs-landing-spin {
   transform-origin: 50% 50%;
 }
@@ -249,7 +245,6 @@ html:has(.ucs-landing) body {
   }
 }
 
-
 /* The header copy stays transparent: `.ucs-landing` paints a background that a
    utility would lose to. */
 .ucs-landing-header-tabs {
@@ -261,144 +256,6 @@ html:has(.ucs-landing) body {
   transition: color 0.25s;
 }
 
-.ucs-landing-ov {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 40px;
-}
-
-/* Subgrid rows line up headings, intros and panels across the cards; every
-   panel fills its stretched height with items, so none leaves a void. */
-.ucs-landing-ov-card {
-  display: grid;
-  grid-row: span 3;
-  grid-template-rows: subgrid;
-  gap: 8px;
-  padding: 28px;
-  border-radius: 32px;
-  background: var(--l-surface);
-}
-
-.ucs-landing-ov-card h3 {
-  margin: 0;
-  font-family: var(--l-display);
-  font-size: 26px;
-  font-weight: 400;
-}
-
-.ucs-landing-ov-sub {
-  margin: 0 0 12px;
-  color: var(--l-muted);
-  font-size: 15px;
-  line-height: 1.5;
-}
-
-.ucs-landing-ov-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 12px;
-  border-radius: 24px;
-  background: var(--l-bg);
-  list-style: none;
-}
-
-.ucs-landing-ov-item {
-  padding: 14px 18px;
-  border-radius: 18px;
-  background: var(--l-surface);
-}
-
-.ucs-landing-ov-goal {
-  flex: 1;
-}
-
-.ucs-landing-ov-goal b {
-  display: block;
-  margin-bottom: 8px;
-  font-family: var(--l-display);
-  font-size: 18px;
-  font-weight: 400;
-  line-height: 1.35;
-}
-
-.ucs-landing-ov-goal p {
-  margin: 0;
-  color: var(--l-muted);
-  font-size: 15px;
-  line-height: 1.55;
-}
-
-.ucs-landing-ov-panel > .ucs-landing-ov-chips {
-  padding: 6px 6px 2px;
-}
-
-.ucs-landing-ov-steps > li {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: 12px;
-  border-radius: 9999px;
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.ucs-landing-ov-steps svg {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  fill: var(--l-accent);
-}
-
-.ucs-landing-ov-ranks > li {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-}
-
-.ucs-landing-ov-ranks > li:first-child {
-  flex-grow: 1.7;
-  gap: 10px;
-}
-
-.ucs-landing-ov-ranks b {
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.35;
-}
-
-.ucs-landing-ov-ranks > li:first-child b {
-  font-family: var(--l-display);
-  font-size: 20px;
-  font-weight: 400;
-  line-height: 1.3;
-}
-
-.ucs-landing-ov-meta {
-  color: var(--l-muted);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.ucs-landing-ov-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.ucs-landing-ov-chips span {
-  padding: 4px 12px;
-  border-radius: 9999px;
-  background: var(--tone-c);
-  color: var(--tone-o);
-  font-size: 13px;
-  font-weight: 500;
-}
 .ucs-landing-diagram {
   margin: 48px 0 0;
   padding: clamp(16px, 3vw, 40px);
@@ -644,49 +501,6 @@ html:has(.ucs-landing) body {
   text-align: center;
 }
 
-.ucs-landing-agents {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.ucs-landing-agent {
-  display: grid;
-  grid-template-columns: 104px 1fr;
-  align-items: center;
-  gap: 24px;
-  padding: 28px;
-  border-radius: 32px;
-  background: var(--l-surface);
-  outline-offset: 3px;
-}
-
-.ucs-landing-agent.is-wide {
-  grid-column: span 3;
-}
-
-.ucs-landing-agent h3 {
-  margin: 0;
-  font-family: var(--l-display);
-  font-size: 28px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-}
-
-.ucs-landing-agent p {
-  margin: 6px 0 0;
-  color: var(--l-muted);
-  line-height: 1.5;
-}
-
-.ucs-landing-specimen {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
 .ucs-landing-tree {
   gap: 20px;
   margin-top: 48px;
@@ -783,13 +597,6 @@ html:has(.ucs-landing) body {
   }
 }
 
-.ucs-landing-duo {
-  display: grid;
-  grid-template-columns: 7fr 5fr;
-  gap: 16px;
-  margin-top: 16px;
-}
-
 .ucs-landing-panel {
   position: relative;
   display: grid;
@@ -862,14 +669,6 @@ html:has(.ucs-landing) body {
   font-weight: 500;
 }
 
-.ucs-landing-podium {
-  align-content: space-between;
-  gap: 16px;
-  background: var(--l-c-blue);
-  color: var(--l-o-blue);
-}
-
-.ucs-landing-podium h3,
 .ucs-landing-panel-title {
   margin: 0;
   font-family: var(--l-display);
@@ -877,135 +676,11 @@ html:has(.ucs-landing) body {
   font-weight: 400;
 }
 
-.ucs-landing-podium p {
-  max-width: 26rem;
-  margin: 8px 0 0;
-  line-height: 1.5;
-  opacity: 0.8;
-}
-
-.ucs-landing-podium img {
-  display: block;
-  width: min(100%, 420px);
-  height: auto;
-  justify-self: center;
-}
-
-.ucs-landing-evidence {
-  display: grid;
-  grid-template-columns: 4fr 7fr;
-  align-items: center;
-  gap: 48px;
-  margin-top: 40px;
-}
-
-.ucs-landing-verdicts {
-  display: grid;
-  gap: 12px;
-  margin-top: 28px;
-}
-
-.ucs-landing-verdicts > div {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  align-items: center;
-  gap: 16px;
-  padding: 18px 22px;
-  border-radius: 24px;
-  background: var(--tone-c);
-  color: var(--tone-o);
-  font-size: 15px;
-  line-height: 1.45;
-}
-
-.ucs-landing-verdicts b {
-  font-weight: 500;
-}
-
-.ucs-landing-marquee {
-  margin-top: 64px;
-}
-
-.ucs-landing-marquee-window {
-  margin-top: 16px;
-  overflow: hidden;
-  padding-block: 22px;
-  border-block: 1px solid var(--l-line);
-  mask-image: linear-gradient(
-    90deg,
-    transparent,
-    #000 8%,
-    #000 92%,
-    transparent
-  );
-}
-
-.ucs-landing-marquee-track {
-  display: flex;
-  width: max-content;
-  gap: 56px;
-}
-
-.ucs-landing-marquee-track span {
-  color: var(--l-ink);
-  font-family: var(--l-display);
-  font-size: clamp(2.4rem, 5.6vw, 4.8rem);
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .ucs-landing-marquee-track {
-    animation: ucs-landing-slide 40s linear infinite;
-  }
-
-  .ucs-landing-marquee-window:hover .ucs-landing-marquee-track {
-    animation-play-state: paused;
-  }
-}
-
+/* Played by the marquee track's utility classes. */
 @keyframes ucs-landing-slide {
   to {
     transform: translateX(calc(-50% - 28px));
   }
-}
-
-.ucs-landing-safety {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 48px;
-}
-
-.ucs-landing-safety > article {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  padding: 28px;
-  border: 1px solid var(--l-line);
-  border-radius: 32px;
-}
-
-.ucs-landing-safety .ucs-landing-badge {
-  width: 88px;
-}
-
-.ucs-landing-safety .ucs-landing-badge > svg:last-child {
-  width: 34px;
-  height: 34px;
-}
-
-.ucs-landing-safety h3 {
-  margin: 0;
-  font-family: var(--l-display);
-  font-size: 24px;
-  font-weight: 400;
-}
-
-.ucs-landing-safety p {
-  margin: 0;
-  color: var(--l-muted);
-  line-height: 1.5;
 }
 
 .ucs-landing-seg {
@@ -1208,33 +883,13 @@ html:has(.ucs-landing) body {
 }
 
 @media (max-width: 900px) {
-  .ucs-landing-duo,
-  .ucs-landing-evidence,
   .ucs-landing-cta,
   .ucs-landing-tierbox {
     grid-template-columns: 1fr;
   }
 
-  .ucs-landing-ov {
-    grid-template-columns: 1fr;
-  }
-
-  .ucs-landing-agents,
-  .ucs-landing-safety {
-    grid-template-columns: 1fr;
-  }
-
-  .ucs-landing-agent.is-wide {
-    grid-column: auto;
-  }
-
   .ucs-landing-field {
     grid-template-columns: repeat(12, 1fr);
-  }
-
-  .ucs-landing-verdicts > div {
-    grid-template-columns: 1fr;
-    gap: 4px;
   }
 
   .ucs-landing-seg button {
@@ -1271,22 +926,6 @@ html:has(.ucs-landing) body {
 
   .ucs-landing-tree-scroll svg {
     min-width: 720px;
-  }
-}
-
-@media (max-width: 480px) {
-  .ucs-landing-agent {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .ucs-landing-agent .ucs-landing-badge {
-    width: 72px;
-  }
-
-  .ucs-landing-agent .ucs-landing-badge > svg:last-child {
-    width: 30px;
-    height: 30px;
   }
 }
 
