@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Any
 
+from co_scientist.core.config import settings
 from co_scientist.core.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
+from co_scientist.core.exceptions import ContinuationAdmissionError, ProviderAdmissionError
 from co_scientist.core.run_modes import resolved_run_config
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.research_state.elo import INITIAL_ELO
@@ -24,12 +27,14 @@ from co_scientist.orchestration.engine_tasks.support import (
 from co_scientist.orchestration.repository import events, runs, tasks
 from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.orchestration.run_events import make_emitter
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import transaction
+from co_scientist.platform.db.admission import claim_continuation
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,
     RunRow,
     RunStatus,
     ScientificTask,
+    row_to_task,
 )
 
 # Human categorical verdicts share agents' 1-10 rubric because the latest review
@@ -120,7 +125,14 @@ def reopen_for_pending_scientist_input(
     pending = messages.get_pending_steering(run_id, db_path=db_path)
     if not pending:
         return None
-    return enqueue_scientist_continuation(run_id, pending[0].id, db_path=db_path)
+    try:
+        return enqueue_scientist_continuation(run_id, pending[0].id, db_path=db_path)
+    except ContinuationAdmissionError as exc:
+        # A settled report stays completed; rejected late guidance remains pending.
+        logging.getLogger(__name__).info(
+            "Continuation admission denied for run %s: %s", run_id, exc
+        )
+        return None
 
 
 def enqueue_scientist_continuation(
@@ -129,36 +141,53 @@ def enqueue_scientist_continuation(
     *,
     db_path: str | None = None,
 ) -> ScientificTask | None:
-    run = runs.get_run(run_id, db_path=db_path)
-    if run is None or run.provider != "engine":
-        return None
-    if run.status != RunStatus.COMPLETED.value:
-        return None
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
-    if checkpoint is None:
-        return None
-    runs.update_run_status(run_id, RunStatus.QUEUED, db_path=db_path)
-    events.append_event(
-        run_id,
-        "lifecycle",
-        {"event": "reopened_for_scientist_input", "input_id": input_id},
-        db_path=db_path,
-    )
-    return tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{NODE_TASK_PREFIX}orchestrator",
-            inputs={"checkpoint_seq": int(checkpoint["seq"])},
-            idempotency_key=f"engine:scientist-continuation:{input_id}",
-            priority=100,
-            provenance={
-                "behavior": "scientist-directed-continuation",
-                "input_id": input_id,
-            },
-            budget={"lease_seconds": 300},
-        ),
-        db_path=db_path,
-    )
+    key = f"engine:scientist-continuation:{input_id}"
+    with transaction(db_path) as conn:
+        run = runs.get_run(run_id, conn=conn)
+        if run is None or run.provider != "engine":
+            return None
+        existing = conn.execute(
+            "SELECT * FROM scientific_tasks WHERE run_id=? AND idempotency_key=?", (run_id, key)
+        ).fetchone()
+        if existing:
+            return row_to_task(existing)
+        if run.status != RunStatus.COMPLETED.value:
+            return None
+        checkpoint = conn.execute(
+            "SELECT seq FROM checkpoints WHERE run_id=? ORDER BY seq DESC LIMIT 1", (run_id,)
+        ).fetchone()
+        if checkpoint is None:
+            return None
+        if not runs.has_run_capacity_in_transaction(
+            conn, run_id, run.client_id, settings.max_concurrent_runs
+        ):
+            raise ContinuationAdmissionError("concurrent run limit reached", capacity=True)
+        byok = conn.execute("SELECT 1 FROM run_credentials WHERE run_id=?", (run_id,)).fetchone()
+        try:
+            claim_continuation(
+                conn, run_id, input_id, run.client_id, free=run.llm_backend == "real" and not byok
+            )
+        except ProviderAdmissionError as exc:
+            raise ContinuationAdmissionError(str(exc)) from exc
+        runs.update_run_status(run_id, RunStatus.QUEUED, conn=conn)
+        events.append_event_deferred_log(
+            run_id,
+            "lifecycle",
+            {"event": "reopened_for_scientist_input", "input_id": input_id},
+            conn,
+        )
+        return tasks.enqueue_task(
+            NewTask(
+                run_id=run_id,
+                task_type=f"{NODE_TASK_PREFIX}orchestrator",
+                inputs={"checkpoint_seq": int(checkpoint["seq"])},
+                idempotency_key=key,
+                priority=100,
+                provenance={"behavior": "scientist-directed-continuation", "input_id": input_id},
+                budget={"lease_seconds": 300},
+            ),
+            conn=conn,
+        )
 
 
 # Checkpointed author enrichments preserve attribution without adding it to
