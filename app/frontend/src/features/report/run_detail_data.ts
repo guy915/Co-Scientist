@@ -22,7 +22,7 @@ import {
   type StreamConnectionState,
   type StreamEvent,
 } from '@/shared/hooks/use_run_stream';
-import {useResetTimer} from '@/shared/hooks/timers';
+import {useResetTimer, useToast} from '@/shared/hooks/timers';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
 
@@ -78,13 +78,19 @@ function runEndToast(run: RunWithSummary): string | null {
   return null;
 }
 
+// The end-of-run toast expires like every other toast, and a refreshed run
+// object does not raise it again.
 function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
-  const [toast, setToast] = useState<string | null>(null);
+  const {toast, setToast} = useToast();
+  const announced = useRef<string | null>(null);
   useEffect(() => {
     if (!terminal || !run) return;
     const toastMessage = runEndToast(run);
-    if (toastMessage) setToast(toastMessage);
-  }, [terminal, run]);
+    const key = `${run.id}:${toastMessage}`;
+    if (!toastMessage || announced.current === key) return;
+    announced.current = key;
+    setToast(toastMessage);
+  }, [terminal, run, setToast]);
 
   const title = useMemo(() => {
     if (!run) return 'Goal report';
@@ -98,7 +104,7 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
     };
   }, [title]);
 
-  return {toast, title};
+  return {toast: toast?.message ?? null, title};
 }
 
 export function useRunDetailData(id: string | undefined) {

@@ -13,6 +13,11 @@ import {
   installUiInteractionLogging,
 } from '@/shared/lib/ui_logging';
 import {WorkbenchApp} from '@/app/workbench_app';
+import {
+  readStorage,
+  STORAGE_KEYS,
+  writeStorage,
+} from '@/shared/lib/safe_storage';
 
 // Install error capture before mounting so first-render crashes survive outside
 // the browser console.
@@ -31,16 +36,11 @@ if (sentryDsn) {
 // A deploy deletes the old hashed chunks; reload once to fetch the new index.
 // The timestamp guard stops a reload loop if the chunk is genuinely missing.
 window.addEventListener('vite:preloadError', event => {
-  const key = 'coscientist:chunk-reload-at';
-  try {
-    const last = Number(sessionStorage.getItem(key));
-    if (Date.now() - last < 10_000) {
-      return;
-    }
-    sessionStorage.setItem(key, String(Date.now()));
-  } catch {
-    return;
-  }
+  const key = STORAGE_KEYS.chunkReloadAt;
+  const last = Number(readStorage('session', key));
+  if (Date.now() - last < 10_000) return;
+  // Without storage there is no loop guard, so do not reload at all.
+  if (!writeStorage('session', key, String(Date.now()))) return;
   event.preventDefault();
   window.location.reload();
 });

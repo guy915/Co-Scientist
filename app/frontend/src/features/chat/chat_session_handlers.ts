@@ -172,7 +172,7 @@ async function copyMessagePrompt({
   services: {setToast, focusComposer},
 }: CopyMessagePromptDeps): Promise<void> {
   const promptText = message.content;
-  await copyText(promptText);
+  if (!(await copyText(promptText))) return;
   // Only the explicit toast action starts a new chat; retain no runtime or Files.
   setToast({
     message: 'Prompt copied',

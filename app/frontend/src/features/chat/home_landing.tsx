@@ -29,7 +29,6 @@ import {
 } from './home_landing_content';
 import {
   scrollParent,
-  useReducedMotion,
   shapePath,
   type MotionProps,
   type ShapeName,
@@ -49,6 +48,7 @@ import {
   LandingEloChart,
 } from './home_landing_diagram';
 import {SUGGESTIONS} from './chat_home_stage';
+import {useReducedMotion} from '@/shared/hooks/use_reduced_motion';
 
 // Lazy-load the landing section so it cannot delay chat first paint.
 
