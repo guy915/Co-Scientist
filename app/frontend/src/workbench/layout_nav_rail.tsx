@@ -1,6 +1,7 @@
 import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
+import {Button} from '@/shared/ui';
 import {isModifiedClick} from '@/workbench/dom_events';
 import {
   SETTINGS_SECTIONS,
@@ -38,7 +39,10 @@ const SETTINGS_MENU_ICON_CLASSES = 'flex-none text-[1.25rem] text-cosci-muted';
 // The panel stacks above the workspace so navigation popups are not covered.
 // Phones stretch it to the inset edges: iOS Safari vh would hide the drawer's
 // bottom under its toolbar.
+// The rail is a tinted surface, so its buttons take the shell icon and hover
+// tones.
 const NAV_PANEL_CLASSES =
+  '[--button-text-fg:var(--cosci-shell-icon)] [--button-text-hover-bg:var(--cosci-shell-hover-bg)] ' +
   'ucs-nav-panel relative z-[70] box-border flex h-[100vh] w-full flex-col items-center justify-between [border-right:0] bg-cosci-rail py-[1.25rem] ' +
   '[@media(max-width:700px)]:fixed [@media(max-width:700px)]:[inset:0_auto_0_0] [@media(max-width:700px)]:z-[60] ' +
   '[@media(max-width:700px)]:h-auto [@media(max-width:700px)]:w-[21rem] [@media(max-width:700px)]:min-w-0 [@media(max-width:700px)]:max-w-[85vw] ' +
@@ -395,10 +399,6 @@ const CHAT_HISTORY_LINK_ACTIVE_CLASSES =
 const CHAT_HISTORY_LABEL_CLASSES =
   'min-w-0 flex-[1_1_0] overflow-hidden text-ellipsis whitespace-nowrap';
 
-const CHAT_HISTORY_MORE_CLASSES =
-  'inline-flex cursor-pointer items-center gap-[0.25rem] [border:0] rounded-[9999px] bg-transparent px-[0.75rem] py-[0.48rem] text-[0.84rem] text-cosci-shell-icon [justify-self:start] ' +
-  '[&:hover]:bg-cosci-shell-hover-bg [&:hover]:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg';
-
 export interface ChatRailData {
   chats: ChatSummary[];
   activeChatId: string | undefined;
@@ -488,17 +488,15 @@ function ShowMoreChatsButton({
   onToggle: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={CHAT_HISTORY_MORE_CLASSES}
+    <Button
+      variant="text"
+      size="sm"
+      trailingIcon={showAllChats ? 'expand_less' : 'expand_more'}
+      layoutClassName="justify-self-start"
       onClick={onToggle}
     >
       {showAllChats ? 'Show less' : 'Show more'}
-      <Icon
-        aria-hidden="true"
-        name={showAllChats ? 'expand_less' : 'expand_more'}
-      />
-    </button>
+    </Button>
   );
 }
 

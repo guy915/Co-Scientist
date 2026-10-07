@@ -1,4 +1,5 @@
 import {lazy, Suspense} from 'react';
+import {Button} from '@/shared/ui';
 import {ErrorBoundary} from './error_boundary';
 
 const MarkdownRenderer = lazy(() =>
@@ -24,13 +25,9 @@ function PlainText({
       {unavailable && (
         <p role="status" className="mt-2 text-xs text-cosci-muted">
           Formatting unavailable.{' '}
-          <button
-            type="button"
-            className="cursor-pointer underline underline-offset-2"
-            onClick={() => window.location.reload()}
-          >
+          <Button variant="link" onClick={() => window.location.reload()}>
             Reload page
-          </button>
+          </Button>
         </p>
       )}
     </div>

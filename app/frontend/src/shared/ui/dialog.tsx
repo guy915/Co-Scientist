@@ -19,9 +19,11 @@ export type DialogSize = 'md' | 'lg';
 
 const SCRIM_CLASSES = 'ui-motion-fade fixed inset-0 z-[70] bg-scrim';
 
-// Centred with translate so the motion can scale without fighting it.
+// Centred with translate so the motion can scale without fighting it. The
+// panel background equals the outlined button's default hover, so the panel
+// re-points that token.
 const PANEL_CLASSES =
-  'ui-motion-pop fixed top-1/2 left-1/2 z-[71] flex -translate-1/2 flex-col ' +
+  '[--button-outlined-hover:var(--cosci-menu-row-hover)] ui-motion-pop fixed top-1/2 left-1/2 z-[71] flex -translate-1/2 flex-col ' +
   'rounded-[1.75rem] bg-cosci-menu-bg text-cosci-fg shadow-overlay ' +
   'outline-none max-[700px]:rounded-[1.25rem]';
 

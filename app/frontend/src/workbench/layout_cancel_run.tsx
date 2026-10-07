@@ -5,14 +5,10 @@ import {
   isStoppableStatus,
   type RunStatus,
 } from '@/api/runs';
-import {Icon, type IconName} from '@/components/icon';
+import type {IconName} from '@/components/icon';
 import {logUiError} from '@/lib/ui_logging';
+import {Button} from '@/shared/ui';
 import {RUNS_CHANGED_EVENT} from './dom_events';
-import {
-  HEADER_CONTROL_ICON_CLASSES,
-  headerControlButtonClasses,
-} from './layout_primitives';
-import {tooltipClassNames} from './classes';
 
 // Cancellation is terminal and cannot resume; require a second click without
 // adding another modal.
@@ -91,23 +87,17 @@ export function CancelRunControl({
 
   const face = stopFace(armed);
   return (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className: headerControlButtonClasses(),
-        placement: 'bottom',
-      })}
-      data-tooltip={face.tooltip}
+    <Button
+      variant="tonal"
+      size="sm"
+      icon={face.icon}
+      tooltip={face.tooltip}
+      tooltipPlacement="bottom"
       aria-label={face.label}
       disabled={stopping}
       onClick={() => void activate(runId)}
     >
-      <Icon
-        aria-hidden="true"
-        className={HEADER_CONTROL_ICON_CLASSES}
-        name={face.icon}
-      />
       <span>{face.label}</span>
-    </button>
+    </Button>
   );
 }

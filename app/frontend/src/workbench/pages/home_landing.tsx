@@ -11,6 +11,7 @@ import {
 import {useLocation} from 'react-router-dom';
 import {createPortal} from 'react-dom';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {Button} from '@/shared/ui';
 import helixArt from '../../assets/landing/helix.webp';
 import {joinClasses} from '../classes';
 import {
@@ -78,13 +79,6 @@ const LEDE_CLASSES =
 
 const SR_ONLY_CLASSES =
   'absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)]';
-
-// `ucs-landing-pill` is a CSS hook: the transition stays in home_landing.css.
-const PILL_CLASSES =
-  'ucs-landing-pill inline-flex h-[48px] cursor-pointer items-center gap-[8px] rounded-[9999px] px-[24px] [font:500_16px_var(--l-body)]';
-const PILL_INK_CLASSES = `${PILL_CLASSES} [border:0] bg-(--l-ink) text-(--l-bg)`;
-const PILL_TEAL_CLASSES = `${PILL_CLASSES} [border:0] bg-(--l-o-teal) text-(--l-c-teal)`;
-const PILL_LINE_CLASSES = `${PILL_CLASSES} border border-(--l-line) bg-transparent text-(--l-ink) [&:hover]:bg-(--l-surface)`;
 
 const RAIL_CLASSES =
   'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] [@media(max-width:700px)]:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
@@ -164,22 +158,18 @@ function LandingHero({
             A multi-agent partner for scientific discovery.
           </p>
           <div className="flex flex-wrap gap-[12px]">
-            <button
-              type="button"
-              className={PILL_INK_CLASSES}
-              onClick={onStart}
-            >
+            <Button size="lg" onClick={onStart}>
               Start a research goal
-            </button>
-            <button
-              type="button"
-              className={PILL_LINE_CLASSES}
+            </Button>
+            <Button
+              variant="outlined"
+              size="lg"
               onClick={() =>
                 scrollToLandingSection('landing-how', reduceMotion)
               }
             >
               See how it works
-            </button>
+            </Button>
           </div>
           <iframe
             className="block aspect-[16/9] w-full rounded-[12px] [border:0] bg-(--l-surface)"
@@ -765,9 +755,9 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
             <span className="whitespace-nowrap">Co-Scientist</span> asks what a
             strong answer needs, then sends its agents to work.
           </p>
-          <button type="button" className={PILL_TEAL_CLASSES} onClick={onStart}>
+          <Button variant="tonal" size="lg" onClick={onStart}>
             Start a research goal
-          </button>
+          </Button>
         </div>
         <img
           src={flaskArt}
