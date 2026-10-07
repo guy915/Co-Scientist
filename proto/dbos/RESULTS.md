@@ -125,7 +125,7 @@ the process lives:
 - `queue_thread`: `UPDATE workflow_status SET status='ENQUEUED' …` for the
   internal queue.
 
-This is the "write on every poll tick" OPERATIONS forbids. Removing it means
+A bare DBOS process with no workflows and none of the prototype does the same: 60 write transactions in 30 s (`check3_bare_dbos.py`). This is the "write on every poll tick" OPERATIONS forbids. Removing it means
 patching DBOS internals. The rest of the check holds:
 
 - **Network I/O:** no write lock was held across a provider call. Steps run
@@ -155,6 +155,8 @@ Medians of 3 boots, from spawn to `/health` 200:
   version inline, which is cheap.
 
 ### 5. Event loops (`check5_loops.py`, `check5_executor.py`)
+
+*Grading note:* this is the most arguable of the three failures. In a full port the cohorts disappear, because DBOS runs everything on its own loop. The executor hazard would then mostly matter during the cutover period and in scripts or tests. The shared single loop remains. Even graded as a pass, checks 3 and 6 still fail.
 
 Three runs, each driven by its own real cohort thread, reached review
 together.

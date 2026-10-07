@@ -1,0 +1,2 @@
+BEGIN IMMEDIATE in 30s: 60
+[(("dbos-workflow-timeout", "UPDATE main.workflow_status SET"), 30), (("Thread-4 (queue_thread)", "UPDATE main.workflow_status SET"), 30)]
