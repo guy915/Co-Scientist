@@ -83,6 +83,17 @@ def get_latest_checkpoint(
     }
 
 
+def latest_checkpoint_seq(run_id: str, conn: sqlite3.Connection) -> int:
+    """Commit guards only compare sequences; parsing the full state under
+    the write lock costs milliseconds per megabyte.
+    """
+    row = conn.execute(
+        "SELECT seq FROM checkpoints WHERE run_id=? ORDER BY seq DESC LIMIT 1",
+        (run_id,),
+    ).fetchone()
+    return int(row["seq"]) if row else 0
+
+
 def has_checkpoint(
     run_id: str,
     db_path: str | None = None,
