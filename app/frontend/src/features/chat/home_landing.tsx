@@ -12,7 +12,7 @@ import {useLocation} from 'react-router-dom';
 import {createPortal} from 'react-dom';
 import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
 import {Button, SegmentedControl} from '@/shared/ui';
-import helixArt from '../../assets/landing/helix.webp';
+import helixArt from '@/assets/landing/helix.webp';
 import {joinClasses} from '@/shared/ui/classes';
 import {
   LANDING_SECTIONS,
@@ -40,9 +40,9 @@ import {
   SlidingPill,
   useSlidingIndicator,
 } from '@/shared/hooks/use_sliding_indicator';
-import moleculeArt from '../../assets/landing/molecule.webp';
-import podiumArt from '../../assets/landing/podium.webp';
-import flaskArt from '../../assets/landing/flask.webp';
+import moleculeArt from '@/assets/landing/molecule.webp';
+import podiumArt from '@/assets/landing/podium.webp';
+import flaskArt from '@/assets/landing/flask.webp';
 import {
   LandingBracket,
   LandingDiagram,

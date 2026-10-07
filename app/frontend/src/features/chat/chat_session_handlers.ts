@@ -14,7 +14,7 @@ import {
 } from '@/api/runs';
 import {copyText} from '@/shared/lib/clipboard';
 import type {FormEvent} from 'react';
-import type {ChatEntry} from '../pages/chat_timeline_bubble';
+import type {ChatEntry} from './chat_timeline_bubble';
 import {promoteDraftToRun} from './chat_session_start_run';
 import {
   appendChatMessage,
