@@ -28,6 +28,8 @@ their risk are at the end with the reason.
 | L5 | #289 | Unlicensed Google Sans Text files removed; OFL Google Sans serves body text |
 | L9 | #290 | Broken MCP README link and stale default-model comments fixed |
 | L10 | — | Gone: the cuts removed the results file |
+| L2 | — | Gone: the cuts removed the log-report email setting |
+| I7 | — | Gone: the cuts made JSON the only log format |
 | I2 | #265, #286, #287 | Monitoring guide; API and frontend error tracking, off without a DSN |
 | I3, I6, I12 | #268 | API image rebuild after a source edit 18 s → 8 s; graceful shutdown; unbuffered logs |
 | I4 | #254 | MCP image −374 MB |
