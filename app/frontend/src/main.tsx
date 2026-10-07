@@ -18,6 +18,15 @@ import {WorkbenchApp} from './workbench/workbench_app';
 installUiErrorLogging();
 installUiInteractionLogging();
 
+// The SDK loads as its own chunk only when a DSN is built in, so the main
+// bundle and builds without one are unchanged.
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
+if (sentryDsn) {
+  void import('./lib/error_tracking').then(({initErrorTracking}) =>
+    initErrorTracking(sentryDsn),
+  );
+}
+
 // A deploy deletes the old hashed chunks; reload once to fetch the new index.
 // The timestamp guard stops a reload loop if the chunk is genuinely missing.
 window.addEventListener('vite:preloadError', event => {

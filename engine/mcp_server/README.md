@@ -58,7 +58,6 @@ on, and `DISABLE_SSL_VERIFY=true` is rejected.
 `WEB_SEARCH_PROVIDER` selects a preference. With both keys set, credential
 or quota refusal falls through to the next provider; a successful empty
 answer does not. `check_web_search_available` reports observed refusals.
-See [Web Search](../docs/WEB_SEARCH.md) for provider setup and URL screening.
 
 `COSCIENTIST_MCP_SHARED_SECRET`, when set on both server and engine, requires
 an `X-MCP-Shared-Secret` header for MCP calls. The plain status route remains
