@@ -9,7 +9,6 @@ from co_scientist.core.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
-from co_scientist.domains.documents.evidence_chunking import chunk_evidence_passage
 from co_scientist.domains.research_state.claims import (
     ClaimAssessment,
     EntailmentLabel,
@@ -17,6 +16,7 @@ from co_scientist.domains.research_state.claims import (
     assess_claim,
     assess_claims_batch,
 )
+from co_scientist.domains.research_state.claims.chunking import chunk_evidence_passage
 from co_scientist.domains.research_state.claims.verifier import (
     make_llm_assessor,
     make_llm_batch_assessor,

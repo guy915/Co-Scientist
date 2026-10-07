@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from 'react';
 import {useLocation} from 'react-router-dom';
-import type {RunStatus} from '@/api/runs';
+import type {RunStatus} from '@/shared/api/runs';
 import {presenceProps, usePresence} from '@/shared/ui';
 import {joinClasses} from '@/shared/ui/classes';
 import {useRunHistoryContext} from '@/shared/hooks/history_context';

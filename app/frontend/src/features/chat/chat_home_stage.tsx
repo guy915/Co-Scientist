@@ -4,7 +4,7 @@ import {
   isActiveStatus,
   isCompletedStatus,
   type ChatSummary,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import {joinClasses} from '@/shared/ui/classes';
 import {useIsMobile} from '@/shared/hooks/dom';
 import {Composer, type ConnectorToggleProps} from './chat_composer';
@@ -100,16 +100,8 @@ const SUGGESTION_PREVIEW_POSITION_CLASSES = [
 
 function HomeScrollHint() {
   const onClick = () => {
-    const reduce = window.matchMedia?.(
-      '(prefers-reduced-motion: reduce)',
-    ).matches;
     // Scroll this pane; scrollIntoView also moves clipped shell ancestors.
-    smoothScrollToSection(
-      'landing',
-      0,
-      '.ucs-page--home',
-      reduce ? 'auto' : 'smooth',
-    );
+    smoothScrollToSection('landing', 0, '.ucs-page--home');
   };
   return (
     <Button

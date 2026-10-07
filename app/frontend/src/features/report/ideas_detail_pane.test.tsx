@@ -1,4 +1,4 @@
-import type {ClaimEvidenceRow, MatchRow, Review} from '@/api/runs';
+import type {ClaimEvidenceRow, MatchRow, Review} from '@/shared/api/runs';
 import {makeHypothesis} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';

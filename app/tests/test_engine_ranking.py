@@ -11,10 +11,7 @@ from co_scientist.domains.research_state.claims import (
 )
 from co_scientist.domains.research_state.claims import grounding as claim_grounding
 from co_scientist.domains.research_state.claims.gate import SupportSpan
-from co_scientist.domains.research_state.models import (
-    Article,
-    Hypothesis,
-)
+from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.orchestration.engine_tasks import gate as engine_tasks_gate
 from co_scientist.orchestration.engine_tasks import ranking as engine_tasks_ranking
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
@@ -24,6 +21,7 @@ from co_scientist.orchestration.engine_tasks.gate import (
 )
 from co_scientist.orchestration.repository import runs, tasks
 from co_scientist.platform.db.models import RunStatus
+from co_scientist.platform.retrieval.article import Article
 
 from tests._client import create_run as _create_run
 from tests._client import make_client

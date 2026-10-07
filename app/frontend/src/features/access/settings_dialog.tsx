@@ -30,7 +30,7 @@ import {
   type FreeUsage,
   fetchByokModelCatalog,
   fetchFreeUsage,
-} from '@/api/system';
+} from '@/shared/api/system';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
 
 const CARD_CLASSES = cardClasses({tone: 'raised', size: 'panel'});

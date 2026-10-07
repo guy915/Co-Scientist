@@ -1,4 +1,4 @@
-import {type RunFocus, type RunTier} from '@/api/runs';
+import {type RunFocus, type RunTier} from '@/shared/api/runs';
 import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type LinkedDraftRecovery, type SpecStage} from './use_chat_session';

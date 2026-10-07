@@ -1,11 +1,20 @@
-const KEY = 'co_scientist_client_id';
+import {
+  readStorage,
+  removeStorage,
+  STORAGE_KEYS,
+  writeStorage,
+} from './safe_storage';
+
+// Without storage the id lives for this page load, so requests still carry
+// one stable owner instead of throwing out of every scoped call.
+let memoryClientId: string | null = null;
 
 export function getClientId(): string {
-  let id = localStorage.getItem(KEY);
-  if (!id) {
-    id = makePrefixedId('client');
-    localStorage.setItem(KEY, id);
-  }
+  const stored = readStorage('local', STORAGE_KEYS.clientId);
+  if (stored) return stored;
+  if (memoryClientId) return memoryClientId;
+  const id = makePrefixedId('client');
+  if (!writeStorage('local', STORAGE_KEYS.clientId, id)) memoryClientId = id;
   return id;
 }
 
@@ -26,15 +35,15 @@ export function makePrefixedId(prefix: string): string {
 // BYOK browser credentials travel only as headers; the backend validates and
 // stores them encrypted for the run lifetime.
 
-const KEYS_STORAGE = 'cosci-api-keys';
-const LEGACY_KEY_STORAGE = 'cosci-api-key';
-const PROVIDER_KEY = 'cosci-api-provider';
+const KEYS_STORAGE = STORAGE_KEYS.apiKeys;
+const LEGACY_KEY_STORAGE = STORAGE_KEYS.legacyApiKey;
+const PROVIDER_KEY = STORAGE_KEYS.apiProvider;
 
 export type ModelTier = 'worker' | 'supervisor';
 
 const MODEL_KEYS: Record<ModelTier, string> = {
-  worker: 'cosci-api-model',
-  supervisor: 'cosci-api-supervisor-model',
+  worker: STORAGE_KEYS.workerModel,
+  supervisor: STORAGE_KEYS.supervisorModel,
 };
 const TIERS = Object.keys(MODEL_KEYS) as ModelTier[];
 
@@ -66,28 +75,31 @@ function isProvider(value: unknown): value is ByokProvider {
 }
 
 export function getStoredApiProvider(): ByokProvider {
-  const stored = window.localStorage.getItem(PROVIDER_KEY);
+  const stored = readStorage('local', PROVIDER_KEY);
   return isProvider(stored) ? stored : DEFAULT_BYOK_PROVIDER;
 }
 
 // The single-key layout stored one key and plain model names for the stored
 // provider. Convert before anything reads or changes that provider.
 function migrateLegacy(): void {
-  const store = window.localStorage;
   const provider = getStoredApiProvider();
-  const legacyKey = store.getItem(LEGACY_KEY_STORAGE);
+  const legacyKey = readStorage('local', LEGACY_KEY_STORAGE);
   if (legacyKey !== null) {
-    store.removeItem(LEGACY_KEY_STORAGE);
-    if (!store.getItem(KEYS_STORAGE) && legacyKey.trim()) {
+    removeStorage('local', LEGACY_KEY_STORAGE);
+    if (!readStorage('local', KEYS_STORAGE) && legacyKey.trim()) {
       const keys = {[provider]: legacyKey.trim()};
       // codeql[js/clear-text-storage-of-sensitive-data] Intentional BYOK browser vault; keys travel as headers.
-      store.setItem(KEYS_STORAGE, JSON.stringify(keys));
+      window.localStorage.setItem(KEYS_STORAGE, JSON.stringify(keys));
     }
   }
   for (const tier of TIERS) {
-    const raw = store.getItem(MODEL_KEYS[tier]);
+    const raw = readStorage('local', MODEL_KEYS[tier]);
     if (raw && !raw.startsWith('{')) {
-      store.setItem(MODEL_KEYS[tier], JSON.stringify({provider, model: raw}));
+      writeStorage(
+        'local',
+        MODEL_KEYS[tier],
+        JSON.stringify({provider, model: raw}),
+      );
     }
   }
 }
@@ -96,7 +108,7 @@ function readKeys(): ApiKeys {
   migrateLegacy();
   try {
     const parsed = JSON.parse(
-      window.localStorage.getItem(KEYS_STORAGE) ?? '{}',
+      readStorage('local', KEYS_STORAGE) ?? '{}',
     ) as Record<string, unknown>;
     const keys: ApiKeys = {};
     for (const provider of BYOK_PROVIDERS) {
@@ -143,7 +155,8 @@ export function setStoredApiKey(
 
 export function setStoredApiProvider(provider: ByokProvider): void {
   migrateLegacy();
-  window.localStorage.setItem(
+  writeStorage(
+    'local',
     PROVIDER_KEY,
     isProvider(provider) ? provider : DEFAULT_BYOK_PROVIDER,
   );
@@ -153,7 +166,7 @@ export function getStoredModel(tier: ModelTier): ModelChoice | null {
   migrateLegacy();
   try {
     const parsed = JSON.parse(
-      window.localStorage.getItem(MODEL_KEYS[tier]) ?? 'null',
+      readStorage('local', MODEL_KEYS[tier]) ?? 'null',
     ) as Partial<ModelChoice> | null;
     return parsed && isProvider(parsed.provider) && parsed.model
       ? {provider: parsed.provider, model: parsed.model}
@@ -168,9 +181,9 @@ export function setStoredModel(
   choice: ModelChoice | null,
 ): void {
   if (choice) {
-    window.localStorage.setItem(MODEL_KEYS[tier], JSON.stringify(choice));
+    writeStorage('local', MODEL_KEYS[tier], JSON.stringify(choice));
   } else {
-    window.localStorage.removeItem(MODEL_KEYS[tier]);
+    removeStorage('local', MODEL_KEYS[tier]);
   }
 }
 

@@ -1,4 +1,4 @@
-import type {RunAttribute} from '@/api/runs';
+import type {RunAttribute} from '@/shared/api/runs';
 import {describe, expect, it} from 'vitest';
 import {attributeDisplayString} from './run_detail_specifications';
 

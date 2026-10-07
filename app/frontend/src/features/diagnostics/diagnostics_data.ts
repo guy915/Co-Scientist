@@ -1,4 +1,4 @@
-import {type AppLogRecord, type ClientLogRecord} from '@/api/logs';
+import {type AppLogRecord, type ClientLogRecord} from '@/shared/api/logs';
 
 export type DiagnosticLogLevel = 'info' | 'warning' | 'error';
 

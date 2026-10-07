@@ -15,7 +15,6 @@ from co_scientist.core.constants import (
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.domains.research_state.models import (
-    Article,
     Hypothesis,
     MetricDeltas,
     create_metrics_update,
@@ -23,6 +22,7 @@ from co_scientist.domains.research_state.models import (
 )
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import CompletionSpec, call_llm_json
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.science.prompts import get_deep_verification_prompt
 from co_scientist.science.reflection.deep_verification_evidence import (

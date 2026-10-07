@@ -6,7 +6,7 @@ import type {
   Run,
   RunMessage,
   RunWithSummary,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 import type {InferredRunSpec} from '@/shared/lib/run_spec';
 import {type ChatEntry} from '@/features/chat/chat_timeline_bubble';
 

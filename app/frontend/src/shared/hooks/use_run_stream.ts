@@ -4,7 +4,7 @@ import {
   clientHeaders,
   fetchWithSession,
   readSseFrames,
-} from '@/api/runs';
+} from '@/shared/api/runs';
 
 export interface StreamEvent {
   seq: number;

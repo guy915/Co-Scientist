@@ -1,4 +1,4 @@
-import type {Interview} from '@/api/runs';
+import type {Interview} from '@/shared/api/runs';
 import {act, fireEvent, screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {
