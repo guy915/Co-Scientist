@@ -16,10 +16,6 @@ from tests._mcp import FakeToolResultsClient, make_tool_results_client
 from tests._state import make_article, make_generation_response, make_state
 
 
-async def _no_sleep(_seconds: float) -> None:
-    return None
-
-
 @pytest.fixture
 def tools_node(
     monkeypatch: pytest.MonkeyPatch,
@@ -107,7 +103,8 @@ async def test_a_transient_novelty_search_failure_is_retried_not_read_as_no_prio
     validation cannot tell apart from an absence of prior art. The path now
     uses the literature-review caller, which retries first.
     """
-    monkeypatch.setattr(search_query.asyncio, "sleep", _no_sleep)
+    # The repo's retry idiom: zero the backoff, not asyncio.
+    monkeypatch.setattr(search_query, "_search_retry_delay", lambda _attempt: 0.0)
     attempts: list[str] = []
 
     class _FlakyClient(FakeToolResultsClient):
