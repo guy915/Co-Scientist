@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
 from co_scientist.orchestration import engine_tasks
@@ -142,7 +143,7 @@ async def test_execute_engine_task_scopes_the_credential(
     _fake_validation(monkeypatch)
     with TestClient(app) as client:
         run = _create_byok_run(client)
-    mixed = credentials.ByokCredential(
+    mixed = byok_scope.ByokCredential(
         provider="deepseek",
         api_key=_KEY,
         model="deepseek/deepseek-flash",
@@ -157,7 +158,7 @@ async def test_execute_engine_task_scopes_the_credential(
     async def fake_node_task(task: Any, *, db_path: str | None = None) -> dict[str, Any]:
         seen["engine_key"] = current_api_key()
         seen["supervisor_key"] = api_key_for_model("gemini/gemini-3.8-flash")
-        seen["app_credential"] = credentials.current_byok()
+        seen["app_credential"] = byok_scope.current_byok()
         return {"status": "completed"}
 
     monkeypatch.setattr(engine_tasks, "execute_node_task", fake_node_task)
@@ -167,7 +168,7 @@ async def test_execute_engine_task_scopes_the_credential(
     assert seen["app_credential"] is not None
     assert seen["app_credential"].api_key == _KEY
     assert current_api_key() is None
-    assert credentials.current_byok() is None
+    assert byok_scope.current_byok() is None
 
 
 async def test_byok_key_absent_from_serialized_checkpoint(
@@ -266,7 +267,7 @@ def test_interview_turn_scopes_the_header_credential(
     seen: dict[str, Any] = {}
 
     async def fake_stream(interview: dict[str, Any], on_reasoning: Any) -> str:
-        seen["credential"] = credentials.current_byok()
+        seen["credential"] = byok_scope.current_byok()
         return (
             '{"assistant_message": "ready", "research_challenge": "g",'
             ' "focus_area": [], "preferences": [], "completed": true}'

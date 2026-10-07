@@ -8,8 +8,8 @@ import logging
 from typing import Any
 
 import pytest
+from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
-from co_scientist.domains.access import credentials
 from co_scientist.domains.safety import gate as safety
 
 from ._llm_fake_backend import completion_response, install_completion_backend
@@ -108,9 +108,9 @@ async def test_a_scoped_byok_key_opens_the_screen_for_a_partial_deployment(
     monkeypatch: pytest.MonkeyPatch, provider: _Provider
 ) -> None:
     _env(monkeypatch, _OTHER_PROVIDER_KEY)
-    byok = credentials.ByokCredential(provider="openrouter", api_key="sk-byok", model=_MODEL)
+    byok = byok_scope.ByokCredential(provider="openrouter", api_key="sk-byok", model=_MODEL)
 
-    with credentials.scoped_byok(byok):
+    with byok_scope.scoped_byok(byok):
         screened = await safety.screen_contextual(_TEXT, "intake")
 
     assert screened.assessor.startswith("semantic:")

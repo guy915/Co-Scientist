@@ -20,6 +20,7 @@ from co_scientist.api.runs.models import (
     _build_create_run_config,
 )
 from co_scientist.api.runs.support import _run_or_404
+from co_scientist.core import byok_scope
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
 from co_scientist.core.exceptions import ProviderAdmissionError
@@ -46,7 +47,7 @@ from co_scientist.platform.llm.execution_policy import (
 )
 
 
-async def _resolve_byok(request: Request) -> credentials.ByokCredential | None:
+async def _resolve_byok(request: Request) -> byok_scope.ByokCredential | None:
     """Live credential validation happens before database writes, so
     rejected keys create no run and never hold the writer.
     """
@@ -119,7 +120,7 @@ class _ResolvedRunSettings(NamedTuple):
 def _resolve_run_settings(
     req: CreateRunRequest,
     interview: dict[str, Any] | None,
-    byok: credentials.ByokCredential | None = None,
+    byok: byok_scope.ByokCredential | None = None,
 ) -> _ResolvedRunSettings:
     """BYOK runs remain real-backed even under process-wide offline
     defaults; credentials never enter configuration.
@@ -159,7 +160,7 @@ class _PersistNewRun(Protocol):
 class RunCreationCallbacks:
     require_client_scope: Callable[[Request], str]
     client_id: Callable[[Request], str]
-    resolve_byok: Callable[[Request], Awaitable[credentials.ByokCredential | None]]
+    resolve_byok: Callable[[Request], Awaitable[byok_scope.ByokCredential | None]]
     resolve_run_interview: Callable[
         [CreateRunRequest, Request],
         tuple[dict[str, Any] | None, CreateRunRequest],
@@ -168,7 +169,7 @@ class RunCreationCallbacks:
         [
             CreateRunRequest,
             dict[str, Any] | None,
-            credentials.ByokCredential | None,
+            byok_scope.ByokCredential | None,
         ],
         _ResolvedRunSettings,
     ]
@@ -181,7 +182,7 @@ class RunCreationCallbacks:
         [
             RunRow,
             CreateRunRequest,
-            credentials.ByokCredential | None,
+            byok_scope.ByokCredential | None,
             BackgroundTasks,
         ],
         None,
@@ -259,7 +260,7 @@ class _Admission:
 class _ResolvedSetup:
     request: CreateRunRequest
     interview: dict[str, Any] | None
-    byok: credentials.ByokCredential | None
+    byok: byok_scope.ByokCredential | None
     staged_documents: list[dict[str, Any]]
     settings: _ResolvedRunSettings
     free_usage: bool = False
@@ -480,11 +481,11 @@ def _persist_new_run(
 
 async def _generate_run_text(
     goal: str,
-    byok: credentials.ByokCredential | None,
+    byok: byok_scope.ByokCredential | None,
     *,
     restatement: bool = False,
 ) -> str | None:
-    with credentials.scoped_byok(byok):
+    with byok_scope.scoped_byok(byok):
         generate = generate_goal_restatement if restatement else generate_run_title
         return await generate(goal)
 
@@ -492,7 +493,7 @@ async def _generate_run_text(
 async def _populate_run_title(
     run_id: str,
     goal: str,
-    byok: credentials.ByokCredential | None = None,
+    byok: byok_scope.ByokCredential | None = None,
 ) -> None:
     """Background titling preserves interview-chosen titles and leaves goal-
     clause fallback available when generation fails.
@@ -505,7 +506,7 @@ async def _populate_run_title(
 async def _populate_goal_restatement(
     run_id: str,
     goal: str,
-    byok: credentials.ByokCredential | None = None,
+    byok: byok_scope.ByokCredential | None = None,
 ) -> None:
     """Goal restatement is a distinct report artifact, independent of
     whether the interview supplied a title.

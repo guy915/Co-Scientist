@@ -1,7 +1,7 @@
 from typing import Any
 
+from co_scientist.core import byok_scope
 from co_scientist.core.exceptions import ProviderAdmissionError
-from co_scientist.domains.access import credentials
 from co_scientist.platform.llm import offline_guard, provider_usage
 from co_scientist.platform.llm.llm_scope import app_call_scope, in_app_call_scope
 from co_scientist.platform.llm.request.transport import complete_request
@@ -15,7 +15,7 @@ async def acompletion(**kwargs: Any) -> Any:
 
 
 async def _complete(kwargs: dict[str, Any]) -> Any:
-    user_key = credentials.current_byok() is not None
+    user_key = byok_scope.current_byok() is not None
     if not user_key:
         offline_guard.require_remote_chat("chat completion")
         from co_scientist.core.config import settings
