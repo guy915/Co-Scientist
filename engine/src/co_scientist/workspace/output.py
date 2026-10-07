@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from co_scientist.patch import PatchError, write_workspace_file
 from co_scientist.sandbox.policy import HARNESS_METADATA_NAME
 
 logger = logging.getLogger(__name__)
@@ -139,28 +140,13 @@ class OutputRecorder:
             pointer=self._spill(label, redacted),
         )
 
-    def _is_inside_workspace(self, candidate: Path) -> bool:
-        resolved = candidate.resolve()
-        return resolved == self.root or self.root in resolved.parents
-
     def _spill(self, label: str, redacted: str) -> OutputPointer | None:
         """A full disk may lose output's middle, never the command."""
         digest = hashlib.sha256(redacted.encode("utf-8")).hexdigest()
         relative = f"{SPILL_DIRECTORY}/{label}-{digest[:12]}.txt"
-        target = self.root / relative
-        if not self._is_inside_workspace(target.parent):
-            # Resolve before mkdir: host-side spills must not follow a command's
-            # metadata symlink.
-            logger.error(
-                "refusing to spill %s: %s resolves outside the workspace",
-                label,
-                relative,
-            )
-            return None
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(redacted, encoding="utf-8")
-        except OSError as exc:
+            write_workspace_file(self.root, relative, redacted)
+        except (OSError, PatchError) as exc:
             logger.warning("could not spill %s output: %s", label, exc)
             return None
         return OutputPointer(path=relative, digest=digest, total_chars=len(redacted))

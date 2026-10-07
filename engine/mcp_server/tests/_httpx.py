@@ -15,6 +15,14 @@ from starlette.applications import Starlette
 _REAL_ASYNC_CLIENT = httpx.AsyncClient
 
 
+class _AsyncBytes(httpx.AsyncByteStream):
+    def __init__(self, content: bytes) -> None:
+        self.content = content
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        yield self.content
+
+
 class StubResponse:
     def __init__(self, payload: Any, error: Exception | None = None) -> None:
         self._payload = payload
@@ -52,6 +60,22 @@ class StubClient:
 
     async def get(self, url: str, **kwargs: Any) -> StubResponse | httpx.Response:
         return self._serve(url, kwargs.get("params"))
+
+    def build_request(self, method: str, url: Any, **kwargs: Any) -> httpx.Request:
+        return httpx.Request(method, url, **kwargs)
+
+    async def send(self, request: httpx.Request, **_: Any) -> httpx.Response:
+        response = self._serve(str(request.url), None)
+        if not isinstance(response, httpx.Response):
+            raise AssertionError("streaming requests require an httpx.Response")
+        if response.is_stream_consumed:
+            return httpx.Response(
+                response.status_code,
+                headers=response.headers,
+                stream=_AsyncBytes(response.content),
+                request=request,
+            )
+        return response
 
     async def post(self, url: str, json: Any = None, **_: Any) -> StubResponse | httpx.Response:
         return self._serve(url, json)
@@ -119,7 +143,12 @@ def transport_responses(monkeypatch: pytest.MonkeyPatch, *responses: Any) -> lis
         if isinstance(response, Exception):
             raise response
         if isinstance(response, httpx.Response):
-            return response
+            return httpx.Response(
+                response.status_code,
+                headers=response.headers,
+                stream=_AsyncBytes(response.content),
+                request=request,
+            )
         return httpx.Response(200, json=response)
 
     monkeypatch.setattr(

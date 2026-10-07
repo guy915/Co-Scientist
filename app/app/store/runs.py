@@ -9,7 +9,7 @@ from typing import Any
 
 from app.store.db import _now, _use_conn, connect, transaction
 from app.store.logs import count_logs_for_run, delete_logs_for_run
-from app.store.models import TERMINAL_STATUSES, RunRow, RunStatus, _row_to_run
+from app.store.models import DEMO_CLIENT_ID, TERMINAL_STATUSES, RunRow, RunStatus, _row_to_run
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -353,6 +353,8 @@ def create_run(
     creation cannot appear in the log.
     """
     opts = options or RunCreateOptions()
+    if opts.client_id == DEMO_CLIENT_ID:
+        raise ValueError("the demo identity is reserved for seeded examples")
     now = _now()
     backend = opts.llm_backend or "real"
     run = RunRow(

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
+from app.store.models import DEMO_CLIENT_ID
 
 
 def create_interview(
@@ -16,6 +17,8 @@ def create_interview(
     *,
     db_path: str | None = None,
 ) -> dict[str, Any]:
+    if client_id == DEMO_CLIENT_ID:
+        raise ValueError("the demo identity is reserved for seeded examples")
     interview_id = str(uuid.uuid4())
     now = _now()
     fields: dict[str, Any] = {

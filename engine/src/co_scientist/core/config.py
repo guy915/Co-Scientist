@@ -128,6 +128,7 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from_email: str = ""
+    smtp_ca_bundle: str = ""
     public_app_url: str = "http://localhost:5173"
 
     byok_encryption_key: str = ""

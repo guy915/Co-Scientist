@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+import time
 from urllib.parse import urlsplit
 
 import httpx
@@ -49,7 +50,9 @@ def validate_http_url(url: str) -> tuple[str, str]:
 def request_with_screened_redirects(
     client: httpx.Client, method: str, url: str, *, max_redirects: int = 5
 ) -> httpx.Response:
+    """Citation probes need headers only, including a HEAD-to-GET fallback."""
     current = url
+    deadline = time.monotonic() + 8.0
     for _ in range(max_redirects):
         host, ip = validate_http_url(current)
         parsed = httpx.URL(current)
@@ -59,21 +62,23 @@ def request_with_screened_redirects(
         pinned_url = parsed.copy_with(host=ip)
         headers = {"Host": authority}
         extensions = {"sni_hostname": host}
-        response = client.request(
-            method,
-            pinned_url,
-            headers=headers,
-            extensions=extensions,
-            follow_redirects=False,
-        )
-        if response.status_code in {403, 405} and method == "HEAD":
-            response = client.request(
-                "GET",
+        for probe_method in ("HEAD", "GET") if method == "HEAD" else (method,):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise httpx.TimeoutException("citation probe deadline exceeded")
+            request = client.build_request(
+                probe_method,
                 pinned_url,
                 headers=headers,
                 extensions=extensions,
-                follow_redirects=False,
+                timeout=remaining,
             )
+            response = client.send(request, stream=True, follow_redirects=False)
+            response.close()
+            if time.monotonic() > deadline:
+                raise httpx.TimeoutException("citation probe deadline exceeded", request=request)
+            if probe_method != "HEAD" or response.status_code not in {403, 405}:
+                break
         location = response.headers.get("location")
         if response.is_redirect and location:
             current = str(httpx.URL(current).join(location))

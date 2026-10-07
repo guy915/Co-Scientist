@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request
 
+from app.store.models import DEMO_CLIENT_ID
+
 
 @dataclass(frozen=True)
 class Principal:
@@ -11,7 +13,10 @@ class Principal:
 
 
 def principal_for_request(request: Request) -> Principal:
-    return Principal(request.headers.get("X-Client-ID", ""))
+    subject = request.headers.get("X-Client-ID", "")
+    if subject == DEMO_CLIENT_ID:
+        raise HTTPException(status_code=400, detail="the demo identity is reserved")
+    return Principal(subject)
 
 
 def client_id(request: Request) -> str:

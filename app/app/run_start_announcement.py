@@ -17,6 +17,7 @@ from co_scientist.core.config import (
 from app import credentials, offline_guard
 from app.diagnostic_events import log_chat_turn
 from app.llm_scope import budgeted_stream, stream_chunks
+from app.logging_setup import run_log_context
 from app.sse import sse_frame
 from app.store import messages as store
 from app.store.messages import NewMessage
@@ -216,7 +217,10 @@ async def stream_announcement(
         async for frame in _announcement_attempts(run, byok, prose, reasoning):
             yield frame
     except Exception as exc:
-        logger.info("session announcement for run %s falls back: %s", run.id, exc)
+        with run_log_context(run.id):
+            logger.info(
+                "session announcement for run %s falls back (%s)", run.id, type(exc).__name__
+            )
     text = "".join(prose).strip()
     fallback = not text
     if fallback:
