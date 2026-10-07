@@ -34,13 +34,15 @@ jobs:
           steps = workflow['jobs']['changes']['steps']
           filtered = next(step for step in steps if step.get('id') == 'filter')
           selected = next(step for step in steps if step.get('id') == 'select')
-          assert filtered['with']['base'] == '${{ github.event.merge_group.base_sha }}'
-          assert filtered['with']['ref'] == '${{ github.event.merge_group.head_sha }}'
+          assert filtered['with']['base'] == '${' + '{ github.event.merge_group.base_sha }}'
+          assert filtered['with']['ref'] == '${' + '{ github.event.merge_group.head_sha }}'
           for step in [filtered, selected, steps[0]]:
               assert "github.event_name == 'merge_group'" in step['if']
           all_step = next(step for step in steps if step.get('id') == 'all')
           assert "github.event_name != 'merge_group'" in all_step['if']
           Path('/tmp/lane-c-select.sh').write_text(selected['run'])
+          contexts = next(step for step in steps if step.get('id') == 'contexts')
+          Path('/tmp/lane-c-contexts.sh').write_text(contexts['run'])
           Path('/tmp/lane-c-filters.yml').write_text(filtered['with']['filters'])
           subprocess.run(['git', 'config', 'user.name', 'CI fixture'], check=True)
           subprocess.run(['git', 'config', 'user.email', 'ci-fixture@example.invalid'], check=True)
@@ -101,6 +103,15 @@ jobs:
               assert selected['python_lint'] == 'true', selected
               if name == 'MIXED':
                   assert selected['root_config'] == selected['docker'] == 'true', selected
+              with tempfile.NamedTemporaryFile() as output:
+                  subprocess.run(['bash', '/tmp/lane-c-contexts.sh'], env={
+                      **os.environ, 'ENGINE_SELECTED': selected['engine'], 'GITHUB_OUTPUT': output.name,
+                  }, check=True)
+                  contexts = json.loads(Path(output.name).read_text().split('=', 1)[1])
+              names = [context['name'] for context in contexts]
+              assert len(names) == len(set(names))
+              assert ('Engine tests (py3.10)' in names) == (name == 'DOCS')
+              assert ('Engine tests (py3.12)' in names) == (name == 'DOCS')
               with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
                   print(f'{name}: `{json.dumps(selected, sort_keys=True)}`', file=summary)
           print('Production paths-filter and selector passed both merge-group payloads.')
