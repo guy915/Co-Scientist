@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import shutil
 import struct
 import subprocess
 import sys
@@ -113,13 +114,13 @@ def test_image_dimensions_are_rejected_before_ocr(
 ) -> None:
     data = _png(10_000, 10_000)
     calls: list[object] = []
-    monkeypatch.setattr(ingest.shutil, "which", lambda _: "/synthetic/tesseract")
+    monkeypatch.setattr(shutil, "which", lambda _: "/synthetic/tesseract")
 
     def run(*args: Any, **kwargs: Any) -> SimpleNamespace:
         calls.append(args)
         return SimpleNamespace(returncode=0, stdout=b"synthetic OCR")
 
-    monkeypatch.setattr(ingest.subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "run", run)
     with pytest.raises(ValueError, match=r"pixel|dimension|megapixel"):
         ingest._extract_image_ocr(data, pdf_worker=True)
     assert calls == []
@@ -130,21 +131,21 @@ def test_standalone_ocr_does_not_capture_unbounded_output_in_api_memory(
 ) -> None:
     calls: list[dict[str, Any]] = []
     workers: list[dict[str, Any]] = []
-    monkeypatch.setattr(ingest.shutil, "which", lambda _: "/synthetic/tesseract")
+    monkeypatch.setattr(shutil, "which", lambda _: "/synthetic/tesseract")
 
     def run(*args: Any, **kwargs: Any) -> SimpleNamespace:
         calls.append(kwargs)
         return SimpleNamespace(returncode=0, stdout=b"synthetic OCR")
 
-    monkeypatch.setattr(ingest.subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "run", run)
 
     def popen(*args: Any, **kwargs: Any) -> SimpleNamespace:
         workers.append(kwargs)
-        assert kwargs["stdout"] != ingest.subprocess.PIPE
+        assert kwargs["stdout"] != subprocess.PIPE
         kwargs["stdout"].write(json.dumps({"ok": True, "text": "synthetic OCR"}).encode())
         return SimpleNamespace(pid=1, returncode=0, communicate=lambda *a, **k: (None, None))
 
-    monkeypatch.setattr(ingest.subprocess, "Popen", popen)
+    monkeypatch.setattr(subprocess, "Popen", popen)
     monkeypatch.setattr(ingest, "_kill_pdf_worker_group", lambda _: None)
     ingest._extract_image_ocr(_png())
     assert not any(call.get("capture_output") for call in calls)
@@ -189,7 +190,7 @@ async def test_identity_rotation_cannot_bypass_extraction_admission(
 
 
 def test_ocr_output_is_read_with_a_finite_limit(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(ingest.shutil, "which", lambda _: "/synthetic/tesseract")
+    monkeypatch.setattr(shutil, "which", lambda _: "/synthetic/tesseract")
     monkeypatch.setattr(ingest, "MAX_PDF_OUTPUT_BYTES", 16)
 
     def run(*args: Any, **kwargs: Any) -> SimpleNamespace:
@@ -197,7 +198,7 @@ def test_ocr_output_is_read_with_a_finite_limit(monkeypatch: pytest.MonkeyPatch)
         kwargs["stdout"].write(b"x" * 17)
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr(ingest.subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "run", run)
     with pytest.raises(ValueError, match="OCR output limit"):
         ingest._extract_image_ocr(_png(), pdf_worker=True)
 
