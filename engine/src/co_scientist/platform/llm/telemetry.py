@@ -8,10 +8,13 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any
 
+from opentelemetry import trace
+
 from co_scientist.core._context import _bind_contextvar
 from co_scientist.core.metrics import ModelCallStats
 from co_scientist.platform.llm.profile import MODEL_PRICING, estimate_cost_usd
 from co_scientist.platform.llm.request.response import extract_token_usage
+from co_scientist.platform.telemetry.tracing import current_span, mark_error, tracer
 
 UNSPECIFIED_PHASE = "unspecified"
 
@@ -166,3 +169,66 @@ def record_deterministic_fallback(model_name: str, reason: str) -> None:
     from a model.
     """
     record_call(model_name, ModelCallStats(deterministic_fallbacks={reason: 1}))
+
+
+# Spans follow the OpenTelemetry GenAI conventions where a name exists;
+# prompts, completions and tool arguments never become attributes.
+_OPERATION = "chat"
+
+
+def logical_call_span(
+    surface: str, model_name: str, prompt_name: str | None = None
+) -> contextlib.AbstractContextManager[trace.Span]:
+    attributes: dict[str, Any] = {
+        "gen_ai.operation.name": _OPERATION,
+        "gen_ai.request.model": model_name,
+        "co_scientist.llm.surface": surface,
+    }
+    if prompt_name:
+        attributes["co_scientist.llm.prompt_name"] = prompt_name
+    return current_span(f"llm.{surface}", attributes)
+
+
+def attempt_span(number: int, rung: str) -> contextlib.AbstractContextManager[trace.Span]:
+    return current_span(
+        "llm.attempt",
+        {"co_scientist.llm.attempt": number, "co_scientist.llm.budget_rung": rung},
+    )
+
+
+def record_retry_reason(error: BaseException) -> None:
+    trace.get_current_span().set_attribute("co_scientist.llm.retry_reason", type(error).__name__)
+
+
+def start_request_span(model_name: str, completion_args: dict[str, Any]) -> trace.Span:
+    """Streams outlive the dispatching call, so the caller ends this span."""
+    attributes: dict[str, Any] = {
+        "gen_ai.operation.name": _OPERATION,
+        "gen_ai.request.model": model_name,
+        "co_scientist.llm.route": str(completion_args.get("model", model_name)),
+    }
+    max_tokens = completion_args.get("max_completion_tokens", completion_args.get("max_tokens"))
+    if isinstance(max_tokens, int):
+        attributes["gen_ai.request.max_tokens"] = max_tokens
+    return tracer().start_span(
+        f"{_OPERATION} {model_name}",
+        kind=trace.SpanKind.CLIENT,
+        attributes=attributes,
+        record_exception=False,
+        set_status_on_exception=False,
+    )
+
+
+def end_request_span(span: trace.Span, response: Any, error: BaseException | None) -> None:
+    if error is not None:
+        mark_error(span, error)
+    elif response is not None:
+        served = getattr(response, "model", None)
+        if isinstance(served, str) and served.strip():
+            span.set_attribute("gen_ai.response.model", served.strip())
+        usage = extract_token_usage(response)
+        span.set_attribute("gen_ai.usage.input_tokens", usage.prompt_tokens)
+        span.set_attribute("gen_ai.usage.output_tokens", usage.completion_tokens)
+        span.set_attribute("co_scientist.llm.reasoning_tokens", usage.reasoning_tokens)
+        span.set_attribute("co_scientist.llm.cached_prompt_tokens", usage.cached_prompt_tokens)
+    span.end()

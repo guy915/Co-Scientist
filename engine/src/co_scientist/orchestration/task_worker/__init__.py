@@ -29,9 +29,11 @@ from co_scientist.orchestration.task_worker.outcomes import (
 from co_scientist.orchestration.task_worker.outcomes import (
     _record_success as _record_success,
 )
+from co_scientist.orchestration.task_worker.outcomes import failure_outcome
 from co_scientist.platform.db.models import ScientificTask
 from co_scientist.platform.llm.scoped_loop import run_in_scoped_loop
 from co_scientist.platform.telemetry.logging_setup import run_log_context
+from co_scientist.platform.telemetry.tracing import current_span
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +121,25 @@ async def _execute_and_record(
     lease_lost: asyncio.Event,
     db_path: str | None,
 ) -> None:
+    attributes = {
+        "co_scientist.run_id": task.run_id,
+        "co_scientist.task.id": task.id,
+        "co_scientist.task.type": task.task_type,
+        "co_scientist.task.node": task.task_type.removeprefix(engine_tasks.NODE_TASK_PREFIX),
+        "co_scientist.task.attempt": task.attempt,
+    }
+    # Execution runs in a child asyncio task, which inherits this span.
+    with current_span("task.execute", attributes) as span:
+        outcome = await _execute_and_settle(task, worker_id, lease_lost, db_path)
+        span.set_attribute("co_scientist.task.outcome", outcome)
+
+
+async def _execute_and_settle(
+    task: ScientificTask,
+    worker_id: str,
+    lease_lost: asyncio.Event,
+    db_path: str | None,
+) -> str:
     try:
         # Execution tasks inherit this run context and propagate it to child
         # tasks.
@@ -128,7 +149,7 @@ async def _execute_and_record(
         # Revoked workers must not overwrite already recorded cancellation,
         # pause or competing ownership.
         logger.info("Task %s stopped after lease revocation", task.id)
-        return
+        return "lease_lost"
     except Exception as exc:  # Worker boundary isolates one task failure.
         from co_scientist.core.byok_scope import scoped_byok
         from co_scientist.domains.access.credentials import get_run_credential
@@ -141,8 +162,9 @@ async def _execute_and_record(
             credential = None
         with run_log_context(task.run_id), scoped_byok(credential):
             _handle_task_failure(task, worker_id, exc, db_path)
-        return
+        return failure_outcome(task, exc)
     _record_success(task, worker_id, result, db_path)
+    return "committed"
 
 
 async def _run_claimed_task(
