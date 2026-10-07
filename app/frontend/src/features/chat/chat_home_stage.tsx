@@ -526,7 +526,7 @@ export function HomeRecentsPanel({
 }
 
 function RecentCardMeta({run}: {run: Run}) {
-  const nowSeconds = useNowTick(1000);
+  const nowSeconds = useNowTick(1000, isActiveStatus(run.status));
   return (
     <span className="flex flex-wrap gap-[0.35rem]">
       <Chip size="xs">{formatDate(run.updated_at)}</Chip>

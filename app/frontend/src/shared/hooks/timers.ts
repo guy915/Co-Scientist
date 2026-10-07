@@ -1,12 +1,57 @@
-import {useEffect, useState, useCallback, useRef} from 'react';
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 import {nowSeconds} from '@/shared/lib/time';
 
-export function useNowTick(intervalMs: number): number {
-  const [now, setNow] = useState(nowSeconds);
+function subscribeVisibility(onChange: () => void): () => void {
+  document.addEventListener('visibilitychange', onChange);
+  return () => document.removeEventListener('visibilitychange', onChange);
+}
+
+export function usePageVisible(): boolean {
+  return useSyncExternalStore(
+    subscribeVisibility,
+    () => document.visibilityState !== 'hidden',
+    () => true,
+  );
+}
+
+// A hidden tab polls nothing (`/status` runs probes); returning to it polls at
+// once instead of showing data as old as the time away.
+export function usePoll(
+  poll: () => void,
+  intervalMs: number,
+  enabled = true,
+): void {
+  const visible = usePageVisible();
+  const latest = useRef(poll);
   useEffect(() => {
-    const id = window.setInterval(() => setNow(nowSeconds()), intervalMs);
+    latest.current = poll;
+  });
+  const missed = useRef(false);
+  useEffect(() => {
+    if (!enabled) return;
+    if (!visible) {
+      missed.current = true;
+      return;
+    }
+    if (missed.current) {
+      missed.current = false;
+      latest.current();
+    }
+    const id = window.setInterval(() => latest.current(), intervalMs);
     return () => window.clearInterval(id);
-  }, [intervalMs]);
+  }, [enabled, visible, intervalMs]);
+}
+
+// Only clocks that are still counting need to tick.
+export function useNowTick(intervalMs: number, enabled = true): number {
+  const [now, setNow] = useState(nowSeconds);
+  usePoll(() => setNow(nowSeconds()), intervalMs, enabled);
   return now;
 }
 
