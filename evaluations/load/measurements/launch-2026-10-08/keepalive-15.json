@@ -1,0 +1,221 @@
+{
+  "api_image": "sha256:1c0a9b5069c986cd67883675e577c0c18a7f08bffb7cf430e6aaa85d2cfcea8c",
+  "requests": 5522,
+  "unexpected_errors": 0,
+  "unexpected_error_rate": 0.0,
+  "counts": {
+    "start_attempts": 10,
+    "runs_admitted": 6,
+    "chat_turns": 10,
+    "landing_visits": 404,
+    "sse_opened": 400,
+    "sse_frames": 400,
+    "report_visits": 20,
+    "refused:run create:daily run admission exhausted; try again tomorrow (UTC)": 4
+  },
+  "peak_active_sse": 200,
+  "peak_rss_mib": 376.171875,
+  "peak_fds": 488,
+  "telemetry_errors": 0,
+  "measurement_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 118540,
+        "p50": 0.44147199969302164,
+        "p95": 10.142042000552465,
+        "p99": 32.1987999996054
+      },
+      "event_loop_lag_ms": {
+        "count": 849,
+        "p50": 3.6379232959404817e-10,
+        "p95": 28.999999999905405,
+        "p99": 227.00000000022555
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 2558,
+        "p50": 0.8386470008190372,
+        "p95": 57.15640800008259,
+        "p99": 232.01397000048019
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 385200,
+      "VmRSS": 385200
+    },
+    "fds": 15,
+    "active_sse": 0,
+    "timestamp": 1791453612.7173576
+  },
+  "final_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 118543,
+        "p50": 0.4414810000525904,
+        "p95": 10.142042000552465,
+        "p99": 32.1987999996054
+      },
+      "event_loop_lag_ms": {
+        "count": 866,
+        "p50": 3.6379232959404817e-10,
+        "p95": 28.999999999905405,
+        "p99": 227.00000000022555
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 2558,
+        "p50": 0.8386470008190372,
+        "p95": 57.15640800008259,
+        "p99": 232.01397000048019
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 385200,
+      "VmRSS": 385200
+    },
+    "fds": 15,
+    "active_sse": 0
+  },
+  "latencies_ms": {
+    "SSE connect": {
+      "50%": 1800.0,
+      "95%": 2400.0,
+      "99%": 2500.0
+    },
+    "chat ask": {
+      "50%": 1200.0,
+      "95%": 2000.0,
+      "99%": 2000.0
+    },
+    "landing /api/free-usage": {
+      "50%": 34.0,
+      "95%": 650.0,
+      "99%": 780.0
+    },
+    "landing /api/interviews": {
+      "50%": 63.0,
+      "95%": 850.0,
+      "99%": 1500.0
+    },
+    "landing /api/logs?after_id=0&limit=1&min_level=WARNING": {
+      "50%": 36.0,
+      "95%": 720.0,
+      "99%": 880.0
+    },
+    "landing /api/runs": {
+      "50%": 44.0,
+      "95%": 610.0,
+      "99%": 870.0
+    },
+    "landing /api/runs/demo": {
+      "50%": 150.0,
+      "95%": 810.0,
+      "99%": 1900.0
+    },
+    "landing /status": {
+      "50%": 9.0,
+      "95%": 280.0,
+      "99%": 350.0
+    },
+    "page event snapshot": {
+      "50%": 1800.0,
+      "95%": 2100.0,
+      "99%": 2400.0
+    },
+    "page run details": {
+      "50%": 880.0,
+      "95%": 2400.0,
+      "99%": 2600.0
+    },
+    "page run history": {
+      "50%": 550.0,
+      "95%": 1500.0,
+      "99%": 1900.0
+    },
+    "report /claim-evidence": {
+      "50%": 35.0,
+      "95%": 740.0,
+      "99%": 740.0
+    },
+    "report /evidence": {
+      "50%": 94.0,
+      "95%": 1900.0,
+      "99%": 1900.0
+    },
+    "report /hypotheses": {
+      "50%": 110.0,
+      "95%": 2500.0,
+      "99%": 2500.0
+    },
+    "report /matches": {
+      "50%": 110.0,
+      "95%": 980.0,
+      "99%": 980.0
+    },
+    "report /report": {
+      "50%": 70.0,
+      "95%": 1900.0,
+      "99%": 1900.0
+    },
+    "report /report.md": {
+      "50%": 43.0,
+      "95%": 540.0,
+      "99%": 540.0
+    },
+    "report /reviews": {
+      "50%": 130.0,
+      "95%": 920.0,
+      "99%": 920.0
+    },
+    "report /run": {
+      "50%": 210.0,
+      "95%": 2600.0,
+      "99%": 2600.0
+    },
+    "report /safety": {
+      "50%": 32.0,
+      "95%": 1600.0,
+      "99%": 1600.0
+    },
+    "run create": {
+      "50%": 92.0,
+      "95%": 420.0,
+      "99%": 420.0
+    },
+    "run start": {
+      "50%": 490.0,
+      "95%": 1600.0,
+      "99%": 1600.0
+    }
+  },
+  "exit_statuses": {
+    "master-exit.txt": "0",
+    "sampler-exit.txt": "0",
+    "worker-exits.txt": "0"
+  },
+  "harness_checkout_revision": "e574b2d88a8c09b7ee069d0ee2c34290b15dd556",
+  "api_source_revision": "e6cf5b9211ce4d101c29596e07dcfdc8f2f3b04d",
+  "api_overlay": [
+    "engine/src/co_scientist/api/runs/__init__.py",
+    "engine/src/co_scientist/api/runs/stream_admission.py",
+    "engine/src/co_scientist/api/runs/events.py"
+  ],
+  "overlay_source_commit": "fc390d856190916b2e67b6ae03135a3e0c65f9fe",
+  "generator_image": "sha256:a9ee57e0c66df76c8538d80b86f3e4f5f9be525463cabf21a2ab6fc1744666eb",
+  "profile": {
+    "duration_seconds": 60,
+    "offered_visitors_per_minute": 500,
+    "offered_sse_pages": 200,
+    "start_attempts": 10,
+    "preflights": false,
+    "http_keepalive_seconds": 15,
+    "generator_containers": 1,
+    "connecting_peers": 40,
+    "api_cpus": 2,
+    "api_memory_gib": 2,
+    "worker_pool_size": 1,
+    "model_delay_seconds": 0.1,
+    "model_schema_unions_resolved": false
+  },
+  "achieved_visitors_per_minute": 404.0,
+  "sqlite_busy_errors": 0,
+  "note": "Historical capacity receipt. Distinct generator/source/schema behavior must not be represented as a controlled latency comparison. Only keepalive-5/15 isolate HTTP keepalive."
+}
