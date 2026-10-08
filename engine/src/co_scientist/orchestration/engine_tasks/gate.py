@@ -4,10 +4,13 @@ import dataclasses
 import functools
 import logging
 from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.claims.gate import ClaimRole
+
+if TYPE_CHECKING:
+    from co_scientist.domains.research_state.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -286,6 +289,19 @@ def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
     )
 
 
+def _gated_hypotheses(state: dict[str, Any]) -> list[Any]:
+    """Claim checks are depth: finalists, plus ideas a past check blocked,
+    which must stay reassessable."""
+    from co_scientist.science.scheduling.funnel import finalist_ids
+
+    leaders = finalist_ids(cast("WorkflowState", state))
+    return [
+        hypothesis
+        for hypothesis in state.get("hypotheses") or []
+        if hypothesis.id in leaders or hypothesis.review_disposition == "evidence_blocked"
+    ]
+
+
 async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     from co_scientist.domains.research_state.claims.grounding import (
         AssessorSpec,
@@ -301,7 +317,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     entailment_calls = [0]
     batch_assessor = build_batch_assessor(model, call_counter=entailment_calls)
     spec = AssessorSpec(assessor, assessor_id, batch_assessor)
-    wave = _build_gate_wave(state.get("hypotheses") or [], passages, assessor_id)
+    wave = _build_gate_wave(_gated_hypotheses(state), passages, assessor_id)
 
     with scoped_telemetry("claim_gate") as telemetry:
         assessed = await _assess_gate_claims(wave.plans, passages, spec)

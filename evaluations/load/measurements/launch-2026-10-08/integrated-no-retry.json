@@ -1,0 +1,341 @@
+{
+  "api_image": "sha256:a5b8899b2a5d13ae36c84323660deef1050af4bb58a87cc5840411b45c86ccf2",
+  "generator_image": "sha256:a9ee57e0c66df76c8538d80b86f3e4f5f9be525463cabf21a2ab6fc1744666eb",
+  "harness_sha256": "415f01dec4df558256501a1d7c5903e2e4b127ad779b0342a9708a310e6a7a1d  compose.yml\n82744a19f5ebb3de7d2a719b228a7246d94223968fd15ed2e9776076498700b1  locustfile.py\na34f32bae4d0299e969aa28e24d4cd590754e2a9f829fe25e16441b9a26af7fe  test_api.py\nff19b241a3fcc50b4e5a20a1580abacb9b24df7c07c45d0fcdb2b532429add94  worker.py\n2e99510ad1cad3fbc2a62789fdbf128e83a437d917923bed35a9e93f4753427c  sample.py\n8d63d6aaaf9b2e117219d4b887ba6c9b3bea09ba9d99e459278b25ad702ff11d  summarize.py\naab43c86dba52e877457f4eb3dae2da9ee810d7a34dbd396b6846b1be23f63ef  run.sh",
+  "requests": 44501,
+  "unexpected_errors": 12,
+  "unexpected_error_rate": 0.0002696568616435586,
+  "counts": {
+    "start_attempts": 50,
+    "runs_admitted": 6,
+    "sse_opened": 2000,
+    "sse_frames": 2000,
+    "chat_turns": 50,
+    "landing_visits": 2371,
+    "report_visits": 100,
+    "refused:run create:daily run admission exhausted; try again tomorrow (UTC)": 44
+  },
+  "peak_active_sse": 200,
+  "peak_rss_mib": 384.171875,
+  "peak_fds": 483,
+  "telemetry_errors": 0,
+  "measurement_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 472749,
+        "p50": 0.29545500001404434,
+        "p95": 4.6514030000253115,
+        "p99": 9.693040999991354
+      },
+      "event_loop_lag_ms": {
+        "count": 3123,
+        "p50": 3.6379232959404817e-10,
+        "p95": 13.99999999957799,
+        "p99": 218.0000000011205
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 3287,
+        "p50": 0.40060100036498625,
+        "p95": 54.604853999990155,
+        "p99": 298.3255620001728
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 393392,
+      "VmRSS": 391468
+    },
+    "fds": 15,
+    "active_sse": 0,
+    "started_run_statuses": {
+      "completed": 3,
+      "failed": 3
+    },
+    "timestamp": 1791455899.1736214
+  },
+  "final_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 472761,
+        "p50": 0.29545500001404434,
+        "p95": 4.6514030000253115,
+        "p99": 9.693040999991354
+      },
+      "event_loop_lag_ms": {
+        "count": 3139,
+        "p50": 3.6379232959404817e-10,
+        "p95": 13.99999999957799,
+        "p99": 218.0000000011205
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 3287,
+        "p50": 0.40060100036498625,
+        "p95": 54.604853999990155,
+        "p99": 298.3255620001728
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 393392,
+      "VmRSS": 391468
+    },
+    "fds": 15,
+    "active_sse": 0,
+    "started_run_statuses": {
+      "completed": 3,
+      "failed": 3
+    }
+  },
+  "latencies_ms": {
+    "SSE connect": {
+      "50%": 160.0,
+      "95%": 1500.0,
+      "99%": 1700.0
+    },
+    "chat ask": {
+      "50%": 320.0,
+      "95%": 1500.0,
+      "99%": 2800.0
+    },
+    "landing /api/free-usage": {
+      "50%": 18.0,
+      "95%": 290.0,
+      "99%": 900.0
+    },
+    "landing /api/interviews": {
+      "50%": 28.0,
+      "95%": 270.0,
+      "99%": 570.0
+    },
+    "landing /api/logs?after_id=0&limit=1&min_level=WARNING": {
+      "50%": 21.0,
+      "95%": 190.0,
+      "99%": 500.0
+    },
+    "landing /api/runs": {
+      "50%": 25.0,
+      "95%": 260.0,
+      "99%": 730.0
+    },
+    "landing /api/runs/demo": {
+      "50%": 110.0,
+      "95%": 480.0,
+      "99%": 1100.0
+    },
+    "landing /status": {
+      "50%": 6.0,
+      "95%": 39.0,
+      "99%": 250.0
+    },
+    "page event snapshot": {
+      "50%": 1200.0,
+      "95%": 1400.0,
+      "99%": 1500.0
+    },
+    "page run details": {
+      "50%": 420.0,
+      "95%": 1800.0,
+      "99%": 2200.0
+    },
+    "page run history": {
+      "50%": 220.0,
+      "95%": 1000.0,
+      "99%": 1300.0
+    },
+    "preflight SSE connect": {
+      "50%": 180.0,
+      "95%": 460.0,
+      "99%": 530.0
+    },
+    "preflight chat ask": {
+      "50%": 170.0,
+      "95%": 170.0,
+      "99%": 170.0
+    },
+    "preflight landing /api/free-usage": {
+      "50%": 3.0,
+      "95%": 14.0,
+      "99%": 38.0
+    },
+    "preflight landing /api/interviews": {
+      "50%": 2.0,
+      "95%": 10.0,
+      "99%": 38.0
+    },
+    "preflight landing /api/logs?after_id=0&limit=1&min_level=WARNING": {
+      "50%": 2.0,
+      "95%": 11.0,
+      "99%": 38.0
+    },
+    "preflight landing /api/runs": {
+      "50%": 2.0,
+      "95%": 12.0,
+      "99%": 40.0
+    },
+    "preflight landing /api/runs/demo": {
+      "50%": 2.0,
+      "95%": 10.0,
+      "99%": 40.0
+    },
+    "preflight landing /status": {
+      "50%": 4.0,
+      "95%": 43.0,
+      "99%": 240.0
+    },
+    "preflight page event snapshot": {
+      "50%": 62.0,
+      "95%": 250.0,
+      "99%": 250.0
+    },
+    "preflight page run details": {
+      "50%": 2.0,
+      "95%": 22.0,
+      "99%": 110.0
+    },
+    "preflight page run history": {
+      "50%": 2.0,
+      "95%": 77.0,
+      "99%": 290.0
+    },
+    "preflight report /claim-evidence": {
+      "50%": 2.0,
+      "95%": 2.0,
+      "99%": 2.0
+    },
+    "preflight report /evidence": {
+      "50%": 5.0,
+      "95%": 5.0,
+      "99%": 5.0
+    },
+    "preflight report /hypotheses": {
+      "50%": 39.0,
+      "95%": 39.0,
+      "99%": 39.0
+    },
+    "preflight report /matches": {
+      "50%": 12.0,
+      "95%": 12.0,
+      "99%": 12.0
+    },
+    "preflight report /report": {
+      "50%": 8.0,
+      "95%": 8.0,
+      "99%": 8.0
+    },
+    "preflight report /report.md": {
+      "50%": 3.0,
+      "95%": 3.0,
+      "99%": 3.0
+    },
+    "preflight report /reviews": {
+      "50%": 17.0,
+      "95%": 17.0,
+      "99%": 17.0
+    },
+    "preflight report /run": {
+      "50%": 170.0,
+      "95%": 170.0,
+      "99%": 170.0
+    },
+    "preflight report /safety": {
+      "50%": 6.0,
+      "95%": 6.0,
+      "99%": 6.0
+    },
+    "preflight run create": {
+      "50%": 5.0,
+      "95%": 80.0,
+      "99%": 340.0
+    },
+    "preflight run start": {
+      "50%": 13.0,
+      "95%": 25.0,
+      "99%": 25.0
+    },
+    "report /claim-evidence": {
+      "50%": 14.0,
+      "95%": 300.0,
+      "99%": 550.0
+    },
+    "report /evidence": {
+      "50%": 16.0,
+      "95%": 360.0,
+      "99%": 1300.0
+    },
+    "report /hypotheses": {
+      "50%": 21.0,
+      "95%": 520.0,
+      "99%": 1800.0
+    },
+    "report /matches": {
+      "50%": 14.0,
+      "95%": 250.0,
+      "99%": 1400.0
+    },
+    "report /report": {
+      "50%": 19.0,
+      "95%": 120.0,
+      "99%": 840.0
+    },
+    "report /report.md": {
+      "50%": 16.0,
+      "95%": 200.0,
+      "99%": 940.0
+    },
+    "report /reviews": {
+      "50%": 13.0,
+      "95%": 220.0,
+      "99%": 1800.0
+    },
+    "report /run": {
+      "50%": 37.0,
+      "95%": 830.0,
+      "99%": 1600.0
+    },
+    "report /safety": {
+      "50%": 14.0,
+      "95%": 110.0,
+      "99%": 680.0
+    },
+    "run create": {
+      "50%": 31.0,
+      "95%": 320.0,
+      "99%": 1500.0
+    },
+    "run start": {
+      "50%": 170.0,
+      "95%": 1000.0,
+      "99%": 1000.0
+    }
+  },
+  "exit_statuses": {
+    "master-exit.txt": "1",
+    "sampler-exit.txt": "0",
+    "worker-exits.txt": "0"
+  },
+  "harness_checkout_revision": "31b58b4dabb723f3b2df60612711c41fcd582282",
+  "api_source_revision": "31b58b4dabb723f3b2df60612711c41fcd582282",
+  "api_overlay": [],
+  "profile": {
+    "duration_seconds": 300,
+    "offered_visitors_per_minute": 500,
+    "offered_sse_pages": 200,
+    "start_attempts": 50,
+    "preflights": true,
+    "http_keepalive_seconds": 15,
+    "generator_containers": 1,
+    "connecting_peers": 40,
+    "api_cpus": 2,
+    "api_memory_gib": 2,
+    "worker_pool_size": 1,
+    "model_delay_seconds": 0.1,
+    "model_schema_unions_resolved": true,
+    "safe_idle_read_retry": false
+  },
+  "achieved_visitors_per_minute": 474.2,
+  "sqlite_busy_errors": 0,
+  "error_detail": "12 reused-idle-socket RemoteDisconnected errors on history GETs; no raw HTTP 500. Retained failed receipt. A local forced-close wire probe distinguishes Requests from Chromium, which safely repeats GET once.",
+  "run_outcomes": {
+    "completed": 3,
+    "failed_provider_admission": 3,
+    "failed_detail": "Task engine.ranking.match failed permanently: daily provider admission exhausted"
+  }
+}

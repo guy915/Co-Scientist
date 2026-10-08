@@ -512,8 +512,11 @@ def _enqueue_verification_fanout(
     db_path: str | None,
 ) -> dict[str, Any]:
     from co_scientist.science.reflection import select_hypotheses_to_verify
+    from co_scientist.science.scheduling.funnel import finalists
 
-    selected = select_hypotheses_to_verify(state["hypotheses"], state["model_name"])
+    selected = select_hypotheses_to_verify(
+        finalists(cast("WorkflowState", state)), state["model_name"]
+    )
     items, aggregate = _create_fanout_tasks(
         partial(_enqueue_verification_item_tasks, task, selected, checkpoint_seq),
         task,
@@ -544,13 +547,17 @@ class _ReflectionSpec(NamedTuple):
     recheck: bool = False
 
 
-def _viable_specs(hypothesis: Any, iteration: int, literature: Any) -> list[_ReflectionSpec]:
+def _viable_specs(
+    hypothesis: Any, iteration: int, literature: Any, *, terminal: bool = False
+) -> list[_ReflectionSpec]:
     specs: list[_ReflectionSpec] = []
     if literature and not hypothesis.reflection_notes:
         specs.append(_ReflectionSpec(hypothesis.id, "observation"))
     return specs + [
         _ReflectionSpec(hypothesis_id, review_mode)
         for hypothesis_id, review_mode in _maturity_specs(hypothesis, iteration)
+        # The terminal pass fills missing depth; a refresh would repay it.
+        if not (terminal and review_mode == "recurrent")
     ]
 
 
@@ -570,13 +577,24 @@ def _recheck_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
 
 
 def _mature_reflection_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
+    """Depth goes to viable finalists; blocked ideas keep their one recheck
+    except in the terminal pass, which nothing ranks afterwards."""
+    from co_scientist.science.scheduling.funnel import (
+        finalists,
+        has_depth,
+        is_terminal_depth_pass,
+    )
+
+    workflow = cast("WorkflowState", state)
     iteration = int(state.get("current_iteration", 0))
     literature = state.get("articles_with_reasoning")
+    terminal = is_terminal_depth_pass(workflow)
     specs: list[_ReflectionSpec] = []
-    for hypothesis in state["hypotheses"]:
-        if hypothesis.review_disposition == "viable":
-            specs += _viable_specs(hypothesis, iteration, literature)
-    return specs + _recheck_specs(state)
+    for hypothesis in finalists(workflow):
+        if hypothesis.review_disposition != "viable" or (terminal and has_depth(hypothesis)):
+            continue
+        specs += _viable_specs(hypothesis, iteration, literature, terminal=terminal)
+    return specs if terminal else specs + _recheck_specs(state)
 
 
 def _enqueue_mature_reflection_item_tasks(

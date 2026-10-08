@@ -25,7 +25,7 @@ section below says so.
 | `changes` ("Affected targets") | Path filters and target selection; builds the legacy-context matrix | 5 |
 | `format-lint` | `ruff format --check` and `ruff check` over `engine`, `app/tests` and `evaluations`; when `engine/mcp_server` changed, also the MCP server tests and its strict `mypy` | 20 |
 | `typecheck` | `make typecheck` (strict mypy over `app`, `engine`, `evaluations`) and `make arch` (import contracts). When root config changed: `vercel.json` and `wrangler.jsonc` syntax checks, the Cloudflare worker test (`node --test app/frontend/worker.test.mjs`), `make setup`, `make lint` | 30 |
-| `test-engine` | Engine pytest on Python 3.10 (support floor) and 3.12, `fail-fast: false` | 15 |
+| `test-engine` | Engine pytest on Python 3.12, matching the supported floor | 15 |
 | `test-app` | App pytest in 3 shards | 25 |
 | `evaluations` | `evaluations/tests` and the offline `evaluations.smoke` suite | 15 |
 | `frontend` | `bun run lint` (gts), `bun run test` (Vitest), `bun run build` | 15 |
@@ -35,7 +35,7 @@ section below says so.
 | `required-checks` | Aggregate gate (see Branch protection) | 5 |
 
 Python 3.12 is the primary version everywhere, as in the production images.
-The MCP server requires 3.12; the engine alone supports 3.10.
+The engine and MCP server require Python 3.12 or newer.
 
 ## Selection
 

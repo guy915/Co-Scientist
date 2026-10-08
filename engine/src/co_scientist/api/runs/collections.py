@@ -26,6 +26,11 @@ def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
     run = _run_or_404(run_id)
     hyps = rank_for_publication(hypotheses.list_hypotheses(run_id))
+    # Without a deep-verification verdict or claim checks an idea was screened,
+    # not examined, so "Unverified" would misstate why.
+    assessed = {edge.hypothesis_id for edge in store.list_claim_edges(run_id)}
+    for hyp in hyps:
+        hyp["screened"] = not hyp.get("verification_verdict") and hyp.get("id") not in assessed
     # Offline badges describe persisted run provenance, never the current
     # process
     # backend.
@@ -35,7 +40,7 @@ def get_hypotheses(run_id: str) -> dict[str, Any]:
     else:
         unverified = unverified_hypothesis_ids(run_id, None, hyps)
         for hyp in hyps:
-            hyp["unverified"] = str(hyp.get("id")) in unverified
+            hyp["unverified"] = str(hyp.get("id")) in unverified and not hyp["screened"]
     return {"hypotheses": hyps}
 
 

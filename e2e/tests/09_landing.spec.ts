@@ -10,13 +10,6 @@ for (const theme of ['light', 'dark']) {
         mode => localStorage.setItem('cosci-theme', mode),
         theme,
       );
-      // Verify the privacy-preserving embed without relying on YouTube availability.
-      await page.route('https://www.youtube-nocookie.com/**', route =>
-        route.fulfill({
-          body: '<html><body>Trailer</body></html>',
-          contentType: 'text/html',
-        }),
-      );
       const landingRequests: string[] = [];
       page.on('request', request => {
         if (/\/home_landing[^/]*\.(?:tsx?|js)(?:\?|$)/.test(request.url())) {
@@ -26,19 +19,19 @@ for (const theme of ['light', 'dark']) {
       await page.goto('/');
       await expect(page.getByRole('textbox')).toBeVisible();
       await page.waitForLoadState('networkidle');
-      const trailer = page.locator('iframe[title="Co-Scientist trailer"]');
+      const trailer = page.getByRole('link', {name: 'Watch the trailer on YouTube'});
       expect(landingRequests).toEqual([]);
       await expect(trailer).toHaveCount(0);
       await page
         .getByRole('button', {name: 'Scroll to see how Open Co-Scientist works'})
         .click();
-      await expect(trailer).toHaveAttribute('loading', 'lazy');
       await expect(trailer).toHaveAttribute(
-        'src',
-        'https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0',
+        'href',
+        'https://www.youtube.com/watch?v=Wnhe8a8kKc0',
       );
+      await expect(page.locator('iframe')).toHaveCount(0);
       await trailer.scrollIntoViewIfNeeded();
-      const box = await trailer.boundingBox();
+      const box = await trailer.locator('..').boundingBox();
       expect(box!.width / box!.height).toBeCloseTo(16 / 9, 1);
       await captureViewport(page, {
         width,
@@ -127,5 +120,5 @@ test('phones get the composer and compact feedback without landing', async ({
   await expect(
     header.getByRole('button', {name: 'Feedback', exact: true}),
   ).toBeInViewport();
-  await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
+  await expect(header.getByText('Open Co-Scientist', {exact: true})).toBeVisible();
 });

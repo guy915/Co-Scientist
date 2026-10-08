@@ -27,6 +27,15 @@ LUNA = "azure/gpt-6-luna-2026-09-22"
 NANO = "azure/gpt-5-nano-2025-08-07"
 
 
+@pytest.fixture(autouse=True)
+def funded_fake_azure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
+    monkeypatch.setenv("LLM_AZURE_UNTIL", "2099-01-04")
+    monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
+
+
 async def test_options_role_and_effort_survive_json_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     captured = []
 

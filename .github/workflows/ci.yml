@@ -11,6 +11,9 @@ on:
   workflow_call:
   workflow_dispatch:
 
+env:
+  LITELLM_LOCAL_MODEL_COST_MAP: "True"
+
 # PR diffs use the API; merge groups use their base/head git diff.
 permissions:
   contents: read
@@ -45,7 +48,6 @@ jobs:
       root_config: >-
         ${{ steps.select.outputs.root_config || steps.all.outputs.root_config }}
       python_lint: ${{ steps.select.outputs.python_lint || steps.all.outputs.python_lint }}
-      protected_contexts: ${{ steps.contexts.outputs.matrix }}
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
@@ -183,34 +185,6 @@ jobs:
             echo "${target}=true" >> "$GITHUB_OUTPUT"
           done
 
-      - name: Select legacy compatibility contexts
-        id: contexts
-        env:
-          ENGINE_SELECTED: ${{ steps.select.outputs.engine || steps.all.outputs.engine }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-
-          selected = os.environ["ENGINE_SELECTED"]
-          if selected not in {"true", "false"}:
-              raise SystemExit("Engine selection is missing or invalid")
-          contexts = [
-              {"name": "MCP server tests", "owner": "format-lint", "target": "mcp_server", "combined": True},
-              {"name": "App tests", "owner": "test-app", "target": "app"},
-              {"name": "Evaluations (parity + offline smoke)", "owner": "evaluations", "target": "evaluations"},
-              {"name": "Browser e2e (Playwright)", "owner": "e2e", "target": "e2e"},
-          ]
-          # GitHub does not expand a skipped matrix into its protected names.
-          if selected == "false":
-              contexts += [
-                  {"name": f"Engine tests (py{version})", "owner": "test-engine", "target": "engine"}
-                  for version in ("3.10", "3.12")
-              ]
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              print(f"matrix={json.dumps(contexts)}", file=output)
-          PY
-
   # MCP and Ruff share an interpreter, while retaining independent step failures.
   format-lint:
     name: Format and lint (ruff)
@@ -346,11 +320,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
-      # Keep both interpreter results visible when one fails.
+      # Keep test results visible when a matrix entry fails.
       fail-fast: false
       matrix:
-        # Python 3.10 is the engine support floor; 3.12 is the primary runtime.
-        python-version: ['3.10', '3.12']
+        # Match the supported package floor and production runtime.
+        python-version: ['3.12']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -452,17 +426,21 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       COSCI_E2E_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
+      COSCI_E2E_BROWSER_SHARD: ${{ matrix.browser_shard }}
     strategy:
       # Keep every shard's results visible when one fails.
       fail-fast: false
       matrix:
         # Each job launches its own isolated stack, so they share nothing.
-        # Playwright shards whole files; the first shard holds the slowest.
+        # Duration weights keep stateful files together on one worker.
         include:
-          - {name: shard 1/3, suite: e2e, args: --shard=1/3}
-          - {name: shard 2/3, suite: e2e, args: --shard=2/3}
-          - {name: shard 3/3, suite: e2e, args: --shard=3/3}
-          - {name: production, suite: e2e-production, args: ''}
+          - {name: shard 1/6, suite: e2e, args: '', browser_shard: 1/6}
+          - {name: shard 2/6, suite: e2e, args: '', browser_shard: 2/6}
+          - {name: shard 3/6, suite: e2e, args: '', browser_shard: 3/6}
+          - {name: shard 4/6, suite: e2e, args: '', browser_shard: 4/6}
+          - {name: shard 5/6, suite: e2e, args: '', browser_shard: 5/6}
+          - {name: shard 6/6, suite: e2e, args: '', browser_shard: 6/6}
+          - {name: production, suite: e2e-production, args: '', browser_shard: ''}
     # Setup plus the isolated stack share the job timeout.
     timeout-minutes: 25
     steps:
@@ -507,12 +485,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build api image
-        run: docker build -f Dockerfile.api -t coscientist-api-ci .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.api
+          tags: coscientist-api-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-api
+          cache-to: type=gha,scope=ci-api,mode=max
       - name: Build mcp image
-        run: docker build -f Dockerfile.mcp -t coscientist-mcp-ci .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.mcp
+          tags: coscientist-mcp-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-mcp
+          cache-to: type=gha,scope=ci-mcp,mode=max
       - name: Build frontend dev image
-        run: docker build -t coscientist-ui-ci app/frontend
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: app/frontend
+          tags: coscientist-ui-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-frontend
+          cache-to: type=gha,scope=ci-frontend,mode=max
       - name: Report image sizes
         # Image size is an optimization metric; record it on every build.
         run: docker image ls --format '{{.Repository}} {{.Size}}' 'coscientist-*-ci'
@@ -527,44 +530,6 @@ jobs:
         working-directory: app
         run: docker compose config --quiet
 
-  # Preserve legacy protected names until the owner requires only Required checks.
-  protected-contexts:
-    name: ${{ matrix.name }}
-    if: always()
-    needs: [changes, format-lint, test-engine, test-app, evaluations, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.changes.outputs.protected_contexts) }}
-    steps:
-      - name: Require the selected suite to pass
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-          CHECK_JOB: ${{ matrix.owner }}
-          CHECK_TARGET: ${{ matrix.target }}
-          COMBINED: ${{ matrix.combined || false }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          jobs = json.loads(os.environ["RESULTS"])
-          changes = jobs["changes"]
-          affected = changes["outputs"].get(os.environ["CHECK_TARGET"])
-          expected = {"true": "success", "false": "skipped"}.get(affected)
-          result = jobs[os.environ["CHECK_JOB"]]["result"]
-          valid = result == expected or (
-              affected == "false" and os.environ["COMBINED"] == "true" and result == "success"
-          )
-          if changes["result"] != "success" or expected is None or not valid:
-              print(f"Selected suite failed: affected={affected}, result={result}")
-              sys.exit(1)
-          print("The selected suite passed or was correctly excluded.")
-          PY
-
   required-checks:
     name: Required checks
     if: always()
@@ -578,7 +543,6 @@ jobs:
       - frontend
       - e2e
       - docker-build
-      - protected-contexts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -594,8 +558,28 @@ jobs:
           jobs = json.loads(os.environ["RESULTS"])
           failed = [name for name, job in jobs.items()
                     if job["result"] not in {"success", "skipped"}]
-          if jobs["changes"]["result"] != "success":
+          changes = jobs["changes"]
+          outputs = changes.get("outputs", {})
+          selections = {
+              "format-lint": ("python_lint", "mcp_server"),
+              "typecheck": ("engine", "app", "evaluations", "root_config"),
+              "test-engine": ("engine",),
+              "test-app": ("app",),
+              "evaluations": ("evaluations",),
+              "frontend": ("frontend",),
+              "e2e": ("e2e",),
+              "docker-build": ("docker",),
+          }
+          if changes["result"] != "success":
               failed.append("changes")
+          for name, targets in selections.items():
+              values = [outputs.get(target) for target in targets]
+              if any(value not in {"true", "false"} for value in values):
+                  failed.append("changes")
+                  continue
+              expected = "success" if "true" in values else "skipped"
+              if jobs.get(name, {}).get("result") != expected:
+                  failed.append(name)
           if failed:
               print("Required checks failed: " + ", ".join(sorted(set(failed))))
               sys.exit(1)
