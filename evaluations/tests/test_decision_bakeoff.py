@@ -211,3 +211,28 @@ def test_reference_batch_reorders_indices_and_rejects_missing_labels() -> None:
             {"judgments": [{"index": 1, "relevance": 0.1}]},
             ["relevance_1", "relevance_2"],
         )
+
+
+@pytest.mark.asyncio
+async def test_live_panel_receives_and_records_selected_pacing_without_provider_io(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    delays = []
+
+    async def panel(*args: Any) -> dict[str, Any]:
+        delays.append(args[4])
+        return {"summary": {"completed_cases": 0}, "rows": []}
+
+    async def limits() -> dict[str, Any]:
+        return {}
+
+    monkeypatch.setenv("MODEL_NAME", "offline/deterministic")
+    monkeypatch.setattr(decision_bakeoff, "run_panel", panel)
+    monkeypatch.setattr(decision_bakeoff, "account_limits", limits)
+    output = tmp_path / "report.json"
+    report = await decision_bakeoff.run_live(
+        "literature_relevance", [], DecisionSettings(), output, delay=30
+    )
+    assert delays == [30]
+    assert report["evaluation_pacing_seconds"] == 30
+    assert json.loads(output.read_text())["evaluation_pacing_seconds"] == 30

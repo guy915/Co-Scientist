@@ -316,7 +316,11 @@ async def account_limits() -> dict[str, Any]:
 
 
 async def run_live(
-    site: str, cases: list[DecisionCase], settings: DecisionSettings, output: Path
+    site: str,
+    cases: list[DecisionCase],
+    settings: DecisionSettings,
+    output: Path,
+    delay: float = 4,
 ) -> dict[str, Any]:
     client = SystemOneClient(settings)
     eligible = []
@@ -333,7 +337,8 @@ async def run_live(
         else:
             eligible.append(case)
     before = await account_limits()
-    report = await run_panel(site, eligible, client, os.environ["MODEL_NAME"], 4, output)
+    report = await run_panel(site, eligible, client, os.environ["MODEL_NAME"], delay, output)
+    report["evaluation_pacing_seconds"] = delay
     report["preflight_oversized_ids"] = oversized
     report["summary"]["preflight_oversized_fallbacks"] = len(oversized)
     report["openrouter_account_before"] = before
@@ -352,6 +357,7 @@ def main() -> int:
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cases", type=int, default=5)
+    parser.add_argument("--delay", type=float, choices=(4, 30), default=30)
     args = parser.parse_args()
     if (
         os.getenv("GITHUB_EVENT_NAME") != "workflow_dispatch"
@@ -366,7 +372,7 @@ def main() -> int:
     if not cases:
         raise ValueError("no real-backend corpus inputs found")
     settings = DecisionSettings.from_env()
-    report = asyncio.run(run_live(args.site, cases, settings, args.output))
+    report = asyncio.run(run_live(args.site, cases, settings, args.output, delay=args.delay))
     print(json.dumps(report["summary"], indent=2))
     return 1 if report["summary"]["errors"] else 0
 

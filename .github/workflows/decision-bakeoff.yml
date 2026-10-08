@@ -14,6 +14,11 @@ on:
         type: choice
         options: ['5', '150']
         default: '5'
+      delay:
+        description: Gap between requests in seconds (30 for large free Liquid batches)
+        type: choice
+        options: ['4', '30']
+        default: '30'
       source_runs:
         description: Completed real-backend Benchmark run IDs, comma separated
         type: string
@@ -67,9 +72,10 @@ jobs:
           DECISION_MAX_TOKENS_PER_DAY: '32000000'
           SITE: ${{ matrix.site }}
           CASES: ${{ inputs.cases }}
+          REQUEST_DELAY: ${{ inputs.delay }}
         run: |
           python -m evaluations.decision_bakeoff --site "$SITE" \
-            --corpus recorded-inputs --cases "$CASES" \
+            --corpus recorded-inputs --cases "$CASES" --delay "$REQUEST_DELAY" \
             --output "decision-artifacts/$SITE.json"
       - name: Upload decision report
         if: always()

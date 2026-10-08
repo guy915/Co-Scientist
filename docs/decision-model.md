@@ -94,6 +94,11 @@ note and a distinct retriever version; LLM fallback clears prior decision
 provenance. Original abstract boundaries remain identical, with no extra
 truncation to fit Liquid.
 
+The manual workflow's `delay` input selects four- or thirty-second gaps. Thirty
+seconds is the default after a large free Liquid batch returned 429; it is an
+evaluation pacing choice, not a verified provider allowance. Provider errors
+still stop the panel without retry. Reports retain the selected delay.
+
 The manual site selector can evaluate one site without dispatching the others.
 Relevance cases are production-sized batches of up to ten unique papers. The
 first complete batches providing at least 100 paper labels calibrate the
