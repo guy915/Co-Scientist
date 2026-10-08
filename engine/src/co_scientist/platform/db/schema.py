@@ -1,4 +1,10 @@
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS alert_markers (
+    id TEXT PRIMARY KEY, label TEXT NOT NULL, event_time INTEGER NOT NULL,
+    next_attempt REAL NOT NULL, attempts INTEGER NOT NULL, delivered_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_alert_markers_pending
+    ON alert_markers(next_attempt) WHERE delivered_at IS NULL;
 CREATE TABLE IF NOT EXISTS launch_control (
     id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL, drain INTEGER NOT NULL,
     message TEXT NOT NULL, resumes_at REAL, revision INTEGER NOT NULL,
