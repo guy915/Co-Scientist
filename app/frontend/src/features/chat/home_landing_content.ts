@@ -1,8 +1,8 @@
 import type {IconName} from '@/shared/ui/icon';
 import type {ShapeName} from './home_landing_hooks';
 
-// Keep tier facts synchronized with app RUN_TIER_DEFAULTS and initial Elo with
-// engine constants/tournament.py.
+// Keep tier facts synchronized with engine RUN_TIER_DEFAULTS and initial Elo
+// with engine INITIAL_ELO_RATING.
 
 export type LandingTone = 'teal' | 'blue' | 'green' | 'yellow' | 'red';
 
@@ -36,7 +36,7 @@ export const LANDING_AGENTS: readonly LandingAgent[] = [
     name: 'Supervisor',
     summary:
       'Reads your goal, writes the research plan, and decides which agent ' +
-      'works next based on how the pool is changing.',
+      'works next as the hypotheses develop.',
     icon: 'account_tree',
     shape: 'cookie12',
     tone: 'teal',
@@ -59,28 +59,28 @@ export const LANDING_AGENTS: readonly LandingAgent[] = [
   },
   {
     name: 'Ranking',
-    summary: 'Runs the Elo tournament of head-to-head debates.',
+    summary: 'Compares pairs of hypotheses and updates their Elo ratings.',
     icon: 'leaderboard',
     shape: 'pill',
     tone: 'yellow',
   },
   {
     name: 'Evolution',
-    summary: 'Breeds improved children from the strongest ideas.',
+    summary: 'Creates improved hypotheses from the strongest ideas.',
     icon: 'genetics',
     shape: 'clover',
     tone: 'green',
   },
   {
     name: 'Proximity',
-    summary: 'Clusters near-duplicates so matches test real differences.',
+    summary: 'Groups similar hypotheses so comparisons test real differences.',
     icon: 'join',
     shape: 'cookie7',
     tone: 'blue',
   },
   {
     name: 'Meta-review',
-    summary: 'Learns from every debate and writes the research overview.',
+    summary: 'Summarizes the debates and writes the research overview.',
     icon: 'summarize',
     shape: 'sunny',
     tone: 'teal',
@@ -179,25 +179,25 @@ export interface FaqEntry {
 
 export const FAQ: readonly FaqEntry[] = [
   {
-    question: 'What is Co-Scientist?',
+    question: 'What is Open Co-Scientist?',
     answer:
-      'A multi-agent workspace that generates, debates, and ranks research ' +
-      'hypotheses for a goal you set. A team of agents proposes ideas, ' +
-      'reviews them, and runs a tournament so the strongest directions rise ' +
-      'to the top.',
+      'A research workspace that generates, reviews, and ranks hypotheses ' +
+      'for your goal. Specialized agents propose ideas, review them, and ' +
+      'compare pairs of hypotheses.',
   },
   {
     question: 'How do I start a run?',
     answer:
-      'From the home screen, describe your research goal in the composer and ' +
-      'send it. Co-Scientist confirms the setup, then the agents generate ' +
+      'From the home screen, describe your research goal in the message box and ' +
+      'send it. Open Co-Scientist confirms the setup, then the agents generate ' +
       'and evaluate ideas. Follow progress and results in the run view.',
   },
   {
     question: 'What does a run produce?',
     answer:
-      'A ranked set of hypotheses, each with reviews, an Elo rating from the ' +
-      'tournament, and claims checked against the literature. It also writes ' +
+      'A ranked set of hypotheses, each with reviews and an Elo rating from ' +
+      'the tournament. The leading ideas also have their claims checked ' +
+      'against the literature. It also writes ' +
       'a research overview with open questions and draft specific aims.',
   },
   {
@@ -210,7 +210,7 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'Are the results true?',
     answer:
-      'They are hypotheses, not findings. Co-Scientist ranks ideas by ' +
+      'They are hypotheses, not findings. Open Co-Scientist ranks ideas by ' +
       'argument and evidence so you can decide which ones deserve an ' +
       'experiment.',
   },
@@ -219,7 +219,7 @@ export const FAQ: readonly FaqEntry[] = [
     answer:
       'No. Without a key you are on free usage: you can start Express runs ' +
       'only, up to 3 per day on this device. Add your own key under Model ' +
-      'to use every run type without a daily limit.',
+      'to use every run type, with higher daily limits.',
   },
   {
     question: 'Which model does it use?',

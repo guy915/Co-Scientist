@@ -81,7 +81,8 @@ async def build_report_content(run_id: str, req: ReportRequest) -> _BuiltReport:
         research_goal=req.research_goal,
         goal_restatement=req.goal_restatement,
         provider=req.provider,
-        top_hypotheses=data.hyps[:5],
+        top_hypotheses=[hyp for hyp in data.hyps if _examined(hyp, data.claim_edges)],
+        screened_hypotheses=[hyp for hyp in data.hyps if not _examined(hyp, data.claim_edges)],
         meta_review=req.meta_review,
         citation_summary=req.citation_summary,
         research_overview=req.research_overview,
@@ -123,6 +124,14 @@ def _resolve_knowledge_base(data: _ReportData, req: ReportRequest) -> list[dict[
     """
     synthesized = _synthesized_knowledge_base_topics(req.research_overview, data.evidence)
     return synthesized or _knowledge_base_topics(data.hyps, data.claim_edges)
+
+
+def _examined(hyp: dict[str, Any], claim_edges: list[ClaimEdge]) -> bool:
+    """Finalists carry a deep-verification verdict; older runs may carry
+    only claim checks. Anything else was screened, not examined."""
+    if hyp.get("verification_verdict"):
+        return True
+    return any(edge.hypothesis_id == hyp.get("id") for edge in claim_edges)
 
 
 def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:

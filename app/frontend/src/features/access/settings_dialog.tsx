@@ -1,3 +1,4 @@
+import {DataRightsSection} from './data_rights_section';
 import {type RefObject, useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/shared/ui/icon';
 import {
@@ -38,6 +39,8 @@ import {
   validateCustomModel,
 } from '@/shared/api/system';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
+import {SETTINGS_SECTIONS, type SettingsSection} from './settings_sections';
+export {SETTINGS_SECTIONS, type SettingsSection} from './settings_sections';
 
 const CARD_CLASSES = cardClasses({tone: 'raised', size: 'panel'});
 const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';
@@ -122,7 +125,11 @@ export function SettingsDialog({
       initialFocusRef={closeRef}
     >
       <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-      <SettingsBody section={shown} onSectionChange={onSectionChange} />
+      <SettingsBody
+        section={shown}
+        onSectionChange={onSectionChange}
+        onClose={onClose}
+      />
     </Dialog>
   );
 }
@@ -131,9 +138,11 @@ export function SettingsDialog({
 function SettingsBody({
   section,
   onSectionChange,
+  onClose,
 }: {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
+  onClose: () => void;
 }) {
   const theme = useTheme();
   const apiKeyField = useApiKeyField();
@@ -145,26 +154,16 @@ function SettingsBody({
           <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
         )}
         {section === 'model' && <ModelSection {...apiKeyField} />}
+        {section === 'data' && <DataRightsSection onOpenLegal={onClose} />}
       </div>
     </div>
   );
 }
 
-export type SettingsSection = 'appearance' | 'model';
-
 const THEME_MODES: {mode: Mode; icon: IconName; label: string}[] = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
-];
-
-export const SETTINGS_SECTIONS: {
-  section: SettingsSection;
-  icon: IconName;
-  label: string;
-}[] = [
-  {section: 'appearance', icon: 'palette', label: 'Appearance'},
-  {section: 'model', icon: 'neurology', label: 'Model'},
 ];
 
 export function AppearanceSection({

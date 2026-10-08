@@ -15,7 +15,6 @@ import {
   type Run,
   type RunMessage,
 } from '@/shared/api/runs';
-import {conciseTitle} from '@/shared/lib/text';
 import {type InferredRunSpec} from '@/shared/lib/run_spec';
 import type {StartedSession} from './chat_timeline_run_spec_card';
 import {useChatHistoryContext} from '@/shared/hooks/history_context';
@@ -89,8 +88,9 @@ interface ResolveLinkedRunArgs {
 }
 
 function startedTitle(run: Run | undefined, fallback: string): string {
-  if (!run) return conciseTitle(fallback);
-  return displayTitle(run.title, run.research_goal);
+  return run
+    ? displayTitle(run.title, run.research_goal)
+    : displayTitle(null, fallback);
 }
 
 function resumedSession(
@@ -357,7 +357,7 @@ export function useChatRehydration(
     let cancelled = false;
     void loadQaHistory(
       chatId,
-      chats,
+      qaRunId(live.interview?.run_id, chats, chatId),
       {qaLoadedRef, live, onAnnouncement: setAnnouncement},
       () => cancelled,
     );
@@ -413,6 +413,19 @@ function chatRunId(chats: ChatSummary[], chatId: string): string | null {
   return chats.find(entry => entry.id === chatId)?.run_id ?? null;
 }
 
+// The reopened chat's own run link decides: with none, nothing was saved
+// before this tab, and a run started here already shows its start rows, so a
+// later list refresh must not append them again. Only a payload without the
+// field falls back to the list.
+function qaRunId(
+  reopenedRunId: string | null | undefined,
+  chats: ChatSummary[],
+  chatId: string,
+): string | null | undefined {
+  if (reopenedRunId !== undefined) return reopenedRunId;
+  return chatRunId(chats, chatId) ?? undefined;
+}
+
 interface QaLoadTarget {
   qaLoadedRef: {current: string | null};
   live: ChatSession;
@@ -431,13 +444,15 @@ function applyQaRows(
   if (announcement) target.onAnnouncement(announcement);
 }
 
+// `null` settles the chat as having no saved Q&A; `undefined` waits for the
+// chat list to name its run.
 async function loadQaHistory(
   chatId: string,
-  chats: ChatSummary[],
+  runId: string | null | undefined,
   target: QaLoadTarget,
   isCancelled: () => boolean,
 ): Promise<void> {
-  const runId = chatRunId(chats, chatId);
+  if (runId === null) target.qaLoadedRef.current = chatId;
   if (!runId) return;
   try {
     const rows = await getRunMessages(runId);

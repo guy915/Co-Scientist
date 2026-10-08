@@ -140,18 +140,21 @@ def deterministic_label(question: str, span: str) -> str:
     """Vocabulary overlap cannot establish that a passage answers the
     question.
     """
+    from co_scientist.core.text_matching import coverage
+
     wanted = _content_words(question)
     if not wanted:
         return "useless"
-    coverage = len(wanted & _content_words(span)) / len(wanted)
-    if coverage >= 0.5:
+    overlap = coverage(wanted, _content_words(span))
+    if overlap >= 0.5:
         return "useful"
-    return "partial" if coverage >= 0.25 else "useless"
+    return "partial" if overlap >= 0.25 else "useless"
 
 
 def _content_words(text: str) -> set[str]:
-    words = "".join(c.lower() if c.isalnum() else " " for c in text).split()
-    return {w for w in words if w not in _STOPWORDS and len(w) > 2}
+    from co_scientist.core.text_matching import tokenize
+
+    return set(tokenize(text, min_len=3, stopwords=_STOPWORDS))
 
 
 def score(labelled: list[tuple[str, str, str]]) -> dict[str, Any]:

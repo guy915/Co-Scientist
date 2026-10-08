@@ -106,6 +106,22 @@
   left: auto;
 }
 
+/* The header sits on the top edge, so every tooltip in it opens below,
+   whatever placement its control asks for. */
+.ucs-header-action-bar [data-tooltip].ucs-tooltip-anchor {
+  --ucs-tooltip-x: -50%;
+  --ucs-tooltip-y: -0.25rem;
+  --ucs-tooltip-open-x: -50%;
+  --ucs-tooltip-open-y: 0;
+}
+
+.ucs-header-action-bar [data-tooltip].ucs-tooltip-anchor::after {
+  top: calc(100% + 0.45rem);
+  right: auto;
+  bottom: auto;
+  left: 50%;
+}
+
 [data-tooltip].ucs-tooltip-align-start::after {
   right: auto;
   left: 0;

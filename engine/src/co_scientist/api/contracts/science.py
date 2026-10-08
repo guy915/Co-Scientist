@@ -33,6 +33,7 @@ class Hypothesis(TypedDict):
     status: str | None
     cluster_id: str | None
     unverified: NotRequired[bool]
+    screened: NotRequired[bool]
     verification_verdict: NotRequired[str | None]
 
 

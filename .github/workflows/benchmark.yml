@@ -5,11 +5,39 @@ name: Benchmark
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Collect one fixed goal or compare six saved Express runs
+        type: choice
+        options: [collect, compare]
+        default: collect
+      main_runs:
+        description: Compare only - three comma-separated main workflow run IDs
+        type: string
+      branch_runs:
+        description: Compare only - three comma-separated branch workflow run IDs
+        type: string
+      max_judge_calls:
+        description: Compare only - physical judge ceiling within the remaining daily share
+        type: number
+        default: 6
       tier:
         description: Run size
         type: choice
         options: [express, standard]
         default: express
+      goal_id:
+        description: Fixed paired-quality goal
+        type: choice
+        options: [cell-biology, battery-materials, urban-hydrology]
+        default: cell-biology
+      benchmark_ref:
+        description: Git ref whose research behavior is measured
+        type: string
+        default: main
+      max_calls:
+        description: Physical request ceiling (1-450, within the agreed daily remaining share)
+        type: number
+        default: 150
       label:
         description: Name for this run, e.g. baseline-1
         type: string
@@ -20,6 +48,7 @@ permissions:
 
 jobs:
   benchmark:
+    if: inputs.operation == 'collect'
     name: Benchmark (${{ inputs.tier }}, ${{ inputs.label }})
     runs-on: ubuntu-latest
     # A hung provider call once held a run for the six-hour runner limit with no
@@ -29,13 +58,23 @@ jobs:
       MODEL_NAME: openrouter/inclusionai/ling-3.1-flash
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       TIER: ${{ inputs.tier }}
+      GOAL_ID: ${{ inputs.goal_id }}
+      MAX_CALLS: ${{ inputs.max_calls }}
       MCP_SERVER_URL: http://127.0.0.1:8888/mcp
-      # Keep the run database for per-call and per-task analysis after the job.
-      CLAIM_SUPPORT_KEEP_DB: benchmark-artifacts/run.db
     steps:
-      - name: Checkout
+      - name: Checkout measurement harness
         timeout-minutes: 5
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare isolated research source
+        timeout-minutes: 5
+        env:
+          BENCHMARK_REF: ${{ inputs.benchmark_ref }}
+        run: |
+          git fetch --depth=1 origin "$BENCHMARK_REF"
+          git worktree add --detach "$RUNNER_TEMP/benchmark-source" FETCH_HEAD
+          echo "BENCHMARK_SOURCE=$RUNNER_TEMP/benchmark-source" >> "$GITHUB_ENV"
       - name: Generate the MCP shared secret
         timeout-minutes: 1
         run: |
@@ -44,33 +83,40 @@ jobs:
           echo "COSCIENTIST_MCP_SHARED_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Set up backend
         timeout-minutes: 15
-        uses: ./.github/actions/setup-backend
+        # Standard local-action syntax is required by actionlint 1.7.12.
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
+      - name: Install benchmarked engine
+        timeout-minutes: 5
+        run: uv pip install --system -e "$BENCHMARK_SOURCE/engine[dev]"
       - name: Install MCP server
         timeout-minutes: 10
         run: |
           python -m venv .venv-mcp
-          .venv-mcp/bin/python -m pip install -q -e engine/mcp_server
+          .venv-mcp/bin/python -m pip install -q -e "$BENCHMARK_SOURCE/engine/mcp_server"
       - name: Start MCP server
         timeout-minutes: 3
         # The server resolves as a directory package from engine/. The search
         # keys go to this step only, as in production, where the api lacks them.
-        working-directory: engine
+        working-directory: ${{ env.BENCHMARK_SOURCE }}/engine
         env:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
-          nohup ../.venv-mcp/bin/python -m uvicorn mcp_server.server:app \
-            --host 127.0.0.1 --port 8888 > ../mcp.log 2>&1 &
+          nohup "$GITHUB_WORKSPACE/.venv-mcp/bin/python" -m uvicorn mcp_server.server:app \
+            --host 127.0.0.1 --port 8888 > "$GITHUB_WORKSPACE/mcp.log" 2>&1 &
           for _ in $(seq 60); do
             curl -fsS http://127.0.0.1:8888/ >/dev/null && exit 0
             sleep 1
           done
-          cat ../mcp.log
+          cat "$GITHUB_WORKSPACE/mcp.log"
           exit 1
       - name: Run benchmark
         # Express has taken 41 to 71 minutes and standard about 2 h 16 min.
         timeout-minutes: ${{ inputs.tier == 'standard' && 240 || 120 }}
-        run: python -m evaluations.claim_support_eval --live --tier "$TIER"
+        working-directory: ${{ env.BENCHMARK_SOURCE }}
+        run: >-
+          python "$GITHUB_WORKSPACE/evaluations/benchmark_transport.py" collect --live --tier "$TIER"
+          --goal-id "$GOAL_ID" --max-calls "$MAX_CALLS" --output "$GITHUB_WORKSPACE/benchmark-artifacts"
       - name: Check the metric was written
         # Claims cluster within ideas, so treat the interval as a lower bound on the spread.
         if: always()
@@ -79,7 +125,7 @@ jobs:
           python - <<'PY'
           import glob, json, os, sys
 
-          files = sorted(glob.glob("evaluations/results/claim-support-live-*.json"))
+          files = sorted(glob.glob("benchmark-artifacts/claim-support-live.json"))
           if not files:
               print("::error title=No benchmark metric::The run wrote no claim-support result.")
               sys.exit(1)
@@ -99,7 +145,10 @@ jobs:
         if: always()
         timeout-minutes: 5
         run: |
-          for f in evaluations/results/claim-support-live-*.json; do
+          if [ -f benchmark-artifacts/baseline.md ]; then
+            cat benchmark-artifacts/baseline.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          for f in benchmark-artifacts/claim-support-live.json; do
             [ -e "$f" ] || continue
             {
               echo '```json'
@@ -117,7 +166,61 @@ jobs:
           name: benchmark-${{ inputs.tier }}-${{ inputs.label }}
           path: |
             benchmark-artifacts/
-            evaluations/results/claim-support-live-*.json
             mcp.log
+          retention-days: 14
+          if-no-files-found: warn
+  compare:
+    if: inputs.operation == 'compare'
+    name: Paired quality (${{ inputs.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout comparison harness
+        timeout-minutes: 5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up backend
+        timeout-minutes: 15
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
+      - name: Download and validate saved runs
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          MAIN_RUNS: ${{ inputs.main_runs }}
+          BRANCH_RUNS: ${{ inputs.branch_runs }}
+        run: >-
+          python -m evaluations.paired_artifacts --download --repository "$REPOSITORY"
+          --main-runs "$MAIN_RUNS" --branch-runs "$BRANCH_RUNS" --output paired-artifacts
+      - name: Judge both blind report orders
+        # Six orders can each reach the 600-second completion deadline.
+        timeout-minutes: 65
+        env:
+          MODEL_NAME: openrouter/inclusionai/ling-3.1-flash
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MAX_JUDGE_CALLS: ${{ inputs.max_judge_calls }}
+        run: >-
+          python -m evaluations.benchmark_transport compare paired-artifacts/prepared/pairs.json
+          --live-judge --max-judge-calls "$MAX_JUDGE_CALLS" --output paired-artifacts/paired
+      - name: Report paired quality
+        if: always()
+        timeout-minutes: 2
+        run: |
+          if [ -f paired-artifacts/paired.md ]; then
+            cat paired-artifacts/paired.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Paired check incomplete; no quality conclusion is available.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload paired table, judgments and receipts
+        if: always()
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paired-quality-${{ inputs.label }}
+          path: paired-artifacts/
           retention-days: 14
           if-no-files-found: warn

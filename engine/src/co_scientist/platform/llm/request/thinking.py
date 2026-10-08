@@ -11,6 +11,7 @@ from co_scientist.core.constants import (
 )
 from co_scientist.core.env_vars import parse_list_env
 from co_scientist.platform.llm.profile import ModelProfile, Thinking, model_profile
+from co_scientist.platform.llm.roles import current_call_policy
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,18 @@ def _apply_thinking_args(
     """Centralize the reasoning floor so new callers cannot send answer-sized
     budgets.
     """
+    profile = model_profile(model_name)
+    if profile.supported_efforts is not None:
+        policy = current_call_policy()
+        effort = (
+            policy.effort if enable_thinking else ("low" if policy.tier == "worker" else "none")
+        )
+        completion_args["reasoning_effort"] = effort
+        if effort != "none":
+            completion_args["max_tokens"] = max(
+                completion_args["max_tokens"], THINKING_FLOOR_MAX_TOKENS
+            )
+        return
     thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
     if thinking:
         completion_args["extra_body"] = thinking

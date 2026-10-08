@@ -218,11 +218,17 @@ def main() -> int:
     judge = live_judge(model) if model else recorded_judge(json.loads(args.judgments.read_text()))
     from evaluations._usage_evidence import capture_usage
 
+    bounded_backend = None
     with ExitStack() as stack:
         if args.live_judge:
             from co_scientist.platform.llm import scoped_completion_budget
+            from co_scientist.platform.llm.request.backend import active_backend, using_backend
+
+            from evaluations.quality_benchmark import BoundedBackend
 
             stack.enter_context(scoped_completion_budget(args.max_judge_calls))
+            bounded_backend = BoundedBackend(active_backend(), args.max_judge_calls)
+            stack.enter_context(using_backend(bounded_backend))
         evidence = stack.enter_context(capture_usage("paired_quality_judge", live=args.live_judge))
         rows = [compare(a, b, judge) for a, b in pairs]
     report: dict[str, Any] = {
@@ -230,6 +236,7 @@ def main() -> int:
         "judge_mode": "live" if args.live_judge else "recorded",
         "judge_model": model,
         "judge_request_ceiling": args.max_judge_calls if args.live_judge else None,
+        "judge_physical_requests": bounded_backend.calls if bounded_backend else 0,
         "judge_usage": evidence,
         "pairs": rows,
         "summary": summarize(rows),

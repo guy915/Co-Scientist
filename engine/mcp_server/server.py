@@ -1,5 +1,8 @@
+import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -33,10 +36,16 @@ logging.basicConfig(
 # libraries stay at the INFO default set above.
 logging.getLogger("mcp_server").setLevel(log_level)
 
+from mcp_server.log_privacy import install_transport_log_privacy
+
+install_transport_log_privacy()
+
 from mcp_server.auth_middleware import (
+    MCP_LOCAL_AUTH_ENV,
     SharedSecretAuthMiddleware,
     resolve_shared_secret,
 )
+from mcp_server.cache_privacy import migrate_literature_cache
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools.biomedical_databases import (
     search_chembl,
@@ -140,7 +149,16 @@ logger.info(
 # and cleanup.
 # Stateless HTTP avoids restart/replica session affinity.
 mcp_http_app = mcp.http_app(stateless_http=True)
-app = FastAPI(lifespan=mcp_http_app.lifespan)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await asyncio.to_thread(migrate_literature_cache)
+    async with mcp_http_app.lifespan(app):
+        yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Only server callers use MCP; browsers need no trusted origin or credentialed
 # CORS.
@@ -157,7 +175,11 @@ _mcp_shared_secret = resolve_shared_secret()
 app.add_middleware(SharedSecretAuthMiddleware, secret=_mcp_shared_secret)
 logger.info(
     "MCP shared-secret auth: %s",
-    "enabled" if _mcp_shared_secret else "disabled (env var unset)",
+    "enabled"
+    if _mcp_shared_secret
+    else "loopback development exception"
+    if os.environ.get(MCP_LOCAL_AUTH_ENV) == "1"
+    else "requests refused (shared secret unset)",
 )
 
 

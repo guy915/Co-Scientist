@@ -29,7 +29,8 @@ export function useAnchoredMenu(
       el.style.left = '0px';
       el.style.maxHeight = '';
       const box = trigger.getBoundingClientRect();
-      el.style.minWidth = `${box.width}px`;
+      // The menu is exactly as wide as its trigger; long labels ellipsize.
+      el.style.width = `${box.width}px`;
       // The menu may be mid scale-in (origin top centre). Offset sizes ignore
       // the scale, and the measured left edge is shifted by half the shrink.
       const rect = el.getBoundingClientRect();
@@ -53,7 +54,7 @@ export function useAnchoredMenu(
       const next = {
         top: top - origin.top,
         left: left - origin.left,
-        minWidth: box.width,
+        width: box.width,
         maxHeight: room,
       };
       el.style.top = `${next.top}px`;
@@ -148,20 +149,20 @@ export function Select<T extends string>({
         style={menuStyle}
         // Absolute menus clip inside the scrolling Settings panel; fixed
         // anchored menus may escape its edges.
-        layoutClassName="fixed top-0 left-0 z-40 w-max min-w-full origin-top"
+        layoutClassName="fixed top-0 left-0 z-40 origin-top"
       >
         {groupOptions(options, groupOf).map(section => (
           <div
             key={section.label ?? ''}
             // Options must stretch like direct menu children so highlights
             // span the row.
-            className="grid"
+            className="grid grid-cols-[minmax(0,1fr)]"
             role={section.label ? 'group' : undefined}
             aria-label={section.label ?? undefined}
           >
             {section.label && (
               <div
-                className="px-3 pt-1.5 pb-0.5 text-[0.75rem] text-cosci-muted"
+                className="truncate px-3 pt-1.5 pb-0.5 text-[0.75rem] text-cosci-muted"
                 aria-hidden="true"
               >
                 {section.label}
@@ -178,9 +179,11 @@ export function Select<T extends string>({
                   if (option !== value) onChange(option);
                 }}
               >
-                <span>{optionLabel(option)}</span>
+                <span className="min-w-0 truncate" title={optionLabel(option)}>
+                  {optionLabel(option)}
+                </span>
                 {optionNote?.(option) && (
-                  <span className="ml-auto text-[0.75rem] text-cosci-muted">
+                  <span className="ml-auto flex-none text-[0.75rem] text-cosci-muted">
                     {optionNote(option)}
                   </span>
                 )}
