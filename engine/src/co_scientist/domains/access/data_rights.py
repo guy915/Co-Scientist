@@ -60,6 +60,11 @@ def _export_tables(owner: str) -> list[tuple[str, str, tuple[str, ...]]]:
             ),
             ("app_logs", _LOG_SCOPE, (owner, owner)),
             ("run_credentials", "client_id=? AND " + _RUN_SCOPE, (owner, owner)),
+            (
+                "llm_spend",
+                "id IN (SELECT id FROM provider_token_reservations WHERE client_id=?)",
+                (owner,),
+            ),
         ]
     )
     for table in (

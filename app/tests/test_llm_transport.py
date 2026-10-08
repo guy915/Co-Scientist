@@ -41,20 +41,21 @@ _probe: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 
 
 def test_run_coroutine_sync_runs_many_calls_concurrently() -> None:
-    import time
+    entered = 0
+    ready = asyncio.Event()
 
-    async def _slow() -> float:
-        start = time.monotonic()
-        import asyncio
-
-        await asyncio.sleep(0.05)
-        return start
+    async def simultaneous() -> int:
+        nonlocal entered
+        entered += 1
+        if entered == 5:
+            ready.set()
+        await asyncio.wait_for(ready.wait(), timeout=5)
+        return entered
 
     with ThreadPoolExecutor(max_workers=5) as pool:
-        starts = list(pool.map(lambda _: run_coroutine_sync(_slow), range(5)))
+        results = list(pool.map(lambda _: run_coroutine_sync(simultaneous), range(5)))
 
-    spread = max(starts) - min(starts)
-    assert spread < 0.05, f"calls did not overlap (start spread {spread})"
+    assert results == [5] * 5
 
 
 def test_propagate_context_restores_a_reused_worker_thread() -> None:
