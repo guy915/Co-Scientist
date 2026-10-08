@@ -87,12 +87,13 @@ Run the steps in order; each ends with a check.
    `/app/data`, `RAILWAY_RUN_UID=0` and exactly one API replica
    ([deployment](DEPLOYMENT.md)). Set matching `COSCIENTIST_MCP_SHARED_SECRET`
    values, the model credentials, `BYOK_ENCRYPTION_KEY`, `LOGS_ADMIN_TOKEN`
-   and `ALLOWED_ORIGINS=https://open-coscientist.com`. Check
+   and `ALLOWED_ORIGINS=https://open-coscientist.com`, plus the
+   `LITESTREAM_R2_*` credentials for replication to R2
+   ([deployment](DEPLOYMENT.md#database-replication-optional)). Check
    `https://api.open-coscientist.com/health` and `/status`.
-5. **Start the frontend.** Build the frontend on Cloudflare with the
-   `vercel.json` equivalents (build command, single-page rewrite, cache and
-   security headers) and `VITE_API_BASE_URL=https://api.open-coscientist.com`
-   plus `VITE_SENTRY_DSN`. Point DNS at it. Check deep links, a report reload
+5. **Start the frontend.** Deploy the Cloudflare Worker in `wrangler.jsonc`
+   from a build with `VITE_API_BASE_URL=https://api.open-coscientist.com`
+   and `VITE_SENTRY_DSN` ([deployment](DEPLOYMENT.md#frontend)). Point DNS at it. Check deep links, a report reload
    and a full Express run.
 6. **Remove the pre-launch setup.** Merge the pull request that drops the old
    origins and hosting files, then repeat the step 4 and 5 checks.

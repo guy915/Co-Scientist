@@ -129,7 +129,8 @@ a staging record leaves text already copied into a run as that run’s evidence.
 
 - **Remote images in model-written Markdown.** The Markdown renderer
   (`app/frontend/src/shared/ui/markdown_message_renderer.tsx`) has no `img`
-  override and `vercel.json` sets no Content-Security-Policy, so Markdown a model
+  override and neither `app/frontend/public/_headers` nor `vercel.json` sets a
+  Content-Security-Policy, so Markdown a model
   writes can load remote images. Raw HTML stays escaped; never enable `rehype-raw`
   for model output.
 - **The reference MCP server is open when its secret is unset.**
