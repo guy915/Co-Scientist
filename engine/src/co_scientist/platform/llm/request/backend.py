@@ -16,7 +16,7 @@ from co_scientist.core.exceptions import LLMTimeoutError
 from co_scientist.platform.llm.profile import model_profile
 
 
-class _TransportReplayRefused(Exception):
+class _TransportReplayRefusedError(Exception):
     pass
 
 
@@ -24,15 +24,17 @@ _gateway_request: ContextVar[bool] = ContextVar("gateway_request", default=False
 _sdk_connection_replay = AsyncHTTPHandler.single_connection_post_request
 
 
-async def _refuse_transport_replay(_handler: AsyncHTTPHandler, **_kwargs: Any) -> Any:
+async def _refuse_transport_replay(self: AsyncHTTPHandler, *_args: Any, **_kwargs: Any) -> Any:
     if _gateway_request.get():
-        raise _TransportReplayRefused("Provider transport failed; outcome unknown; replay blocked")
-    return await _sdk_connection_replay(_handler, **_kwargs)
+        raise _TransportReplayRefusedError(
+            "Provider transport failed; outcome unknown; replay blocked"
+        )
+    return await _sdk_connection_replay(self, *_args, **_kwargs)
 
 
 # LiteLLM's pinned transport retries disconnects independently of both retry
 # settings. This helper is used only for those replays, including stream setup.
-setattr(AsyncHTTPHandler, "single_connection_post_request", _refuse_transport_replay)
+AsyncHTTPHandler.single_connection_post_request = _refuse_transport_replay  # type: ignore[method-assign]
 
 
 def _is_transport_replay(error: BaseException) -> bool:
@@ -43,7 +45,7 @@ def _is_transport_replay(error: BaseException) -> bool:
         if id(current) in seen:
             continue
         seen.add(id(current))
-        if isinstance(current, _TransportReplayRefused):
+        if isinstance(current, _TransportReplayRefusedError):
             return True
         pending.extend(
             cause for cause in (current.__cause__, current.__context__) if cause is not None
