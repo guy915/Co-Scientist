@@ -2,7 +2,7 @@
 
 Transport uses the existing gateway. Provider order and per-user limits do not change.
 The operator Haiku 5.5 slot will use the owner's Console credit; BYOK uses caller keys.
-Slot selection and durable credit cooldown belong to W4-4. Azure remains off unless the operator enables it,
+Slot selection and the durable credit cooldown are implemented (#620). Azure remains off unless the operator enables it,
 sets a positive total EUR allowance and sets an unexpired credit date.
 
 T supplies a `CacheablePrompt` from `core/prompt_cache.py`: final rendered text and two
@@ -42,8 +42,8 @@ Private spans export numeric input, read and write counts plus a stable numeric 
 ID and refusal flag. Cache keys and prompt text are excluded. Usage aggregates include
 write and refusal counts. The SDK maps native refusal to content_filter; refused HTTP 200
 responses are counted and rejected even when they contain text. Streams retain the verdict
-across a later usage-only chunk. W4-4 must separately admit Azure fallback, record the switch,
-and persist the operator credit cooldown. Those routing changes are not implemented here.
+across a later usage-only chunk. Routing (`platform/llm/routing.py`) admits the Azure fallback,
+records each switch and persists the operator credit cooldown.
 
 The owner's organization has $100 credit. Its first cycle is 8 October–7 November 2026;
 the reset day is 7 each month. The low-credit error marks the operator slot unavailable

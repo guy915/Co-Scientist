@@ -30,14 +30,14 @@ tokens only; other subscription charges still reduce the owner's credit.
 Because the portal omits the expiry time and zone, stop at 00:00 UTC on the
 configured expiry date. This avoids using the unconfirmed final day.
 
-W4-4 compares run estimates with remaining total. If the estimate does not fit,
+W4-4 (implemented, #620) compares run estimates with remaining total. If the estimate does not fit,
 do not offer Azure. There is no daily/monthly money cap, spread or carry-forward.
 Keep existing per-user/free-run limits. Read `LLM_ENABLED` and
 `LLM_AZURE_ENABLED` for every request. Record provider changes in provenance.
 
-W4-5 removes automatic offline success from product paths. The deterministic
-backend stays an explicit test double. W4-6 adds token-protected spend metrics
-and the setup guide. New funding needs one total-variable change, not code.
+W4-5 (in progress) removes automatic offline success from product paths. The
+deterministic backend stays an explicit test double. W4-6 (not started) adds
+token-protected spend metrics and the setup guide. New funding needs one total-variable change, not code.
 The admin view has no email or alert.
 
 The owner confirmed Sweden Central Global Standard deployments:
