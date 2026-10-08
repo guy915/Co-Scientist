@@ -43,7 +43,7 @@ const SettingsDialog = lazy(() =>
 );
 
 const WORKSPACE_CLASSES =
-  'ucs-workspace relative z-1 grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
+  'ucs-workspace relative z-1 grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-clip rounded-l-workspace bg-cosci-bg ' +
   'phone:rounded-none';
 
 const REPORT_WORKSPACE_CLASSES =
