@@ -10,31 +10,27 @@ from typing import Any, cast
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import uvicorn
 from co_scientist.api.auth import Principal, principal_for_request
+from co_scientist.api.byok_models import router as byok_models_router
 from co_scientist.api.diagnostics_api import router as diagnostics_api_router
 from co_scientist.api.documents import router as documents_router
 from co_scientist.api.feedback_api import router as feedback_router
+from co_scientist.api.free_usage import router as free_usage_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import StorageAdmissionError
-from co_scientist.domains.access.byok_models import router as byok_models_router
-from co_scientist.domains.access.free_usage import router as free_usage_router
 from co_scientist.domains.chat.interviews import router as interviews_router
 from co_scientist.domains.chat.seed import is_current_demo_run, seed_demo_runs
 from co_scientist.orchestration.repository import runs, tasks
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
+from co_scientist.platform.db.log_capture import configure_log_capture, shutdown_log_capture
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.telemetry.error_tracking import init_error_tracking
-from co_scientist.platform.telemetry.logging_setup import (
-    configure_log_capture,
-    configure_logging,
-    level_to_number,
-    shutdown_log_capture,
-)
+from co_scientist.platform.telemetry.logging_setup import configure_logging, level_to_number
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
