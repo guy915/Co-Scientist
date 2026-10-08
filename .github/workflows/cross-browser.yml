@@ -2,6 +2,8 @@
 name: Cross-browser keyboard guards
 
 on:
+  push:
+    branches: [test/native-browser-guards]
   workflow_call:
   workflow_dispatch:
 
