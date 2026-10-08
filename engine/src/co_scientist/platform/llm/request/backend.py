@@ -5,11 +5,52 @@ Credentials remain task-local.
 import functools
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Protocol
 
 import litellm
+import openai
+from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 
+from co_scientist.core.exceptions import LLMTimeoutError
 from co_scientist.platform.llm.profile import model_profile
+
+
+class _TransportReplayRefusedError(Exception):
+    pass
+
+
+_gateway_request: ContextVar[bool] = ContextVar("gateway_request", default=False)
+_sdk_connection_replay = AsyncHTTPHandler.single_connection_post_request
+
+
+async def _refuse_transport_replay(self: AsyncHTTPHandler, *_args: Any, **_kwargs: Any) -> Any:
+    if _gateway_request.get():
+        raise _TransportReplayRefusedError(
+            "Provider transport failed; outcome unknown; replay blocked"
+        )
+    return await _sdk_connection_replay(self, *_args, **_kwargs)
+
+
+# LiteLLM's pinned transport retries disconnects independently of both retry
+# settings. This helper is used only for those replays, including stream setup.
+AsyncHTTPHandler.single_connection_post_request = _refuse_transport_replay  # type: ignore[method-assign]
+
+
+def _is_transport_replay(error: BaseException) -> bool:
+    pending = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, _TransportReplayRefusedError):
+            return True
+        pending.extend(
+            cause for cause in (current.__cause__, current.__context__) if cause is not None
+        )
+    return False
 
 
 class CompletionBackend(Protocol):
@@ -21,7 +62,7 @@ class CompletionBackend(Protocol):
 
 
 def is_authentication_error(error: BaseException) -> bool:
-    return isinstance(error, litellm.exceptions.AuthenticationError)
+    return isinstance(error, (litellm.exceptions.AuthenticationError, openai.AuthenticationError))
 
 
 def litellm_supports_json_schema(model_name: str) -> bool:
@@ -47,7 +88,19 @@ class LitellmBackend:
         """Read the live LiteLLM attribute so existing patch paths still
         steer built requests.
         """
-        return await litellm.acompletion(**completion_args)
+        # SDK retries would send requests that admission has not reserved.
+        completion_args.update(num_retries=0, max_retries=0)
+        token = _gateway_request.set(True)
+        try:
+            return await litellm.acompletion(**completion_args)
+        except Exception as error:
+            if _is_transport_replay(error):
+                raise LLMTimeoutError(
+                    "Provider transport failed; outcome unknown; replay blocked"
+                ) from error
+            raise
+        finally:
+            _gateway_request.reset(token)
 
     def supports_json_schema(self, model_name: str) -> bool:
         return litellm_supports_json_schema(model_name)

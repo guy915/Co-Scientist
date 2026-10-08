@@ -1,0 +1,343 @@
+{
+  "api_image": "sha256:a5b8899b2a5d13ae36c84323660deef1050af4bb58a87cc5840411b45c86ccf2",
+  "generator_image": "sha256:a9ee57e0c66df76c8538d80b86f3e4f5f9be525463cabf21a2ab6fc1744666eb",
+  "harness_sha256": "415f01dec4df558256501a1d7c5903e2e4b127ad779b0342a9708a310e6a7a1d  compose.yml\nea9a5d26e2cd977f14872217615944e1cc75264834c8220b11058c7b1880b696  client.py\n9d5f5be0cdd51ca5773bde92364c8f685fbf5f9d1f2bda0d6f2725663d1b76ca  locustfile.py\nb27881a738e735a4dfd3465d6b1239f2176545508cf0163cb8c9ff4c24671a00  test_api.py\nff19b241a3fcc50b4e5a20a1580abacb9b24df7c07c45d0fcdb2b532429add94  worker.py\n2e99510ad1cad3fbc2a62789fdbf128e83a437d917923bed35a9e93f4753427c  sample.py\n8d63d6aaaf9b2e117219d4b887ba6c9b3bea09ba9d99e459278b25ad702ff11d  summarize.py\n503cd0a35846ad6bad05183c26fe77cc69b0e724b2303d8e511943abe73bc57a  run.sh",
+  "requests": 44028,
+  "unexpected_errors": 0,
+  "unexpected_error_rate": 0.0,
+  "counts": {
+    "recovered_idle_retries": 0,
+    "chat_turns": 50,
+    "sse_opened": 2000,
+    "sse_frames": 2000,
+    "start_attempts": 50,
+    "runs_admitted": 6,
+    "landing_visits": 2342,
+    "report_visits": 100,
+    "refused:run create:daily run admission exhausted; try again tomorrow (UTC)": 44
+  },
+  "peak_active_sse": 200,
+  "peak_rss_mib": 382.51953125,
+  "peak_fds": 482,
+  "telemetry_errors": 0,
+  "measurement_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 467370,
+        "p50": 0.23049999981594738,
+        "p95": 4.492527999900631,
+        "p99": 10.06120199963334
+      },
+      "event_loop_lag_ms": {
+        "count": 3100,
+        "p50": 3.6379232959404817e-10,
+        "p95": 18.000000000392895,
+        "p99": 232.0000000003347
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 3280,
+        "p50": 0.5037030005041743,
+        "p95": 54.895611998290406,
+        "p99": 229.61616800057527
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 391668,
+      "VmRSS": 391668
+    },
+    "fds": 15,
+    "active_sse": 0,
+    "started_run_statuses": {
+      "completed": 3,
+      "failed": 3
+    },
+    "timestamp": 1791456697.8009577
+  },
+  "final_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 467382,
+        "p50": 0.2304800000274554,
+        "p95": 4.492998999921838,
+        "p99": 10.06120199963334
+      },
+      "event_loop_lag_ms": {
+        "count": 3116,
+        "p50": 3.6379232959404817e-10,
+        "p95": 18.000000000392895,
+        "p99": 231.00000000013097
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 3280,
+        "p50": 0.5037030005041743,
+        "p95": 54.895611998290406,
+        "p99": 229.61616800057527
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 391668,
+      "VmRSS": 391668
+    },
+    "fds": 15,
+    "active_sse": 0,
+    "started_run_statuses": {
+      "completed": 3,
+      "failed": 3
+    }
+  },
+  "latencies_ms": {
+    "SSE connect": {
+      "50%": 160.0,
+      "95%": 2100.0,
+      "99%": 3600.0
+    },
+    "chat ask": {
+      "50%": 250.0,
+      "95%": 1200.0,
+      "99%": 1300.0
+    },
+    "landing /api/free-usage": {
+      "50%": 19.0,
+      "95%": 310.0,
+      "99%": 670.0
+    },
+    "landing /api/interviews": {
+      "50%": 26.0,
+      "95%": 300.0,
+      "99%": 680.0
+    },
+    "landing /api/logs?after_id=0&limit=1&min_level=WARNING": {
+      "50%": 21.0,
+      "95%": 200.0,
+      "99%": 500.0
+    },
+    "landing /api/runs": {
+      "50%": 21.0,
+      "95%": 370.0,
+      "99%": 1000.0
+    },
+    "landing /api/runs/demo": {
+      "50%": 110.0,
+      "95%": 420.0,
+      "99%": 1200.0
+    },
+    "landing /status": {
+      "50%": 5.0,
+      "95%": 33.0,
+      "99%": 140.0
+    },
+    "page event snapshot": {
+      "50%": 1200.0,
+      "95%": 2500.0,
+      "99%": 2500.0
+    },
+    "page run details": {
+      "50%": 460.0,
+      "95%": 2100.0,
+      "99%": 2400.0
+    },
+    "page run history": {
+      "50%": 300.0,
+      "95%": 1100.0,
+      "99%": 1500.0
+    },
+    "preflight SSE connect": {
+      "50%": 230.0,
+      "95%": 430.0,
+      "99%": 2400.0
+    },
+    "preflight chat ask": {
+      "50%": 2500.0,
+      "95%": 2500.0,
+      "99%": 2500.0
+    },
+    "preflight landing /api/free-usage": {
+      "50%": 3.0,
+      "95%": 12.0,
+      "99%": 46.0
+    },
+    "preflight landing /api/interviews": {
+      "50%": 2.0,
+      "95%": 11.0,
+      "99%": 41.0
+    },
+    "preflight landing /api/logs?after_id=0&limit=1&min_level=WARNING": {
+      "50%": 2.0,
+      "95%": 11.0,
+      "99%": 30.0
+    },
+    "preflight landing /api/runs": {
+      "50%": 3.0,
+      "95%": 14.0,
+      "99%": 46.0
+    },
+    "preflight landing /api/runs/demo": {
+      "50%": 2.0,
+      "95%": 13.0,
+      "99%": 49.0
+    },
+    "preflight landing /status": {
+      "50%": 4.0,
+      "95%": 89.0,
+      "99%": 220.0
+    },
+    "preflight page event snapshot": {
+      "50%": 81.0,
+      "95%": 2000.0,
+      "99%": 2000.0
+    },
+    "preflight page run details": {
+      "50%": 3.0,
+      "95%": 300.0,
+      "99%": 340.0
+    },
+    "preflight page run history": {
+      "50%": 4.0,
+      "95%": 85.0,
+      "99%": 130.0
+    },
+    "preflight report /claim-evidence": {
+      "50%": 8.0,
+      "95%": 8.0,
+      "99%": 8.0
+    },
+    "preflight report /evidence": {
+      "50%": 7.0,
+      "95%": 7.0,
+      "99%": 7.0
+    },
+    "preflight report /hypotheses": {
+      "50%": 41.0,
+      "95%": 41.0,
+      "99%": 41.0
+    },
+    "preflight report /matches": {
+      "50%": 68.0,
+      "95%": 68.0,
+      "99%": 68.0
+    },
+    "preflight report /report": {
+      "50%": 2.0,
+      "95%": 2.0,
+      "99%": 2.0
+    },
+    "preflight report /report.md": {
+      "50%": 9.0,
+      "95%": 9.0,
+      "99%": 9.0
+    },
+    "preflight report /reviews": {
+      "50%": 24.0,
+      "95%": 24.0,
+      "99%": 24.0
+    },
+    "preflight report /run": {
+      "50%": 140.0,
+      "95%": 140.0,
+      "99%": 140.0
+    },
+    "preflight report /safety": {
+      "50%": 4.0,
+      "95%": 4.0,
+      "99%": 4.0
+    },
+    "preflight run create": {
+      "50%": 4.0,
+      "95%": 43.0,
+      "99%": 440.0
+    },
+    "preflight run start": {
+      "50%": 16.0,
+      "95%": 29.0,
+      "99%": 29.0
+    },
+    "report /claim-evidence": {
+      "50%": 25.0,
+      "95%": 550.0,
+      "99%": 2300.0
+    },
+    "report /evidence": {
+      "50%": 29.0,
+      "95%": 660.0,
+      "99%": 1900.0
+    },
+    "report /hypotheses": {
+      "50%": 27.0,
+      "95%": 890.0,
+      "99%": 1800.0
+    },
+    "report /matches": {
+      "50%": 23.0,
+      "95%": 650.0,
+      "99%": 2500.0
+    },
+    "report /report": {
+      "50%": 23.0,
+      "95%": 230.0,
+      "99%": 740.0
+    },
+    "report /report.md": {
+      "50%": 21.0,
+      "95%": 240.0,
+      "99%": 490.0
+    },
+    "report /reviews": {
+      "50%": 24.0,
+      "95%": 480.0,
+      "99%": 2300.0
+    },
+    "report /run": {
+      "50%": 31.0,
+      "95%": 750.0,
+      "99%": 2400.0
+    },
+    "report /safety": {
+      "50%": 22.0,
+      "95%": 340.0,
+      "99%": 990.0
+    },
+    "run create": {
+      "50%": 25.0,
+      "95%": 140.0,
+      "99%": 650.0
+    },
+    "run start": {
+      "50%": 1100.0,
+      "95%": 2600.0,
+      "99%": 2600.0
+    }
+  },
+  "exit_statuses": {
+    "master-exit.txt": "0",
+    "sampler-exit.txt": "0",
+    "worker-exits.txt": "0"
+  },
+  "harness_checkout_revision": "ec60257829c77840b32f3d1e5aa4334c8957920f",
+  "api_source_revision": "31b58b4dabb723f3b2df60612711c41fcd582282",
+  "api_overlay": [],
+  "profile": {
+    "duration_seconds": 300,
+    "offered_visitors_per_minute": 500,
+    "offered_sse_pages": 200,
+    "start_attempts": 50,
+    "preflights": true,
+    "http_keepalive_seconds": 15,
+    "generator_containers": 1,
+    "connecting_peers": 40,
+    "api_cpus": 2,
+    "api_memory_gib": 2,
+    "worker_pool_size": 1,
+    "model_delay_seconds": 0.1,
+    "model_schema_unions_resolved": true,
+    "safe_idle_read_retry": true,
+    "max_concurrent_runs": 10
+  },
+  "achieved_visitors_per_minute": 468.4,
+  "sqlite_busy_errors": 0,
+  "run_outcomes": {
+    "completed": 3,
+    "failed_provider_admission": 3,
+    "failed_detail": "Task engine.ranking.match failed permanently: daily provider admission exhausted"
+  },
+  "note": "Observed zero-error repeat; no recovered retries occurred here. Forced-close socket tests prove recovery separately. Published harness adds a type annotation/format correction and SSE body-exception accounting guard after captured start hashes. No body exception occurred in this capture; the guard has a separate truncated-stream regression. API image source is independently pinned."
+}

@@ -39,13 +39,23 @@ describe('run detail active', () => {
   it('shows the live pulse and no status note on an open stream', () => {
     renderView('open');
     expect(hasLivePulse()).toBe(true);
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByRole('status', {name: ''})).toBeNull();
+  });
+
+  it('explains capacity refusal while keeping the live pulse off', () => {
+    renderView('capacity');
+    expect(hasLivePulse()).toBe(false);
+    expect(screen.getByRole('status', {name: ''})).toHaveTextContent(
+      'Live updates are busy. Close extra run tabs; we will retry shortly.',
+    );
   });
 
   it('surfaces a reconnecting stream instead of passing as healthy', () => {
     renderView('reconnecting');
     expect(hasLivePulse()).toBe(false);
-    expect(screen.getByRole('status')).toHaveTextContent('Reconnecting...');
+    expect(screen.getByRole('status', {name: ''})).toHaveTextContent(
+      'Reconnecting...',
+    );
   });
 });
 

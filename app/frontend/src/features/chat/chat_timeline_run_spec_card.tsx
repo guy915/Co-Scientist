@@ -1,5 +1,5 @@
 import type {RunFocus, RunTier} from '@/shared/api/runs';
-import {conciseTitle} from '@/shared/lib/text';
+import {displayTitle} from '@/shared/lib/titles';
 import {Link} from 'react-router-dom';
 import {
   Button,
@@ -235,7 +235,7 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
   return (
     <div className="reference-setup-document grid gap-5 rounded-2xl bg-cosci-setup-doc-bg p-[1.5rem_1.45rem]">
       <h3 className="m-0 text-[1.45rem] leading-[1.25] font-semibold">
-        {conciseTitle(spec.goal)}
+        {displayTitle(null, spec.goal)}
       </h3>
       <SpecFieldsSection spec={spec} editor={editor} />
       <SpecOptionGroups
@@ -308,7 +308,7 @@ function RunSpecActions({
 
 function formatRunSpecResponse(spec: InferredRunSpec): string {
   return [
-    `# ${conciseTitle(spec.goal)}`,
+    `# ${displayTitle(null, spec.goal)}`,
     '',
     'Agent interview-derived research setup.',
     '',
@@ -540,7 +540,7 @@ export interface StartedSession {
 }
 
 export const STARTED_SESSION_STANDBY_COPY =
-  'Your session has been started and Co-Scientist has started research!' +
+  'Your session has been started and Open Co-Scientist has started research!' +
   '\n\n' +
   'You can view and interact with your session at any time, but note that ' +
   'it might take a few minutes for the first ideas to be ready to view.';
@@ -632,10 +632,10 @@ function SessionNextActions({
       <p className="basis-full m-0 mb-0.5 text-[0.95rem] font-semibold text-cosci-muted">
         What would you like to do next?
       </p>
-      <Link to={href} className={buttonClasses({variant: 'outlined'})}>
+      <Link to={href} className={buttonClasses({variant: 'accent'})}>
         View session details
       </Link>
-      <Button variant="outlined" onClick={onNewTopic}>
+      <Button variant="accent" onClick={onNewTopic}>
         Start a new research goal session on a new topic
       </Button>
     </div>

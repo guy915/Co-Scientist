@@ -48,6 +48,7 @@ export interface Hypothesis {
   status: string | null;
   cluster_id: string | null;
   unverified?: boolean;
+  screened?: boolean;
   verification_verdict?: string | null;
 }
 

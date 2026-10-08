@@ -1,7 +1,5 @@
 import {
-  lazy,
   memo,
-  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -42,12 +40,7 @@ import {
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 import {scrollBehavior} from '@/shared/lib/reduced_motion';
 import {chatPath} from '@/shared/lib/routes';
-
-// Lazy-load the landing page so chat first paint does not wait for it; it takes
-// no props, so memo keeps composer keystrokes from re-rendering it.
-const HomeLanding = lazy(() =>
-  import('./home_landing').then(m => ({default: memo(m.default)})),
-);
+import {DeferredHomeLanding} from './deferred_home_landing';
 
 interface ChatWorkspaceLocationState {
   cosciAction?: 'new-chat' | 'focus-composer';
@@ -118,7 +111,6 @@ export function ChatWorkspace() {
             timelineItems={timelineItems}
             composerRef={composerRef}
             session={session}
-            setupDraftMode={Boolean(session.draft || session.startedSession)}
             connectors={connectors}
           />
         ) : (
@@ -133,11 +125,7 @@ export function ChatWorkspace() {
               onToggleShowAll={() => setShowAllRecents(current => !current)}
             />
             {/* Phones get the composer only; the landing is a desktop surface. */}
-            {!isMobile && (
-              <Suspense fallback={null}>
-                <HomeLanding />
-              </Suspense>
-            )}
+            {!isMobile && <DeferredHomeLanding />}
           </>
         )}
         <ToastPortal toast={toast} />
@@ -364,7 +352,6 @@ export interface ConversationViewProps {
     | 'interview'
     | 'handleAnswerQuestions'
   >;
-  setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
 }
 
@@ -380,7 +367,6 @@ export function ConversationView(props: ConversationViewProps) {
         composerRef={props.composerRef}
         scrollRef={props.scrollRef}
         session={props.session}
-        setupDraftMode={props.setupDraftMode}
         connectors={props.connectors}
       />
     </>
@@ -430,12 +416,8 @@ interface ComposerSectionProps {
     | 'interview'
     | 'handleAnswerQuestions'
   >;
-  setupDraftMode: boolean;
   connectors: ConnectorToggleProps;
 }
-
-// A started session asks the run rather than the now-closed interview.
-const ASK_RUN_PLACEHOLDER = 'Ask a question about this research session';
 
 // Only the composer catches input; its transparent fade stays click-through
 // while messages scroll beneath it. The fade owns spacing, so the composer's
@@ -446,7 +428,6 @@ function ComposerSection(props: ComposerSectionProps) {
     setInput,
     isStarting,
     isAwaitingAgent,
-    startedSession,
     handleSubmit,
     handleStop,
   } = props.session;
@@ -455,14 +436,15 @@ function ComposerSection(props: ComposerSectionProps) {
       ref={props.composerRef}
       className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,var(--cosci-bg)_62%,transparent)] px-4 pt-11 pb-8 phone:pb-[max(0.75rem,env(safe-area-inset-bottom))] [&_.reference-composer]:mt-0 [&>*]:pointer-events-auto"
     >
-      <JumpToBottomButton scrollRef={props.scrollRef} />
-      <div className={CHAT_COLUMN_CLASSES}>
+      {/* The jump button hangs off the composer column, a spacing step above
+          its top edge. */}
+      <div className={`${CHAT_COLUMN_CLASSES} relative`}>
+        <JumpToBottomButton scrollRef={props.scrollRef} />
         <Composer
           input={input}
           setInput={setInput}
-          setupDraftMode={props.setupDraftMode}
+          inConversation
           busy={isStarting}
-          placeholderOverride={startedSession ? ASK_RUN_PLACEHOLDER : undefined}
           autoFocus
           connectors={props.connectors}
           onSubmit={handleSubmit}
@@ -497,21 +479,26 @@ function JumpToBottomButton({
 }) {
   const away = useScrolledAwayFromBottom(scrollRef);
   if (!away) return null;
+  // The wrapper owns placement: tooltip anchors are position: relative, which
+  // would turn the button itself back into a grid row above the composer.
+  // Flex centring leaves `translate` free for the column's enter motion.
   return (
-    <IconButton
-      variant="elevated"
-      size="md"
-      icon="arrow_downward"
-      label="Jump to latest message"
-      layoutClassName="reference-jump-to-bottom absolute top-0 left-1/2 -translate-x-1/2"
-      onClick={() => {
-        const scroller = scrollRef.current;
-        scroller?.scrollTo({
-          top: scroller.scrollHeight,
-          behavior: scrollBehavior(),
-        });
-      }}
-    />
+    <span className="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center">
+      <IconButton
+        variant="elevated"
+        size="md"
+        icon="arrow_downward"
+        label="Jump to latest message"
+        layoutClassName="reference-jump-to-bottom pointer-events-auto"
+        onClick={() => {
+          const scroller = scrollRef.current;
+          scroller?.scrollTo({
+            top: scroller.scrollHeight,
+            behavior: scrollBehavior(),
+          });
+        }}
+      />
+    </span>
   );
 }
 

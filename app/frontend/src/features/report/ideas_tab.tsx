@@ -9,7 +9,6 @@ import {
   UNDERMINED_VERDICT,
   presentedHypotheses,
   ratingLabel,
-  sortByEloDesc,
 } from '@/shared/lib/hypotheses';
 import {useMemo} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
@@ -52,10 +51,7 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
   const selectedId = params.get('idea');
   // Exclude withdrawn ideas before selecting defaults so hidden rows cannot
   // remain the selected detail.
-  const sorted = useMemo(
-    () => sortByEloDesc(presentedHypotheses(hypotheses)),
-    [hypotheses],
-  );
+  const sorted = useMemo(() => presentedHypotheses(hypotheses), [hypotheses]);
   const selected = useMemo(
     () => resolveSelectedHypothesis(sorted, selectedId, isMobile),
     [sorted, selectedId, isMobile],
@@ -201,6 +197,10 @@ function DesktopIdeaSplit({
   );
 }
 
+const SCREENED_TOOLTIP =
+  'Screened, not deep-verified: passed the safety screen and a screening ' +
+  'review but was not a finalist';
+
 function ideaRowClassName(selected: boolean): string {
   return selected
     ? `${IDEA_RANK_ROW_CLASSES} selected !border-cosci-idea-row-selected-border !bg-cosci-idea-row-selected-bg hover:!border-cosci-idea-row-selected-border hover:!bg-cosci-idea-row-selected-hover-bg`
@@ -243,6 +243,18 @@ function IdeaRankHead({
       hypothesis.verification_verdict !== UNDERMINED_VERDICT ? (
         <Chip tone="info" icon="warning" layoutClassName="idea-unverified-chip">
           Unverified
+        </Chip>
+      ) : null}
+      {hypothesis.screened ? (
+        // Depth goes to finalists; a screened idea was never examined, so it
+        // is neither verified nor unverified.
+        <Chip
+          tone="neutral"
+          layoutClassName="idea-screened-chip"
+          tooltip={SCREENED_TOOLTIP}
+          aria-label={SCREENED_TOOLTIP}
+        >
+          Screened
         </Chip>
       ) : null}
     </span>

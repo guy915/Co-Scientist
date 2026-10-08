@@ -94,8 +94,8 @@ def _block_to_markdown(element: Any) -> str:
 def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
     try:
         soup = BeautifulSoup(html, "lxml")
-    except Exception as exc:
-        logger.warning("HTML parse failed: %s", exc)
+    except Exception:
+        logger.warning("HTML parse failed")
         return "[error: could not parse HTML]"
 
     for tag in soup.find_all(list(_CHROME_TAGS)):
@@ -174,20 +174,20 @@ async def read_url(url: str, max_chars: int = 50_000) -> dict[str, Any]:
         # In a worker thread: the screen resolves DNS with blocking socket
         # calls, which would stall every other in-flight tool call.
         await asyncio.to_thread(check_fetchable, url)
-    except UrlNotFetchableError as exc:
-        logger.info("Blocked fetch of %s: %s", url, exc)
+    except UrlNotFetchableError:
+        logger.info("Blocked URL fetch")
         return failed("blocked URL")
 
     try:
         text = await _fetch_and_render(url)
-    except UrlNotFetchableError as exc:
-        logger.info("Blocked redirect while fetching %s: %s", url, exc)
+    except UrlNotFetchableError:
+        logger.info("Blocked URL redirect")
         return failed("blocked URL")
     except httpx.HTTPStatusError as exc:
-        logger.info("Fetch of %s returned %s", url, exc.response.status_code)
+        logger.info("URL fetch returned HTTP %d", exc.response.status_code)
         return failed(exc)
     except httpx.HTTPError as exc:
-        logger.warning("Fetch of %s failed: %s", url, exc)
+        logger.warning("URL fetch transport failed")
         return failed(exc)
 
     return ok([{"url": url, "content": text[:max_chars]}])

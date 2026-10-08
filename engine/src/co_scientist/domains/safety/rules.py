@@ -7,6 +7,13 @@ import dataclasses
 import enum
 import re
 
+from co_scientist.domains.safety.hypothesis_text import (
+    REDACTED_PLACEHOLDER as REDACTED_PLACEHOLDER,
+)
+from co_scientist.domains.safety.hypothesis_text import (
+    redact_value,
+)
+
 
 def _patterns(*sources: str) -> tuple[re.Pattern[str], ...]:
     return tuple(re.compile(s, re.IGNORECASE) for s in sources)
@@ -153,8 +160,6 @@ _CONTENT_DUAL_USE = _patterns(
 
 POLICY_VERSION = "coscientist-safety-v5"
 
-REDACTED_PLACEHOLDER = "[REDACTED FOR SAFETY]"
-
 
 class SafetyOutcome(str, enum.Enum):
     PROHIBITED = "prohibited"
@@ -230,107 +235,11 @@ def _all_matches(text: str, patterns: tuple[re.Pattern[str], ...]) -> tuple[str,
     )
 
 
-def review_content_safety(text: str, stage: str) -> ContentSafetyReview:
-    if stage not in {"intake", "final"}:
-        raise ValueError("stage must be 'intake' or 'final'")
-    prohibited = _all_matches(text, _CONTENT_PROHIBITED)
-    if prohibited:
-        return ContentSafetyReview(
-            decision="block",
-            category="prohibited",
-            reason=("Content matches a prohibited weaponization or mass-casualty policy rule."),
-            matches=prohibited,
-            risk_domains=("cbrn_weaponization",),
-            requires_review=False,
-        )
-    dual_use = _all_matches(text, _CONTENT_DUAL_USE)
-    if dual_use and stage == "final":
-        return ContentSafetyReview(
-            decision="redact",
-            category="redacted",
-            reason=("Dual-use content requires redaction and explicit oversight."),
-            matches=dual_use,
-            risk_domains=("dual_use",),
-            requires_review=True,
-        )
-    return ContentSafetyReview(
-        decision="allow",
-        category="allowed",
-        reason="",
-        matches=(),
-        risk_domains=(),
-        requires_review=False,
-    )
-
-
 def _first_match(text: str, patterns: tuple[re.Pattern[str], ...]) -> str | None:
     for pattern in patterns:
         m = pattern.search(text)
         if m:
             return m.group(0)
-    return None
-
-
-def _match_review(
-    text: str,
-    patterns: tuple[re.Pattern[str], ...],
-    outcome: SafetyOutcome,
-    reason: str,
-) -> SafetyReview | None:
-    hit = _first_match(text, patterns)
-    if hit is None:
-        return None
-    return SafetyReview(outcome, reason, (hit,), POLICY_VERSION)
-
-
-_CERTAIN_CHECKS: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...] = (
-    (
-        _PROHIBITED_CERTAIN,
-        SafetyOutcome.PROHIBITED,
-        "matches a prohibited weaponization/mass-casualty pattern",
-    ),
-    (
-        _ETHICAL_CERTAIN,
-        SafetyOutcome.ETHICAL_CONCERN,
-        "raises an ethical-norms concern",
-    ),
-)
-
-_CONTEXT_CHECKS: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...] = (
-    (
-        _PROHIBITED_CONTEXT,
-        SafetyOutcome.PROHIBITED,
-        "matches a prohibited weaponization/mass-casualty pattern",
-    ),
-    (
-        _ETHICAL_CONTEXT,
-        SafetyOutcome.ETHICAL_CONCERN,
-        "raises an ethical-norms concern",
-    ),
-)
-
-_POST_OBFUSCATION_CHECKS: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...] = (
-    (
-        _DUAL_USE,
-        SafetyOutcome.DUAL_USE,
-        "legitimate but dual-use; allow with redaction/annotation",
-    ),
-    (
-        _REDACT,
-        SafetyOutcome.REDACT,
-        "contains sensitive operational detail to redact",
-    ),
-)
-
-
-def _first_tiered_review(
-    text: str,
-    checks: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...],
-) -> SafetyReview | None:
-    for patterns, outcome, reason in checks:
-        review = _match_review(text, patterns, outcome, reason)
-        if review is not None:
-            return review
     return None
 
 
@@ -364,48 +273,141 @@ def _resolve_context_hit(text: str, hit: str, outcome: SafetyOutcome, reason: st
     )
 
 
-def _first_context_review(text: str) -> SafetyReview | None:
-    for patterns, outcome, reason in _CONTEXT_CHECKS:
-        hit = _first_match(text, patterns)
-        if hit is not None:
-            return _resolve_context_hit(text, hit, outcome, reason)
-    return None
+@dataclasses.dataclass(frozen=True)
+class SafetyRule:
+    patterns: tuple[re.Pattern[str], ...]
+    stages: frozenset[str]
+    outcome: SafetyOutcome
+    reason: str
+    context: bool = False
+    sensitive_hint: bool = False
+    content: bool = False
 
 
-def _obfuscation_review(text: str) -> SafetyReview | None:
-    obfuscation = _first_match(text, _OBFUSCATION)
-    if obfuscation is None or _first_match(text, _SENSITIVE_HINT) is None:
-        return None
-    return SafetyReview(
+_ALL_STAGES = frozenset({"hypothesis", "intake", "final"})
+_CONTENT_STAGES = frozenset({"intake", "final"})
+
+# Order breaks ties: the content prohibition remains binding before contextual
+# hypotheses, and whole documents never apply unbounded hedge detection.
+SAFETY_RULES = (
+    SafetyRule(
+        _CONTENT_PROHIBITED,
+        _CONTENT_STAGES,
+        SafetyOutcome.PROHIBITED,
+        "Content matches a prohibited weaponization or mass-casualty policy rule.",
+        content=True,
+    ),
+    SafetyRule(
+        _PROHIBITED_CERTAIN,
+        _ALL_STAGES,
+        SafetyOutcome.PROHIBITED,
+        "matches a prohibited weaponization/mass-casualty pattern",
+    ),
+    SafetyRule(
+        _ETHICAL_CERTAIN,
+        _ALL_STAGES,
+        SafetyOutcome.ETHICAL_CONCERN,
+        "raises an ethical-norms concern",
+    ),
+    SafetyRule(
+        _PROHIBITED_CONTEXT,
+        _ALL_STAGES,
+        SafetyOutcome.PROHIBITED,
+        "matches a prohibited weaponization/mass-casualty pattern",
+        context=True,
+    ),
+    SafetyRule(
+        _ETHICAL_CONTEXT,
+        _ALL_STAGES,
+        SafetyOutcome.ETHICAL_CONCERN,
+        "raises an ethical-norms concern",
+        context=True,
+    ),
+    SafetyRule(
+        _OBFUSCATION,
+        frozenset({"hypothesis", "intake"}),
         SafetyOutcome.UNCERTAIN,
         "obfuscated intent around sensitive content; manual review",
-        (obfuscation,),
-        POLICY_VERSION,
-    )
+        sensitive_hint=True,
+    ),
+    SafetyRule(
+        _CONTENT_DUAL_USE,
+        frozenset({"final"}),
+        SafetyOutcome.REDACT,
+        "Dual-use content requires redaction and explicit oversight.",
+        content=True,
+    ),
+    SafetyRule(
+        _DUAL_USE,
+        frozenset({"hypothesis"}),
+        SafetyOutcome.DUAL_USE,
+        "legitimate but dual-use; allow with redaction/annotation",
+    ),
+    SafetyRule(
+        _REDACT,
+        frozenset({"hypothesis"}),
+        SafetyOutcome.REDACT,
+        "contains sensitive operational detail to redact",
+    ),
+)
 
 
-def _review_after_certain_tier(text: str, detect_obfuscation: bool) -> SafetyReview:
-    review = _obfuscation_review(text) if detect_obfuscation else None
-    if review is not None:
-        return review
-    review = _first_tiered_review(text, _POST_OBFUSCATION_CHECKS)
-    if review is not None:
-        return review
-    return SafetyReview(SafetyOutcome.ALLOW, "no safety concern detected", (), POLICY_VERSION)
+def _rule_review(text: str, rule: SafetyRule) -> SafetyReview | None:
+    matches = _all_matches(text, rule.patterns) if rule.content else ()
+    if not matches:
+        hit = _first_match(text, rule.patterns)
+        if hit is None:
+            return None
+        matches = (hit,)
+    if rule.sensitive_hint and _first_match(text, _SENSITIVE_HINT) is None:
+        return None
+    if rule.context:
+        return _resolve_context_hit(text, matches[0], rule.outcome, rule.reason)
+    return SafetyReview(rule.outcome, rule.reason, matches, POLICY_VERSION)
+
+
+def _policy_matches(
+    text: str, stage: str, *, detect_obfuscation: bool = True
+) -> list[tuple[SafetyRule, SafetyReview]]:
+    return [
+        (rule, review)
+        for rule in SAFETY_RULES
+        if stage in rule.stages and (detect_obfuscation or not rule.sensitive_hint)
+        if (review := _rule_review(text or "", rule)) is not None
+    ]
 
 
 def review_hypothesis_safety(text: str, *, detect_obfuscation: bool = True) -> SafetyReview:
-    """`detect_obfuscation=False` is for whole documents: the hedge patterns
-    carry no proximity bound, and a report's own footer states "for research
-    purposes only", which any sensitive noun elsewhere would then complete.
-    """
-    review = _first_tiered_review(text, _CERTAIN_CHECKS)
-    if review is not None:
-        return review
-    context_review = _first_context_review(text)
-    if context_review is not None:
-        return context_review
-    return _review_after_certain_tier(text, detect_obfuscation)
+    matches = _policy_matches(text, "hypothesis", detect_obfuscation=detect_obfuscation)
+    if matches:
+        return matches[0][1]
+    return SafetyReview(SafetyOutcome.ALLOW, "no safety concern detected", (), POLICY_VERSION)
+
+
+_CONTENT_OUTCOMES = {
+    SafetyOutcome.PROHIBITED: ("block", "prohibited", "cbrn_weaponization", 3),
+    SafetyOutcome.ETHICAL_CONCERN: ("block", "ethical_concern", "research_ethics", 3),
+    SafetyOutcome.UNCERTAIN: ("hold", "uncertain", "obfuscated_intent", 2),
+    SafetyOutcome.REDACT: ("redact", "redacted", "dual_use", 1),
+}
+
+
+def review_content_safety(text: str, stage: str) -> ContentSafetyReview:
+    if stage not in _CONTENT_STAGES:
+        raise ValueError("stage must be 'intake' or 'final'")
+    matches = _policy_matches(text, stage)
+    if not matches:
+        return ContentSafetyReview("allow", "allowed", "", (), (), False)
+    rule, review = max(matches, key=lambda item: _CONTENT_OUTCOMES[item[1].outcome][3])
+    decision, category, risk, _ = _CONTENT_OUTCOMES[review.outcome]
+    return ContentSafetyReview(
+        decision,
+        category,
+        review.reason if rule.content else f"Content {review.reason}.",
+        review.matches,
+        (risk,),
+        decision == "hold" or (rule.content and decision == "redact"),
+    )
 
 
 def redact_hypothesis_fields(
@@ -419,7 +421,7 @@ def redact_hypothesis_fields(
     """
     return (
         text,
-        REDACTED_PLACEHOLDER if explanation else explanation,
-        REDACTED_PLACEHOLDER if experiment else experiment,
-        REDACTED_PLACEHOLDER if literature_grounding else literature_grounding,
+        redact_value("explanation", explanation),
+        redact_value("experiment", experiment),
+        redact_value("literature_grounding", literature_grounding),
     )

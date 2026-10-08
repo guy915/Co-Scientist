@@ -55,6 +55,7 @@ from co_scientist.science.reflection.review_gate import (
 from co_scientist.science.reflection.simulation_execution import (
     simulation_observations,
 )
+from co_scientist.science.scheduling.funnel import finalists, has_depth, is_terminal_depth_pass
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ async def review_hypothesis(
         result = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="review",
                 model_name=state["model_name"],
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,
@@ -252,10 +254,14 @@ def _apply_review_results(
 
 
 async def _review_hypothesis(
-    state: WorkflowState, hypothesis: Hypothesis
+    state: WorkflowState, hypothesis: Hypothesis, *, terminal: bool = False
 ) -> tuple[int, list[dict[str, Any]]]:
     iteration = int(state.get("current_iteration", 0))
-    reviews = reviews_needed(hypothesis, iteration)
+    reviews = [
+        review
+        for review in reviews_needed(hypothesis, iteration)
+        if not (terminal and review is ReviewType.RECURRENT)
+    ]
     if not reviews:
         return 0, []
     results = await asyncio.gather(
@@ -339,14 +345,20 @@ async def _run_missing_observation_reviews(
 
 async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
     """Blocked ideas need their own recheck arm: the viable-only cascade
-    cannot reach them to produce a deeper verdict."""
+    cannot reach them to produce a deeper verdict. Depth goes to viable
+    finalists only; the terminal pass fills what they lack and nothing more."""
     hypotheses = state["hypotheses"]
-    viable = [hypothesis for hypothesis in hypotheses if hypothesis.review_disposition == "viable"]
+    terminal = is_terminal_depth_pass(state)
+    viable = [
+        hypothesis
+        for hypothesis in finalists(state)
+        if hypothesis.review_disposition == "viable" and not (terminal and has_depth(hypothesis))
+    ]
     # These review arms have no data dependency; overlap their model latency.
     observation_calls, reviewed, recheck_calls = await asyncio.gather(
         _run_missing_observation_reviews(state, viable),
-        asyncio.gather(*[_review_hypothesis(state, h) for h in viable]),
-        _run_blocked_rechecks(state, hypotheses),
+        asyncio.gather(*[_review_hypothesis(state, h, terminal=terminal) for h in viable]),
+        _run_blocked_rechecks(state, [] if terminal else hypotheses),
     )
     calls = observation_calls + sum(count for count, _ in reviewed) + recheck_calls
     return {

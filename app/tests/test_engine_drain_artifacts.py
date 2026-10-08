@@ -504,6 +504,8 @@ def _final_state_with_citations() -> dict[str, Any]:
                 "Blocking CXCR1 suppresses breast cancer stem cells.",
                 literature_grounding=grounding,
                 citation_map=_citations_citation_map(),
+                # A deep-verified finalist is featured with its references.
+                deep_verification_verdict="holds",
             )
         ],
         "articles": [

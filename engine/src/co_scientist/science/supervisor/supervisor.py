@@ -66,6 +66,7 @@ async def _run_supervisor_planning(
     response = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="supervisor",
             model_name=state["supervisor_model_name"],
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=MEDIUM_TEMPERATURE,

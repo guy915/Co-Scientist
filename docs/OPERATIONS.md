@@ -58,7 +58,7 @@ Each of these was a production outage or a silent data-correctness failure. The 
 - **Never VACUUM from the serving process.** VACUUM and truncating WAL checkpoints need exclusive access, and a SQLite writer waiting for one blocks every writer queued behind it; the log-capture thread writes on every record, so the quiet moment never comes. The symptom is an idle-looking database with every write failing "database is locked". `_reclaim_disk_space()` in `main.py` only prunes superseded checkpoints and `compact_database()` no longer exists (`app/tests/test_diagnostics.py` pins this); the file keeps its high-water mark, and offline compaction means running VACUUM by hand against a stopped database. When a lock symptom appears with an idle database, run `py-spy dump` first.
 - **Never hold the SQLite write lock across network I/O, and never write on a poll tick.** There is one writer and no fair queuing, so a transaction spanning an LLM call, or a per-tick write stream, starves every other writer. Hence `assess_hypothesis_claims` (provider work, no DB) is split from `persist_grounding` (writes only) in `domains/research_state/claims/grounding.py`, `_has_claimable_task` probes read-only before `claim_task` opens `BEGIN IMMEDIATE`, and the task heartbeat checks cancellation in memory every second but renews its 300s lease only on the lease's own schedule. The heartbeat is a coroutine on the task's own loop, so synchronous provider waves starve it like a write does: `orchestration/drain.py::_assess_claims` and `orchestration/engine_tasks/gate.py::_assess_gate_claims` run their waves through `core.async_bridge.run_off_loop`.
 - **Startup work runs before uvicorn binds a port: keep it cheap and never fatal** (`main.py` lifespan). Run recovery executes interrupted runs rather than scheduling them, so it runs as `asyncio.create_task` with its cohorts on `asyncio.to_thread`; awaiting it put provider calls ahead of the port, failed the healthcheck, and left each restart further behind. The checkpoint sweep must stay inline because it needs the reader-free startup window (a long-lived SSE reader blocks it forever), and it catches `sqlite3.Error` and continues because a full volume cannot journal the DELETE that would relieve it. Serving with a bloated table beats not serving.
-- **Only `UnsupportedTaskError` and `LLMCallBudgetExceededError` are permanent task failures** (`orchestration/task_worker/outcomes.py`). Retrying a run that has spent its call ceiling only spends more. Every provider call must therefore pass through `call_llm`/`call_llm_json` so `record_provider_request` sees it: the pre-ranking claim gate once called `litellm` directly and ran far past the ceiling unseen, and now reaches `call_llm_json` through `core.async_bridge.run_coroutine_sync` from the synchronous `Assessor` protocol. `assess_claims_batch` judges a hypothesis's claims in one call, not one per claim, because the gate repeats before every ranking wave. Every other exception keeps its retry budget; widening the permanent set strands runs (progress in bursts, tasks parked at attempt 1/3 with retries unused).
+- **Only `UnsupportedTaskError` and `LLMCallBudgetExceededError` are permanent task failures** (`orchestration/task_worker/outcomes.py`). Retrying a run that has spent its call ceiling only spends more. Every provider call must therefore pass through `call_llm`/`call_llm_json` so `record_provider_request` sees it: the pre-ranking claim gate once called `litellm` directly and ran far past the ceiling unseen, and now reaches `call_llm_json` through `core.async_bridge.run_coroutine_sync` from the synchronous `Assessor` protocol. `assess_claims_batch` judges a hypothesis's claims in one call, not one per claim, because the gate repeats before every ranking wave, over the finalists and any idea a past check blocked. Every other exception keeps its retry budget; widening the permanent set strands runs (progress in bursts, tasks parked at attempt 1/3 with retries unused).
 - **Nothing automatic recovers a `failed` task.** `resume_run_tasks` requeues only `paused`, and the expired-lease rescue skips tasks whose attempts are spent (`_EXPIRED_LEASE_RESCUABLE`). Explicit recovery is the only path back (checkpoint resume, run start, the supervisor's `retry` action via `retry_task`), and any path that re-enqueues a boundary must call `revive_task_for_retry` **before** enqueueing, because the idempotency key cannot change while the run makes no progress and `ON CONFLICT DO NOTHING` would create nothing. Portfolio node tasks key on `{task_type}:after:{predecessor_task_id}` so a lookahead row and the later reactive enqueue collide on one row; bootstrap, resume and continuation rows stay sequence-anchored. Revival takes a `leased` task only once its lease has expired, since reviving a live lease would run the boundary twice. `LLMRateLimitParkError` (a 429 reset too far off for ordinary backoff) is neither a failure nor a retry: `_park_rate_limited_task` returns the row to `queued` with its attempt undone and `available_at` at the provider's reset plus jitter.
 - **No process-global asyncio primitives.** Each durable run's worker cohort runs on its own thread and loop (`run_run_worker_pool_sync` calls `run_in_scoped_loop`), so several loops are live per process, and a primitive binds to the first loop that waits on it. The ranking judge semaphore is therefore created per running loop and held weakly (`science/ranking/ranking_debate.py::_get_ranking_semaphore`); as a singleton it killed a ranking task only once waves grew large enough to contend. Bound concurrency per loop or via the cohort's `worker_pool_size`; module scope is safe only for primitives touched solely from the API loop.
 - **Never score a short claim against a long document with Jaccard.** Jaccard divides by the union, which the longer side dominates, so the score is capped near `len(claim) / len(document)` however well the document supports the claim. `platform.retrieval.citations.classify_citation` therefore uses coverage (intersection over the claim's tokens), and a new threshold must be sanity-checked against a document that literally contains the claim (`app/tests/test_citations.py`); with the old metric both upper states were unreachable and every citation classified `unsupported`, which read as an evidence-quality problem. Coverage still cannot tell a claim's subject from its assertion; sharpening that is the LLM entailment assessor's job (`domains/research_state/claims/verifier.py`), not a reason to tune deterministic thresholds between hand-picked examples.
@@ -165,18 +165,26 @@ rather than subtracting cursor IDs.
 Staged documents default to 30 days (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`),
 terminal runs to 90 (`COSCIENTIST_RUN_RETENTION_DAYS`) and drafts to 7
 (`COSCIENTIST_DRAFT_RETENTION_DAYS`); `0` disables that expiry
-(`domains/access/retention.py`). Nothing schedules the sweep: `sweep_all` runs
-only when someone invokes the module (`python -m co_scientist.domains.access.retention`),
-and no startup hook, worker or Makefile target calls it. A separate Railway cron
-service cannot reach the api's mounted volume, so any schedule must run inside
-the API process, with short per-run transactions and never a long writer hold.
+(`domains/access/retention.py`). Launch explicitly sets run retention to `0`.
+The API schedules `sweep_all` hourly after startup, off the port-binding path,
+with short per-run transactions. It also prunes expired erasure markers and
+seven-day admission history in bounded batches. The module remains available
+for operator maintenance (`python -m co_scientist.domains.access.retention`).
+A separate Railway cron cannot reach the API volume. Never hold a writer over
+network I/O, VACUUM or truncate the WAL from the serving process.
+
+Staged document expiry does not remove text already copied into chats/runs;
+those copies follow their parent's lifetime. See [data and privacy](#data-and-privacy)
+for the complete inventory, data-rights controls and external backup decisions.
 
 ## Gateway routing and privacy
 
 OpenRouter accepts at most three entries in a models array; free allowances belong
 to individual models. Preserve upstream preference for cache locality rather than
 round-robin hosts. `require_parameters` binds support to the selected host, and
-privacy admission requires verified zero-retention hosts.
+a profile's declared zero-retention restriction binds its checked upstream
+host. Unpinned free/trial profiles do not establish that restriction; do not
+promise that every route avoids logging or training.
 
 ## Ranking and steering
 
@@ -377,3 +385,272 @@ per call ran about four times a run's real use, so a Standard run exhausted the
 default 16M `PROVIDER_CLIENT_TOKENS_PER_DAY`. Keep settlement rather than
 raising the ceilings or shrinking the reservation: the reservation must cover
 a call whose usage never arrives.
+
+## Launch load and capacity
+
+Reproduce the isolated workload with [evaluations/load](../evaluations/load/README.md).
+The API uses the production image, one process, `WORKER_POOL_SIZE=1`, SQLite WAL
+on a disposable volume, 2 CPU / 2 GiB limits and deterministic 100 ms completion
+I/O. Runtime networking is internal-only. These measurements describe API/store
+capacity, not real model/MCP throughput, production ingress or paid quota.
+
+The five-minute mixed workload offers 500 new landing visitors/minute, 200 owned
+run pages, 50 starts, 20 report visits/minute and 10 streamed Q&A turns/minute,
+including cross-origin preflights. The measured envelope is **450 landing
+visitors/minute plus 200 concurrent run pages** with the peer qualification
+below. The fixed workload achieved 468.4 visitors/minute, 100 report visits and
+50 Q&A turns; all 44,028 requests had zero unexpected errors. Fifty starts
+admitted six and clearly refused 44. Do not quote the offered 500 as achieved.
+
+| Measurement | Before repair | After repair | Over-cap probe |
+|---|---:|---:|---:|
+| Duration / offered visitors per minute | 300 s / 500 | 300 s / 500 | 120 s / 1,000 |
+| Achieved landing visitors per minute | 482.2 | 468.4 | 749.5 |
+| Attempted / peak live run pages | 200 / 8 | 200 / 200 | 300 / 256 |
+| Unexpected errors / requests | 8 / 30,373 | 0 / 44,028 | 0 / 28,191 |
+| Unexpected error rate | 0.026% | 0% | 0% |
+| Peak API RSS / sampled FDs | 374.0 MiB / 456 | 382.5 MiB / 482 | 350.5 MiB / 658 |
+| Demo GET p50 / p95 / p99 (ms) | 96 / 300 / 630 | 110 / 420 / 1,200 | 93 / 490 / 740 |
+| SSE headers p50 / p95 / p99 (ms) | 36 / 2,200 / 2,400 | 160 / 2,100 / 3,600 | 510 / 2,600 / 2,700 |
+| Report GET p50 / p95 / p99 (ms) | 25 / 130 / 220 | 23 / 230 / 740 | 32 / 540 / 800 |
+| Chat p50 / p95 / p99 (ms) | 160 / 1,800 / 2,800 | 250 / 1,200 / 1,300 | 320 / 2,500 / 2,500 |
+| SQLite statement p50 / p95 / p99 (ms) | .17 / 3.32 / 6.07 | .23 / 4.49 / 10.06 | .33 / 5.33 / 11.94 |
+| Writer acquisition p50 / p95 / p99 (ms) | .36 / 53.98 / 137.42 | .50 / 54.90 / 229.62 | .02 / 1.99 / 2.83 |
+| Loop lag p50 / p95 / p99 (ms) | 0 / 7 / 125 | 0 / 18 / 232 | 0 / 14 / 270 |
+
+The historical before run used forty generator containers without OPTIONS;
+after/over-cap use one generator with forty actual source-address aliases and
+OPTIONS. The final after image also includes intervening main changes and the
+model double resolves schema unions; before allowed only eight streams, so it
+did less stream work. These are capacity receipts, not a controlled assertion
+of latency improvement.
+A separate otherwise identical sixty-second HTTP keepalive comparison reduced
+history connection resets from 17/5,483 requests (five seconds) to 0/5,522
+(fifteen seconds), with 200 streams in both trials. An integrated repeat still
+had 12 history GET idle-socket resets/44,501 requests (0.027%), without a raw 500. A forced-close
+wire probe shows Chromium transparently repeats that safe GET while Requests
+fails. The load client now permits one safe read retry before headers, never
+replaying POSTs, statuses, connect failures or streaming bodies; its regression
+checks GET recovery and no POST replay. The final repeat had zero unrecovered
+errors and zero recovered retries, so it does not prove that retry caused the
+difference. Both repeats are retained in the receipt. No SQLite busy/locked
+exception occurred in these trials. Timing windows are bounded, SQL writer
+acquisition includes syscall time, and one-second FD samples can miss short
+peaks. The fake backend does not establish real-provider memory/throughput or
+long-duration leak behavior. Exact image IDs, source overlays and route numbers
+are in [the load receipts](../evaluations/load/measurements/launch-2026-10-08/README.md).
+
+The first broken limit was GET SSE sharing the unset write-only peer context:
+all viewers hit one eight-stream bucket. Request-peer admission fixes that,
+with configurable global capacity and clear 429/Retry-After messages. Quiet
+streams now poll at 0.5, 1, then 2 seconds, returning to 0.5 after events; status
+fallback and keepalives keep their wall-clock deadlines. No writer or network
+I/O is added to polling. Above the measured envelope the 256-stream guard shed
+176 excess attempts without unexpected errors; the 1,000-visitor target was
+not sustained. Raising caps is not established capacity.
+
+SSE capacity is bounded globally by `SSE_MAX_CONNECTIONS` (default 256), by browser
+identity (four), and by connecting host (eight; IPv6 shares a /64). Client-supplied
+forwarded headers do not establish identity. Missing peers share one bounded
+bucket. A common ingress/NAT peer therefore permits only eight streams; the
+200-page result requires enough distinct connecting peers and does not prove
+that production ingress preserves them. Verify ingress identity before claiming
+the local capacity for production. Refusal returns 429 with a human-readable
+message and `Retry-After: 30`; the run view explains the refusal and waits at
+least thirty seconds before reconnecting.
+
+Run starts are a separate budget. The default global free limit is twenty/day,
+six/day per host and three/day per browser. This is a ceiling of 0.83 free
+starts/hour averaged over a full day, not a model completion-rate promise.
+Admitted runs may still exhaust their physical-call/token allowance. The measured
+50-attempt burst admitted six and refused 44 with a daily-admission message;
+the final integrated repeat completed three and stopped three at the shared
+host's 512-call allowance, with the stored daily-provider-admission message. Do
+not interpret six accepted requests as six completed runs. One complete Express
+probe and report Q&A were separately verified using the same deterministic
+backend. Run efficiency/model-envelope receipts must be consulted before
+allocating all twenty daily starts. A separate sixty-second profile with
+`MAX_CONCURRENT_RUNS=1` admitted two of ten starts, clearly refused four at the
+concurrent-run guard and four at the daily host guard; both admitted runs
+completed and no unexpected request error occurred.
+
+### If traffic spikes
+
+1. In Honeycomb, group `HTTP POST` spans by `http.response.status_code` and
+   compare counts and p95/p99 duration (`http.request.method=POST`). Watch 429
+   intake refusals, unexpected 5xx, and `task.execute` spans grouped by
+   `co_scientist.task.outcome`, especially failed/retry_scheduled/lease_lost.
+   The privacy exporter drops HTTP route/path attributes; GET spans also include
+   SSE lifetimes, so their duration is not ordinary GET latency. Use service
+   request logs and a local reproduction to identify slow read routes. In Sentry,
+   watch increases in `Exception`, `TimeoutError` and worker failures;
+   SQLite OperationalError and provider-specific timeouts can become generic
+   `Exception`, and exported exception text is removed. Obtain detailed SQLite
+   locked/timeout messages from scoped service diagnostics. Check process RSS/CPU,
+   descriptor usage and queue age in service diagnostics. Expected 429s are load shedding.
+   The local SQL wait/loop-lag adapter is not a production monitoring endpoint.
+2. Keep one API replica and `RAILWAY_RUN_UID=0`. Keep `WORKER_POOL_SIZE=1`, the
+   tested width. Do not add Uvicorn workers, replicas, serving VACUUM/checkpoints,
+   or database writes on polling ticks to relieve traffic.
+3. On read latency/resource pressure, reduce `SSE_MAX_CONNECTIONS` to 128 or 64.
+   Restart through the documented owner release procedure: existing streams
+   close and reconnect; refusals explain the delay. Lower `MAX_CONCURRENT_RUNS`
+   to 1 to protect reads from new research work. Preserve existing durable
+   tasks and provider transactions; do not delete the database or its WAL.
+4. On quota pressure, lower `FREE_RUNS_GLOBALLY_PER_DAY`, `FREE_RUNS_PER_HOST_PER_DAY`
+   and `FREE_RUNS_PER_DAY`; inspect `APP_LLM_GLOBAL_CALLS_PER_DAY`,
+   `APP_LLM_GLOBAL_TOKENS_PER_DAY` and `PROVIDER_HOST_*` consumption. Daily counters
+   reset on UTC boundaries. Raising free/admission/model budgets does not add
+   API capacity and can spend the remaining allowance earlier. Preserve bounded
+   call/token reservations and settlement. Resolve exhausted credentials or
+   model availability using the existing provider runbook.
+5. If ordinary API calls still fail at the tested limits, reduce intake and
+   retain logs/trace IDs, rollback the offending release using [LAUNCH.md](LAUNCH.md),
+   then reproduce locally at the observed mix. Capacity above the measured
+   envelope requires another local load result; additional replicas require a
+   store migration first. Alert configuration is in
+   [MONITORING.md](MONITORING.md#launch-alert-settings).
+
+## Data and privacy
+
+The launch controller is Guy Barel, an individual in the Netherlands, contact
+`guy.barel@open-coscientist.com`. Public notices are at `/privacy` and `/terms`;
+the owner reviews both before launch. These drafts are not legal advice.
+Launch uses browser ownership identities, not email/password accounts. The
+random `X-Client-ID` is a private capability; never ask a visitor to email it.
+
+The inventory below follows the persisted schema, browser storage, provider
+profiles and MCP implementations. Deletion of a live record does not erase a
+copy already received by an outside service.
+
+| Personal or user-supplied data | Storage | Retention | Outside recipients |
+| --- | --- | --- | --- |
+| Ownership ID, run/chat/document IDs, links and timestamps | Browser storage; SQLite owner columns | Browser until cleared; records with their work; hashed erasure markers 24 hours | Railway API; optional R2 database backups |
+| Goals, generated titles/restatements, challenges, constraints, preferences, tier, configuration and sources | SQLite `runs`, interviews, tasks/checkpoints | Launch `COSCIENTIST_RUN_RETENTION_DAYS=0` keeps runs until deletion; terminal default otherwise 90 days; drafts 7 days | Selected model provider; derived queries to research APIs |
+| User and assistant chats, suggested answers, steering, Q&A, reasoning | SQLite `interviews`, `interview_turns`, `messages`, run events, task payloads/checkpoints | Standalone chats until deleted; run-bound copies with their run | Selected model provider, Railway, R2 |
+| Uploaded title/filename, MIME type, size, hash, extraction metadata and extracted text | SQLite `staged_documents`; text copied into evidence/tasks/science outputs | Staged documents 30 days; copied text with its run/chat until deletion | Railway extraction; model providers; derived query words to research APIs |
+| Original uploaded file bytes and extraction intermediates | Request memory and temporary parser/OCR files | Processing lifetime; original uploads are not retained | Railway; local parsers/OCR, not an external conversion service |
+| Hypotheses, reviews, comparisons, citations, retrieval queries/results, full text, claims, plans, reports, errors | SQLite science tables, tasks, events and checkpoints | Run lifetime; may echo supplied text | Selected model provider, Railway, R2 |
+| BYOK worker/supervisor credentials, provider/model/custom-model choices | Browser key vault; encrypted SQLite `run_credentials`; request and brief validation memory | Browser until removed; stored credentials with their run; all removed by browser-identity deletion | Railway API; selected provider for catalog/probe/completion; R2 holds encrypted rows |
+| Appearance, models, session view and pending creation/reload recovery | Browser local/session storage, listed below | Local until cleared; session until completion/removal/tab closes | Preferences used in requested API calls; no advertising recipient |
+| Optional email in legacy data/configuration | SQLite legacy run configuration/tasks | With the run | Public completion email is disabled; any separately configured legacy delivery has its own mail processor |
+| Feedback category/message, URL, run ID, supplied diagnostic export | SQLite `feedback` | 30 days, newest 200 entries and 10 MiB cap, enforced on submission | Railway/R2; maintainer, no external feedback-mail service |
+| Browser/server diagnostic logs, route/interaction context, trace references | SQLite `app_logs`, bounded browser memory, stdout | Default capture cap 20,000 rows; browser 2,000; no fixed time expiry; owned logs erased on deletion | Railway stdout; a user-selected feedback export; R2 |
+| Connecting-peer hashes, client/day/minute usage, reservations and idempotency receipts | SQLite admission ledgers and in-memory limits | Seven-day expiry, hourly bounded cleanup; live run host mapping with its run | Railway receives connection IP; R2 contains database counters |
+| Numeric operator-funded charges, token bounds/usage, model/role/rates and random receipt IDs | SQLite `llm_spend`; current ownership link through `provider_token_reservations` | Funding ledger has no automatic expiry; admission link expires after seven days or detaches on deletion; spent money is not refunded by erasure | Railway/R2; no goal/document/email/key/owner-ID columns |
+| Technical exception class/position, method and build metadata | Sentry SDK event projections | Project retention is an owner-confirmed external setting | Sentry; fresh projections remove arbitrary error messages, user/email, URLs, breadcrumbs, attachments, goals, documents and keys |
+| Timing/outcome, trace/run/task IDs, numeric usage/budget/attempt metadata | Projected OTLP spans | Exporter-destination retention is an owner-confirmed external setting | Configured tracing processor; owner reports Honeycomb EU; no prompt/document/email/key text or raw exception events |
+| Website/API request IP and browser headers | Infrastructure access logs | Provider configuration, not established by source | Cloudflare and Railway; historical Vercel hosting until the launch cutover |
+| Entire SQLite database/WAL, including research, feedback and encrypted keys | Optional Litestream S3 replica in Cloudflare R2 | Owner must confirm backup expiry and refresh policy; Litestream restore anchors alone do not bound all old copies | Cloudflare R2 |
+| Derived literature queries, topic/run identifiers and public papers | Query in request memory; public papers only in MCP `.public-papers-v1/shared` cache; owned retrieval copies in SQLite | Public-paper cache has no user content by design; legacy private query/run manifests are purged before MCP serves tools | Railway MCP; selected source APIs |
+| Trailer request metadata | No embedded player or automatic Google request; explicit external link | YouTube's external policy after the visitor opens the link | YouTube/Google only after that click |
+
+### External recipients and model policy
+
+Provider/model selection determines which service receives goals, chat context
+and document excerpts. OpenRouter trial/free routes can retain prompts or use
+them for training. Only the checked `qwen/qwen3.8-27b:free` profile pins ModelRun
+with `only=["modelrun"]`, `zdr=true`, `data_collection="deny"`; do not extend
+that promise to Ling, Nexpro, GLM, MiniMax, Nemotron, Gemma, Dots or fallbacks.
+Inspect each actual `platform/llm/profile/` entry and request-routing policy
+when changing a model. BYOK supports Anthropic, DeepSeek, Gemini, OpenAI and
+OpenRouter/custom models under the chosen provider's policy. The owner's
+Azure resource is Sweden Central, but Global Standard inference is not a
+guarantee that processing remains in the EU.
+
+MCP research requests may send supplied or derived search words/entities to
+NCBI PubMed/PMC, OpenAlex, Europe PMC, arXiv, OpenCitations, ChEMBL, UniProt,
+STRING, Reactome, Open Targets, Ensembl, gnomAD, GWAS Catalog and
+ClinicalTrials.gov. Brave/Tavily are optional web-search recipients; opening
+a source contacts its public publisher/site. Available science-skill tools
+can add database recipients. A query can reveal personal information even
+though the full uploaded file is not sent to these sources by design.
+
+Hosting/diagnostic services are processors for contracted services; model and
+research services can also process data for their own purposes. The owner
+must confirm contracts, applicable adequacy decisions/transfer safeguards and
+external retention before launch. A European resource or dataset name alone
+does not establish those facts. Do not submit confidential information,
+personal data, medical records or credentials in research content.
+
+### Browser storage and data-rights controls
+
+The application sets/reads no first-party cookies. All application storage
+supports requested functionality; there are no advertising/analytics storage
+keys, and no cookie banner is needed after replacing the optional embed.
+
+| Location | Exact key or prefix | Purpose |
+| --- | --- | --- |
+| localStorage | `co_scientist_client_id` | Private ownership identity |
+| localStorage | `cosci-theme` | Chosen appearance |
+| localStorage | `cosci-api-keys`, legacy `cosci-api-key` | BYOK vault; legacy key migrated and removed |
+| localStorage | `cosci-api-provider`, `cosci-api-model`, `cosci-api-supervisor-model`, `cosci-api-custom-models` | Chosen providers/models and custom drafts |
+| localStorage | `cosci:session-side`, `cosci:session-side:<runId>`, `cosci:session-tab:<runId>` | Chosen session view |
+| sessionStorage | `cosci-logs-session-baseline` | Diagnostic session anchor |
+| sessionStorage | `co_scientist_log_pause_until` | Necessary one-minute diagnostic refusal/reload recovery |
+| sessionStorage | `co_scientist_pending_run_create:<chatId>` | Safe idempotent creation recovery |
+| sessionStorage | `coscientist:chunk-reload-at` | Reload-loop guard |
+
+Settings → Data exports a JSON ZIP of owned runs/chats/extracted documents and
+settings, excluding provider keys and original file bytes. Export generation
+uses a consistent read snapshot and private temporary file, closes SQLite
+before response I/O and removes the file on completion/disconnect. Deletion
+requires exact `DELETE`, checks ownership and atomically removes owned work,
+stored credentials, staged documents and logs; it clears application storage
+in this and other open tabs. Other owners' rows and spent shared quotas remain.
+Deleted run pages return 404. Seven-day history expiry preserves current spent
+quotas and recent settlement receipts. The separate monetary ledger keeps the
+deployment's charged total without an automatic expiry; deletion detaches its
+ownership link rather than refunding that total. Exports include currently
+owned charge receipts. Twenty-four-hour hashed markers prevent delayed
+background writes from recreating the erased identity's work. Clearing the
+ownership ID without deletion only makes its server data inaccessible.
+
+Time-based retention runs hourly after API startup, outside port binding, with
+short transactions. Never use VACUUM or truncating checkpoints from the server,
+or hold a SQLite writer over network I/O. Original-source privacy tests cover
+cross-owner export/deletion, erased-run 404, late writers, rollback, disconnected
+download cleanup, backup snapshots and concurrent response/writer behavior.
+
+The owner handles access, correction, restriction, objection and portability
+requests, normally within one month, and explains any lawful limitation. The
+Dutch supervisory authority is the Autoriteit Persoonsgegevens. When restoring
+a backup, preserve erasure decisions and reapply deletions before serving old
+work; restoring an older snapshot is not permission to revive erased content.
+
+### Retention settings and external decisions
+
+Run/draft/document settings are `COSCIENTIST_RUN_RETENTION_DAYS` (launch0,
+default90), `COSCIENTIST_DRAFT_RETENTION_DAYS` (7) and
+`COSCIENTIST_DOCUMENT_RETENTION_DAYS` (30). BYOK needs the owner's persistent
+`BYOK_ENCRYPTION_KEY`; operator log access uses `LOGS_ADMIN_TOKEN`.
+`LOG_CAPTURE_ENABLED=true`, `LOG_CAPTURE_LEVEL=INFO`,
+`LOG_CAPTURE_MAX_ROWS=20000`, `LOGS_INGEST_PER_MINUTE=120` are code defaults.
+
+`SENTRY_DSN`/`SENTRY_ENVIRONMENT` are server destination/environment;
+`VITE_SENTRY_DSN` is the owner-required frontend build destination (build MODE
+supplies production environment). `OTEL_EXPORTER_OTLP_ENDPOINT` enables
+traces; `OTEL_SDK_DISABLED=true` disables them.
+`OTEL_EXPORTER_OTLP_HEADERS`/`OTEL_EXPORTER_OTLP_TRACES_HEADERS` hold exporter
+credentials and are validated before SDK parsing. Never print secret values
+or put operator/provider credentials into browser configuration.
+
+Optional R2 backups require `LITESTREAM_R2_BUCKET`, `LITESTREAM_R2_ENDPOINT`,
+`LITESTREAM_R2_ACCESS_KEY_ID`, `LITESTREAM_R2_SECRET_ACCESS_KEY` and a fresh
+owner-approved `LITESTREAM_R2_PATH`. `LITESTREAM_CONFIG` defaults to
+`/etc/litestream.yml`; `COSCIENTIST_LITESTREAM_ACTIVE` is entrypoint-owned.
+Litestream0.5.17 keeps restore anchors and last level files, so its default
+24-hour snapshot retention is not a deadline for all old user data. Unchanged
+database positions skip duplicate snapshots. An object lifecycle alone can
+expire an idle database’s only restore base; pair expiry with a refreshed,
+verified restore generation. R2 documents normal deletion within 24 hours of
+object expiration, with possible delays. No configured launch rule has been
+verified. See [R2 lifecycle behavior](https://developers.cloudflare.com/r2/buckets/object-lifecycles/).
+The owner must select, enforce and publish backup expiry and refresh policy,
+and confirm actual Sentry/tracing/hosting-log retention and transfer arrangements before
+public launch. Do not invent a deadline from the repository defaults.
+
+## Incidents
+
+See [incident playbooks](INCIDENTS.md) for signals, first actions, rollback and
+ownership, including the local [Litestream restore drill](RESTORE-DRILL.md).

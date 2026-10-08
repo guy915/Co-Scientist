@@ -20,6 +20,7 @@ from co_scientist.platform.llm.attempts.retry import (
     run_attempts,
 )
 from co_scientist.platform.llm.request.thinking import scoped_minimal_reasoning
+from co_scientist.platform.llm.roles import scoped_call_policy
 from co_scientist.platform.llm.structured.validate import (
     _handle_json_retries_exhausted,
     extract_response_json,
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 def _call_for_attempt(
     prompt: str, spec: CompletionSpec, opt: LLMCallOptions
 ) -> Callable[[Attempt], Awaitable[str]]:
-    inner_opt = LLMCallOptions(enable_thinking=opt.enable_thinking)
+    inner_opt = dataclasses.replace(opt, run_id=None, prompt_name=None)
 
     async def _attempt(attempt: Attempt) -> str:
         escalation = attempt.rung
@@ -63,6 +64,9 @@ async def call_llm(
     with (
         logical_call_span("call_llm", spec.model_name, opt.prompt_name),
         scoped_api_key(spec.api_key),
+        scoped_call_policy(
+            opt.role or spec.role, opt.effort or spec.effort, enable_thinking=opt.enable_thinking
+        ),
     ):
         return await run_attempts(
             _call_for_attempt(prompt, spec, opt),
@@ -129,6 +133,9 @@ async def call_llm_json(
     with (
         logical_call_span("call_llm_json", spec.model_name, opt.prompt_name),
         scoped_api_key(spec.api_key),
+        scoped_call_policy(
+            opt.role or spec.role, opt.effort or spec.effort, enable_thinking=opt.enable_thinking
+        ),
     ):
         json_spec = dataclasses.replace(spec, api_key=None, force_json=not spec.json_schema)
 

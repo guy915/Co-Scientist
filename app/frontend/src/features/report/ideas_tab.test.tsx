@@ -10,14 +10,8 @@ function renderIdeas(ui: ReactElement, path = '/runs/run-1/ideas') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 }
 
-it('renders idea rows sorted by Elo with their scores', () => {
+it('renders idea rows in server publication order with their scores', () => {
   const hypotheses: Hypothesis[] = [
-    makeHypothesis({
-      id: 'low',
-      title: 'Low-ranked idea',
-      statement: 'A weaker statement.',
-      elo_rating: 1150,
-    }),
     makeHypothesis({
       id: 'high',
       title: 'High-ranked idea',
@@ -25,6 +19,12 @@ it('renders idea rows sorted by Elo with their scores', () => {
       elo_rating: 1300,
       win_count: 4,
       loss_count: 1,
+    }),
+    makeHypothesis({
+      id: 'low',
+      title: 'Low-ranked idea',
+      statement: 'A weaker statement.',
+      elo_rating: 1150,
     }),
   ];
   renderIdeas(<IdeasTab hypotheses={hypotheses} reviews={[]} />);
@@ -87,4 +87,37 @@ it('flags an evidence-less idea Unverified and a probe-falsified one Undermined,
   expect(
     container.querySelectorAll('.idea-rank-head .idea-unverified-chip'),
   ).toHaveLength(1);
+});
+
+it('marks a screened idea Screened instead of Unverified', () => {
+  const {container} = renderIdeas(
+    <IdeasTab
+      hypotheses={[
+        makeHypothesis({
+          id: 'finalist',
+          title: 'Finalist idea',
+          elo_rating: 1300,
+          verification_verdict: 'holds',
+          screened: false,
+        }),
+        makeHypothesis({
+          id: 'screened',
+          title: 'Screened idea',
+          elo_rating: 1250,
+          screened: true,
+        }),
+      ]}
+      reviews={[]}
+    />,
+  );
+
+  const chips = [...container.querySelectorAll('.idea-screened-chip')];
+  expect(chips.map(chip => chip.closest('a')?.textContent)).toEqual([
+    expect.stringContaining('Screened idea'),
+  ]);
+  expect(chips[0]).toHaveAttribute(
+    'aria-label',
+    expect.stringContaining('Screened, not deep-verified'),
+  );
+  expect(container.querySelectorAll('.idea-unverified-chip')).toHaveLength(0);
 });

@@ -135,12 +135,12 @@ assessor's judgment; together they bound it in each direction.
 ## Quality benchmark
 
 The manual `Benchmark` workflow (`.github/workflows/benchmark.yml`) runs
-`claim_support_eval.py --live --tier express|standard` on a fixed goal with
-the free default route. It reports the unsupported-claim rate with its claim
-count and a 95% Wilson interval, the unverified-idea rate, requests and wall
-time, and keeps the run database as an artifact. The run stops after 120
-minutes (Express) or 240 (Standard), and the job fails when no rate was
-written. It needs the `OPENROUTER_API_KEY` repository secret; its MCP server
+`quality_benchmark.py --live --tier express|standard` on a selected fixed goal
+and git ref with the free default route. It reports the baseline measurements
+below and the descriptive unsupported-claim rate with its claim count and a
+95% Wilson interval, and keeps the database, snapshot and receipt as artifacts.
+The run stops after 120 minutes (Express) or 240 (Standard), and the job fails
+when no rate was written. It needs the `OPENROUTER_API_KEY` repository secret; its MCP server
 also needs `OPENALEX_API_KEY` and `TAVILY_API_KEY`, without which there is no
 web search and literature retrieval is keyless.
 
@@ -149,11 +149,12 @@ web search and literature retrieval is keyless.
   the run-to-run spread is wider than the interval. Report that rate; never
   gate changes on it. Use the paired check below to inspect quality alongside
   efficiency, and state any loss and uncertainty explicitly.
-- **Ration live runs.** OpenRouter's free models allow 20 requests a minute
-  and 1,000 a day for the whole account. Do not benchmark changes that cannot
-  alter model output (caching, backend, frontend, CI); measure those offline.
-  Batch prompt, reasoning-budget and retry changes and check each batch with
-  one Express run.
+- **Ration live runs.** Agree the whole-account daily allowance before
+  collection and subtract actual attempts from the remainder before each
+  dispatch. Do not benchmark changes that cannot alter model output
+  (caching, backend, frontend, CI); measure those offline. Batch prompt,
+  reasoning-budget and retry changes into a three-goal paired Express cohort;
+  reuse recorded main baselines only while the comparison controls match.
 - **Token admission keeps the default 16M client ceiling.** Each call reserves
   its input-byte bound and full output cap before dispatch. Successful calls
   with reported usage settle to real prompt plus completion tokens. Failed
@@ -171,8 +172,10 @@ controls invalidate a pair. Config and routing snapshots remain in the JSON
 so intentional efficiency changes can be reviewed. Keep run databases and
 report packets private, outside commits.
 
-Download the six saved benchmark databases and create `pairs.json`, using
-paths relative to that manifest. It contains exactly one entry per fixed goal:
+Download the six saved `snapshot.db` files, which include independent dispatch
+receipts, and create `pairs.json` using paths relative to that manifest.
+Keep any accompanying `snapshot.db-wal`; legacy metadata may still be there.
+It contains exactly one entry per fixed goal:
 
 ```json
 {
@@ -193,7 +196,7 @@ that later analyzes it. Use the benchmark receipt to verify it.
 ```bash
 # One comparison command; only this explicit mode makes free-route judge calls:
 MODEL_NAME=openrouter/inclusionai/ling-3.1-flash \
-  .venv/bin/python -m evaluations.paired_quality pairs.json --live-judge --output results/paired
+  .venv/bin/python -m evaluations.benchmark_transport compare pairs.json --live-judge --output results/paired
 
 # Hermetic replay of saved judgments (no provider imports or network):
 .venv/bin/python -m evaluations.paired_quality pairs.json --judgments judgments.json --output results/paired
@@ -207,9 +210,10 @@ mixes, claim verdicts, distinct supported claims (`supports` or `partial`),
 task-span wall time, physical calls and prompt/completion tokens. Missing
 usage is unknown, never zero. Wall time spans the earliest task start to the
 latest task completion, including waits; it is not summed call latency.
-When an evaluation dispatch receipt is present, its attempted physical calls
+When a versioned HTTP attempt receipt is present, its physical calls
 take precedence over task telemetry (failed tasks can lose usage records).
-Missing token records then make total tokens unknown. Older databases expose
+Missing token records then make total tokens unknown. Legacy invocation receipts
+make live physical counts unknown. Databases without a receipt expose
 `recorded_telemetry_only` as the call-count basis, not a claim of complete dispatch coverage.
 
 The judge sees only the fixed goal, rubric and two final reports, with provider
@@ -235,6 +239,94 @@ including retries. An agreed larger allowance can be set explicitly with
 `--max-judge-calls`; exhaustion fails instead of inventing missing judgments.
 `make test-evaluations` exercises the entire replay on fake recorded SQLite
 databases with network connections forbidden and checks that inputs are unchanged.
+
+### Fixed-goal collection
+
+Collect one main baseline per fixed goal on Express, after agreeing the daily
+physical-request allowance. Use a clean checkout, an explicit zero-priced
+OpenRouter `MODEL_NAME` and `OPENROUTER_API_KEY`, with retrieval configured
+identically for both refs. No Azure or paid fallback is admitted.
+
+```bash
+.venv/bin/python -m evaluations.benchmark_transport collect --goal-id cell-biology \
+  --live --max-calls 150 --output /tmp/biology-main
+```
+
+Repeat for `battery-materials` and `urban-hydrology`, within the agreed shared
+allowance; collection never repeats automatically. An output directory with
+an existing run database is refused. Each fresh process saves `snapshot.db`,
+`receipt.json`, `baseline.md` and `claim-support-live.json`. The receipt records
+the exact source SHA, resolved controls, dispatch count and ceiling. Use the
+snapshot and that source SHA in the paired manifest. `run.db` is also retained
+for local inspection; the snapshot includes WAL contents and the evaluation
+dispatch receipt.
+
+The live measurement launcher enforces `--max-calls` across concurrent HTTP attempts and retries
+(1–450 requests; default 150), independently of task admission counters. Set a
+larger bound only within the agreed daily remaining share; main Express may
+need more than 150 attempts. Track aggregate use across goals and judge calls.
+Use `python -m evaluations.benchmark_transport collect` in place of the direct
+collector command for live runs, and `python -m evaluations.benchmark_transport
+compare` in place of the direct paired command for live judging. The launcher
+counts HTTP transport attempts before sending, including SDK connection replays
+and redirects. It disables hidden connect retries and records the counter's
+code/SDK identity digest in the snapshot. Zero SDK retry options alone do not disable
+OpenRouter's separate connection replay. All such attempts consume the allowance.
+Legacy receipts record backend invocations; their live HTTP count and token
+total remain unknown and require review. The artifact-based live dispatch
+rejects legacy counters before judging. An exhausted or
+failed run stays incomplete, exits 2 and retains its database and receipts;
+do not treat it as a successful baseline. `claim-support-live.json` retains
+the existing rate, sample size and Wilson interval as descriptive measurements.
+Default collection is offline; omit `--live` to exercise persistence without
+provider credentials. The offline artifact and receipt explicitly disclaim
+scientific quality, and the collector's tests deny socket connections.
+
+The manual **Benchmark** workflow accepts `goal_id`, `benchmark_ref`, `tier`,
+`max_calls` and `label`. Dispatch one fixed goal on an exact source SHA:
+
+```bash
+gh workflow run benchmark.yml --ref main -f goal_id=cell-biology \
+  -f benchmark_ref=SOURCE_SHA -f tier=express -f max_calls=150 -f label=biology-main
+```
+
+Its summary includes the baseline row and descriptive claim sample/interval;
+the uploaded artifact retains the database, snapshot, receipt and logs even
+when the run step fails. Dispatch the other goals only within the agreed
+remaining daily share. The workflow never runs on pull requests.
+Collection installs the selected research engine in an isolated clean worktree
+and uses the dispatched measurement launcher outside it. This instruments older
+research refs without editing them; receipts retain the actual research SHA and
+measurement-counter digest. New snapshots checkpoint their private copy before
+analysis; the artifact importer also preserves any legacy WAL. Both arms must use the same measurement counter
+and SDK versions.
+
+After collecting the three main and three branch runs, compare their artifacts
+with one dispatch (the IDs can be in any goal order):
+
+```bash
+gh workflow run benchmark.yml --ref main -f operation=compare \
+  -f main_runs=MAIN_BIOLOGY_ID,MAIN_BATTERY_ID,MAIN_HYDROLOGY_ID \
+  -f branch_runs=BRANCH_BIOLOGY_ID,BRANCH_BATTERY_ID,BRANCH_HYDROLOGY_ID \
+  -f max_judge_calls=6 -f label=efficiency-batch
+```
+
+`benchmark_ref` applies to collection only. Comparison uses the dispatched
+harness revision, validates the six saved Express goal/source/identity and
+independent request receipts, then judges the reports through the existing
+free-route secret. It emits one table and JSON with both order judgments,
+sample size and uncertainty. Review-required results exit 2 and retain their
+artifacts; failed validation spends no judge requests. Allow for all judge
+attempts in the agreed daily share, and conservatively charge its ceiling if
+interruption prevents a final usage receipt. Download artifacts before their
+14-day expiry if they will be reused.
+
+For hermetic replay, `python -m evaluations.paired_artifacts --archives
+archives.json --output replay` prepares the same manifest from recorded ZIPs.
+The JSON maps `main` and `branch` to three ZIP paths each, relative to that
+file. Then run the recorded-judgment command above against
+`replay/prepared/pairs.json`. No network is used unless `--download` or
+`--live-judge` is explicitly selected.
 
 ## External gaps
 

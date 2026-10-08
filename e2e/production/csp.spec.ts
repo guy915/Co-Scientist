@@ -45,8 +45,9 @@ for (const theme of ["light", "dark"]) {
       });
     }, theme);
     // Exercise the SDK without sending test events to a real Sentry project.
-    await page.route("https://*.ingest.sentry.io/**", (route) =>
-      route.fulfill({ status: 200, body: "{}" }),
+    await page.route(
+      /^https:\/\/[^/]+\.ingest(?:\.us|\.de)?\.sentry\.io\//,
+      (route) => route.fulfill({ status: 200, body: "{}" }),
     );
     await page.route(/\/api\/interviews\/[^/]+$/, async (route) => {
       const response = await route.fetch();
@@ -74,6 +75,8 @@ for (const theme of ["light", "dark"]) {
         (tab) => `/runs/${id}/${tab}`,
       ),
       `/examples/${example.id}`,
+      "/privacy",
+      "/terms",
       "/missing-page",
     ];
     for (const path of routes) {
@@ -85,6 +88,23 @@ for (const theme of ["light", "dark"]) {
       await expect(page.locator("main")).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+      if (path === "/privacy" || path === "/terms") {
+        await expect(
+          page.getByRole("heading", {
+            name: path === "/privacy" ? "Privacy notice" : "Terms of use",
+            exact: true,
+          }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(
+            "This text is not legal advice; the owner reviews it before launch.",
+            { exact: true },
+          ),
+        ).toBeVisible();
+        await expect(
+          page.getByRole("link", { name: "guy.barel@open-coscientist.com" }),
+        ).toBeAttached();
+      }
       if (path.startsWith("/examples/")) {
         await expect(page).toHaveURL(/\/chats\//);
         await page.reload();
@@ -101,5 +121,27 @@ for (const theme of ["light", "dark"]) {
       expect(errors, path).toEqual([]);
       expect(imageRequests, path).toEqual([]);
     }
+    for (const region of [
+      "ingest.sentry.io",
+      "ingest.us.sentry.io",
+      "ingest.de.sentry.io",
+    ]) {
+      const url = `https://s4.${region}/api/0/envelope/`;
+      await page.route(url, (route) =>
+        route.fulfill({
+          status: 200,
+          body: "{}",
+          headers: { "Access-Control-Allow-Origin": "*" },
+        }),
+      );
+      const status = await page.evaluate(
+        async (endpoint) =>
+          (await fetch(endpoint, { method: "POST", body: "{}" })).status,
+        url,
+      );
+      expect(status, region).toBe(200);
+    }
+    expect(violations).toEqual([]);
+    expect(errors).toEqual([]);
   });
 }

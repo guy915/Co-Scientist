@@ -95,6 +95,7 @@ async def _generate_queries_via_llm(
         result = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="literature_queries",
                 model_name=state["model_name"],
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=HIGH_TEMPERATURE,

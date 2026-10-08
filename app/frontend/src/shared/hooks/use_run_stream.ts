@@ -15,7 +15,7 @@ export interface StreamEvent {
 
 // Permanent auth/not-found rejection disconnects without retries.
 export type StreamConnectionState =
-  'connecting' | 'open' | 'reconnecting' | 'disconnected';
+  'connecting' | 'open' | 'reconnecting' | 'disconnected' | 'capacity';
 
 export interface UseRunStreamResult {
   events: StreamEvent[];
@@ -91,12 +91,20 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
     async function connect(): Promise<void> {
       while (!cancelled) {
         controller = new AbortController();
+        let capacityDelay: number | null = null;
         try {
           const res = await fetchWithSession(
             `${API_BASE_URL}/api/runs/${runId}/events`,
             {headers: clientHeaders(), signal: controller.signal},
           );
           if (cancelled) return;
+          if (res.status === 429) {
+            const seconds = Number(res.headers.get('Retry-After'));
+            capacityDelay =
+              Number.isFinite(seconds) && seconds > 0
+                ? Math.min(300, Math.max(30, seconds)) * 1000
+                : 30_000;
+          }
           if (!res.ok || !res.body) {
             if ([401, 403, 404].includes(res.status)) {
               setConnection('disconnected');
@@ -123,10 +131,19 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
           controller.abort();
         }
         if (cancelled) return;
-        setConnection(opened ? 'reconnecting' : 'connecting');
+        setConnection(
+          capacityDelay !== null
+            ? 'capacity'
+            : opened
+              ? 'reconnecting'
+              : 'connecting',
+        );
         await new Promise<void>(resolve => {
           failures += 1;
-          retryTimer = window.setTimeout(resolve, reconnectDelayMs(failures));
+          retryTimer = window.setTimeout(
+            resolve,
+            capacityDelay ?? reconnectDelayMs(failures),
+          );
         });
       }
     }

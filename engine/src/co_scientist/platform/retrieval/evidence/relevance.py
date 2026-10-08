@@ -149,6 +149,7 @@ async def _judge_batch(
         result = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="relevance",
                 model_name=model_name,
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=HIGH_TEMPERATURE,

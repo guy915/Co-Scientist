@@ -52,7 +52,7 @@ run it outside store transactions. Preserve the characterized node-level/durable
 assumptions-context and expansion differences when changing strategy dispatch.
 
 Ranking, Reflection and Evolution also expose supported operations from their
-agent packages. Ranking owns immutable prompt/median snapshots, per-match
+agent packages. Ranking owns immutable prompt and debating-leader snapshots, per-match
 judging/Elo and round lifecycle; node-level and durable callers retain their existing
 pair-selection order and prompt inputs. Reflection owns single-item context and
 evidence assembly; durable callers own issuance markers, aggregation and retry
@@ -189,10 +189,8 @@ per-hypothesis budget alone bounds nothing. Both factors are capped in
 hypotheses buy anything (`reviewed_hypothesis_limit`: the 3 or 5 best of the
 pool, ordered by the canonical `rank_by_elo` and selected from the whole pool
 so the in-process node and a per-hypothesis durable task choose identically).
-Note *which* half of that key decides: this node runs before ranking, so on the
-first cycle -- where every hypothesis gets its one full review -- every Elo is
-still the default and the tie breaks on the initial review's score, written by
-the node immediately upstream. The product of the two caps is a per-*cycle*
+Reviews now go to ranked finalists only, so the Elo half of that key decides.
+The product of the two caps is a per-*cycle*
 ceiling of 12 threads on extended and 25 on ultra -- **not per run**: comprehensive
 reflection runs once per cycle over a fresh top-3, and evolution rewriting a
 hypothesis makes it need its full review, and so its research, again. A live
@@ -225,16 +223,21 @@ either -- research is seeded from assumptions a previous cycle marked
 uncertain or likely false, and those assumptions are deep verification's own
 output, so the loop it now reads from was already being pointed by it.
 
-**And it precedes tournament entry**, mirroring `03-reflection.md`, whose
-`ReviewHypothesis` performs the deep verification and only then creates
-that hypothesis's `AddToTournament` task -- so no idea is ranked or bred
-from before its core assumptions are probed. Blanket over the pool, which
-is affordable only because it is incremental: `science/reflection/deep_verification.py`
-marks each idea with a checkpointed `deep_verification_issued` enrichment
-when its attempt is *issued*, so the initial pool is verified once and
-each cycle's new children once, never pool x cycles. Ideas the review gate
-barred are skipped -- an idea that cannot enter a tournament has nothing
-here to guard.
+**Depth goes to finalists only** (`science/scheduling/funnel.py`). Every
+idea gets the safety screen, one screening review and the tournament; the
+observation, full and simulation reviews, deep verification and claim checks
+run for the run's finalists alone -- the top `finalists` (3/5/6/8 by tier) by
+Elo among ideas that have played, which are the ideas the report features. A
+first cycle therefore spends nothing on depth, and an idea that loses never
+pays for it. Issuance stays incremental: `deep_verification_issued` is
+checkpointed when an attempt is *issued*, so each finalist is verified once.
+When the run ends with finalists still lacking depth, the orchestrator routes
+the terminal pass through `comprehensive_reflection`, `safety_screen` and
+`deep_verification` to the overview -- never after a budget, clock, task-count
+or safety stop, never past the call ceiling, and without the recurrent refresh
+or the blocked-idea recheck. The report features ideas with a verdict and keeps
+every other released idea as its own entry marked "screened, not
+deep-verified".
 
 `platform/sandbox/workspace/` and `platform/sandbox/` confine every command a node runs -- including
 ones that outlive the call that started them
@@ -423,7 +426,7 @@ Engine architecture lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 [`../docs/OPERATIONS.md`](../docs/OPERATIONS.md) for operational invariants.
 
-**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt and systems-biology lookups, and web search/fetch.
+**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine also requires 3.12+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt and systems-biology lookups, and web search/fetch.
 
 **Style conventions:**
 - Ruff formats and lints Python at 100 columns; config is in `pyproject.toml`.
@@ -434,7 +437,7 @@ Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 
 ## Reference MCP server (`engine/mcp_server/`)
 
-A separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors.
+A separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine also requires 3.12+) — install into a 3.12 venv or you'll hit cryptic solver errors.
 
 The live manifest groups the sources into three families:
 - **Literature** — `search_pubmed`, `pubmed_search_with_fulltext`, `check_pubmed_available` (Biopython/Entrez), `search_openalex` (keyless, cross-disciplinary), `get_opencitations_citation_edges`, `search_europepmc` and its `search_preprints`/`search_biorxiv` preprint-restricted siblings, `search_arxiv` (arxiv.org's own export API, keyless).
@@ -447,6 +450,6 @@ The `_MCP_TOOLS` tuple in `server.py` is the single source for both registration
 - **Two keys chain, they do not choose.** `candidate_providers` drops refused providers, so a search whose provider is out of credit falls through to the next configured one *within the same call* and later searches skip the spent provider entirely. `WEB_SEARCH_PROVIDER` names the preference, not the only provider. Two rules keep the arithmetic honest: an empty result is an answer and does **not** fall through (re-asking would spend two allowances to hear "nothing" twice), and when every provider has been refused the preferred one is still tried, since a record only clears on a success and a monthly reset would otherwise stay invisible until the process restarts.
 - **`search_web` is registered only when a provider key resolves** — `BRAVE_API_KEY` or `TAVILY_API_KEY`, with `WEB_SEARCH_PROVIDER=brave|tavily` selecting one (otherwise autodetect, brave first). Without a key the tool is *absent from the manifest*, not failing — so "the agent never searched the web" is a deployment question first. `curl http://localhost:8888/` returns the live `mcp_tools` list plus `integrations.web_search_provider`.
 - **`read_url` fetches a URL an LLM chose**, so every URL passes `web_fetch.check_fetchable`: http(s) only, cloud metadata hosts blocked, and the hostname resolved via `getaddrinfo` *before* the range check, so `nip.io`-style names pointing at loopback/private/link-local addresses are refused too. `web_fetch.py` follows redirects manually (`follow_redirects=False`, max 5), re-screening each hop, because httpx's own redirect handling would skip the check. In production this server sits on Railway's private network next to the api, so weakening the guard is a live SSRF. Page content is untrusted data, never instructions.
-- **Every tool is wrapped by `tool_logging.with_call_logging`** in the registration loop, emitting one INFO line per call (`tool search_pubmed(query='...') -> 2 items, 4102 chars in 812ms`). Every search returns `{"status": "ok", "records": [...]}` or `{"status": "failed", "records": [], "error": "<short reason>"}` from `tools/_results.py`, never raises, and the log line labels failures. Failure reasons omit exception text that can carry request URLs or credentials. A failed source is unknown for novelty, receives no novelty credit, and is named in the report; the engine does not retry a reported failure. Any wrapper added here **must copy `__signature__`** — FastMCP derives the advertised parameter schema from it, and a bare `*args, **kwargs` wrapper silently strips every parameter from what the agent sees.
-- **Its own env surface**, in `engine/mcp_server/.env.example`, loaded from a `.env` co-located in `mcp_server/` (not the engine's; a missing file only warns): `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `COSCIENTIST_LIT_REVIEW_DIR`, `COSCIENTIST_MCP_PORT`, `COSCIENTIST_MCP_LOG_LEVEL`, `COSCIENTIST_MCP_SHARED_SECRET` (optional shared-secret auth — see `docs/DEPLOYMENT.md`), `WEB_SEARCH_PROVIDER`/`BRAVE_API_KEY`/`TAVILY_API_KEY`. Setting these in the app's `.env` does nothing. An inherited `DISABLE_SSL_VERIFY=true` is rejected; the service never disables TLS verification globally.
+- **Every tool is wrapped by `tool_logging.with_call_logging`** in the registration loop, emitting one INFO line per call with argument and result counts, elapsed time and fixed failure diagnostics; queries, URLs, provider error text and tracebacks stay out of logs. Every search returns `{"status": "ok", "records": [...]}` or `{"status": "failed", "records": [], "error": "<short reason>"}` from `tools/_results.py`, never raises, and the log line labels failures. Failure reasons omit exception text that can carry request URLs or credentials. A failed source is unknown for novelty, receives no novelty credit, and is named in the report; the engine does not retry a reported failure. Any wrapper added here **must copy `__signature__`** — FastMCP derives the advertised parameter schema from it, and a bare `*args, **kwargs` wrapper silently strips every parameter from what the agent sees.
+- **Its own env surface**, in `engine/mcp_server/.env.example`, loaded from a `.env` co-located in `mcp_server/` (not the engine's; a missing file only warns): `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `COSCIENTIST_LIT_REVIEW_DIR`, `COSCIENTIST_MCP_PORT`, `COSCIENTIST_MCP_LOG_LEVEL`, `COSCIENTIST_MCP_SHARED_SECRET` (required shared-secret auth — see `docs/DEPLOYMENT.md`; when unset, only `GET /` is public unless `COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1` explicitly permits actual loopback peers), `WEB_SEARCH_PROVIDER`/`BRAVE_API_KEY`/`TAVILY_API_KEY`. Setting these in the app's `.env` does nothing. An inherited `DISABLE_SSL_VERIFY=true` is rejected; the service never disables TLS verification globally.
 - **Its own pytest suite.** `mcp_server/` is its own project; the engine's `testpaths = ["tests"]` does not reach it and the engine's mypy excludes it. Run `pytest` *and* `mypy .` from `engine/mcp_server/`.
