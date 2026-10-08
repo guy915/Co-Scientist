@@ -17,8 +17,11 @@ its risk (listed with the reason) or an owner action on the board. Standard and
 Express baselines with per-stage timings are recorded. The model lane removed
 retries against a missing tool (M10); its three answer-changing batches each
 lost claim verification and are rejected, so the model configuration is
-unchanged. The non-blocking final check (one Express and one Standard run on
-`main`) runs after the daily request reset and is appended when it finishes.
+unchanged. The final check on `main` (8 October, under Final check in the
+findings) completed Express in 70.5 min, inside the baselines' range. Standard
+stopped after 2 h 16 min: SR-01's per-client token ceiling reserves about 4×
+the tokens a run uses, so a Standard run cannot finish (M16, posted
+on board #238).
 Owner actions remain on the `Campaign board: optimization` issue.
 
 ## Scope
