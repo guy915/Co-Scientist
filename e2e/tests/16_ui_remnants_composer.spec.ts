@@ -211,9 +211,10 @@ for (const theme of ['light', 'dark']) {
         jump.boundingBox(),
         page.locator('form.reference-composer').last().boundingBox(),
       ]);
-      expect(composerBox!.y - (jumpBox!.y + jumpBox!.height)).toBeGreaterThanOrEqual(
-        8,
-      );
+      // One spacing step (mb-3) between the button and the composer's top.
+      const gap = composerBox!.y - (jumpBox!.y + jumpBox!.height);
+      expect(gap).toBeGreaterThanOrEqual(8);
+      expect(gap).toBeLessThanOrEqual(16);
       await captureViewport(page, {
         ...DESKTOP,
         name: `ui-remnants-jump-${theme}.png`,

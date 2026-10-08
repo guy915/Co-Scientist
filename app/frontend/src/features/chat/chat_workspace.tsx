@@ -479,21 +479,25 @@ function JumpToBottomButton({
 }) {
   const away = useScrolledAwayFromBottom(scrollRef);
   if (!away) return null;
+  // The wrapper owns placement: tooltip anchors are position: relative, which
+  // would turn the button itself back into a grid row above the composer.
   return (
-    <IconButton
-      variant="elevated"
-      size="md"
-      icon="arrow_downward"
-      label="Jump to latest message"
-      layoutClassName="reference-jump-to-bottom absolute bottom-full left-1/2 mb-3 -translate-x-1/2"
-      onClick={() => {
-        const scroller = scrollRef.current;
-        scroller?.scrollTo({
-          top: scroller.scrollHeight,
-          behavior: scrollBehavior(),
-        });
-      }}
-    />
+    <span className="absolute bottom-full left-1/2 mb-3 -translate-x-1/2">
+      <IconButton
+        variant="elevated"
+        size="md"
+        icon="arrow_downward"
+        label="Jump to latest message"
+        layoutClassName="reference-jump-to-bottom"
+        onClick={() => {
+          const scroller = scrollRef.current;
+          scroller?.scrollTo({
+            top: scroller.scrollHeight,
+            behavior: scrollBehavior(),
+          });
+        }}
+      />
+    </span>
   );
 }
 
