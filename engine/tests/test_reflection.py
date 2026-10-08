@@ -81,7 +81,9 @@ async def test_the_node_carries_every_hypothesis_ledger_out(
     """Ledgers kept inside reviews never reach the persistence drain."""
     mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     _stub_review_research(monkeypatch)
-    viable = [make_hypothesis(text="a"), make_hypothesis(text="b")]
+    viable = [
+        make_hypothesis(text=text, reviews=[make_review()], win_count=1) for text in ("a", "b")
+    ]
     for hypothesis in viable:
         hypothesis.review_disposition = "viable"
 
