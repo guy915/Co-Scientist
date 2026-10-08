@@ -9,12 +9,14 @@ from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
+from co_scientist.platform.llm.request.response import extract_token_usage
 from co_scientist.platform.llm.request.thinking import (
     deepseek_thinking_kwargs,
     thinking_off_kwargs,
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
+from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 
 logger = logging.getLogger(__name__)
 
@@ -151,23 +153,27 @@ async def _generate_text(goal: str, request: _TextRequest) -> str | None:
     goal = goal.strip()
     if not goal:
         return None
-    try:
-        response = await _request_completion(goal, request)
-    except Exception as exc:
-        logger.warning("%s generation failed: %s", request.purpose, exc)
-        return None
-    content = _response_content(response)
-    if not content.strip() and _reasoned_with_no_answer(response):
-        logger.warning(
-            "%s call reasoned and wrote no answer; retrying once with thinking off",
-            request.purpose,
-        )
+    retry = ReasoningRetry()
+    content = ""
+    for thinking_enabled in retry.attempts():
+        if not thinking_enabled:
+            logger.warning(
+                "%s call reasoned and wrote no answer; retrying once with thinking off",
+                request.purpose,
+            )
         try:
-            response = await _request_completion(goal, request, thinking_enabled=False)
+            response = await _request_completion(goal, request, thinking_enabled=thinking_enabled)
+            check_text_response(response)
         except Exception as exc:
-            logger.warning("%s retry without thinking failed: %s", request.purpose, exc)
+            logger.warning("%s generation failed: %s", request.purpose, exc)
             return None
         content = _response_content(response)
+        choices = getattr(response, "choices", None) or []
+        retry.observe(
+            prose=content,
+            reasoned=extract_token_usage(response).reasoning_tokens > 0,
+            tool_requested=bool(choices and getattr(choices[0].message, "tool_calls", None)),
+        )
     return content
 
 
@@ -188,10 +194,3 @@ def _response_content(response: Any) -> str:
     if not choices:
         return ""
     return str(choices[0].message.content or "")
-
-
-def _reasoned_with_no_answer(response: Any) -> bool:
-    usage = getattr(response, "usage", None)
-    details = getattr(usage, "completion_tokens_details", None)
-    reasoning_tokens = getattr(details, "reasoning_tokens", None) or 0
-    return bool(reasoning_tokens > 0)

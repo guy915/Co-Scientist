@@ -3,9 +3,9 @@ import {
   type InterviewQuestion,
   type InterviewTurn,
 } from '@/shared/api/runs';
-import {useState} from 'react';
+import {type ReactNode, useState} from 'react';
 import {Icon} from '@/shared/ui/icon';
-import {Button, IconButton, TextField} from '@/shared/ui';
+import {IconButton, TextField} from '@/shared/ui';
 import {joinClasses} from '@/shared/ui/classes';
 import {
   OPTION_MARKER_CLASSES,
@@ -143,8 +143,10 @@ export interface QuestionChooserProps {
 }
 
 // Selection never sends a turn; the chooser owns commit. Remount on turn id to
-// reset selections and dismissal. Long options scroll inside the panel (dvh
-// follows the Safari toolbar) instead of pushing the question off a phone.
+// reset selections and dismissal. Only the options scroll, and only past a
+// height a typical question fits within on desktop (dvh follows the Safari
+// toolbar on phones); the head stays outside the scroller so its tooltips
+// cannot widen it into a horizontal scrollbar.
 export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   const [selections, setSelections] = useState(emptySelections);
   const [minimized, setMinimized] = useState(false);
@@ -161,7 +163,7 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
 
   return (
     <section
-      className="mb-3.5 grid max-h-[50dvh] gap-3.5 overflow-y-auto overscroll-contain border-b border-cosci-composer-border pb-3.5 [scrollbar-gutter:stable]"
+      className="mb-3.5 grid gap-3.5 border-b border-cosci-composer-border pb-3.5"
       aria-label="Answer options"
     >
       <ChooserHead
@@ -171,14 +173,16 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
         onDismiss={() => setDismissed(true)}
       />
       {!minimized && (
-        <ChooserBody
-          questions={questions}
-          selections={selections}
-          setSelections={setSelections}
-          onChoose={choose}
-          send={sendAnswer}
-          answered={answer.length > 0}
-        />
+        <div className="grid max-h-[50dvh] min-w-0 gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain above-phone:max-h-[min(36rem,70dvh)]">
+          <ChooserBody
+            questions={questions}
+            selections={selections}
+            setSelections={setSelections}
+            onChoose={choose}
+            send={sendAnswer}
+            answered={answer.length > 0}
+          />
+        </div>
       )}
     </section>
   );
@@ -244,13 +248,21 @@ function ChooserBody(props: ChooserBodyProps) {
           selections={selections}
           setSelections={setSelections}
           onChoose={onChoose}
+          // The last free-text field carries the one send for every answer.
+          sendAction={
+            index === questions.length - 1 ? (
+              <IconButton
+                icon="send"
+                label="Send answer"
+                // Opens inside the card; the options scroller clips the sides.
+                tooltipPlacement="left"
+                disabled={!answered}
+                onClick={send}
+              />
+            ) : undefined
+          }
         />
       ))}
-      <div className="flex justify-end">
-        <Button variant="outlined" disabled={!answered} onClick={send}>
-          Send answer
-        </Button>
-      </div>
     </>
   );
 }
@@ -261,10 +273,12 @@ interface QuestionGroupProps {
   selections: QuestionSelections;
   setSelections: (selections: QuestionSelections) => void;
   onChoose: (index: number, label: string) => void;
+  sendAction?: ReactNode;
 }
 
 function QuestionGroup(props: QuestionGroupProps) {
-  const {question, index, selections, setSelections, onChoose} = props;
+  const {question, index, selections, setSelections, onChoose, sendAction} =
+    props;
   return (
     <fieldset className="m-0 grid min-w-0 gap-2.5 border-0 p-0">
       <legend className="text-base leading-[1.35] font-medium text-cosci-fg">
@@ -283,6 +297,7 @@ function QuestionGroup(props: QuestionGroupProps) {
         ))}
         <OtherAnswerRow
           multiSelect={question.multi_select}
+          sendAction={sendAction}
           text={selections.other[index] ?? ''}
           onChangeText={text =>
             setSelections(
@@ -299,10 +314,12 @@ function OtherAnswerRow({
   multiSelect,
   text,
   onChangeText,
+  sendAction,
 }: {
   multiSelect: boolean;
   text: string;
   onChangeText: (text: string) => void;
+  sendAction?: ReactNode;
 }) {
   return (
     <div className={OTHER_ROW_CLASSES}>
@@ -314,6 +331,7 @@ function OtherAnswerRow({
         aria-label={OTHER_LABEL}
         placeholder={OTHER_PLACEHOLDER}
         value={text}
+        trailing={sendAction}
         onChange={event => onChangeText(event.target.value)}
         // Swallow Enter inside this nested field; only the chooser send
         // control commits an answer.
@@ -382,7 +400,8 @@ function AnswerRow(props: AnswerRowProps) {
         onClick={onSelect}
       />
       <AnswerMarker multiSelect={multiSelect} selected={selected} />
-      <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+      {/* The description always takes its own line under the label. */}
+      <span className="grid min-w-0 gap-0.5">
         <strong className="min-w-0 text-base leading-[1.2] font-bold">
           {label}
         </strong>

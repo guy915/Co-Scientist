@@ -130,6 +130,14 @@ export function PrivacyContent() {
           deleted work.
         </p>
         <p>
+          A separate operator funding ledger keeps numeric charge, usage and
+          receipt records without an automatic expiry to enforce the total
+          spending cap. It stores no research text, provider keys or browser
+          ownership ID. Your export includes receipts linked to your current
+          admission records; deletion removes that ownership link without
+          refunding spent money.
+        </p>
+        <p>
           Deletion from the live service does not instantly remove older
           database backups or copies held by external recipients. The owner must
           confirm and publish the R2 backup expiry and the configured Sentry,
@@ -190,7 +198,8 @@ export function PrivacyContent() {
           cosci-api-model, cosci-api-supervisor-model, cosci-api-custom-models,
           cosci:session-side, cosci:session-side:&lt;runId&gt; and
           cosci:session-tab:&lt;runId&gt;. Session storage keys are
-          cosci-logs-session-baseline,
+          cosci-logs-session-baseline, co_scientist_log_pause_until (temporary
+          diagnostic rate-limit recovery),
           co_scientist_pending_run_create:&lt;chatId&gt; and
           coscientist:chunk-reload-at. Local values last until cleared; session
           values normally end when the tab closes.
