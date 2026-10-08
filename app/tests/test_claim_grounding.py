@@ -539,7 +539,11 @@ def test_claim_assessment_runs_concurrently(isolated_db: str) -> None:
             active -= 1
         return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
 
-    hyps = [{"id": f"h{i}", "title": f"H{i}", "statement": _SUPPORTED} for i in range(8)]
+    # Distinct claims: ideas stating the same claim share one check.
+    hyps = [
+        {"id": f"h{i}", "title": f"H{i}", "statement": f"{_SUPPORTED[:-1]} in cohort {i}."}
+        for i in range(8)
+    ]
     from co_scientist.domains.research_state.claims.grounding import AssessorSpec
 
     assess_hypothesis_claims(hyps, as_passages([_SUPPORTED]), AssessorSpec(_slow_assessor))
@@ -557,11 +561,15 @@ def test_batch_assessor_costs_one_call_per_hypothesis_and_splits_dense_ones(
         seen.append(len(claims))
         return [AssessorDraft(label=EntailmentLabel.INSUFFICIENT)] * len(claims)
 
-    statement = " ".join(
-        f"Claim number {i} about a dietary change improving outcomes." for i in range(claims_each)
-    )
+    def statement(h: int) -> str:
+        return " ".join(
+            f"Claim number {i} about a dietary change improving outcomes in study {h}."
+            for i in range(claims_each)
+        )
+
     hyps = [
-        {"id": f"h{i}", "title": f"H{i}", "statement": statement} for i in range(hypothesis_count)
+        {"id": f"h{i}", "title": f"H{i}", "statement": statement(i)}
+        for i in range(hypothesis_count)
     ]
 
     assessed = assess_hypothesis_claims(
