@@ -77,6 +77,7 @@ for (const theme of ["light", "dark"]) {
       `/examples/${example.id}`,
       "/privacy",
       "/terms",
+      "/operations",
       "/missing-page",
     ];
     for (const path of routes) {
@@ -88,6 +89,37 @@ for (const theme of ["light", "dark"]) {
       await expect(page.locator("main")).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+      if (path === "/") {
+        const png = await page.evaluate(() => {
+          const canvas = document.createElement("canvas");
+          canvas.width = 1;
+          canvas.height = 1;
+          return canvas.toDataURL("image/png").split(",")[1];
+        });
+        const name = "S4 local study image.png";
+        await page.getByLabel("Upload files").setInputFiles({
+          name,
+          mimeType: "image/png",
+          buffer: Buffer.from(png, "base64"),
+        });
+        const preview = page.getByRole("img", { name, exact: true });
+        await expect(preview).toHaveAttribute("src", /^blob:/);
+        await expect
+          .poll(() =>
+            preview.evaluate((image: HTMLImageElement) => image.naturalWidth),
+          )
+          .toBe(1);
+        await page
+          .getByRole("button", { name: `Remove ${name}`, exact: true })
+          .click();
+        await expect(preview).toHaveCount(0);
+      }
+      if (path === "/operations") {
+        await expect(
+          page.getByRole("heading", { name: "Launch operations", exact: true }),
+        ).toBeVisible();
+        await expect(page.getByLabel("Operator token")).toBeVisible();
+      }
       if (path === "/privacy" || path === "/terms") {
         await expect(
           page.getByRole("heading", {
