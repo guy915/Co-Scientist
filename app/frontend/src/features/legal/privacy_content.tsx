@@ -141,8 +141,8 @@ export function PrivacyContent() {
           Deletion from the live service does not instantly remove older
           database backups or copies held by external recipients. R2 backups
           have a 30-day object-expiry policy. Cloudflare normally removes
-          expired objects within 24 hours, with possible delays. If we restore
-          a backup, we must reapply erasure decisions before serving that work.
+          expired objects within 24 hours, with possible delays. If we restore a
+          backup, we must reapply erasure decisions before serving that work.
           Deleting our copy does not erase prompts a model provider has already
           received.
         </p>
@@ -166,8 +166,8 @@ export function PrivacyContent() {
           </ExternalLink>{' '}
           retain logs for three days on Free or seven days on Paid. These
           plan-dependent application-log windows do not establish when every
-          infrastructure or security record is erased. Contact the owner for
-          the applicable hosting plan and other provider-held records.
+          infrastructure or security record is erased. Contact the owner for the
+          applicable hosting plan and other provider-held records.
         </p>
       </section>
       <section>
