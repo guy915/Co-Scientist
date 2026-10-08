@@ -70,6 +70,8 @@ Tests sit beside the files they cover as `*.test.ts(x)`; the Vitest setup is
 | `/runs`, `/runs/new` | Redirect to `/` |
 | `/runs/:id` | Redirect to the details tab |
 | `/runs/:id/:tab` | Run detail tab |
+| `/operations` | Operator launch control (needs the operator token) |
+| `/privacy`, `/terms` | Legal pages |
 | `*` | 404 |
 
 Live progress uses fetch-based server-sent events from `/api/runs/{id}/events`

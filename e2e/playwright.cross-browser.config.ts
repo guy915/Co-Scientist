@@ -20,7 +20,7 @@ export default defineConfig({
     },
     {
       name: "webkit-iphone",
-      testIgnore: "**/landing-navigation.spec.ts",
+      testIgnore: ["**/landing-navigation.spec.ts", "**/landing-focus.spec.ts"],
       use: { ...devices["iPhone 14"], launchOptions: {} },
     },
     {

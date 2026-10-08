@@ -24,6 +24,7 @@ from co_scientist.orchestration.repository import tasks
 from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.retrieval.article import Article
+from co_scientist.science.ranking import RankingJudgement
 
 from tests._client import create_run as _create_run
 from tests._client import make_client
@@ -489,7 +490,14 @@ def _owned_running_run(db_path: str) -> tuple[Any, str]:
 
 def _played_pair_state() -> tuple[dict[str, Any], list[Hypothesis]]:
     pair = [Hypothesis(id="a", text="idea a"), Hypothesis(id="b", text="idea b")]
-    state: dict[str, Any] = {"meta_review": {"critique": "first"}, "model_name": "m"}
+    for hypothesis in pair:
+        _add_fixture_review(hypothesis)
+    state: dict[str, Any] = {
+        "research_goal": "Compare synthetic mechanisms",
+        "meta_review": {"common_weaknesses": ["first"]},
+        "model_name": "m",
+        "hypotheses": pair,
+    }
     state["tournament_matchups"] = [
         {
             "hypothesis_a_id": "a",
@@ -506,12 +514,88 @@ def test_an_unchanged_rematch_keeps_its_earlier_verdict() -> None:
     assert engine_tasks_ranking._unchanged_rematches(state, pair) == {frozenset({"a", "b"})}
 
 
-@pytest.mark.parametrize("change", ["guidance", "text"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "guidance",
+        "text",
+        "reflection",
+        "review",
+        "deep",
+        "mature",
+        "goal",
+        "model",
+        "criteria",
+        "setup",
+        "focus",
+        "debate",
+    ],
+)
 def test_a_rematch_reopens_once_its_inputs_change(change: str) -> None:
     state, pair = _played_pair_state()
     if change == "guidance":
-        state["meta_review"] = {"critique": "second"}
-    else:
+        state["meta_review"] = {"common_weaknesses": ["second"]}
+    elif change == "text":
         pair[0].text = "idea a, revised"
+    elif change == "reflection":
+        pair[0].reflection_notes = "New observations reject the earlier mechanism."
+    elif change == "review":
+        pair[0].reviews[-1].overall_score = 3.0
+    elif change == "deep":
+        pair[0].deep_verification_probes = [{"question": "Is it supported?", "answer": "No."}]
+        pair[0].deep_verification_verdict = "undermined"
+    elif change == "mature":
+        pair[0].enrichments["full"] = {"verdict": "reject", "justification": "A new contradiction."}
+    elif change == "goal":
+        state["research_goal"] = "Compare a different mechanism"
+    elif change == "model":
+        state["model_name"] = "new-model"
+    elif change == "criteria":
+        state["criteria"] = ["Require direct evidence"]
+    elif change == "setup":
+        state["run_setup_guidance"] = "Use the newer method."
+    elif change == "focus":
+        state["run_focus_guidance"] = "Prioritize contradictory evidence."
+    else:
+        for hypothesis in pair:
+            hypothesis.win_count = 1
 
     assert engine_tasks_ranking._unchanged_rematches(state, pair) == set()
+
+
+def test_old_incomplete_pair_fingerprints_do_not_suppress_a_rematch() -> None:
+    state, pair = _played_pair_state()
+    state["tournament_matchups"][0]["input_fingerprint"] = "old-unversioned-key"
+
+    assert engine_tasks_ranking._unchanged_rematches(state, pair) == set()
+
+
+def test_pair_orientation_and_unused_review_prose_preserve_the_verdict() -> None:
+    state, pair = _played_pair_state()
+    fingerprint = engine_tasks_ranking.judge_inputs_key((pair[0], pair[1]), state)
+    pair[0].reviews[-1].constructive_feedback = "Not part of the judge's numeric review."
+
+    assert engine_tasks_ranking.judge_inputs_key((pair[1], pair[0]), state) == fingerprint
+    assert engine_tasks_ranking._unchanged_rematches(state, pair) == {frozenset({"a", "b"})}
+
+
+@pytest.mark.asyncio
+async def test_judged_wave_retains_the_inputs_before_elo_promotes_debating_leaders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, pair = _played_pair_state()
+    before = engine_tasks_ranking.judge_inputs_key((pair[0], pair[1]), state)
+
+    async def judge(*_: Any) -> Any:
+        return RankingJudgement("a", {"winner": "a"}, 1)
+
+    monkeypatch.setattr(engine_tasks_ranking, "_judge_one_matchup", judge)
+    plan = engine_tasks_ranking._WavePlan([(pair[0], pair[1])], 0, 1)
+    survived = await engine_tasks_ranking._judge_wave_matchups(plan, state, pair)
+    details, _, _ = engine_tasks_ranking._apply_wave_elo(
+        survived.pairs, survived.judgements, state, survived.input_fingerprints
+    )
+
+    assert details[0]["input_fingerprint"] == before
+    pair[1].win_count = 1
+    assert engine_tasks_ranking.judge_inputs_key((pair[0], pair[1]), state) != before

@@ -58,7 +58,8 @@ co_scientist/
   api/            runs/ (lifecycle, read, chat, SSE), interviews/, contracts/,
                   tracing (HTTP spans),
                   documents, uploads, free_usage, byok_models, feedback_api,
-                  logs_api, diagnostics, auth, operator_access, request_limits
+                  logs_api, diagnostics, auth, operator_access, request_limits,
+                  launch_admission, launch_control_api
   orchestration/  engine_tasks/ (durable node, fan-out and match executor,
                   report_finalize), task_worker/ (leased cohorts),
                   repository/ (tasks, tasks_lifecycle, events, receipts, runs_views),
@@ -189,6 +190,7 @@ owning module; other modules go through it.
 | `run_credentials`, `free_run_usage` | `domains/access/` | encrypted BYOK keys and the free-generation allowance |
 | `feedback`, `feedback_admissions` | `domains/feedback/repository.py` | newest 200 within 10 MiB for 30 days; rolling-minute budgets |
 | `*_admissions`, `app_llm_usage` | `platform/db/admission.py`, `call_admission.py`, `storage_admission.py` | durable admission and spend ceilings |
+| `launch_control` | `platform/db/launch_control.py` | one operator pause and visitor notice row |
 | `retrieval_calls`, `app_logs` | `platform/db/retrieval_calls.py`, `logs.py` | per-run retrieval provenance and captured logs |
 
 `hypothesis_state` is the critical decoupling: it holds the values that must

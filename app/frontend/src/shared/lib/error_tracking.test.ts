@@ -1,11 +1,11 @@
-import type {ErrorEvent} from '@sentry/browser';
+import type {BrowserOptions, ErrorEvent} from '@sentry/browser';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 const init = vi.hoisted(() => vi.fn());
 vi.mock('@sentry/browser', () => ({init}));
 import {initErrorTracking, privateErrorEvent} from './error_tracking';
 
 interface Options {
-  sendDefaultPii: boolean;
+  dataCollection: BrowserOptions['dataCollection'];
   maxBreadcrumbs: number;
   tracesSampleRate: number;
   beforeBreadcrumb: (breadcrumb: unknown) => unknown;
@@ -112,7 +112,19 @@ describe('private error tracking', () => {
   it('disables breadcrumbs and traces and removes out-of-band attachments', () => {
     initErrorTracking('https://key@sentry.example/1');
     const options = init.mock.calls[0][0] as Options;
-    expect(options.sendDefaultPii).toBe(false);
+    expect(options.dataCollection).toEqual({
+      userInfo: false,
+      cookies: false,
+      httpHeaders: false,
+      httpBodies: [],
+      urlQueryParams: false,
+      graphQL: {document: false, variables: false},
+      genAI: {inputs: false, outputs: false},
+      databaseQueryData: false,
+      queues: false,
+      stackFrameVariables: false,
+      frameContextLines: 0,
+    });
     expect(options.maxBreadcrumbs).toBe(0);
     expect(options.tracesSampleRate).toBe(0);
     for (const category of [
@@ -165,8 +177,11 @@ describe('private error tracking', () => {
       },
       {attachments: [{filename: 'private.txt', data: 'PRIVATE_DOCUMENT'}]},
     );
+    const session = sdk.startSession({release: 'privacy-fixture'});
+    client.captureSession(session);
+    sdk.endSession();
     expect(await client.flush(1000)).toBe(true);
-    expect(envelopes).toHaveLength(1);
+    expect(envelopes).toHaveLength(2);
     const sent = JSON.stringify(envelopes);
     for (const marker of [
       'PRIVATE_GOAL',
@@ -177,6 +192,9 @@ describe('private error tracking', () => {
       expect(sent).not.toContain(marker);
     expect(sent).toContain('TypeError');
     expect(sent).toContain('Application error');
+    expect(sent).toContain('"infer_ip":"never"');
+    expect(sent).not.toContain('"infer_ip":"auto"');
+    expect(sent).not.toContain('ip_address');
     await client.close();
   });
 });
