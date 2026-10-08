@@ -63,7 +63,7 @@ Read the relevant entries before editing their implementation. In particular:
 
 ## Working in this repo
 
-- The `engine/` and `app/` directories are vendored as plain directories (not submodules). `co-scientist-engine` is not published to PyPI; it's installed editable from the local checkout (`pip install -e ../engine`, which `make setup` and the Dockerfiles do). Where the app is installed with `--no-deps` (make setup, CI, the compose dev image), its runtime deps come from the single-source list `app/requirements-app.txt` — keep it in sync with `app/pyproject.toml`.
+- The `engine/` and `app/` directories are vendored as plain directories (not submodules). `co-scientist-engine` is not published to PyPI; it's installed editable from the local checkout (`pip install -e ../engine`, which `make setup` and the Dockerfiles do). The server's dependencies, FastAPI included, are the engine's `[project.dependencies]`; `app/pyproject.toml` only configures tooling for `app/tests`.
 - Both the app (`app/`) and the engine (`engine/`) have committed pytest suites under `tests/`. `mypy .` is strict-clean for each, tests included (both exclude their `dev/` scripts; the engine also excludes the separate `mcp_server` package). `mcp_server/` is its own project with its own `tests/` — run `pytest` *and* `mypy .` from `engine/mcp_server/`. `evaluations/` likewise has its own suite, reached via `make test-evaluations`.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
 

@@ -21,7 +21,7 @@ make setup
 make start
 ```
 
-`make setup` installs the local engine and viewer into `.venv`, installs
+`make setup` installs the local engine into `.venv`, installs
 frontend dependencies from `bun.lock`, copies `.env.example` when `.env` is
 missing, and links `app/.env` to that root file. Existing `.env` files are
 preserved. Edit the root file for API settings. The MCP service uses the

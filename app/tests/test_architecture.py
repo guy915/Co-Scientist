@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 import json
 import re
-from importlib import import_module
 from pathlib import Path
 from typing import get_args
 
@@ -127,46 +126,6 @@ def test_shared_operations_do_not_import_graph_coordinators(
     forbidden = {f"co_scientist.science.{name}" for name in coordinators}
     modules = {module for _, module, _ in _boundaries_imports(agent_dir / owner)}
     assert forbidden.isdisjoint(modules), (owner, forbidden & modules)
-
-
-# requirements.txt deliberately adds uvicorn[standard] and omits the editable
-# engine dependency.
-
-
-tomllib = import_module("tomllib")
-
-APP_DIR = Path(__file__).resolve().parents[1]
-
-
-def _normalize(requirement: str) -> str:
-    return requirement.replace(" ", "").lower()
-
-
-def _pyproject_dependencies() -> list[str]:
-    data = tomllib.loads((APP_DIR / "pyproject.toml").read_text())
-    deps: list[str] = data["project"]["dependencies"]
-    return [_normalize(dep) for dep in deps]
-
-
-def _requirements_lines() -> list[str]:
-    lines = (APP_DIR / "requirements-app.txt").read_text().splitlines()
-    stripped = (line.strip() for line in lines)
-    return [_normalize(line) for line in stripped if line and line[0] != "#"]
-
-
-def _expected_requirements() -> list[str]:
-    expected = []
-    for dep in _pyproject_dependencies():
-        if dep.startswith("co-scientist-engine"):
-            continue
-        if dep.startswith("uvicorn") and not dep.startswith("uvicorn["):
-            dep = dep.replace("uvicorn", "uvicorn[standard]", 1)
-        expected.append(dep)
-    return expected
-
-
-def test_requirements_app_matches_pyproject() -> None:
-    assert sorted(_requirements_lines()) == sorted(_expected_requirements())
 
 
 def _tokens(source: str) -> list[str]:

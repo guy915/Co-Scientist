@@ -4,18 +4,18 @@ Web UI and HTTP/SSE API wrapping `co-scientist-engine` for live hypothesis-gener
 
 ## Backend (`app/`)
 
-FastAPI app with settings in `engine/src/co_scientist/core/config.py` (pydantic-settings, loads `.env`). Package name: `co-scientist-viewer`.
+FastAPI app with settings in `engine/src/co_scientist/core/config.py` (pydantic-settings, loads `.env`). The server and its dependencies are the `co-scientist-engine` package; `app/pyproject.toml` only configures ruff, mypy and pytest for `app/tests`.
 
 **Commands** (run from `app/`):
 ```bash
-make install         # pip install -e ".[dev]"   (also: pixi install)
+make install         # pip install -e "../engine[dev]"
 make dev             # uvicorn co_scientist.main:app --reload --reload-dir ../engine/src, port 8008
 make start           # same, without --reload
 make test            # pytest (asyncio_mode = "auto", testpaths = ["tests"])
 make format / lint / typecheck   # ruff format / ruff check / mypy
 ```
 
-Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `engine/src/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation. Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
+Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `engine/src/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation.
 
 **Source modules** (`engine/src/co_scientist/`) — the ones worth knowing; the package combines flat modules with the `platform/db/`, `orchestration/engine_adapter/`, `orchestration/engine_tasks/`, `domains/report/`, `api/runs/`, `domains/research_state/claims/`, `platform/retrieval/citations/`, `api/interviews/` and `domains/chat/interviews/`, `domains/chat/qa/`, `domains/safety/`, `domains/safety/hypothesis/`, `domains/chat/seed/`, `orchestration/task_worker/` and `core/run_modes/`, `api/contracts/` subpackages (except `platform/db/`, a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
 
@@ -201,6 +201,9 @@ Compose builds `api` from `app/docker/Dockerfile.api` + `app/docker/entrypoint.s
 **Wire contracts:** edit `engine/src/co_scientist/api/contracts/` for run, artifact, report and
 interview JSON shapes, then run `../.venv/bin/python -m co_scientist.api.contracts.generate`
 from `app/` and format the generated `wire_*.ts` with the frontend linter.
+`generate.py`'s `MODEL_GROUPS` also exports endpoint Pydantic models already on
+the wire (`/status`, client log records, feedback) to `wire_system.ts`; endpoints
+that return plain dicts (logs payload, free usage) stay hand-typed.
 `tests/test_architecture.py` checks generated syntax, served OpenAPI and recursive
 JSON, including legacy reports, public projections and nonempty curated
 collections. Generated `wire_*.ts` modules
