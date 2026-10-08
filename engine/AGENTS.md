@@ -423,7 +423,7 @@ Engine architecture lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 [`../docs/OPERATIONS.md`](../docs/OPERATIONS.md) for operational invariants.
 
-**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt and systems-biology lookups, and web search/fetch.
+**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine also requires 3.12+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt and systems-biology lookups, and web search/fetch.
 
 **Style conventions:**
 - Ruff formats and lints Python at 100 columns; config is in `pyproject.toml`.
@@ -434,7 +434,7 @@ Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 
 ## Reference MCP server (`engine/mcp_server/`)
 
-A separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors.
+A separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine also requires 3.12+) — install into a 3.12 venv or you'll hit cryptic solver errors.
 
 The live manifest groups the sources into three families:
 - **Literature** — `search_pubmed`, `pubmed_search_with_fulltext`, `check_pubmed_available` (Biopython/Entrez), `search_openalex` (keyless, cross-disciplinary), `get_opencitations_citation_edges`, `search_europepmc` and its `search_preprints`/`search_biorxiv` preprint-restricted siblings, `search_arxiv` (arxiv.org's own export API, keyless).
