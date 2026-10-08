@@ -8,8 +8,8 @@ attributes every physical request to its task and prompt.
 The ceilings sit about 8% above the largest of repeated runs: hypothesis ids
 and fan-out order vary between runs, and the counts move with them by a few
 percent. Lower a ceiling when a change lowers its tier; never raise one to make
-a regression pass. Set METER_OUT to a directory to write each tier's breakdown
-as JSON for before/after comparisons.
+a regression pass. Set METER_OUT to a directory to write each tier's breakdown,
+by phase and by call type, as JSON for before/after comparisons.
 """
 
 from __future__ import annotations
@@ -19,13 +19,14 @@ import dataclasses
 import json
 import os
 import re
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.llm.offline import llm as offline_llm
 from co_scientist.platform.llm.request import backend
+from co_scientist.platform.llm.roles import CallRole, current_call_type_id, scoped_call_policy
 from co_scientist.platform.telemetry import tracing
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
@@ -66,6 +67,20 @@ _PHASES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 _UUID = re.compile(r"_[0-9a-f]{8}-[0-9a-f-]+$")
 _INDEX = re.compile(r"(_\d+)+(?=_|$)")
+
+
+def _call_type_names() -> dict[int, str]:
+    names: dict[int, str] = {}
+    for role in get_args(CallRole):
+        with scoped_call_policy(role):
+            names[current_call_type_id()] = role
+    return names
+
+
+_CALL_TYPE_NAMES = _call_type_names()
+# Effort is set per call type, so a call left on the generic role gets the
+# generic effort whatever it does.
+_UNTYPED = "worker"
 
 
 def _phase(node: str, prompt: str) -> str:
@@ -159,9 +174,30 @@ class _Usage:
     prompt_chars: int = 0
 
 
+@dataclasses.dataclass
+class _CallTypeUsage:
+    """Provider-reported fields read zero offline; live runs fill them."""
+
+    calls: int = 0
+    max_tokens: int = 0
+    prompt_chars: int = 0
+    input_tokens: int = 0
+    cached_prompt_tokens: int = 0
+    cache_write_tokens: int = 0
+    output_tokens: int = 0
+    refusals: int = 0
+
+
+def _int(attributes: Any, name: str) -> int:
+    value = (attributes or {}).get(name, 0)
+    return value if isinstance(value, int) else 0
+
+
 def _measure(exporter: InMemorySpanExporter, recorder: _RecordingBackend) -> dict[str, Any]:
     spans = {span.context.span_id: span for span in exporter.get_finished_spans()}
     by_call: dict[tuple[str, str, str], _Usage] = collections.defaultdict(_Usage)
+    by_type: dict[str, _CallTypeUsage] = collections.defaultdict(_CallTypeUsage)
+    untyped: set[str] = set()
     for span in spans.values():
         if not span.name.startswith("chat "):
             continue
@@ -173,10 +209,23 @@ def _measure(exporter: InMemorySpanExporter, recorder: _RecordingBackend) -> dic
         node = node.removeprefix("engine.")
         usage = by_call[(_phase(node, prompt), node, prompt)]
         usage.calls += 1
-        budget = (span.attributes or {}).get("gen_ai.request.max_tokens", 0)
-        usage.max_tokens += budget if isinstance(budget, int) else 0
+        budget = _int(span.attributes, "gen_ai.request.max_tokens")
+        usage.max_tokens += budget
         parent = span.parent.span_id if span.parent else 0
-        usage.prompt_chars += recorder.prompt_chars.get(parent, 0)
+        chars = recorder.prompt_chars.get(parent, 0)
+        usage.prompt_chars += chars
+        call_type = _CALL_TYPE_NAMES.get(_int(span.attributes, "co_scientist.llm.call_type"), "")
+        if call_type == _UNTYPED:
+            untyped.add(prompt)
+        typed = by_type[call_type or "unknown"]
+        typed.calls += 1
+        typed.max_tokens += budget
+        typed.prompt_chars += chars
+        typed.input_tokens += _int(span.attributes, "gen_ai.usage.input_tokens")
+        typed.cached_prompt_tokens += _int(span.attributes, "co_scientist.llm.cached_prompt_tokens")
+        typed.cache_write_tokens += _int(span.attributes, "co_scientist.llm.cache_write_tokens")
+        typed.output_tokens += _int(span.attributes, "gen_ai.usage.output_tokens")
+        typed.refusals += _int(span.attributes, "co_scientist.llm.refusal")
     phases: dict[str, _Usage] = collections.defaultdict(_Usage)
     for (phase, _, _), usage in by_call.items():
         phases[phase].calls += usage.calls
@@ -187,6 +236,8 @@ def _measure(exporter: InMemorySpanExporter, recorder: _RecordingBackend) -> dic
         "max_tokens": sum(u.max_tokens for u in phases.values()),
         "prompt_chars": sum(u.prompt_chars for u in phases.values()),
         "phases": {name: dataclasses.asdict(u) for name, u in sorted(phases.items())},
+        "call_types": {name: dataclasses.asdict(u) for name, u in sorted(by_type.items())},
+        "untyped_prompts": sorted(untyped),
         "calls_by_prompt": [
             [phase, node, prompt, u.calls, u.max_tokens, u.prompt_chars]
             for (phase, node, prompt), u in sorted(by_call.items())
@@ -221,6 +272,7 @@ def test_offline_run_stays_inside_its_tier_envelope(
     nodes = {node for _, node, *_ in measured["calls_by_prompt"]}
     assert "literature_review" in nodes, "the fake MCP server went unused; the meter is blind"
     assert not recorder.escaped, f"calls escaped the offline router: {set(recorder.escaped)}"
+    assert not measured["untyped_prompts"], "every run call needs its call type for its effort"
     if out := os.environ.get("METER_OUT"):
         with open(os.path.join(out, f"{tier}.json"), "w") as handle:
             json.dump({"tier": tier, **measured}, handle, indent=1)

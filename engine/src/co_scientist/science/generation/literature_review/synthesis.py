@@ -184,6 +184,7 @@ async def _analyze_papers_in_one_call(
         response = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="literature_analysis",
                 model_name=state["model_name"],
                 max_tokens=min(DEFAULT_MAX_TOKENS * len(ordered), 2 * EXTENDED_MAX_TOKENS),
                 temperature=HIGH_TEMPERATURE,
