@@ -1,10 +1,8 @@
 # Incidents
 
-These playbooks require tested operator pause/drain controls and W4's
-credit/admission policy before launch. They are not a claim that those
-pending controls already exist. Do not launch without their offline
-acceptance checks. The deployment owner executes hosted actions; these
-instructions do not authorize a lane to change production.
+Use the [operator pause and cancellation control](LAUNCH-CONTROL.md) with
+W4's durable credit/admission policy. The deployment owner executes hosted
+actions; these instructions do not authorize a lane to change production.
 
 The deployment owner is incident commander and the only person who changes hosted settings. Lane labels below identify the code specialist, not a second production operator. Record start time, signal, chosen action, compatible rollback revision, and recovery checks on the launch board; do not attach secrets, DB files, researcher text or raw error payloads. Use the operator token only in a private operator client. Keep exactly one API writer.
 

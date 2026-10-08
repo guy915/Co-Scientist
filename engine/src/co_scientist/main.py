@@ -23,6 +23,8 @@ from co_scientist.api.documents import router as documents_router
 from co_scientist.api.feedback_api import router as feedback_router
 from co_scientist.api.free_usage import router as free_usage_router
 from co_scientist.api.interviews import router as interviews_router
+from co_scientist.api.launch_admission import LaunchAdmissionMiddleware, paused_error_handler
+from co_scientist.api.launch_control_api import router as launch_control_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
@@ -37,6 +39,7 @@ from co_scientist.orchestration.repository import tasks
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
 from co_scientist.platform.db import runs
+from co_scientist.platform.db.launch_control import LaunchPausedError
 from co_scientist.platform.db.log_capture import configure_log_capture, shutdown_log_capture
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.telemetry.error_tracking import init_error_tracking
@@ -336,6 +339,8 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
 # appropriate CORS headers.
 app.add_exception_handler(StorageAdmissionError, storage_error_handler)
 app.add_middleware(RequestLimitsMiddleware)
+app.add_exception_handler(LaunchPausedError, paused_error_handler)
+app.add_middleware(LaunchAdmissionMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -359,6 +364,7 @@ app.include_router(byok_models_router)
 app.include_router(logs_router)
 app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
+app.include_router(launch_control_router)
 
 
 if __name__ == "__main__":
