@@ -348,6 +348,9 @@ def _persist_setup_transaction(
 ]:
 
     def persist_run(conn: Connection) -> RunRow:
+        from co_scientist.platform.db.launch_control import require_unpaused
+
+        require_unpaused(conn=conn)
         run = callbacks.persist_new_run(
             setup.request,
             request,

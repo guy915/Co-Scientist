@@ -18,7 +18,13 @@ _R2 = {
 def _start(tmp_path: Path, settings: dict[str, str]) -> tuple[int, list[str]]:
     calls = tmp_path / "calls"
     for name, body in {
-        "python": 'echo "app:${COSCIENTIST_LITESTREAM_ACTIVE:-off}" >> "$CALLS"\n',
+        "python": (
+            'if [ "${2:-}" = co_scientist.platform.db.backup_service ]; then\n'
+            '  echo supervisor >> "$CALLS"\n'
+            '  exec "$ENTRYPOINT" --serve\n'
+            "fi\n"
+            'echo "app:${COSCIENTIST_LITESTREAM_ACTIVE:-off}" >> "$CALLS"\n'
+        ),
         "litestream": (
             'echo "$1" >> "$CALLS"\n'
             'if [ "$1" = restore ]; then exit "${RESTORE_STATUS:-0}"; fi\n'
@@ -50,7 +56,7 @@ def test_incomplete_backup_configuration_never_invokes_litestream(
 
 
 def test_replication_wraps_the_app_only_after_successful_restore(tmp_path: Path) -> None:
-    assert _start(tmp_path, _R2) == (0, ["restore", "replicate", "app:1"])
+    assert _start(tmp_path, _R2) == (0, ["restore", "supervisor", "app:1"])
 
 
 def test_restore_failure_never_starts_an_empty_database(tmp_path: Path) -> None:

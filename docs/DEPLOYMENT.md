@@ -37,8 +37,8 @@ artifacts; keep those exclusions when adding an image or context.
   injected `PORT` (default 8008) and passes `--timeout-graceful-shutdown 20`
   so open SSE streams cannot hold shutdown until the platform kills the
   process; keep the Railway draining window at least that long. With the four
-  `LITESTREAM_R2_*` credentials set it runs the API under Litestream (below);
-  without them it serves directly. The image has a `HEALTHCHECK` on `/health`, installs
+  `LITESTREAM_R2_*` credentials set it runs the API under the backup
+  supervisor and Litestream (below); without them it serves directly. The image has a `HEALTHCHECK` on `/health`, installs
   `tesseract-ocr` (image and PDF-figure OCR; uploads fail without it, and the
   test suite fakes the dependency), and defaults `COSCIENTIST_DB_PATH` to
   `/app/data/coscientist.db`, the persistent volume mount.
@@ -140,6 +140,15 @@ automatic and shutdown checkpoints and the config keeps the WAL high-water
 mark (`truncate-page-n: 0`), because Litestream owns checkpointing and a
 truncating checkpoint can stall serving writers. Replication does not replace
 tested restores ([backup and restore](LAUNCH.md#backup-and-restore)).
+
+The entrypoint starts the API under `platform/db/backup_service.py`. The
+supervisor runs `litestream replicate`. When the database file exists, and
+then every 24 hours, it pauses replication, forces a snapshot, restores it into a scratch file and runs `PRAGMA integrity_check`.
+A failed check pauses new research ([launch control](LAUNCH-CONTROL.md)),
+reports one error to Sentry when a DSN is set, and retries after one hour. A
+success does not resume admission. The result is written to
+`<database>.backup-status.json` beside the database. If replication stops, the
+supervisor stops the API so that Railway restarts the service.
 
 ## API configuration
 

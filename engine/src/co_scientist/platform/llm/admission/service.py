@@ -8,13 +8,20 @@ from contextvars import ContextVar
 from typing import Any
 
 from co_scientist.core.exceptions import ProviderAdmissionError
+from co_scientist.platform.db import connect, transaction
 from co_scientist.platform.db.admission import (
     UNKNOWN_HOST,
     ProviderReservation,
     reserve_provider,
     settle_provider,
 )
+from co_scientist.platform.db.anthropic_credit import credit_record, disable_credit
 from co_scientist.platform.db.spend import hold_spending, spend_record
+from co_scientist.platform.llm.admission.anthropic import (
+    block_credit,
+    credit_settlement,
+    prepare_credit,
+)
 from co_scientist.platform.llm.admission.spend import (
     block_spending,
     prepare_spend,
@@ -57,7 +64,9 @@ def scoped_client(
         _path.reset(tokens[2])
 
 
-def _token_reservation(request: dict[str, Any], *, app: bool) -> int:
+def _token_reservation(
+    request: dict[str, Any], *, app: bool, input_tokens_bound: int | None = None
+) -> int:
     from co_scientist.core.config import settings
 
     output = request.get("max_completion_tokens", request.get("max_tokens"))
@@ -78,15 +87,25 @@ def _token_reservation(request: dict[str, Any], *, app: bool) -> int:
         raise ProviderAdmissionError("completion input budget exceeded")
     # Conservative byte-token bound plus the entire output cap. Failed requests
     # and interrupted streams retain the reservation, including after restart.
-    return input_bytes + 1024 + output
+    inputs = input_bytes + 1024
+    if input_tokens_bound is not None:
+        if type(input_tokens_bound) is not int or input_tokens_bound < 0:
+            raise ProviderAdmissionError("completion input budget exceeded")
+        inputs = max(inputs, input_tokens_bound + 1024)
+    return inputs + output
 
 
-def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> ProviderReservation:
+def reserve_physical(
+    request: dict[str, Any], *, app: bool | None = None, input_tokens_bound: int | None = None
+) -> ProviderReservation:
     app = _app.get() if app is None else app
-    tokens = _token_reservation(request, app=app)
+    tokens = _token_reservation(request, app=app, input_tokens_bound=input_tokens_bound)
     path = current_db_path()
     spend = prepare_spend(request, tokens, path)
-    return reserve_provider(_client.get(), _host.get(), tokens, app=app, db_path=path, spend=spend)
+    credit = prepare_credit(request, tokens, path)
+    return reserve_provider(
+        _client.get(), _host.get(), tokens, app=app, db_path=path, spend=spend, credit=credit
+    )
 
 
 def settle_physical(receipt: ProviderReservation | None, response: Any) -> None:
@@ -106,8 +125,38 @@ def settle_physical(receipt: ProviderReservation | None, response: Any) -> None:
         if receipt.paid and row is None:
             raise ProviderAdmissionError("No model is available right now")
         money = settled_cost(row, usage) if row is not None else None
-        settle_provider(receipt, total, money)
+        credit_money = None
+        if receipt.credit:
+            with connect(receipt.db_path) as conn:
+                credit = credit_record(conn, receipt.id)
+            if credit is None:
+                raise ProviderAdmissionError("No model is available right now")
+            details = (
+                usage.get("prompt_tokens_details")
+                if isinstance(usage, dict)
+                else getattr(usage, "prompt_tokens_details", None)
+            )
+
+            def field(value: Any, name: str) -> Any:
+                return value.get(name) if isinstance(value, dict) else getattr(value, name, None)
+
+            written = field(details, "cache_write_tokens")
+            if written is None:
+                written = field(details, "cache_creation_tokens")
+            credit_money = credit_settlement(
+                credit,
+                prompt=field(usage, "prompt_tokens"),
+                output=field(usage, "completion_tokens"),
+                cached=field(details, "cached_tokens"),
+                written=written,
+            )
+        settle_provider(receipt, total, money, credit_money)
     except Exception as error:
+        if receipt.credit:
+            block_credit(receipt.db_path)
+            with contextlib.suppress(Exception), transaction(receipt.db_path, durable=True) as conn:
+                disable_credit(conn, float("inf"))
+            raise ProviderAdmissionError("No model is available right now") from error
         if receipt.paid:
             block_spending(receipt.db_path)
             # A failed writer may also prevent the durable hold. The process

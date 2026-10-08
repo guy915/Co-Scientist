@@ -52,10 +52,11 @@ export function PrivacyContent() {
         <p>
           Research goals, chat context and document excerpts are sent to the
           model providers used for your request. The service uses OpenRouter
-          free or promotional routes and their upstream hosts, and may use Azure
-          OpenAI when available. With BYOK, your selected provider (Anthropic,
-          DeepSeek, Gemini, OpenAI or OpenRouter) receives the request and its
-          key. A custom model follows that provider’s terms.
+          free or promotional routes and their upstream hosts. Operator-funded
+          requests may also use Anthropic or Azure OpenAI when available. With
+          BYOK, your selected provider (Anthropic, DeepSeek, Gemini, OpenAI or
+          OpenRouter) receives the request and its key. A custom model follows
+          that provider’s terms.
         </p>
         <p>
           Free routes may retain prompts or use them for training. Most free
