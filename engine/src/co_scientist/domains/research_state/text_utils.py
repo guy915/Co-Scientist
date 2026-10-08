@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from co_scientist.core.text_matching import coverage, tokenize
+
 # Require whitespace or end after sentence punctuation so abbreviations such as
 # M.tuberculosis are not split into truncated titles.
 _SENTENCE_END = re.compile(r"[.?!](\s|$)")
@@ -60,7 +62,4 @@ def readable_experiment_summary(text: str) -> str:
 def token_coverage(text: str, reference: str) -> float:
     """Union denominators hide contained short ideas; divide by the derived
     text tokens so true coverage remains detectable across lengths."""
-    words = set(text.lower().split())
-    if not words:
-        return 0.0
-    return len(words & set(reference.lower().split())) / len(words)
+    return coverage(frozenset(tokenize(text)), frozenset(tokenize(reference)))

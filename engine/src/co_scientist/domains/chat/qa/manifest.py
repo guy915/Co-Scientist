@@ -3,10 +3,10 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
-import re
 from collections.abc import Iterator
 from typing import Any
 
+from co_scientist.core.text_matching import tokenize
 from co_scientist.domains.report import repository as reports
 from co_scientist.platform.db import runs as run_ledger
 from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow
@@ -273,7 +273,6 @@ _MAX_RESULTS = 5
 _DEFAULT_RESULTS = 3
 _FIELD_MAX_CHARS = 500
 
-_WORD_RE = re.compile(r"[a-z0-9]+")
 
 _BODY_FIELDS: tuple[tuple[str, str], ...] = (
     ("statement", "Statement"),
@@ -321,7 +320,7 @@ def tool_declaration() -> dict[str, Any]:
 
 
 def _tokenize(text: str) -> frozenset[str]:
-    return frozenset(t for t in _WORD_RE.findall(text.lower()) if len(t) > 3)
+    return frozenset(tokenize(text, min_len=4))
 
 
 def _searchable_text(hyp: dict[str, Any]) -> str:
