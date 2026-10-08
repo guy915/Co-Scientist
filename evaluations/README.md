@@ -339,6 +339,57 @@ file. Then run the recorded-judgment command above against
 `replay/prepared/pairs.json`. No network is used unless `--download` or
 `--live-judge` is explicitly selected.
 
+### Authorized Claude or Azure cohort
+
+The owner's shared monetary allowance must cover the run: the HTTP ceiling
+alone does not enforce a shared money ledger. Resolve
+the money reservation and billing controls before provider-backed collection.
+The `operation=preflight` workflow checks native configuration with sockets
+denied and makes no provider request; it is not authentication or science.
+
+An explicitly authorized paid cohort can use `model=anthropic/MODEL_ID` or
+`model=azure/DEPLOYMENT_ID` on the same workflow. The default remains the free
+OpenRouter route. Select one provider/model for all six research runs; switching
+providers after an incomplete run does not make an incompatible pair valid.
+The comparison requires the same provider policy, endpoint digest and configured
+model roles across all six archives. Paid results are a separate cohort, not a
+free-route quality certification.
+
+Claude requires `ANTHROPIC_API_KEY`. Azure requires `AZURE_API_KEY` or
+`AZURE_OPENAI_API_KEY`, `AZURE_API_BASE` (an HTTPS Azure resource root) and
+`AZURE_API_VERSION`. Set these in the execution environment or existing repository
+secrets, never in workflow inputs or committed files. The paid path uses the
+owner's explicit key scope; operator-only Azure deployments retain their existing
+restriction and are not converted into BYOK routes. Missing configuration refuses
+execution before provider calls. Other provider credentials and dotenv loading
+are disabled. Claude/Azure keys join the artifact credential guard.
+
+```bash
+gh workflow run benchmark.yml --ref main -f operation=collect -f tier=express \
+  -f goal_id=cell-biology -f benchmark_ref=SOURCE_SHA -f max_calls=160 \
+  -f model=anthropic/claude-sonnet-5-5 -f label=paid-biology-main
+```
+
+The local equivalent uses the trusted launcher outside the clean research
+checkout, without editing its source:
+
+```bash
+python /path/to/harness/evaluations/benchmark_paid.py collect \
+  --provider anthropic --model anthropic/claude-sonnet-5-5 --live --tier express \
+  --goal-id cell-biology --max-calls 160 --output /private/new-biology-output
+```
+
+The counter includes native token-count preflights, SDK attempts and redirects
+to the declared provider. An ambiguous connection replay and undeclared provider
+or model are refused. The counter identity includes the paid adapter and SDK
+versions; all attempts consume the declared ceiling. Report unknown billing and
+missing token totals explicitly. Do not overwrite or rerun outcomes for score.
+
+Use the same `model` input for the six-run comparison dispatch above. For
+recorded replay, add `--provider anthropic` or `--provider azure` to
+`evaluations.paired_artifacts`; without this explicit option, paid archives are
+rejected by the original free path. Recorded judging remains hermetic.
+
 ## External gaps
 
 These need data, credentials, expert panels or wet labs that are not
