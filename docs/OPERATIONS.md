@@ -127,11 +127,6 @@ a staging record leaves text already copied into a run as that run’s evidence.
 
 ## Known limitations
 
-- **The reference MCP server is open when its secret is unset.**
-  `SharedSecretAuthMiddleware` (`engine/mcp_server/auth_middleware.py`) accepts
-  every request unless `COSCIENTIST_MCP_SHARED_SECRET` is set (only `GET /` is
-  exempt when it is), so production must set the same secret on both the mcp and
-  api services.
 - **Ownership is not authority.** A client ID must never confer safety-review
   power: adjudication requires the operator token (`LOGS_ADMIN_TOKEN`, sent as
   `X-Logs-Token`; `has_admin_token` in `api/operator_access.py`), checked in
@@ -259,11 +254,15 @@ reuse the workspace rather than remounting it.
 Capture lexical retrieval scores before stamping hybrid scores. Reusing the
 overwritten score double-weights the semantic term and can collapse rankings.
 
-FastMCP may return an execution error as ordinary result text. Treat its error
-envelope as a permanent query failure (`is_tool_reported_error` in
-`platform/retrieval/evidence/search_query.py`). Transient transport failures use
-bounded, jittered retries (`call_search_tool`); distinguish failed queries from
-successful zero-hit responses.
+Every MCP search returns `{"status": "ok", "records": [...]}` or
+`{"status": "failed", "records": [], "error": "<short reason>"}` from
+`engine/mcp_server/tools/_results.py`, without raising. The engine reads
+`status` and treats a reported failure as a permanent query failure, and its MCP
+client raises `ToolException` for any execution error rather than accepting
+FastMCP's error text as a result. Transient transport failures use bounded,
+jittered retries (`call_search_tool`); distinguish failed queries from
+successful zero-hit responses. Failed novelty retrieval stays unknown, receives
+no novelty credit, and its sources are named in stored reviews and reports.
 
 Owed review cannot override the provider-call ceiling: scheduler and transport
 use the same counter, so its first call would turn budget termination into a

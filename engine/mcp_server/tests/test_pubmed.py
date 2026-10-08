@@ -115,6 +115,10 @@ def test_the_fulltext_tool_returns_article_metadata_and_links_it_to_the_run(
         tool.pubmed_search_with_fulltext(query="single", slug="slug", max_papers=1, run_id="run")
     )
 
+    assert results["status"] == "ok"
+    results = {
+        r["source_id"]: {k: v for k, v in r.items() if k != "source_id"} for r in results["records"]
+    }
     assert results.keys() == {"123"}
     assert {key: results["123"][key] for key in expected} == expected
     metadata_path = tmp_path / "pubmed/slug/runs/run/123.metadata.json"
@@ -136,9 +140,9 @@ def test_search_pubmed_returns_plain_text_articles(
 ) -> None:
     _install_article(monkeypatch, article)
 
-    payload = json.loads(tool.search_pubmed("kinase", 1))
+    payload = tool.search_pubmed("kinase", 1)
 
-    (found,) = payload["results"]
+    (found,) = payload["records"]
     assert (found["title"], found["abstract"]) == (title, abstract)
 
 

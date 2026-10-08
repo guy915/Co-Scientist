@@ -6,6 +6,7 @@ import pytest
 import sentry_sdk
 from co_scientist.core.byok_scope import ByokCredential, scoped_byok
 from co_scientist.platform.telemetry import error_tracking
+from co_scientist.platform.telemetry.tracing import OTLP_HEADER_ENV_VARS
 
 
 def test_error_tracking_stays_off_without_a_dsn(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -14,6 +15,18 @@ def test_error_tracking_stays_off_without_a_dsn(monkeypatch: pytest.MonkeyPatch)
 
     assert error_tracking.init_error_tracking("  ", "production") is False
     assert calls == []
+
+
+@pytest.mark.parametrize("name", OTLP_HEADER_ENV_VARS)
+def test_error_reports_scrub_otlp_header_values_and_decoded_credentials(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "Authorization=Basic%20dummy-credential,x-honeycomb-team=dummy-team")
+    secrets = error_tracking._deployment_secrets()
+    event = {"message": "Basic%20dummy-credential Basic dummy-credential dummy-team"}
+    assert error_tracking.scrub_event(event, secrets)["message"] == (
+        "[REDACTED] [REDACTED] [REDACTED]"
+    )
 
 
 def test_reports_drop_request_headers_bodies_and_query_strings() -> None:

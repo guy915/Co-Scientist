@@ -2,7 +2,11 @@ import json
 
 import pytest
 from fastapi import FastAPI
-from mcp_server.auth_middleware import MCP_AUTH_HEADER, SharedSecretAuthMiddleware
+from mcp_server.auth_middleware import (
+    MCP_AUTH_HEADER,
+    MCP_LOCAL_AUTH_ENV,
+    SharedSecretAuthMiddleware,
+)
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
@@ -34,7 +38,14 @@ _SECRET = {MCP_AUTH_HEADER: "s3cret"}
 @pytest.mark.parametrize(
     ("secret", "method", "path", "headers", "statuses", "body"),
     [
-        (None, "POST", "/mcp", {}, {200}, "tool result"),
+        (None, "POST", "/mcp", {}, {401}, None),
+        ("", "POST", "/mcp", {}, {401}, None),
+        ("   ", "POST", "/mcp", {}, {401}, None),
+        (None, "GET", "/", {}, {200}, "status"),
+        (None, "HEAD", "/", {}, {401}, None),
+        (None, "POST", "/", {}, {401}, None),
+        ("s3cret", "POST", "/", {}, {401}, None),
+        (None, "GET", "/mcp", {}, {401}, None),
         ("s3cret", "POST", "/mcp", {}, {401}, None),
         ("s3cret", "POST", "/mcp", {MCP_AUTH_HEADER: "wrong"}, {401}, None),
         ("s3cret", "POST", "/mcp", _SECRET, {200}, "tool result"),
@@ -57,6 +68,25 @@ def test_shared_secret_guards_tool_calls_(
     assert response.status_code in statuses
     if body is not None:
         assert response.text == body
+
+
+@pytest.mark.parametrize("flag", ["", "0", "true", "1"])
+@pytest.mark.parametrize("peer", ["127.0.0.1", "::1", "192.0.2.1", "testclient"])
+def test_unset_secret_local_opt_in_requires_an_actual_loopback_peer(
+    monkeypatch: pytest.MonkeyPatch, flag: str, peer: str
+) -> None:
+    monkeypatch.setenv(MCP_LOCAL_AUTH_ENV, flag)
+    client = TestClient(_make_app(None), client=(peer, 1234))
+    response = client.post("/mcp", headers={"Host": "localhost", "X-Forwarded-For": "127.0.0.1"})
+    expected = 200 if flag == "1" and peer in {"127.0.0.1", "::1"} else 401
+    assert response.status_code == expected
+
+
+def test_local_opt_in_never_bypasses_a_configured_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(MCP_LOCAL_AUTH_ENV, "1")
+    client = TestClient(_make_app("s3cret"), client=("127.0.0.1", 1234))
+    assert client.post("/mcp").status_code == 401
+    assert client.post("/mcp", headers=_SECRET).status_code == 200
 
 
 def test_mounted_mcp_http_preserves_auth_lifespan_and_stateless_requests() -> None:
