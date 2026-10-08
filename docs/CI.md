@@ -32,7 +32,7 @@ repositories have no queue or `merge_group` trigger.
 | `test-engine` | Engine pytest on Python 3.12 | 15 |
 | `test-app` | Four independent shards, four workers each | 25 |
 | `evaluations` | Evaluation tests, licence inventory and offline smoke | 15 |
-| `frontend` | gts, Vitest, production build and bundle budgets | 15 |
+| `frontend` | gts, Vitest and production build | 15 |
 | `e2e` | Eight weighted development bins and two whole-file production shards | 25 |
 | `docker-build` | Three images, real API/MCP starts and Compose validation | 30 |
 | `workflow-lint` | Verified actionlint, offline zizmor and detector failure controls | 5 |
@@ -124,7 +124,7 @@ recipes. PR title/body checks run in Actions; `--commits-only` is local history.
 Native jobs additionally require their actual Actions platform; local recipes
 retain production browser/engine tests on the developer's platform. Inspect a
 native assignment with
-`python scripts/ci/native_browser_shards.py --project webkit --shard 1 --list`.
+`COSCI_E2E_PRODUCTION=1 python scripts/ci/native_browser_shards.py --project webkit --shard 1 --list`.
 
 ## Isolation and sharding
 
