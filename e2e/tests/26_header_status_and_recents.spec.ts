@@ -55,3 +55,20 @@ for (const theme of ["light", "dark"]) {
     });
   });
 }
+
+test("on tablets the status tag keeps the button height and shows only its icon", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 768, height: 844 });
+  await page.goto("/");
+  const header = page.locator(".ucs-header-action-bar");
+  const status = header.getByRole("status").filter({ hasText: "Offline mode" });
+  const feedback = header.getByRole("button", { name: /Feedback/ });
+  await expect(status).toBeVisible();
+  const [tag, button] = await Promise.all([
+    status.boundingBox(),
+    feedback.boundingBox(),
+  ]);
+  expect(Math.abs(tag!.height - button!.height)).toBeLessThanOrEqual(1);
+  expect(tag!.width).toBeLessThan(tag!.height * 1.25);
+});

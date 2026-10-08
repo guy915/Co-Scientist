@@ -185,7 +185,9 @@ export function SystemStatusIndicator() {
       tooltipPlacement="bottom"
       layoutClassName="ucs-system-status"
     >
-      <span>{chip.label}</span>
+      {/* Tablet headers also hold the session switch; the icon keeps the
+          status in view and the tooltip names it. */}
+      <span className="tablet:sr-only">{chip.label}</span>
     </Chip>
   );
 }
