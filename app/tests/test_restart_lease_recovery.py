@@ -124,9 +124,13 @@ def test_a_new_process_reclaims_leases_a_killed_process_left_within_seconds(
     assert kept.lease_expires_at == current.lease_expires_at
 
 
-def test_only_live_leases_of_other_processes_are_expired(isolated_db: str) -> None:
+def test_only_live_leases_of_other_processes_on_unpaused_runs_are_expired(
+    isolated_db: str,
+) -> None:
     earlier = _leased_checkpointed_task("earlier", _EARLIER_OWNER, isolated_db, zero_cost=True)
     current = _leased_checkpointed_task("current", _CURRENT_OWNER, isolated_db, zero_cost=True)
+    paused = _leased_checkpointed_task("paused", _EARLIER_OWNER, isolated_db, zero_cost=True)
+    runs.update_run_status(paused.run_id, RunStatus.PAUSED, db_path=isolated_db)
 
     assert tasks.expire_earlier_process_leases(_CURRENT_TAG, db_path=isolated_db) == 1
     assert tasks.expire_earlier_process_leases(_CURRENT_TAG, db_path=isolated_db) == 0
@@ -135,3 +139,7 @@ def test_only_live_leases_of_other_processes_are_expired(isolated_db: str) -> No
     assert requeued is not None and requeued.status == "queued"
     kept = tasks.get_task(current.id, db_path=isolated_db)
     assert kept is not None and kept.lease_owner == _CURRENT_OWNER
+    # Rescue skips paused runs, and an explicit resume revives an expired
+    # lease without the unknown-outcome check, so the lease runs its course.
+    held = tasks.get_task(paused.id, db_path=isolated_db)
+    assert held is not None and held.lease_expires_at == paused.lease_expires_at
