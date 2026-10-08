@@ -4,13 +4,20 @@ from co_scientist.core import byok_scope
 from co_scientist.platform.llm import offline_guard
 from co_scientist.platform.llm.llm_scope import app_call_scope, in_app_call_scope
 from co_scientist.platform.llm.request.transport import complete_request
+from co_scientist.platform.llm.roles import CallRole, ReasoningEffort, scoped_call_policy
 
 
-async def acompletion(**kwargs: Any) -> Any:
-    if not in_app_call_scope():
-        with app_call_scope("completion"):
-            return await _complete(kwargs)
-    return await _complete(kwargs)
+async def acompletion(
+    *,
+    call_role: CallRole = "chat",
+    call_effort: ReasoningEffort | None = None,
+    **kwargs: Any,
+) -> Any:
+    with scoped_call_policy(call_role, call_effort):
+        if not in_app_call_scope():
+            with app_call_scope("completion"):
+                return await _complete(kwargs)
+        return await _complete(kwargs)
 
 
 async def _complete(kwargs: dict[str, Any]) -> Any:
