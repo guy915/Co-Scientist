@@ -81,10 +81,10 @@ itself (the `typecheck` job runs `make typecheck`), so it is exactly as hermetic
 
 Migrating a *populated* legacy-schema database is also covered, without a
 dedicated job: `app/tests/test_persistence_records.py` builds an
-on-disk SQLite file shaped like a pre-migration volume (the exact danger
-`app/app/store/db.py`'s migration comments call out — a column added by
-`_run_migrations` but referenced by an index or backfill that runs before
-it) and asserts the current store starts against it cleanly. It runs as
+on-disk SQLite file shaped like a pre-migration volume (the danger is a
+column listed in `platform/db/schema.py::ADDED_COLUMNS` but referenced by an
+index or backfill that runs before `_add_missing_columns` adds it) and asserts
+the current store starts against it cleanly. It runs as
 part of `test-app` like any other app test; a migration ordering bug fails
 that job, not a separate one.
 

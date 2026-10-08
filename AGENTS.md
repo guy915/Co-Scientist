@@ -87,7 +87,7 @@ checks. The production target builds with the isolated test API URL into its
 temporary state directory, leaving normal frontend `dist/` untouched.
 `make docker-build` builds both production images without deploying them.
 
-The app's current system model defaults are declared in `app/app/config.py`:
+The app's current system model defaults are declared in `engine/src/co_scientist/core/config.py`:
 `openrouter/inclusionai/ling-3.1-flash` for worker, supervisor, chat and
 semantic safety, at pinned medium effort. Set its provider credential to use
 it. It is a zero-priced trial route without a `:free` id, with free-only
@@ -96,8 +96,8 @@ format.
 Explicit production environment overrides take precedence; an old deployment
 snapshot is not evidence of the current configuration. Do not append paid
 fallbacks under free routes. Every model fact (capabilities, routing pin and
-fallbacks, price) is one `ModelProfile` declared in `engine/src/co_scientist/llm/profile/`;
-`llm/request/thinking.py` holds the routing policy applied to it.
+fallbacks, price) is one `ModelProfile` declared in `engine/src/co_scientist/platform/llm/profile/`;
+`platform/llm/request/thinking.py` holds the routing policy applied to it.
 
 With no usable provider credential, or `COSCIENTIST_FORCE_OFFLINE=1`, the
 viewer uses the deterministic offline backend. Use this for local checks;

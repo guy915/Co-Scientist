@@ -4,7 +4,7 @@ Co-Scientist mirrors Google's AI Co-Scientist: a coalition of **six specialized 
 
 ## The Six Agents
 
-Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents/__init__.py) that holds that agent's node implementations — the canonical, Google-aligned structure of the system. Every agent's work is decomposed into one or more durable task **nodes** so the engine can checkpoint and resume at fine granularity. `co_scientist.agents.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
+Each agent is a package under [`co_scientist.science`](../src/co_scientist/science/__init__.py) that holds that agent's node implementations — the canonical, Google-aligned structure of the system. Every agent's work is decomposed into one or more durable task **nodes** so the engine can checkpoint and resume at fine granularity. `co_scientist.orchestration.registry.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
 
 | Agent | Role (Google) | Durable task nodes |
 |---|---|---|
@@ -17,11 +17,11 @@ Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents
 | **Meta-review** | Synthesizes findings into the research overview | `meta_review`, `research_overview` |
 | _Safety_ (cross-cutting) | Screens goal + hypotheses at intake / per-idea / final | `safety_screen` (+ the app viewer's intake and final gates) |
 
-**Why more than six nodes?** The agents are the conceptual unit; the nodes are the durable-execution unit. Decomposing an agent (e.g. Reflection → `review` → `comprehensive_reflection` → `deep_verification`) lets an interrupted run resume mid-agent instead of re-running expensive LLM work. Those node key strings are persisted verbatim — as `engine.node.<key>` durable tasks, in checkpoint `resume_successor`/`next_task`, and inside idempotency keys — so collapsing them to six runtime keys would orphan any in-flight run. The node implementations live in the six-agent `agents` packages; only that runtime-key collapse is deferred, as a separate migration-guarded change.
+**Why more than six nodes?** The agents are the conceptual unit; the nodes are the durable-execution unit. Decomposing an agent (e.g. Reflection → `review` → `comprehensive_reflection` → `deep_verification`) lets an interrupted run resume mid-agent instead of re-running expensive LLM work. Those node key strings are persisted verbatim — as `engine.node.<key>` durable tasks, in checkpoint `resume_successor`/`next_task`, and inside idempotency keys — so collapsing them to six runtime keys would orphan any in-flight run. The node implementations live in the six-agent `science` packages; only that runtime-key collapse is deferred, as a separate migration-guarded change.
 
 ## Durable Workflow
 
-The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement, declared once in `workflow_topology.py` and resolved by `task_runtime.py`. Every work phase converges on the same review-through-ranking spine, and every completion path (a work phase's own end, or a maintenance task) returns to a single **orchestrator** loop point rather than following a fixed iteration count:
+The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement, declared once in `orchestration/workflow_topology.py` and resolved by `orchestration/task_runtime.py`. Every work phase converges on the same review-through-ranking spine, and every completion path (a work phase's own end, or a maintenance task) returns to a single **orchestrator** loop point rather than following a fixed iteration count:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -98,13 +98,13 @@ The workflow consists of specialized nodes that handle different aspects of hypo
 ```
 
 The orchestrator routing table is `TASK_ROUTES` in
-`src/co_scientist/workflow_topology.py`.
+`src/co_scientist/orchestration/workflow_topology.py`.
 
 ### Dynamic orchestration
 
-The **orchestrator node** (`agents/supervisor/orchestrator.py`) is the durable workflow's single adaptive loop point. Each time it fires it computes `SchedulerStats` from live state (pool growth, Elo stability, tournament match coverage, proximity backlog), passes them to a deterministic scheduling policy (`scheduling/policy.py::decide_next_task`, validated by `validate_decision`), records the decision and its reason in the run's Supervisor allocation ledger, and sets `next_task`. An LLM supervisor may *recommend* a task; the policy — not the model — decides and enforces the allowed transitions and budget. A fifth route, `rank`, is omitted from the diagram above for space: it re-enters the spine directly at `safety_screen` (not at `review` or `ranking`), the same node the main pipeline reaches after `comprehensive_reflection`. Termination fires on Elo convergence (top hypothesis stable across cycles) or an exhausted iteration/task budget, never on a fixed `max_iterations` branch hard-coded after ranking. `current_iteration` only advances when the orchestrator schedules a work task (`generate`/`evolve`); scheduling a maintenance task (`reflect`/`proximity`/`rank`) does not.
+The **orchestrator node** (`science/supervisor/orchestrator.py`) is the durable workflow's single adaptive loop point. Each time it fires it computes `SchedulerStats` from live state (pool growth, Elo stability, tournament match coverage, proximity backlog), passes them to a deterministic scheduling policy (`science/scheduling/policy.py::decide_next_task`, validated by `validate_decision`), records the decision and its reason in the run's Supervisor allocation ledger, and sets `next_task`. An LLM supervisor may *recommend* a task; the policy — not the model — decides and enforces the allowed transitions and budget. A fifth route, `rank`, is omitted from the diagram above for space: it re-enters the spine directly at `safety_screen` (not at `review` or `ranking`), the same node the main pipeline reaches after `comprehensive_reflection`. Termination fires on Elo convergence (top hypothesis stable across cycles) or an exhausted iteration/task budget, never on a fixed `max_iterations` branch hard-coded after ranking. `current_iteration` only advances when the orchestrator schedules a work task (`generate`/`evolve`); scheduling a maintenance task (`reflect`/`proximity`/`rank`) does not.
 
-One node commit can also enqueue more than one future task at once: `task_runtime.plan_portfolio` resolves however much of a node's successor chain is knowable without running it, and the app's durable executor chains that lookahead through the queue's existing dependency gate (`app/app/engine_tasks/portfolio.py`) rather than enqueueing one task at a time and waiting on each. This changes *when* work is queued, not what the orchestrator decides — the routing above is unaffected.
+One node commit can also enqueue more than one future task at once: `task_runtime.plan_portfolio` resolves however much of a node's successor chain is knowable without running it, and the app's durable executor chains that lookahead through the queue's existing dependency gate (`orchestration/engine_tasks/portfolio.py`) rather than enqueueing one task at a time and waiting on each. This changes *when* work is queued, not what the orchestrator decides — the routing above is unaffected.
 
 ## Adaptive Review Strategy
 
@@ -133,7 +133,7 @@ Key state fields relevant to hypothesis output:
 | `articles_with_reasoning` | Literature Review | Formatted literature summary used by Generate and Reflection nodes |
 | `context_enrichment_sources` | Literature Review | Structured items from context-enrichment tools (e.g., STRING interactions); merged into citation index alongside papers |
 
-See `state/__init__.py` for the full `WorkflowState` type definition.
+See `domains/research_state/state/__init__.py` for the full `WorkflowState` type definition.
 
 ## Citations
 
@@ -316,4 +316,4 @@ opts = {"enable_literature_review_node": True}
 
 
 See [Deployment](../../docs/DEPLOYMENT.md) for MCP hosting and
-[`config/tools.yaml`](../src/co_scientist/config/tools.yaml) for tool wiring.
+[`platform/retrieval/config/tools.yaml`](../src/co_scientist/platform/retrieval/config/tools.yaml) for tool wiring.
