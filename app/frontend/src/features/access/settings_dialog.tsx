@@ -38,6 +38,8 @@ import {
   validateCustomModel,
 } from '@/shared/api/system';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
+import {SETTINGS_SECTIONS, type SettingsSection} from './settings_sections';
+export {SETTINGS_SECTIONS, type SettingsSection} from './settings_sections';
 
 const CARD_CLASSES = cardClasses({tone: 'raised', size: 'panel'});
 const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';
@@ -150,21 +152,10 @@ function SettingsBody({
   );
 }
 
-export type SettingsSection = 'appearance' | 'model';
-
 const THEME_MODES: {mode: Mode; icon: IconName; label: string}[] = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
-];
-
-export const SETTINGS_SECTIONS: {
-  section: SettingsSection;
-  icon: IconName;
-  label: string;
-}[] = [
-  {section: 'appearance', icon: 'palette', label: 'Appearance'},
-  {section: 'model', icon: 'neurology', label: 'Model'},
 ];
 
 export function AppearanceSection({

@@ -135,9 +135,7 @@ export function SectionNav<T extends string>({
 }) {
   return (
     <nav
-      // Auto margins collapse on overflow; flex-end would spill sections
-      // beyond the unreachable left edge on narrow phones.
-      className="grid gap-1.5 [align-content:start] phone:flex phone:overflow-x-auto phone:pb-0.5 phone:[scrollbar-width:none] phone:[&>:first-child]:ml-auto"
+      className="grid gap-1.5 [align-content:start] phone:flex phone:overflow-x-auto phone:pb-0.5 phone:[scrollbar-width:none]"
       aria-label={label}
     >
       {items.map(item => (
@@ -174,7 +172,7 @@ export type TabNavVariant = 'underline' | 'pill';
 const TRACK_CLASSES: Record<TabNavVariant, string> = {
   underline:
     'relative grid grid-flow-col auto-cols-fr border-b border-cosci-border',
-  pill: 'relative inline-grid grid-flow-col auto-cols-fr rounded-full bg-tab-pill-track',
+  pill: 'relative isolate inline-grid grid-flow-col auto-cols-fr rounded-full bg-tab-pill-track',
 };
 
 const THUMB_CLASSES: Record<TabNavVariant, string> = {
@@ -187,11 +185,16 @@ const LINK_CLASSES: Record<TabNavVariant, string> = {
     'relative grid min-w-0 cursor-pointer content-center justify-items-center ' +
     'gap-1.5 py-2 text-sm no-underline text-cosci-muted ' +
     'hover:text-cosci-fg aria-[current=page]:text-cosci-blue',
+  // The hover fill sits under the thumb and runs beneath its rounded end, so
+  // a hovered segment fills its slot with no track showing between the two.
   pill:
-    'relative z-1 flex h-full min-w-0 items-center justify-center ' +
+    'relative flex h-full min-w-0 items-center justify-center ' +
     'gap-2 rounded-full px-3 no-underline text-tab-pill-fg ' +
     'aria-[current=page]:text-tab-pill-selected-fg ' +
-    'not-aria-[current=page]:hover:bg-tab-pill-hover',
+    'before:absolute before:inset-0 before:-z-1 before:rounded-full ' +
+    "before:content-[''] not-aria-[current=page]:hover:before:bg-tab-pill-hover " +
+    '[&:has(+[aria-current=page])]:before:-right-5 ' +
+    '[[aria-current=page]+&]:before:-left-5',
 };
 
 export function tabLinkClasses(variant: TabNavVariant): string {
