@@ -11,8 +11,10 @@ from pydantic import BaseModel, Field
 
 from co_scientist.api.auth import client_id
 from co_scientist.api.operator_access import is_operator
+from co_scientist.core.admission_windows import WindowExceededError
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
+from co_scientist.domains.access.admission import reserve_memory_window
 from co_scientist.platform import db
 from co_scientist.platform.db import Connection, log_admission, logs
 from co_scientist.platform.db.logs import LogFilters, NewLogRecord
@@ -33,43 +35,22 @@ def _rate_limit_keys(request: Request) -> tuple[str, str]:
     return f"ip:{host}", f"id:{client_id(request) or 'anonymous'}"
 
 
-def _check_rate(
-    hits_by_scope: dict[str, list[float]],
-    scope: str,
-    limit: int,
-    detail: str,
-) -> None:
-    if limit <= 0:
-        return
-    now = time.monotonic()
-    # Expire inactive rate scopes so rotated one-off client IDs cannot grow the
-    # map forever.
-    for stale in [
-        key
-        for key, times in hits_by_scope.items()
-        if key != scope and (not times or now - times[-1] >= 60.0)
-    ]:
-        del hits_by_scope[stale]
-    hits = [t for t in hits_by_scope.get(scope, []) if now - t < 60.0]
-    hits_by_scope[scope] = hits
-    if len(hits) >= limit:
-        raise HTTPException(status_code=429, detail=detail)
-    hits.append(now)
-
-
 def _check_both_rates(
-    hits_by_scope: dict[str, list[float]],
-    request: Request,
-    limit: int,
-    detail: str,
+    hits_by_scope: dict[str, list[float]], request: Request, limit: int, detail: str
 ) -> None:
-    """Hold the lock across both scopes so one request's two budgets are
-    decided against one snapshot of the window.
-    """
-    ip_key, id_key = _rate_limit_keys(request)
-    with _ingest_hits_lock:
-        _check_rate(hits_by_scope, ip_key, limit, detail)
-        _check_rate(hits_by_scope, id_key, limit, detail)
+    try:
+        reserve_memory_window(
+            hits_by_scope,
+            _rate_limit_keys(request),
+            lock=_ingest_hits_lock,
+            limit=limit,
+            now=time.monotonic(),
+            detail=detail,
+        )
+    except WindowExceededError as exc:
+        raise HTTPException(
+            status_code=429, detail=str(exc), headers={"Retry-After": str(exc.retry_after)}
+        ) from exc
 
 
 def _check_ingest_rate(request: Request) -> None:
