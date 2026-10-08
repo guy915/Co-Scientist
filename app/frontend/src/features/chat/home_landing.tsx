@@ -35,10 +35,6 @@ import {
   useShapeMorph,
 } from './home_landing_hooks';
 import {Icon, type IconName} from '@/shared/ui/icon';
-import {
-  SlidingPill,
-  useSlidingIndicator,
-} from '@/shared/hooks/use_sliding_indicator';
 import moleculeArt from '@/assets/landing/molecule.webp';
 import podiumArt from '@/assets/landing/podium.webp';
 import flaskArt from '@/assets/landing/flask.webp';
@@ -88,9 +84,6 @@ const RAIL_NAV_CLASSES =
 
 const RAIL_TAB_CLASSES =
   'relative z-1 grid h-[38px] flex-none place-items-center rounded-full px-4 text-[14px] font-medium no-underline';
-
-const SLIDER_CLASSES =
-  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-full bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
 
 const CARD_H3_CLASSES = 'm-0 font-(family-name:--l-display) font-normal';
 
@@ -368,7 +361,6 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
   const active = useActiveSection();
   const navRef = useRef<HTMLElement | null>(null);
   const more = useRailScroll(navRef, active, reduceMotion);
-  const pill = useSlidingIndicator(navRef, '.is-active', active);
   const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
     scrollToLandingSection(id, reduceMotion);
@@ -384,7 +376,6 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
             'phone:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
         )}
       >
-        <SlidingPill box={pill} className={SLIDER_CLASSES} />
         {LANDING_SECTIONS.map(({id, label}) => (
           <a
             key={id}
@@ -392,7 +383,9 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
             data-section={id}
             className={joinClasses(
               RAIL_TAB_CLASSES,
-              active === id ? 'is-active text-(--l-bg)' : 'text-(--l-muted)',
+              active === id
+                ? 'is-active bg-(--l-ink) text-(--l-bg)'
+                : 'text-(--l-muted)',
             )}
             aria-current={active === id ? 'true' : undefined}
             onClick={e => go(e, id)}
