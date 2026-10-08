@@ -72,6 +72,25 @@ def silence_litellm_logging() -> None:
 silence_litellm_logging()
 
 
+# Uvicorn's own config writes lifecycle lines and ASGI tracebacks to stderr as
+# plain text, which the host files at error severity line by line. Only the
+# parents carry handlers; "uvicorn.error" propagates to "uvicorn".
+_UVICORN_HANDLER_LOGGERS: tuple[str, ...] = ("uvicorn", "uvicorn.access")
+
+
+def _route_uvicorn_logging(handler: logging.Handler) -> None:
+    """Replace only stream handlers: log capture attaches its own queue
+    handler to these loggers and must survive a reconfiguration.
+    """
+    for name in _UVICORN_HANDLER_LOGGERS:
+        uvicorn_logger = logging.getLogger(name)
+        for existing in list(uvicorn_logger.handlers):
+            if isinstance(existing, logging.StreamHandler):
+                uvicorn_logger.removeHandler(existing)
+        uvicorn_logger.addHandler(handler)
+        uvicorn_logger.propagate = False
+
+
 def _byok_redaction_filter() -> logging.Filter:
     """Lazy import avoids pulling credential cryptography into logging-only
     processes; provider errors still need redaction.
@@ -96,6 +115,7 @@ def configure_logging(level: int = logging.INFO) -> logging.Handler:
     handler.addFilter(_byok_redaction_filter())
     root.addHandler(handler)
     root.setLevel(level)
+    _route_uvicorn_logging(handler)
     silence_litellm_logging()
     return handler
 
