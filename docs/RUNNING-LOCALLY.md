@@ -5,8 +5,9 @@
 - Python 3.12 for the complete application and MCP service. The internal
   engine package requires Python 3.12+.
 - Node.js 22.13+ for frontend tooling and Bun 1.3.14 for the committed locks.
-  Install Bun from [the official instructions](https://bun.sh/docs/installation)
-  and select `bun upgrade --version 1.3.14` if necessary.
+  Install Bun from [the official instructions](https://bun.sh/docs/installation).
+  To install that exact version, run
+  `curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`.
 - Optional provider credentials for real model responses. No key is needed
   to exercise the deterministic offline pipeline.
 - Optional Tesseract for image OCR and scanned-document extraction.

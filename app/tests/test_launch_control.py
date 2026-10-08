@@ -16,6 +16,7 @@ from co_scientist.api.runs import crud, lifecycle
 from co_scientist.core.config import settings
 from co_scientist.orchestration import engine_tasks, task_worker
 from co_scientist.orchestration.repository import tasks
+from co_scientist.orchestration.repository.tasks_lifecycle import owns_task_lease
 from co_scientist.platform import db
 from co_scientist.platform.db import runs
 from co_scientist.platform.db.launch_control import LaunchPausedError, read_control, write_control
@@ -334,6 +335,27 @@ def test_operator_control_survives_exhausted_visitor_write_quotas(
     response = operator.put("/api/launch-control", json={"paused": False, "expected_revision": 1})
     assert response.status_code == 200
     assert operator.put("/api/launch-control", content="x" * 4097).status_code == 413
+
+
+def test_late_heartbeat_can_renew_owned_lease_but_not_reclaimed_or_cancelled_lease(
+    isolated_db: str,
+) -> None:
+    run = seed_run("synthetic lease renewal", db_path=isolated_db)
+    task = enqueue_task(run.id, "engine.test.silent", "synthetic", db_path=isolated_db)
+    assert tasks.claim_task("first", db_path=isolated_db) is not None
+    with db.transaction(isolated_db) as conn:
+        conn.execute("UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?", (task.id,))
+    assert owns_task_lease(task.id, "first", db_path=isolated_db)
+    assert tasks.renew_task_lease(task.id, "first", 60, db_path=isolated_db)
+    with db.transaction(isolated_db) as conn:
+        conn.execute("UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?", (task.id,))
+    assert tasks.claim_task("second", db_path=isolated_db) is not None
+    assert not owns_task_lease(task.id, "first", db_path=isolated_db)
+    assert not tasks.renew_task_lease(task.id, "first", 60, db_path=isolated_db)
+    assert owns_task_lease(task.id, "second", db_path=isolated_db)
+    tasks.cancel_run_tasks(run.id, db_path=isolated_db)
+    assert not owns_task_lease(task.id, "second", db_path=isolated_db)
+    assert not tasks.renew_task_lease(task.id, "second", 60, db_path=isolated_db)
 
 
 def test_drain_preserves_unknown_paid_reservations_and_does_not_replay_them() -> None:

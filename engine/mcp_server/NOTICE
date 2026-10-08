@@ -13,14 +13,44 @@ OpenAI Codex CLI
 https://github.com/openai/codex
 Licensed under the Apache License, Version 2.0.
 
-  engine/src/co_scientist/sandbox/seatbelt_base_policy.sbpl
+  engine/src/co_scientist/platform/sandbox/seatbelt_base_policy.sbpl
 
     Copied verbatim (with an added provenance header) from
     codex-rs/sandboxing/src/seatbelt_base_policy.sbpl at commit
     a397079287e6638b39dda329835350d93222681f.
 
+  engine/src/co_scientist/platform/sandbox/command_safety.py
+
+    The read-only command allowlist and its argument checks are ported
+    to Python from Codex CLI's is_safe_command.rs and modified for this
+    sandbox.
+
   A copy of the Apache License, Version 2.0 is available at
   http://www.apache.org/licenses/LICENSE-2.0
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+Towards an AI co-scientist (Gottweis et al., 2025)
+https://arxiv.org/abs/2502.18864
+Licensed under the Creative Commons Attribution 4.0 International License
+(https://creativecommons.org/licenses/by/4.0/).
+
+  engine/src/co_scientist/science/prompts/templates/
+    generation_draft_with_tools.md
+    generation_debate_and_literature.md
+    generation_after_debate.md
+    reflection_observations.md
+    ranking_pairwise.md
+    ranking_debate.md
+    evolution_feasibility.md
+    evolution_out_of_box.md
+    meta_review.md
+
+    Adapted from the eight agent prompts published in the paper's
+    appendix. Changes: template placeholders, run and domain context,
+    tool and evidence-grounding instructions, and JSON output contracts
+    were added, and the wording was edited. The other prompt templates
+    are independent work.
 -------------------------------------------------------------------------
 
 -------------------------------------------------------------------------
@@ -29,7 +59,7 @@ https://gitlab.com/crossref/retraction-watch-data
 Collected by Retraction Watch (The Center for Scientific Integrity);
 distributed by Crossref.
 
-  app/app/data/retractions.txt.gz
+  engine/src/co_scientist/platform/retrieval/data/retractions.txt.gz
 
     A derived extract, not a copy: only the retraction and original-paper
     DOI of every row whose RetractionNature is "Retraction", normalized,
@@ -38,8 +68,8 @@ distributed by Crossref.
     Rebuilt from the upstream CSV by app/dev/refresh_retractions.py; the
     extract committed here was generated 2026-09-24.
 
-    Used by app/app/retraction_set.py as a second, independent retraction
-    check in app/app/citations/resolver.py, alongside whatever the source
+    Used by engine/src/co_scientist/platform/retrieval/retraction_set.py as a second, independent retraction
+    check in engine/src/co_scientist/platform/retrieval/citations, alongside whatever the source
     (PubMed/OpenAlex) already flags -- retraction propagation between
     indexes can lag by months.
 
@@ -72,10 +102,10 @@ Licensed under the Apache License, Version 2.0 (code) and CC-BY 4.0
     listed per source in vendor/science-skills/SKILL_LICENSES.md, and
     most skills additionally require that the user be notified of them
     before use. The harness writes that notice into each workspace
-    (engine/src/co_scientist/skills/licences.py), which satisfies the
+    (engine/src/co_scientist/platform/sandbox/skills/licences.py), which satisfies the
     condition the skills themselves state but reaches nobody, since the
     workspace is deleted. It therefore also counts the sources each run
-    actually queried (engine/src/co_scientist/skills/usage.py) and names
+    actually queried (engine/src/co_scientist/platform/sandbox/skills/usage.py) and names
     them, with a pointer to their terms, in the run's report.
 
   A copy of the Apache License, Version 2.0 is available at
@@ -92,6 +122,30 @@ Licensed under the SIL Open Font License, Version 1.1.
     Bundled into the frontend build from the npm package
     @fontsource/google-sans (app/frontend/src/index.css), which carries
     the full license text in its LICENSE file.
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+Material Symbols (Google)
+https://github.com/google/material-design-icons
+Licensed under the Apache License, Version 2.0.
+
+  app/frontend/src/shared/ui/icon.tsx
+
+    SVG path data copied from the npm package @material-symbols/svg-400
+    by app/frontend/scripts/generate_icons.mjs.
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+Web client dependencies
+
+  The production frontend build bundles third-party npm packages (React,
+  React Router, the unified/micromark Markdown stack, highlight.js,
+  Sentry and others). Minification removes their licence comments, so
+  the build writes third-party-licenses.txt beside the bundle, served at
+  /third-party-licenses.txt, with the name, version, licence and full
+  licence and notice text of every bundled package. The build fails if a
+  bundled package has no licence file or a licence outside the list in
+  app/frontend/scripts/third_party_licenses.mjs.
 -------------------------------------------------------------------------
 
 -------------------------------------------------------------------------
