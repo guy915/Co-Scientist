@@ -1,3 +1,4 @@
+import {DataRightsSection} from './data_rights_section';
 import {type RefObject, useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/shared/ui/icon';
 import {
@@ -124,7 +125,11 @@ export function SettingsDialog({
       initialFocusRef={closeRef}
     >
       <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-      <SettingsBody section={shown} onSectionChange={onSectionChange} />
+      <SettingsBody
+        section={shown}
+        onSectionChange={onSectionChange}
+        onClose={onClose}
+      />
     </Dialog>
   );
 }
@@ -133,9 +138,11 @@ export function SettingsDialog({
 function SettingsBody({
   section,
   onSectionChange,
+  onClose,
 }: {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
+  onClose: () => void;
 }) {
   const theme = useTheme();
   const apiKeyField = useApiKeyField();
@@ -147,6 +154,7 @@ function SettingsBody({
           <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
         )}
         {section === 'model' && <ModelSection {...apiKeyField} />}
+        {section === 'data' && <DataRightsSection onOpenLegal={onClose} />}
       </div>
     </div>
   );
