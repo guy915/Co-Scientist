@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import subprocess
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
@@ -15,6 +17,65 @@ from evaluations.benchmark_artifact_safety import check_artifacts
 
 GOALS = ("cell-biology", "battery-materials")
 OWNER_SCOPE = 6066619391
+
+
+def download_manifest(repository: str, main_runs: str, branch_runs: str, directory: Path) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise ValueError("invalid repository")
+    slots = {"main": main_runs.split(","), "branch": branch_runs.split(",")}
+    if any(
+        len(ids) != 2 or any(i != "not-run" and not re.fullmatch(r"[1-9][0-9]*", i) for i in ids)
+        for ids in slots.values()
+    ):
+        raise ValueError("provide biology,battery workflow IDs; not-run means a missing slot")
+    ids = [i for values in slots.values() for i in values if i != "not-run"]
+    if len(set(ids)) != len(ids):
+        raise ValueError("report workflow run IDs must be distinct")
+    directory.mkdir(mode=0o700, exist_ok=False)
+    manifest: dict[str, dict[str, str | None]] = {goal: {} for goal in GOALS}
+    for arm, values in slots.items():
+        for goal, run_id in zip(GOALS, values, strict=True):
+            manifest[goal][arm] = None
+            if run_id == "not-run":
+                continue
+            route = f"repos/{repository}/actions/runs/{run_id}"
+            run = json.loads(subprocess.check_output(["gh", "api", route], timeout=60))
+            if (
+                run["path"] != ".github/workflows/benchmark.yml"
+                or run["event"] != "workflow_dispatch"
+                or run["status"] != "completed"
+            ):
+                raise ValueError("report needs completed manual Benchmark dispatches")
+            artifacts = json.loads(
+                subprocess.check_output(["gh", "api", f"{route}/artifacts"], timeout=60)
+            )["artifacts"]
+            candidates = [
+                a
+                for a in artifacts
+                if a["name"].startswith("benchmark-express-") and not a["expired"]
+            ]
+            if (
+                len(candidates) != 1
+                or candidates[0]["size_in_bytes"] > paired_artifacts._MAX_ARCHIVE_BYTES
+            ):
+                raise ValueError("report run needs one bounded Express archive")
+            archive = directory / f"{goal}-{arm}.zip"
+            with archive.open("xb") as dest:
+                archive.chmod(0o600)
+                subprocess.run(
+                    [
+                        "gh",
+                        "api",
+                        f"repos/{repository}/actions/artifacts/{candidates[0]['id']}/zip",
+                    ],
+                    stdout=dest,
+                    check=True,
+                    timeout=120,
+                )
+            manifest[goal][arm] = archive.name
+    path = directory / "runs.json"
+    path.write_text(json.dumps(manifest))
+    return path
 
 
 def prepare(
@@ -148,12 +209,18 @@ def markdown(result: dict[str, Any]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Owner-scoped two-goal launch report.")
-    parser.add_argument("manifest", type=Path)
+    parser.add_argument("manifest", type=Path, nargs="?")
+    parser.add_argument("--download", action="store_true")
+    parser.add_argument("--repository", default=os.getenv("GITHUB_REPOSITORY", ""))
+    parser.add_argument("--main-runs", default="")
+    parser.add_argument("--branch-runs", default="")
     parser.add_argument("--output", type=Path, required=True)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--judgments", type=Path)
     mode.add_argument("--live-judge", action="store_true")
     args = parser.parse_args()
+    if bool(args.manifest) == args.download:
+        raise ValueError("provide a recorded manifest or explicit download mode")
     if any(args.output.with_suffix(suffix).exists() for suffix in (".json", ".md")):
         raise ValueError("launch report requires a new output prefix; preserve the first result")
     credentials = [
@@ -171,7 +238,12 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     staging = args.output.parent / (args.output.name + "-private")
     staging.mkdir(mode=0o700, exist_ok=False)
-    snapshots = prepare(args.manifest, staging / "inputs", credentials)
+    manifest = (
+        download_manifest(args.repository, args.main_runs, args.branch_runs, staging / "downloads")
+        if args.download
+        else args.manifest
+    )
+    snapshots = prepare(manifest, staging / "inputs", credentials)
     observed = [snapshot for arms in snapshots.values() for snapshot in arms.values()]
     if model and any(
         s.metrics["request_counter_sha256"] != benchmark_transport.COUNTER_SHA256 for s in observed

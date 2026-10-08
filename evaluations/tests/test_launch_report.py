@@ -7,7 +7,7 @@ import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import pytest
 
@@ -203,3 +203,92 @@ def test_existing_result_cannot_be_overwritten(
     with pytest.raises(ValueError, match="preserve the first result"):
         launch_report.main()
     assert output.with_suffix(".json").read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    ("repository", "main_runs", "branch_runs"),
+    [("--help", "1,2", "3,4"), ("owner/repo", "1", "3,4"), ("owner/repo", "1,2", "1,4")],
+)
+def test_download_inputs_refuse_before_any_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    repository: str,
+    main_runs: str,
+    branch_runs: str,
+) -> None:
+    def deny(*args: object, **kwargs: object) -> bytes:
+        raise AssertionError("invalid inputs must not make requests")
+
+    monkeypatch.setattr(subprocess, "check_output", deny)
+    with pytest.raises(ValueError):
+        launch_report.download_manifest(repository, main_runs, branch_runs, tmp_path / "downloads")
+
+
+@pytest.mark.parametrize("bad_run", [False, True])
+def test_downloaded_partial_report_keeps_missing_slots_and_checks_run_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bad_run: bool,
+) -> None:
+    source = manifest(tmp_path)
+    data = json.loads(source.read_text())
+    files = {
+        1: tmp_path / data["cell-biology"]["main"],
+        2: tmp_path / data["battery-materials"]["main"],
+    }
+    routes: list[str] = []
+
+    def check_output(command: list[str], *, timeout: int) -> bytes:
+        route = command[2]
+        routes.append(route)
+        assert route.startswith("repos/current-owner/research/actions/runs/")
+        run_id = int(route.split("/")[5])
+        if route.endswith("/artifacts"):
+            return json.dumps(
+                {
+                    "artifacts": [
+                        {
+                            "id": run_id,
+                            "name": "benchmark-express-fake",
+                            "expired": False,
+                            "size_in_bytes": files[run_id].stat().st_size,
+                        }
+                    ]
+                }
+            ).encode()
+        return json.dumps(
+            {
+                "path": ".github/workflows/benchmark.yml",
+                "event": "push" if bad_run else "workflow_dispatch",
+                "status": "completed",
+            }
+        ).encode()
+
+    def run(
+        command: list[str], *, stdout: BinaryIO, check: bool, timeout: int
+    ) -> subprocess.CompletedProcess[str]:
+        route = command[2]
+        routes.append(route)
+        assert route.startswith("repos/current-owner/research/actions/artifacts/")
+        stdout.write(files[int(route.split("/")[5])].read_bytes())
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(subprocess, "check_output", check_output)
+    monkeypatch.setattr(subprocess, "run", run)
+    directory = tmp_path / "downloads"
+    if bad_run:
+        with pytest.raises(ValueError, match="completed manual"):
+            launch_report.download_manifest(
+                "current-owner/research", "1,2", "not-run,not-run", directory
+            )
+        assert len(routes) == 1
+        return
+    downloaded = launch_report.download_manifest(
+        "current-owner/research", "1,2", "not-run,not-run", directory
+    )
+    prepared = launch_report.prepare(downloaded, tmp_path / "prepared")
+    assert len(routes) == 6
+    assert all(set(arms) == {"main"} for arms in prepared.values())
+    assert launch_report.report(prepared, lambda packet: {})["summary"]["goal_pairs"] == 0
+    assert directory.stat().st_mode & 0o777 == 0o700
+    assert all(path.stat().st_mode & 0o777 == 0o600 for path in directory.glob("*.zip"))
