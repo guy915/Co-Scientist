@@ -22,6 +22,7 @@ def isolated_environment(scratch: Path, database: Path) -> dict[str, str]:
         "PATH": os.defpath,
         "HOME": str(scratch),
         "LANG": "C.UTF-8",
+        "PYTHON_DOTENV_DISABLED": "1",
         "COSCIENTIST_DB_PATH": str(database),
         "COSCIENTIST_FORCE_OFFLINE": "1",
         "COSCIENTIST_LITESTREAM_ACTIVE": "1",
