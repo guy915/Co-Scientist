@@ -14,20 +14,6 @@ export function presentedHypotheses(hypotheses: Hypothesis[]): Hypothesis[] {
   );
 }
 
-// Verification occurs after ranking and initial Elo is unearned: demote
-// undermined ideas, then put played ideas before unplayed ones regardless of
-// rating.
-export function sortByEloDesc(hypotheses: Hypothesis[]): Hypothesis[] {
-  const played = (h: Hypothesis) => h.win_count + h.loss_count > 0;
-  const undermined = (h: Hypothesis) =>
-    h.verification_verdict === UNDERMINED_VERDICT;
-  return [...hypotheses].sort((a, b) => {
-    if (undermined(a) !== undermined(b)) return undermined(a) ? 1 : -1;
-    if (played(a) !== played(b)) return played(a) ? -1 : 1;
-    return b.elo_rating - a.elo_rating;
-  });
-}
-
 // Only an actual comparison earns a displayed rating; an untouched initial Elo
 // must read as unranked.
 export function ratingLabel(hypothesis: Hypothesis): string {
