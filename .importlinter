@@ -28,9 +28,6 @@ layers =
     co_scientist.platform.llm : co_scientist.platform.sandbox : co_scientist.platform.db
     co_scientist.platform.telemetry
     co_scientist.core
-ignore_imports =
-    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
-    co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
 
 [importlinter:contract:agents]
 name = Science agents are independent
