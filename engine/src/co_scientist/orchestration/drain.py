@@ -40,9 +40,9 @@ from co_scientist.domains.safety.hypothesis.safety import (
     HypothesisSafetyOutcome,
     escalate_held_hypotheses,
 )
-from co_scientist.orchestration.repository import supervisor_plan as plans
-from co_scientist.orchestration.repository.supervisor_plan import NewSupervisorPlan
 from co_scientist.platform import db
+from co_scientist.platform.db import supervisor_plan as plans
+from co_scientist.platform.db.supervisor_plan import NewSupervisorPlan
 from co_scientist.platform.retrieval.citations import empty_citation_summary
 
 logger = logging.getLogger(__name__)
