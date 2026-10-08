@@ -6,22 +6,22 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Collect, compare saved runs, or check native configuration without provider calls
+        description: Collect, compare, report reduced launch slots, or check native configuration
         type: choice
-        options: [collect, compare, preflight]
+        options: [collect, compare, preflight, launch-report]
         default: collect
       model:
         description: Explicit model; OpenRouter free default or authorized anthropic/azure route
         type: string
         default: openrouter/inclusionai/ling-3.1-flash
       main_runs:
-        description: Compare only - three comma-separated main workflow run IDs
+        description: Three main IDs for compare; biology,battery IDs or not-run slots for launch-report
         type: string
       branch_runs:
-        description: Compare only - three comma-separated branch workflow run IDs
+        description: Three branch IDs for compare; biology,battery IDs or not-run slots for launch-report
         type: string
       max_judge_calls:
-        description: Compare only - physical judge ceiling within the remaining daily share
+        description: Physical judge ceiling within the daily share; launch-report requires 4
         type: number
         default: 6
       tier:
@@ -359,3 +359,68 @@ jobs:
             paired-artifacts/paired.json
           retention-days: 14
           if-no-files-found: warn
+  launch-report:
+    if: inputs.operation == 'launch-report'
+    name: Reduced launch quality report (${{ inputs.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout report harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up backend
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
+      - name: Validate, guard and judge the retained launch slots
+        timeout-minutes: 60
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN_RUNS: ${{ inputs.main_runs }}
+          BRANCH_RUNS: ${{ inputs.branch_runs }}
+          MAX_JUDGE_CALLS: ${{ inputs.max_judge_calls }}
+          MODEL_NAME: ${{ inputs.model }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+        run: |
+          if [[ "$MODEL_NAME" != openrouter/* || "$MAX_JUDGE_CALLS" != 4 ]]; then
+            echo 'Launch report requires the agreed free model and a four-attempt judge reservation.'
+            exit 1
+          fi
+          python -m evaluations.launch_report --download \
+            --main-runs "$MAIN_RUNS" --branch-runs "$BRANCH_RUNS" \
+            --live-judge --output launch-artifacts/quality
+      - name: Check final report credentials
+        id: report_safety
+        if: always()
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+        run: |
+          test -f launch-artifacts/quality.md
+          test -f launch-artifacts/quality.json
+          python -m evaluations.benchmark_artifact_safety \
+            launch-artifacts/quality.md launch-artifacts/quality.json
+      - name: Report launch quality
+        if: always() && steps.report_safety.outcome == 'success'
+        run: cat launch-artifacts/quality.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload checked report only
+        if: always() && steps.report_safety.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: launch-quality-${{ inputs.label }}
+          path: |
+            launch-artifacts/quality.md
+            launch-artifacts/quality.json
+          retention-days: 14
+          if-no-files-found: error
