@@ -153,7 +153,7 @@ export function ReportTabNav({
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
-    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4">
+    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4 self-start phone:mx-4">
       {message}
     </ErrorNotice>
   );

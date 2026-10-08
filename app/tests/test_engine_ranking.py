@@ -367,7 +367,7 @@ def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
         return types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
 
     install_completion_backend(monkeypatch, _fake_acompletion)
-    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
 
 

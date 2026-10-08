@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from co_scientist.domains.access import custom_models
 from co_scientist.main import app
 from co_scientist.platform.llm.offline.llm import offline_acompletion
 from co_scientist.platform.llm.request.backend import install_backend
+
+if os.getenv("COSCIENTIST_TEST_DOUBLE") != "deterministic":
+    raise RuntimeError("Browser harness requires the explicit deterministic test adapter")
 
 _KEY = "synthetic-e2e-custom-key"
 _MODELS = ("test/custom-worker", "test/custom-supervisor")

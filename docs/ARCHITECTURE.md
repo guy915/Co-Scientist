@@ -55,11 +55,12 @@ at import time, never by importing upward:
 ```
 co_scientist/
   main            composition root: FastAPI app, lifespan, worker startup
+  serving         production ASGI factory: trusted-proxy visitor address
   api/            runs/ (lifecycle, read, chat, SSE), interviews/, contracts/,
                   tracing (HTTP spans),
                   documents, uploads, free_usage, byok_models, feedback_api,
                   logs_api, diagnostics, auth, operator_access, request_limits,
-                  launch_admission, launch_control_api
+                  launch_admission, launch_control_api, trusted_proxy
   orchestration/  engine_tasks/ (durable node, fan-out and match executor,
                   report_finalize), task_worker/ (leased cohorts),
                   repository/ (tasks, tasks_lifecycle, events, receipts, runs_views),
@@ -202,8 +203,8 @@ change as the run progresses without mutating the historical hypothesis row.
 `orchestration.engine_adapter.select_provider()` always returns `"engine"`;
 the engine is a hard runtime dependency. What varies per run is the LLM
 backend. `platform/llm/process_mode.py::offline_mode()` is true when
-`COSCIENTIST_FORCE_OFFLINE=1` is set or no supported provider key is
-configured. An offline run still executes the real durable engine:
+`COSCIENTIST_TEST_DOUBLE=deterministic` explicitly selects the private test
+adapter. Missing keys never select it; production returns a no-model error. An offline run still executes the real durable engine:
 `platform/llm/offline/llm.py::install_offline_router()` serves deterministic,
 schema-valid completions for `offline/` models. The resolved backend
 (`offline` | `real`) is persisted per run as `llm_backend` and reported at

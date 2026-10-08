@@ -3,9 +3,9 @@ import {
   type InterviewQuestion,
   type InterviewTurn,
 } from '@/shared/api/runs';
-import {type ReactNode, useState} from 'react';
+import {useState} from 'react';
 import {Icon} from '@/shared/ui/icon';
-import {IconButton, TextField} from '@/shared/ui';
+import {Button, IconButton, TextField} from '@/shared/ui';
 import {joinClasses} from '@/shared/ui/classes';
 import {
   OPTION_MARKER_CLASSES,
@@ -168,6 +168,8 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
     >
       <ChooserHead
         label={headLabel(questions)}
+        answered={answer.length > 0}
+        onSend={sendAnswer}
         minimized={minimized}
         onToggleMinimize={() => setMinimized(open => !open)}
         onDismiss={() => setDismissed(true)}
@@ -179,8 +181,6 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
             selections={selections}
             setSelections={setSelections}
             onChoose={choose}
-            send={sendAnswer}
-            answered={answer.length > 0}
           />
         </div>
       )}
@@ -194,13 +194,19 @@ function headLabel(questions: InterviewQuestion[]): string {
     .join(' · ');
 }
 
+// One send commits every question's answer, so it sits in the head rather
+// than beside any single question's field.
 function ChooserHead({
   label,
+  answered,
+  onSend,
   minimized,
   onToggleMinimize,
   onDismiss,
 }: {
   label: string;
+  answered: boolean;
+  onSend: () => void;
   minimized: boolean;
   onToggleMinimize: () => void;
   onDismiss: () => void;
@@ -211,6 +217,16 @@ function ChooserHead({
         {label}
       </span>
       <div className="flex shrink-0 items-center gap-0.5">
+        <Button
+          size="sm"
+          icon="send"
+          aria-label="Send answer"
+          layoutClassName="mr-1.5"
+          disabled={!answered}
+          onClick={onSend}
+        >
+          Send
+        </Button>
         <IconButton
           label={minimized ? 'Show the questions' : 'Minimize the questions'}
           icon={minimized ? 'expand_less' : 'expand_more'}
@@ -231,13 +247,10 @@ interface ChooserBodyProps {
   selections: QuestionSelections;
   setSelections: (selections: QuestionSelections) => void;
   onChoose: (index: number, label: string) => void;
-  send: () => void;
-  answered: boolean;
 }
 
 function ChooserBody(props: ChooserBodyProps) {
-  const {questions, selections, setSelections, onChoose, send, answered} =
-    props;
+  const {questions, selections, setSelections, onChoose} = props;
   return (
     <>
       {questions.map((question, index) => (
@@ -248,19 +261,6 @@ function ChooserBody(props: ChooserBodyProps) {
           selections={selections}
           setSelections={setSelections}
           onChoose={onChoose}
-          // The last free-text field carries the one send for every answer.
-          sendAction={
-            index === questions.length - 1 ? (
-              <IconButton
-                icon="send"
-                label="Send answer"
-                // Opens inside the card; the options scroller clips the sides.
-                tooltipPlacement="left"
-                disabled={!answered}
-                onClick={send}
-              />
-            ) : undefined
-          }
         />
       ))}
     </>
@@ -273,12 +273,10 @@ interface QuestionGroupProps {
   selections: QuestionSelections;
   setSelections: (selections: QuestionSelections) => void;
   onChoose: (index: number, label: string) => void;
-  sendAction?: ReactNode;
 }
 
 function QuestionGroup(props: QuestionGroupProps) {
-  const {question, index, selections, setSelections, onChoose, sendAction} =
-    props;
+  const {question, index, selections, setSelections, onChoose} = props;
   return (
     <fieldset className="m-0 grid min-w-0 gap-2.5 border-0 p-0">
       <legend className="text-base leading-[1.35] font-medium text-cosci-fg">
@@ -297,7 +295,6 @@ function QuestionGroup(props: QuestionGroupProps) {
         ))}
         <OtherAnswerRow
           multiSelect={question.multi_select}
-          sendAction={sendAction}
           text={selections.other[index] ?? ''}
           onChangeText={text =>
             setSelections(
@@ -314,12 +311,10 @@ function OtherAnswerRow({
   multiSelect,
   text,
   onChangeText,
-  sendAction,
 }: {
   multiSelect: boolean;
   text: string;
   onChangeText: (text: string) => void;
-  sendAction?: ReactNode;
 }) {
   return (
     <div className={OTHER_ROW_CLASSES}>
@@ -331,9 +326,8 @@ function OtherAnswerRow({
         aria-label={OTHER_LABEL}
         placeholder={OTHER_PLACEHOLDER}
         value={text}
-        trailing={sendAction}
         onChange={event => onChangeText(event.target.value)}
-        // Swallow Enter inside this nested field; only the chooser send
+        // Swallow Enter inside this nested field; only the head's send
         // control commits an answer.
         onKeyDown={event => {
           if (event.key === 'Enter') event.preventDefault();

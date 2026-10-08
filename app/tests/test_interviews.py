@@ -10,6 +10,7 @@ from co_scientist.domains.chat.interviews import model as interviews_model
 from co_scientist.domains.chat.repository import interviews as store
 from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
 from co_scientist.main import app
+from co_scientist.platform.llm import process_mode
 from fastapi.testclient import TestClient
 
 from tests._client import create_run as _create_run
@@ -267,6 +268,30 @@ def test_interview_stays_usable_and_marks_fallback_turns_during_model_outage(
         "lab_constraints": [],
         "title": None,
     }
+
+
+def test_production_interview_outage_keeps_fields_and_does_not_complete(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_model_raising(monkeypatch)
+    monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
+    monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+    previous = process_mode.install(process_mode.EnvProcessMode())
+    interview_id = _make_chat("owner", turns=3)
+    before = store.get_interview(interview_id)
+    assert before is not None
+    try:
+        with TestClient(app) as client:
+            reply = _send_turn(client, {"X-Client-ID": "owner"}, interview_id, "Use organoids")
+    finally:
+        process_mode.install(previous)
+    assert '"type": "error"' in reply.text
+    assert "No model is available right now" in reply.text
+    after = store.get_interview(interview_id)
+    assert after is not None
+    assert after["fields"] == before["fields"]
+    assert after["status"] == before["status"]
+    assert not any(turn["role"] == "agent" for turn in after["turns"])
 
 
 def _reasoning_only_stream(reasoning: str) -> Any:

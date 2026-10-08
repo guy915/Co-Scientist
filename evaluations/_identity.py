@@ -124,6 +124,10 @@ def arm_identity(
             )
         },
     }
+    if os.getenv("COSCIENTIST_TEST_DOUBLE") is not None:
+        manifest["execution_environment"]["COSCIENTIST_TEST_DOUBLE"] = os.getenv(
+            "COSCIENTIST_TEST_DOUBLE"
+        )
     # Snapshot mutable config/routing maps before placing this in run.config.
     frozen: dict[str, Any] = json.loads(json.dumps(manifest))
     return {**frozen, "digest": identity_digest(frozen)}

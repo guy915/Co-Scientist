@@ -136,3 +136,14 @@ it.each([
     expect(screen.queryByText(UNGROUNDED_NOTICE)).toBeNull();
   },
 );
+
+it('shows only the error for a run that never loaded, without report tabs or an empty report', async () => {
+  vi.mocked(runsApi.getRun).mockRejectedValue(new Error('run not found'));
+
+  renderAt('/runs/missing-run/details');
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('run not found');
+  expect(screen.queryByRole('link', {name: 'Goal Details'})).toBeNull();
+  expect(screen.queryByText('Run Specifications')).toBeNull();
+  expect(screen.queryByText('Loading…')).toBeNull();
+});
