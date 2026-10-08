@@ -36,7 +36,7 @@ export const LANDING_AGENTS: readonly LandingAgent[] = [
     name: 'Supervisor',
     summary:
       'Reads your goal, writes the research plan, and decides which agent ' +
-      'works next based on how the pool is changing.',
+      'works next as the hypotheses develop.',
     icon: 'account_tree',
     shape: 'cookie12',
     tone: 'teal',
@@ -59,28 +59,28 @@ export const LANDING_AGENTS: readonly LandingAgent[] = [
   },
   {
     name: 'Ranking',
-    summary: 'Runs the Elo tournament of head-to-head debates.',
+    summary: 'Compares pairs of hypotheses and updates their Elo ratings.',
     icon: 'leaderboard',
     shape: 'pill',
     tone: 'yellow',
   },
   {
     name: 'Evolution',
-    summary: 'Breeds improved children from the strongest ideas.',
+    summary: 'Creates improved hypotheses from the strongest ideas.',
     icon: 'genetics',
     shape: 'clover',
     tone: 'green',
   },
   {
     name: 'Proximity',
-    summary: 'Clusters near-duplicates so matches test real differences.',
+    summary: 'Groups similar hypotheses so comparisons test real differences.',
     icon: 'join',
     shape: 'cookie7',
     tone: 'blue',
   },
   {
     name: 'Meta-review',
-    summary: 'Learns from every debate and writes the research overview.',
+    summary: 'Summarizes the debates and writes the research overview.',
     icon: 'summarize',
     shape: 'sunny',
     tone: 'teal',
@@ -179,18 +179,17 @@ export interface FaqEntry {
 
 export const FAQ: readonly FaqEntry[] = [
   {
-    question: 'What is Co-Scientist?',
+    question: 'What is Open Co-Scientist?',
     answer:
-      'A multi-agent workspace that generates, debates, and ranks research ' +
-      'hypotheses for a goal you set. A team of agents proposes ideas, ' +
-      'reviews them, and runs a tournament so the strongest directions rise ' +
-      'to the top.',
+      'A research workspace that generates, reviews, and ranks hypotheses ' +
+      'for your goal. Specialized agents propose ideas, review them, and ' +
+      'compare pairs of hypotheses.',
   },
   {
     question: 'How do I start a run?',
     answer:
-      'From the home screen, describe your research goal in the composer and ' +
-      'send it. Co-Scientist confirms the setup, then the agents generate ' +
+      'From the home screen, describe your research goal in the message box and ' +
+      'send it. Open Co-Scientist confirms the setup, then the agents generate ' +
       'and evaluate ideas. Follow progress and results in the run view.',
   },
   {
@@ -210,7 +209,7 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'Are the results true?',
     answer:
-      'They are hypotheses, not findings. Co-Scientist ranks ideas by ' +
+      'They are hypotheses, not findings. Open Co-Scientist ranks ideas by ' +
       'argument and evidence so you can decide which ones deserve an ' +
       'experiment.',
   },

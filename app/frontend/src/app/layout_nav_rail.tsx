@@ -5,7 +5,7 @@ import {isModifiedClick} from '@/shared/lib/dom_events';
 import {
   SETTINGS_SECTIONS,
   type SettingsSection,
-} from '@/features/access/settings_dialog';
+} from '@/features/access/settings_sections';
 import type {ShellPanel} from './layout';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {ChatSummary, Run} from '@/shared/api/runs';
