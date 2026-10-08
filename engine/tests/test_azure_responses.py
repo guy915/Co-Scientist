@@ -214,6 +214,16 @@ def test_unknown_price_unbounded_output_and_hosted_tools_are_refused(
         response_request(_request(**changes), DEPLOYMENTS)
 
 
+def test_nested_hosted_tool_type_cannot_override_function_type() -> None:
+    function = {"type": "web_search", "name": "lookup", "parameters": {"type": "object"}}
+    body = response_request(
+        _request(tools=[{"type": "function", "function": function}]), DEPLOYMENTS
+    )
+    assert body["tools"] == [
+        {"type": "function", "name": "lookup", "parameters": {"type": "object"}}
+    ]
+
+
 async def test_stream_normalizes_text_tool_fragments_reasoning_items_and_final_usage() -> None:
     output: list[dict[str, Any]] = [
         {"type": "reasoning", "id": "reason-one", "summary": [], "encrypted_content": "opaque"},

@@ -145,7 +145,16 @@ def _tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if tool.get("type") != "function":
             raise ProviderAdmissionError("Only local function tools are allowed on Azure")
         function = tool["function"]
-        result.append({"type": "function", **function})
+        result.append(
+            {
+                "type": "function",
+                **{
+                    key: function[key]
+                    for key in ("name", "description", "parameters", "strict")
+                    if key in function
+                },
+            }
+        )
     return result
 
 
