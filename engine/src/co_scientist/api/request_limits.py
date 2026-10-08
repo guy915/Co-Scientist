@@ -12,7 +12,9 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from co_scientist.api.auth import principal_for_request
 from co_scientist.core.exceptions import StorageAdmissionError
+from co_scientist.platform.db import Error
 from co_scientist.platform.db.admission import connecting_host
+from co_scientist.platform.db.privacy import is_erased_owner
 from co_scientist.platform.db.storage_admission import reserve_write, scoped_peer
 
 _lock = threading.Lock()
@@ -23,6 +25,17 @@ _MAX_UPLOAD_BYTES = 26 * 1024 * 1024
 
 async def storage_error_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse({"detail": "storage admission exhausted"}, status_code=429)
+
+
+def _reserve_input(owner: str, peer: str, size: int) -> None:
+    try:
+        reserve_write(owner, peer, size)
+    except Error:
+        if not is_erased_owner(owner):
+            raise
+        raise HTTPException(status_code=410, detail="This browser identity was deleted") from None
+    except StorageAdmissionError:
+        raise HTTPException(status_code=429, detail="input admission exhausted") from None
 
 
 class RequestLimitsMiddleware:
@@ -44,6 +57,12 @@ class RequestLimitsMiddleware:
             await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(
                 scope, receive, send
             )
+            return
+        if await asyncio.to_thread(is_erased_owner, owner):
+            await JSONResponse(
+                {"detail": "This browser identity was deleted; reload to start again"},
+                status_code=410,
+            )(scope, receive, send)
             return
         peer = connecting_host(request.client.host if request.client else None)
         limit, bucket, ceilings = _body_limits(path)
@@ -85,11 +104,11 @@ class RequestLimitsMiddleware:
                     return
                 if not path.endswith("/adjudicate"):
                     try:
-                        await asyncio.to_thread(reserve_write, owner, peer, size)
-                    except StorageAdmissionError:
-                        await JSONResponse(
-                            {"detail": "input admission exhausted"}, status_code=429
-                        )(scope, receive, send)
+                        await asyncio.to_thread(_reserve_input, owner, peer, size)
+                    except HTTPException as exc:
+                        await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(
+                            scope, receive, send
+                        )
                         return
                 # Keep the spool slot through admission so queued SQLite writers
                 # cannot grow an unbounded backlog.
