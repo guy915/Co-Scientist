@@ -12,7 +12,7 @@ import {Layout} from './layout';
 import {ChatWorkspace} from '@/features/chat/chat_workspace';
 import {ExampleChat} from '@/features/chat/example_chat';
 import {ThemeProvider} from '@/shared/hooks/theme_context';
-import {PageStatus} from '@/shared/ui';
+import {DocumentSkeleton} from '@/shared/ui';
 
 const RunDetail = lazy(() =>
   import('@/features/report/run_detail').then(module => ({
@@ -33,7 +33,7 @@ const LaunchOperations = lazy(() =>
 );
 
 function PageLoading() {
-  return <PageStatus>Loading page…</PageStatus>;
+  return <DocumentSkeleton label="Loading page…" />;
 }
 
 function page(title: string, element: ReactElement) {

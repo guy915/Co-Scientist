@@ -43,6 +43,16 @@
   --cosci-recent-chip-bg: #beefbb;
   --cosci-idea-row-selected-bg: #f4faff;
   --cosci-idea-chip-bg: #e0f4ff;
+
+  /* Loading placeholders: one pair on the workspace and a deeper pair on
+     tinted surfaces (rail, panel, user bubble). Raised surfaces (composer,
+     cards) are white in light and panel-toned in dark. */
+  --cosci-skeleton: #edf1f7;
+  --cosci-skeleton-shine: #f8fafd;
+  --cosci-skeleton-tinted: #dbe3ee;
+  --cosci-skeleton-tinted-shine: #e6ecf4;
+  --cosci-skeleton-raised: var(--cosci-skeleton);
+  --cosci-skeleton-raised-shine: var(--cosci-skeleton-shine);
 }
 
 :root[data-theme='dark'] {
@@ -85,6 +95,13 @@
   --cosci-recent-chip-bg: #006c35;
   --cosci-idea-row-selected-bg: #003d64;
   --cosci-idea-chip-bg: #133043;
+
+  --cosci-skeleton: #222326;
+  --cosci-skeleton-shine: #2d2f32;
+  --cosci-skeleton-tinted: #2b2d30;
+  --cosci-skeleton-tinted-shine: #36383b;
+  --cosci-skeleton-raised: var(--cosci-skeleton-tinted);
+  --cosci-skeleton-raised-shine: var(--cosci-skeleton-tinted-shine);
 
   background: var(--cosci-bg);
 }
@@ -344,6 +361,9 @@ body {
   --field-focus: var(--cosci-blue);
   --field-placeholder: var(--cosci-muted);
 
+  --skeleton-bg: var(--cosci-skeleton);
+  --skeleton-shine: var(--cosci-skeleton-shine);
+
   --scrim: rgb(0 0 0 / 45%);
   --drawer-shadow: 0.75rem 0 2.5rem rgb(0 0 0 / 38%);
   --started-card-fg: #fff;
@@ -364,6 +384,18 @@ body {
   --button-text-hover-bg: var(--cosci-shell-hover-bg);
   --icon-button-fg: var(--cosci-shell-icon);
   --icon-button-hover-bg: var(--cosci-shell-hover-bg);
+}
+
+.boot-rail,
+.boot-bubble {
+  --skeleton-bg: var(--cosci-skeleton-tinted);
+  --skeleton-shine: var(--cosci-skeleton-tinted-shine);
+}
+
+.boot-composer,
+.boot-recent {
+  --skeleton-bg: var(--cosci-skeleton-raised);
+  --skeleton-shine: var(--cosci-skeleton-raised-shine);
 }
 
 .reference-composer {

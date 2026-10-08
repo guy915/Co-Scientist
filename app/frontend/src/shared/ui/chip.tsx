@@ -6,7 +6,7 @@ import {tooltipClassNames, type TooltipPlacement} from './tooltip';
 export type ChipTone =
   'neutral' | 'info' | 'success' | 'accent' | 'warning' | 'danger';
 export type ChipVariant = 'tonal' | 'outlined';
-export type ChipSize = 'xs' | 'sm' | 'md';
+export type ChipSize = 'xs' | 'sm' | 'md' | 'lg';
 // `tag` is for metadata on cards (dates, durations, scores), which reads
 // as labels rather than as pills.
 export type ChipShape = 'pill' | 'tag';
@@ -33,12 +33,15 @@ const SIZE_CLASSES: Record<ChipSize, string> = {
   xs: 'min-h-[1.45rem] gap-1 px-2 text-[0.6875rem] font-medium',
   sm: 'h-[1.7rem] gap-1 px-2.5 text-[0.72rem] font-semibold',
   md: 'h-7 gap-1 px-3 text-[0.8rem] font-medium',
+  // Matches a small Button, so a status label lines up with header actions.
+  lg: 'h-[2.35rem] gap-2 px-3 text-[0.875rem] font-semibold',
 };
 
 const ICON_CLASSES: Record<ChipSize, string> = {
   xs: 'text-[0.8rem]',
   sm: 'text-[0.95rem]',
   md: 'text-[1rem]',
+  lg: 'text-[1.05rem]',
 };
 
 export interface ChipStyle {
