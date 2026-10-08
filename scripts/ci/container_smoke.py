@@ -1,5 +1,6 @@
 import argparse
 import subprocess
+import sys
 import time
 import uuid
 
@@ -62,6 +63,15 @@ def wait_ready(
         raise
 
 
+def launch_container(name: str, args: list[str]) -> None:
+    try:
+        docker(*args)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        print(error.stderr or str(error), file=sys.stderr)
+        docker("logs", name, capture=False, check=False)
+        raise
+
+
 def smoke(api_image: str, mcp_image: str) -> None:
     prefix = f"coscientist-smoke-{uuid.uuid4().hex[:12]}"
     volume = f"{prefix}-data"
@@ -90,7 +100,7 @@ def smoke(api_image: str, mcp_image: str) -> None:
                         f"type=volume,src={volume},dst=/app/data,volume-nocopy",
                     ]
                 args.append(api_image)
-                docker(*args)
+                launch_container(name, args)
                 wait_ready(name, "/health", 8008, 60)
             else:
                 args += [
@@ -98,7 +108,7 @@ def smoke(api_image: str, mcp_image: str) -> None:
                     "COSCIENTIST_MCP_SHARED_SECRET=ci-smoke-test-placeholder",
                     mcp_image,
                 ]
-                docker(*args)
+                launch_container(name, args)
                 wait_ready(name, "/", 8888, 60, "[::1]")
     finally:
         for name in names:
