@@ -93,10 +93,10 @@ def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> Res
 
 def _reported_tokens(response: Any) -> int | None:
     usage = getattr(response, "usage", None)
-    counts = [getattr(usage, name, None) for name in ("prompt_tokens", "completion_tokens")]
-    if not all(type(value) is int and value >= 0 for value in counts):
+    prompt = getattr(usage, "prompt_tokens", None)
+    completion = getattr(usage, "completion_tokens", None)
+    if type(prompt) is not int or type(completion) is not int or min(prompt, completion) < 0:
         return None
-    prompt, completion = counts
     details = getattr(usage, "completion_tokens_details", None)
     reasoning = getattr(details, "reasoning_tokens", None)
     # Completion normally includes reasoning; a provider reporting more
