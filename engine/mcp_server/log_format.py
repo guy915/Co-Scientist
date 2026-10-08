@@ -2,6 +2,8 @@ import json
 import logging
 import sys
 
+from mcp_server.framework_log_privacy import FrameworkLogPrivacy, install_framework_log_privacy
+
 # Uvicorn and FastMCP install their own stderr handlers, which the host files
 # at error severity line by line; route them through root's JSON stdout
 # handler, where the transport privacy filter also sees every record.
@@ -29,9 +31,11 @@ def configure_json_logging() -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler._mcp_json_handler = True  # type: ignore[attr-defined]
     handler.setFormatter(JsonFormatter())
+    handler.addFilter(FrameworkLogPrivacy())
     root.addHandler(handler)
     root.setLevel(logging.INFO)
     logging.captureWarnings(True)
+    install_framework_log_privacy()
 
 
 def route_library_loggers() -> None:
