@@ -13,7 +13,7 @@ from opentelemetry import trace
 from co_scientist.core._context import _bind_contextvar
 from co_scientist.core.metrics import ModelCallStats
 from co_scientist.platform.llm.profile import MODEL_PRICING, estimate_cost_usd
-from co_scientist.platform.llm.request.response import extract_token_usage
+from co_scientist.platform.llm.request.response import extract_token_usage, is_model_refusal
 from co_scientist.platform.llm.roles import current_call_type_id
 from co_scientist.platform.telemetry.tracing import current_span, mark_error, tracer
 
@@ -38,6 +38,7 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
         reasoning_tokens=a.reasoning_tokens + b.reasoning_tokens,
         cached_prompt_tokens=(a.cached_prompt_tokens + b.cached_prompt_tokens),
         cache_write_tokens=a.cache_write_tokens + b.cache_write_tokens,
+        refusals=a.refusals + b.refusals,
         cost_usd=a.cost_usd + b.cost_usd,
         latency_seconds=a.latency_seconds + b.latency_seconds,
         retries=a.retries + b.retries,
@@ -116,7 +117,9 @@ def _has_token_counts(response: Any) -> bool:
     )
 
 
-def record_completion_response(model_name: str, response: Any, latency_seconds: float) -> None:
+def record_completion_response(
+    model_name: str, response: Any, latency_seconds: float, *, refused: bool | None = None
+) -> None:
     """Attribute spend to the served fallback, not the requested primary."""
     usage = extract_token_usage(response)
     reported = getattr(response, "model", None)
@@ -143,6 +146,7 @@ def record_completion_response(model_name: str, response: Any, latency_seconds: 
             reasoning_tokens=usage.reasoning_tokens,
             cached_prompt_tokens=usage.cached_prompt_tokens,
             cache_write_tokens=usage.cache_write_tokens,
+            refusals=int(is_model_refusal(response) if refused is None else refused),
             cost_usd=cost,
             latency_seconds=latency_seconds,
         ),
@@ -150,12 +154,13 @@ def record_completion_response(model_name: str, response: Any, latency_seconds: 
 
 
 def record_completion_failure(
-    model_name: str, error: BaseException, latency_seconds: float
+    model_name: str, error: BaseException, latency_seconds: float, *, refused: bool = False
 ) -> None:
     record_call(
         model_name,
         ModelCallStats(
             calls=1,
+            refusals=int(refused),
             requested_models={model_name: 1},
             latency_seconds=latency_seconds,
             errors={type(error).__name__: 1},
@@ -224,7 +229,9 @@ def start_request_span(model_name: str, completion_args: dict[str, Any]) -> trac
     )
 
 
-def end_request_span(span: trace.Span, response: Any, error: BaseException | None) -> None:
+def end_request_span(
+    span: trace.Span, response: Any, error: BaseException | None, *, refused: bool | None = None
+) -> None:
     if error is not None:
         mark_error(span, error)
     elif response is not None:
@@ -237,4 +244,8 @@ def end_request_span(span: trace.Span, response: Any, error: BaseException | Non
         span.set_attribute("co_scientist.llm.reasoning_tokens", usage.reasoning_tokens)
         span.set_attribute("co_scientist.llm.cached_prompt_tokens", usage.cached_prompt_tokens)
         span.set_attribute("co_scientist.llm.cache_write_tokens", usage.cache_write_tokens)
+    span.set_attribute(
+        "co_scientist.llm.refusal",
+        int(is_model_refusal(response) if refused is None else refused),
+    )
     span.end()
