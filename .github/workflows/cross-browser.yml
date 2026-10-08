@@ -56,9 +56,11 @@ jobs:
           echo "$RUNNER_TEMP/ci-tools" >> "$GITHUB_PATH"
           test "$("$RUNNER_TEMP/ci-tools/bun" --version)" = '1.3.14'
       - name: Build backend venv and frontend dependencies
-        env:
-          VIRTUAL_ENV: ${{ github.workspace }}/.venv
-        run: make setup PIP="uv pip"
+        run: |
+          uv venv --python "$(command -v python)" --no-python-downloads .venv
+          uv pip install --python .venv/bin/python -e "engine[dev]"
+          cd app/frontend
+          bun install --frozen-lockfile
       - name: Install frozen browser test dependencies
         working-directory: e2e
         run: bun install --frozen-lockfile
