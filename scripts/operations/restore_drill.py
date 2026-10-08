@@ -80,7 +80,7 @@ def run(litestream: Path, scratch: Path) -> dict[str, str | float | bool]:
     first = refresh(
         str(litestream), str(configuration), source, environment=environment
     )
-    # Simulate an idle restore base old enough for the owner's30-day R2 rule,
+    # Simulate an idle restore base old enough for the owner's 30-day R2 rule,
     # exclusively on a synthetic local file replica. No source DB write.
     snapshots = list((replica / "ltx" / "9").glob("*.ltx"))
     assert len(snapshots) == 1, "Expected one complete synthetic snapshot"

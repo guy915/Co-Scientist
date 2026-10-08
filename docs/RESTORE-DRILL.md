@@ -84,8 +84,8 @@ The expanded drill on 8 October 2026 exited **0** with Litestream 0.5.17.
 Both forced uploads used transaction ID `0000000000000001`; no application
 data changed between them. The deliberately 31-day-old complete local base
 was reuploaded and selected for an integrity-checked restore. The second
-force/upload/verification took **0.219 seconds**, final restore **0.123 seconds**,
-and restore through healthy offline API **4.226 seconds**. The marker and
+force/upload/verification took **0.092 seconds**, final restore **0.033 seconds**,
+and restore through healthy offline API **3.838 seconds**. The marker and
 integrity survived startup/shutdown. This remains synthetic local evidence,
 not a measurement or assertion about the owner's R2 account.
 
