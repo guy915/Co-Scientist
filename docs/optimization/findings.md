@@ -234,6 +234,38 @@ cost:
   reasoning into the answer, so 24 claim batches failed to parse, and none of
   62 claims was supported.
 
+## Final check
+
+One Express and one Standard run on `main` at `8a5ac77`, 8 October, after the
+daily request reset. `main` had also taken the re-architecture and security
+work since the baselines, so the runs measure `main`, not this campaign alone.
+
+| | Express r1 / r2 | Final Express | Standard | Final Standard |
+|---|---|---|---|---|
+| Run | [37540122229](https://github.com/guy915/Co-Scientist/actions/runs/37540122229) / [37558737903](https://github.com/guy915/Co-Scientist/actions/runs/37558737903) | [37705964215](https://github.com/guy915/Co-Scientist/actions/runs/37705964215) | [37558735897](https://github.com/guy915/Co-Scientist/actions/runs/37558735897) | [37705966910](https://github.com/guy915/Co-Scientist/actions/runs/37705966910) |
+| Completed | yes / yes | yes | yes | no, stopped by local admission |
+| Wall time | 49.5 / 92.3 min | 70.5 min | 157.1 min | 136.4 min |
+| Physical calls | 86 / 150 | 105 | 343 | 303 |
+| Ideas | 4 / 7 | 5 | 19 | 0 |
+| Unsupported claim rate | 0.64 / 0.76 | 0.91 (4 of 43 supported) | 0.84 | none assessed |
+| Refused OpenAlex searches | 0 / 186 | 1 | 402 | 7 |
+
+The literature keys (M14) are now set: refused searches fell from hundreds to
+single digits. The Express run is within the baselines' wall-time range, but
+its unsupported claim rate is above it; one run cannot separate noise from
+the changes `main` took since the baselines.
+
+M16: the Standard run stopped at 2 h 16 min with "daily provider admission
+exhausted". The security campaign's per-client provider ceiling (SR-01,
+`provider_client_tokens_per_day`, 16M) reserves each call's prompt bytes plus
+its whole output cap before dispatch. The run's database shows 305 calls
+reserving 15.8M tokens, while the calls used 3.7M (2.3M prompt, 1.4M
+completion), a 4.3× over-reservation. The Standard baseline used 5.5M tokens,
+about 24M reserved, so no Standard run on `main` can now finish in the
+benchmark, nor in production unless its environment raises the ceiling. Raising the ceiling or reserving
+closer to the expected output is the security campaign's decision (posted
+on board #238).
+
 ## Not worth the risk
 
 | # | Change | Why not |
