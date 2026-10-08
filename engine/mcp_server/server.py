@@ -12,6 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 
+from mcp_server.log_format import configure_json_logging, route_library_loggers
+
+configure_json_logging()
+
 # Load the server's co-located .env before importing tools that read it.
 # Deployments can also supply these variables directly.
 logger = logging.getLogger(__name__)
@@ -20,17 +24,12 @@ if env_path.exists():
     load_dotenv(dotenv_path=env_path)
     logger.info("Loaded environment from %s", env_path)
 else:
-    logger.warning(".env file not found at %s - using system environment only", env_path)
+    logger.info("No .env file at %s; using the process environment", env_path)
 
 configured_log_level = (
     os.environ.get("COSCIENTIST_MCP_LOG_LEVEL") or os.environ.get("LOG_LEVEL", "INFO")
 ).upper()
 log_level = getattr(logging, configured_log_level, logging.INFO)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 
 # Only this package's logger honors the configured LOG_LEVEL; third-party
 # libraries stay at the INFO default set above.
@@ -213,6 +212,7 @@ async def root() -> JSONResponse:
 
 # Mount after root so health JSON wins before the catch-all MCP application.
 app.mount("/", mcp_http_app)
+route_library_loggers()
 
 if __name__ == "__main__":
     port = int(os.environ.get("COSCIENTIST_MCP_PORT", 8888))

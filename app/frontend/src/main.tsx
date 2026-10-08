@@ -7,6 +7,7 @@ import './styles/shell_surface.css';
 import './styles/home_surface.css';
 import './styles/home_landing.css';
 import './styles/tooltips.css';
+import './styles/boot_skeleton.css';
 import './shared/ui/motion.css';
 import {
   installDiagnosticLogging,
