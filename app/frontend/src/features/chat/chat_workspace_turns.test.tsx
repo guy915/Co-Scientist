@@ -75,7 +75,7 @@ async function openInterview() {
   apiMock.createInterview.mockResolvedValue(activeInterview());
   renderWorkspace();
   send(GOAL);
-  await screen.findByText(QUESTION);
+  await screen.findByText(QUESTION, {selector: '.reference-model-bubble *'});
 }
 
 beforeEach(() => {
@@ -171,7 +171,9 @@ it('streams the interview reply and its reasoning live, then settles on the save
 
   finish(activeInterview());
 
-  expect(await screen.findByText(QUESTION)).toBeInTheDocument();
+  expect(
+    await screen.findByText(QUESTION, {selector: '.reference-model-bubble *'}),
+  ).toBeInTheDocument();
   expect(screen.queryByText('Ask about the mechanism.')).toBeNull();
 });
 

@@ -14,6 +14,7 @@ import {
   StartedSessionCard,
 } from './chat_timeline_run_spec_card';
 import {runPath} from '@/shared/lib/routes';
+import {SettledReply} from '@/shared/ui/settled_reply';
 
 export interface TimelineItem {
   id: string;
@@ -66,23 +67,53 @@ function latestMessageTime(messages: ChatEntry[]): number {
   return ats.length ? ats[ats.length - 1] : -Infinity;
 }
 
+// Draft/confirmed plans carry the interview's closing reply rather than a
+// separate bubble. Choose the latest durable prose; never use stream drafts
+// or reasoning. A fixed-id region survives transcript snapshot replacement.
+function settledReplyProps(args: BuildTimelineItemsArgs) {
+  const assistant = [...args.messages]
+    .reverse()
+    .find(message => message.role === 'assistant');
+  const started = args.startedSession;
+  const stage = args.draft ?? args.confirmed;
+  // Durable Q&A follows the started card even when server and client clocks
+  // disagree. Transcript order, not timestamps, determines the latest reply.
+  const reply =
+    assistant && assistant.turnId === undefined
+      ? assistant.content
+      : started
+        ? started.announcing
+          ? ''
+          : `Research started. ${started.intro ?? ''}`.trim()
+        : (stage?.intro ?? assistant?.content ?? '');
+  const revision =
+    assistant && assistant.turnId === undefined
+      ? `qa:${assistant.messageId}`
+      : started
+        ? `started:${started.id}`
+        : stage
+          ? `plan:${stage.turnId ?? stage.createdAt}`
+          : assistant
+            ? `message:${assistant.id}`
+            : '';
+  return {
+    busy:
+      args.isAwaitingAgent || args.isStarting || Boolean(started?.announcing),
+    reply,
+    revision: `${revision}:${reply}`,
+  };
+}
+
 // Setup turns lock after start; durable Q&A turns rewind their own transcript.
-function messageTimelineItems({
-  messages,
-  handleEditMessage,
-  handleCopyRequest,
-  handleRetryMessage,
-  isAwaitingAgent,
-  startedSession,
-}: Pick<
-  BuildTimelineItemsArgs,
-  | 'messages'
-  | 'handleEditMessage'
-  | 'handleCopyRequest'
-  | 'handleRetryMessage'
-  | 'isAwaitingAgent'
-  | 'startedSession'
->): TimelineItem[] {
+function messageTimelineItems(args: BuildTimelineItemsArgs): TimelineItem[] {
+  const {
+    messages,
+    handleEditMessage,
+    handleCopyRequest,
+    handleRetryMessage,
+    isAwaitingAgent,
+    startedSession,
+  } = args;
   const revisable = !isAwaitingAgent;
   const ats = monotonicMessageTimes(messages);
   return messages.map((message, index) => ({
@@ -385,5 +416,14 @@ export function buildTimelineItems(
     ...startedTimelineItems(args),
   ];
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
-  return timelineItems;
+  if (!timelineItems.length) return timelineItems;
+  return [
+    {
+      id: 'settled-reply',
+      at: -Infinity,
+      order: -1,
+      node: <SettledReply {...settledReplyProps(args)} />,
+    },
+    ...timelineItems,
+  ];
 }
