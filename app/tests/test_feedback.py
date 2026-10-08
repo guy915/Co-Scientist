@@ -9,7 +9,7 @@ PAYLOAD = {
     "category": "Bug",
     "message": "The plan did not load.",
     "diagnostics": ("=== SESSION DETAILS ===\n=== STATS ===\n=== LOGS (JSON) ===\n[]"),
-    "url": "https://ai-co-scientist.com/chats/private-chat",
+    "url": "https://open-coscientist.com/chats/private-chat",
     "run_id": "reported-context",
 }
 

@@ -10,12 +10,12 @@ import {fileURLToPath} from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.resolve(root, process.env.COSCI_FRONTEND_DIST || "dist");
 const baseHtml = await readFile(path.join(dist, "index.html"), "utf8");
-const origin = "https://ai-co-scientist.com";
+const origin = "https://open-coscientist.com";
 
 const routes = [
   {
     path: "/",
-    title: "AI Co-Scientist",
+    title: "Open Co-Scientist",
     description:
       "Generate, evaluate, and rank research hypotheses with a team of agents.",
     heading: "Drive novel scientific discovery with Co-Scientist.",
@@ -24,17 +24,17 @@ const routes = [
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
-        name: "AI Co-Scientist",
-        url: "https://ai-co-scientist.com/",
+        name: "Open Co-Scientist",
+        url: "https://open-coscientist.com",
         description: "A multi-agent research workspace.",
       },
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        name: "AI Co-Scientist",
+        name: "Open Co-Scientist",
         applicationCategory: "ResearchApplication",
         operatingSystem: "Web",
-        url: "https://ai-co-scientist.com/",
+        url: "https://open-coscientist.com",
         description:
           "A multi-agent workspace that generates, reviews, ranks, and synthesizes research hypotheses.",
         isAccessibleForFree: true,
@@ -52,7 +52,7 @@ function escapeHtml(value) {
 }
 
 function renderRoute(route) {
-  const canonical = `${origin}${route.path}`;
+  const canonical = `${origin}${route.path === "/" ? "" : route.path.replace(/\/$/, "")}`;
   const jsonLd = JSON.stringify(route.jsonLd).replaceAll("</", "<\\/");
   return baseHtml
     .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(route.title)}</title>`)
@@ -104,7 +104,7 @@ for (const route of routes) {
 const notFoundHtml = baseHtml
   .replace(
     /<title>.*?<\/title>/,
-    "<title>Page not found - AI Co-Scientist</title>",
+    "<title>Page not found - Open Co-Scientist</title>",
   )
   .replace(
     /<meta name="description" content=".*?" \/>/,
@@ -120,7 +120,7 @@ const notFoundHtml = baseHtml
   )
   .replace(
     /<meta property="og:title" content=".*?" \/>/,
-    '<meta property="og:title" content="Page not found - AI Co-Scientist" />',
+    '<meta property="og:title" content="Page not found - Open Co-Scientist" />',
   )
   .replace(
     /<meta property="og:description" content=".*?" \/>/,
@@ -128,7 +128,7 @@ const notFoundHtml = baseHtml
   )
   .replace(
     /<meta name="twitter:title" content=".*?" \/>/,
-    '<meta name="twitter:title" content="Page not found - AI Co-Scientist" />',
+    '<meta name="twitter:title" content="Page not found - Open Co-Scientist" />',
   )
   .replace(
     /<meta name="twitter:description" content=".*?" \/>/,

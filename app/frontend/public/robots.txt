@@ -7,4 +7,4 @@ Allow: /
 User-agent: GPTBot
 Allow: /
 
-Sitemap: https://ai-co-scientist.com/sitemap.xml
+Sitemap: https://open-coscientist.com/sitemap.xml
