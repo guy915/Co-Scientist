@@ -3,7 +3,6 @@
 import platform
 import subprocess
 import sys
-from pathlib import Path
 
 from co_scientist.platform.sandbox import read_only, seatbelt
 from co_scientist.platform.sandbox.policy import runtime_read_roots
@@ -26,29 +25,6 @@ def main() -> None:
     command = ["/bin/echo", "sandbox-runtime-probe"]
     probe("unconfined positive control", command)
     probe("shipped baseline", seatbelt.wrap_argv(command, read_only()))
-    library = Path("/System/Library")
-    cryptex = Path("/System/Volumes/Preboot/Cryptexes/OS/System/Library")
-    print(
-        f"System library exists={library.exists()}, Cryptex library exists={cryptex.exists()}"
-    )
-    probe("system library read only", seatbelt.wrap_argv(command, read_only(library)))
-    probe(
-        "system and Cryptex libraries read only",
-        seatbelt.wrap_argv(command, read_only(library, cryptex)),
-    )
-    root = '(allow file-read* (literal "/"))'
-    sysctls = (
-        '(allow sysctl-read (sysctl-name "security.mac.lockdown_mode_state") '
-        '(sysctl-name "kern.bootargs"))'
-    )
-    for label, addition in (
-        ("root directory only", root),
-        ("startup sysctls only", sysctls),
-        ("root directory and startup sysctls", root + "\n" + sysctls),
-    ):
-        wrapped = seatbelt.wrap_argv(command, read_only())
-        wrapped[wrapped.index("-p") + 1] += "\n" + addition
-        probe(label, wrapped)
     logs = subprocess.run(
         [
             "/usr/bin/log",
