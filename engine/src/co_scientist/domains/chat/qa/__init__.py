@@ -80,7 +80,7 @@ async def _stream_completion(
 ) -> AsyncGenerator[tuple[str, str], None]:
     import co_scientist.platform.llm.llm_request as llm_request
 
-    response = await llm_request.acompletion(**request)
+    response = await llm_request.acompletion(call_role="chat", **request)
     async for chunk in stream_chunks(
         response,
         stall_seconds=_QA_STALL_SECONDS,

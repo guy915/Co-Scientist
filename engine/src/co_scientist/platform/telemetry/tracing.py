@@ -4,15 +4,20 @@ and attributes are an operator contract, and never carry prompt or user text.
 
 from __future__ import annotations
 
+import builtins
 import contextlib
 import logging
 import os
 import re
-from collections.abc import Iterator
-from typing import Any, Final, Protocol
+from collections.abc import Iterator, Sequence
+from typing import TYPE_CHECKING, Any, Final, Protocol
 from urllib.parse import unquote
 
 from opentelemetry import trace
+
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace import ReadableSpan
+    from opentelemetry.sdk.trace.export import SpanExporter
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +89,7 @@ def configure_tracing() -> bool:
 
     service = os.environ.get("OTEL_SERVICE_NAME") or _DEFAULT_SERVICE_NAME
     provider = TracerProvider(resource=Resource.create({SERVICE_NAME: service}))
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    provider.add_span_processor(BatchSpanProcessor(private_exporter(OTLPSpanExporter())))
     _provider = provider
     logger.info("tracing enabled for service %s", service)
     return True
@@ -104,11 +109,31 @@ def current_trace_id() -> str | None:
     return trace.format_trace_id(context.trace_id)
 
 
+_ERROR_TYPES = frozenset(
+    name
+    for name, value in vars(builtins).items()
+    if isinstance(value, type) and issubclass(value, BaseException)
+) | frozenset(
+    {
+        "ContextWindowExceededError",
+        "RateLimitError",
+        "AuthenticationError",
+        "BadRequestError",
+        "APIConnectionError",
+        "BudgetExceededError",
+    }
+)
+
+
+def private_error_type(value: Any) -> str:
+    return value if isinstance(value, str) and value in _ERROR_TYPES else "Exception"
+
+
 def mark_error(span: trace.Span, error: BaseException) -> None:
     """Exception messages can quote provider or user text; record the type
     only.
     """
-    span.set_attribute("error.type", type(error).__name__)
+    span.set_attribute("error.type", private_error_type(type(error).__name__))
     span.set_status(trace.StatusCode.ERROR)
 
 
@@ -129,3 +154,96 @@ def current_span(
         except BaseException as error:
             mark_error(span, error)
             raise
+
+
+_NUMERIC_ATTRIBUTES = frozenset(
+    {
+        "http.response.status_code",
+        "gen_ai.request.max_tokens",
+        "gen_ai.usage.input_tokens",
+        "gen_ai.usage.output_tokens",
+        "co_scientist.llm.reasoning_tokens",
+        "co_scientist.llm.cached_prompt_tokens",
+        "co_scientist.llm.attempt",
+        "co_scientist.task.attempt",
+    }
+)
+_ID_ATTRIBUTES = frozenset({"co_scientist.run_id", "co_scientist.task.id"})
+_METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
+_SPAN_NAMES = frozenset(
+    {"task.execute", "llm.call_llm", "llm.call_llm_json", "llm.call_llm_stream", "llm.attempt"}
+)
+
+
+def _private_span(span: ReadableSpan) -> ReadableSpan:
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import ReadableSpan
+
+    attributes: dict[str, Any] = {}
+    for key, value in (span.attributes or {}).items():
+        if (
+            key in _NUMERIC_ATTRIBUTES
+            and isinstance(value, int)
+            and not isinstance(value, bool)
+            and value >= 0
+        ) or (
+            key in _ID_ATTRIBUTES
+            and isinstance(value, str)
+            and re.fullmatch(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}", value)
+        ):
+            attributes[key] = value
+        elif key in {"error.type", "co_scientist.llm.retry_reason"}:
+            attributes[key] = private_error_type(value)
+        elif (
+            (key == "http.request.method" and isinstance(value, str) and value in _METHODS)
+            or (key == "gen_ai.operation.name" and value == "chat")
+            or (
+                key == "co_scientist.task.outcome"
+                and isinstance(value, str)
+                and value
+                in {
+                    "completed",
+                    "cancelled",
+                    "failed",
+                    "lease_lost",
+                    "retry_scheduled",
+                    "expired",
+                    "skipped",
+                }
+            )
+        ):
+            attributes[key] = value
+    name = span.name if span.name in _SPAN_NAMES else "operation"
+    if span.name.startswith("chat "):
+        name = "llm.request"
+    elif "http.request.method" in attributes:
+        name = "HTTP " + attributes["http.request.method"]
+    # Custom model IDs, response.model and SDK resource/event fields can echo
+    # private text. The final boundary accepts fixed classifications only.
+    return ReadableSpan(
+        name=name,
+        context=span.context,
+        parent=span.parent,
+        resource=Resource({"service.name": _DEFAULT_SERVICE_NAME}),
+        attributes=attributes,
+        kind=span.kind,
+        status=trace.Status(span.status.status_code),
+        start_time=span.start_time,
+        end_time=span.end_time,
+    )
+
+
+def private_exporter(delegate: SpanExporter) -> SpanExporter:
+    from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+    class PrivateExporter(SpanExporter):
+        def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+            return delegate.export(tuple(_private_span(span) for span in spans))
+
+        def shutdown(self) -> None:
+            delegate.shutdown()
+
+        def force_flush(self, timeout_millis: int = 30000) -> bool:
+            return delegate.force_flush(timeout_millis)
+
+    return PrivateExporter()

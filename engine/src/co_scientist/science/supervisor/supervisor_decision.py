@@ -273,6 +273,7 @@ async def _call_supervisor_planner(
     response = await call_llm_json(
         prompt=_planning_prompt(state, stats, budget),
         spec=CompletionSpec(
+            role="orchestrator",
             model_name=state["model_name"],
             temperature=MEDIUM_TEMPERATURE,
             json_schema=_DECISION_SCHEMA,
