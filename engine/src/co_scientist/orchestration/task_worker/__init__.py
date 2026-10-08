@@ -5,10 +5,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
+import threading
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core import inflight
 from co_scientist.core.config import settings
 from co_scientist.orchestration import engine_tasks
 from co_scientist.orchestration.notifications import deliver_completion_notification
@@ -38,6 +42,17 @@ from co_scientist.platform.telemetry.tracing import current_span
 logger = logging.getLogger(__name__)
 
 _EMAIL_TASK = "notification.email"
+
+# Pids repeat across containers on one volume; the boot tag keeps this
+# process's leases apart from a previous container's at shutdown release.
+_PROCESS_TAG = f"{os.getpid()}.{uuid.uuid4().hex[:8]}"
+_process_worker_ids: set[str] = set()
+_process_worker_ids_lock = threading.Lock()
+
+
+def process_worker_ids() -> frozenset[str]:
+    with _process_worker_ids_lock:
+        return frozenset(_process_worker_ids)
 
 
 @dataclass(frozen=True)
@@ -94,7 +109,8 @@ async def _execute_until_lease_lost(
     """Lease revocation cancels in-flight provider and retrieval work
     instead of spending compute until natural completion.
     """
-    execution = asyncio.create_task(_execute_task_payload(task, db_path=db_path))
+    with inflight.task_scope(task.id):
+        execution = asyncio.create_task(_execute_task_payload(task, db_path=db_path))
     ownership = asyncio.create_task(lease_lost.wait())
     try:
         done, _ = await asyncio.wait({execution, ownership}, return_when=asyncio.FIRST_COMPLETED)
@@ -199,6 +215,8 @@ async def run_once(
     db_path: str | None = None,
     lease_seconds: float = 300.0,
 ) -> bool:
+    if inflight.shutting_down():
+        return False
     task = tasks.claim_task(
         worker_id,
         lease_seconds=lease_seconds,
@@ -206,6 +224,10 @@ async def run_once(
         db_path=db_path,
     )
     if task is None:
+        return False
+    if inflight.shutting_down():
+        # This claim may have committed after the shutdown release ran.
+        store.release_owned_leases([worker_id], db_path=db_path)
         return False
     await _run_claimed_task(task, worker_id, db_path=db_path, lease_seconds=lease_seconds)
     return True
@@ -237,6 +259,8 @@ async def _cohort_worker_step(
     """Keep workers alive for sibling leases and future-due queued work;
     read-only existence probes avoid growing per-tick row decoding.
     """
+    if inflight.shutting_down():
+        return False
     db_path = policy.db_path
     claimable, active_lease, parked_until = store.cohort_poll(run_id, db_path=db_path)
     if claimable and await run_once(
@@ -288,7 +312,9 @@ async def run_run_worker_pool(
         raise ValueError("worker_count must be positive")
 
     async def _worker(index: int) -> None:
-        worker_id = f"{worker_prefix}:{index}"
+        worker_id = f"{worker_prefix}.{_PROCESS_TAG}:{index}"
+        with _process_worker_ids_lock:
+            _process_worker_ids.add(worker_id)
         while await _cohort_worker_step(run_id, worker_id, policy):
             continue
 
