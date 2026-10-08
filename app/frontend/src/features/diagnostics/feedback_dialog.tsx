@@ -41,9 +41,10 @@ export function FeedbackControl({runId}: {runId?: string}) {
         aria-label="Feedback"
         aria-haspopup="dialog"
         aria-expanded={open}
+        layoutClassName="ucs-feedback-control"
         onClick={() => setOpen(current => !current)}
       >
-        <span>Feedback</span>
+        <span className="phone:hidden">Feedback</span>
       </Button>
       <Dialog
         open={open}

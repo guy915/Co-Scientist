@@ -16,7 +16,6 @@ section below says so.
 | `codeql.yml` | Pull request, merge group, push, weekly cron, manual | CodeQL static analysis |
 | `dependency-audit.yml` | Weekly cron, manual | `make audit-deps` against the hash-pinned runtime locks and the Bun locks; online, so not a gate |
 | `benchmark.yml` | Manual | Live quality benchmark using the `OPENROUTER_API_KEY` repository secret; never gates a change. See [Quality benchmark](../evaluations/README.md#quality-benchmark) |
-| `decision-bakeoff.yml` | Manual | Live provider evaluation of the decision sites over recorded Benchmark runs; opt-in, no gate |
 | `prune-branches.yml` | Manual | Deletes branches with no open pull request and no recent commit (`min_age_hours`, default 24; `dry_run` available); `main` is never touched |
 
 ## `ci.yml` jobs
