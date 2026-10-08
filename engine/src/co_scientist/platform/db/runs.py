@@ -9,6 +9,7 @@ from typing import Any
 
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.admission import capacity_available
+from co_scientist.platform.db.llm_routes import release_forecast
 from co_scientist.platform.db.logs import count_logs_for_run, delete_logs_for_run
 from co_scientist.platform.db.models import (
     _ACTIVE_RUN_STATUSES,
@@ -265,6 +266,8 @@ def update_run_status(
             "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",
             (status.value, error, now, completed_at, run_id),
         )
+        if status in TERMINAL_STATUSES:
+            release_forecast(active, run_id)
 
 
 def update_run_status_if_current(
@@ -291,6 +294,8 @@ def update_run_status_if_current(
             *(item.value for item in expected_statuses),
         ),
     ).rowcount
+    if changed and status in TERMINAL_STATUSES:
+        release_forecast(conn, run_id)
     return bool(changed)
 
 

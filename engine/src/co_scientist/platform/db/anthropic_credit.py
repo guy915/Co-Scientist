@@ -8,6 +8,10 @@ from co_scientist.core.exceptions import ProviderAdmissionError
 UNAVAILABLE = "No model is available right now"
 
 
+class AnthropicCreditUnavailableError(ProviderAdmissionError):
+    pass
+
+
 @dataclass(frozen=True)
 class CreditReservation:
     cycle_start: float
@@ -46,7 +50,7 @@ def reserve_credit(
         or quote.input_bound <= 0
         or quote.output_bound <= 0
     ):
-        raise ProviderAdmissionError(UNAVAILABLE)
+        raise AnthropicCreditUnavailableError(UNAVAILABLE)
     # Unknown calls may finish in a later grant; their full reserve survives
     # the reset rather than making a second allowance for the same call.
     charged = conn.execute(
@@ -55,7 +59,7 @@ def reserve_credit(
         (quote.cycle_start,),
     ).fetchone()[0]
     if charged + quote.amount > quote.limit:
-        raise ProviderAdmissionError(UNAVAILABLE)
+        raise AnthropicCreditUnavailableError(UNAVAILABLE)
     conn.execute(
         "INSERT OR IGNORE INTO anthropic_credit_cycles (start,end) VALUES (?,?)",
         (quote.cycle_start, quote.cycle_end),

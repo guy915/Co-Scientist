@@ -63,11 +63,8 @@ ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
             "reflection",
             "review",
             "deep_verification",
-            "evidence_queries",
             "simulation",
             "evolution",
-            "grounding_queries",
-            "research_extract",
             "interview",
             "chat",
         ),
@@ -76,6 +73,9 @@ ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
     **dict.fromkeys(
         (
             "orchestrator",
+            "evidence_queries",
+            "grounding_queries",
+            "research_extract",
             "literature_queries",
             "literature_analysis",
             "drafting",

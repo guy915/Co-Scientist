@@ -12,7 +12,7 @@ from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.literature_review import PubmedSource
 from mcp_server.log_privacy import failure_summary
 from mcp_server.pubmed_client import search_with_relaxation
-from mcp_server.pubmed_records import parse_pubmed_record
+from mcp_server.pubmed_records import journal_article, parse_pubmed_record
 from mcp_server.pubmed_storage import confined_path, validate_cache_identifier
 from mcp_server.text_extraction import extract_text_from_pmc_html
 from mcp_server.tools._results import failed, keyed_records, non_raising, ok
@@ -96,12 +96,9 @@ def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
 
 def _fetch_pubmed_article(paper_id: str) -> Article | None:
     paper_results = read_entrez(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-    pubmed_articles = paper_results.get("PubmedArticle") or []
-    if not pubmed_articles:
-        # Book records (StatPearls, GeneReviews) arrive only as
-        # PubmedBookArticle and carry no journal metadata.
+    pubmed_article = journal_article(paper_results)
+    if pubmed_article is None:
         return None
-    pubmed_article = pubmed_articles[0]
     record = parse_pubmed_record(pubmed_article)
     return Article(
         title=record.title,
