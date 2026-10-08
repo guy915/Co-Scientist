@@ -35,9 +35,8 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 ```bash
 cd app
 
-# co-scientist-engine is not published to PyPI; install it from the
-# sibling checkout first, then install the app and its remaining deps.
-pip install -e ../engine
+# co-scientist-engine is not published to PyPI; this installs it editable
+# from the sibling checkout, with the server dependencies and dev tools.
 make install
 
 # Copy and edit the env file
@@ -45,21 +44,6 @@ cp .env.example .env   # leave keys empty for offline mode
 
 # Start the API server (hot-reload)
 make dev               # listens on :8008
-```
-
-**Backend (Pixi)**
-
-Requires [Pixi](https://pixi.sh/).
-
-```bash
-cd app
-
-# Install pixi if not already installed
-curl -fsSL https://pixi.sh/install.sh | bash
-
-pixi install
-cp .env.example .env   # leave keys empty for offline mode
-pixi run dev           # listens on :8008
 ```
 
 **Frontend**
@@ -183,17 +167,6 @@ make format      # ruff format
 make lint        # ruff check
 make typecheck   # mypy
 ```
-
-Pixi users can substitute `pixi run <task>` for any `make` target:
-
-| Task | `make` | `pixi run` |
-|---|---|---|
-| Install deps | `make install` | `pixi install` |
-| Run dev server | `make dev` | `pixi run dev` |
-| Run tests | `make test` | `pixi run test` |
-| Format | `make format` | `pixi run format` |
-| Lint | `make lint` | `pixi run lint` |
-| Type check | `make typecheck` | `pixi run typecheck` |
 
 **Frontend** (from `app/frontend/`):
 

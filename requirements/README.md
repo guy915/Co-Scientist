@@ -6,7 +6,7 @@ The production images install these Python 3.12/Linux runtime closures with
 
 | Lock | Inputs | Consumer |
 | --- | --- | --- |
-| `api.txt` | `engine/pyproject.toml`, `app/requirements-app.txt` | `Dockerfile.api` |
+| `api.txt` | `engine/pyproject.toml` | `Dockerfile.api` |
 | `mcp.txt` | `engine/mcp_server/pyproject.toml` | `Dockerfile.mcp` |
 | `skills.txt` | `skills.in` | API's isolated science-skills interpreter |
 
@@ -14,7 +14,7 @@ Regenerate from the repository root with [uv](https://docs.astral.sh/uv/)
 0.12.19 and review the version changes:
 
 ```bash
-uv pip compile engine/pyproject.toml app/requirements-app.txt --python-version 3.12 --python-platform linux --generate-hashes --no-emit-index-url -o requirements/api.txt
+uv pip compile engine/pyproject.toml --python-version 3.12 --python-platform linux --generate-hashes --no-emit-index-url -o requirements/api.txt
 uv pip compile engine/mcp_server/pyproject.toml --python-version 3.12 --python-platform linux --generate-hashes --no-emit-index-url -o requirements/mcp.txt
 uv pip compile requirements/skills.in --python-version 3.12 --python-platform linux --generate-hashes --no-emit-index-url -o requirements/skills.txt
 ```
