@@ -21,6 +21,7 @@ from co_scientist.platform.llm import (
 )
 from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.science.prompts import PromptRunContext, get_reflection_prompt
+from co_scientist.science.scheduling.funnel import finalists
 from co_scientist.science.schemas.review import (
     REFLECTION_MAX_POSITIVE_OBSERVATIONS,
 )
@@ -261,9 +262,11 @@ def _extract_reflection_inputs(
         logger.warning("No articles_with_reasoning in state, skipping reflection")
         return None
 
-    hypotheses = state.get("hypotheses", [])
+    # Observations are depth: only finalists without notes pay for them, so a
+    # first cycle, before any match, observes nothing.
+    hypotheses = [h for h in finalists(state) if not h.reflection_notes]
     if not hypotheses:
-        logger.warning("No hypotheses in state, skipping reflection")
+        logger.info("No finalist lacks observations, skipping reflection")
         return None
 
     return articles_with_reasoning, hypotheses
