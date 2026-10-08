@@ -239,7 +239,7 @@ scope. The numbered evidence manifest is the sole citation namespace.
 
 React 19, Vite 7, Tailwind v4 and Bun. `app/frontend/src/` is split into
 `app/` (shell, routes in `workbench_app.tsx`), `features/` (`chat`, `report`,
-`runs`, `access`, `diagnostics`) and `shared/` (`api`, `hooks`, `lib`, `ui`).
+`runs`, `access`, `diagnostics`, `legal`) and `shared/` (`api`, `hooks`, `lib`, `ui`).
 Wire types are generated from the backend contracts
 (`app/tests/test_architecture.py` checks they match).
 
