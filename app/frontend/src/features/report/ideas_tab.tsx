@@ -215,7 +215,7 @@ function IdeaRankHead({
   hypothesis: Hypothesis;
 }) {
   return (
-    <span className="idea-rank-head flex min-w-0 flex-nowrap items-center gap-2.5 overflow-hidden">
+    <span className="idea-rank-head flex min-w-0 flex-wrap items-center gap-2.5">
       <Chip
         tone="info"
         layoutClassName="idea-rank-number min-w-7 justify-center"
@@ -250,11 +250,11 @@ function IdeaRankHead({
         // is neither verified nor unverified.
         <Chip
           tone="neutral"
-          layoutClassName="idea-screened-chip"
+          layoutClassName="idea-screened-chip max-w-full !h-auto !whitespace-normal py-1"
           tooltip={SCREENED_TOOLTIP}
           aria-label={SCREENED_TOOLTIP}
         >
-          Screened
+          Screened, not deep-verified
         </Chip>
       ) : null}
     </span>
