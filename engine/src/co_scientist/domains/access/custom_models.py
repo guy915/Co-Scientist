@@ -64,7 +64,12 @@ def normalize_model_id(provider: str, requested: str) -> str:
 def _cache_key(provider: str, model: str, api_key: str) -> tuple[str, str, str]:
     # A per-process keyed digest scopes admission to the exact key without
     # retaining the credential in the cache.
-    fingerprint = hmac.new(_CACHE_SECRET, api_key.encode(), hashlib.sha256).hexdigest()
+    fingerprint = hmac.new(
+        _CACHE_SECRET,
+        api_key.encode(),
+        # codeql[py/weak-sensitive-data-hashing] Ephemeral HMAC cache partition, not password verification.
+        hashlib.sha256,
+    ).hexdigest()
     return provider, model, fingerprint
 
 
