@@ -80,3 +80,12 @@ preservation of unknown paid reservations. No live provider call is needed.
 
 Use the [incident playbooks](INCIDENTS.md), [exact web/app alerts](MONITORING.md#launch-alert-settings)
 and [local Litestream restore drill](RESTORE-DRILL.md) for recovery.
+
+The private operator read also returns whether Litestream replication is enabled
+and sanitized backup verification metadata: status, timestamps, transaction ID
+and duration. `/operations` shows the last verified time; missing metadata is
+unknown. A failed daily verification pauses new work without cancelling admitted
+work and never invents a return time. A later successful verification does not
+unpause. Follow the [backup playbook](INCIDENTS.md#backup-verification-failed-or-stale)
+and [verified idle refresh drill](RESTORE-DRILL.md#daily-idle-backup-proof).
+Public status never exposes backup metadata, paths or restored contents.

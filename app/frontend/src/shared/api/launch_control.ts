@@ -21,6 +21,17 @@ export interface LaunchControl {
     charged_and_reserved_microeur: number | null;
     total_microeur: number | null;
   };
+  backup?: {
+    enabled: boolean;
+    verification: {
+      status: 'verified' | 'failed';
+      verified_at?: number;
+      snapshot_at?: number;
+      failed_at?: number;
+      seconds?: number;
+      txid?: string;
+    } | null;
+  };
   cancelled_runs?: number;
 }
 
@@ -37,7 +48,10 @@ export function getLaunchControl(token: string): Promise<LaunchControl> {
 
 export function putLaunchControl(
   token: string,
-  control: Omit<LaunchControl, 'revision' | 'credit' | 'cancelled_runs'> & {
+  control: Omit<
+    LaunchControl,
+    'revision' | 'credit' | 'backup' | 'cancelled_runs'
+  > & {
     expected_revision: number;
   },
 ): Promise<LaunchControl> {

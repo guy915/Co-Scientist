@@ -1,27 +1,65 @@
 import { expect, test } from "../support/fixtures";
 
-test('operator applies the loaded revision and receives a conflict without storing the token', async ({page}) => {
+test("operator applies the loaded revision and receives a conflict without storing the token", async ({
+  page,
+}) => {
   let updates = 0;
-  const control = {paused: false, drain: false, message: 'Research is temporarily paused.', resumes_at: null, revision: 7};
-  await page.route('**/api/launch-control', async route => {
-    expect(route.request().headers()['x-logs-token']).toBe('synthetic-page-operator');
-    if (route.request().method() === 'GET') {
-      await route.fulfill({json: control});
+  const control = {
+    paused: false,
+    drain: false,
+    message: "Research is temporarily paused.",
+    resumes_at: null,
+    revision: 7,
+    backup: {
+      enabled: true,
+      verification: { status: "failed", verified_at: 1700000000 },
+    },
+  };
+  await page.route("**/api/launch-control", async (route) => {
+    expect(route.request().headers()["x-logs-token"]).toBe(
+      "synthetic-page-operator",
+    );
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: control });
     } else {
-      expect(route.request().postDataJSON()).toMatchObject({paused: true, drain: false, expected_revision: 7, resumes_at: null});
+      expect(route.request().postDataJSON()).toMatchObject({
+        paused: true,
+        drain: false,
+        expected_revision: 7,
+        resumes_at: null,
+      });
       updates++;
-      await route.fulfill({status: 409, json: {detail: 'Control changed; reload before updating'}});
+      await route.fulfill({
+        status: 409,
+        json: { detail: "Control changed; reload before updating" },
+      });
     }
   });
-  await page.goto('/operations');
-  await page.getByLabel('Operator token').fill('synthetic-page-operator');
-  await page.getByRole('button', {name: 'Load control'}).click();
-  await expect(page.getByText('Loaded revision 7.', {exact: true})).toBeVisible();
-  await page.getByLabel('Pause new work; let current work finish', {exact: true}).check();
-  await page.getByRole('button', {name: 'Apply control'}).click();
-  await expect(page.getByText('Control changed; reload before updating', {exact: true})).toBeVisible();
+  await page.goto("/operations");
+  await page.getByLabel("Operator token").fill("synthetic-page-operator");
+  await page.getByRole("button", { name: "Load control" }).click();
+  await expect(
+    page.getByText("Loaded revision 7.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/^Backups: failed\./)).toContainText(
+    "Verify recovery before resuming new work.",
+  );
+  await expect(page.getByText(/^Backups: failed\./)).not.toContainText(
+    "Last verified: unknown",
+  );
+  await page
+    .getByLabel("Pause new work; let current work finish", { exact: true })
+    .check();
+  await page.getByRole("button", { name: "Apply control" }).click();
+  await expect(
+    page.getByText("Control changed; reload before updating", { exact: true }),
+  ).toBeVisible();
   expect(updates).toBe(1);
-  expect(await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))).not.toContain('synthetic-page-operator');
+  expect(
+    await page.evaluate(
+      () => JSON.stringify(localStorage) + JSON.stringify(sessionStorage),
+    ),
+  ).not.toContain("synthetic-page-operator");
 });
 
 // Public presentation fixtures never mutate the shared browser server's
@@ -96,7 +134,7 @@ test("free-capacity notice explains a disabled start in both themes and widths",
     .fill("Which cellular mechanisms repair damaged mitochondria?");
   await page.getByRole("button", { name: "Send" }).click();
   const start = page.getByRole("button", { name: "Start research" });
-  const turns = page.getByRole("button", {name: "Copy response"});
+  const turns = page.getByRole("button", { name: "Copy response" });
   await expect(turns.first()).toBeVisible();
   for (let turn = 0; turn < 5; turn++) {
     if (await start.isVisible()) break;
@@ -109,7 +147,9 @@ test("free-capacity notice explains a disabled start in both themes and widths",
       );
     await page.getByRole("button", { name: "Send" }).click();
     await expect(async () => {
-      expect((await start.isVisible()) || (await turns.count()) > count).toBe(true);
+      expect((await start.isVisible()) || (await turns.count()) > count).toBe(
+        true,
+      );
     }).toPass();
   }
   await expect(start).toBeVisible();
