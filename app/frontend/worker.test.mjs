@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import worker from './worker.mjs';
 
@@ -38,4 +39,10 @@ test('deep links reload the workbench and missing bundles stay 404', async () =>
   );
   assert.equal(head.status, 200);
   assert.equal(await head.text(), '');
+});
+
+test('the worker is served only on its custom domain', () => {
+  const config = JSON.parse(readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8'));
+  assert.equal(config.workers_dev, false);
+  assert.equal(config.preview_urls, false);
 });

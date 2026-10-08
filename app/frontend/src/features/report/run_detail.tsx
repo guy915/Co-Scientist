@@ -22,13 +22,13 @@ import {
   ReportTabNav,
   ReportTitlebar,
   ReportUngroundedNotice,
-  RunDetailSkeleton,
   RunEndState,
   RunToast,
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
 import {joinClasses} from '@/shared/ui/classes';
+import {DocumentSkeleton} from '@/shared/ui';
 
 const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto phone:overflow-x-hidden';
@@ -157,7 +157,8 @@ function RunDetailBody({
   ideasViewKey,
   data,
 }: RunDetailBodyProps) {
-  if (isInitialLoading(data)) return <RunDetailSkeleton />;
+  if (isInitialLoading(data))
+    return <DocumentSkeleton label="Loading report…" />;
   const endState = terminalEndStateOf(data.run);
   if (endState) {
     return (

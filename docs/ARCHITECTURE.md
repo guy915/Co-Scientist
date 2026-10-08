@@ -85,7 +85,7 @@ co_scientist/
     llm/          request/ (wire policy, thinking), profile/ (ModelProfile),
                   structured/, tools/, admission/, attempts/, offline/,
                   provider_usage, llm_request, scoped_loop, tool_effects
-    sandbox/      confinement (landlock, seccomp, cgroups, seatbelt), runner,
+    sandbox/      confinement (landlock, seccomp, cgroups, seatbelt modules), runner,
                   workspace/, skills/, patch/
     db/           schema, models, runs, checkpoints, supervisor_plan,
                   admission, call_admission, storage_admission,
@@ -146,8 +146,9 @@ Events 1-2 come from the HTTP layer. Events 3-5 come from the worker:
 `safety.intake` is the `engine.bootstrap` task's first act
 (`orchestration/engine_tasks/inputs.py::_screen_bootstrap_intake`, which is
 also where the run flips to `running`), then one `scientific_task` per node
-commit. Events 6-11 come from the terminal `engine.finalize` task
-(`orchestration/engine_tasks/report_finalize.py::finalize_report`), which is
+commit. Events 6-11 come from the terminal `engine.finalize` task: 6-8 from
+`orchestration/engine_tasks/finalize.py::_finalize_stage_events` and 9-11
+from `orchestration/engine_tasks/report_finalize.py::finalize_report`. This is
 why the citation audit lands after `research_overview`. There is no
 `status (running)` event: the transition is a `runs` row update.
 
@@ -239,7 +240,7 @@ scope. The numbered evidence manifest is the sole citation namespace.
 
 ## Frontend
 
-React 19, Vite 7, Tailwind v4 and Bun. `app/frontend/src/` is split into
+React 19, Vite 8, Tailwind v4 and Bun. `app/frontend/src/` is split into
 `app/` (shell, routes in `workbench_app.tsx`), `features/` (`chat`, `report`,
 `runs`, `access`, `diagnostics`, `legal`) and `shared/` (`api`, `hooks`, `lib`, `ui`).
 Wire types are generated from the backend contracts
