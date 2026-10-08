@@ -14,7 +14,11 @@ from evaluations.paired_quality import load_pairs
 from evaluations.quality_goals import GOAL_VERSION, GOALS
 
 _MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
-_MEMBERS = {"receipt.json": 1024 * 1024, "snapshot.db": 64 * 1024 * 1024}
+_MEMBERS = {
+    "receipt.json": 1024 * 1024,
+    "snapshot.db": 64 * 1024 * 1024,
+    "snapshot.db-wal": 64 * 1024 * 1024,
+}
 
 
 def _extract(archive: Path, output: Path) -> dict[str, Any]:
@@ -25,6 +29,8 @@ def _extract(archive: Path, output: Path) -> dict[str, Any]:
             members = [
                 m for m in bundle.infolist() if m.filename in {name, f"benchmark-artifacts/{name}"}
             ]
+            if name.endswith("-wal") and not members:
+                continue
             if len(members) != 1 or members[0].file_size > limit:
                 raise ValueError(f"benchmark archive needs one bounded {name}")
             # Only these two members are read, then written under fixed local names.
@@ -47,6 +53,10 @@ def _validate_receipt(receipt: dict[str, Any], db: Path) -> dict[str, str]:
         or receipt["evaluation_identity"] != snapshot.identity
     ):
         raise ValueError("benchmark receipt differs from its database")
+    if snapshot.metrics["call_count_basis"] != "http_transport_attempts":
+        raise ValueError(
+            "benchmark needs a versioned HTTP attempt counter; legacy invocations are insufficient"
+        )
     if snapshot.metrics["tier"] != "express" or snapshot.metrics["backend"] != "real":
         raise ValueError("paired dispatch requires live Express artifacts")
     if receipt["offline_disclaimer"] is not None:
@@ -103,7 +113,9 @@ def prepare(archives: dict[str, list[Path]], output: Path) -> Path:
         )
         + "\n"
     )
-    load_pairs(manifest)
+    pairs = load_pairs(manifest)
+    if len({s.metrics["request_counter_sha256"] for pair in pairs for s in pair}) != 1:
+        raise ValueError("benchmark HTTP instrumentation differs; rerun both arms")
     return manifest
 
 

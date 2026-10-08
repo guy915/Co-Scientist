@@ -120,5 +120,5 @@ test('phones get the composer and compact feedback without landing', async ({
   await expect(
     header.getByRole('button', {name: 'Feedback', exact: true}),
   ).toBeInViewport();
-  await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
+  await expect(header.getByText('Open Co-Scientist', {exact: true})).toBeVisible();
 });
