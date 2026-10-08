@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sqlite3
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import Any
 
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
@@ -539,6 +539,47 @@ def park_task_for_rate_limit(
             (resume_at, attempts_json, reason, now, task_id, worker_id),
         ).rowcount
     return bool(changed)
+
+
+_SHUTDOWN_RELEASE_REASON = "lease released on graceful shutdown"
+
+
+def release_owned_leases(
+    worker_ids: Collection[str],
+    *,
+    keep_task_ids: Collection[str] = (),
+    db_path: str | None = None,
+) -> int:
+    """Return this process's engine leases to the queue at graceful shutdown
+    without spending an attempt, like a rate-limit park. Owner-fenced, so a
+    worker still running the task can no longer commit it.
+    """
+    if not worker_ids:
+        return 0
+    now = current_time()
+    owners = sorted(set(worker_ids))
+    placeholders = ",".join("?" for _ in owners)
+    released = 0
+    with transaction(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM scientific_tasks WHERE status='leased' "
+            f"AND substr(task_type,1,7)='engine.' AND lease_owner IN ({placeholders})",
+            owners,
+        ).fetchall()
+        for row in rows:
+            task = row_to_task(row)
+            if task.id in keep_task_ids:
+                continue
+            owner = str(task.lease_owner)
+            attempts_json = _record_failed_attempt(task, owner, _SHUTDOWN_RELEASE_REASON, True, now)
+            released += conn.execute(
+                "UPDATE scientific_tasks SET status='queued', "
+                "attempt=MAX(attempt-1, 0), lease_owner=NULL, "
+                "lease_expires_at=NULL, attempts_json=?, updated_at=? "
+                "WHERE id=? AND lease_owner=? AND status='leased'",
+                (attempts_json, now, task.id, owner),
+            ).rowcount
+    return released
 
 
 def resume_run_tasks(

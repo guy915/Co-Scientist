@@ -18,6 +18,30 @@ from evaluations._paired_judge import judge_pair, packets, recorded_judge
 from evaluations.quality_goals import GOALS
 
 
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [("COSCIENTIST_FORCE_OFFLINE", "1"), ("COSCIENTIST_TEST_DOUBLE", "deterministic")],
+)
+def test_live_judge_rejects_current_and_legacy_test_selection_before_setup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, flag: str, value: str
+) -> None:
+    monkeypatch.setenv(flag, value)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "paired_quality",
+            str(tmp_path / "absent.json"),
+            "--live-judge",
+            "--output",
+            str(tmp_path / "output.json"),
+        ],
+    )
+    with pytest.raises(ValueError, match="live judge cannot use"):
+        paired_quality.main()
+    assert not (tmp_path / "output.json").exists()
+
+
 def fake_database(path: Path, goal_id: str, *, branch: bool = False) -> None:
     identity = {
         "version": 1,

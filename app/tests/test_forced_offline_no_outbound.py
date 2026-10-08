@@ -19,7 +19,7 @@ from ._interviews_helpers import _interview_payload
 
 @pytest.fixture(autouse=True)
 def _forced_offline_with_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+    monkeypatch.setenv("COSCIENTIST_TEST_DOUBLE", "deterministic")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-present-but-must-be-unused")
 
 
@@ -35,7 +35,9 @@ def attempts(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         if is_offline_model(str(kwargs.get("model") or "")):
             return await original(**kwargs)
         recorded.append(kwargs)
-        raise AssertionError("outbound completion attempted under COSCIENTIST_FORCE_OFFLINE=1")
+        raise AssertionError(
+            "outbound completion attempted under COSCIENTIST_TEST_DOUBLE=deterministic"
+        )
 
     monkeypatch.setattr(litellm, "acompletion", _guard)
     return recorded

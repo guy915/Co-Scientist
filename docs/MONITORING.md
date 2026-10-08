@@ -88,7 +88,7 @@ alert contract; do not filter on internal fields that the exporter drops.
 |---|---|
 | `HTTP GET`, `HTTP POST`, etc. | `http.request.method`, `http.response.status_code` |
 | `task.execute` | `co_scientist.run_id`, `co_scientist.task.id`, `co_scientist.task.attempt`, `co_scientist.task.outcome` |
-| `llm.call_llm`, `llm.call_llm_json`, `llm.call_llm_stream` | fixed span name; no prompt/model identifier |
+| `llm.call_llm`, `llm.call_llm_json` | fixed span name; no prompt/model identifier; tool-loop calls export as `operation` |
 | `llm.attempt` | `co_scientist.llm.attempt`, `co_scientist.llm.retry_reason` |
 | `llm.request` | `gen_ai.request.max_tokens`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `co_scientist.llm.reasoning_tokens`, `co_scientist.llm.cached_prompt_tokens` |
 

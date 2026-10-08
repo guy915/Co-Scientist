@@ -35,14 +35,13 @@ The package requires Python 3.12+; the API image and the MCP server use 3.12.
 
 ## Models
 
-Model strings follow the LiteLLM convention (`provider/model`). The default,
-`openrouter/inclusionai/ling-3.1-flash`, needs `OPENROUTER_API_KEY`. Another
-provider needs its own key and an explicit `MODEL_NAME` (and role overrides);
-setting a key alone does not select its model. Model capabilities, routing and
-prices are declared as `ModelProfile`s in
-`src/co_scientist/platform/llm/profile/`. With no usable credential, or
-`COSCIENTIST_FORCE_OFFLINE=1`, the deterministic offline backend answers every
-call.
+Model strings follow the LiteLLM convention (`provider/model`). Operator runs
+use free OpenRouter, subscriber credit, then Azure when each slot is configured
+and admitted. BYOK selects its own model and credential. Model capabilities,
+routing and prices live in `src/co_scientist/platform/llm/profile/`.
+Select `COSCIENTIST_TEST_DOUBLE=deterministic` for private local tests. A
+production request with no available provider returns "No model is available
+right now".
 
 ## Literature retrieval
 
