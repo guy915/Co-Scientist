@@ -11,12 +11,13 @@ from typing import Any
 from litellm.exceptions import Timeout as LiteLLMTimeout
 from opentelemetry.trace import Span
 
-from co_scientist.core.exceptions import LLMTimeoutError
+from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
 from co_scientist.platform.db.admission import ProviderReservation
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.free_policy import enforce_free_request
 from co_scientist.platform.llm.admission.service import reserve_physical, settle_physical
 from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
+from co_scientist.platform.llm.request.azure import LUNA, NANO
 from co_scientist.platform.llm.request.backend import active_backend
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
@@ -119,6 +120,11 @@ async def complete_request(
     from co_scientist.core.config import settings
 
     require_enabled()
+    native_model = str(completion_args.get("model", "")).replace("azure/responses/", "azure/")
+    if byok and native_model in (LUNA, NANO):
+        # The native deployment client owns its key; a caller key cannot
+        # establish caller funding for this route.
+        raise ProviderAdmissionError("No model is available right now")
     apply_provider_constraints(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()

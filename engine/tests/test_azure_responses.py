@@ -207,6 +207,41 @@ async def test_native_dispatch_rechecks_policy_after_thread_wait(
         backend.close()
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        LUNA,
+        NANO,
+        LUNA.replace("azure/", "azure/responses/"),
+        NANO.replace("azure/", "azure/responses/"),
+    ],
+)
+@pytest.mark.parametrize("policy", ["disabled", "unset", "expired", "enabled"])
+async def test_byok_flag_cannot_exempt_native_deployment_from_funding(
+    monkeypatch: pytest.MonkeyPatch, model: str, policy: str
+) -> None:
+    monkeypatch.setenv("LLM_AZURE_ENABLED", "false" if policy == "disabled" else "true")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "" if policy == "unset" else "0.000001")
+    monkeypatch.setenv("LLM_AZURE_UNTIL", "2020-01-04" if policy == "expired" else "2099-01-04")
+    captured = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json=_response())
+
+    backend = _backend(respond)
+    try:
+        with using_backend(backend), pytest.raises(ProviderAdmissionError):
+            await complete_request(
+                _request(model=model, api_key="caller-key"), model, byok=True, timeout_seconds=5
+            )
+        assert captured == []
+        with connect() as conn:
+            assert conn.execute("SELECT COUNT(*) FROM llm_spend").fetchone()[0] == 0
+    finally:
+        backend.close()
+
+
 def test_reasoning_and_call_ids_survive_tool_turn_with_repaired_arguments() -> None:
     items: list[dict[str, Any]] = [
         {"type": "reasoning", "id": "reason-one", "summary": [], "encrypted_content": "opaque"},

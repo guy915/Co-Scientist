@@ -300,3 +300,23 @@ os._exit(0)
     assert _spent(budget) == 2 * first
     with connect(budget) as conn:
         assert conn.execute("SELECT COUNT(*) FROM llm_spend WHERE settled=0").fetchone()[0] == 2
+
+
+async def test_supported_byok_provider_keeps_caller_key_and_money_exemption(budget: str) -> None:
+    captured = []
+
+    class Fake:
+        async def complete(self, **kwargs: Any) -> Any:
+            captured.append(kwargs)
+            return _usage()
+
+        def supports_json_schema(self, model_name: str) -> bool:
+            return True
+
+    request = {**_request("openai/gpt-4o-mini"), "api_key": "caller-key"}
+    with using_backend(Fake()):
+        await complete_request(request, request["model"], byok=True, timeout_seconds=5)
+    assert len(captured) == 1 and captured[0]["api_key"] == "caller-key"
+    assert _spent(budget) == 0
+    with connect(budget) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM provider_admissions").fetchone()[0] == 0
