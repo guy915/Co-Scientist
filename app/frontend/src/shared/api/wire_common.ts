@@ -1,4 +1,4 @@
-// Generated from app.api_contracts; edit the backend models.
+// Generated from co_scientist.api.contracts; edit the backend models.
 
 export interface AttributeScale {
   '1'?: string;
