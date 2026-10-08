@@ -116,6 +116,7 @@ async def repair_questions(message: str) -> list[dict[str, Any]]:
         return []
     model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
     spec = CompletionSpec(
+        role="question_repair",
         model_name=model,
         max_tokens=_MAX_TOKENS,
         temperature=0,

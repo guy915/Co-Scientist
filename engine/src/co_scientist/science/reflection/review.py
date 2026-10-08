@@ -345,6 +345,7 @@ async def _call_review_llm(
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="review",
             model_name=model_name,
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,
@@ -418,6 +419,7 @@ async def _call_batch_review_llm(
     return await call_llm_json(
         prompt=call.prompt,
         spec=CompletionSpec(
+            role="review",
             model_name=context.model_name,
             max_tokens=call.max_tokens,
             temperature=HIGH_TEMPERATURE,
