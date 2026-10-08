@@ -3,8 +3,12 @@
 Co-Scientist is one Python package, `co_scientist` (source in
 `engine/src/co_scientist/`), served by a FastAPI process, plus a React
 workbench (`app/frontend/`) and a reference MCP literature server
-(`engine/mcp_server/`). Terms are defined in [GLOSSARY.md](GLOSSARY.md); the
-decisions behind this shape are the [ADRs](adr/).
+(`engine/mcp_server/`). `app/` holds no Python package: it carries the
+frontend, the API test suite, operator scripts (`app/dev/`) and the dev
+Docker setup. The scientific agents and the durable workflow are described in
+[the engine architecture](../engine/docs/ARCHITECTURE.md). Terms are defined
+in [GLOSSARY.md](GLOSSARY.md); the decisions behind this shape are the
+[ADRs](adr/).
 
 ## Layers
 
@@ -32,7 +36,6 @@ The other contracts:
 - `fastapi` and `starlette` only in `api` and `main`; `litellm` only in
   `platform/llm`; `httpx` only in `platform/llm` and `platform/retrieval`;
   `sqlite3` only in `platform/db`, `domains` and `orchestration`.
-- Modules that began in the engine distribution do not import `app`.
 
 A lower layer that needs something from a higher one takes it by registration
 at import time, never by importing upward:

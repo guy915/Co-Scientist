@@ -1,12 +1,7 @@
 # Launch readiness
 
-Use this document for product releases. The completed reference campaign's conclusions and
-immutable evidence links are preserved at [`PLAN.md` @ 33ec8984](https://github.com/guy915/Co-Scientist/blob/33ec8984c6f9292a6653cc6a661d32210f55c688/PLAN.md).
-Scientific evaluations remain scoped to
-their original protocols and must not be summarized as general validation.
-
-The [1 October cleanup validation record](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/PUBLICATION-REVIEW.md) reports
-completed checks, detector triage, and outstanding external release gates.
+Use this checklist for each release. Scientific evaluations stay scoped to
+their own protocols and must not be summarized as general validation.
 
 ## Repository checks
 
@@ -53,7 +48,8 @@ changing a service. Confirm these settings on the intended release:
 | Models | Matching provider credentials and explicit role settings; confirm `/status`; retain free-route spend bounds |
 | Notifications | Correct SMTP settings and `PUBLIC_APP_URL` if enabled |
 | Operations | Retained logs, disk monitoring, private operator token, tested backups and recovery |
-| Monitoring | `VITE_SENTRY_DSN` set on the new frontend host (read at build time); UptimeRobot pointed at the live URLs ([MONITORING.md](MONITORING.md)); only `VITE_` variables on the frontend host, since the old Vercel project also holds the api's secrets |
+| Monitoring | `VITE_SENTRY_DSN` set on the frontend host (read at build time) and uptime checks on the live URLs ([MONITORING.md](MONITORING.md)) |
+| Frontend host | Only `VITE_` variables: everything there is compiled into public assets |
 
 Ownership is a per-browser client ID: neither CORS nor client-selected IDs
 establish identity, so treat runs as private-by-obscurity, not authenticated.
@@ -73,7 +69,7 @@ Create a consistent SQLite backup through the backup API rather than copying
 only the `.db` while its WAL may contain committed work. From the repo root:
 
 ```bash
-.venv/bin/python app/dev/backup_db.py coscientist.db /private/backups/coscientist-2026-10-01.db
+.venv/bin/python app/dev/backup_db.py coscientist.db /private/backups/coscientist-YYYY-MM-DD.db
 ```
 
 The destination directory must already exist. The helper opens the source
@@ -106,12 +102,11 @@ excerpts, screenshots, protocols, and data independently of the software license
 The favicon and app icons come from an unidentified icon set (see NOTICE):
 identify its license or replace the mark before publication.
 
-Before changing repository visibility, review **all reachable Git history**
-for secrets and private researcher data, rotate any discovered credentials,
-and resolve any redistribution restrictions. `.gitignore` and `.dockerignore`
-protect future local artifacts; they do not remove prior commits. Enable
-private vulnerability reporting and require the CI aggregate check in GitHub.
-These account/repository settings are external launch prerequisites.
+Before publishing, scan the tree for secrets and private researcher data and
+rotate anything found. `.gitignore` and `.dockerignore` protect future local
+artifacts only. Enable private vulnerability reporting and Discussions, apply
+`.github/labels.yml` and import `.github/rulesets/main.json` so the CI
+aggregate check is required.
 
 Offline passing checks establish implementation behavior, not external model
 quality, expert agreement, biological safety, or wet-lab effectiveness. Keep
