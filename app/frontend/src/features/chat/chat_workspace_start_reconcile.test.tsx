@@ -52,9 +52,9 @@ function reopenedPlan() {
 }
 
 function startBubbles(container: HTMLElement): Element[] {
-  return Array.from(container.querySelectorAll('.reference-user-bubble')).filter(
-    bubble => bubble.textContent === 'Start research',
-  );
+  return Array.from(
+    container.querySelectorAll('.reference-user-bubble'),
+  ).filter(bubble => bubble.textContent === 'Start research');
 }
 
 it('shows one start request when the chat list learns the run after the announcement', async () => {
