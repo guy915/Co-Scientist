@@ -46,8 +46,7 @@ A refusal is billed from any returned usage and counted by call type. Routing
 must separately admit Azure for that call, record the switch and stop after Azure.
 There is no server-side fallback. No measured refusal rate or cache saving is
 available from hermetic tests. EQ must post paired quality results before an
-owner changes effort. Offline Message Batches may use the provider's 50% discount;
-they are disabled by default, and live runs never use them.
+owner changes effort. Message Batches are not implemented.
 
 Sources checked 8 October 2026:
 

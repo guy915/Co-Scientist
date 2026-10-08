@@ -144,14 +144,21 @@ for (const theme of ['light', 'dark']) {
         const field = panel.getByPlaceholder('Type your own answer');
         const send = panel.getByRole('button', {name: 'Send answer'});
         await expect(send).toBeDisabled();
-        const [fieldBox, sendBox] = await Promise.all([
+        // One send answers every question, so it sits in the head beside
+        // minimize, never inside the free-text field.
+        const minimize = panel.getByRole('button', {name: 'Minimize the questions'});
+        const [fieldBox, sendBox, minimizeBox] = await Promise.all([
           field.boundingBox(),
           send.boundingBox(),
+          minimize.boundingBox(),
         ]);
-        expect(sendBox!.y).toBeGreaterThanOrEqual(fieldBox!.y);
-        expect(sendBox!.y + sendBox!.height).toBeLessThanOrEqual(
-          fieldBox!.y + fieldBox!.height,
-        );
+        expect(sendBox!.y + sendBox!.height).toBeLessThanOrEqual(fieldBox!.y);
+        expect(
+          Math.abs(
+            sendBox!.y + sendBox!.height / 2 - (minimizeBox!.y + minimizeBox!.height / 2),
+          ),
+        ).toBeLessThanOrEqual(1);
+        expect(sendBox!.x + sendBox!.width).toBeLessThanOrEqual(minimizeBox!.x);
         await panel.getByText('Metabolism', {exact: true}).click();
         await expect(send).toBeEnabled();
         await captureViewport(page, {
