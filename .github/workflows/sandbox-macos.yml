@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# Keep the guard distinct from its calling workflow's cancellation group.
+concurrency:
+  group: sandbox-macos-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   seatbelt:
     name: Seatbelt confinement
@@ -16,6 +21,7 @@ jobs:
     env:
       COSCIENTIST_FORCE_OFFLINE: '1'
       PYTHON_DOTENV_DISABLED: '1'
+      LITELLM_LOCAL_MODEL_COST_MAP: 'True'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,3 +50,6 @@ jobs:
           PY
       - name: Exercise sandbox behavior and escape denials
         run: python -m pytest engine/tests/test_sandbox.py -q -rs
+      - name: Diagnose confined runtime startup on failure
+        if: failure()
+        run: python scripts/ci/macos_sandbox_diagnostics.py

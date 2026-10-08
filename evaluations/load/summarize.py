@@ -21,6 +21,8 @@ def summarize(root: Path) -> dict[str, Any]:
     return {
         "source_revision": (root / "source-revision.txt").read_text().strip(),
         "api_image": (root / "api-image.txt").read_text().strip(),
+        "generator_image": (root / "generator-image.txt").read_text().strip(),
+        "harness_sha256": (root / "harness-sha256.txt").read_text().strip(),
         "requests": total,
         "unexpected_errors": failures,
         "unexpected_error_rate": failures / max(total, 1),
@@ -45,7 +47,13 @@ if __name__ == "__main__":
     result = summarize(Path(sys.argv[1]))
     (Path(sys.argv[1]) / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result, indent=2))
-    if result["unexpected_errors"] or any(
-        value != "0" for values in result["exit_statuses"].values() for value in values.splitlines()
+    if (
+        result["unexpected_errors"]
+        or result["telemetry_errors"]
+        or any(
+            value != "0"
+            for values in result["exit_statuses"].values()
+            for value in values.splitlines()
+        )
     ):
         sys.exit(1)

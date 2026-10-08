@@ -2,11 +2,12 @@
 import {postAppLogs, type ClientLogRecord} from '@/shared/api/logs';
 import {DIAGNOSTIC_EVENT, type DiagnosticDetail} from './diagnostic_events';
 import {httpStatus} from './errors';
+import {STORAGE_KEYS} from './safe_storage';
 
 // Match the ingestion endpoint's one-minute window. Keep the deadline across
 // same-tab reloads so navigation cannot restart a rejected submission burst.
 const RATE_LIMIT_PAUSE_MS = 60_000;
-const RATE_LIMIT_PAUSE_KEY = 'co_scientist_log_pause_until';
+const RATE_LIMIT_PAUSE_KEY = STORAGE_KEYS.logsPauseUntil;
 let logPauseUntil = 0;
 
 function pausedUntil(): number {

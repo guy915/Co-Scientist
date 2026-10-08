@@ -31,7 +31,7 @@ ruff format . && ruff check .
 mypy .
 ```
 
-The package supports Python 3.10+; the API image and the MCP server use 3.12.
+The package requires Python 3.12+; the API image and the MCP server use 3.12.
 
 ## Models
 

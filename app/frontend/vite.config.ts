@@ -34,6 +34,7 @@ export default defineConfig({
     },
   },
   build: {
+    manifest: true,
     outDir: process.env.COSCI_FRONTEND_DIST || 'dist',
     rollupOptions: {
       output: {

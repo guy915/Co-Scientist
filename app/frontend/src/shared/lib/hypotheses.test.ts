@@ -2,33 +2,25 @@ import {expect, it} from 'vitest';
 
 import {makeHypothesis} from '@/shared/testing/fixtures';
 
-import {presentedHypotheses, ratingLabel, sortByEloDesc} from './hypotheses';
+import {presentedHypotheses, ratingLabel} from './hypotheses';
 
-it('orders played hypotheses by descending Elo', () => {
-  const ranked = sortByEloDesc([
-    makeHypothesis({id: 'mid', elo_rating: 1200, win_count: 1}),
-    makeHypothesis({id: 'top', elo_rating: 1400, win_count: 2}),
-    makeHypothesis({id: 'low', elo_rating: 1100, loss_count: 1}),
-  ]);
-
-  expect(ranked.map(h => h.id)).toEqual(['top', 'mid', 'low']);
-});
-
-it('sinks an undermined idea below every sound one', () => {
-  // Deep verification can undermine the highest-rated idea after its matches
-  // finish.
-  const ranked = sortByEloDesc([
+it('preserves the server publication order when filtering withdrawn ideas', () => {
+  const hypotheses = [
+    makeHypothesis({id: 'played', elo_rating: 1184, win_count: 1}),
+    makeHypothesis({id: 'unplayed', elo_rating: 1200}),
+    makeHypothesis({id: 'withdrawn', status: 'rejected'}),
     makeHypothesis({
-      id: 'doubted',
+      id: 'undermined',
       elo_rating: 1400,
       win_count: 3,
       verification_verdict: 'undermined',
     }),
-    makeHypothesis({id: 'sound', elo_rating: 1150, loss_count: 1}),
-    makeHypothesis({id: 'unplayed', elo_rating: 1200}),
+  ];
+  expect(presentedHypotheses(hypotheses).map(h => h.id)).toEqual([
+    'played',
+    'unplayed',
+    'undermined',
   ]);
-
-  expect(ranked.map(h => h.id)).toEqual(['sound', 'unplayed', 'doubted']);
 });
 
 it('drops the ideas a run withdrew from the presented list', () => {

@@ -1,0 +1,23 @@
+{
+  "01_home.spec.ts": 5.672,
+  "03_run_lifecycle.spec.ts": 25.5,
+  "06_acceptance.spec.ts": 46.7,
+  "07_mobile_interview.spec.ts": 6,
+  "08_example_chats.spec.ts": 14.3,
+  "09_landing.spec.ts": 18.2,
+  "10_feedback.spec.ts": 16.4,
+  "11_custom_models.spec.ts": 25.3,
+  "12_mobile_feedback.spec.ts": 3,
+  "13_chat_reconciliation.spec.ts": 18.3,
+  "14_network_recovery.spec.ts": 14.1,
+  "15_accessibility.spec.ts": 51.611,
+  "15_ui_remnants_controls.spec.ts": 19.8,
+  "16_data_rights.spec.ts": 20.4,
+  "17_dev_stop.spec.ts": 1.6,
+  "18_privacy_terms.spec.ts": 17.4,
+  "18_reference_audit.spec.ts": 17.4,
+  "19_custom_models_dark.spec.ts": 24.2,
+  "19_diagnostic_backoff.spec.ts": 13,
+  "20_phone_header.spec.ts": 13.2,
+  "24_storage_privacy.spec.ts": 5.2
+}
