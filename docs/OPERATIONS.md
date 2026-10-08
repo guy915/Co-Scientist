@@ -363,7 +363,8 @@ answers the observation, full and simulation parts in a single call
 (`review_finalist` in `science/reflection/comprehensive_reflection.py`), then
 one deep-verification call that first searches the review's own queries.
 Express analyzes its literature corpus in one call. Within a run, a claim check
-of an unchanged claim against unchanged sources reuses the stored verdict, and
+of an unchanged claim against unchanged sources reuses the stored verdict, even
+across the gate and finalize, which name the same passage differently, and
 the tournament skips a pair already judged with unchanged inputs; both record
 the reuse in provenance. The final-check Express run before this work spent
 105 calls over 70 minutes, mostly on depth and claim checks for ideas the
@@ -374,14 +375,15 @@ the durable worker against a fake MCP server and fails when a tier passes its
 ceiling or a call goes out without its call type, which would give it the
 generic effort. Lower a ceiling when a change lowers a tier; never raise one to
 make a regression pass. `METER_OUT` writes each tier's breakdown by phase and
-call type. Offline counts on 8 October 2026, before and after the change:
+call type. Offline counts on 8 October 2026, before and after the change (the
+median of three runs; counts move a few percent with fan-out order):
 
 | Tier | Calls before | Calls after | Requested tokens before | Requested tokens after |
 | --- | --- | --- | --- | --- |
-| Express | 118 | 52 | 1.13M | 0.65M |
-| Standard | 301 | 127 | 2.91M | 1.59M |
-| Extended | 528 | 221 | 5.08M | 2.68M |
-| Ultra | 688 | 316 | 6.55M | 3.67M |
+| Express | 118 | 50 | 1.13M | 0.63M |
+| Standard | 301 | 124 | 2.91M | 1.55M |
+| Extended | 528 | 219 | 5.08M | 2.59M |
+| Ultra | 688 | 312 | 6.55M | 3.56M |
 
 The offline judge is position-consistent, so every debate stops after one turn
 and the tournament's own saving shows only on live runs. Live runs also add
