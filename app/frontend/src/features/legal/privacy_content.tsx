@@ -139,11 +139,11 @@ export function PrivacyContent() {
         </p>
         <p>
           Deletion from the live service does not instantly remove older
-          database backups or copies held by external recipients. The owner must
-          confirm and publish the R2 backup expiry and the configured Sentry,
-          tracing and hosting log retention before launch. We do not promise
-          that deleting our copy erases prompts a model provider has already
-          received.
+          database backups or copies held by external recipients. R2 backup
+          expiry and the configured Sentry, tracing and hosting log retention
+          have not been verified. Contact the owner for the current settings. We
+          do not promise that deleting our copy erases prompts a model provider
+          has already received.
         </p>
       </section>
       <section>

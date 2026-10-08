@@ -45,7 +45,7 @@ export function LegalPage({kind}: {kind: 'privacy' | 'terms'}) {
         </Link>
       </nav>
       <h1 className="font-gsans text-3xl font-medium">{title}</h1>
-      <p className="text-cosci-muted">Draft for launch · 8 October 2026</p>
+      <p className="text-cosci-muted">Updated · 8 October 2026</p>
       <p>This text is not legal advice; the owner reviews it before launch.</p>
       {kind === 'privacy' ? <PrivacyContent /> : <TermsContent />}
     </article>
