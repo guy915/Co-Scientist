@@ -79,6 +79,7 @@
     "Dockerfile.*",
     "litestream.yml",
     "scripts/api-entrypoint.sh",
+    "scripts/ci/container_smoke.py",
     ".dockerignore",
     "requirements/**",
     "vendor/**",
