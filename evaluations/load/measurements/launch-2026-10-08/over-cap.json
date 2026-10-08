@@ -1,0 +1,209 @@
+{
+  "api_image": "sha256:1c0a9b5069c986cd67883675e577c0c18a7f08bffb7cf430e6aaa85d2cfcea8c",
+  "requests": 28191,
+  "unexpected_errors": 0,
+  "unexpected_error_rate": 0.0,
+  "counts": {
+    "chat_turns": 20,
+    "sse_opened": 1024,
+    "sse_frames": 1024,
+    "landing_visits": 1499,
+    "sse_refused": 176,
+    "report_visits": 40
+  },
+  "peak_active_sse": 256,
+  "peak_rss_mib": 350.46484375,
+  "peak_fds": 658,
+  "telemetry_errors": 0,
+  "measurement_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 249208,
+        "p50": 0.33256999995501246,
+        "p95": 5.329792000338784,
+        "p99": 11.944350000703707
+      },
+      "event_loop_lag_ms": {
+        "count": 1415,
+        "p50": 3.6379232959404817e-10,
+        "p95": 14.000000000487484,
+        "p99": 269.99999999989086
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 83,
+        "p50": 0.024186000700865407,
+        "p95": 1.994471999751113,
+        "p99": 2.825122999638552
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 358844,
+      "VmRSS": 358844
+    },
+    "fds": 15,
+    "active_sse": 0,
+    "timestamp": 1791454642.7812738
+  },
+  "final_metrics": {
+    "timings": {
+      "sqlite_statement_ms": {
+        "count": 249211,
+        "p50": 0.3325710003991844,
+        "p95": 5.329792000338784,
+        "p99": 11.944350000703707
+      },
+      "event_loop_lag_ms": {
+        "count": 1429,
+        "p50": 3.6379232959404817e-10,
+        "p95": 14.000000000487484,
+        "p99": 269.99999999989086
+      },
+      "sqlite_writer_acquire_ms": {
+        "count": 83,
+        "p50": 0.024186000700865407,
+        "p95": 1.994471999751113,
+        "p99": 2.825122999638552
+      }
+    },
+    "memory_kib": {
+      "VmHWM": 358844,
+      "VmRSS": 358844
+    },
+    "fds": 15,
+    "active_sse": 0
+  },
+  "latencies_ms": {
+    "SSE connect": {
+      "50%": 510.0,
+      "95%": 2600.0,
+      "99%": 2700.0
+    },
+    "chat ask": {
+      "50%": 320.0,
+      "95%": 2500.0,
+      "99%": 2500.0
+    },
+    "landing /api/free-usage": {
+      "50%": 18.0,
+      "95%": 420.0,
+      "99%": 610.0
+    },
+    "landing /api/interviews": {
+      "50%": 18.0,
+      "95%": 430.0,
+      "99%": 720.0
+    },
+    "landing /api/logs?after_id=0&limit=1&min_level=WARNING": {
+      "50%": 18.0,
+      "95%": 350.0,
+      "99%": 640.0
+    },
+    "landing /api/runs": {
+      "50%": 22.0,
+      "95%": 410.0,
+      "99%": 710.0
+    },
+    "landing /api/runs/demo": {
+      "50%": 93.0,
+      "95%": 490.0,
+      "99%": 740.0
+    },
+    "landing /status": {
+      "50%": 4.0,
+      "95%": 23.0,
+      "99%": 85.0
+    },
+    "page event snapshot": {
+      "50%": 2100.0,
+      "95%": 2500.0,
+      "99%": 2700.0
+    },
+    "page run details": {
+      "50%": 600.0,
+      "95%": 1600.0,
+      "99%": 2600.0
+    },
+    "page run history": {
+      "50%": 380.0,
+      "95%": 1100.0,
+      "99%": 1500.0
+    },
+    "report /claim-evidence": {
+      "50%": 33.0,
+      "95%": 380.0,
+      "99%": 2100.0
+    },
+    "report /evidence": {
+      "50%": 44.0,
+      "95%": 680.0,
+      "99%": 770.0
+    },
+    "report /hypotheses": {
+      "50%": 63.0,
+      "95%": 710.0,
+      "99%": 2400.0
+    },
+    "report /matches": {
+      "50%": 43.0,
+      "95%": 630.0,
+      "99%": 820.0
+    },
+    "report /report": {
+      "50%": 32.0,
+      "95%": 540.0,
+      "99%": 800.0
+    },
+    "report /report.md": {
+      "50%": 31.0,
+      "95%": 370.0,
+      "99%": 590.0
+    },
+    "report /reviews": {
+      "50%": 38.0,
+      "95%": 860.0,
+      "99%": 1400.0
+    },
+    "report /run": {
+      "50%": 54.0,
+      "95%": 1000.0,
+      "99%": 2200.0
+    },
+    "report /safety": {
+      "50%": 30.0,
+      "95%": 520.0,
+      "99%": 2300.0
+    }
+  },
+  "exit_statuses": {
+    "master-exit.txt": "0",
+    "sampler-exit.txt": "0",
+    "worker-exits.txt": "0"
+  },
+  "harness_checkout_revision": "d5a2a1b4103e8f0171ac9544ac5c65410957c4c3",
+  "api_source_revision": "e6cf5b9211ce4d101c29596e07dcfdc8f2f3b04d",
+  "api_overlay": [
+    "engine/src/co_scientist/api/runs/__init__.py",
+    "engine/src/co_scientist/api/runs/stream_admission.py",
+    "engine/src/co_scientist/api/runs/events.py"
+  ],
+  "overlay_source_commit": "fc390d856190916b2e67b6ae03135a3e0c65f9fe",
+  "generator_image": "sha256:a9ee57e0c66df76c8538d80b86f3e4f5f9be525463cabf21a2ab6fc1744666eb",
+  "profile": {
+    "duration_seconds": 120,
+    "offered_visitors_per_minute": 1000,
+    "offered_sse_pages": 300,
+    "start_attempts": 0,
+    "preflights": true,
+    "http_keepalive_seconds": 15,
+    "generator_containers": 1,
+    "connecting_peers": 40,
+    "api_cpus": 2,
+    "api_memory_gib": 2,
+    "worker_pool_size": 1,
+    "model_delay_seconds": 0.1,
+    "model_schema_unions_resolved": false
+  },
+  "achieved_visitors_per_minute": 749.5,
+  "sqlite_busy_errors": 0,
+  "note": "Historical capacity receipt. Distinct generator/source/schema behavior must not be represented as a controlled latency comparison. Only keepalive-5/15 isolate HTTP keepalive."
+}
