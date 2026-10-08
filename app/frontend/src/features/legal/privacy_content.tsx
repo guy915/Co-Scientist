@@ -140,11 +140,11 @@ export function PrivacyContent() {
         <p>
           Open Settings → Data in this browser to export your runs, chats,
           extracted documents and settings as a JSON ZIP, or to delete all work
-          belonging to this browser identity. The export excludes provider
-          keys and original uploaded file bytes, which we do not store.
-          Deletion removes stored run credentials and documents and clears
-          the application’s browser storage. Keep the ownership ID until you
-          finish: clearing browser storage alone does not delete server data.
+          belonging to this browser identity. The export excludes provider keys
+          and original uploaded file bytes, which we do not store. Deletion
+          removes stored run credentials and documents and clears the
+          application’s browser storage. Keep the ownership ID until you finish:
+          clearing browser storage alone does not delete server data.
         </p>
         <p>
           You may request access, correction, erasure, restriction of processing
