@@ -274,7 +274,7 @@ async def test_rate_limit_continuation_uses_distinct_cases_and_stops_when_bounde
     client = SystemOneClient(DecisionSettings())
     monkeypatch.setattr(client, "decide", decide)
     monkeypatch.setattr(decision_bakeoff, "call_llm_json", reference)
-    monkeypatch.setattr(decision_bakeoff.asyncio, "sleep", sleep)
+    monkeypatch.setattr("evaluations.decision_bakeoff.asyncio.sleep", sleep)
     cases = [
         DecisionCase(
             str(i),
