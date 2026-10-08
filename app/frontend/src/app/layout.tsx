@@ -7,16 +7,15 @@ import {
   type Dispatch,
   type SetStateAction,
   type RefObject,
+  lazy,
+  Suspense,
 } from 'react';
 import {useLocation} from 'react-router-dom';
 import type {RunStatus} from '@/shared/api/runs';
 import {presenceProps, usePresence} from '@/shared/ui';
 import {joinClasses} from '@/shared/ui/classes';
 import {useRunHistoryContext} from '@/shared/hooks/history_context';
-import {
-  SettingsDialog,
-  type SettingsSection,
-} from '@/features/access/settings_dialog';
+import type {SettingsSection} from '@/features/access/settings_sections';
 import {NEW_CHAT_EVENT, HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
 import {
   closeDrawerIfMobile,
@@ -36,6 +35,12 @@ import {useChatHistoryContext} from '@/shared/hooks/history_context';
 import {routeIds} from '@/shared/lib/routes';
 
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
+
+const SettingsDialog = lazy(() =>
+  import('@/features/access/settings_dialog').then(module => ({
+    default: module.SettingsDialog,
+  })),
+);
 
 const WORKSPACE_CLASSES =
   'ucs-workspace relative z-1 grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
@@ -151,12 +156,20 @@ interface ShellOverlaysProps {
 
 function ShellOverlays({chrome}: ShellOverlaysProps) {
   const {settingsSection, setSettingsSection} = chrome;
+  const [requested, setRequested] = useState(Boolean(settingsSection));
+  useEffect(() => {
+    if (settingsSection) setRequested(true);
+  }, [settingsSection]);
+  // Keep the loaded dialog mounted so closing still completes its exit motion.
+  if (!requested && !settingsSection) return null;
   return (
-    <SettingsDialog
-      section={settingsSection}
-      onSectionChange={setSettingsSection}
-      onClose={() => setSettingsSection(null)}
-    />
+    <Suspense fallback={null}>
+      <SettingsDialog
+        section={settingsSection}
+        onSectionChange={setSettingsSection}
+        onClose={() => setSettingsSection(null)}
+      />
+    </Suspense>
   );
 }
 
