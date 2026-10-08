@@ -370,7 +370,7 @@ jobs:
         run: python -m pytest -q
 
   test-app:
-    name: App tests (shard ${{ matrix.shard }}/3)
+    name: App tests (shard ${{ matrix.shard }}/4)
     needs: changes
     if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
@@ -378,7 +378,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -391,8 +391,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/.github
           CI_SHARD_INDEX: ${{ matrix.shard }}
-          CI_SHARD_TOTAL: 3
-        run: python -m pytest -q -n 4 -p ci_shard
+          CI_SHARD_TOTAL: 4
+        run: python -m pytest -q -n 4 -p ci_shard --durations=25
 
   evaluations:
     name: Evaluations (tests + offline smoke)

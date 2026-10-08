@@ -37,6 +37,10 @@ function Harness({onEscapeOutside}: {onEscapeOutside?: () => void}) {
 it('moves focus between enabled items with the arrow keys', () => {
   render(<Harness />);
   const menu = screen.getByRole('menu', {name: 'Options'});
+  expect(screen.getByRole('menuitemradio', {name: 'Second'})).toHaveFocus();
+  fireEvent.keyDown(menu, {key: 'Home'});
+  expect(screen.getByRole('menuitem', {name: 'First'})).toHaveFocus();
+  fireEvent.keyDown(menu, {key: 'End'});
   fireEvent.keyDown(menu, {key: 'ArrowDown'});
   expect(screen.getByRole('menuitem', {name: 'First'})).toHaveFocus();
   fireEvent.keyDown(menu, {key: 'ArrowDown'});
@@ -47,6 +51,15 @@ it('moves focus between enabled items with the arrow keys', () => {
   expect(screen.getByRole('menuitem', {name: 'First'})).toHaveFocus();
   fireEvent.keyDown(menu, {key: 'End'});
   expect(screen.getByRole('menuitemcheckbox', {name: 'Third'})).toHaveFocus();
+});
+
+it('returns focus to the opener when Tab dismisses the menu', () => {
+  render(<Harness />);
+  fireEvent.keyDown(screen.getByRole('menuitemradio', {name: 'Second'}), {
+    key: 'Tab',
+  });
+  expect(screen.queryByRole('menu')).toBeNull();
+  expect(screen.getByRole('button', {name: 'Trigger'})).toHaveFocus();
 });
 
 it('marks radio and checkbox items checked', () => {

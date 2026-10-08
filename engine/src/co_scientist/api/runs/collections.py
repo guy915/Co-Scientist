@@ -12,6 +12,7 @@ from co_scientist.api.runs.support import _require_run, _run_or_404
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.report import unverified_hypothesis_ids
+from co_scientist.domains.research_state.publication import rank_for_publication
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.platform.db import runs
@@ -24,7 +25,7 @@ router = APIRouter()
 def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
     run = _run_or_404(run_id)
-    hyps = hypotheses.list_hypotheses(run_id)
+    hyps = rank_for_publication(hypotheses.list_hypotheses(run_id))
     # Offline badges describe persisted run provenance, never the current
     # process
     # backend.
