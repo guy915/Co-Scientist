@@ -136,7 +136,16 @@ def test_prepared_pair_credentials_block_judging_even_after_failure_or_cancellat
     assert db.read_bytes() == before
 
 
-@pytest.mark.parametrize("credential_name", ["OPENALEX_API_KEY", "COSCIENTIST_MCP_SHARED_SECRET"])
+@pytest.mark.parametrize(
+    "credential_name",
+    [
+        "OPENALEX_API_KEY",
+        "COSCIENTIST_MCP_SHARED_SECRET",
+        "ANTHROPIC_API_KEY",
+        "AZURE_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+    ],
+)
 def test_cli_uses_configured_credentials_without_dotenv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, credential_name: str
 ) -> None:

@@ -19,7 +19,9 @@ from evaluations.quality_goals import GOAL_VERSION, GOALS
 from evaluations.tests.test_paired_quality import fake_database
 
 
-def archive(path: Path, goal_id: str, *, branch: bool = False, change: str = "") -> None:
+def archive(
+    path: Path, goal_id: str, *, branch: bool = False, change: str = "", provider: str = "free"
+) -> None:
     db = path.with_suffix(".db")
     fake_database(db, goal_id, branch=branch)
     source, count = ("b" if branch else "a") * 40, 20 if branch else 100
@@ -35,6 +37,22 @@ def archive(path: Path, goal_id: str, *, branch: bool = False, change: str = "")
             "INSERT INTO evaluation_runs VALUES ('r',?,?,200,'http_transport_attempts',?)",
             (source, count, "f" * 64),
         )
+        if provider != "free":
+            config = json.loads(conn.execute("SELECT config_json FROM runs").fetchone()[0])
+            identity = config["evaluation_identity"]
+            identity["configured_models"] = dict.fromkeys(
+                ("worker", "supervisor", "chat", "safety", "claim_verifier"),
+                provider + "/fixture-model",
+            )
+            identity["execution_environment"].update(
+                COSCIENTIST_REQUIRE_FREE_MODELS="0",
+                COSCIENTIST_BENCHMARK_PROVIDER=provider,
+                COSCIENTIST_BENCHMARK_POLICY_SHA256="c" * 64,
+                COSCIENTIST_BENCHMARK_ENDPOINT_SHA256="d" * 64,
+            )
+            identity.pop("digest")
+            identity["digest"] = identity_digest(identity)
+            conn.execute("UPDATE runs SET config_json=?", (json.dumps(config),))
         if change == "control":
             config = json.loads(conn.execute("SELECT config_json FROM runs").fetchone()[0])
             identity = config["evaluation_identity"]
@@ -82,14 +100,70 @@ def archive(path: Path, goal_id: str, *, branch: bool = False, change: str = "")
         bundle.writestr("../outside.txt", "never extract")
 
 
-def cohort(tmp_path: Path, *, change: str = "") -> dict[str, list[Path]]:
+def cohort(tmp_path: Path, *, change: str = "", provider: str = "free") -> dict[str, list[Path]]:
     arms: dict[str, list[Path]] = {"main": [], "branch": []}
     for arm in arms:
         for index, goal in enumerate(GOALS):
             path = tmp_path / f"{arm}-{index}.zip"
-            archive(path, goal, branch=arm == "branch", change=change if index == 0 else "")
+            archive(
+                path,
+                goal,
+                branch=arm == "branch",
+                change=change if index == 0 else "",
+                provider=provider,
+            )
             arms[arm].append(path)
     return arms
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "azure"])
+def test_paid_cohort_is_explicit_and_replays_both_judge_orders_without_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    def deny(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("network access in paid artifact replay")
+
+    monkeypatch.setattr(socket.socket, "connect", deny)
+    arms = cohort(tmp_path, provider=provider)
+    hashes = {
+        p: hashlib.sha256(p.read_bytes()).hexdigest() for paths in arms.values() for p in paths
+    }
+    with pytest.raises(ValueError, match="require free models"):
+        paired_artifacts.prepare(arms, tmp_path / "free")
+    manifest = paired_artifacts.prepare(arms, tmp_path / "paid", provider=provider)
+    pairs = paired_quality.load_pairs(manifest)
+    orders = 0
+
+    def judge(packet: dict[str, str]) -> dict[str, str]:
+        nonlocal orders
+        orders += 1
+        return {"winner": "tie", "rationale": "Recorded paid-provider wiring fixture."}
+
+    rows = [paired_quality.compare(main, branch, judge) for main, branch in pairs]
+    summary = paired_quality.summarize(rows)
+    report = {
+        "pairs": rows,
+        "summary": summary,
+        "judge_mode": "recorded",
+        "judge_physical_requests": 0,
+    }
+    (tmp_path / "paired.json").write_text(json.dumps(report))
+    (tmp_path / "paired.md").write_text(paired_quality.markdown(report))
+    assert orders == 6 and summary["goal_pairs"] == 3
+    assert "inside the noise" in (tmp_path / "paired.md").read_text()
+    assert all(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p, digest in hashes.items())
+
+
+def test_free_cohort_cannot_be_relabeled_as_paid(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="paid provider controls"):
+        paired_artifacts.prepare(cohort(tmp_path), tmp_path / "paid", provider="anthropic")
+
+
+def test_paid_cohort_rejects_incompatible_provider_before_judging(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="paid provider controls"):
+        paired_artifacts.prepare(
+            cohort(tmp_path, provider="azure"), tmp_path / "paid", provider="anthropic"
+        )
 
 
 @pytest.mark.parametrize("change", ["", "wal"])
