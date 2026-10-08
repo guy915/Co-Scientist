@@ -39,7 +39,7 @@ def test_server_logs_json_to_stdout_and_nothing_to_stderr(tmp_path: Path) -> Non
     records = [json.loads(line) for line in result.stdout.splitlines()]
     levels = {(r["logger"], r["message"]): r["level"] for r in records}
     assert levels[("uvicorn.error", "Application startup complete.")] == "INFO"
-    assert levels[("uvicorn.access", 'peer - "GET / HTTP/1.1" 200')] == "INFO"
+    assert levels[("uvicorn.access", "MCP HTTP request method=GET status=200")] == "INFO"
     assert levels[("fastmcp", "MCP transport diagnostic (private details omitted)")] == "WARNING"
     assert levels[("mcp_server.tools", "source failed")] == "ERROR"
     assert any(r["logger"] == "py.warnings" and r["level"] == "WARNING" for r in records)
