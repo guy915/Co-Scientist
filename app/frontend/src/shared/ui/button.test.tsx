@@ -55,3 +55,15 @@ it('lets an icon button drop the tooltip or change its text', () => {
     'Add a row',
   );
 });
+
+it('keeps disclosure toggles free of any fill, even on hover', () => {
+  const classes = buttonClasses({variant: 'disclosure', size: 'lg'});
+  expect(classes).not.toMatch(/(^|\s)(enabled:hover:)?bg-(?!transparent)/);
+  expect(classes).toContain('enabled:hover:text-button-text-hover-fg');
+});
+
+it('tints suggested next steps with the accent', () => {
+  const classes = buttonClasses({variant: 'accent'});
+  expect(classes).toContain('text-button-accent-fg');
+  expect(classes).toContain('border-button-accent-border');
+});

@@ -42,6 +42,14 @@ describe('run detail active', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
+  it('explains capacity refusal while keeping the live pulse off', () => {
+    renderView('capacity');
+    expect(hasLivePulse()).toBe(false);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Live updates are busy. Close extra run tabs; we will retry shortly.',
+    );
+  });
+
   it('surfaces a reconnecting stream instead of passing as healthy', () => {
     renderView('reconnecting');
     expect(hasLivePulse()).toBe(false);

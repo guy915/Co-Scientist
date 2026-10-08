@@ -280,6 +280,7 @@ def test_unverified_completion_notification_stays_disabled_even_with_smtp(
     )
     headers = {"X-Client-ID": "notification-scientist"}
     with _client() as client:
+        client.headers.update(headers)
         run_id = _create_run(
             client,
             "Study notification fidelity",
@@ -288,8 +289,8 @@ def test_unverified_completion_notification_stays_disabled_even_with_smtp(
             notify_on_completion=True,
             completion_email="scientist@example.org",
         ).json()["id"]
-        client.post(f"/api/runs/{run_id}/start", headers=headers, json={})
-        _wait_status(client, run_id, "completed", timeout=20.0, interval=0.1)
+        assert client.post(f"/api/runs/{run_id}/start", headers=headers, json={}).status_code == 200
+        assert _wait_status(client, run_id, "completed", timeout=20.0, interval=0.1)
 
     email_tasks = [
         task

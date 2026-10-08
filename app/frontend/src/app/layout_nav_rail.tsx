@@ -11,8 +11,8 @@ import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {ChatSummary, Run} from '@/shared/api/runs';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {useFittingRows, useOverflowing} from '@/shared/hooks/dom';
-import {preferredSessionSide} from '@/shared/hooks/session_side';
-import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
+import {sessionEntryPath} from '@/shared/hooks/session_side';
+import {chatPath, examplePath} from '@/shared/lib/routes';
 import {displayTitle} from '@/shared/lib/titles';
 
 const RAIL_MENU_LAYOUT_CLASSES =
@@ -322,9 +322,7 @@ function chatEntryPath(chat: ChatSummary): string {
   if (chat.id.startsWith(EXAMPLE_ENTRY_PREFIX))
     return examplePath(chat.id.slice(EXAMPLE_ENTRY_PREFIX.length));
   if (!chat.run_id) return chatPath(chat.id);
-  return preferredSessionSide(chat.run_id) === 'chat'
-    ? chatPath(chat.id)
-    : runPath(chat.run_id);
+  return sessionEntryPath(chat.run_id, chat.id);
 }
 
 function ChatHistoryLink({
@@ -334,6 +332,7 @@ function ChatHistoryLink({
   chat: ChatSummary;
   isActive: boolean;
 }) {
+  const title = displayTitle(chat.title, chat.challenge);
   return (
     <Link
       data-fitting-row=""
@@ -349,12 +348,9 @@ function ChatHistoryLink({
         wrap: true,
       })}
       aria-current={isActive ? 'page' : undefined}
-      data-tooltip={chat.challenge}
+      data-tooltip={chat.challenge.trim() || title}
     >
-      <TruncatedLabel
-        className={CHAT_HISTORY_LABEL_CLASSES}
-        text={displayTitle(chat.title, chat.challenge)}
-      />
+      <TruncatedLabel className={CHAT_HISTORY_LABEL_CLASSES} text={title} />
     </Link>
   );
 }
@@ -368,7 +364,7 @@ function ShowMoreChatsButton({
 }) {
   return (
     <Button
-      variant="text"
+      variant="disclosure"
       size="sm"
       trailingIcon={showAllChats ? 'expand_less' : 'expand_more'}
       layoutClassName="justify-self-start"

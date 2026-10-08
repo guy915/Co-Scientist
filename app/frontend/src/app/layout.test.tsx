@@ -48,11 +48,27 @@ describe('layout sidebar', () => {
     renderLayout();
 
     expect(
-      await screen.findByRole('link', {name: 'Senolytic clearance'}),
+      await screen.findByRole('link', {name: 'Senolytic Clearance'}),
     ).toHaveAttribute('href', '/runs/run-senolytic/details');
     expect(
-      screen.getByRole('link', {name: 'Ferroptosis draft'}),
+      screen.getByRole('link', {name: 'Ferroptosis Draft'}),
     ).toHaveAttribute('href', '/chats/chat-draft');
+  });
+
+  it('names an untitled chat the same in its row and its pop-up', async () => {
+    apiMock.listInterviews.mockResolvedValue([
+      makeChat({id: 'chat-blank', title: null, challenge: ''}, 'active'),
+      makeChat(
+        {id: 'chat-lower', title: 'hello', challenge: 'hello'},
+        'active',
+      ),
+    ]);
+
+    renderLayout();
+
+    const blank = await screen.findByRole('link', {name: 'Untitled session'});
+    expect(blank).toHaveAttribute('data-tooltip', 'Untitled session');
+    expect(screen.getByRole('link', {name: 'Hello'})).toBeInTheDocument();
   });
 
   it('shows the chats that fit before expanding the rest', async () => {

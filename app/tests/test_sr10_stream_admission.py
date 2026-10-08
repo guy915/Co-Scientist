@@ -5,9 +5,8 @@ from typing import Any, cast
 
 import pytest
 from co_scientist.api import runs as routes
-from co_scientist.api.runs import events
+from co_scientist.api.runs import events, stream_admission
 from co_scientist.platform.db import runs
-from co_scientist.platform.db.storage_admission import scoped_peer
 from fastapi import HTTPException, Request
 from starlette.responses import StreamingResponse
 from starlette.types import Message
@@ -80,7 +79,10 @@ async def test_abandoned_draft_tail_closes_without_a_terminal_write(
 
 
 @pytest.mark.parametrize("boundary", ["peer", "global"])
-async def test_identity_rotation_cannot_exhaust_event_subscriptions(boundary: str) -> None:
+async def test_identity_rotation_cannot_exhaust_event_subscriptions(
+    boundary: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(stream_admission, "_MAX_CONNECTIONS", 64)
     held: list[tuple[StreamingResponse, Request]] = []
     owners = 3 if boundary == "peer" else 17
     limit = 8 if boundary == "peer" else 64
@@ -89,15 +91,14 @@ async def test_identity_rotation_cannot_exhaust_event_subscriptions(boundary: st
             owner = f"synthetic-owner-{index}"
             peer = "same-peer" if boundary == "peer" else f"peer-{index // 2}"
             run = seed_run("synthetic stream", client_id=owner)
-            request = _request(owner)
+            request = _request(owner, peer)
             for _ in range(4):
-                with scoped_peer(peer):
-                    if len(held) == limit:
-                        with pytest.raises(HTTPException) as denied:
-                            await routes.stream_events(run.id, request, 0, True)
-                        assert denied.value.status_code == 429
-                        return
-                    response = await routes.stream_events(run.id, request, 0, True)
+                if len(held) == limit:
+                    with pytest.raises(HTTPException) as denied:
+                        await routes.stream_events(run.id, request, 0, True)
+                    assert denied.value.status_code == 429
+                    return
+                response = await routes.stream_events(run.id, request, 0, True)
                 held.append((cast(StreamingResponse, response), request))
         pytest.fail("aggregate admission was not reached")
     finally:
