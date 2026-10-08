@@ -11,11 +11,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from co_scientist.core.async_bridge import (
-    propagate_context,
-    run_coroutine_sync,
-    run_in_scoped_loop,
-)
+from co_scientist.core.async_bridge import propagate_context, run_coroutine_sync
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 from co_scientist.platform.llm import (
@@ -34,6 +30,7 @@ from co_scientist.platform.llm.llm_scope import (
     in_app_call_scope,
     stream_chunks,
 )
+from co_scientist.platform.llm.scoped_loop import run_in_scoped_loop
 from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
 
 from tests._llm_fake_backend import install_completion_backend

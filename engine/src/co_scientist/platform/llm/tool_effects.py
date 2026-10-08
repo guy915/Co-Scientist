@@ -3,6 +3,7 @@ transcripts incoherent.
 """
 
 import logging
+from collections.abc import Callable
 from enum import Flag, auto
 from typing import Any
 
@@ -62,6 +63,16 @@ def is_barrier(effects: ToolEffect) -> bool:
 _LOCAL_EFFECTS: dict[str, ToolEffect] = {}
 
 
+# Retrieval registers its MCP registry lookup at import; the gateway sits below
+# retrieval and cannot import it.
+_registry_lookup: Callable[[str], Any] | None = None
+
+
+def set_registry_lookup(lookup: Callable[[str], Any]) -> None:
+    global _registry_lookup
+    _registry_lookup = lookup
+
+
 def declare_local_tool(name: str, effects: ToolEffect) -> None:
     _LOCAL_EFFECTS[name] = effects
 
@@ -71,17 +82,15 @@ def is_local_tool(name: str) -> bool:
 
 
 def resolve_tool_effects(mcp_tool_name: str) -> ToolEffect:
-    """Local tools lack MCP entries; lazy registry import avoids a cycle, and
-    lookup failures degrade to serial.
-    """
+    """Local tools lack MCP entries; lookup failures degrade to serial."""
     local = _LOCAL_EFFECTS.get(mcp_tool_name)
     if local is not None:
         return local
 
     try:
-        from co_scientist.platform.retrieval.config.registry import get_tool_registry
-
-        tool = get_tool_registry().get_tool_by_mcp_name(mcp_tool_name)
+        if _registry_lookup is None:
+            raise LookupError("no tool registry is registered")
+        tool = _registry_lookup(mcp_tool_name)
     except Exception:  # Lookup failure must degrade to serial execution, never break a run.
         logger.warning(
             "tool registry unavailable resolving effects for %r; treating the tool as a barrier",
