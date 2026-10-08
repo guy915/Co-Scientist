@@ -79,7 +79,11 @@ it('shows one start request when the chat list learns the run after the announce
   const {container} = renderWorkspace('/chats/interview-1');
 
   fireEvent.click(await screen.findByRole('button', {name: 'Start research'}));
-  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
+  expect(
+    await screen.findByText(ANNOUNCEMENT_TEXT, {
+      selector: '.reference-model-bubble *',
+    }),
+  ).toBeInTheDocument();
   await waitFor(() =>
     expect(apiMock.listInterviews.mock.calls.length).toBeGreaterThan(1),
   );
