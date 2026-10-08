@@ -22,4 +22,4 @@ config="${LITESTREAM_CONFIG:-/etc/litestream.yml}"
 
 # Missing replicas are a fresh install; network or corrupt-backup errors must fail closed.
 litestream restore -config "$config" -if-db-not-exists -if-replica-exists "$COSCIENTIST_DB_PATH"
-exec litestream replicate -config "$config" -exec "$0 --serve"
+exec python -m co_scientist.platform.db.backup_service --config "$config" -- "$0" --serve
