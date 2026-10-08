@@ -141,13 +141,17 @@ class _EntrezClient:
             logger.debug("fulltext not available in pmc")
             return None
 
-    def _fetch_paper_details(self, paper_id: str) -> dict[str, Any]:
+    def _fetch_paper_details(self, paper_id: str) -> dict[str, Any] | None:
         """Blocking Entrez requests and XML parsing must run off the event
         loop.
         """
         # Even single-ID efetch returns a PubmedArticleSet list.
         results = self.entrez_read(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-        pubmed_article = results["PubmedArticle"][0]
+        pubmed_articles = results.get("PubmedArticle") or []
+        if not pubmed_articles:
+            # Book records (StatPearls, GeneReviews) carry no journal metadata.
+            return None
+        pubmed_article = pubmed_articles[0]
         record = parse_pubmed_record(pubmed_article)
         pmc_id = self._fetch_pmc_fulltext_id(paper_id, record.doi)
         return record.fulltext_metadata(pmc_id)

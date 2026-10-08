@@ -53,6 +53,8 @@ class PubmedSource(_EntrezClient):
                 # Entrez's blocking HTTP calls and rate limiter must run off
                 # the event loop.
                 metadata = await asyncio.to_thread(self._fetch_paper_details, paper_id)
+                if metadata is None:
+                    return paper_id, None
                 _validate_pmc_id(metadata)
                 write_metadata_cache_file(metadata_file, metadata)
                 return paper_id, metadata
