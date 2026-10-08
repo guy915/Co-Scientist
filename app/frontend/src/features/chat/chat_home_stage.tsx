@@ -17,8 +17,8 @@ import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {Link} from 'react-router-dom';
 import {firstSentenceClause, capitalizeTerm} from '@/shared/lib/text';
 import {useNowTick} from '@/shared/hooks/timers';
-import {preferredSessionSide} from '@/shared/hooks/session_side';
-import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
+import {sessionEntryPath} from '@/shared/hooks/session_side';
+import {examplePath} from '@/shared/lib/routes';
 import {displayTitle} from '@/shared/lib/titles';
 import {formatDate, formatDurationPhrase} from '@/shared/lib/time';
 
@@ -537,20 +537,13 @@ function RecentRunCard({
   run: Run;
   chats: readonly ChatSummary[];
 }) {
-  const chat =
-    preferredSessionSide(run.id) === 'chat'
-      ? chats.find(entry => entry.run_id === run.id)
-      : undefined;
+  const chat = chats.find(entry => entry.run_id === run.id);
   const active = isActiveStatus(run.status);
   return (
     <li>
       <Link
         to={
-          run.is_demo
-            ? examplePath(run.id)
-            : chat
-              ? chatPath(chat.id)
-              : runPath(run.id, 'details')
+          run.is_demo ? examplePath(run.id) : sessionEntryPath(run.id, chat?.id)
         }
         className={joinClasses(RECENT_CARD_CLASSES, active && 'is-active-run')}
         // The labels below are cut to fit; assistive tech still gets the goal.
@@ -559,10 +552,7 @@ function RecentRunCard({
         <RecentCardMeta run={run} />
         <TruncatedLabel
           className="line-clamp-2 text-[1rem] leading-[1.5] font-medium"
-          text={
-            displayTitle(run.title, run.research_goal, firstSentenceClause) ||
-            'Untitled session'
-          }
+          text={displayTitle(run.title, run.research_goal, firstSentenceClause)}
           lines={2}
         />
         <TruncatedLabel

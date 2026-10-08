@@ -44,13 +44,15 @@ def _terminal_status_from_run(run_id: str) -> str | None:
     return None
 
 
-def _resolve_tick_terminal(terminal_status: str | None, run_id: str, tick: int) -> str | None:
+def _resolve_tick_terminal(
+    terminal_status: str | None, run_id: str, check_status: bool
+) -> str | None:
     """Periodic run-row checks cover terminal writes that append no status
     event without querying on every tick.
     """
     if terminal_status is not None:
         return terminal_status
-    if tick % 10 == 9:
+    if check_status:
         return _terminal_status_from_run(run_id)
     return None
 
@@ -78,9 +80,9 @@ _KEEPALIVE_TICKS = 30
 _KEEPALIVE_FRAME = ": keepalive\n\n"
 
 
-def _poll_tick(run_id: str, last_seq: int, tick: int) -> tuple[int, str | None, list[str]]:
+def _poll_tick(run_id: str, last_seq: int, check_status: bool) -> tuple[int, str | None, list[str]]:
     last_seq, terminal_status, frames = _drain_tick_frames(run_id, last_seq)
-    return last_seq, _resolve_tick_terminal(terminal_status, run_id, tick), frames
+    return last_seq, _resolve_tick_terminal(terminal_status, run_id, check_status), frames
 
 
 async def _stream_live_tail(
@@ -90,32 +92,45 @@ async def _stream_live_tail(
     draft: bool = False,
 ) -> AsyncGenerator[str, None]:
     """The producer can live in another process; the persisted event log is
-    the only reliable signal. Each viewer polls twice a second, so the store
-    reads run off the event loop.
+    the only reliable signal. Quiet viewers back off to two seconds; reads
+    stay off the event loop and busy streams return to the fast cadence.
     """
-    idle_ticks = 0
     loop = asyncio.get_running_loop()
-    last_activity = loop.time()
-    for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
+    started = last_activity = last_keepalive = last_status_check = loop.time()
+    delay = _TICK_SECONDS
+    while loop.time() - started < 10_000 * _TICK_SECONDS:
         if await request.is_disconnected():
             return
-        await asyncio.sleep(_TICK_SECONDS)
-
-        last_seq, terminal_status, frames = await asyncio.to_thread(
-            _poll_tick, run_id, last_seq, tick
+        remaining = min(
+            delay,
+            last_keepalive + _KEEPALIVE_TICKS * _TICK_SECONDS - loop.time(),
+            last_status_check + 10 * _TICK_SECONDS - loop.time(),
+            started + 10_000 * _TICK_SECONDS - loop.time(),
         )
+        if draft:
+            remaining = min(remaining, last_activity + _DRAFT_IDLE_SECONDS - loop.time())
+        await asyncio.sleep(max(0, remaining))
+
+        check_status = loop.time() - last_status_check >= 10 * _TICK_SECONDS
+        last_seq, terminal_status, frames = await asyncio.to_thread(
+            _poll_tick, run_id, last_seq, check_status
+        )
+        if check_status:
+            last_status_check = loop.time()
         for frame in frames:
             yield frame
         if frames:
-            last_activity = loop.time()
+            last_activity = last_keepalive = loop.time()
+            delay = _TICK_SECONDS
+        else:
+            delay = min(4 * _TICK_SECONDS, 2 * delay)
         if draft and loop.time() - last_activity >= _DRAFT_IDLE_SECONDS:
             current = await asyncio.to_thread(runs.get_run, run_id)
             if current is None or current.status == RunStatus.DRAFT:
                 return
             draft = False
-        idle_ticks = 0 if frames else idle_ticks + 1
-        if idle_ticks >= _KEEPALIVE_TICKS:
-            idle_ticks = 0
+        if loop.time() - last_keepalive >= _KEEPALIVE_TICKS * _TICK_SECONDS:
+            last_keepalive = loop.time()
             yield _KEEPALIVE_FRAME
 
         if terminal_status is not None:
