@@ -10,13 +10,16 @@ from pathlib import Path
 from typing import Any
 
 import gevent
+from client import PeerAdapter
 from locust import HttpUser, LoadTestShape, constant_pacing, events, task
 from locust.exception import StopUser
+from requests.exceptions import RequestException
 
 PAGES = int(os.getenv("SSE_PAGES", "200"))
 VISITORS = int(os.getenv("VISITORS_PER_MINUTE", "500"))
 DURATION = int(os.getenv("LOAD_DURATION", "300"))
 ATTEMPTS = int(os.getenv("START_ATTEMPTS", "50"))
+PREFLIGHT = os.getenv("LOAD_PREFLIGHT", "1") == "1"
 _counts: Counter[str] = Counter()
 
 
@@ -32,8 +35,35 @@ class LocalUser(HttpUser):
     def on_start(self) -> None:
         self.client.headers["X-Client-ID"] = "load-" + str(uuid.uuid4())
         self.fixture = self.client.get("/__load__/fixture", name="fixture").json()
+        peer = {"Starter": 0, "Chat": 1, "Landing": 2, "Report": 3}.get(type(self).__name__, 0)
+        self.use_peer(peer)
+        self.preflight_paths: set[tuple[str, str]] = set()
+        if PREFLIGHT:
+            self.client.headers["Origin"] = "http://localhost:5173"
+
+    def use_peer(self, index: int) -> None:
+        peers = self.fixture["peers"]
+        self.client.adapters["http://"].close()
+        self.client.mount("http://", PeerAdapter(peers[index % len(peers)]))
+
+    def preflight(self, method: str, path: str, name: str) -> None:
+        if not PREFLIGHT or (method, path) in self.preflight_paths:
+            return
+        self.request(
+            "OPTIONS",
+            path,
+            "preflight " + name,
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": method,
+                "Access-Control-Request-Headers": "x-client-id,content-type",
+            },
+        )
+        self.preflight_paths.add((method, path))
 
     def request(self, method: str, path: str, name: str, **kwargs: Any) -> Any:
+        if method != "OPTIONS":
+            self.preflight(method, path, name)
         with self.client.request(
             method,
             path,
@@ -43,6 +73,8 @@ class LocalUser(HttpUser):
             timeout=30,
             **kwargs,
         ) as response:
+            if response.raw is not None:
+                _counts["recovered_idle_retries"] += len(response.raw.retries.history)
             if method == "POST" and response.status_code in (403, 409, 429):
                 try:
                     detail = response.json().get("detail")
@@ -54,7 +86,7 @@ class LocalUser(HttpUser):
                 else:
                     response.failure("Refusal has no clear detail")
             elif response.status_code != 200:
-                response.failure(f"Unexpected HTTP {response.status_code}")
+                response.failure(f"Unexpected HTTP {response.status_code}: {response.error!r}")
             return response
 
 
@@ -65,6 +97,7 @@ class Landing(LocalUser):
     @task
     def visit(self) -> None:
         self.client.headers["X-Client-ID"] = "load-landing-" + str(uuid.uuid4())
+        self.preflight_paths.clear()
         for path in (
             "/status",
             "/api/free-usage",
@@ -86,6 +119,8 @@ class RunPage(LocalUser):
         viewer = self.client.get("/__load__/viewer", name="viewer fixture").json()
         self.run = viewer["run"]
         self.client.headers["X-Client-ID"] = viewer["owner"]
+        self.use_peer(int(viewer["owner"].rsplit("-", 1)[1]))
+        self.preflight("GET", f"/api/runs/{self.run}/events", "SSE connect")
         self.stream_task = gevent.spawn(self.watch)
         self.request("GET", f"/api/runs/{self.run}/events?stream=false", "page event snapshot")
 
@@ -105,15 +140,21 @@ class RunPage(LocalUser):
                 timeout=(30, 40),
                 allow_redirects=False,
             ) as response:
+                if response.raw is not None:
+                    _counts["recovered_idle_retries"] += len(response.raw.retries.history)
                 if response.status_code == 200:
-                    failures = 0
                     _counts["sse_opened"] += 1
                     # Locust's HTTP measurement is header establishment, not
                     # the lifetime of the long-lived stream.
                     response.request_meta["response_time"] = (time.perf_counter() - start) * 1000
-                    for line in response.iter_lines():
-                        if line.startswith(b"data:"):
-                            _counts["sse_frames"] += 1
+                    try:
+                        for line in response.iter_lines():
+                            if line.startswith(b"data:"):
+                                _counts["sse_frames"] += 1
+                    except RequestException as error:
+                        response.failure(f"SSE body failed: {type(error).__name__}")
+                    else:
+                        failures = 0
                 elif response.status_code == 429 and response.json().get("detail"):
                     _counts["sse_refused"] += 1
                     retry_after = response.headers.get("Retry-After", "")
@@ -195,6 +236,7 @@ class Starter(LocalUser):
             raise StopUser()
         # 50 identities; the real global/host free and storage ledgers stay on.
         self.client.headers["X-Client-ID"] = "load-starter-" + str(uuid.uuid4())
+        self.preflight_paths.clear()
         self.attempts += 1
         response = self.request(
             "POST",

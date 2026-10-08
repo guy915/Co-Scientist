@@ -169,6 +169,21 @@ async def _assess_claims(
     return assessed, telemetry.snapshot()
 
 
+def _depth_reviewed_candidates(
+    candidates: list[dict[str, Any]],
+    inputs: FinalStateInputs,
+    store_id_by_engine_id: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    """Claim checks are finalist depth; a screened idea stays unassessed
+    rather than reading as unsupported."""
+    reviewed = {
+        store_id_by_engine_id.get(str(hypothesis.get("id") or ""))
+        for hypothesis in inputs.hyps_parents_first
+        if hypothesis.get("deep_verification_verdict") is not None
+    }
+    return [candidate for candidate in candidates if candidate.get("id") in reviewed]
+
+
 def _gate_records_by_store_id(
     inputs: FinalStateInputs,
     store_id_by_engine_id: Mapping[str, str],
@@ -435,7 +450,7 @@ async def persist_final_state(
         run_id, inputs, citation_summary, store_id_by_engine_id, db_path
     )
     assessed, grounding_usage = await _assess_claims(
-        grounding_candidates,
+        _depth_reviewed_candidates(grounding_candidates, inputs, store_id_by_engine_id),
         passages,
         _gate_records_by_store_id(inputs, store_id_by_engine_id),
     )
