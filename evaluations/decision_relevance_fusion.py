@@ -104,8 +104,14 @@ def validate_report(report: dict[str, Any]) -> dict[str, Any]:
     threshold = choose_threshold(calibration)
     held_out = rows[last_calibration + 1 :] if len(calibration) >= 100 else []
     return {
-        "basis": "Generated two-source RRF inputs on identical semantic judgments; no historical lexical replay.",
-        "limitation": "32 deterministic source orders per batch are stress scenarios, not new labels. Score-based selection has no source-slot reservations.",
+        "basis": (
+            "Generated two-source RRF inputs on identical semantic judgments; "
+            "no historical lexical replay."
+        ),
+        "limitation": (
+            "32 deterministic source orders per batch are stress scenarios, not new labels. "
+            "Score-based selection has no source-slot reservations."
+        ),
         "representation": "per-candidate-question/v1",
         "calibration_labels": len(calibration),
         "threshold": threshold,
