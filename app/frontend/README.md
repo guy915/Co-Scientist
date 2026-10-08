@@ -74,3 +74,36 @@ Tests sit beside the files they cover as `*.test.ts(x)`; the Vitest setup is
 
 Live progress uses fetch-based server-sent events from `/api/runs/{id}/events`
 rather than `EventSource`, so stream requests keep their client headers.
+
+## Production bundle budgets
+
+After `bun run build`, run the offline check from the repository root:
+
+```bash
+node app/frontend/scripts/check-bundle.mjs
+node --test app/frontend/scripts/check-bundle.test.mjs
+```
+
+The check uses only Node built-ins and the Vite manifest. It measures each
+emitted JS/CSS asset with gzip level 9, counts shared static dependencies once
+per route, and includes the startup Sentry chunk when the build enables a DSN.
+It requires no server, browser, network, or measurement-tool installation.
+Missing assets/entries, undeclared lazy entries, and exceeded budgets fail.
+`COSCI_FRONTEND_DIST` selects the same alternate output directory as the build.
+
+| Surface | JS budget (gzip bytes) | CSS budget (gzip bytes) |
+| --- | ---: | ---: |
+| Home | 200,000 | 24,000 |
+| Landing after scroll | 200,000 | 24,000 |
+| Report including Markdown/highlighting | 290,000 | 24,000 |
+| Chat including Markdown/highlighting | 270,000 | 24,000 |
+| Settings | 200,000 | 24,000 |
+
+Budget entry roots are declared in `scripts/bundle-budget.json`. Declare a
+budget for each new lazy route/library; changes to these caps need a measured
+route-size explanation. Report and chat caps include their prose renderer,
+even when the selected first viewport has not requested it yet. Images/fonts
+are separate resources, outside these JS/CSS caps.
+
+Cold Lighthouse measurements and light/dark screenshot comparisons use the
+isolated loopback preview described in [scripts/performance/README.md](scripts/performance/README.md).
