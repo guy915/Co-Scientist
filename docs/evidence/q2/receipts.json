@@ -1,0 +1,914 @@
+{
+  "setup": {
+    "bun": "1.3.14",
+    "bunx": true,
+    "make setup": 0
+  },
+  "source": {
+    "main": "ec9c38d7cf735155c627363ee861e6ffc9f6a427",
+    "frozen": "b521a85804647243c3fa1648292fe297aed95dcd",
+    "tree": "91d8985d39e354c5e8729d865d0f5bef683b9d00",
+    "frontend": "01dca766cc7f9b3fcfb64f41524cdadafd85001e",
+    "engine": "3b18d1e68189212320f536a754beb3c15063385d",
+    "published_focus_head": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195",
+    "limits": "Frozen browser source includes P596/O599/S4-597; later independent main/dependency changes are not silently included.",
+    "identical_runtime_main": "27fc775fd678b782d94eabeb722a2127309cdbcf",
+    "runtime_comparison": "git diff b521a858 main27fc775f under app/frontend contains only README.md, engine trees exactly identical"
+  },
+  "merged": [
+    {
+      "headRefOid": "988124ecaa10f80ce358004cce7fd55bfba8d6de",
+      "mergeCommit": {
+        "oid": "42d81f5cf5b25360132c7926c134a808651443cc"
+      },
+      "number": 532,
+      "state": "MERGED"
+    },
+    {
+      "headRefOid": "0ac8971f908032b9ca94fc68ffc1ba10081a5a6b",
+      "mergeCommit": {
+        "oid": "1a579098cd8e88e7be028cb974e921e8266d98ed"
+      },
+      "number": 546,
+      "state": "MERGED"
+    },
+    {
+      "headRefOid": "446af10ae6674a44f87cacf89e1d94914c92b7a8",
+      "mergeCommit": {
+        "oid": "e431d3da1891243db22f5f5d795c9869229b6413"
+      },
+      "number": 552,
+      "state": "MERGED"
+    },
+    {
+      "headRefOid": "5482b099ed85c5512899c19c8fa6f169a1c8b373",
+      "mergeCommit": {
+        "oid": "5ecddea0cef56b81a9acc029d446b5134ff1ad6e"
+      },
+      "number": 560,
+      "state": "MERGED"
+    },
+    {
+      "headRefOid": "56cb840ff903595447407fabd102be2e0ebfbdf0",
+      "mergeCommit": {
+        "oid": "34ab165a88b3df3d1f11f6aadc8edcd0d38d0255"
+      },
+      "number": 555,
+      "state": "MERGED"
+    },
+    {
+      "number": 583,
+      "headRefOid": "ededdabf8df2d061832dc03d9b6de5343d74916f",
+      "mergeCommit": {
+        "oid": "b742b40b2c412856d274138fa7da09f32959258c"
+      },
+      "state": "MERGED"
+    },
+    {
+      "number": 587,
+      "headRefOid": "8fb575f15d97262cc352a53ad6efdc080ae950ca",
+      "mergeCommit": {
+        "oid": "29a2505fa05031078a52a248ec2b4e9e888309d6"
+      },
+      "state": "MERGED"
+    },
+    {
+      "number": 601,
+      "headRefOid": "7301a179423062b470ee8d833ea791a313e12558",
+      "mergeCommit": {
+        "oid": "ec9c38d7cf735155c627363ee861e6ffc9f6a427"
+      },
+      "state": "MERGED"
+    },
+    {
+      "number": 602,
+      "headRefOid": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195",
+      "mergeCommit": {
+        "oid": "27fc775fd678b782d94eabeb722a2127309cdbcf"
+      },
+      "state": "MERGED"
+    }
+  ],
+  "gates": {
+    "532": {
+      "make lint": 0,
+      "make typecheck": 0,
+      "make test-all": 0,
+      "make e2e": 0,
+      "make arch": 0,
+      "chromium": 74
+    },
+    "546": {
+      "make lint": 0,
+      "make typecheck": 0,
+      "make test-all": 0,
+      "make e2e": 0,
+      "make arch": 0,
+      "chromium": 87
+    },
+    "552": {
+      "make lint": 0,
+      "make typecheck": 0,
+      "make test-all": 0,
+      "make e2e": 0,
+      "make arch": 0,
+      "chromium": 91
+    },
+    "560": {
+      "make lint": 0,
+      "make typecheck": 0,
+      "make test-all": 0,
+      "make e2e": 0,
+      "make arch": 0,
+      "chromium": 91
+    },
+    "contrast": {
+      "lint": 0,
+      "typecheck": 0,
+      "arch": 0,
+      "test-all": 0,
+      "test-all-seconds": 258,
+      "presubmit": 0,
+      "presubmit-current-main": 2,
+      "presubmit-final": 0,
+      "make presubmit": 0,
+      "seconds": 592.72,
+      "frontend": 350,
+      "development": 115,
+      "production": 15,
+      "local_head": "18b0c648a67965e3988de068645c73e5a619ecc4",
+      "published_head": "ededdabf8df2d061832dc03d9b6de5343d74916f",
+      "tree": "ab4d719e3f18e2e3182398459f23159646214967"
+    },
+    "headings": {
+      "lint": 0,
+      "typecheck": 0,
+      "arch": 0,
+      "presubmit": 0,
+      "presubmit-current-main": 0,
+      "presubmit-final": 0,
+      "presubmit-final-seconds": 849.58,
+      "make presubmit": 0,
+      "frontend": 350,
+      "development": 115,
+      "production": 17,
+      "local_head": "83cc314189783bb6140f3d7f1c54e023e7c29843",
+      "published_head": "8fb575f15d97262cc352a53ad6efdc080ae950ca",
+      "tree": "1ca09dd9a88b00971926cc350ea1fd12dcfc0f56"
+    },
+    "601": {
+      "setup": {
+        "exit": 0,
+        "seconds": 2.63
+      },
+      "e2e-typecheck": {
+        "exit": 0,
+        "seconds": 0.34
+      },
+      "presubmit": {
+        "exit": 2,
+        "seconds": 204.87
+      },
+      "presubmit-final": {
+        "exit": 0,
+        "seconds": 725.53
+      },
+      "published_head": "7301a179423062b470ee8d833ea791a313e12558",
+      "local_head": "1201359635c377de8ed2635dd7eb9ea418a77553",
+      "tree": "48bc14f3f01185a17a541db901ffc8d103ec67f3",
+      "frontend": 360,
+      "development": 119,
+      "production": 19
+    },
+    "602": {
+      "setup": {
+        "exit": 0,
+        "seconds": 2.6
+      },
+      "presubmit": {
+        "exit": 0,
+        "seconds": 857.97
+      },
+      "setup-final": {
+        "exit": 0,
+        "seconds": 2.52
+      },
+      "presubmit-final": {
+        "exit": 0,
+        "seconds": 627.77
+      },
+      "published_head": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195",
+      "local_head": "b521a85804647243c3fa1648292fe297aed95dcd",
+      "tree": "91d8985d39e354c5e8729d865d0f5bef683b9d00",
+      "frontend": 360,
+      "development": 119,
+      "production": 21
+    }
+  },
+  "failed_attempts": [
+    {
+      "attempt": "contrast concurrent presubmit repeat",
+      "exit": 2,
+      "frontend": {
+        "passed": 349,
+        "failed": 1
+      },
+      "owner": "T, board6060778026"
+    },
+    {
+      "attempt": "combined36 paused-animation keyboard Home fixture",
+      "exit": 130,
+      "assertion": "Home=1px; strict0 retained after finishing animations"
+    },
+    {
+      "attempt": "tour concurrent pre-final-source stop",
+      "exit": 130
+    },
+    {
+      "attempt": "scratch tour also selected obsolete pre-fix menu discovery assertions",
+      "exit": 130,
+      "visitor_cases_passed": 4,
+      "obsolete_discovery_failures": 2,
+      "resolution": "unchanged scratch source; select first visitor only,12 cases; committed menu guard unchanged"
+    },
+    {
+      "attempt": "evidence checkout fast-forward missing pre-existing imported Git blob",
+      "first_exit": null,
+      "followup_exit": 1,
+      "resolution": "public immutable GIF bytes verified to exact Git blob d05d13d9; retained failed checkout, created clean new evidence worktree from main; no source reset/amend/restore",
+      "first_exit_note": "initial merge printed failure, compound command final status0 belonged to later read-only git status; not counted as a merge pass"
+    },
+    {
+      "attempt": "standalone shard listing without Bun PATH",
+      "exit": 1,
+      "commands": 6,
+      "corrected_controls_exit": 0,
+      "source_change": false
+    },
+    {
+      "attempt": "601 initial actual presubmit compiler",
+      "exit": 2,
+      "resolution": "NodeList Array.from; actual e2e compiler0 and final full make presubmit0"
+    },
+    {
+      "attempt": "602 branch ref spelling",
+      "api_rejected": true,
+      "resolution": "Inspected existing fix/landing-navigation-focus PR branch; expected-head nonforced fast-forward succeeded. No test pass inferred."
+    },
+    {
+      "attempt": "local git hash-object wrong source path",
+      "exit": 128,
+      "resolution": "Correct actual declared chat/home_landing.tsx and production test paths verified to published blob SHA."
+    }
+  ],
+  "negative_controls": {
+    "menu": 1,
+    "banner_conversation_heading": 1,
+    "settled_reply": 1,
+    "task_status": 1,
+    "keyboard_activity": 1,
+    "report_landmarks": 1,
+    "footer_original": 1,
+    "contrast_status": 1,
+    "contrast_entry": 1,
+    "specification_heading": 1,
+    "landing_visible_transition": 1,
+    "landing_copy_focus": 1
+  },
+  "closed_observations": {
+    "Q2-02": "Initial discovery-helper reachability false positive, separate from later actual Q2-15 native focus loss.",
+    "Q2-10": {
+      "native_errors": 0,
+      "native_unhandled_rejections": 0,
+      "engine_diagnostics": 16,
+      "canceled_requests": 19,
+      "deliberate_exception_canary_exit": 0
+    },
+    "Q2-11": {
+      "visible_controls": 4,
+      "exit": 0,
+      "scope": "Offscreen Standard only; visible controls inspected settled colors. Actual visible transition failure is separate Q2-14, fixed601."
+    }
+  },
+  "limits": "Playwright browser engines, iPhone14 viewport emulation, DOM accessible snapshots and live mutations; no physical-device screen-reader speech claim.",
+  "guard_interface": {
+    "config": "e2e/playwright.cross-browser.config.ts",
+    "tag_selection": "@keyboard-(menu|stream|semantics|progress)",
+    "projects": [
+      "webkit",
+      "webkit-iphone",
+      "firefox"
+    ],
+    "cases": 44,
+    "cases_per_project": {
+      "webkit": 16,
+      "webkit-iphone": 12,
+      "firefox": 16
+    },
+    "production_only": true,
+    "ci_owner": "CI2; final interface board6063112711",
+    "mobile_exclusions": [
+      "landing-navigation.spec.ts",
+      "landing-focus.spec.ts"
+    ]
+  },
+  "native_shard_collection": [
+    {
+      "project": "webkit",
+      "shard": 1,
+      "exit": 0,
+      "listing": "Listing tests:\n  [webkit] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress light\n  [webkit] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress dark\n  [webkit] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in light\n  [webkit] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in dark\n  [webkit] \u203a landing-focus.spec.ts:5:2 \u203a @keyboard-menu landing rail preserves native focus across copies light\n  [webkit] \u203a landing-focus.spec.ts:5:2 \u203a @keyboard-menu landing rail preserves native focus across copies dark\n  [webkit] \u203a landing-navigation.spec.ts:6:2 \u203a @keyboard-menu landing navigation maintains contrast during selection light\n  [webkit] \u203a landing-navigation.spec.ts:6:2 \u203a @keyboard-menu landing navigation maintains contrast during selection dark\nTotal: 8 tests in 4 files\n",
+      "command": [
+        "node",
+        "e2e/run.mjs",
+        "--config",
+        "playwright.cross-browser.config.ts",
+        "--project=webkit",
+        "--shard=1/2",
+        "--list"
+      ]
+    },
+    {
+      "project": "webkit",
+      "shard": 2,
+      "exit": 0,
+      "listing": "Listing tests:\n  [webkit] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named light\n  [webkit] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows light\n  [webkit] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named dark\n  [webkit] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows dark\n  [webkit] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading light\n  [webkit] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading dark\n  [webkit] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title light\n  [webkit] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title dark\nTotal: 8 tests in 2 files\n",
+      "command": [
+        "node",
+        "e2e/run.mjs",
+        "--config",
+        "playwright.cross-browser.config.ts",
+        "--project=webkit",
+        "--shard=2/2",
+        "--list"
+      ]
+    },
+    {
+      "project": "webkit-iphone",
+      "shard": 1,
+      "exit": 0,
+      "listing": "Listing tests:\n  [webkit-iphone] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress light\n  [webkit-iphone] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress dark\n  [webkit-iphone] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in light\n  [webkit-iphone] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in dark\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named light\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows light\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named dark\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows dark\nTotal: 8 tests in 3 files\n",
+      "command": [
+        "node",
+        "e2e/run.mjs",
+        "--config",
+        "playwright.cross-browser.config.ts",
+        "--project=webkit-iphone",
+        "--shard=1/2",
+        "--list"
+      ]
+    },
+    {
+      "project": "webkit-iphone",
+      "shard": 2,
+      "exit": 0,
+      "listing": "Listing tests:\n  [webkit-iphone] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading light\n  [webkit-iphone] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading dark\n  [webkit-iphone] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title light\n  [webkit-iphone] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title dark\nTotal: 4 tests in 1 file\n",
+      "command": [
+        "node",
+        "e2e/run.mjs",
+        "--config",
+        "playwright.cross-browser.config.ts",
+        "--project=webkit-iphone",
+        "--shard=2/2",
+        "--list"
+      ]
+    },
+    {
+      "project": "firefox",
+      "shard": 1,
+      "exit": 0,
+      "listing": "Listing tests:\n  [firefox] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress light\n  [firefox] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress dark\n  [firefox] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in light\n  [firefox] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in dark\n  [firefox] \u203a landing-focus.spec.ts:5:2 \u203a @keyboard-menu landing rail preserves native focus across copies light\n  [firefox] \u203a landing-focus.spec.ts:5:2 \u203a @keyboard-menu landing rail preserves native focus across copies dark\n  [firefox] \u203a landing-navigation.spec.ts:6:2 \u203a @keyboard-menu landing navigation maintains contrast during selection light\n  [firefox] \u203a landing-navigation.spec.ts:6:2 \u203a @keyboard-menu landing navigation maintains contrast during selection dark\nTotal: 8 tests in 4 files\n",
+      "command": [
+        "node",
+        "e2e/run.mjs",
+        "--config",
+        "playwright.cross-browser.config.ts",
+        "--project=firefox",
+        "--shard=1/2",
+        "--list"
+      ]
+    },
+    {
+      "project": "firefox",
+      "shard": 2,
+      "exit": 0,
+      "listing": "Listing tests:\n  [firefox] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named light\n  [firefox] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows light\n  [firefox] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named dark\n  [firefox] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows dark\n  [firefox] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading light\n  [firefox] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading dark\n  [firefox] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title light\n  [firefox] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title dark\nTotal: 8 tests in 2 files\n",
+      "command": [
+        "node",
+        "e2e/run.mjs",
+        "--config",
+        "playwright.cross-browser.config.ts",
+        "--project=firefox",
+        "--shard=2/2",
+        "--list"
+      ]
+    }
+  ],
+  "browser_guard": {
+    "exit_status": 0,
+    "duration_seconds": 489.05,
+    "source": "b521a85804647243c3fa1648292fe297aed95dcd",
+    "base": "ec9c38d7cf735155c627363ee861e6ffc9f6a427",
+    "command": "node e2e/run.mjs --config playwright.cross-browser.config.ts --output=/tmp/q2-evidence/final-guard-latest",
+    "cases": 44,
+    "cases_per_project": {
+      "webkit": 16,
+      "webkit-iphone": 12,
+      "firefox": 16
+    }
+  },
+  "visitor_tour": {
+    "exit_status": 0,
+    "duration_seconds": 686.17,
+    "source": "b521a85804647243c3fa1648292fe297aed95dcd",
+    "base": "ec9c38d7cf735155c627363ee861e6ffc9f6a427",
+    "command": "node e2e/run.mjs --config .playwright-mcp/q2/discovery.config.ts --output=/tmp/q2-evidence/final-tour-latest-results journeys.spec.ts --grep first visitor",
+    "cases": 12,
+    "selection": "first visitor only; no obsolete scratch menu cases"
+  },
+  "whole_page_scans": {
+    "stages": 208,
+    "all_files_fresh_for_final_capture": true,
+    "native_dom_exceptions": 0,
+    "raw_observations": [
+      {
+        "path": "firefox-desktop/dark/keyboard/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.12 (foreground color: #131314, background color: #1e1f20, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      },
+      {
+        "path": "firefox-desktop/dark/pointer/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.12 (foreground color: #131314, background color: #1e1f20, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      },
+      {
+        "path": "firefox-desktop/light/keyboard/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.08 (foreground color: #ffffff, background color: #f3f6fb, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      },
+      {
+        "path": "firefox-desktop/light/pointer/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.08 (foreground color: #ffffff, background color: #f3f6fb, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      },
+      {
+        "path": "webkit-desktop/dark/keyboard/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.12 (foreground color: #131314, background color: #1e1f20, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      },
+      {
+        "path": "webkit-desktop/dark/pointer/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.12 (foreground color: #131314, background color: #1e1f20, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      },
+      {
+        "path": "webkit-desktop/light/keyboard/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.08 (foreground color: #ffffff, background color: #f3f6fb, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      },
+      {
+        "path": "webkit-desktop/light/pointer/faq.json",
+        "id": "color-contrast",
+        "impact": "serious",
+        "nodes": [
+          {
+            "target": [
+              ".text-segmented-fg.aria-\\[pressed\\=false\\]\\:hover\\:bg-segmented-hover.aria-pressed\\:text-segmented-selected-fg:nth-child(3) > span"
+            ],
+            "html": "<span>Standard</span>",
+            "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 1.08 (foreground color: #ffffff, background color: #f3f6fb, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+          }
+        ]
+      }
+    ],
+    "decision": "Only Q2-11 offscreen Standard observations retained. Four visible settled controls0; Q2-14 visible landing transition has separate original failures and corrected4/4 guard pass. No rule exclusions."
+  },
+  "prior_checkpoints": [
+    {
+      "source": {
+        "main": "bfa51cf38938655770e8dcfd6ceded77daf890a1",
+        "frozen": "2e555bf058d58843a84b61d9f75cb38a2f36b4fe",
+        "tree": "bfbe70cbad740e2769f84e012ed37487b7032123",
+        "app": "70c24fc8441be3d2a3ebb380f96195b0076cb510",
+        "engine": "aa53dc8853ca134cb71a4190d334ab0947845fdc",
+        "frontend": "6c5dc4e49c945ca0bd2f70a8f34f11eb2e509df0",
+        "identical_frontend_main": "29a2505fa05031078a52a248ec2b4e9e888309d6"
+      },
+      "browser_guard": {
+        "exit": 0,
+        "seconds": 407.41,
+        "cases": 36
+      },
+      "visitor_tour": {
+        "exit": 0,
+        "seconds": 718.49,
+        "selection": "first visitor only;12 cases",
+        "cases": 12
+      },
+      "whole_page_scans": {
+        "stage_scans": 208,
+        "native_errors": [],
+        "retained_observations": [
+          {
+            "rule": "color-contrast",
+            "target": "['.text-segmented-fg.aria-\\\\[pressed\\\\=false\\\\]\\\\:hover\\\\:bg-segmented-hover.aria-pressed\\\\:text-segmented-selected-fg:nth-child(3) > span']",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.12 (foreground color: #131314, background color: #1e1f20, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "count": 4
+          },
+          {
+            "rule": "color-contrast",
+            "target": "['.text-segmented-fg.aria-\\\\[pressed\\\\=false\\\\]\\\\:hover\\\\:bg-segmented-hover.aria-pressed\\\\:text-segmented-selected-fg:nth-child(3) > span']",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.08 (foreground color: #ffffff, background color: #f3f6fb, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "count": 4
+          },
+          {
+            "rule": "color-contrast",
+            "target": "['.ucs-landing-header-tabs > .ucs-landing-rail.py-2\\\\.5.phone\\\\:justify-start > .max-w-\\\\[min\\\\(100\\\\%\\\\,var\\\\(--rail-room\\\\,100\\\\%\\\\)\\\\)\\\\].\\\\[\\\\&\\\\:\\\\:-webkit-scrollbar\\\\]\\\\:hidden.\\\\[\\\\.ucs-landing-header-tabs\\\\:not\\\\(\\\\[inert\\\\]\\\\)_\\\\&\\\\]\\\\:pointer-events-auto > .h-\\\\[38px\\\\][href$=\"#landing-tiers\"][data-section=\"landing-tiers\"]']",
+            "summary": "Fix any of the following:\n  Element has insufficient color contrast of 4.09 (foreground color: #75787d, background color: #f3f6fb, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+            "count": 1
+          }
+        ]
+      },
+      "native_shard_collection": [
+        {
+          "project": "webkit",
+          "shard": 1,
+          "exit": 0,
+          "listing": "Listing tests:\n  [webkit] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress light\n  [webkit] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress dark\n  [webkit] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in light\n  [webkit] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in dark\n  [webkit] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named light\n  [webkit] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows light\n  [webkit] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named dark\n  [webkit] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows dark\nTotal: 8 tests in 3 files\n"
+        },
+        {
+          "project": "webkit",
+          "shard": 2,
+          "exit": 0,
+          "listing": "Listing tests:\n  [webkit] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading light\n  [webkit] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading dark\n  [webkit] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title light\n  [webkit] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title dark\nTotal: 4 tests in 1 file\n"
+        },
+        {
+          "project": "webkit-iphone",
+          "shard": 1,
+          "exit": 0,
+          "listing": "Listing tests:\n  [webkit-iphone] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress light\n  [webkit-iphone] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress dark\n  [webkit-iphone] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in light\n  [webkit-iphone] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in dark\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named light\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows light\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named dark\n  [webkit-iphone] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows dark\nTotal: 8 tests in 3 files\n"
+        },
+        {
+          "project": "webkit-iphone",
+          "shard": 2,
+          "exit": 0,
+          "listing": "Listing tests:\n  [webkit-iphone] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading light\n  [webkit-iphone] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading dark\n  [webkit-iphone] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title light\n  [webkit-iphone] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title dark\nTotal: 4 tests in 1 file\n"
+        },
+        {
+          "project": "firefox",
+          "shard": 1,
+          "exit": 0,
+          "listing": "Listing tests:\n  [firefox] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress light\n  [firefox] \u203a announcements.spec.ts:6:3 \u203a @keyboard-stream settled replies and task progress dark\n  [firefox] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in light\n  [firefox] \u203a keyboard.spec.ts:5:3 \u203a @keyboard-menu Settings and model choices in dark\n  [firefox] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named light\n  [firefox] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows light\n  [firefox] \u203a progress-keyboard.spec.ts:7:3 \u203a @keyboard-progress report section landmarks are named dark\n  [firefox] \u203a progress-keyboard.spec.ts:30:3 \u203a @keyboard-progress active activity pane scrolls with arrows dark\nTotal: 8 tests in 3 files\n"
+        },
+        {
+          "project": "firefox",
+          "shard": 2,
+          "exit": 0,
+          "listing": "Listing tests:\n  [firefox] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading light\n  [firefox] \u203a semantics.spec.ts:7:3 \u203a @keyboard-semantics header landmark and conversation heading dark\n  [firefox] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title light\n  [firefox] \u203a semantics.spec.ts:53:3 \u203a @keyboard-semantics specification headings follow the document title dark\nTotal: 4 tests in 1 file\n"
+        }
+      ]
+    }
+  ],
+  "ci": {
+    "602": [
+      {
+        "name": "Required checks",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "CodeQL",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Docker builds + Compose config smoke",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Engine tests (py${{ matrix.python-version }})",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "App tests (shard ${{ matrix.shard }}/4)",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 1/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 3/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 8/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (production 2/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 6/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 7/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (production 1/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 2/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 4/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Browser e2e (shard 5/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Frontend (lint + test + build)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Format and lint (ruff)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Typecheck (mypy, strict)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Evaluations (tests + offline smoke)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Analyze Python and TypeScript",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      },
+      {
+        "name": "Affected targets",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "48c89d2ef9a6c0fede3e1dce676f5fe71060d195"
+      }
+    ],
+    "601": [
+      {
+        "name": "Required checks",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "CodeQL",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Docker builds + Compose config smoke",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Engine tests (py${{ matrix.python-version }})",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "App tests (shard ${{ matrix.shard }}/4)",
+        "status": "completed",
+        "conclusion": "skipped",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 8/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (production 2/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 4/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (production 1/2)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 7/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 2/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 1/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 6/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 5/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Browser e2e (shard 3/8)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Frontend (lint + test + build)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Typecheck (mypy, strict)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Format and lint (ruff)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Evaluations (tests + offline smoke)",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Affected targets",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      },
+      {
+        "name": "Analyze Python and TypeScript",
+        "status": "completed",
+        "conclusion": "success",
+        "head_sha": "7301a179423062b470ee8d833ea791a313e12558"
+      }
+    ]
+  },
+  "evidence_validation": {
+    "initial_actual_make_presubmit": {
+      "exit": 0,
+      "seconds": 0.0,
+      "selected_commands": [],
+      "scope": "Precommit invocation: selector examines committed HEAD, so staged new artifact files were not selected; not used as final artifact gate"
+    },
+    "fresh_capture_stages": 208,
+    "root_pngs": 25,
+    "paired_pngs": 22,
+    "closed_observation_controls": 3,
+    "committed_actual_make_presubmit": {
+      "exit": 0,
+      "seconds": 0.67,
+      "selected_commands": [
+        "lint-python"
+      ],
+      "architecture_contracts_kept": 6,
+      "scope": "Committed c26a7b6c artifact paths against main27fc775f"
+    }
+  }
+}
