@@ -1,7 +1,23 @@
 import {writeFile} from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
+import type {Locator, Page} from '@playwright/test';
 import {test, expect, createCompletedRun} from '../support/fixtures';
 import {tabTo} from '../support/keyboard';
+
+async function scrollWithKey(page: Page, pane: Locator, key: string) {
+  // A position poll can pass while the previous native key animation still runs.
+  // Observe real completion before sending the next scrolling key.
+  await pane.evaluate(node => {
+    node.setAttribute('data-test-scroll-ended', 'false');
+    node.addEventListener(
+      'scrollend',
+      () => node.setAttribute('data-test-scroll-ended', 'true'),
+      {once: true},
+    );
+  });
+  await page.keyboard.press(key);
+  await expect(pane).toHaveAttribute('data-test-scroll-ended', 'true');
+}
 
 for (const theme of ['light', 'dark']) {
   test(`@keyboard-progress report section landmarks are named ${theme}`, async ({page, api}, info) => {
@@ -89,11 +105,11 @@ for (const theme of ['light', 'dark']) {
     await page.screenshot({path: focusImage});
     await info.attach('progress-scroll-focused', {path: focusImage, contentType: 'image/png'});
     const initial = await pane.evaluate(node => node.scrollTop);
-    await page.keyboard.press('ArrowDown');
+    await scrollWithKey(page, pane, 'ArrowDown');
     await expect.poll(() => pane.evaluate(node => node.scrollTop)).toBeGreaterThan(initial);
-    await page.keyboard.press('End');
+    await scrollWithKey(page, pane, 'End');
     await expect.poll(() => pane.evaluate(node => node.scrollTop + node.clientHeight)).toBeGreaterThanOrEqual(await pane.evaluate(node => node.scrollHeight - 1));
-    await page.keyboard.press('Home');
+    await scrollWithKey(page, pane, 'Home');
     await expect.poll(() => pane.evaluate(node => node.scrollTop)).toBe(0);
   });
 }
