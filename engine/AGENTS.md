@@ -52,7 +52,7 @@ run it outside store transactions. Preserve the characterized node-level/durable
 assumptions-context and expansion differences when changing strategy dispatch.
 
 Ranking, Reflection and Evolution also expose supported operations from their
-agent packages. Ranking owns immutable prompt/median snapshots, per-match
+agent packages. Ranking owns immutable prompt and debating-leader snapshots, per-match
 judging/Elo and round lifecycle; node-level and durable callers retain their existing
 pair-selection order and prompt inputs. Reflection owns single-item context and
 evidence assembly; durable callers own issuance markers, aggregation and retry
