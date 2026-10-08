@@ -7,6 +7,12 @@ from co_scientist.science.prompts._common import (
     _format_meta_review_context,
     _run_guidance_section,
 )
+from co_scientist.science.prompts.context_budget import (
+    bounded_excerpt,
+    select_evidence_excerpt,
+    summarize_references,
+    summarize_transcript,
+)
 from co_scientist.science.prompts.generation_draft import (
     _build_citation_reference_section,
     format_articles_metadata,
@@ -173,7 +179,9 @@ def _build_debate_literature_variables(
 ) -> dict[str, Any]:
     variables: dict[str, Any] = {
         "articles_metadata": format_articles_metadata(articles or []),
-        "citation_reference_section": _build_citation_reference_section(reference_list or ""),
+        "citation_reference_section": _build_citation_reference_section(
+            summarize_references(reference_list or "")
+        ),
     }
     if articles_with_reasoning:
         variables["articles_with_reasoning"] = articles_with_reasoning
@@ -235,7 +243,7 @@ def _format_debate_evaluation_criteria(
 def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
     variables: dict[str, Any] = {
         "goal": req.research_goal,
-        "transcript": req.transcript or "",
+        "transcript": summarize_transcript(req.transcript or ""),
         "preferences": req.preferences
         or "Novel, testable, scientifically sound, specific, and diverse hypotheses",
         "attributes": _format_debate_attributes(req.attributes),
@@ -276,6 +284,14 @@ def _build_debate_prompt_variables(
         )
     )
     variables.update(_build_debate_guidance_variables(req.context))
+    if req.articles_with_reasoning:
+        variables["articles_with_reasoning"] = select_evidence_excerpt(
+            req.articles_with_reasoning, req.research_goal, 6_000
+        )
+    # The reference list already identifies these same papers.
+    variables["articles_metadata"] = (
+        "" if req.reference_list else bounded_excerpt(str(variables["articles_metadata"]), 2_000)
+    )
     return variables
 
 

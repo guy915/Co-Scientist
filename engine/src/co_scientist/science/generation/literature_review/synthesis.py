@@ -27,6 +27,7 @@ from co_scientist.science.prompts import (
     get_literature_review_paper_analysis_prompt,
     get_literature_review_synthesis_prompt,
 )
+from co_scientist.science.prompts.context_budget import select_evidence_excerpt
 from co_scientist.science.prompts.loading import load_prompt_with_schema
 from co_scientist.science.prompts.untrusted import untrusted_evidence
 from co_scientist.science.schemas import LITERATURE_PAPER_ANALYSIS_SCHEMA
@@ -170,12 +171,14 @@ async def _analyze_papers_in_one_call(
     """A paper the answer omits or garbles is analyzed on its own afterwards,
     so the batch never costs a paper its analysis."""
     ordered = list(papers.items())
+    paper_limit = 16_000 // len(ordered)
     prompt, schema = load_prompt_with_schema(
         "literature_review_paper_analysis_batch",
         {
             "research_goal": state["research_goal"],
             "papers": "\n\n".join(
-                f"### Paper {number}\n{_paper_evidence(metadata)}"
+                f"### Paper {number}\n"
+                + _paper_evidence(metadata, state["research_goal"], paper_limit)
                 for number, (_paper_id, metadata) in enumerate(ordered, start=1)
             ),
         },
@@ -217,14 +220,16 @@ async def _analyze_papers_in_one_call(
     return analyses
 
 
-def _paper_evidence(metadata: dict[str, Any]) -> str:
+def _paper_evidence(metadata: dict[str, Any], research_goal: str, limit: int) -> str:
     return untrusted_evidence(
         "retrieved paper",
         {
             "title": metadata.get("title", "Unknown"),
             "authors": metadata.get("authors", []),
             "year": parse_year_from_metadata(metadata),
-            "fulltext": get_paper_content_for_analysis(metadata),
+            "fulltext": select_evidence_excerpt(
+                get_paper_content_for_analysis(metadata), research_goal, limit
+            ),
         },
     )
 
