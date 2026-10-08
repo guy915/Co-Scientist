@@ -6,11 +6,12 @@ import sys
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.platform.db import log_admission, logs
 from co_scientist.platform.db import log_capture as logging_setup
-from co_scientist.platform.db import logs
 from co_scientist.platform.db.logs import NewLogRecord
 
 from tests._client import make_client
@@ -73,6 +74,8 @@ def test_capture_does_not_retain_unbounded_message_exception_or_extra_payload() 
 def test_rotating_ui_identities_cannot_exceed_a_global_record_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    now = 1_700_000_001.0
+    monkeypatch.setattr(log_admission, "time", SimpleNamespace(time=lambda: now))
     monkeypatch.setattr(settings, "logs_ingest_per_minute", 10000)
     client = make_client()
     statuses = [
@@ -85,6 +88,15 @@ def test_rotating_ui_identities_cannot_exceed_a_global_record_budget(
     ]
     assert statuses[:40] == [200] * 40
     assert statuses[40] == 429
+    now += 60
+    assert (
+        client.post(
+            "/api/logs",
+            headers={"X-Client-ID": "synthetic-owner-next-minute"},
+            json={"records": [{"message": "synthetic UI record"}] * 50},
+        ).status_code
+        == 200
+    )
 
 
 def test_ui_retention_cannot_evict_server_diagnostics(
