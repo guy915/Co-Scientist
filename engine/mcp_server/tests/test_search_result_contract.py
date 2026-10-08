@@ -22,10 +22,15 @@ from mcp_server.tools.web_providers import search_brave
     ],
 )
 async def test_backend_outage_returns_failed_not_empty_success(
-    tool: Callable[..., Awaitable[dict[str, Any]]],
+    tool: Callable[..., Awaitable[dict[str, Any]]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    with patch("httpx.AsyncClient.__aenter__", side_effect=httpx.ConnectError("down")):
+    monkeypatch.setattr(
+        "mcp_server.tools.lit_review.europepmc_search._TRANSPORT_RETRY_DELAYS_SECONDS",
+        (0.0, 0.0),
+    )
+    with patch("httpx.AsyncClient.__aenter__", side_effect=httpx.ConnectError("down")) as attempts:
         result = await tool("weak claim")
+    assert attempts.call_count == (3 if tool is search_europepmc else 1)
     assert result == {"status": "failed", "records": [], "error": "network_error"}
 
 

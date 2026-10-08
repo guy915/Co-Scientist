@@ -7,6 +7,7 @@ from typing import Any
 
 from Bio import Entrez
 
+from mcp_server.cache_privacy import PUBLIC_PAPERS
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import search_with_relaxation
@@ -150,10 +151,10 @@ async def pubmed_search_with_fulltext(
 
     Args:
         query: PubMed boolean query (AND/OR/NOT operators).
-        slug: Identifier for organizing results (research goal hash).
+        slug: Validated compatibility argument; never persisted.
         max_papers: Maximum papers to retrieve.
         recency_years: Filter to papers from last N years (0 = no filter).
-        run_id: Unique run identifier for per-run tracking.
+        run_id: Validated compatibility argument; never persisted.
         include_fulltext: Skip downloads and extraction when false, retaining
             PMC-linked selection and metadata provenance.
 
@@ -174,8 +175,7 @@ async def pubmed_search_with_fulltext(
         include_fulltext=include_fulltext,
     )
     if include_fulltext:
-        base_dir = confined_path(lit_review_dir, "pubmed", slug)
-        run_dir = confined_path(base_dir, "runs", run_id) if run_id else base_dir
+        run_dir = confined_path(lit_review_dir, "pubmed", PUBLIC_PAPERS, "shared")
         extracted = sum(
             await asyncio.gather(
                 *(

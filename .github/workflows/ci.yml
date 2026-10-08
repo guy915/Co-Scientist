@@ -11,6 +11,9 @@ on:
   workflow_call:
   workflow_dispatch:
 
+env:
+  LITELLM_LOCAL_MODEL_COST_MAP: "True"
+
 # PR diffs use the API; merge groups use their base/head git diff.
 permissions:
   contents: read
@@ -346,11 +349,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
-      # Keep both interpreter results visible when one fails.
+      # Keep test results visible when a matrix entry fails.
       fail-fast: false
       matrix:
-        # Python 3.10 is the engine support floor; 3.12 is the primary runtime.
-        python-version: ['3.10', '3.12']
+        # Match the supported package floor and production runtime.
+        python-version: ['3.12']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -507,12 +510,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build api image
-        run: docker build -f Dockerfile.api -t coscientist-api-ci .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.api
+          tags: coscientist-api-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-api
+          cache-to: type=gha,scope=ci-api,mode=max
       - name: Build mcp image
-        run: docker build -f Dockerfile.mcp -t coscientist-mcp-ci .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.mcp
+          tags: coscientist-mcp-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-mcp
+          cache-to: type=gha,scope=ci-mcp,mode=max
       - name: Build frontend dev image
-        run: docker build -t coscientist-ui-ci app/frontend
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: app/frontend
+          tags: coscientist-ui-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-frontend
+          cache-to: type=gha,scope=ci-frontend,mode=max
       - name: Report image sizes
         # Image size is an optimization metric; record it on every build.
         run: docker image ls --format '{{.Repository}} {{.Size}}' 'coscientist-*-ci'

@@ -8,10 +8,10 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
-import {useLocation} from 'react-router-dom';
+import {Link, useLocation} from 'react-router-dom';
 import {createPortal} from 'react-dom';
 import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
-import {Button, SegmentedControl} from '@/shared/ui';
+import {Button, ExternalLink, SegmentedControl} from '@/shared/ui';
 import helixArt from '@/assets/landing/helix.webp';
 import {joinClasses} from '@/shared/ui/classes';
 import {
@@ -148,9 +148,9 @@ function LandingHero({
     >
       <h2
         id="ucs-landing-word"
-        className="relative z-1 m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
+        className="relative z-1 m-0 font-(family-name:--l-display) text-[clamp(3rem,7.5vw,8rem)] leading-[0.95] font-normal tracking-[-0.015em] text-balance"
       >
-        Co-Scientist
+        Open Co-Scientist
       </h2>
       <div className="mt-8 grid grid-cols-[6fr_5fr] [align-items:start] gap-8 [@media(max-width:900px)]:mt-4 [@media(max-width:900px)]:grid-cols-[1fr]">
         <div className="grid gap-7 pt-2">
@@ -171,15 +171,17 @@ function LandingHero({
               See how it works
             </Button>
           </div>
-          <iframe
-            className="block aspect-[16/9] w-full rounded-xl [border:0] bg-(--l-surface)"
-            title="Co-Scientist trailer"
-            src="https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0"
-            loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
+          <div className="grid aspect-[16/9] w-full place-content-center gap-3 rounded-xl bg-(--l-surface) p-6 text-center">
+            <ExternalLink
+              className="text-[1.15rem] underline underline-offset-4"
+              href="https://www.youtube.com/watch?v=Wnhe8a8kKc0"
+            >
+              Watch the trailer on YouTube
+            </ExternalLink>
+            <p className="m-0 text-sm text-(--l-muted)">
+              Opens another site. YouTube’s privacy policy applies there.
+            </p>
+          </div>
         </div>
         <svg
           className="tone-teal w-[min(100%,440px)] [align-self:center] [justify-self:end] overflow-visible [&>path]:fill-(--tone-c) [@media(max-width:900px)]:justify-self-center"
@@ -434,6 +436,14 @@ export default function HomeLanding() {
         <TiersSection reduceMotion={reduceMotion} />
         <ClosingSection onStart={onStart} />
         <FaqSection />
+        <footer
+          role="contentinfo"
+          aria-label="Site information"
+          className="flex flex-wrap gap-6 border-t border-t-(--l-line) py-6 text-(--l-muted)"
+        >
+          <Link to="/privacy">Privacy notice</Link>
+          <Link to="/terms">Terms of use</Link>
+        </footer>
       </div>
     </div>
   );
@@ -750,8 +760,8 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
           <h2 className={H2_CLASSES}>Start with a question.</h2>
           <p className="m-[16px_0_28px] max-w-[30rem] text-[1.15rem] leading-[1.55] opacity-80">
             Describe what you want to find out.{' '}
-            <span className="whitespace-nowrap">Co-Scientist</span> asks what a
-            strong answer needs, then sends its agents to work.
+            <span className="whitespace-nowrap">Open Co-Scientist</span> asks
+            what a strong answer needs, then sends its agents to work.
           </p>
           <Button variant="tonal" size="lg" onClick={onStart}>
             Start a research goal

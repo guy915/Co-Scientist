@@ -1,7 +1,5 @@
 /**
- * Build-time prerenderer for the product root. The app itself is private
- * workbench UI, so avoid emitting marketing pages that are not part of the
- * official product surface.
+ * Private workbench routes stay out of the public build-time route list.
  */
 import {mkdir, readFile, writeFile} from "node:fs/promises";
 import path from "node:path";
@@ -41,6 +39,14 @@ const routes = [
       },
     ],
   },
+  ...["privacy", "terms"].map(kind => ({
+    path: `/${kind}`,
+    title: `${kind === "privacy" ? "Privacy notice" : "Terms of use"} - Open Co-Scientist`,
+    description: `${kind === "privacy" ? "Privacy notice" : "Terms of use"} for Open Co-Scientist.`,
+    heading: kind === "privacy" ? "Privacy notice" : "Terms of use",
+    body: "Contact the individual owner in the Netherlands at guy.barel@open-coscientist.com. Enable JavaScript to read the complete notice. This text is not legal advice; the owner reviews it before launch.",
+    jsonLd: null,
+  })),
 ];
 
 function escapeHtml(value) {
@@ -90,7 +96,7 @@ function renderRoute(route) {
     )
     .replace(
       "</head>",
-      `<script type="application/ld+json">${jsonLd}</script></head>`,
+      route.jsonLd ? `<script type="application/ld+json">${jsonLd}</script></head>` : "</head>",
     );
 }
 
