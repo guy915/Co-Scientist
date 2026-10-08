@@ -86,16 +86,67 @@ function primitiveText(value: unknown): string {
   return String(value);
 }
 
+// Cut text never ends on punctuation before its ellipsis: "FDA-approved…",
+// not "FDA-approved,…".
+export function ellipsize(text: string): string {
+  return `${text.replace(/[\s.,;:!?/\-–—]+$/u, '')}…`;
+}
+
 function truncateOnWordBoundary(text: string, maxChars: number): string {
   const cut = text.slice(0, maxChars);
   const lastSpace = cut.lastIndexOf(' ');
   const onBoundary = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
   const base = onBoundary.replace(/[\s,;:]+$/, '');
-  const trimmedTail = (base.replace(/\s+\S{1,3}$/, '') || base).replace(
-    /[\s,;:]+$/,
-    '',
+  return ellipsize(base.replace(/\s+\S{1,3}$/, '') || base);
+}
+
+const MINOR_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'as',
+  'at',
+  'but',
+  'by',
+  'for',
+  'from',
+  'in',
+  'into',
+  'nor',
+  'of',
+  'on',
+  'or',
+  'per',
+  'the',
+  'to',
+  'versus',
+  'via',
+  'vs',
+  'with',
+]);
+
+// Only all-lowercase ASCII words change, so mRNA, FDA-approved, p53 and
+// β-catenin keep the case their authors gave them.
+function titleWord(word: string, edge: boolean): string {
+  const match = /^([^\p{L}\p{N}]*)([a-z][a-z'’-]*)([^\p{L}\p{N}]*)$/u.exec(
+    word,
   );
-  return `${trimmedTail}…`;
+  if (!match) return word;
+  const [, lead, core, tail] = match;
+  if (!edge && MINOR_WORDS.has(core)) return word;
+  return `${lead}${core.charAt(0).toUpperCase()}${core.slice(1)}${tail}`;
+}
+
+export function titleCase(text: string): string {
+  const words = text.split(/(\s+)/);
+  const last = words.length - 1;
+  return words
+    .map((word, index) =>
+      /^\s*$/.test(word)
+        ? word
+        : titleWord(word, index === 0 || index === last),
+    )
+    .join('');
 }
 
 // NLM structured abstracts concatenate labels without reliable separators,
@@ -144,14 +195,14 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function titleCase(label: string): string {
+function labelCase(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
 }
 
 // Longest labels must win alternation before shorter prefix matches.
 const sortedLabels = [...SECTION_LABELS].sort((a, b) => b.length - a.length);
 const upperForms = sortedLabels.map(escapeRegExp).join('|');
-const titleForms = sortedLabels.map(l => escapeRegExp(titleCase(l))).join('|');
+const titleForms = sortedLabels.map(l => escapeRegExp(labelCase(l))).join('|');
 
 // Two spaces avoid treating ordinary Results were prose as a header; capital
 // lookahead must stay case-sensitive.
@@ -203,7 +254,7 @@ export function splitAbstractSections(raw: string): AbstractSection[] {
   marks.forEach((mark, index) => {
     const bodyEnd =
       index + 1 < marks.length ? marks[index + 1].start : text.length;
-    pushSection(titleCase(mark.label), text.slice(mark.end, bodyEnd));
+    pushSection(labelCase(mark.label), text.slice(mark.end, bodyEnd));
   });
 
   return withFallback(sections, text);

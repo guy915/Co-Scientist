@@ -15,7 +15,6 @@ import {
   type Run,
   type RunMessage,
 } from '@/shared/api/runs';
-import {conciseTitle} from '@/shared/lib/text';
 import {type InferredRunSpec} from '@/shared/lib/run_spec';
 import type {StartedSession} from './chat_timeline_run_spec_card';
 import {useChatHistoryContext} from '@/shared/hooks/history_context';
@@ -89,8 +88,9 @@ interface ResolveLinkedRunArgs {
 }
 
 function startedTitle(run: Run | undefined, fallback: string): string {
-  if (!run) return conciseTitle(fallback);
-  return displayTitle(run.title, run.research_goal);
+  return run
+    ? displayTitle(run.title, run.research_goal)
+    : displayTitle(null, fallback);
 }
 
 function resumedSession(
