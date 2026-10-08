@@ -67,3 +67,5 @@ test-results/
 .claude/
 .remember/
 .lsp.json
+
+.wrangler/

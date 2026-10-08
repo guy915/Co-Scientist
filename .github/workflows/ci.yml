@@ -139,6 +139,9 @@ jobs:
             root_config:
               - 'Makefile'
               - 'vercel.json'
+              - 'wrangler.jsonc'
+              - 'app/frontend/worker*.mjs'
+              - 'app/frontend/public/_headers'
               - '.env.example'
               - 'app/.env.example'
               - '.ruff.toml'
@@ -318,6 +321,11 @@ jobs:
       - name: Validate vercel.json syntax
         if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
         run: python -m json.tool vercel.json > /dev/null
+      - name: Validate Cloudflare asset routing
+        if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
+        run: |
+          python -m json.tool wrangler.jsonc > /dev/null
+          node --test app/frontend/worker.test.mjs
       - name: make setup
         if: ${{ !cancelled() && needs.changes.outputs.root_config == 'true' }}
         # Other jobs encode most commands directly; this gate checks the setup and lint
