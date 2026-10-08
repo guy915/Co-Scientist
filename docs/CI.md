@@ -61,11 +61,14 @@ No blocking job uses the network for test traffic, model keys or retries.
   backend (`COSCIENTIST_FORCE_OFFLINE=1`), and no provider key exists in CI.
   MCP tests use fake `httpx` clients.
 - Browser tests get a fresh temporary store, disabled dotenv loading and
-  offline evidence checks.
+  offline evidence checks. CI uses the Chrome executable shipped by the
+  `ubuntu-24.04` runner image through `COSCI_E2E_CHROMIUM_EXECUTABLE` and
+  prints its version. Browser setup does not run apt or download a browser;
+  `make e2e` still installs bundled Playwright Chromium locally by default.
 - `evaluations.smoke` is the offline, no-LLM subset; provider-backed suites
   stay opt-in.
-- Fetching the repository, actions, registries (PyPI, npm), the Chromium
-  download and Docker base images is infrastructure, not test traffic.
+- Fetching the repository, actions, registries (PyPI, npm) and Docker base
+  images is infrastructure, not test traffic.
   Lockfiles are frozen and tool versions pinned (`ruff==0.15.21`, Bun
   `1.3.14`, Node `24.19.0`, uv `0.11.32` in CI and `0.12.19` for lock
   regeneration and the dependency audit), but the registry fetch itself is
