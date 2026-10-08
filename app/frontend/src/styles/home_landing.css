@@ -242,9 +242,9 @@ html:has(.ucs-landing) body {
   background: transparent;
 }
 
-/* Rail links keep a slower colour change than the shared control default. */
+/* Change each rail link foreground and background together for text contrast. */
 .ucs-landing-rail a {
-  transition: color var(--motion-duration-long) var(--motion-ease-standard);
+  transition: none;
 }
 
 .ucs-landing-diagram {

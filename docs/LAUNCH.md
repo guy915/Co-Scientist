@@ -105,6 +105,10 @@ Run the steps in order; each ends with a check.
 
 ## Backup and restore
 
+With R2 replication on, the API verifies a fresh backup every day
+([deployment](DEPLOYMENT.md#database-replication-optional)). Take manual
+backups as well before risky changes.
+
 Create a consistent SQLite backup through the backup API rather than copying
 only the `.db` while its WAL may contain committed work. From the repo root:
 

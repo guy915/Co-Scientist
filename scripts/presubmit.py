@@ -19,15 +19,20 @@ TARGET_COMMANDS = {
     "e2e": ("e2e", "e2e-production"),
     "docker": ("docker-build",),
     "root_config": ("setup", "lint", "typecheck", "root-config"),
+    "workflows": ("lint-workflows",),
+    "sandbox": ("test-engine",),
+    "cross_browser": ("e2e", "e2e-production"),
 }
 ORDER = (
     "setup",
+    "ci-guards",
     "lint",
     "lint-python",
     "lint-frontend",
     "typecheck",
     "arch",
     "root-config",
+    "lint-workflows",
     "test-engine",
     "test-app",
     "test-mcp",
@@ -45,7 +50,7 @@ def commands_for(selected: dict[str, bool]) -> list[str]:
     unknown = selected.keys() - TARGET_COMMANDS.keys()
     if unknown:
         raise ValueError(f"No local equivalent for targets: {sorted(unknown)}")
-    commands = {
+    commands = {"ci-guards"} | {
         command
         for target, affected in selected.items()
         if affected

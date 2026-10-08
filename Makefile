@@ -288,6 +288,29 @@ root-config:
 presubmit:
 	@"$(PY)" -m scripts.presubmit $(PRESUBMIT_ARGS)
 
+CI_TOOLS := $(ROOT)/.cache/ci-tools
+
+.PHONY: ci-guards lint-workflows
+ci-guards:
+	@"$(PY)" -m unittest discover -s scripts/ci/tests
+	@"$(PY)" -m ruff check scripts/ci
+	@"$(PY)" -m ruff format --check scripts/ci
+	@"$(PY)" scripts/ci/markdown_links.py
+	@BASE_SHA="$$(git rev-parse origin/main)" HEAD_SHA="$$(git rev-parse HEAD)" \
+		"$(PY)" scripts/ci/git_hygiene.py --commits-only
+	@"$(PY)" scripts/ci/install_tools.py gitleaks "$(CI_TOOLS)"
+	@BASE_SHA="$$(git rev-parse origin/main)" HEAD_SHA="$$(git rev-parse HEAD)" \
+		GITLEAKS_BIN="$(CI_TOOLS)/gitleaks" "$(PY)" scripts/ci/secret_scan.py
+
+lint-workflows:
+	@"$(PY)" scripts/ci/install_tools.py actionlint "$(CI_TOOLS)"
+	@"$(PY)" scripts/ci/install_tools.py gitleaks "$(CI_TOOLS)"
+	@"$(PY)" -m pip install zizmor==1.30.1
+	@ACTIONLINT_BIN="$(CI_TOOLS)/actionlint" ZIZMOR_BIN="$(VENV)/bin/zizmor" \
+		"$(PY)" scripts/ci/workflow_lint.py
+	@ACTIONLINT_BIN="$(CI_TOOLS)/actionlint" ZIZMOR_BIN="$(VENV)/bin/zizmor" \
+		GITLEAKS_BIN="$(CI_TOOLS)/gitleaks" "$(PY)" -m scripts.ci.tool_tests
+
 clean:
 	rm -rf "$(VENV)" "$(MCP_VENV)" "$(FRONTEND)/dist" "$(FRONTEND)/node_modules" "$(APP)"/.coscientist_cache "$(APP)"/cache
 

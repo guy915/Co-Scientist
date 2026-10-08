@@ -345,12 +345,52 @@ route and no SMTP delivery. The store keeps the newest 200 submissions within a
 10 MiB budget and prunes records older than 30 days. Admission allows 5 per
 owner, 20 per connecting host (hashed, never returned) and 100 globally per
 rolling minute, retained across restarts and row eviction; excess requests get
-HTTP 429 with `Retry-After: 60`.
+HTTP 429 with `Retry-After` set to the seconds until the blocking window
+resets (1 to 60).
 
 The attached export keeps the newest loaded records within the limit; a failed
 log fetch becomes an explicit diagnostic-unavailable record so the message can
 still be sent. Failed fetches are recorded as method, path and status without
 query strings or payloads.
+
+## Run efficiency
+
+A run spends its depth on its finalists. Every idea gets the safety screen and
+one screening review, four ideas per call (`SCREENING_BATCH_SIZE` in
+`orchestration/engine_tasks/fanout.py`). Only the tier's finalists (`finalists`
+in `RUN_TIER_DEFAULTS`: 3, 5, 6, 8) get depth: one finalist review that
+answers the observation, full and simulation parts in a single call
+(`review_finalist` in `science/reflection/comprehensive_reflection.py`), then
+one deep-verification call that first searches the review's own queries.
+Express analyzes its literature corpus in one call. Within a run, a claim check
+of an unchanged claim against unchanged sources reuses the stored verdict, and
+the tournament skips a pair already judged with unchanged inputs; both record
+the reuse in provenance. The final-check Express run before this work spent
+105 calls over 70 minutes, mostly on depth and claim checks for ideas the
+report never featured.
+
+The offline meter (`app/tests/test_run_envelopes.py`) drives every tier through
+the durable worker against a fake MCP server and fails when a tier passes its
+ceiling or a call goes out without its call type, which would give it the
+generic effort. Lower a ceiling when a change lowers a tier; never raise one to
+make a regression pass. `METER_OUT` writes each tier's breakdown by phase and
+call type. Offline counts on 8 October 2026, before and after the change:
+
+| Tier | Calls before | Calls after | Requested tokens before | Requested tokens after |
+| --- | --- | --- | --- | --- |
+| Express | 118 | 52 | 1.13M | 0.65M |
+| Standard | 301 | 127 | 2.91M | 1.59M |
+| Extended | 528 | 221 | 5.08M | 2.68M |
+| Ultra | 688 | 316 | 6.55M | 3.67M |
+
+The offline judge is position-consistent, so every debate stops after one turn
+and the tournament's own saving shows only on live runs. Live runs also add
+retries, budget escalation and fallbacks to these counts.
+
+`max_llm_calls` in `RUN_TIER_DEFAULTS` is a runaway cap, 20 to 45 times the
+measured use, not an envelope. It also gates features: knowledge-base synthesis
+needs 2,500 and interim research overviews 7,000, so lowering it changes what a
+tier produces, not only what it costs.
 
 ## Provider admission
 
@@ -657,12 +697,13 @@ expire an idle database’s only restore base; pair expiry with a refreshed,
 verified restore generation. R2 documents normal deletion within 24 hours of
 object expiration, with possible delays. See [R2 lifecycle behavior](https://developers.cloudflare.com/r2/buckets/object-lifecycles/).
 
-The owner selects backups ON with a 30-day object-expiry policy. Before
-launch, the owner installs the R2 lifecycle rule; O implements and verifies a
-daily forced Litestream snapshot even for an idle database, with a hermetic
-regression and a restore-drill step. Both are launch prerequisites, not facts
-established by a source-only review. Reapply erasure decisions before a restored
-database serves traffic. Litestream's default retention alone is insufficient.
+The owner selects backups ON with a 30-day object-expiry policy. The API
+image forces and verifies a Litestream snapshot daily, even for an idle
+database (`platform/db/backup_service.py`; [restore drill](RESTORE-DRILL.md)).
+Before launch, the owner installs the R2 lifecycle rule; it is a launch
+prerequisite, not a fact established by a source-only review. Reapply erasure
+decisions before a restored database serves traffic. Litestream's default
+retention alone is insufficient.
 
 Provider documentation checked on 8 October 2026:
 

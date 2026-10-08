@@ -35,6 +35,22 @@ CREATE TABLE IF NOT EXISTS llm_spend (
 );
 CREATE INDEX IF NOT EXISTS idx_llm_spend_created_at ON llm_spend(created_at);
 CREATE TABLE IF NOT EXISTS llm_spend_holds (reason TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS anthropic_credit_cycles (
+    start REAL PRIMARY KEY, end REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS anthropic_credit_state (
+    slot TEXT PRIMARY KEY, disabled_until REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS anthropic_credit (
+    id TEXT PRIMARY KEY, cycle_start REAL NOT NULL, created_at REAL NOT NULL,
+    role TEXT NOT NULL, reserved_microusd INTEGER NOT NULL CHECK(reserved_microusd >= 0),
+    charged_microusd INTEGER NOT NULL
+        CHECK(charged_microusd >= 0 AND charged_microusd <= reserved_microusd),
+    settled INTEGER NOT NULL DEFAULT 0, input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL,
+    rates TEXT NOT NULL,
+    prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, cache_write_tokens INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_anthropic_credit_cycle ON anthropic_credit(cycle_start);
 CREATE TABLE IF NOT EXISTS run_call_admissions (
     run_id TEXT PRIMARY KEY, calls INTEGER NOT NULL, ceiling INTEGER NOT NULL
 );

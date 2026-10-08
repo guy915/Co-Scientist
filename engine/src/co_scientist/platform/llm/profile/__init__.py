@@ -6,6 +6,8 @@ from typing import Any, Final, TypedDict
 
 from co_scientist.core.byok_scope import CustomModelCapabilities, current_byok
 
+HAIKU: Final = "anthropic/claude-haiku-5-5"
+
 
 @dataclass(frozen=True)
 class ModelPrice:

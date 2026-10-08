@@ -222,8 +222,9 @@ DEFAULT_REQUIREMENTS: tuple[str, ...] = (
     "Use tournament ranking and evolution before final synthesis.",
 )
 
-# Tier envelopes are reconstructed, not published measurements; call budgets
-# bound maintenance loops without charging recovery downtime.
+# Call budgets are runaway caps far above measured use (docs/OPERATIONS.md, Run
+# efficiency) that bound loops without charging recovery downtime. They also
+# gate knowledge-base synthesis and interim overviews.
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
         "initial_hypotheses_count": 4,
