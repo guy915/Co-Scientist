@@ -420,6 +420,8 @@ def accumulate_tool_calls(accumulated: dict[int, dict[str, Any]], delta: Any) ->
         call = accumulated.setdefault(index, {"id": None, "name": None, "arguments": ""})
         if getattr(fragment, "id", None):
             call["id"] = fragment.id
+        if getattr(fragment, "responses_items", None):
+            call["responses_items"] = fragment.responses_items
         function = getattr(fragment, "function", None)
         if function is None:
             continue
@@ -432,7 +434,7 @@ def assistant_tool_message(calls: list[dict[str, Any]]) -> dict[str, Any]:
     """Provider transcripts require the requesting assistant message before its
     tool replies.
     """
-    return {
+    message: dict[str, Any] = {
         "role": "assistant",
         "content": None,
         "tool_calls": [
@@ -447,6 +449,10 @@ def assistant_tool_message(calls: list[dict[str, Any]]) -> dict[str, Any]:
             for call in calls
         ],
     }
+    items = next((call["responses_items"] for call in calls if call.get("responses_items")), None)
+    if items:
+        message["responses_items"] = items
+    return message
 
 
 _UNCITABLE_STATES = frozenset({"unsupported", "unavailable"})
