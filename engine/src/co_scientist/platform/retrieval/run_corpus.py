@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import dataclasses
 import math
-import re
 from collections import Counter
 from typing import Any
 
-_TOKEN = re.compile(r"[a-z0-9]+")
+from co_scientist.core.text_matching import tokenize
 
 ATTACHMENT_SOURCE = "attachment"
 
 
 def _tokenize(text: str) -> list[str]:
-    return [t for t in _TOKEN.findall(text.lower()) if len(t) > 2]
+    return list(tokenize(text, min_len=3))
 
 
 @dataclasses.dataclass(frozen=True)
