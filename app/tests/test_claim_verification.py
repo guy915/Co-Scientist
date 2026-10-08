@@ -143,3 +143,30 @@ def test_no_candidates_cannot_claim_model_verification() -> None:
 
     result = assess_claim("A hypothesis without retrieved evidence.", [], assessor=assess)
     assert result.verification_method == "no_evidence"
+
+
+def test_ideas_stating_one_claim_share_its_check_at_finalize() -> None:
+    claim = "A dietary change improves cardiovascular outcomes in adults."
+    checked: list[str] = []
+
+    def assess(text: str, passages: Sequence[EvidencePassage]) -> AssessorDraft:
+        checked.append(text)
+        return AssessorDraft(EntailmentLabel.SUPPORTS, verification_method="model_primary")
+
+    ideas = [
+        {"id": "parent", "statement": claim},
+        {"id": "child", "statement": claim, "mechanism": "Lower sodium reduces blood pressure."},
+    ]
+
+    result = dict(
+        assess_hypothesis_claims(
+            ideas, as_passages([claim]), AssessorSpec(assessor=assess, assessor_id="llm:test")
+        )
+    )
+
+    assert sorted(checked) == sorted([claim, "Lower sodium reduces blood pressure."])
+    assert [a.claim for a, _role in result["child"]] == [
+        claim,
+        "Lower sodium reduces blood pressure.",
+    ]
+    assert result["child"][0][0] is result["parent"][0][0]
