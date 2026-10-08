@@ -44,3 +44,6 @@ jobs:
           PY
       - name: Exercise sandbox behavior and escape denials
         run: python -m pytest engine/tests/test_sandbox.py -q -rs
+      - name: Diagnose confined runtime startup on failure
+        if: failure()
+        run: python scripts/ci/macos_sandbox_diagnostics.py

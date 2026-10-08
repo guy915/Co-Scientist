@@ -40,9 +40,6 @@ from co_scientist.platform.sandbox.runner import (
 
 _ON_MACOS = sys.platform == "darwin"
 
-# Seatbelt argv contracts are macOS-specific.
-_requires_seatbelt = pytest.mark.skipif(not _ON_MACOS, reason="seatbelt confinement is macOS-only")
-
 # Kernel escape tests must run on every platform claiming a usable backend.
 _requires_sandbox = pytest.mark.skipif(
     sandbox_argv.sandbox_backend() is None,
@@ -172,18 +169,16 @@ def test_workspace_package_cannot_shadow_the_confinement_helper(tmp_path: Path) 
     assert not marker.exists()
 
 
-@_requires_seatbelt
 def test_writable_roots_are_passed_as_parameters_not_interpolated(
     tmp_path: Path,
 ) -> None:
     """Quotes or newlines in paths must not rewrite confinement policy text."""
-    wrapped = wrap_argv(["echo", "hi"], workspace_write(tmp_path))
+    wrapped = seatbelt.wrap_argv(["echo", "hi"], workspace_write(tmp_path))
     policy_text = wrapped[wrapped.index("-p") + 1]
     assert str(tmp_path) not in policy_text
     assert f"-DWRITABLE_ROOT_0={tmp_path}" in wrapped
 
 
-@_requires_seatbelt
 def test_metadata_denial_is_emitted_after_the_write_allow(
     tmp_path: Path,
 ) -> None:
@@ -191,12 +186,14 @@ def test_metadata_denial_is_emitted_after_the_write_allow(
     assert text.index("(allow file-write*") < text.index("(deny file-write*")
 
 
-@_requires_seatbelt
 def test_read_roots_are_passed_as_parameters_not_interpolated(tmp_path: Path) -> None:
-    wrapped = wrap_argv(["echo", "hi"], read_only(tmp_path))
+    root = tmp_path / 'quote" and\nnewline'
+    root.mkdir()
+    wrapped = seatbelt.wrap_argv(["echo", "hi"], read_only(root))
     policy_text = wrapped[wrapped.index("-p") + 1]
-    assert str(tmp_path) not in policy_text
-    assert f"-DREAD_ROOT_0={tmp_path}" in wrapped
+    assert str(root) not in policy_text
+    root_arguments = [argument for argument in wrapped if argument.startswith("-DREAD_ROOT_")]
+    assert sum(argument.partition("=")[2] == str(root) for argument in root_arguments) == 1
     assert "(allow file-read*)" not in policy_text
 
 

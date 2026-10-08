@@ -26,6 +26,30 @@ describe('run detail overview', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps server publication order in the live fallback', () => {
+    renderOverview({
+      hypotheses: [
+        makeHypothesis({
+          id: 'played',
+          title: 'Played first',
+          elo_rating: 1184,
+          win_count: 1,
+        }),
+        makeHypothesis({
+          id: 'unplayed',
+          title: 'Unplayed second',
+          elo_rating: 1200,
+        }),
+      ],
+    });
+    const played = screen.getByText('Played first');
+    const unplayed = screen.getByText('Unplayed second');
+    expect(
+      played.compareDocumentPosition(unplayed) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('renders the synthesized summary and idea buckets from the report', () => {
     renderFullReport();
 

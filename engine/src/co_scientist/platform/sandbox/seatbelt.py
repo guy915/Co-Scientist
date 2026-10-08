@@ -20,6 +20,10 @@ _WRITABLE_ROOT_PARAM = "WRITABLE_ROOT_{index}"
 # Reads are limited to the explicit runtime and workspace roots.
 _READ_ROOT_PARAM = "READ_ROOT_{index}"
 
+# macOS dyld opens / itself during startup; descendants remain denied.
+_RUNTIME_DIRECTORY_SECTION = """(allow file-read-data
+  (require-all (literal "/") (vnode-type DIRECTORY)))"""
+
 # Outbound analysis access does not require listening sockets.
 _ALLOW_NETWORK_SECTION = "(allow network-outbound)\n(allow system-socket)"
 
@@ -64,6 +68,7 @@ def build_policy_text(policy: SandboxPolicy) -> str:
     read_params = list(_read_root_params(policy))
     sections = [
         _load_base_policy(),
+        _RUNTIME_DIRECTORY_SECTION,
         _read_section(read_params),
         _write_section(param_names),
         _metadata_denials(param_names),
