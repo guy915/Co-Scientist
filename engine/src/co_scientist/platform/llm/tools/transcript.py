@@ -62,6 +62,10 @@ def _message_to_history_dict(message: Any) -> dict[str, Any]:
     if reasoning:
         message_dict["reasoning_content"] = reasoning
 
+    items = getattr(message, "responses_items", None)
+    if items:
+        message_dict["responses_items"] = items
+
     if hasattr(message, "tool_calls") and message.tool_calls:
         message_dict["tool_calls"] = [
             {

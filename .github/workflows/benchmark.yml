@@ -5,6 +5,21 @@ name: Benchmark
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Collect one fixed goal or compare six saved Express runs
+        type: choice
+        options: [collect, compare]
+        default: collect
+      main_runs:
+        description: Compare only - three comma-separated main workflow run IDs
+        type: string
+      branch_runs:
+        description: Compare only - three comma-separated branch workflow run IDs
+        type: string
+      max_judge_calls:
+        description: Compare only - physical judge ceiling within the remaining daily share
+        type: number
+        default: 6
       tier:
         description: Run size
         type: choice
@@ -33,6 +48,7 @@ permissions:
 
 jobs:
   benchmark:
+    if: inputs.operation == 'collect'
     name: Benchmark (${{ inputs.tier }}, ${{ inputs.label }})
     runs-on: ubuntu-latest
     # A hung provider call once held a run for the six-hour runner limit with no
@@ -140,5 +156,60 @@ jobs:
           path: |
             benchmark-artifacts/
             mcp.log
+          retention-days: 14
+          if-no-files-found: warn
+  compare:
+    if: inputs.operation == 'compare'
+    name: Paired quality (${{ inputs.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout comparison harness
+        timeout-minutes: 5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up backend
+        timeout-minutes: 15
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
+      - name: Download and validate saved runs
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          MAIN_RUNS: ${{ inputs.main_runs }}
+          BRANCH_RUNS: ${{ inputs.branch_runs }}
+        run: >-
+          python -m evaluations.paired_artifacts --download --repository "$REPOSITORY"
+          --main-runs "$MAIN_RUNS" --branch-runs "$BRANCH_RUNS" --output paired-artifacts
+      - name: Judge both blind report orders
+        # Six orders can each reach the 600-second completion deadline.
+        timeout-minutes: 65
+        env:
+          MODEL_NAME: openrouter/inclusionai/ling-3.1-flash
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MAX_JUDGE_CALLS: ${{ inputs.max_judge_calls }}
+        run: >-
+          python -m evaluations.paired_quality paired-artifacts/prepared/pairs.json
+          --live-judge --max-judge-calls "$MAX_JUDGE_CALLS" --output paired-artifacts/paired
+      - name: Report paired quality
+        if: always()
+        timeout-minutes: 2
+        run: |
+          if [ -f paired-artifacts/paired.md ]; then
+            cat paired-artifacts/paired.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Paired check incomplete; no quality conclusion is available.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload paired table, judgments and receipts
+        if: always()
+        timeout-minutes: 10
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paired-quality-${{ inputs.label }}
+          path: paired-artifacts/
           retention-days: 14
           if-no-files-found: warn
