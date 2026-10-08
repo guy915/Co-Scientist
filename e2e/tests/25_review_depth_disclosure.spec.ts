@@ -65,12 +65,20 @@ for (const theme of ['light', 'dark']) {
       }
       await expect(disclosure).toBeFocused();
       await page.keyboard.press('Enter');
-      await expect(
-        detail.getByText(
-          'This idea passed the safety screen and a screening review. It was not selected for finalist review or deep verification.',
-          {exact: true},
-        ),
-      ).toBeVisible();
+      const explanation = detail.getByText(
+        'This idea passed the safety screen and a screening review. It was not selected for finalist review or deep verification.',
+        {exact: true},
+      );
+      await expect(explanation).toBeVisible();
+      await expect(async () => {
+        const textBounds = (await explanation.boundingBox())!;
+        const disclosureBounds = (await disclosure
+          .locator('..')
+          .boundingBox())!;
+        expect(textBounds.y + textBounds.height).toBeLessThanOrEqual(
+          disclosureBounds.y + disclosureBounds.height - 4,
+        );
+      }).toPass({timeout: 3000});
       await captureViewport(page, {
         ...viewport,
         name: `depth-detail-${width}-${theme}.png`,
