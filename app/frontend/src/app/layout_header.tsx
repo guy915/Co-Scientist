@@ -18,8 +18,8 @@ import type {SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
 
 const HEADER_CLASSES =
-  'ucs-header-action-bar sticky top-0 z-header flex min-h-[4rem] items-center justify-between gap-4 [border-bottom:0] bg-cosci-bg px-[1.625rem] ' +
-  'phone:min-w-0 phone:gap-[0.35rem] phone:px-2';
+  'ucs-header-action-bar sticky top-0 z-header flex min-h-[4rem] items-center justify-between gap-4 [border-bottom:0] bg-cosci-bg px-7 ' +
+  'phone:min-w-0 phone:gap-1.5 phone:px-2';
 
 const PRODUCT_LOCKUP_CLASSES =
   'inline-flex cursor-pointer items-center gap-2 [border:0] bg-transparent p-0 font-gsans text-[1.25rem] font-medium tracking-[-0.6px] text-cosci-fg no-underline';
@@ -30,7 +30,7 @@ const HEADER_TITLE_CLASSES =
 // Keep the session switch on phones: it is the route back to the transcript
 // after leaving a run.
 const HEADER_ACTIONS_CLASSES =
-  'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-[0.55rem] [transform:translateY(-50%)] ' +
+  'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-2 [transform:translateY(-50%)] ' +
   'phone:[&>:not(.ucs-session-switch)]:hidden';
 
 function HamburgerButton({

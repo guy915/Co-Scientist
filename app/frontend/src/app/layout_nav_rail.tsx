@@ -40,14 +40,14 @@ const NAV_PANEL_CLASSES =
 
 const NAV_GROUP_PHONE_CLASSES =
   'phone:flex phone:min-h-0 phone:w-full phone:flex-1 ' +
-  'phone:flex-col phone:items-stretch phone:[justify-items:stretch] phone:gap-[0.3rem] phone:overflow-hidden';
+  'phone:flex-col phone:items-stretch phone:[justify-items:stretch] phone:gap-1 phone:overflow-hidden';
 
 const NAV_BOTTOM_CLASSES =
-  'relative grid items-center justify-items-center gap-[0.8rem] p-0 ' +
-  'phone:w-full phone:items-stretch phone:[justify-items:stretch] phone:gap-[0.3rem]';
+  'relative grid items-center justify-items-center gap-3 p-0 ' +
+  'phone:w-full phone:items-stretch phone:[justify-items:stretch] phone:gap-1';
 
 const SIDE_CONTENT_CLASSES =
-  'transition-[opacity,visibility] duration-medium ease-standard mt-4 grid max-h-[22rem] min-w-0 gap-[0.35rem] ' +
+  'transition-[opacity,visibility] duration-medium ease-standard mt-4 grid max-h-[22rem] min-w-0 gap-1.5 ' +
   'above-phone:flex above-phone:min-h-0 above-phone:max-h-none above-phone:flex-1 above-phone:flex-col ' +
   'phone:flex phone:min-h-0 phone:max-h-none phone:flex-1 ' +
   'phone:flex-col phone:overflow-hidden';
@@ -64,7 +64,7 @@ const NAV_RAIL_VARIANTS = {
       'phone:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard)] phone:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
-      'grid gap-[0.85rem] above-phone:flex above-phone:min-h-0 above-phone:w-full above-phone:flex-1 above-phone:flex-col',
+      'grid gap-3.5 above-phone:flex above-phone:min-h-0 above-phone:w-full above-phone:flex-1 above-phone:flex-col',
       'above-phone:items-stretch above-phone:gap-1 above-phone:mt-1',
       NAV_GROUP_PHONE_CLASSES,
     ),
@@ -81,12 +81,12 @@ const NAV_RAIL_VARIANTS = {
       'phone:[transition:transform_var(--motion-duration-long)_var(--motion-ease-standard),visibility_0s_linear_var(--motion-duration-long)] phone:motion-reduce:[transition:none]',
     ),
     group: joinClasses(
-      'grid w-full items-center justify-items-center gap-[0.74rem] above-phone:gap-1 above-phone:mt-1',
+      'grid w-full items-center justify-items-center gap-3 above-phone:gap-1 above-phone:mt-1',
       NAV_GROUP_PHONE_CLASSES,
     ),
     bottom: joinClasses(
       NAV_BOTTOM_CLASSES,
-      'above-phone:w-full above-phone:gap-[0.74rem]',
+      'above-phone:w-full above-phone:gap-3',
     ),
     sideContent: joinClasses(
       SIDE_CONTENT_CLASSES,
@@ -250,12 +250,12 @@ function NavNewChatLink({
 }
 
 const SIDE_HEADING_CLASSES =
-  'mx-0 mt-[1.15rem] mb-[0.55rem] px-3 text-[0.875rem] font-medium text-cosci-fg';
+  'mx-0 mt-5 mb-2 px-3 text-[0.875rem] font-medium text-cosci-fg';
 
 // Row height and gap must stay in rem: hooks/dom.ts FALLBACK_ROW_PITCH_PX is
 // the 2.35rem link line-height plus this 0.35rem gap at a 16px root.
 const CHAT_LIST_CLASSES =
-  'ucs-chat-list ui-motion-enter-items grid min-w-0 gap-[0.35rem] above-phone:min-h-0 ' +
+  'ucs-chat-list ui-motion-enter-items grid min-w-0 gap-1.5 above-phone:min-h-0 ' +
   'phone:grid-cols-[minmax(0,1fr)] phone:[align-content:start] phone:min-h-0 ' +
   'phone:flex-1 phone:overflow-x-hidden phone:overflow-y-auto';
 

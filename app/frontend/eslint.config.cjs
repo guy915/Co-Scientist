@@ -27,6 +27,7 @@ const stylisticRules = tseslint.configs.stylistic.filter(
 const HEX_COLOR = String.raw`/#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/`;
 const FUNCTION_COLOR = String.raw`/\b(rgba?|hsla?)\(/`;
 const ARBITRARY_RADIUS = String.raw`/rounded(-[a-z]{1,2})?-\[|border-radius:/`;
+const ARBITRARY_SPACING = String.raw`/(^|[\s:])-?(p[xytrblse]?|m[xytrblse]?|gap(-[xy])?|space-[xy])-\[[0-9.]+(rem|px)\]/`;
 const ARBITRARY_TOKEN = String.raw`/\b[a-z]+-\(--cosci-/`;
 const DESTRUCTIVE_RED = String.raw`/\bth-destructive\b/`;
 const ARBITRARY_Z = String.raw`/(^|[\s:])-?z-\[/`;
@@ -55,6 +56,10 @@ function uiBuildingBlockRules() {
     ...inText(
       ARBITRARY_RADIUS,
       'Use a radius from the scale or a named radius token instead of an arbitrary radius.',
+    ),
+    ...inText(
+      ARBITRARY_SPACING,
+      'Use the spacing scale (p-4, gap-2.5, mt-px) instead of an arbitrary padding, margin or gap.',
     ),
     ...inText(
       ARBITRARY_TOKEN,
