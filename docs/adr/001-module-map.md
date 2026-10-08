@@ -57,6 +57,6 @@ report domain is therefore `domains/report`, and there is no `platform/cache`.
   third-party rules; ADR-002 describes how they are enforced. A layer-crossing
   import fails `make arch` instead of waiting for review.
 - `app/` holds only the frontend, its tests and development tooling.
-- The engine's Python 3.10 floor is kept.
+- The engine's Python floor is 3.12, matching the production runtime.
 - A package's `__init__.py` is its preferred interface, but no contract
   forbids importing its submodules.

@@ -46,6 +46,7 @@ def _no_background_title_network(
         return None
 
     monkeypatch.setattr("co_scientist.api.runs.crud.generate_run_title", _no_title)
+    monkeypatch.setattr("co_scientist.api.runs.crud.generate_goal_restatement", _no_title)
 
 
 def _fake_validation(monkeypatch: pytest.MonkeyPatch, *, fail_auth: bool = False) -> dict[str, Any]:

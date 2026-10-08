@@ -135,12 +135,12 @@ assessor's judgment; together they bound it in each direction.
 ## Quality benchmark
 
 The manual `Benchmark` workflow (`.github/workflows/benchmark.yml`) runs
-`claim_support_eval.py --live --tier express|standard` on a fixed goal with
-the free default route. It reports the unsupported-claim rate with its claim
-count and a 95% Wilson interval, the unverified-idea rate, requests and wall
-time, and keeps the run database as an artifact. The run stops after 120
-minutes (Express) or 240 (Standard), and the job fails when no rate was
-written. It needs the `OPENROUTER_API_KEY` repository secret; its MCP server
+`quality_benchmark.py --live --tier express|standard` on a selected fixed goal
+and git ref with the free default route. It reports the baseline measurements
+below and the descriptive unsupported-claim rate with its claim count and a
+95% Wilson interval, and keeps the database, snapshot and receipt as artifacts.
+The run stops after 120 minutes (Express) or 240 (Standard), and the job fails
+when no rate was written. It needs the `OPENROUTER_API_KEY` repository secret; its MCP server
 also needs `OPENALEX_API_KEY` and `TAVILY_API_KEY`, without which there is no
 web search and literature retrieval is keyless.
 
@@ -149,11 +149,12 @@ web search and literature retrieval is keyless.
   the run-to-run spread is wider than the interval. Report that rate; never
   gate changes on it. Use the paired check below to inspect quality alongside
   efficiency, and state any loss and uncertainty explicitly.
-- **Ration live runs.** OpenRouter's free models allow 20 requests a minute
-  and 1,000 a day for the whole account. Do not benchmark changes that cannot
-  alter model output (caching, backend, frontend, CI); measure those offline.
-  Batch prompt, reasoning-budget and retry changes and check each batch with
-  one Express run.
+- **Ration live runs.** Agree the whole-account daily allowance before
+  collection and subtract actual attempts from the remainder before each
+  dispatch. Do not benchmark changes that cannot alter model output
+  (caching, backend, frontend, CI); measure those offline. Batch prompt,
+  reasoning-budget and retry changes into a three-goal paired Express cohort;
+  reuse recorded main baselines only while the comparison controls match.
 - **Token admission keeps the default 16M client ceiling.** Each call reserves
   its input-byte bound and full output cap before dispatch. Successful calls
   with reported usage settle to real prompt plus completion tokens. Failed
@@ -171,8 +172,9 @@ controls invalidate a pair. Config and routing snapshots remain in the JSON
 so intentional efficiency changes can be reviewed. Keep run databases and
 report packets private, outside commits.
 
-Download the six saved benchmark databases and create `pairs.json`, using
-paths relative to that manifest. It contains exactly one entry per fixed goal:
+Download the six saved `snapshot.db` files, which include independent dispatch
+receipts, and create `pairs.json` using paths relative to that manifest.
+It contains exactly one entry per fixed goal:
 
 ```json
 {
