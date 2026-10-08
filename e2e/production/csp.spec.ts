@@ -97,7 +97,7 @@ for (const theme of ["light", "dark"]) {
         ).toBeVisible();
         await expect(
           page.getByText(
-            "This text is not legal advice; the owner reviews it before launch.",
+            "This text is not legal advice.",
             { exact: true },
           ),
         ).toBeVisible();
