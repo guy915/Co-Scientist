@@ -58,8 +58,9 @@ or quota refusal falls through to the next provider; a successful empty
 answer does not. `check_web_search_available` reports observed refusals.
 
 `COSCIENTIST_MCP_SHARED_SECRET`, when set on both server and engine, requires
-an `X-MCP-Shared-Secret` header for MCP calls. The plain status route remains
-public. Deployment details live in [DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
+an `X-MCP-Shared-Secret` header for MCP calls. Unset, every call is
+unauthenticated, so set it anywhere the server is reachable beyond localhost.
+The plain status route remains public. Deployment details live in [DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
 
 The engine defaults to `http://localhost:8888/mcp`; override it with
 `MCP_SERVER_URL`. New tools also need matching declarations in the engine's
