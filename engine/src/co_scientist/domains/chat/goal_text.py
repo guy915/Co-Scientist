@@ -7,6 +7,7 @@ from typing import Any
 
 from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
+from co_scientist.domains.chat.titles import title_case
 from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
 from co_scientist.platform.llm.request.response import extract_token_usage
@@ -118,7 +119,8 @@ def _clean_text(raw: str, max_chars: int, punctuation: str = "") -> str | None:
 
 
 def clean_title(raw: str) -> str | None:
-    return _clean_text(raw, _MAX_TITLE_CHARS, ".!?,;:")
+    text = _clean_text(raw, _MAX_TITLE_CHARS, ".!?,;:")
+    return title_case(text) if text else None
 
 
 async def _request_completion(

@@ -139,11 +139,35 @@ export function PrivacyContent() {
         </p>
         <p>
           Deletion from the live service does not instantly remove older
-          database backups or copies held by external recipients. The owner must
-          confirm and publish the R2 backup expiry and the configured Sentry,
-          tracing and hosting log retention before launch. We do not promise
-          that deleting our copy erases prompts a model provider has already
+          database backups or copies held by external recipients. R2 backups
+          have a 30-day object-expiry policy. Cloudflare normally removes
+          expired objects within 24 hours, with possible delays. If we restore a
+          backup, we must reapply erasure decisions before serving that work.
+          Deleting our copy does not erase prompts a model provider has already
           received.
+        </p>
+        <p>
+          Sentry’s free Developer plan provides a{' '}
+          <ExternalLink href="https://sentry.io/pricing/">
+            30-day lookback
+          </ExternalLink>
+          . Honeycomb retains trace events for{' '}
+          <ExternalLink href="https://docs.honeycomb.io/get-started/manage-costs/how-honeycomb-calculates-usage/">
+            60 days from ingestion
+          </ExternalLink>
+          .{' '}
+          <ExternalLink href="https://docs.railway.com/observability/logs">
+            Railway’s application log history
+          </ExternalLink>{' '}
+          is seven days on Hobby or 30 days on Pro; upgrading can make older
+          history visible again. When enabled,{' '}
+          <ExternalLink href="https://developers.cloudflare.com/workers/observability/logs/workers-logs/">
+            Cloudflare Workers Logs
+          </ExternalLink>{' '}
+          retain logs for three days on Free or seven days on Paid. These
+          plan-dependent application-log windows do not establish when every
+          infrastructure or security record is erased. Contact the owner for the
+          applicable hosting plan and other provider-held records.
         </p>
       </section>
       <section>
