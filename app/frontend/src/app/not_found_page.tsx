@@ -44,7 +44,7 @@ function upsertMeta(name: string, content: string) {
 export function NoIndex({title}: {title: string}) {
   useEffect(() => {
     document.title = `${title} - Open Co-Scientist`;
-    upsertMeta('description', 'Co-Scientist research workspace.');
+    upsertMeta('description', 'Open Co-Scientist research workspace.');
     upsertMeta('robots', 'noindex, nofollow');
     upsertMeta('googlebot', 'noindex, nofollow');
   }, [title]);
