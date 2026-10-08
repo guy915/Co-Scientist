@@ -2,6 +2,8 @@ import hashlib
 import re
 from typing import Final
 
+from co_scientist.core.citations import strip_citation_markers as strip_citation_markers
+
 DEFAULT_MAX_TOKENS: Final = 4000
 
 EXTENDED_MAX_TOKENS: Final = 8000
@@ -241,23 +243,6 @@ _PROMPT_TRUNCATION_MARKER: Final = "\n\n[... truncated for length ...]"
 
 def truncate_for_prompt(text: str, max_chars: int = PROMPT_PAPER_MAX_CHARS) -> str:
     return truncate(text, max_chars, _PROMPT_TRUNCATION_MARKER)
-
-
-# Author-year patterns come from paper-qa strip_citations (Apache-2.0). Numeric-
-# only brackets preserve this engine's [C<n>] citation keys.
-_CITATION_MARKER_RE = re.compile(
-    r"\b[\w\-]+\set\sal\.\s\([0-9]{4}\)"
-    r"|\((?:[^)]*?[a-zA-Z][^)]*?[0-9]{4}[^)]*?)\)"
-    r"|\[[0-9]+(?:\s*[,\u2013-]\s*[0-9]+)*\]",
-    re.MULTILINE,
-)
-
-
-def strip_citation_markers(text: str) -> str:
-    """Strip only prompt-bound source copies; stored originals must retain
-    published citations.
-    """
-    return _CITATION_MARKER_RE.sub("", text)
 
 
 def corpus_slug(research_goal: str) -> str:
