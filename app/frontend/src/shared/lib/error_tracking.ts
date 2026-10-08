@@ -1,41 +1,71 @@
 import * as Sentry from '@sentry/browser';
-import {getStoredApiKey, keyedProviders} from './client_id';
-import {readStorage, STORAGE_KEYS} from './safe_storage';
 
-const MIN_SECRET_LENGTH = 8;
+const ERROR_TYPES = new Set([
+  'Error',
+  'TypeError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'URIError',
+  'EvalError',
+  'AggregateError',
+]);
 
-// The client ID is the run-ownership capability and saved provider keys are
-// credentials; neither may leave in an error report.
-function browserSecrets(): string[] {
+function position(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+// Stack URLs and arbitrary exception strings may contain private text. Only
+// scripts declared by this page can supply a filename; discard URL queries.
+function bundledFilename(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const scripts = Array.from(
+    document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>(
+      'script[src], link[rel="modulepreload"][href]',
+    ),
+  ).map(element =>
+    element instanceof HTMLScriptElement ? element.src : element.href,
+  );
   try {
-    const secrets = keyedProviders().map(provider => getStoredApiKey(provider));
-    secrets.push(readStorage('local', STORAGE_KEYS.clientId) ?? '');
-    return secrets.filter(secret => secret.length >= MIN_SECRET_LENGTH);
+    const url = new URL(value, location.href);
+    if (
+      url.origin !== location.origin ||
+      !scripts.includes(`${url.origin}${url.pathname}`)
+    )
+      return undefined;
+    return url.pathname;
   } catch {
-    return [];
+    return undefined;
   }
 }
 
-export function scrubSecrets<T>(value: T, secrets: readonly string[]): T {
-  if (typeof value === 'string') {
-    let text: string = value;
-    for (const secret of secrets) {
-      text = text.split(secret).join('[REDACTED]');
-    }
-    return text as T;
-  }
-  if (Array.isArray(value)) {
-    return value.map(item => scrubSecrets(item, secrets)) as T;
-  }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        scrubSecrets(item, secrets),
-      ]),
-    ) as T;
-  }
-  return value;
+export function privateErrorEvent(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
+  return {
+    type: undefined,
+    event_id: /^[a-f0-9]{32}$/i.test(event.event_id ?? '')
+      ? event.event_id
+      : undefined,
+    timestamp: Number.isFinite(event.timestamp) ? event.timestamp : undefined,
+    environment: import.meta.env.MODE,
+    level: 'error',
+    platform: 'javascript',
+    message: 'Application error',
+    exception: {
+      values: event.exception?.values?.slice(0, 5).map(exception => ({
+        type: ERROR_TYPES.has(exception.type ?? '') ? exception.type : 'Error',
+        value: 'Error details withheld for privacy',
+        stacktrace: {
+          frames: exception.stacktrace?.frames?.slice(-50).map(frame => ({
+            filename: bundledFilename(frame.filename),
+            lineno: position(frame.lineno),
+            colno: position(frame.colno),
+          })),
+        },
+      })),
+    },
+  };
 }
 
 export function initErrorTracking(dsn: string): void {
@@ -43,10 +73,14 @@ export function initErrorTracking(dsn: string): void {
     dsn,
     environment: import.meta.env.MODE,
     sendDefaultPii: false,
-    // Console messages can carry research text; network and navigation
-    // breadcrumbs keep only URLs and status codes.
-    beforeBreadcrumb: breadcrumb =>
-      breadcrumb.category === 'console' ? null : breadcrumb,
-    beforeSend: event => scrubSecrets(event, browserSecrets()),
+    maxBreadcrumbs: 0,
+    beforeBreadcrumb: () => null,
+    tracesSampleRate: 0,
+    beforeSendTransaction: () => null,
+    beforeSend: (event, hint) => {
+      // Attachments bypass event-field scrubbing and may contain diagnostics.
+      hint.attachments = [];
+      return privateErrorEvent(event);
+    },
   });
 }

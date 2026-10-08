@@ -45,8 +45,9 @@ for (const theme of ["light", "dark"]) {
       });
     }, theme);
     // Exercise the SDK without sending test events to a real Sentry project.
-    await page.route("https://*.ingest.sentry.io/**", (route) =>
-      route.fulfill({ status: 200, body: "{}" }),
+    await page.route(
+      /^https:\/\/[^/]+\.ingest(?:\.us|\.de)?\.sentry\.io\//,
+      (route) => route.fulfill({ status: 200, body: "{}" }),
     );
     await page.route(/\/api\/interviews\/[^/]+$/, async (route) => {
       const response = await route.fetch();
@@ -101,5 +102,27 @@ for (const theme of ["light", "dark"]) {
       expect(errors, path).toEqual([]);
       expect(imageRequests, path).toEqual([]);
     }
+    for (const region of [
+      "ingest.sentry.io",
+      "ingest.us.sentry.io",
+      "ingest.de.sentry.io",
+    ]) {
+      const url = `https://s4.${region}/api/0/envelope/`;
+      await page.route(url, (route) =>
+        route.fulfill({
+          status: 200,
+          body: "{}",
+          headers: { "Access-Control-Allow-Origin": "*" },
+        }),
+      );
+      const status = await page.evaluate(
+        async (endpoint) =>
+          (await fetch(endpoint, { method: "POST", body: "{}" })).status,
+        url,
+      );
+      expect(status, region).toBe(200);
+    }
+    expect(violations).toEqual([]);
+    expect(errors).toEqual([]);
   });
 }
