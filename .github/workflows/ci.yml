@@ -392,7 +392,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/.github
           CI_SHARD_INDEX: ${{ matrix.shard }}
           CI_SHARD_TOTAL: 3
-        run: python -m pytest -q -n 4 -p ci_shard
+        run: python -m pytest -q -n 4 -p ci_shard --durations=25
 
   evaluations:
     name: Evaluations (tests + offline smoke)
