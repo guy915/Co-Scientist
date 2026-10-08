@@ -28,6 +28,7 @@ from co_scientist.api.launch_control_api import router as launch_control_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
+from co_scientist.api.sentry_alerts import router as sentry_alerts_router
 from co_scientist.api.spend_api import router as spend_router
 from co_scientist.api.tracing import TracingMiddleware
 from co_scientist.api.version import API_VERSION
@@ -36,6 +37,7 @@ from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import StorageAdmissionError
 from co_scientist.domains.chat.seed import is_current_demo_run, seed_demo_runs
+from co_scientist.orchestration.alert_markers import delivery_loop, enabled
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks
 from co_scientist.platform import db
@@ -247,12 +249,16 @@ async def lifespan(
 
     await seed_demo_runs()
     privacy_retention = asyncio.create_task(_privacy_retention_loop())
+    alert_delivery = asyncio.create_task(delivery_loop()) if enabled() else None
 
     try:
         yield
     finally:
         _release_leases_for_next_process()
         privacy_retention.cancel()
+        if alert_delivery is not None:
+            alert_delivery.cancel()
+            await asyncio.gather(alert_delivery, return_exceptions=True)
         await asyncio.gather(privacy_retention, return_exceptions=True)
         await _shutdown_recovery(recovery, recovery_workers)
         logger.info("Shutting down Co-Scientist server...")
@@ -392,6 +398,7 @@ app.include_router(spend_router)
 app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
 app.include_router(launch_control_router)
+app.include_router(sentry_alerts_router)
 
 
 if __name__ == "__main__":
