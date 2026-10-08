@@ -41,7 +41,10 @@ artifacts; keep those exclusions when adding an image or context.
   supervisor and Litestream (below); without them it serves directly. The image has a `HEALTHCHECK` on `/health`, installs
   `tesseract-ocr` (image and PDF-figure OCR; uploads fail without it, and the
   test suite fakes the dependency), and defaults `COSCIENTIST_DB_PATH` to
-  `/app/data/coscientist.db`, the persistent volume mount.
+  `/app/data/coscientist.db`, the persistent volume mount. It serves
+  `co_scientist.serving:create_app`, which reads Railway's `X-Real-IP` only
+  from peers in `COSCIENTIST_TRUSTED_PROXY_CIDRS`; without that variable, the
+  socket peer is the host bucket ([trusted visitor addresses](TRUSTED-PROXY.md)).
 - **MCP.** Deliberately ignores `PORT` and pins 8888, binding `--host ::` for
   Railway's IPv6 private network. Its healthcheck probes `[::1]:8888`, since
   a 127.0.0.1 probe can miss an IPv6-only socket. It runs as the unprivileged
