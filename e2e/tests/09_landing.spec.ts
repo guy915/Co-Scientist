@@ -30,7 +30,7 @@ for (const theme of ['light', 'dark']) {
       expect(landingRequests).toEqual([]);
       await expect(trailer).toHaveCount(0);
       await page
-        .getByRole('button', {name: 'Scroll to see how Co-Scientist works'})
+        .getByRole('button', {name: 'Scroll to see how Open Co-Scientist works'})
         .click();
       await expect(trailer).toHaveAttribute('loading', 'lazy');
       await expect(trailer).toHaveAttribute(
