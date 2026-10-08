@@ -151,6 +151,7 @@ def _generator_kwargs(
                 "max_llm_calls": int(cfg["max_llm_calls"]),
                 "max_ideas": int(cfg["max_ideas"]),
                 "max_matches_per_idea": float(cfg["max_matches_per_idea"]),
+                "finalists": int(cfg["finalists"]),
             },
             tournament_pairs=int(cfg["tournament_pairs"]),
             elo_k_factor=int(cfg["k_factor"]),
