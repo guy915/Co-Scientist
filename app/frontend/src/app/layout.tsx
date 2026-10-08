@@ -229,6 +229,7 @@ interface ShellWorkspaceProps {
   chrome: LayoutChrome;
   startNewChat: () => void;
   headerTitle: string;
+  conversationHeading?: string;
   session: SessionSwitchData | null;
   runStatus: RunStatus | undefined;
   workspaceClasses: string;
@@ -240,6 +241,7 @@ function ShellWorkspace({
   chrome,
   startNewChat,
   headerTitle,
+  conversationHeading,
   session,
   runStatus,
   workspaceClasses,
@@ -248,16 +250,23 @@ function ShellWorkspace({
 }: ShellWorkspaceProps) {
   return (
     <section className={workspaceClasses}>
-      <ShellHeader
-        navOpen={chrome.navOpen}
-        toggleNav={chrome.toggleNav}
-        startNewChat={startNewChat}
-        headerTitle={headerTitle}
-        session={session}
-        runStatus={runStatus}
-        headerActionsRef={chrome.headerActionsRef}
-      />
-      <main className={pageClasses}>{children}</main>
+      <div role="banner" aria-label="Workspace header" className="contents">
+        <ShellHeader
+          navOpen={chrome.navOpen}
+          toggleNav={chrome.toggleNav}
+          startNewChat={startNewChat}
+          headerTitle={headerTitle}
+          session={session}
+          runStatus={runStatus}
+          headerActionsRef={chrome.headerActionsRef}
+        />
+      </div>
+      <main className={pageClasses}>
+        {conversationHeading && (
+          <h1 className="sr-only">{conversationHeading}</h1>
+        )}
+        {children}
+      </main>
     </section>
   );
 }
@@ -295,6 +304,9 @@ function useLayoutState() {
       onToggleShowAllChats: toggleShowAllChats,
     },
     headerTitle,
+    conversationHeading: activeChatId
+      ? headerTitle || 'Research conversation'
+      : undefined,
     session,
     runStatus,
     workspaceClasses,
@@ -316,6 +328,7 @@ export function Layout({children}: {children: ReactNode}) {
         chrome={state.chrome}
         startNewChat={state.startNewChat}
         headerTitle={state.headerTitle}
+        conversationHeading={state.conversationHeading}
         session={state.session}
         runStatus={state.runStatus}
         workspaceClasses={state.workspaceClasses}
