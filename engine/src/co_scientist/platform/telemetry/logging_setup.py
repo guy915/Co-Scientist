@@ -58,16 +58,9 @@ _LITELLM_LOGGER_NAMES: tuple[str, ...] = (
 
 
 def silence_litellm_logging() -> None:
-    """LiteLLM's own logger handlers bypass root levels; its provider banner
-    is a separate print guarded by suppress_debug_info.
-    """
+    """LiteLLM's own logger handlers bypass root levels."""
     for name in _LITELLM_LOGGER_NAMES:
         logging.getLogger(name).setLevel(logging.WARNING)
-    try:
-        import litellm
-    except ImportError:
-        return
-    litellm.suppress_debug_info = True
 
 
 silence_litellm_logging()

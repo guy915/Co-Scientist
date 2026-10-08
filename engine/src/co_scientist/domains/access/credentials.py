@@ -256,7 +256,7 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
     """Credential validation is provider I/O and must complete outside
     SQLite write transactions.
     """
-    from litellm.exceptions import AuthenticationError
+    from co_scientist.platform.llm.request.backend import is_authentication_error
 
     try:
         with scoped_byok(credential):
@@ -270,11 +270,13 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
                     timeout=_VALIDATION_TIMEOUT_SECONDS,
                     drop_params=True,
                 )
-    except AuthenticationError as exc:
-        raise ByokValidationError("the provider rejected the API key (invalid or expired)") from exc
     except ByokValidationError:
         raise
     except Exception as exc:
+        if is_authentication_error(exc):
+            raise ByokValidationError(
+                "the provider rejected the API key (invalid or expired)"
+            ) from exc
         # Provider error details must never echo the submitted credential.
         detail = redact_credential(str(exc), credential)
         raise ByokValidationError(

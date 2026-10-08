@@ -31,7 +31,6 @@ layers =
 ignore_imports =
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
-    co_scientist.platform.llm.tool_effects -> co_scientist.platform.retrieval.config.registry
 
 [importlinter:contract:agents]
 name = Science agents are independent
@@ -69,8 +68,6 @@ forbidden_modules =
     fastapi
     starlette
 allow_indirect_imports = True
-ignore_imports =
-    co_scientist.platform.llm.provider_usage -> fastapi
 
 [importlinter:contract:litellm]
 name = litellm only in the LLM gateway
@@ -95,10 +92,6 @@ source_modules =
 forbidden_modules =
     litellm
 allow_indirect_imports = True
-ignore_imports =
-    co_scientist.core.async_bridge -> litellm
-    co_scientist.domains.access.credentials -> litellm
-    co_scientist.platform.telemetry.logging_setup -> litellm
 
 [importlinter:contract:httpx]
 name = httpx only in the LLM gateway and retrieval
