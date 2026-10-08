@@ -28,6 +28,7 @@ jobs:
         shard: [1, 2]
     env:
       COSCI_E2E_PRODUCTION: '1'
+      COSCIENTIST_TEST_DOUBLE: deterministic
       LITELLM_LOCAL_MODEL_COST_MAP: 'True'
       PYTHON_DOTENV_DISABLED: '1'
     steps:

@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 15
     env:
       COSCIENTIST_FORCE_OFFLINE: '1'
+      COSCIENTIST_TEST_DOUBLE: deterministic
       PYTHON_DOTENV_DISABLED: '1'
       LITELLM_LOCAL_MODEL_COST_MAP: 'True'
     steps:
