@@ -17,7 +17,7 @@ Demo: [AI Co-Scientist — early detection of Alzheimer's disease](https://youtu
 - **Post-generation enrichments**: Attach domain-specific data (e.g., related CVEs, knowledge graph statements) to each hypothesis via configurable tool calls
 
 The app owns run scheduling, persistence and recovery. Internal setup lives in
-`generator/core.py`; durable nodes execute through `task_runtime.py`.
+`orchestration/generator/core.py`; durable nodes execute through `orchestration/task_runtime.py`.
 
 ## Workflow
 
@@ -93,7 +93,7 @@ export MCP_SERVER_URL=http://localhost:8888/mcp
 
 ### Tool configuration
 
-The tool registry is declared in `src/co_scientist/config/tools.yaml` (bundled academic, biomedical and web tools, with `${VAR:-default}` environment substitution). See `src/co_scientist/config/schema.py` for the schema.
+The tool registry is declared in `src/co_scientist/platform/retrieval/config/tools.yaml` (bundled academic, biomedical and web tools, with `${VAR:-default}` environment substitution). See `src/co_scientist/platform/retrieval/config/schema.py` for the schema.
 
 ## LLM providers
 
@@ -178,18 +178,18 @@ logging.getLogger("co_scientist").setLevel(logging.DEBUG)
 
 ```
 src/co_scientist/
-├── generator/          # Internal configuration and durable initial state
-├── state/              # WorkflowState TypedDict + custom reducers
-├── models/             # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
-├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools
-├── mcp_client/         # MCP server connection (langchain-mcp-adapters)
-├── constants/          # Elo params, token limits, workflow defaults
-├── progress.py         # Shared progress-event emission used by agent nodes
-├── schemas/            # JSON schemas for structured LLM output
-├── prompts/            # Prompt builders; templates/ has the markdown files (bundled as package data)
-├── scheduling/         # Deterministic orchestrator scheduling policy and budget
-├── config/             # ToolRegistry, YAML tool configs, domain examples
-└── agents/             # Node implementations, one package per agent
+├── orchestration/generator/         # Internal configuration and durable initial state
+├── domains/research_state/state/    # WorkflowState TypedDict + custom reducers
+├── domains/research_state/models/   # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
+├── platform/llm/                    # LiteLLM dispatch: call, request, attempts, structured, tools
+├── platform/retrieval/mcp_client/   # MCP server connection (langchain-mcp-adapters)
+├── core/constants/                  # Elo params, token limits, workflow defaults
+├── platform/telemetry/progress.py   # Shared progress-event emission used by agent nodes
+├── platform/retrieval/config/       # ToolRegistry, YAML tool configs, domain examples
+└── science/                         # Node implementations, one package per agent
+    ├── schemas/        # JSON schemas for structured LLM output
+    ├── prompts/        # Prompt builders; templates/ has the markdown files (bundled as package data)
+    ├── scheduling/     # Deterministic orchestrator scheduling policy and budget
     ├── supervisor/     # supervisor.py (planning), orchestrator.py (per-cycle routing)
     ├── generation/     # generate.py, coordinator*.py, debate.py, citations.py, literature_review/, literature_tools/
     ├── reflection/     # reflection.py, review.py, comprehensive_reflection.py, deep_verification.py
@@ -197,7 +197,7 @@ src/co_scientist/
     ├── evolution/      # evolve.py + evolve_* helpers
     ├── meta_review/    # meta_review.py, research_overview.py
     ├── proximity/      # proximity.py (dedup)
-    └── safety.py       # hypothesis screen and research-direction monitor
+    └── safety_screen.py  # hypothesis screen and research-direction monitor
 ```
 
 ## Documentation

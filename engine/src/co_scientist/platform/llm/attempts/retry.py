@@ -28,7 +28,7 @@ from co_scientist.platform.llm.attempts.escalation import (
     log_escalation,
 )
 from co_scientist.platform.llm.request.thinking import failure_context_text
-from co_scientist.platform.llm.telemetry import record_retry
+from co_scientist.platform.llm.telemetry import attempt_span, record_retry, record_retry_reason
 
 logger = logging.getLogger(__name__)
 
@@ -361,6 +361,13 @@ class _AttemptRun(Generic[R, T]):
         record_retry(self._plan.model_name)
 
     async def _attempt_once(self, attempt: Attempt) -> Accepted[T] | Rejected:
+        with attempt_span(attempt.number, attempt.rung.value):
+            verdict = await self._judged_attempt(attempt)
+            if isinstance(verdict, Rejected):
+                record_retry_reason(verdict.error)
+            return verdict
+
+    async def _judged_attempt(self, attempt: Attempt) -> Accepted[T] | Rejected:
         try:
             response = await self._make_attempt(attempt)
             return self._judge_response(response, attempt)

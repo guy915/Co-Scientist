@@ -63,7 +63,7 @@ public. Deployment details live in [DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
 
 The engine defaults to `http://localhost:8888/mcp`; override it with
 `MCP_SERVER_URL`. New tools also need matching declarations in the engine's
-`src/co_scientist/config/tools.yaml`.
+`src/co_scientist/platform/retrieval/config/tools.yaml`.
 
 ## Retrieval implementation
 

@@ -36,7 +36,7 @@ protocol) with one project for the API and one for the frontend.
 Both SDKs stay off while their DSN is unset, so local runs, CI and forks
 send nothing. Researcher data must not leave through error reports.
 
-The API (`app/app/error_tracking.py`) reports unhandled exceptions and
+The API (`platform/telemetry/error_tracking.py`) reports unhandled exceptions and
 `ERROR` log records. Each report:
 - drops request headers (including `X-Client-ID`), cookies, bodies and query
   strings;
@@ -46,6 +46,36 @@ The API (`app/app/error_tracking.py`) reports unhandled exceptions and
 
 Only the Starlette and FastAPI integrations are on; Sentry's auto-enabled AI
 and HTTP-client integrations would attach prompts and model output.
+
+## Tracing
+
+OpenTelemetry spans ([ADR-005](adr/005-tracing.md)) are exported only when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set and `OTEL_SDK_DISABLED` is not `true`;
+otherwise no exporter, thread or socket exists. Use any OTLP/HTTP backend
+with a free tier (Grafana Cloud Traces, Honeycomb or similar).
+
+| Where | Variable | Value |
+|---|---|---|
+| Railway, api | `OTEL_EXPORTER_OTLP_ENDPOINT` | the backend's OTLP/HTTP endpoint |
+| Railway, api | `OTEL_EXPORTER_OTLP_HEADERS` | its auth header, e.g. `Authorization=Basic ...` |
+| Railway, api | `OTEL_SERVICE_NAME` | `co-scientist-api` |
+| Railway, api (optional) | `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_traceidratio`, `0.25` |
+
+A trace reads request or durable task → logical LLM call → attempt →
+provider request:
+
+| Span | Attributes |
+|---|---|
+| `GET /api/runs/{run_id}` (route template) | method, route, status |
+| `task.execute` | run, task id and type, node, attempt, outcome (`committed`, `retried`, `parked`, `superseded`, `failed`, `lease_lost`) |
+| `llm.call_llm`, `llm.call_llm_json`, `llm.call_llm_with_tools` | requested model, surface, prompt name |
+| `llm.attempt` | attempt number, budget rung, retry reason |
+| `chat <model>` | GenAI request and response model, max tokens, input/output tokens; reasoning and cached prompt tokens; route |
+
+Spans carry no prompt, completion, tool argument, goal, query string, header
+or body, and a failure records its exception type only. Stdout log lines carry
+`trace_id` while a span is active; persisted logs are unchanged. Span names
+and attributes are an operator contract, renamed only deliberately.
 
 ## Status
 
@@ -57,7 +87,7 @@ Live since 7 October 2026:
 - Error tracking, API: Sentry project `co-scientist-api`; `SENTRY_DSN` and
   `SENTRY_ENVIRONMENT=production` are set on the Railway api service.
 - Error tracking, frontend: Sentry project `co-scientist-ui`
-  (`src/lib/error_tracking.ts`, loaded as its own chunk only when built with
+  (`src/shared/lib/error_tracking.ts`, loaded as its own chunk only when built with
   a DSN); `VITE_SENTRY_DSN` is set for Vercel production builds. Reports
   carry no PII or console breadcrumbs, and the browser's client ID and saved
   provider keys are redacted. The DSN is read at build time, so the launch's
