@@ -58,7 +58,8 @@ held over network I/O. Startup adds only the singleton schema, with no scan
 or task recovery on the binding path.
 
 `GET /api/launch-status` is public and read-only. It returns only the current
-reason, public message, expected return instant and free-run availability;
+reason, public message, expected return instant, pause state, and whether
+free and BYOK runs are allowed;
 it exposes no researcher IDs, keys or balances. Pause reads are immediate.
 The numeric credit aggregate is cached for at most three seconds to avoid a
 lifetime-ledger scan per visitor. Free daily capacity returns the next UTC
