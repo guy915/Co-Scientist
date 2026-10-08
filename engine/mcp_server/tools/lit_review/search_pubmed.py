@@ -53,7 +53,9 @@ def search_pubmed(query: str, max_papers: int = 10) -> dict[str, Any]:
         metadata_failed = False
         for paper_id in _esearch_pubmed_ids(query, max_papers):
             try:
-                articles.append(_fetch_pubmed_article(paper_id).to_dict())
+                article = _fetch_pubmed_article(paper_id)
+                if article is not None:
+                    articles.append(article.to_dict())
             except Exception:
                 # A malformed paper must not discard successful siblings.
                 logger.warning("PubMed metadata fetch failed")
@@ -91,10 +93,14 @@ def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
     return f"https://doi.org/{doi}" if doi else f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
 
 
-def _fetch_pubmed_article(paper_id: str) -> Article:
+def _fetch_pubmed_article(paper_id: str) -> Article | None:
     paper_results = read_entrez(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-
-    pubmed_article = paper_results["PubmedArticle"][0]
+    pubmed_articles = paper_results.get("PubmedArticle") or []
+    if not pubmed_articles:
+        # Book records (StatPearls, GeneReviews) arrive only as
+        # PubmedBookArticle and carry no journal metadata.
+        return None
+    pubmed_article = pubmed_articles[0]
     record = parse_pubmed_record(pubmed_article)
     return Article(
         title=record.title,
