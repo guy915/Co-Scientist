@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from co_scientist.domains.research_state.models import GenerationMethod
+from co_scientist.platform.retrieval.article import Article
 from co_scientist.science.citations import resolve_citation_keys
 from co_scientist.science.generation import assumptions as assumptions_mod
 from co_scientist.science.generation.assumptions import (
@@ -13,6 +14,7 @@ from co_scientist.science.generation.assumptions import (
 from co_scientist.science.generation.generate import (
     generate_hypotheses,
 )
+from co_scientist.science.prompts.generation_draft import format_articles_metadata
 from tests._state import (
     _DebateRecorder,
     _install,
@@ -153,3 +155,12 @@ def test_citation_keys_resolve_whether_or_not_the_model_groups_them(
     assert [source["title"] for source in resolved.values()] == [
         _CITATION_SOURCES[key]["title"] for key in expected
     ]
+
+
+def test_articles_metadata_formats_a_source_serialized_with_null_authors() -> None:
+    article = Article.from_dict(
+        {"title": "Anonymous review", "authors": None, "used_in_analysis": True}
+    )
+
+    assert article.authors == []
+    assert "Anonymous review" in format_articles_metadata([article])
