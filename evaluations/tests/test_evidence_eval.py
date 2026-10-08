@@ -72,6 +72,18 @@ def test_claim_rates_count_claims_not_ideas() -> None:
     assert metrics["unverified_idea_rate"] == 0.5
 
 
+def test_unsupported_rate_carries_its_sample_size_and_wilson_interval() -> None:
+    assert score_claims([{"assessed_claims": 0}])["unsupported_claim_rate_ci95"] is None
+
+    half = score_claims([{"assessed_claims": 10, "verified_claims": 5}])
+    assert half["claims_assessed"] == 10
+    assert half["unsupported_claim_rate_ci95"] == [0.2366, 0.7634]
+
+    none_supported = score_claims([{"assessed_claims": 10, "verified_claims": 0}])
+    assert none_supported["unsupported_claim_rate"] == 1.0
+    assert none_supported["unsupported_claim_rate_ci95"] == [0.7225, 1.0]
+
+
 def test_safety_eval_reports_both_arms_and_the_easy_baseline_is_exact() -> None:
     report = safety_eval.run()
     metrics = report["metrics"]
