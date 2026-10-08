@@ -81,7 +81,7 @@ def test_control_survives_a_fresh_process_and_never_resumes_on_an_eta(isolated_d
         env={
             "PATH": os.defpath,
             "COSCIENTIST_DB_PATH": isolated_db,
-            "COSCIENTIST_FORCE_OFFLINE": "1",
+            "COSCIENTIST_TEST_DOUBLE": "deterministic",
             "PYTHON_DOTENV_DISABLED": "1",
             "LITELLM_LOCAL_MODEL_COST_MAP": "True",
         },

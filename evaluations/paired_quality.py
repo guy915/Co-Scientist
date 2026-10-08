@@ -196,8 +196,11 @@ def main() -> int:
     if args.live_judge:
         if not 1 <= args.max_judge_calls <= 150:
             parser.error("--max-judge-calls must be between 1 and 150")
-        if os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1":
-            raise ValueError("live judge cannot run with COSCIENTIST_FORCE_OFFLINE=1")
+        if (
+            os.getenv("COSCIENTIST_TEST_DOUBLE") == "deterministic"
+            or os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1"
+        ):
+            raise ValueError("live judge cannot use the deterministic test adapter")
         from evaluations._live_config import configure_live_environment
 
         model = configure_live_environment()
