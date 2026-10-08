@@ -119,9 +119,7 @@ open-when-ready:
 
 stop:
 	@echo ">> Stopping Co-Scientist dev servers (ports 8008/5173/8888)"
-	@pkill -f "uvicorn co_scientist.main:app" 2>/dev/null || true
-	@pkill -f "uvicorn mcp_server.server:app" 2>/dev/null || true
-	@# Catch-all: kill whatever still listens on the dev ports. uvicorn --reload
+	@# Kill only listeners on the dev ports. uvicorn --reload
 	@# and vite run under a supervising parent that respawns the listener, so
 	@# take out the parent too when it is a python/node/bun process.
 	@for port in 8008 5173 8888; do \

@@ -6,7 +6,7 @@ from typing import Any
 from co_scientist.core.run_modes import attribute_display_strings, criteria_display_strings
 
 # Attribute reports to this system rather than misattribute them to Google.
-_SYSTEM_NAME = "Co-Scientist"
+_SYSTEM_NAME = "Open Co-Scientist"
 
 # Share the experimental caution with hypothesis entries so the disclosures
 # cannot drift.
