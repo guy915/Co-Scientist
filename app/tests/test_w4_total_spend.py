@@ -11,7 +11,9 @@ from typing import Any
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import ProviderAdmissionError
+from co_scientist.domains.access.data_rights import delete_data
 from co_scientist.platform.db import connect
+from co_scientist.platform.db.privacy import purge_expired_admission_history
 from co_scientist.platform.llm.admission.service import (
     reserve_physical,
     scoped_client,
@@ -320,3 +322,25 @@ async def test_supported_byok_provider_keeps_caller_key_and_money_exemption(budg
     assert _spent(budget) == 0
     with connect(budget) as conn:
         assert conn.execute("SELECT COUNT(*) FROM provider_admissions").fetchone()[0] == 0
+
+
+def test_privacy_erasure_and_admission_retention_keep_lifetime_spend(budget: str) -> None:
+    with scoped_client("owner", db_path=budget):
+        known = reserve_physical(_request())
+        unknown = reserve_physical(_request())
+    settle_physical(known, _usage())
+    charged = _spent(budget)
+    delete_data("owner")
+    with connect(budget) as conn:
+        day = conn.execute("SELECT day FROM provider_token_reservations LIMIT 1").fetchone()[0]
+    purge_expired_admission_history(now=(day + 8) * 86400)
+    assert _spent(budget) == charged
+    with connect(budget) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM provider_token_reservations").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM llm_spend").fetchone()[0] == 2
+        assert (
+            conn.execute("SELECT settled FROM llm_spend WHERE id=?", (unknown.id,)).fetchone()[0]
+            == 0
+        )
+    settle_physical(unknown, _usage())
+    assert _spent(budget) == 30
