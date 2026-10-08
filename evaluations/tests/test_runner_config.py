@@ -20,10 +20,11 @@ def test_an_offline_invocation_leaves_no_credential_to_spend(
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-would-be-billed")
     monkeypatch.delenv("FORCE_LITERATURE_REVIEW", raising=False)
 
+    monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
     configure_environment("/tmp/db.sqlite", live=False)
 
     assert [name for name in os.environ if name.endswith("_API_KEY")] == []
-    assert os.environ["COSCIENTIST_FORCE_OFFLINE"] == "1"
+    assert os.environ["COSCIENTIST_TEST_DOUBLE"] == "deterministic"
     assert os.environ["FORCE_LITERATURE_REVIEW"] == "0"
 
 
