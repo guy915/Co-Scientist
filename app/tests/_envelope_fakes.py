@@ -27,11 +27,29 @@ def _digest(text: str) -> str:
 _DEBATE_TURN = "collaborative discourse concerning the generation"
 
 
+_CITATION_KEYS = frozenset({"supporting", "contradicting"})
+
+
+def _cite_as_lists(value: Any) -> Any:
+    """The offline filler leaves a `oneOf` field as `{}`; a real model lists
+    its citations, so claim checks must not fail validation and retry."""
+    if isinstance(value, dict):
+        return {
+            key: [] if key in _CITATION_KEYS and item == {} else _cite_as_lists(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_cite_as_lists(item) for item in value]
+    return value
+
+
 def realistic_answer(prompt: str, content: str, schema_name: str) -> str:
     """A real debate panel converges after its first exchange, and a real judge
     prefers the side whose text hashes lower, whichever position it holds."""
     if not schema_name and _DEBATE_TURN in prompt:
         return f"{content}\nHYPOTHESIS: the panel agrees on the proposal above."
+    if schema_name == "response" and any(f'"{key}": {{}}' in content for key in _CITATION_KEYS):
+        return json.dumps(_cite_as_lists(json.loads(content)))
     if schema_name not in _RANKING_SCHEMAS:
         return content
     sides = _SIDES.search(prompt)
