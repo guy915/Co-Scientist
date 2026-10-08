@@ -200,8 +200,10 @@ def test_span_errors_exclude_research_documents_email_keys_and_arbitrary_class_n
         assert value not in exported
 
 
+@pytest.mark.parametrize("call_kind", ["call_llm", "call_llm_with_tools"])
 def test_export_boundary_drops_custom_and_served_model_text_and_sdk_payloads(
     monkeypatch: pytest.MonkeyPatch,
+    call_kind: str,
 ) -> None:
     from opentelemetry.sdk.resources import Resource
 
@@ -217,7 +219,7 @@ def test_export_boundary_drops_custom_and_served_model_text_and_sdk_payloads(
     provider.add_span_processor(SimpleSpanProcessor(tracing.private_exporter(exporter)))
     monkeypatch.setattr(tracing, "_provider", provider)
     try:
-        with logical_call_span("call_llm", private, prompt_name=private):
+        with logical_call_span(call_kind, private, prompt_name=private):
             span = start_request_span(private, {"model": private, "max_tokens": 100})
             span.add_event(private, {"text": private})
             span.set_status(trace.Status(trace.StatusCode.ERROR, private))
@@ -225,7 +227,7 @@ def test_export_boundary_drops_custom_and_served_model_text_and_sdk_payloads(
             response.model = private
             end_request_span(span, response, None)
         finished = exporter.get_finished_spans()
-        assert {s.name for s in finished} == {"llm.request", "llm.call_llm"}
+        assert {s.name for s in finished} == {"llm.request", f"llm.{call_kind}"}
         assert _attrs(finished[0])["gen_ai.request.max_tokens"] == 100
         assert _attrs(finished[0])["gen_ai.usage.input_tokens"] == 0
         assert _parent_id(finished[0]) == _span_id(finished[1])

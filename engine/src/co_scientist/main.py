@@ -28,6 +28,7 @@ from co_scientist.api.launch_control_api import router as launch_control_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
+from co_scientist.api.spend_api import router as spend_router
 from co_scientist.api.tracing import TracingMiddleware
 from co_scientist.api.version import API_VERSION
 from co_scientist.core import inflight
@@ -387,6 +388,7 @@ app.include_router(documents_router)
 app.include_router(free_usage_router)
 app.include_router(byok_models_router)
 app.include_router(logs_router)
+app.include_router(spend_router)
 app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
 app.include_router(launch_control_router)
