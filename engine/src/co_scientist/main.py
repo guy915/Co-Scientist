@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 import co_scientist.orchestration.engine_adapter as engine_adapter
 from co_scientist.api.auth import Principal, principal_for_request
 from co_scientist.api.byok_models import router as byok_models_router
+from co_scientist.api.data_rights import router as data_rights_router
 from co_scientist.api.diagnostics_api import router as diagnostics_api_router
 from co_scientist.api.documents import router as documents_router
 from co_scientist.api.feedback_api import router as feedback_router
@@ -179,6 +180,23 @@ else:
     logger.info("mcp_server_url not set - literature review will be disabled")
 
 
+async def _privacy_retention_loop() -> None:
+    from co_scientist.domains.access.retention import sweep_all
+
+    while True:
+        work = asyncio.create_task(asyncio.to_thread(sweep_all))
+        try:
+            await asyncio.shield(work)
+        except asyncio.CancelledError:
+            # Let the short SQLite transactions finish before shutdown merges
+            # WAL; cancellation must not strand a live maintenance writer.
+            await work
+            raise
+        except Exception:
+            logger.warning("Privacy retention maintenance failed", exc_info=False)
+        await asyncio.sleep(3600)
+
+
 @asynccontextmanager
 async def lifespan(
     app: FastAPI,
@@ -197,10 +215,13 @@ async def lifespan(
     recovery, recovery_workers = _start_recovery_task(reconciled)
 
     await seed_demo_runs()
+    privacy_retention = asyncio.create_task(_privacy_retention_loop())
 
     try:
         yield
     finally:
+        privacy_retention.cancel()
+        await asyncio.gather(privacy_retention, return_exceptions=True)
         await _shutdown_recovery(recovery, recovery_workers)
         logger.info("Shutting down Co-Scientist server...")
         # Drain queued logging before the shutdown WAL merge.
@@ -329,6 +350,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 app.add_middleware(TracingMiddleware)
 
 
+app.include_router(data_rights_router)
 app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(documents_router)
