@@ -207,14 +207,17 @@ for (const theme of ['light', 'dark']) {
         .evaluate(el => el.scrollTo({top: 0}));
       const jump = page.getByRole('button', {name: 'Jump to latest message'});
       await expect(jump).toBeVisible();
-      const [jumpBox, composerBox] = await Promise.all([
-        jump.boundingBox(),
-        page.locator('form.reference-composer').last().boundingBox(),
-      ]);
-      // One spacing step (mb-3) between the button and the composer's top.
-      const gap = composerBox!.y - (jumpBox!.y + jumpBox!.height);
-      expect(gap).toBeGreaterThanOrEqual(8);
-      expect(gap).toBeLessThanOrEqual(16);
+      // One spacing step (mb-3) between the button and the composer's top,
+      // measured once the button's enter motion has settled.
+      await expect(async () => {
+        const [jumpBox, composerBox] = await Promise.all([
+          jump.boundingBox(),
+          page.locator('form.reference-composer').last().boundingBox(),
+        ]);
+        const gap = composerBox!.y - (jumpBox!.y + jumpBox!.height);
+        expect(gap).toBeGreaterThanOrEqual(8);
+        expect(gap).toBeLessThanOrEqual(16);
+      }).toPass();
       await captureViewport(page, {
         ...DESKTOP,
         name: `ui-remnants-jump-${theme}.png`,
