@@ -4,7 +4,9 @@ import contextlib
 import json
 import logging
 import logging.handlers
+import re
 import sys
+import traceback
 from collections.abc import Generator
 from contextvars import ContextVar
 
@@ -37,9 +39,27 @@ class RunIdFilter(logging.Filter):
 
 # LiteLLM's logging worker orphans its task whenever another event loop rebinds
 # it, and asyncio reports the unreachable task at ERROR. No hook this app owns
-# can reach it, and it never affects a completion.
-_ORPHANED_LITELLM_WORKER_MARKER = "LoggingWorker."
+# can reach it, and it never affects a completion. Identity comes from the
+# parsed task repr, never from exception text, so application failures that
+# mention the worker stay errors.
 _ORPHANED_LITELLM_WORKER_NOTE = "orphaned LiteLLM logging worker task; completions are unaffected"
+_LITELLM_WORKER_TASK = re.compile(
+    r"(?:task|future): <Task (?:pending|finished|cancelled) "
+    r"name=(?:'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\") "
+    r"coro=<LoggingWorker\.(?P<coroutine>_worker_loop|_process_log_task)\(\) "
+    r"(?:running at|done, defined at) \S*/litellm/litellm_core_utils/logging_worker\.py:\d+>"
+)
+_DESTROYED_PENDING = "Task was destroyed but it is pending!"
+_NEVER_RETRIEVED = "Task exception was never retrieved"
+_WORKER_QUEUE_UNDERFLOW = "ValueError: task_done() called too many times"
+
+
+def _exception_summary(record: logging.LogRecord) -> str | None:
+    if record.exc_info and record.exc_info[1] is not None:
+        return "".join(traceback.format_exception_only(record.exc_info[1])).strip()
+    if record.exc_text:
+        return record.exc_text.rstrip().rsplit("\n", 1)[-1]
+    return None
 
 
 def is_orphaned_litellm_worker(record: logging.LogRecord) -> bool:
@@ -49,7 +69,18 @@ def is_orphaned_litellm_worker(record: logging.LogRecord) -> bool:
         message = record.getMessage()
     except Exception:
         return False
-    return _ORPHANED_LITELLM_WORKER_MARKER in message
+    headline, _, detail = message.partition("\n")
+    task = _LITELLM_WORKER_TASK.match(detail.partition("\n")[0])
+    if task is None:
+        return False
+    if headline == _DESTROYED_PENDING:
+        return task["coroutine"] == "_worker_loop" and _exception_summary(record) is None
+    if headline == _NEVER_RETRIEVED:
+        return (
+            task["coroutine"] == "_process_log_task"
+            and _exception_summary(record) == _WORKER_QUEUE_UNDERFLOW
+        )
+    return False
 
 
 class JsonFormatter(logging.Formatter):
