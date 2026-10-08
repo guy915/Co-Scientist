@@ -3,7 +3,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.ci.markdown_links import check_links, parse_document
+from scripts.ci.markdown_links import (
+    PINNED_LINK_EXCEPTIONS,
+    check_links,
+    parse_document,
+)
 
 
 class MarkdownLinksTests(unittest.TestCase):
@@ -67,6 +71,39 @@ class MarkdownLinksTests(unittest.TestCase):
             (root / "docs/a.md").write_text("# A")
             (root / "README.md").write_text("[docs](docs/)")
             self.assertEqual(check_links(root, ["README.md", "docs/a.md"]), [])
+
+    def test_only_the_three_approved_vendor_links_are_excepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tracked = []
+            for name, line, target in PINNED_LINK_EXCEPTIONS:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                source = path.read_text() if path.exists() else ""
+                source += "\n" * (line - source.count("\n") - 1)
+                path.write_text(source + f"[reference]({target})\n")
+                if name not in tracked:
+                    tracked.append(name)
+            self.assertEqual(len(PINNED_LINK_EXCEPTIONS), 3)
+            self.assertEqual(check_links(root, tracked), [])
+            (root / "README.md").write_text(
+                "[bad](references/id_mapping_documentation.md)"
+            )
+            path.write_text(path.read_text() + "\n[bad](other-missing.md)\n")
+            findings = check_links(root, [*tracked, "README.md"])
+            self.assertEqual(len(findings), 2)
+
+    def test_exception_does_not_cover_shifted_or_duplicate_vendor_links(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            name, line, target = next(iter(PINNED_LINK_EXCEPTIONS))
+            path = root / name
+            path.parent.mkdir(parents=True)
+            link = f"[reference]({target})"
+            path.write_text("\n" * (line - 1) + link + " " + link)
+            self.assertEqual(len(check_links(root, [name])), 1)
+            path.write_text("\n" * line + link)
+            self.assertEqual(len(check_links(root, [name])), 1)
 
 
 if __name__ == "__main__":
