@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 try:
@@ -44,19 +45,27 @@ def scan(root: Path, base: str, head: str, binary: Path) -> int:
         text=True,
         errors="replace",
     )
-    result = subprocess.run(
-        [
-            str(binary),
-            "stdin",
-            "--no-banner",
-            "--redact=100",
-            "--config",
-            str(Path(__file__).with_name("gitleaks.toml")),
-        ],
-        input=added_lines(diff),
-        text=True,
-        check=False,
-    )
+    binary = binary.resolve()
+    config = Path(__file__).resolve().with_name("gitleaks.toml")
+    # Gitleaks also loads cwd/.gitleaksignore even with an explicit ignore path.
+    with tempfile.TemporaryDirectory(prefix="cosci-secret-scan-") as scratch:
+        result = subprocess.run(
+            [
+                str(binary),
+                "stdin",
+                "--no-banner",
+                "--redact=100",
+                "--ignore-gitleaks-allow",
+                "--gitleaks-ignore-path",
+                os.devnull,
+                "--config",
+                str(config),
+            ],
+            input=added_lines(diff),
+            text=True,
+            check=False,
+            cwd=scratch,
+        )
     return result.returncode
 
 
