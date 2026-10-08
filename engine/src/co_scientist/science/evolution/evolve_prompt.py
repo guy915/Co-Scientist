@@ -8,6 +8,7 @@ import random
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from co_scientist.core.prompt_layout import append_item_context
 from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
 from co_scientist.domains.research_state.proximity_edges import is_judged_edge
 from co_scientist.domains.research_state.state import WorkflowState
@@ -459,7 +460,7 @@ def _build_evolution_variables(
         context.run_setup_guidance, context.run_focus_guidance
     )
     variables["articles_with_reasoning"] = select_evidence_excerpt(
-        context.articles_with_reasoning or "", hypothesis.text, 6_000
+        context.articles_with_reasoning or "", (context.state or {}).get("research_goal", ""), 6_000
     )
     # The schema permits only supplied C* keys; no reference index would force a
     # child to disclaim grounding or invent unresolvable citations.
@@ -531,4 +532,4 @@ def _build_evolution_prompt(
     prompt, schema, operator_section, _has_template_diversity_slot = render_operator_template(
         operation.operator, variables, diversity
     )
-    return prompt + operator_section + diversity, schema
+    return append_item_context(prompt, operator_section + diversity), schema

@@ -104,7 +104,7 @@ def get_research_overview_direction_prompt(
             "all_directions": material.all_directions,
             "hypotheses_summary": summarize_hypotheses(hypotheses_summary),
             "evidence_corpus": select_evidence_excerpt(
-                evidence_corpus, f"{research_goal} {material.title} {material.rationale}"
+                evidence_corpus, research_goal
             ),
         },
         sections=PromptSections(run_guidance=_run_guidance_section(ctx)),

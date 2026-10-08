@@ -7,6 +7,7 @@ from typing import Any
 
 from co_scientist.core.constants import MEDIUM_TEMPERATURE
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.prompt_layout import render_cacheable_prompt
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
@@ -188,7 +189,6 @@ _DECISION_SCHEMA: dict[str, Any] = {
 
 def _planning_prompt(state: WorkflowState, stats: SchedulerStats, budget: Budget) -> str:
     context = {
-        "research_goal": state["research_goal"],
         "research_plan": state.get("supervisor_guidance") or {},
         "statistics": stats.to_dict(),
         "budget": budget.to_dict(),
@@ -198,7 +198,7 @@ def _planning_prompt(state: WorkflowState, stats: SchedulerStats, budget: Budget
         "held_for_review": len(state.get("held_for_review", [])),
         "durable_task_queue": state.get("durable_task_queue") or [],
     }
-    return (
+    instructions = (
         "You are the adaptive Supervisor for a scientific co-research system. "
         "Allocate the single most valuable next specialist task from generate, "
         "reflect, rank, evolve, or proximity. Use the live state rather than a "
@@ -208,9 +208,13 @@ def _planning_prompt(state: WorkflowState, stats: SchedulerStats, budget: Budget
         "for the allocation without revealing hidden chain-of-thought. Use "
         "queue_actions only when a listed queued/failed task should be "
         "reprioritized, cancelled as superseded, or retried because state has "
-        "materially changed. Never target an unlisted task.\n\n"
-        "Live shared memory:\n"
-        f"{json.dumps(context, sort_keys=True, default=str)}"
+        "materially changed. Never target an unlisted task."
+    )
+    return render_cacheable_prompt(
+        instructions,
+        f"Research goal: {state['research_goal']}",
+        "Live shared memory:\n" + json.dumps(context, sort_keys=True, default=str),
+        "Allocate the next task or stop using the live state.",
     )
 
 

@@ -11,6 +11,7 @@ from co_scientist.core.constants import (
     LOW_TEMPERATURE,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.core.prompt_layout import prepend_instructions
 from co_scientist.domains.research_state.models import (
     Hypothesis,
     MetricDeltas,
@@ -237,11 +238,12 @@ def _build_review_prompt(
         _prompt_variables(state, hypothesis, review_type, targeted_articles, observations),
     )
     if review_type is ReviewType.RECURRENT:
-        prompt = (
+        prompt = prepend_instructions(
+            prompt,
             "Perform a recurrent/tournament review. Adapt the full review to "
             "the accumulated reviews, Elo outcomes, recurring issues, and "
             "meta-review feedback below. Identify what changed since the "
-            "earlier review.\n\n" + prompt
+            "earlier review.\n\n",
         )
     return prompt, schema
 
@@ -257,7 +259,7 @@ async def review_finalist(state: WorkflowState, hypothesis: Hypothesis) -> Revie
     )
     variables["articles_with_reasoning"] = (
         "Literature analyses, one per article, each with the literature review's own"
-        " reasoning:\n" + select_evidence_excerpt(literature, hypothesis.text, 6_000)
+        " reasoning:\n" + select_evidence_excerpt(literature, state["research_goal"], 6_000)
         if literature
         else _NO_OBSERVATIONS_NOTE
     )

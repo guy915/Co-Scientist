@@ -13,6 +13,7 @@ from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     settings,
 )
+from co_scientist.core.prompt_cache import CacheablePrompt
 from co_scientist.domains.chat.titles import title_case
 from co_scientist.domains.documents import repository as store
 from co_scientist.platform.llm import coerce_json_list
@@ -409,14 +410,22 @@ def _attached_documents(interview: dict[str, Any]) -> list[dict[str, str]]:
 
 def _prompt(interview: dict[str, Any]) -> str:
     transcript = [_transcript_turn(turn) for turn in interview["turns"]]
-    context: dict[str, Any] = {
-        "current_fields": interview["fields"],
-        "transcript": transcript,
-    }
     attached = _attached_documents(interview)
+    prefix = "{"
     if attached:
-        context["attached_documents"] = attached
-    return json.dumps(context, ensure_ascii=False)
+        prefix += (
+            '"attached_documents": '
+            + json.dumps(attached, ensure_ascii=False, sort_keys=True)
+            + ", "
+        )
+    item = (
+        '"current_fields": '
+        + json.dumps(interview["fields"], ensure_ascii=False, sort_keys=True)
+        + ', "transcript": '
+        + json.dumps(transcript, ensure_ascii=False, sort_keys=True)
+        + "}"
+    )
+    return CacheablePrompt(prefix + item, run_end=len(prefix), item_end=len(prefix + item))
 
 
 def _interview_request(interview: dict[str, Any]) -> tuple[str, Any]:

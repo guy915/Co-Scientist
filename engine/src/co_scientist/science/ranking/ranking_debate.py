@@ -20,6 +20,7 @@ from co_scientist.core.constants import (
     THINKING_MAX_TOKENS,
     truncate,
 )
+from co_scientist.core.prompt_layout import append_item_context
 from co_scientist.domains.research_state.models import (
     ExecutionMetrics,
     Hypothesis,
@@ -186,7 +187,7 @@ def _append_debate_context(
         "hypothesis was presented first, confirm that verdict decisively; "
         "otherwise challenge the weak arguments before deciding.\n"
     )
-    return prompt + "".join(lines)
+    return append_item_context(prompt, "".join(lines))
 
 
 class _DebateContext(NamedTuple):
