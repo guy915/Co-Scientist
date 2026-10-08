@@ -6,7 +6,7 @@ from typing import Any, cast
 import pytest
 from co_scientist.api import runs as routes
 from co_scientist.api.runs import events
-from co_scientist.orchestration.repository import runs as stored_runs
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.storage_admission import scoped_peer
 from fastapi import HTTPException, Request
 from starlette.responses import StreamingResponse
@@ -75,7 +75,7 @@ async def test_abandoned_draft_tail_closes_without_a_terminal_write(
 
     frames = await asyncio.wait_for(consume(), 0.25)
     assert not any('"_terminal"' in frame for frame in frames)
-    current = stored_runs.get_run(run.id)
+    current = runs.get_run(run.id)
     assert current is not None and current.status == "draft"
 
 

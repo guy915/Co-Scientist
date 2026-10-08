@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 from co_scientist.api import uploads
-from co_scientist.domains.documents import ingest
+from co_scientist.domains.documents import extraction_admission, ingest
 from co_scientist.platform.db.storage_admission import scoped_peer
 from fastapi import HTTPException, UploadFile
 from starlette.datastructures import Headers
@@ -87,14 +87,20 @@ async def test_cancelled_request_keeps_its_parsers_admission_until_worker_exit(
     def extract(data: bytes, mime: str) -> ingest.ExtractedDocument:
         calls.append(data)
         loop.call_soon_threadsafe(started.set)
-        try:
-            if len(calls) == 1:
-                assert release.wait(5)
-            return ingest.ExtractedDocument("notes", mime, "synthetic", len(data), "synthetic")
-        finally:
-            loop.call_soon_threadsafe(finished.set)
+        if len(calls) == 1:
+            assert release.wait(5)
+        return ingest.ExtractedDocument("notes", mime, "synthetic", len(data), "synthetic")
+
+    real_release = extraction_admission.release
+
+    def release_then_signal(owner: str, peer: str) -> None:
+        # The worker releases after the parser returns; signalling from the
+        # parser itself let the next request race the release.
+        real_release(owner, peer)
+        loop.call_soon_threadsafe(finished.set)
 
     monkeypatch.setattr(ingest, "extract_document", extract)
+    monkeypatch.setattr(extraction_admission, "release", release_then_signal)
     first = asyncio.create_task(uploads.extract_upload(_upload()))
     try:
         await asyncio.wait_for(started.wait(), 2)

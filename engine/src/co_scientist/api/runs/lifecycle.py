@@ -16,12 +16,12 @@ from co_scientist.api.runs.support import _run_or_404
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.repository import records
-from co_scientist.orchestration.repository import events, runs, tasks
+from co_scientist.orchestration.repository import events, tasks
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.orchestration.task_worker.enqueue import is_abandoned_spent_bootstrap
 from co_scientist.platform import db
-from co_scientist.platform.db import Connection, checkpoints
+from co_scientist.platform.db import Connection, checkpoints, runs
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,
     RunRow,

@@ -32,16 +32,8 @@ ignore_imports =
     co_scientist.domains.chat.interviews -> co_scientist.api.contracts.interviews
     co_scientist.domains.chat.interviews -> co_scientist.api.auth
     co_scientist.domains.chat.interviews.turns -> co_scientist.api.auth
-    co_scientist.domains.chat.qa -> co_scientist.orchestration.repository.runs
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.events
     co_scientist.domains.chat.qa.manifest -> co_scientist.orchestration.repository.tasks
-    co_scientist.domains.chat.qa.snapshot -> co_scientist.orchestration.repository.supervisor_plan
-    co_scientist.domains.access.retention -> co_scientist.orchestration.repository.runs
-    co_scientist.domains.access.retention -> co_scientist.orchestration.repository.runs_views
-    co_scientist.domains.safety.gate -> co_scientist.orchestration.repository.runs
-    co_scientist.domains.chat.seed -> co_scientist.orchestration.repository.runs_views
-    co_scientist.platform.db.checkpoints -> co_scientist.orchestration.repository.supervisor_plan
-    co_scientist.domains.chat.repository.examples -> co_scientist.orchestration.repository.runs
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.prompts
     co_scientist.platform.retrieval.evidence.relevance -> co_scientist.science.schemas
     co_scientist.platform.llm.tool_effects -> co_scientist.platform.retrieval.config.registry

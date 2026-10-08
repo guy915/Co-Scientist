@@ -14,7 +14,7 @@ from co_scientist.api.operator_access import is_operator
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.platform import db
-from co_scientist.platform.db import Connection, logs
+from co_scientist.platform.db import Connection, log_admission, logs
 from co_scientist.platform.db.logs import LogFilters, NewLogRecord
 from co_scientist.platform.telemetry.logging_setup import level_to_number
 
@@ -178,7 +178,19 @@ def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     to INFO and messages are truncated to a sane length.
     """
     owner = client_id(request)
-    _check_ingest_rate(request)
+    prepared = []
+    for record in batch.records:
+        logger_name = _sanitize(record.logger)
+        if logger_name != "ui" and not logger_name.startswith("ui."):
+            logger_name = f"ui.{logger_name}"
+        logger_name = logger_name.encode()[:128].decode("utf-8", errors="ignore")
+        message = (
+            _sanitize(record.message)
+            .encode()[:MAX_CLIENT_MESSAGE_CHARS]
+            .decode("utf-8", errors="ignore")
+        )
+        prepared.append((record, logger_name, message))
+    byte_size = sum(len(logger.encode()) + len(message.encode()) for _, logger, message in prepared)
     # Batch ingestion acquires SQLite's writer once, not once per submitted
     # record.
     with db.transaction() as conn:
@@ -192,22 +204,24 @@ def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
                 is None
             ):
                 raise HTTPException(status_code=404, detail="run not found")
-        for record in batch.records:
+        if not log_admission.claim(conn, len(prepared), byte_size):
+            raise HTTPException(status_code=429, detail="global log ingestion budget reached")
+        # Rejected global traffic cannot grow the process-local scope map.
+        _check_ingest_rate(request)
+        for record, logger_name, message in prepared:
             levelno = level_to_number(record.level) or logging.INFO
-            logger_name = _sanitize(
-                record.logger if record.logger.startswith("ui") else f"ui.{record.logger}"
-            )
             logs.append_log(
                 NewLogRecord(
                     level=logging.getLevelName(levelno),
                     levelno=levelno,
                     logger_name=logger_name,
-                    message=_sanitize(record.message)[:MAX_CLIENT_MESSAGE_CHARS],
+                    message=message,
                     run_id=record.run_id,
                     client_id=owner or None,
                 ),
                 conn=conn,
             )
+        logs.prune_ui_logs(conn=conn)
         last_id = logs.latest_log_id(conn=conn)
     return {"added": len(batch.records), "last_id": last_id}
 

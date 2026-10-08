@@ -7,8 +7,8 @@ import sqlite3
 from importlib import resources
 from typing import Any
 
-from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.platform import db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
 logger = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
             )
 
         existing = {
-            run.id: run for run in views.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
+            run.id: run for run in runs.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
         }
     except Exception:
         logger.exception("Failed to clean legacy demo rows")

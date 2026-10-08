@@ -50,7 +50,7 @@ from co_scientist.orchestration.engine_tasks.support import SafetyHoldError as S
 from co_scientist.orchestration.engine_tasks.support import (
     SupersededTaskError as SupersededTaskError,
 )
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import ScientificTask
 from co_scientist.platform.llm.execution_policy import (
     zero_cost_admission_for_config,

@@ -16,10 +16,9 @@ from co_scientist.orchestration.engine_tasks import (
 from co_scientist.orchestration.engine_tasks import node as engine_tasks_node
 from co_scientist.orchestration.engine_tasks import support
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import tasks as store
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 from co_scientist.platform.retrieval.article import Article
 from co_scientist.science.generation import (

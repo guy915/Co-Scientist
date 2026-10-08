@@ -24,11 +24,11 @@ from co_scientist.orchestration.engine_tasks.support import (
     _save_state_and_enqueue,
     _task_commit,
 )
-from co_scientist.orchestration.repository import events, runs, tasks
+from co_scientist.orchestration.repository import events, tasks
 from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.orchestration.safety_gate import apply_safety_gate
-from co_scientist.platform.db import transaction
+from co_scientist.platform.db import runs, transaction
 from co_scientist.platform.db.admission import claim_continuation
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,

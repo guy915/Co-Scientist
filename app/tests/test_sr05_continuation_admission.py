@@ -9,8 +9,8 @@ from co_scientist.orchestration.engine_tasks.inputs import (
     enqueue_scientist_continuation,
     reopen_for_pending_scientist_input,
 )
-from co_scientist.orchestration.repository import runs
 from co_scientist.platform import db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.checkpoints import NewCheckpoint, save_checkpoint
 from co_scientist.platform.db.models import RunStatus
 from fastapi.testclient import TestClient

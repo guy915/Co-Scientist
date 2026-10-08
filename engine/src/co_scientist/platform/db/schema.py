@@ -716,6 +716,10 @@ CREATE TABLE IF NOT EXISTS app_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_app_logs_run ON app_logs(run_id, id);
 CREATE INDEX IF NOT EXISTS idx_app_logs_client ON app_logs(client_id, id);
+CREATE TABLE IF NOT EXISTS log_ingest_admissions (
+    minute INTEGER PRIMARY KEY, requests INTEGER NOT NULL,
+    records INTEGER NOT NULL, bytes INTEGER NOT NULL
+);
 
 -- Explainable hypothesis-proximity landscape persisted from the engine.
 CREATE TABLE IF NOT EXISTS proximity_edges (

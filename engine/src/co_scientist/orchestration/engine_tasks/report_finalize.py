@@ -21,10 +21,11 @@ from co_scientist.domains.safety.gate import (
     screen_final,
 )
 from co_scientist.orchestration.notifications import enqueue_completion_notification
-from co_scientist.orchestration.repository import events, runs
+from co_scientist.orchestration.repository import events
 from co_scientist.orchestration.run_events import EmitFn
 from co_scientist.orchestration.safety_gate import apply_safety_gate
 from co_scientist.platform import db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus, ScientificTask
 
 logger = logging.getLogger(__name__)

@@ -199,6 +199,8 @@ The local API treats a direct loopback peer as an operator even without `X-Logs-
 
 **Fix:** Bound capture by records and bytes, define observable drop/backpressure behavior, and apply a global ingest budget before enqueueing. Preserve critical server diagnostics separately from anonymous UI log traffic.
 
+**Fixing PR:** [#430](https://github.com/guy915/Co-Scientist/pull/430). Bounds capture records and accounted bytes, truncates/redacts before queueing, reserves warning/error capacity, exposes drop counters and bounds shutdown. Durable global UI ingest admission and separate bounded retention protect server diagnostics; startup performs no retention scan. Regression tests simulate a stalled writer, identity rotation, overflow and critical-log canaries; no production backlog or OOM was induced.
+
 ### SR-14 — Dependency advisory remediation and audit receipt
 
 **Area:** data; dependencies; CI. **Severity:** low for the exposed paths established here. **Owner:** lane V.

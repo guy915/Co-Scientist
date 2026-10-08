@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from co_scientist.orchestration.repository import runs as store
+from co_scientist.platform.db import runs as store
 from co_scientist.platform.db.models import RunStatus
 
 from tests._client import make_client

@@ -18,9 +18,9 @@ from co_scientist.orchestration.engine_tasks import finalize as engine_tasks_nod
 from co_scientist.orchestration.engine_tasks import report_finalize
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository import tasks
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 from co_scientist.platform.db import retrieval_calls as retrieval
 from co_scientist.platform.db.models import RunStatus
 
