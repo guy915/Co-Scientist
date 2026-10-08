@@ -47,6 +47,10 @@ def _validate_receipt(receipt: dict[str, Any], db: Path) -> dict[str, str]:
         or receipt["evaluation_identity"] != snapshot.identity
     ):
         raise ValueError("benchmark receipt differs from its database")
+    if snapshot.metrics["call_count_basis"] != "http_transport_attempts":
+        raise ValueError(
+            "benchmark needs a versioned HTTP attempt counter; legacy invocations are insufficient"
+        )
     if snapshot.metrics["tier"] != "express" or snapshot.metrics["backend"] != "real":
         raise ValueError("paired dispatch requires live Express artifacts")
     if receipt["offline_disclaimer"] is not None:
@@ -103,7 +107,9 @@ def prepare(archives: dict[str, list[Path]], output: Path) -> Path:
         )
         + "\n"
     )
-    load_pairs(manifest)
+    pairs = load_pairs(manifest)
+    if len({s.metrics["request_counter_sha256"] for pair in pairs for s in pair}) != 1:
+        raise ValueError("benchmark HTTP instrumentation differs; rerun both arms")
     return manifest
 
 

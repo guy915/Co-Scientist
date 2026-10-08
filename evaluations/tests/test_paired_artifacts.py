@@ -25,9 +25,13 @@ def archive(path: Path, goal_id: str, *, branch: bool = False, change: str = "")
     with sqlite3.connect(db) as conn:
         conn.execute(
             "CREATE TABLE evaluation_runs "
-            "(run_id, source_commit, physical_requests, request_ceiling)"
+            "(run_id, source_commit, physical_requests, request_ceiling, "
+            "counter_kind, request_counter_sha256)"
         )
-        conn.execute("INSERT INTO evaluation_runs VALUES ('r',?,?,200)", (source, count))
+        conn.execute(
+            "INSERT INTO evaluation_runs VALUES ('r',?,?,200,'http_transport_attempts',?)",
+            (source, count, "f" * 64),
+        )
         if change == "control":
             config = json.loads(conn.execute("SELECT config_json FROM runs").fetchone()[0])
             identity = config["evaluation_identity"]
@@ -35,6 +39,11 @@ def archive(path: Path, goal_id: str, *, branch: bool = False, change: str = "")
             identity.pop("digest")
             identity["digest"] = identity_digest(identity)
             conn.execute("UPDATE runs SET config_json=?", (json.dumps(config),))
+        if change == "legacy":
+            conn.execute("ALTER TABLE evaluation_runs DROP COLUMN counter_kind")
+            conn.execute("ALTER TABLE evaluation_runs DROP COLUMN request_counter_sha256")
+        if change == "counter":
+            conn.execute("UPDATE evaluation_runs SET request_counter_sha256=?", ("e" * 64,))
     snapshot = read_snapshot(db, "r", goal_id, source)
     receipt: dict[str, Any] = {
         "goal_version": GOAL_VERSION,
@@ -138,7 +147,7 @@ def test_recorded_archives_replay_full_pipeline_without_network_or_input_writes(
 
 
 @pytest.mark.parametrize(
-    "change", ["count", "ceiling", "offline", "source", "metric", "missing", "duplicate"]
+    "change", ["count", "ceiling", "offline", "source", "metric", "missing", "duplicate", "legacy"]
 )
 def test_inconsistent_or_missing_receipt_fails_before_judging(tmp_path: Path, change: str) -> None:
     with pytest.raises(ValueError):
@@ -160,6 +169,15 @@ def test_mismatched_controls_are_rejected_before_judging(tmp_path: Path) -> None
     archive(changed, "cell-biology", branch=True, change="control")
     arms["branch"][0] = changed
     with pytest.raises(ValueError, match="configured_models"):
+        paired_artifacts.prepare(arms, tmp_path / "prepared")
+
+
+def test_changed_http_instrumentation_is_rejected_before_judging(tmp_path: Path) -> None:
+    arms = cohort(tmp_path)
+    changed = tmp_path / "different-counter.zip"
+    archive(changed, "cell-biology", branch=True, change="counter")
+    arms["branch"][0] = changed
+    with pytest.raises(ValueError, match="instrumentation differs"):
         paired_artifacts.prepare(arms, tmp_path / "prepared")
 
 
