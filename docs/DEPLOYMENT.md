@@ -13,14 +13,12 @@ any value below.
 
 | Layer | Platform | URL |
 |---|---|---|
-| Frontend (Vite/React) | Cloudflare Worker `open-coscientist` with static assets (Vercel until launch) | https://open-coscientist.com |
+| Frontend (Vite/React) | Cloudflare Worker `open-coscientist` with static assets | https://open-coscientist.com |
 | API (FastAPI) | Railway service `api` | https://api.open-coscientist.com |
 | MCP server | Railway service `mcp` | private network only, port 8888 |
 
-The repository carries both frontend configurations until launch:
-Cloudflare (`wrangler.jsonc`, below) and Vercel (`vercel.json`), which the
-launch removes. The API and MCP run in one Railway project with exactly one
-API replica. Production starts with an empty database.
+The frontend uses `wrangler.jsonc`. The API and MCP run in one Railway
+project with exactly one API replica. Production starts with an empty database.
 
 The worker runs embedded in the API process; there is no separate worker
 service. The single-writer SQLite store bounds worker width
@@ -53,6 +51,36 @@ artifacts; keep those exclusions when adding an image or context.
   service with a volume cannot run two deployments at once, so an API deploy
   has a short gap and never overlaps two writers.
 
+### Railway source and watch paths
+
+Both services use `guy915/Open-Co-Scientist`, branch `main`, build root `/`,
+and their root Dockerfile, with no start-command override. Use the new MCP
+service's private DNS hostname in the API's `MCP_SERVER_URL`.
+Set the API healthcheck path to `/health`, restart policy to `ON_FAILURE`
+with 10 retries, and deployment draining to 30 seconds so the entrypoint's
+20-second shutdown grace can finish.
+
+Watch every Dockerfile input: an omitted path silently skips a deployment
+when that input changes. Enter these paths separately in each service's
+Build settings; keep them aligned with its `COPY` instructions.
+
+| API | MCP |
+| --- | --- |
+| `/Dockerfile.api` | `/Dockerfile.mcp` |
+| `/.dockerignore` | `/.dockerignore` |
+| `/requirements/api.txt` | `/requirements/mcp.txt` |
+| `/requirements/skills.txt` | `/engine/mcp_server/**` |
+| `/litestream.yml` | `/LICENSE` |
+| `/scripts/api-entrypoint.sh` | `/NOTICE` |
+| `/LICENSE` | |
+| `/NOTICE` | |
+| `/engine/pyproject.toml` | |
+| `/engine/README.md` | |
+| `/engine/LICENSE` | |
+| `/engine/NOTICE` | |
+| `/engine/src/**` | |
+| `/vendor/science-skills/**` | |
+
 ### Invariants: do not clean these up
 
 **`RAILWAY_RUN_UID=0` must stay set on the API.** Both images create a
@@ -74,9 +102,13 @@ knob. See [OPERATIONS.md](OPERATIONS.md).
 
 ## Frontend
 
-Both hosts serve the same build: `cd app/frontend && bun run build` (`tsc`,
-`vite build`, prerender) into `app/frontend/dist`, installed with
-`bun install --frozen-lockfile`. Build-time variables (read at build, not
+Cloudflare builds from repository root `/`, branch `main`, with
+`NODE_VERSION=24.19.0` and `BUN_VERSION=1.3.14`. Set the build command to
+`cd app/frontend && bun install --frozen-lockfile && bun run build`
+(`tsc`, `vite build`, prerender) and the deploy command to
+`npx --yes wrangler@4.79.0 deploy` from the root. The config is
+`wrangler.jsonc`, Worker name `open-coscientist`, assets directory
+`app/frontend/dist`. Build-time variables (read at build, not
 runtime): `VITE_API_BASE_URL=https://api.open-coscientist.com`, and
 `VITE_SENTRY_DSN` when error tracking is on (see
 [MONITORING.md](MONITORING.md)). Only `VITE_` variables belong on the
@@ -87,9 +119,6 @@ frontend host; everything there is compiled into public assets.
   with `/index.html`, so deep links load the app while a missing hashed asset
   stays a 404 instead of returning HTML. `app/frontend/public/_headers` sets
   the headers below. CI checks the config and runs `worker.test.mjs`.
-- **Vercel** (`vercel.json`): the same rewrite and headers, plus an
-  `ignoreCommand` that skips the build when neither `app/frontend` nor
-  `vercel.json` changed.
 - Headers: `/assets/*` is cached for a year and immutable; every path sends
   `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`,
@@ -119,7 +148,19 @@ MCP_SERVER_URL=http://<mcp-private-host>:8888/mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
 RAILWAY_RUN_UID=0                                  # must stay set
 ALLOWED_ORIGINS=https://open-coscientist.com
+COSCIENTIST_RUN_RETENTION_DAYS=0
 ```
+
+The zero run-retention setting disables scheduled deletion of completed runs;
+document retention remains separate (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`).
+Use a new volume and R2 prefix so restore cannot import the old deployment's
+research data. Keep `LITESTREAM_R2_*`, provider, Sentry and OTLP endpoints on
+their own services; only public application URLs move to the new domain.
+
+API error tracking uses `SENTRY_DSN` and `SENTRY_ENVIRONMENT`; tracing uses
+`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` and
+`OTEL_SERVICE_NAME` ([MONITORING.md](MONITORING.md)). These are backend
+settings, distinct from the public build-time `VITE_SENTRY_DSN`.
 
 - **CORS.** `ALLOWED_ORIGINS` is a comma-separated allowlist and enables
   credentialed CORS. When unset, `main.py` uses `DEFAULT_ALLOWED_ORIGINS`

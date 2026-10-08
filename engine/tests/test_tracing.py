@@ -86,6 +86,35 @@ def test_an_endpoint_installs_an_exporting_provider(monkeypatch: pytest.MonkeyPa
     assert isinstance(tracing.tracer(), trace.NoOpTracer)
 
 
+@pytest.mark.parametrize("name", tracing.OTLP_HEADER_ENV_VARS)
+@pytest.mark.parametrize("value", ["dummy-credential;bad", "dummy-credential%0Ainjected"])
+def test_invalid_otlp_headers_disable_tracing_without_logging_credentials(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, name: str, value: str
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:9")
+    monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
+    monkeypatch.setattr(tracing, "_provider", None)
+    monkeypatch.setenv(name, f"Authorization={value}")
+    assert tracing.configure_tracing() is False
+    assert "invalid OTLP header configuration" in caplog.text
+    assert "dummy-credential" not in caplog.text
+    assert isinstance(tracing.tracer(), trace.NoOpTracer)
+
+
+@pytest.mark.parametrize("name", tracing.OTLP_HEADER_ENV_VARS)
+def test_valid_otlp_auth_headers_still_configure_tracing(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:9")
+    monkeypatch.delenv("OTEL_SDK_DISABLED", raising=False)
+    monkeypatch.setattr(tracing, "_provider", None)
+    monkeypatch.setenv(name, "Authorization=Basic%20dummy-credential,x-honeycomb-team=dummy-team")
+    try:
+        assert tracing.configure_tracing() is True
+    finally:
+        tracing.shutdown_tracing()
+
+
 async def test_a_logical_call_nests_attempts_and_provider_requests(
     monkeypatch: pytest.MonkeyPatch, spans: InMemorySpanExporter
 ) -> None:

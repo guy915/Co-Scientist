@@ -169,7 +169,7 @@ dev-mcp:
 		"$(MCP_VENV)/bin/python" -m pip install -q -e "$(ENGINE)/mcp_server" || { echo ">> MCP deps install failed (offline?); skipping MCP server"; exit 0; }; \
 	fi; \
 	echo ">> Starting reference MCP server on http://localhost:8888"; \
-	cd "$(ENGINE)" && "$(MCP_VENV)/bin/python" -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
+	cd "$(ENGINE)" && COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1 "$(MCP_VENV)/bin/python" -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 
 test:
 	@$(MAKE) test-app
