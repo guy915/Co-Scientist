@@ -69,3 +69,13 @@ async def test_collection_returns_publication_order(monkeypatch: pytest.MonkeyPa
         "unplayed",
         "undermined",
     ]
+
+
+def test_explicit_zero_rating_has_the_same_meaning_in_models_and_store_rows() -> None:
+    models = [
+        Hypothesis(text="Zero", id="zero", elo_rating=0, win_count=1),
+        Hypothesis(text="Positive", id="positive", elo_rating=10, win_count=1),
+    ]
+    rows = [{"id": h.id, "elo_rating": h.elo_rating, "win_count": h.win_count} for h in models]
+    assert [h.id for h in rank_models(models)] == ["positive", "zero"]
+    assert [h["id"] for h in rank_for_publication(rows)] == ["positive", "zero"]
