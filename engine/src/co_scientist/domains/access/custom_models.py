@@ -66,8 +66,8 @@ def _cache_key(provider: str, model: str, api_key: str) -> tuple[str, str, str]:
     # retaining the credential in the cache.
     fingerprint = hmac.new(
         _CACHE_SECRET,
-        api_key.encode(),
         # codeql[py/weak-sensitive-data-hashing] Cache partition, not password storage.
+        api_key.encode(),
         hashlib.sha256,
     ).hexdigest()
     return provider, model, fingerprint
