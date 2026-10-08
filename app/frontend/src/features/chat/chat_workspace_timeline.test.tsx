@@ -240,10 +240,36 @@ it('announces Q&A after the started card despite server/client clock skew', () =
 });
 
 it('announces the settled run-start reply with status context', () => {
-  const initial = baseArgs({startedSession: {id: 'run-1', title: 'Research', at: 1, announcing: true}});
-  const view = render(<MemoryRouter>{buildTimelineItems(initial).map(item => <div key={item.id}>{item.node}</div>)}</MemoryRouter>);
-  expect(screen.getByRole('status', {name: 'Research reply'})).toBeEmptyDOMElement();
-  const settled = baseArgs({startedSession: {id: 'run-1', title: 'Research', at: 1, announcing: false, intro: 'Your research session is ready.'}});
-  view.rerender(<MemoryRouter>{buildTimelineItems(settled).map(item => <div key={item.id}>{item.node}</div>)}</MemoryRouter>);
-  expect(screen.getByRole('status', {name: 'Research reply'})).toHaveTextContent('Research started. Your research session is ready.');
+  const initial = baseArgs({
+    startedSession: {id: 'run-1', title: 'Research', at: 1, announcing: true},
+  });
+  const view = render(
+    <MemoryRouter>
+      {buildTimelineItems(initial).map(item => (
+        <div key={item.id}>{item.node}</div>
+      ))}
+    </MemoryRouter>,
+  );
+  expect(
+    screen.getByRole('status', {name: 'Research reply'}),
+  ).toBeEmptyDOMElement();
+  const settled = baseArgs({
+    startedSession: {
+      id: 'run-1',
+      title: 'Research',
+      at: 1,
+      announcing: false,
+      intro: 'Your research session is ready.',
+    },
+  });
+  view.rerender(
+    <MemoryRouter>
+      {buildTimelineItems(settled).map(item => (
+        <div key={item.id}>{item.node}</div>
+      ))}
+    </MemoryRouter>,
+  );
+  expect(
+    screen.getByRole('status', {name: 'Research reply'}),
+  ).toHaveTextContent('Research started. Your research session is ready.');
 });
