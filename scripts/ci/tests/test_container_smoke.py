@@ -1,11 +1,37 @@
+import io
 import subprocess
 import unittest
+from contextlib import redirect_stderr
 from unittest.mock import call, patch
 
 from scripts.ci.container_smoke import smoke, wait_ready
 
 
 class ContainerSmokeTests(unittest.TestCase):
+    def test_launch_failure_reports_cli_error_logs_and_cleans_resources(self):
+        def docker(*args, **kwargs):
+            if args[0] == "run":
+                raise subprocess.CalledProcessError(
+                    125, ["docker", *args], stderr="no space left on device"
+                )
+            return ""
+
+        stderr = io.StringIO()
+        with (
+            patch("scripts.ci.container_smoke.docker", side_effect=docker) as run,
+            redirect_stderr(stderr),
+        ):
+            with self.assertRaises(subprocess.CalledProcessError):
+                smoke("api-image", "mcp-image")
+        self.assertIn("no space left on device", stderr.getvalue())
+        self.assertTrue(any(item.args[0] == "logs" for item in run.call_args_list))
+        self.assertTrue(
+            any(item.args[:2] == ("rm", "-f") for item in run.call_args_list)
+        )
+        self.assertTrue(
+            any(item.args[:2] == ("volume", "rm") for item in run.call_args_list)
+        )
+
     def test_lifespan_failure_fails_and_prints_logs(self):
         def docker(*args, **kwargs):
             if args[:2] == ("inspect", "--format"):

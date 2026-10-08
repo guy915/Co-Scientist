@@ -12,17 +12,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Bound logged query text without dropping the clue explaining empty results.
-_MAX_ARG_CHARS = 160
-
 
 def _describe_args(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
-    parts = [repr(a) for a in args]
-    parts += [f"{k}={v!r}" for k, v in sorted(kwargs.items())]
-    rendered = ", ".join(parts)
-    if len(rendered) > _MAX_ARG_CHARS:
-        return rendered[:_MAX_ARG_CHARS] + "..."
-    return rendered
+    return f"{len(args)} positional, {len(kwargs)} named"
 
 
 def _describe_result(result: Any) -> str:
@@ -35,7 +27,7 @@ def _describe_result(result: Any) -> str:
         except (ValueError, TypeError):
             return f"{size} chars"
     if isinstance(parsed, dict) and parsed.get("status") == "failed":
-        return f"failed ({parsed.get('error')})"
+        return "failed"
     if isinstance(parsed, dict) and isinstance(parsed.get("records"), list):
         parsed = parsed["records"]
     if isinstance(parsed, (dict, list)):
@@ -44,7 +36,7 @@ def _describe_result(result: Any) -> str:
         if not count:
             detail = "empty"
         return detail if size is None else f"{detail}, {size} chars"
-    return f"{parsed!r}"
+    return "scalar"
 
 
 def _log_success(name: str, described: str, result: Any, started: float) -> None:
@@ -58,14 +50,23 @@ def _log_success(name: str, described: str, result: Any, started: float) -> None
 
 
 def _log_failure(name: str, described: str, exc: BaseException, started: float) -> None:
-    """Tools normally degrade; unexpected exceptions retain their diagnostic
-    traceback.
-    """
-    logger.exception(
+    # Exception text and tracebacks can repeat complete queries and source text.
+    kind = type(exc).__name__
+    if kind not in {
+        "ValueError",
+        "TypeError",
+        "RuntimeError",
+        "TimeoutError",
+        "ConnectionError",
+        "OSError",
+        "CancelledError",
+    }:
+        kind = "Exception"
+    logger.error(
         "tool %s(%s) raised %s after %dms",
         name,
         described,
-        type(exc).__name__,
+        kind,
         int((time.monotonic() - started) * 1000),
     )
 
