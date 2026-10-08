@@ -341,6 +341,12 @@ file. Then run the recorded-judgment command above against
 
 ### Authorized Claude or Azure cohort
 
+The owner's shared monetary allowance must cover the run: the HTTP ceiling
+alone does not enforce a shared money ledger. Resolve
+the money reservation and billing controls before provider-backed collection.
+The `operation=preflight` workflow checks native configuration with sockets
+denied and makes no provider request; it is not authentication or science.
+
 An explicitly authorized paid cohort can use `model=anthropic/MODEL_ID` or
 `model=azure/DEPLOYMENT_ID` on the same workflow. The default remains the free
 OpenRouter route. Select one provider/model for all six research runs; switching

@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Collect one fixed goal or compare six saved Express runs
+        description: Collect, compare saved runs, or check native configuration without provider calls
         type: choice
-        options: [collect, compare]
+        options: [collect, compare, preflight]
         default: collect
       model:
         description: Explicit model; OpenRouter free default or authorized anthropic/azure route
@@ -51,6 +51,50 @@ permissions:
   contents: read
 
 jobs:
+  native-preflight:
+    if: inputs.operation == 'preflight'
+    name: Native provider configuration (no provider requests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout trusted harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up backend
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
+      - name: Validate native configuration without provider authentication
+        env:
+          MODEL_NAME: ${{ inputs.model }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
+        run: |
+          python - <<'PYCODE'
+          import json, os, socket
+          from importlib.metadata import version
+          from evaluations.benchmark_paid import configure, trusted_transport
+          def deny(*args, **kwargs):
+              raise RuntimeError("provider preflight prohibits network requests")
+          socket.socket.connect = deny
+          socket.create_connection = deny
+          model = os.environ["MODEL_NAME"]
+          try:
+              _, endpoint = configure(model.partition("/")[0], model)
+          except ValueError:
+              print("Native configuration unavailable or invalid; no provider authentication attempted.")
+              raise SystemExit(1)
+          print(json.dumps({
+              "provider": model.partition("/")[0],
+              "endpoint_sha256": endpoint,
+              "request_counter_sha256": vars(trusted_transport())["COUNTER_SHA256"],
+              "sdk": {name: version(name) for name in ("litellm", "httpx", "openai")},
+              "provider_requests": 0,
+              "scientific_result": False,
+          }, sort_keys=True))
+          PYCODE
   benchmark:
     if: inputs.operation == 'collect'
     name: Benchmark (${{ inputs.tier }}, ${{ inputs.label }})
