@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import datetime as dt
 import sqlite3
 from typing import Any
 
 from co_scientist.core import byok_scope
+from co_scientist.core.admission_windows import utc_day_bounds
 from co_scientist.core.config import settings
 from co_scientist.platform.llm.process_mode import offline_mode
 
@@ -24,14 +24,8 @@ def daily_limit() -> int | None:
     return limit if limit > 0 else None
 
 
-def _day_bounds(now: float) -> tuple[float, float]:
-    day = dt.datetime.fromtimestamp(now, tz=dt.timezone.utc).date()
-    start = dt.datetime(day.year, day.month, day.day, tzinfo=dt.timezone.utc)
-    return start.timestamp(), (start + dt.timedelta(days=1)).timestamp()
-
-
 def used_today(conn: sqlite3.Connection, owner: str, now: float) -> int:
-    start, _ = _day_bounds(now)
+    start, _ = utc_day_bounds(now)
     row = conn.execute(
         "SELECT COUNT(*) FROM free_run_usage WHERE client_id=? AND created_at>=?",
         (owner, start),
@@ -71,5 +65,5 @@ def usage_payload(owner: str) -> dict[str, Any]:
         "limit": limit,
         "used": used,
         "remaining": None if limit is None else max(limit - used, 0),
-        "resets_at": _day_bounds(now)[1],
+        "resets_at": utc_day_bounds(now)[1],
     }
