@@ -14,9 +14,9 @@ from co_scientist.orchestration import engine_tasks, task_worker
 from co_scientist.orchestration.engine_tasks import report_finalize
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks as store
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 
 from tests._client import create_run as _create_run

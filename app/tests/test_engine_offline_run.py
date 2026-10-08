@@ -6,7 +6,7 @@ import pytest
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.llm.offline import llm as offline_llm
 from co_scientist.platform.llm.request import backend

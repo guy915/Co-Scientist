@@ -23,10 +23,11 @@ from co_scientist.core.config import settings
 from co_scientist.core.exceptions import StorageAdmissionError
 from co_scientist.domains.chat.interviews import router as interviews_router
 from co_scientist.domains.chat.seed import is_current_demo_run, seed_demo_runs
-from co_scientist.orchestration.repository import runs, tasks
 from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.orchestration.repository import tasks
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.log_capture import configure_log_capture, shutdown_log_capture
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.telemetry.error_tracking import init_error_tracking

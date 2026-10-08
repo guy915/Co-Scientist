@@ -16,9 +16,9 @@ from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
 def test_durable_artifact_retains_requested_and_observed_models(
     tmp_path: Path,
 ) -> None:
-    from co_scientist.orchestration.repository import runs
-    from co_scientist.orchestration.repository.runs import RunCreateOptions
     from co_scientist.platform.db import retrieval_calls as store
+    from co_scientist.platform.db import runs
+    from co_scientist.platform.db.runs import RunCreateOptions
 
     db = str(tmp_path / "metrics.db")
     run = runs.create_run(

@@ -9,8 +9,7 @@ from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
 from co_scientist.orchestration import engine_tasks
-from co_scientist.orchestration.repository import runs
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 from fastapi.testclient import TestClient
 
 from app.main import app

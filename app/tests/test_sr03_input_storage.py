@@ -210,12 +210,12 @@ def test_draft_retention_rechecks_a_racing_start(monkeypatch: pytest.MonkeyPatch
     import time
 
     from co_scientist.domains.access import retention
-    from co_scientist.orchestration.repository import runs_views
+    from co_scientist.platform.db import runs as store_runs
 
     run_id = create_run(make_client(), "Racing goal").json()["id"]
     with db.connect() as conn:
         conn.execute("UPDATE runs SET updated_at=? WHERE id=?", (time.time() - 14 * 86400, run_id))
-    original = runs_views.list_expired_draft_runs
+    original = store_runs.list_expired_draft_runs
 
     def racing_lookup(cutoff: float, db_path: str | None = None) -> list[RunRow]:
         rows = original(cutoff, db_path)
@@ -223,7 +223,7 @@ def test_draft_retention_rechecks_a_racing_start(monkeypatch: pytest.MonkeyPatch
             conn.execute("UPDATE runs SET status='queued' WHERE id=?", (run_id,))
         return rows
 
-    monkeypatch.setattr(runs_views, "list_expired_draft_runs", racing_lookup)
+    monkeypatch.setattr(store_runs, "list_expired_draft_runs", racing_lookup)
     assert retention.sweep_expired_runs() == []
     with db.connect() as conn:
         assert (
@@ -281,11 +281,11 @@ def test_example_copy_charges_stored_bytes_before_commit(
     import asyncio
 
     from co_scientist.domains.chat import seed
-    from co_scientist.orchestration.repository import runs_views
+    from co_scientist.platform.db import runs as store_runs
     from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
     asyncio.run(seed.seed_demo_runs(isolated_db))
-    source = runs_views.list_runs(client_id=DEMO_CLIENT_ID)[0]
+    source = store_runs.list_runs(client_id=DEMO_CLIENT_ID)[0]
     _limit(monkeypatch, "anonymous_write_client_bytes_per_day", 1024)
     response = make_client().post(f"/api/runs/{source.id}/example-chat")
     assert response.status_code == 429

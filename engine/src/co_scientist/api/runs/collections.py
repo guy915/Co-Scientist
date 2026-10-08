@@ -14,7 +14,7 @@ from co_scientist.domains.report import repository as reports
 from co_scientist.domains.report import unverified_hypothesis_ids
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.domains.research_state.repository import records as store
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 
 router = APIRouter()
 

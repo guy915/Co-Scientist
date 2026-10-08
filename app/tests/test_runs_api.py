@@ -8,8 +8,8 @@ from typing import Any, cast
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.chat import seed
-from co_scientist.orchestration.repository import runs as store
-from co_scientist.orchestration.repository import runs_views, tasks
+from co_scientist.orchestration.repository import tasks
+from co_scientist.platform.db import runs as store
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
@@ -174,7 +174,7 @@ def test_safety_block_at_intake_short_circuits_workflow() -> None:
 
 def test_demo_route_precedes_run_id_route(isolated_db: str) -> None:
     asyncio.run(seed.seed_demo_runs(isolated_db))
-    canonical_demos = runs_views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    canonical_demos = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     client = _client()
     private_id = _new_run(client, "Private run excluded from demo list")
 

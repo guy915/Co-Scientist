@@ -12,10 +12,9 @@ from co_scientist.domains.research_state.repository.hypotheses import NewHypothe
 from co_scientist.domains.research_state.repository.records import NewEvidence, NewReview
 from co_scientist.orchestration import task_worker
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks as store_tasks
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 
 from tests._client import create_run as _create_run

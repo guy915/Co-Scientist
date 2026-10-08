@@ -81,7 +81,7 @@ location makes redundant.
 | Target | Current modules |
 |---|---|
 | `core/` | engine `exceptions.py`, `_context.py`, `backoff.py`, `config/env_vars.py`, `models/metrics.py`, `constants/`; app `config.py`, `run_modes/`, `async_bridge.py` |
-| `platform/db/` | app `store/db.py`, `store/schema.py`, `store/checkpoints.py`, `store/models.py`, `store/logs.py`, `store/retrieval_calls.py` and the log capture pipeline from `logging_setup.py` (`log_capture.py`), `store/supervisor_plan.py` (stores that SQLite-backed telemetry and lower domains read) |
+| `platform/db/` | app `store/db.py`, `store/schema.py`, `store/checkpoints.py`, `store/models.py`, `store/logs.py`, `store/retrieval_calls.py` and the log capture pipeline from `logging_setup.py` (`log_capture.py`), `store/supervisor_plan.py`, `store/runs.py` with the run list queries from `runs_views.py` (stores that SQLite-backed telemetry and lower domains read) |
 | `platform/llm/` | engine `llm/`, `offline/`, `tool_effects.py`; app `llm_request.py`, `llm_scope.py`, `execution_policy.py`, `process_mode.py`, `offline_guard.py`, `provider_usage.py` |
 | `platform/retrieval/` | engine `mcp_client/`, `tools/`, `config/` (registry, schema, `tools.yaml`), `evidence/`, `retrieval_degradation.py`, `research_adapter/`, `research/` (the deep-research loop: it imports nothing from the repo, and research-state and retrieval read its types, so it sits below them); app `pinned_http.py`, `retraction_set.py` (+ `data/retractions.txt.gz`), `citations/`, `run_corpus.py`, `engine_adapter/tools.py` |
 | `platform/sandbox/` | engine `sandbox/`, `workspace/`, `skills/`, `patch/` |
@@ -94,7 +94,7 @@ location makes redundant.
 | `domains/access/` | app `credentials.py`, `byok_models.py`, `free_usage.py`, `retention.py` |
 | `domains/feedback/` | app `store/feedback.py` |
 | `science/` | engine `agents/{generation,reflection,ranking,evolution,proximity,meta_review,supervisor}` → `science/<agent>`; `agents/safety.py` → `science/safety_screen`; `agents/node_degradation.py`; `scheduling/` → `science/scheduling` (meta-review and orchestration read it too, so it is not the supervisor's alone); `prompts/`, `schemas/`; the LLM research model from `research_adapter/` → `science/research_model.py` |
-| `orchestration/` | engine `agents/__init__.py` (node registry), `workflow_topology.py`, `task_runtime.py`, `checkpoint.py`, `generator/`; app `engine_tasks/`, `task_worker/`, `run_events.py`, `notifications.py`, `engine_adapter/{__init__,opts,events}.py`, `engine_adapter/drain/{__init__,final_state}.py`, `store/{tasks,tasks_lifecycle,runs,runs_views,events,receipts}.py` |
+| `orchestration/` | engine `agents/__init__.py` (node registry), `workflow_topology.py`, `task_runtime.py`, `checkpoint.py`, `generator/`; app `engine_tasks/`, `task_worker/`, `run_events.py`, `notifications.py`, `engine_adapter/{__init__,opts,events}.py`, `engine_adapter/drain/{__init__,final_state}.py`, `store/{tasks,tasks_lifecycle,runs_views,events,receipts}.py` |
 | `api/` | app `api_contracts/` → `api/contracts`, `runs/`, `diagnostics_api.py`, `diagnostics.py`, `logs_api.py`, `feedback_api.py`, `documents.py`, `sse.py`, `operator_access.py`, `auth.py` |
 | `main.py` | app `main.py`, `__init__.py` (`API_VERSION`) |
 

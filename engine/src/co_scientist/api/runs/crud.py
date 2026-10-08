@@ -34,13 +34,12 @@ from co_scientist.domains.chat.seed import is_current_demo_run
 from co_scientist.domains.documents import repository as documents
 from co_scientist.domains.research_state.repository import records
 from co_scientist.orchestration.repository import events, tasks
-from co_scientist.orchestration.repository import runs as store
-from co_scientist.orchestration.repository import runs_views as views
-from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db
 from co_scientist.platform.db import Connection, checkpoints
+from co_scientist.platform.db import runs as store
 from co_scientist.platform.db.admission import claim_run, connecting_host
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
+from co_scientist.platform.db.runs import RunCreateOptions
 from co_scientist.platform.llm.execution_policy import (
     ZERO_COST_CONFIG_KEY,
     deployment_routes_are_free,
@@ -442,7 +441,7 @@ def delete_run(run_id: str) -> dict[str, Any]:
     through the run's hypotheses, evidence, reviews,
     citations, matches, safety decisions, reports, messages, checkpoints,
     metrics, and every other run-scoped table (enforced foreign keys, see
-    ``co_scientist.orchestration.repository.runs``); it cannot be undone.
+    ``co_scientist.platform.db.runs``); it cannot be undone.
 
     Returns:
         The deleted run's id and the row counts removed, per table --
@@ -593,7 +592,7 @@ def list_runs(
     subject = client_id(request)
     if not subject:
         return {"runs": []}
-    runs = views.list_runs(client_id=subject, limit=limit)
+    runs = store.list_runs(client_id=subject, limit=limit)
     return _runs_payload(runs)
 
 
@@ -601,7 +600,7 @@ def list_runs(
 @off_loop
 def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
-    runs = views.list_runs(client_id=DEMO_CLIENT_ID)
+    runs = store.list_runs(client_id=DEMO_CLIENT_ID)
     return _runs_payload([run for run in runs if is_current_demo_run(run.id)])
 
 

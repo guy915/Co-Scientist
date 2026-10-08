@@ -16,7 +16,6 @@ from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewClaimEvidence
 from co_scientist.orchestration.engine_tasks import report_finalize
-from co_scientist.orchestration.repository import runs as store
 from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.orchestration.repository.events import (
     ACTIVITY_OTHER,
@@ -26,6 +25,7 @@ from co_scientist.orchestration.repository.events import (
 from co_scientist.platform import db as _store_db
 from co_scientist.platform.db import checkpoints as store_checkpoints
 from co_scientist.platform.db import logs
+from co_scientist.platform.db import runs as store
 from co_scientist.platform.db.logs import NewLogRecord
 from co_scientist.platform.db.models import RunStatus
 from fastapi.testclient import TestClient
