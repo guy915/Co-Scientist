@@ -99,6 +99,8 @@ def _paper_reference_entries(
             "url": url,
             "authors": authors,
             "year": year,
+            "is_retracted": bool(getattr(article, "is_retracted", False)),
+            "correction_status": getattr(article, "correction_status", "current"),
         }
         counter += 1
 

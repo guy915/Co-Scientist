@@ -12,6 +12,8 @@ from co_scientist.domains.research_state.repository import records
 from co_scientist.orchestration.drain import fold_grounding_telemetry
 from co_scientist.orchestration.engine_tasks import report_finalize
 from co_scientist.platform import db
+from co_scientist.platform.retrieval.article import Article
+from co_scientist.science.citations import build_reference_index, resolve_citation_keys
 
 from tests._client import drain as _drain
 from tests._drain_helpers import (
@@ -549,3 +551,30 @@ def test_persist_classifies_citations_via_shared_classifier(
     assert "CXCR1 drives CSC renewal" in section
     assert "STRING: CXCR1 -> STAT3" in section
     assert "cited in hypothesis" not in section
+
+
+@pytest.mark.parametrize(
+    ("is_retracted", "correction_status"), [(True, "current"), (False, "retracted")]
+)
+def test_retraction_metadata_survives_reference_index_and_citation_persistence(
+    isolated_db: str, is_retracted: bool, correction_status: str
+) -> None:
+    article = Article(
+        title="CXCR1 drives CSC renewal",
+        url="https://example.org/c1",
+        abstract="CXCR1 signaling drives breast cancer stem cell renewal",
+        used_in_analysis=True,
+        is_retracted=is_retracted,
+        correction_status=correction_status,
+    )
+    references = build_reference_index([article], None)
+    citation_map = resolve_citation_keys("CXCR1 drives CSC renewal [C1]", references.sources)
+    assert citation_map["C1"]["is_retracted"] is is_retracted
+    assert citation_map["C1"]["correction_status"] == correction_status
+    state = _final_state_with_citations()
+    state["hypotheses"][0]["citation_map"] = citation_map
+    run = seed_run("CSC goal")
+    _persist(run_id=run.id, final_state=state, db_path=isolated_db)
+    citations = records.list_citations(run.id, db_path=isolated_db)
+    assert len(citations) == 1
+    assert citations[0]["state"] == "unavailable"

@@ -86,7 +86,11 @@ def _gather_qa_context(run: RunRow) -> qa.QaRunContext:
             ]
         matches = records.list_matches(run.id, conn=conn)
         if "tournament_matchups" in state and run.status != RunStatus.COMPLETED:
-            matches = state["tournament_matchups"] or []
+            matches = [
+                {**match, "rationale": match.get("rationale") or match.get("reasoning") or ""}
+                for match in state["tournament_matchups"] or []
+                if isinstance(match, dict)
+            ]
         history = store.list_messages(run.id, conn=conn)[:-1]
         evidence = records.list_evidence(run.id, conn=conn)
         citations = records.list_citations(run.id, conn=conn)

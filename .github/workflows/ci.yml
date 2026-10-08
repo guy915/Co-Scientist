@@ -116,6 +116,8 @@ jobs:
             # nothing those suites would run, but should still build.
             docker:
               - 'Dockerfile.*'
+              - 'litestream.yml'
+              - 'scripts/api-entrypoint.sh'
               - '.dockerignore'
               - 'requirements/**'
               - 'vendor/**'

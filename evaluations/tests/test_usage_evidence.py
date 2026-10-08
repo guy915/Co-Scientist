@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from evaluations._run_driver import compute_arm_metrics
+from evaluations._run_driver import compute_arm_metrics, hypotheses_with_claim_counts
 from evaluations._usage_evidence import summarize_usage
 from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
 
@@ -239,3 +239,20 @@ else:
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_evaluation_keeps_the_statement_from_a_persisted_hypothesis(tmp_path: Path) -> None:
+    from co_scientist.domains.research_state.repository import hypotheses
+    from co_scientist.platform.db import runs
+    from co_scientist.platform.db.runs import RunCreateOptions
+
+    db_path = str(tmp_path / "statement.db")
+    run = runs.create_run("Goal", "express", "engine", {}, RunCreateOptions(db_path=db_path))
+    hid = hypotheses.add_hypothesis(
+        hypotheses.NewHypothesis(run.id, "Title", "Stored scientific statement"), db_path=db_path
+    )
+    rows = hypotheses.list_hypotheses(run.id, db_path=db_path)
+    assert "text" not in rows[0]
+    result = hypotheses_with_claim_counts(rows, [{"hypothesis_id": hid, "label": "supports"}])
+    assert result[0]["text"] == "Stored scientific statement"
+    assert result[0]["verified_claims"] == 1

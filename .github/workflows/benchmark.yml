@@ -1,4 +1,4 @@
-# Not CI: a manual, live quality benchmark for docs/OPTIMIZATION.md. It calls
+# Not CI: a manual, live quality benchmark; see evaluations/README.md. It calls
 # the free default model with a repository secret, so it never runs on PRs.
 name: Benchmark
 
