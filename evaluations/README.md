@@ -174,6 +174,7 @@ report packets private, outside commits.
 
 Download the six saved `snapshot.db` files, which include independent dispatch
 receipts, and create `pairs.json` using paths relative to that manifest.
+Keep any accompanying `snapshot.db-wal`; legacy metadata may still be there.
 It contains exactly one entry per fixed goal:
 
 ```json
@@ -296,7 +297,8 @@ remaining daily share. The workflow never runs on pull requests.
 Collection installs the selected research engine in an isolated clean worktree
 and uses the dispatched measurement launcher outside it. This instruments older
 research refs without editing them; receipts retain the actual research SHA and
-measurement-counter digest. Both arms must use the same measurement counter
+measurement-counter digest. New snapshots checkpoint their private copy before
+analysis; the artifact importer also preserves any legacy WAL. Both arms must use the same measurement counter
 and SDK versions.
 
 After collecting the three main and three branch runs, compare their artifacts

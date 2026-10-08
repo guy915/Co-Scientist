@@ -73,6 +73,7 @@ def test_http_counter_and_receipt_marker_round_trip(tmp_path: Path) -> None:
     db = tmp_path / "snapshot.db"
     fake_database(db, "cell-biology")
     with sqlite3.connect(db) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(
             "CREATE TABLE evaluation_runs "
             "(run_id, source_commit, physical_requests, request_ceiling)"
@@ -84,6 +85,9 @@ def test_http_counter_and_receipt_marker_round_trip(tmp_path: Path) -> None:
     assert replayed.metrics["physical_calls"] == 100
     assert replayed.metrics["call_count_basis"] == "http_transport_attempts"
     assert replayed.metrics["request_counter_sha256"] == COUNTER_SHA256
+    copied = tmp_path / "snapshot-without-wal.db"
+    copied.write_bytes(db.read_bytes())
+    assert read_snapshot(copied, "r", "cell-biology", "a" * 40) == tagged
 
 
 def test_concurrent_http_attempts_share_one_allowance() -> None:

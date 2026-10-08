@@ -83,6 +83,10 @@ def _read_counted_snapshot(db: Path, run_id: str, goal_id: str, source_commit: s
             "UPDATE evaluation_runs SET counter_kind=?, request_counter_sha256=? WHERE run_id=?",
             ("http_transport_attempts", COUNTER_SHA256, run_id),
         )
+        conn.commit()
+        # This is the private evaluation copy, never the serving run database.
+        if conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]:
+            raise ValueError("benchmark snapshot checkpoint is busy")
     snapshot = read_snapshot(db, run_id, goal_id, source_commit)
     return dataclasses.replace(
         snapshot,

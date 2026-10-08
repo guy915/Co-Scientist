@@ -14,7 +14,11 @@ from evaluations.paired_quality import load_pairs
 from evaluations.quality_goals import GOAL_VERSION, GOALS
 
 _MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
-_MEMBERS = {"receipt.json": 1024 * 1024, "snapshot.db": 64 * 1024 * 1024}
+_MEMBERS = {
+    "receipt.json": 1024 * 1024,
+    "snapshot.db": 64 * 1024 * 1024,
+    "snapshot.db-wal": 64 * 1024 * 1024,
+}
 
 
 def _extract(archive: Path, output: Path) -> dict[str, Any]:
@@ -25,6 +29,8 @@ def _extract(archive: Path, output: Path) -> dict[str, Any]:
             members = [
                 m for m in bundle.infolist() if m.filename in {name, f"benchmark-artifacts/{name}"}
             ]
+            if name.endswith("-wal") and not members:
+                continue
             if len(members) != 1 or members[0].file_size > limit:
                 raise ValueError(f"benchmark archive needs one bounded {name}")
             # Only these two members are read, then written under fixed local names.

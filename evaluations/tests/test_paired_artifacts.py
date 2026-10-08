@@ -23,6 +23,8 @@ def archive(path: Path, goal_id: str, *, branch: bool = False, change: str = "")
     fake_database(db, goal_id, branch=branch)
     source, count = ("b" if branch else "a") * 40, 20 if branch else 100
     with sqlite3.connect(db) as conn:
+        if change == "wal":
+            conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(
             "CREATE TABLE evaluation_runs "
             "(run_id, source_commit, physical_requests, request_ceiling, "
@@ -69,6 +71,9 @@ def archive(path: Path, goal_id: str, *, branch: bool = False, change: str = "")
         receipt["metrics"]["supported_claims"] = 999
     with zipfile.ZipFile(path, "w") as bundle:
         bundle.write(db, "benchmark-artifacts/snapshot.db")
+        wal = db.with_name(db.name + "-wal")
+        if wal.exists():
+            bundle.write(wal, "benchmark-artifacts/snapshot.db-wal")
         if change != "missing":
             bundle.writestr("benchmark-artifacts/receipt.json", json.dumps(receipt))
         if change == "duplicate":
@@ -86,16 +91,18 @@ def cohort(tmp_path: Path, *, change: str = "") -> dict[str, list[Path]]:
     return arms
 
 
+@pytest.mark.parametrize("change", ["", "wal"])
 def test_recorded_archives_replay_full_pipeline_without_network_or_input_writes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    change: str,
 ) -> None:
     def deny_network(*args: Any, **kwargs: Any) -> None:
         raise AssertionError("network call in recorded artifact pipeline")
 
     monkeypatch.setattr(socket, "create_connection", deny_network)
     monkeypatch.setattr(socket.socket, "connect", deny_network)
-    arms = cohort(tmp_path)
+    arms = cohort(tmp_path, change=change)
     hashes = {
         p: hashlib.sha256(p.read_bytes()).hexdigest() for paths in arms.values() for p in paths
     }
