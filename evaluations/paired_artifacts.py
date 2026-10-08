@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import subprocess
@@ -180,7 +181,11 @@ def main() -> int:
     mode.add_argument(
         "--download", action="store_true", help="Explicit read-only GitHub downloads."
     )
-    parser.add_argument("--repository", default="guy915/Co-Scientist")
+    parser.add_argument(
+        "--repository",
+        default=os.getenv("GITHUB_REPOSITORY", ""),
+        help="Download repository; defaults to GITHUB_REPOSITORY.",
+    )
     parser.add_argument("--main-runs")
     parser.add_argument("--branch-runs")
     parser.add_argument("--output", type=Path, required=True)

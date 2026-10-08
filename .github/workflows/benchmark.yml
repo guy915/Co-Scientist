@@ -108,7 +108,7 @@ jobs:
             curl -fsS http://127.0.0.1:8888/ >/dev/null && exit 0
             sleep 1
           done
-          cat "$GITHUB_WORKSPACE/mcp.log"
+          echo 'Benchmark MCP startup failed; raw diagnostics stay on the runner.'
           exit 1
       - name: Run benchmark
         # Express has taken 41 to 71 minutes and standard about 2 h 16 min.
@@ -117,9 +117,17 @@ jobs:
         run: >-
           python "$GITHUB_WORKSPACE/evaluations/benchmark_transport.py" collect --live --tier "$TIER"
           --goal-id "$GOAL_ID" --max-calls "$MAX_CALLS" --output "$GITHUB_WORKSPACE/benchmark-artifacts"
+      - name: Check artifact credentials
+        id: artifact_safety
+        if: always()
+        timeout-minutes: 2
+        env:
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: python -m evaluations.benchmark_artifact_safety benchmark-artifacts
       - name: Check the metric was written
         # Claims cluster within ideas, so treat the interval as a lower bound on the spread.
-        if: always()
+        if: always() && steps.artifact_safety.outcome == 'success'
         timeout-minutes: 2
         run: |
           python - <<'PY'
@@ -142,7 +150,7 @@ jobs:
               summary.write(f"**{line}**\n\n")
           PY
       - name: Report
-        if: always()
+        if: always() && steps.artifact_safety.outcome == 'success'
         timeout-minutes: 5
         run: |
           if [ -f benchmark-artifacts/baseline.md ]; then
@@ -157,16 +165,13 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             cat "$f"
           done
-          tail -n 200 mcp.log || true
-      - name: Upload run database and logs
-        if: always()
+      - name: Upload checked run databases and receipts
+        if: always() && steps.artifact_safety.outcome == 'success'
         timeout-minutes: 10
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: benchmark-${{ inputs.tier }}-${{ inputs.label }}
-          path: |
-            benchmark-artifacts/
-            mcp.log
+          path: benchmark-artifacts/
           retention-days: 14
           if-no-files-found: warn
   compare:
@@ -196,6 +201,13 @@ jobs:
         run: >-
           python -m evaluations.paired_artifacts --download --repository "$REPOSITORY"
           --main-runs "$MAIN_RUNS" --branch-runs "$BRANCH_RUNS" --output paired-artifacts
+      - name: Check input artifact credentials
+        timeout-minutes: 2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: python -m evaluations.benchmark_artifact_safety paired-artifacts/prepared
       - name: Judge both blind report orders
         # Six orders can each reach the 600-second completion deadline.
         timeout-minutes: 65
@@ -206,8 +218,19 @@ jobs:
         run: >-
           python -m evaluations.benchmark_transport compare paired-artifacts/prepared/pairs.json
           --live-judge --max-judge-calls "$MAX_JUDGE_CALLS" --output paired-artifacts/paired
-      - name: Report paired quality
+      - name: Check output artifact credentials
+        id: artifact_safety
         if: always()
+        timeout-minutes: 2
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        run: >-
+          python -m evaluations.benchmark_artifact_safety paired-artifacts/prepared
+          paired-artifacts/paired.md paired-artifacts/paired.json
+      - name: Report paired quality
+        if: always() && steps.artifact_safety.outcome == 'success'
         timeout-minutes: 2
         run: |
           if [ -f paired-artifacts/paired.md ]; then
@@ -216,11 +239,14 @@ jobs:
             echo 'Paired check incomplete; no quality conclusion is available.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Upload paired table, judgments and receipts
-        if: always()
+        if: always() && steps.artifact_safety.outcome == 'success'
         timeout-minutes: 10
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: paired-quality-${{ inputs.label }}
-          path: paired-artifacts/
+          path: |
+            paired-artifacts/prepared/
+            paired-artifacts/paired.md
+            paired-artifacts/paired.json
           retention-days: 14
           if-no-files-found: warn

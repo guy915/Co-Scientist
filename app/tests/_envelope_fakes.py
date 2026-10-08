@@ -43,6 +43,21 @@ def _cite_as_lists(value: Any) -> Any:
     return value
 
 
+_PAPER_HEADING = re.compile(r"^### Paper (\d+)$", re.M)
+
+
+def _analysis_per_paper(prompt: str, content: str) -> str:
+    """The offline filler returns a fixed-length list; a real model analyzes
+    every numbered paper."""
+    answer = json.loads(content)
+    template = (answer.get("analyses") or [{}])[0]
+    answer["analyses"] = [
+        {**template, "paper_index": int(number), "key_findings": f"Finding of paper {number}."}
+        for number in _PAPER_HEADING.findall(prompt)
+    ]
+    return json.dumps(answer)
+
+
 def realistic_answer(prompt: str, content: str, schema_name: str) -> str:
     """A real debate panel converges after its first exchange, and a real judge
     prefers the side whose text hashes lower, whichever position it holds."""
@@ -50,6 +65,8 @@ def realistic_answer(prompt: str, content: str, schema_name: str) -> str:
         return f"{content}\nHYPOTHESIS: the panel agrees on the proposal above."
     if schema_name == "response" and any(f'"{key}": {{}}' in content for key in _CITATION_KEYS):
         return json.dumps(_cite_as_lists(json.loads(content)))
+    if schema_name == "paper_analysis_batch":
+        return _analysis_per_paper(prompt, content)
     if schema_name not in _RANKING_SCHEMAS:
         return content
     sides = _SIDES.search(prompt)
