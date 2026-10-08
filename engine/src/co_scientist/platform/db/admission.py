@@ -14,6 +14,7 @@ from co_scientist.platform.db.anthropic_credit import (
     reserve_credit,
     settle_credit_amount,
 )
+from co_scientist.platform.db.llm_routes import reserve_free_call
 from co_scientist.platform.db.spend import SpendReservation, reserve_spend, settle_spend
 
 UNKNOWN_HOST = "unknown"
@@ -145,6 +146,7 @@ def reserve_provider(
     db_path: str | None,
     spend: SpendReservation | None = None,
     credit: CreditReservation | None = None,
+    free_daily_ceiling: int | None = None,
 ) -> ProviderReservation:
     from co_scientist.core.config import settings
 
@@ -175,6 +177,8 @@ def reserve_provider(
             reserve_spend(conn, receipt.id, spend)
         if credit is not None:
             reserve_credit(conn, receipt.id, credit, current_time())
+        if free_daily_ceiling is not None:
+            reserve_free_call(conn, free_daily_ceiling)
         claim_session(conn, owner, host, day)
         for scope, subject, call_limit, token_limit in ceilings:
             row = conn.execute(
