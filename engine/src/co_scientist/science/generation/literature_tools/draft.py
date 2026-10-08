@@ -347,6 +347,7 @@ async def _call_draft_llm_with_tools(
     final_response, messages = await call_llm_with_tools(
         prompt=call.prompt,
         spec=CompletionSpec(
+            role="drafting",
             model_name=state["model_name"],
             max_tokens=draft_max_tokens,
             temperature=HIGH_TEMPERATURE,

@@ -15,7 +15,7 @@ import {
   startRun,
   type Run,
 } from '@/shared/api/runs';
-import {conciseTitle} from '@/shared/lib/text';
+import {displayTitle} from '@/shared/lib/titles';
 import {RUNS_CHANGED_EVENT} from '@/shared/lib/dom_events';
 import type {StartedSession} from './chat_timeline_run_spec_card';
 import {announceChatsChanged} from '@/shared/hooks/history_context';
@@ -89,7 +89,7 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
   }
   const session: StartedSession = {
     id: target.runId,
-    title: conciseTitle(stage.spec.goal),
+    title: displayTitle(null, stage.spec.goal),
     at: nowSeconds(),
     announcing: shouldAnnounce,
   };

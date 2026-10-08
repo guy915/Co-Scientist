@@ -54,6 +54,7 @@ async def _run_paper_analysis_llm(
     analysis = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="literature_analysis",
             model_name=model_name,
             max_tokens=DEFAULT_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,
@@ -167,6 +168,7 @@ async def _run_synthesis_llm(
     synthesis = await call_llm(
         prompt=prompt,
         spec=CompletionSpec(
+            role="literature_synthesis",
             model_name=state["model_name"],
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,

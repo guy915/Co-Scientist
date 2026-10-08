@@ -75,6 +75,7 @@ async def _fetch_similarity_clusters(
     response = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="proximity",
             model_name=state["model_name"],
             max_tokens=LONG_MAX_TOKENS,
             temperature=LOW_TEMPERATURE,

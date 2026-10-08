@@ -5,6 +5,7 @@ import functools
 import re
 from collections.abc import Callable, Sequence
 
+from co_scientist.core.text_matching import coverage, tokenize
 from co_scientist.domains.research_state.claims.gate import EntailmentLabel
 
 RETRIEVAL_STOPWORDS = frozenset(
@@ -218,7 +219,7 @@ def _tokens(text: str) -> frozenset[str]:
     verifier semantics.
     """
     tokens: set[str] = set()
-    for token in re.findall(r"[a-z0-9]+", text.lower()):
+    for token in tokenize(text):
         if len(token) <= 3 and token not in _SHORT_TOKEN_EXCEPTIONS:
             continue
         tokens.add(_CONCEPT_ALIASES.get(token, token))
@@ -230,9 +231,7 @@ def _lexical_score(claim: str, passage: str) -> float:
     passages must not dilute short claims arbitrarily.
     """
     a, b = _tokens(claim), _tokens(passage)
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a)
+    return coverage(a, b)
 
 
 @functools.lru_cache(maxsize=256)
@@ -240,11 +239,7 @@ def _retrieval_tokens(text: str) -> frozenset[str]:
     """Recall expansion selects candidate passages; it never supplies an
     entailment verdict.
     """
-    short = {
-        token
-        for token in re.findall(r"[a-z0-9]+", text.lower())
-        if len(token) <= 3 and not token.isdigit()
-    }
+    short = {token for token in tokenize(text) if len(token) <= 3 and not token.isdigit()}
     return (_tokens(text) | short) - RETRIEVAL_STOPWORDS
 
 
