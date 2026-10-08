@@ -130,3 +130,11 @@ threshold; subsequent complete batches form the holdout. Reports distinguish
 paper agreement/calibration from batch acceptance, semantic ordering and
 request savings. Lexical-fusion selection needs separate validation before
 adoption. No threshold or production credential is supplied by the draft.
+
+`python -m evaluations.decision_relevance_fusion report.json fusion.json` checks
+score-based selection with generated two-source RRF inputs on the same semantic
+labels. It preserves complete calibration batches and applies the threshold only
+to a separate holdout, including provider-refused inputs as LLM fallbacks.
+Deterministic source-order permutations are stress scenarios, not additional
+labels. Reports distinguish raw scores from the cascade and do not establish
+historical selection equivalence or source-slot reservation behavior.
