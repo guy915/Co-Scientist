@@ -1,3 +1,3 @@
 import {customModelCases} from '../support/custom_models_cases';
 
-customModelCases(['light']);
+customModelCases(['dark']);
