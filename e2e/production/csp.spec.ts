@@ -75,6 +75,8 @@ for (const theme of ["light", "dark"]) {
         (tab) => `/runs/${id}/${tab}`,
       ),
       `/examples/${example.id}`,
+      "/privacy",
+      "/terms",
       "/missing-page",
     ];
     for (const path of routes) {
@@ -86,6 +88,23 @@ for (const theme of ["light", "dark"]) {
       await expect(page.locator("main")).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+      if (path === "/privacy" || path === "/terms") {
+        await expect(
+          page.getByRole("heading", {
+            name: path === "/privacy" ? "Privacy notice" : "Terms of use",
+            exact: true,
+          }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(
+            "This text is not legal advice; the owner reviews it before launch.",
+            { exact: true },
+          ),
+        ).toBeVisible();
+        await expect(
+          page.getByRole("link", { name: "guy.barel@open-coscientist.com" }),
+        ).toBeAttached();
+      }
       if (path.startsWith("/examples/")) {
         await expect(page).toHaveURL(/\/chats\//);
         await page.reload();
