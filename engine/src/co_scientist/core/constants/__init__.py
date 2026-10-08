@@ -1,5 +1,4 @@
 import hashlib
-import re
 from typing import Final
 
 from co_scientist.core.citations import strip_citation_markers as strip_citation_markers
