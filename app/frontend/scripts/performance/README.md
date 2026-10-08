@@ -65,3 +65,8 @@ artifacts, kept outside the repository.
 Targets: mobile LCP ≤2.5 s, CLS ≤0.1, initial landing JavaScript ≤200 kB gzip.
 Results reflect local static serving and deterministic data; they exclude
 edge latency and production report-size variation.
+
+Also measure a telemetry-enabled build using
+`VITE_SENTRY_DSN=http://public@127.0.0.1:4173/fp-sentry/1`. The preview discards
+that local receiver's payloads without forwarding or storing them. No real
+monitoring DSN is needed.

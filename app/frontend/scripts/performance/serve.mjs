@@ -39,6 +39,11 @@ const types = {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
+    if (url.pathname.startsWith('/fp-sentry/')) {
+      req.resume();
+      res.writeHead(204).end();
+      return;
+    }
     if (/^\/(api(?:\/|$)|status$|health$)/.test(url.pathname)) {
       const upstream = await fetch(new URL(url.pathname + url.search, api), {
         headers: {
