@@ -113,7 +113,7 @@ for (const theme of ['light', 'dark']) {
 
         // A scrollbar shows only on a scrollable box that overflows.
         const overflow = await panel.evaluate(section =>
-          [section, ...section.querySelectorAll('*')].map(el => {
+          [section, ...Array.from(section.querySelectorAll('*'))].map(el => {
             const style = getComputedStyle(el);
             const scrolls = (value: string) =>
               value === 'auto' || value === 'scroll';
