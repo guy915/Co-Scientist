@@ -13,6 +13,8 @@ from co_scientist.platform import db
 from co_scientist.platform.db import backup_service as backups
 from co_scientist.platform.db.launch_control import read_control, write_control
 
+from tests._client import make_client, make_operator_client
+
 
 @pytest.fixture
 def fixture_replica(tmp_path: Path) -> tuple[str, str, Path, dict[str, str]]:
@@ -161,6 +163,34 @@ def test_private_status_reader_is_bounded_and_drops_unrecognized_payload(tmp_pat
     assert backups.read_status(database) == {"status": "failed", "verified_at": 100}
     backups.status_path(database).write_text("x" * 4097)
     assert backups.read_status(database) is None
+
+
+def test_backup_metadata_requires_operator_authority_and_is_absent_from_public_status(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("COSCIENTIST_LITESTREAM_ACTIVE", "1")
+    backups.record_status(
+        Path(isolated_db),
+        {"status": "failed", "verified_at": 100, "private": "synthetic-private-payload"},
+    )
+    visitor = make_client()
+    assert visitor.get("/api/launch-control").status_code == 403
+    operator = make_operator_client()
+    response = operator.get("/api/launch-control")
+    assert response.status_code == 200
+    assert response.json()["backup"] == {
+        "enabled": True,
+        "verification": {"status": "failed", "verified_at": 100},
+    }
+    assert "synthetic-private-payload" not in response.text
+    public = visitor.get("/api/launch-status")
+    assert public.status_code == 200 and "backup" not in public.json()
+    monkeypatch.delenv("COSCIENTIST_LITESTREAM_ACTIVE")
+    assert operator.get("/api/launch-control").json()["backup"] == {
+        "enabled": False,
+        "verification": None,
+    }
 
 
 @pytest.mark.parametrize("payload", [{"status": []}, {"status": "failed", "seconds": 10**500}])
