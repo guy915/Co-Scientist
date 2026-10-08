@@ -27,7 +27,7 @@ def choose_threshold(
     for row in labels:
         if not math.isfinite(row.confidence) or not 0 <= row.confidence <= 1:
             raise ValueError("invalid calibration confidence")
-    candidates = sorted({row.confidence for row in labels if row.confidence > 0.5})
+    candidates = sorted({row.confidence for row in labels if row.confidence > 0})
     for threshold in candidates:
         if agreement_lower_bound(labels, threshold) >= -tolerance:
             return threshold

@@ -72,7 +72,7 @@ async def test_free_request_uses_liquid_and_records_physical_and_decision_usage(
     assert usage["completion_tokens"] == usage["cost_usd"] == 0
 
 
-@pytest.mark.parametrize("threshold", [None, float("nan"), 0.5, 1.1])
+@pytest.mark.parametrize("threshold", [None, float("nan"), 0, -0.1, 1.1])
 async def test_missing_or_invalid_threshold_keeps_original_path(threshold: float | None) -> None:
     assert (
         await decision_or_fallback(
@@ -95,6 +95,54 @@ async def test_accepted_and_uncertain_decisions_use_the_same_fallback_callback()
             )
             == expected
         )
+
+
+async def test_calibrated_score_threshold_can_accept_adjacent_rubric_probability() -> None:
+    questions = {
+        "score": Question("score", "Rate", ("none", "slight", "partial", "strong", "direct"))
+    }
+    payload = {
+        "model": "d1:free",
+        "answers": {
+            "score": {
+                "type": "score",
+                "score": 2.35,
+                "confidence": 0.3,
+                "probabilities": {"0": 0.1, "1": 0.15, "2": 0.2, "3": 0.4, "4": 0.15},
+            }
+        },
+    }
+    for threshold, expected in [(0.28, "decision"), (0.31, "original LLM path")]:
+        assert (
+            await decision_or_fallback(
+                "state",
+                questions,
+                threshold,
+                lambda result: "decision",
+                _fallback,
+                client=_client(payload),
+            )
+            == expected
+        )
+
+
+def test_positive_threshold_still_requires_local_accuracy_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.platform.llm.decisions.settings import calibrated_threshold
+
+    assert choose_threshold([LabeledDecision(0.3, True)] * 100) == 0.3
+    labels = (
+        [LabeledDecision(0.3, True)] * 50
+        + [LabeledDecision(0.4, False)] * 10
+        + [LabeledDecision(0.8, True)] * 40
+    )
+    assert choose_threshold(labels) == 0.8
+    assert agreement_lower_bound(labels, 0.3) < -0.02
+    monkeypatch.setenv("DECISION_LITERATURE_RELEVANCE_THRESHOLD", "0.3")
+    assert calibrated_threshold("LITERATURE_RELEVANCE") == 0.3
+    monkeypatch.setenv("DECISION_LITERATURE_RELEVANCE_THRESHOLD", "0")
+    assert calibrated_threshold("LITERATURE_RELEVANCE") is None
 
 
 @pytest.mark.parametrize("overrides", [{"enabled": False}, {"api_key": ""}, {"model": "d1"}])
