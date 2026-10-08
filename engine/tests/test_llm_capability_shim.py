@@ -7,9 +7,7 @@ import jsonschema
 import pytest
 
 from co_scientist.platform.llm import CompletionSpec, call_llm
-from co_scientist.platform.llm.request.completion import (
-    _supports_json_schema_response_format,
-)
+from co_scientist.platform.llm.request.backend import _registry_supports_json_schema
 from co_scientist.platform.llm.structured.validate import reshape_json_output
 from co_scientist.science.schemas.review import FULL_REVIEW_SCHEMA
 from tests._llm_fake import NESTED_SCHEMA, scripted_backend
@@ -46,7 +44,7 @@ _FLAT_SCHEMA: dict[str, Any] = {"type": "object", "properties": {}}
 
 
 def _registry(monkeypatch: pytest.MonkeyPatch, supported: bool) -> None:
-    _supports_json_schema_response_format.cache_clear()
+    _registry_supports_json_schema.cache_clear()
     monkeypatch.setattr(
         "co_scientist.platform.llm.litellm.supports_response_schema",
         lambda model: supported,
