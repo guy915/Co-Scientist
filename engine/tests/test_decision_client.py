@@ -432,3 +432,67 @@ async def test_decisions_retain_the_shared_durable_run_budget_after_client_recre
     assert len(sent) == 1
     with connect(path) as conn:
         assert conn.execute("SELECT calls FROM decision_usage").fetchone()[0] == 2
+
+
+async def test_calibrated_score_threshold_can_accept_adjacent_rubric_probability() -> None:
+    questions = {
+        "score": Question("score", "Rate", ("none", "slight", "partial", "strong", "direct"))
+    }
+    payload = {
+        "model": "d1:free",
+        "answers": {
+            "score": {
+                "type": "score",
+                "score": 2.35,
+                "confidence": 0.3,
+                "probabilities": {"0": 0.1, "1": 0.15, "2": 0.2, "3": 0.4, "4": 0.15},
+            }
+        },
+    }
+    for threshold, expected in [(0.28, "decision"), (0.31, "original LLM path")]:
+        assert (
+            await decision_or_fallback(
+                "state",
+                questions,
+                threshold,
+                lambda result: "decision",
+                _fallback,
+                client=_client(payload),
+            )
+            == expected
+        )
+
+
+async def test_byok_never_contacts_or_reserves_the_operator_decision_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.core.byok_scope import ByokCredential, scoped_byok
+    from co_scientist.platform.llm.decisions import client as client_module
+
+    def refused(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("BYOK must not reserve operator decision quota")
+
+    monkeypatch.setattr(client_module, "reserve_decision_physical", refused)
+    with scoped_byok(ByokCredential("openrouter", "synthetic-byok-key", "openrouter/own-model")):
+        assert (
+            await decision_or_fallback(
+                "state",
+                _QUESTIONS,
+                0.9,
+                lambda result: "decision",
+                _fallback,
+                client=_client(_binary()),
+            )
+            == "original LLM path"
+        )
+
+
+def test_positive_threshold_still_requires_local_accuracy_bound() -> None:
+    assert choose_threshold([LabeledDecision(0.3, True)] * 100) == 0.3
+    labels = (
+        [LabeledDecision(0.3, True)] * 50
+        + [LabeledDecision(0.4, False)] * 10
+        + [LabeledDecision(0.8, True)] * 40
+    )
+    assert choose_threshold(labels) == 0.8
+    assert agreement_lower_bound(labels, 0.3) < -0.02
