@@ -384,11 +384,3 @@ per call ran about four times a run's real use, so a Standard run exhausted the
 default 16M `PROVIDER_CLIENT_TOKENS_PER_DAY`. Keep settlement rather than
 raising the ceilings or shrinking the reservation: the reservation must cover
 a call whose usage never arrives.
-
-## Decision-provider admission
-
-The optional Liquid decision client retains the shared physical-call/token
-ceilings and reserves its own daily allowance before HTTP. Failed attempts are
-not refunded. Never hold a DB writer over a provider request or replace an
-exhausted free decision route with a paid model. Configuration and the manual
-evaluation workflow are in [decision-model.md](decision-model.md).
