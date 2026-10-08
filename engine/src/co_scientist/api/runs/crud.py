@@ -33,7 +33,7 @@ from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.chat.seed import is_current_demo_run
 from co_scientist.domains.documents import repository as documents
 from co_scientist.domains.research_state.repository import records
-from co_scientist.orchestration.repository import events, tasks
+from co_scientist.orchestration.repository import events
 from co_scientist.platform import db
 from co_scientist.platform.db import Connection, checkpoints
 from co_scientist.platform.db import runs as store
@@ -570,7 +570,7 @@ def _runs_payload(runs: list[RunRow]) -> dict[str, Any]:
             "runs": [
                 {
                     **r.to_dict(),
-                    "execution_progress": tasks.task_progress(r.id, conn=conn),
+                    "execution_progress": store.task_progress(r.id, conn=conn),
                 }
                 for r in runs
             ]
@@ -623,7 +623,7 @@ def _run_details(run_id: str) -> dict[str, Any]:
             # publication drains them into SQL tables.
             summary["hypotheses"] = max(summary["hypotheses"], pools[0])
             summary["evidence"] = max(summary["evidence"], pools[1])
-        progress = tasks.task_progress(run_id, conn=conn)
+        progress = store.task_progress(run_id, conn=conn)
         awaiting = _awaiting_decision_count(run, conn=conn)
         failure_kind = None
         if run.status == RunStatus.FAILED.value:
