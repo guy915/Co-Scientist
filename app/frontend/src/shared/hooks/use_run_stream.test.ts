@@ -198,3 +198,33 @@ it('caps the reconnect delay', () => {
   expect(reconnectDelayMs(2)).toBe(2 * RECONNECT_DELAY_MS);
   expect(reconnectDelayMs(20)).toBe(30_000);
 });
+
+it('shows capacity refusal and honors a longer retry window', async () => {
+  const denied = new Response(
+    JSON.stringify({detail: 'Live updates are busy'}),
+    {
+      status: 429,
+      headers: {'Retry-After': '60'},
+    },
+  );
+  queueFetch(denied, streamingResponse(new FakeSseBody()));
+  const {result} = renderHook(() => useRunStream('run-1'));
+  await settle();
+  expect(result.current.connection).toBe('capacity');
+  await settle(30_000);
+  expect(fetchMock()).toHaveBeenCalledTimes(1);
+  await settle(30_000);
+  expect(fetchMock()).toHaveBeenCalledTimes(2);
+  expect(result.current.connection).toBe('open');
+});
+
+it('backs off for thirty seconds when a refusal has no retry header', async () => {
+  queueFetch(errorResponse(429), streamingResponse(new FakeSseBody()));
+  const {result} = renderHook(() => useRunStream('run-1'));
+  await settle();
+  expect(result.current.connection).toBe('capacity');
+  await settle(RECONNECT_DELAY_MS);
+  expect(fetchMock()).toHaveBeenCalledTimes(1);
+  await settle(30_000 - RECONNECT_DELAY_MS);
+  expect(result.current.connection).toBe('open');
+});

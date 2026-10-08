@@ -27,6 +27,8 @@ const STREAM_STATUS_LABEL: Record<
   connecting: 'Connecting...',
   reconnecting: 'Reconnecting...',
   disconnected: 'Stream disconnected',
+  capacity:
+    'Live updates are busy. Close extra run tabs; we will retry shortly.',
 };
 
 // A non-open stream must not show the live pulse.
