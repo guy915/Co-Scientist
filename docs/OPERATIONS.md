@@ -133,11 +133,6 @@ a staging record leaves text already copied into a run as that run’s evidence.
   Content-Security-Policy, so Markdown a model
   writes can load remote images. Raw HTML stays escaped; never enable `rehype-raw`
   for model output.
-- **The reference MCP server is open when its secret is unset.**
-  `SharedSecretAuthMiddleware` (`engine/mcp_server/auth_middleware.py`) accepts
-  every request unless `COSCIENTIST_MCP_SHARED_SECRET` is set (only `GET /` is
-  exempt when it is), so production must set the same secret on both the mcp and
-  api services.
 - **Ownership is not authority.** A client ID must never confer safety-review
   power: adjudication requires the operator token (`LOGS_ADMIN_TOKEN`, sent as
   `X-Logs-Token`; `has_admin_token` in `api/operator_access.py`), checked in
