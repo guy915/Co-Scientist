@@ -20,12 +20,19 @@ _OBSERVATION_BODY: dict[str, Any] = obj(
     optional=("positive_observations",),
 )
 
+# The Go/No-Go annotations are required here and empty when there is nothing
+# to add; every reader treats an empty string as absent.
+_FULL_REVIEW_BODY: dict[str, Any] = {
+    **FULL_REVIEW_SCHEMA["schema"],
+    "required": list(FULL_REVIEW_SCHEMA["schema"]["properties"]),
+}
+
 FINALIST_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "finalist_review",
     "schema": obj(
         {
             "observation": _OBSERVATION_BODY,
-            "full_review": FULL_REVIEW_SCHEMA["schema"],
+            "full_review": _FULL_REVIEW_BODY,
             "simulation": SIMULATION_REVIEW_SCHEMA["schema"],
             "verification_queries": {
                 **str_array(

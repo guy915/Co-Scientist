@@ -37,8 +37,8 @@ In `positive_observations`, list the observations the hypothesis genuinely expla
 3. `quality_and_novelty`: the rigor of the formulation, and whether it is a genuine, non-obvious contribution relative to established work.
 4. `literature_grounding`: known results that support or undermine it, or say that none are available.
 5. `verdict`: `sound`, `needs_revision` or `rejected`, with a concise `justification`.
-6. `go_no_go_recommendation`: a short advisory testing recommendation (e.g. "Go — pursue wet-lab validation"). Leave it out if it adds nothing beyond `verdict`.
-7. `time_to_verdict`: a brief timeframe to a decisive experimental result (e.g. "2-4 weeks"). Leave it out if you cannot estimate one.
+6. `go_no_go_recommendation`: a short advisory testing recommendation (e.g. "Go — pursue wet-lab validation"). Use an empty string if it adds nothing beyond `verdict`.
+7. `time_to_verdict`: a brief timeframe to a decisive experimental result (e.g. "2-4 weeks"). Use an empty string if you cannot estimate one.
 8. `comparison_with_knowledge_base`: what established knowledge it agrees with, and what it contradicts.
 9. `goal_requirements_assessment`: the hypothesis against each requirement the research goal states, naming any it does not meet.
 10. `feasibility_steps`: the concrete steps that would test it, in order; then `feasibility_reasoning`: why they are or are not practical (resources, techniques, time).
