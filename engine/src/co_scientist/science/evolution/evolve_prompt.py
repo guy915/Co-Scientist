@@ -459,8 +459,9 @@ def _build_evolution_variables(
     variables["run_guidance"] = _format_run_guidance(
         context.run_setup_guidance, context.run_focus_guidance
     )
+    state: Mapping[str, Any] = context.state or {}
     variables["articles_with_reasoning"] = select_evidence_excerpt(
-        context.articles_with_reasoning or "", (context.state or {}).get("research_goal", ""), 6_000
+        context.articles_with_reasoning or "", state.get("research_goal", ""), 6_000
     )
     # The schema permits only supplied C* keys; no reference index would force a
     # child to disclaim grounding or invent unresolvable citations.
@@ -471,7 +472,6 @@ def _build_evolution_variables(
         grounding_evidence, hypothesis.text, 6_000
     )
     variables["partner_context"] = _format_partner_context(operation.partners, operation.operator)
-    state: Mapping[str, Any] = context.state or {}
     variables["falsified_assumptions_section"] = build_falsified_assumptions_section(
         state.get("hypotheses")
     )

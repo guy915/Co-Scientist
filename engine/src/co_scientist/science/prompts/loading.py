@@ -77,6 +77,9 @@ def load_prompt(prompt_name: str, variables: dict[str, Any] | None = None) -> st
     instructions = re.sub(r"(?m)^[ \t]*\{\{[a-z][a-z0-9_]*\}\}[ \t]*\n?", "", prompt_template)
     instructions = _FIELD_PATTERN.sub(lambda match: f"[{match[1]}]", instructions)
     instructions = instructions.replace("{{", "{").replace("}}", "}")
+    instructions = instructions.replace(
+        "Theme to write: [theme_title]", "The requested theme is supplied below."
+    )
     for number in (1, 2):
         instructions = instructions.replace(
             f"Hypothesis {number}:\n",

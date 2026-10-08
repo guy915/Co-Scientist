@@ -85,9 +85,14 @@ def render_cacheable_prompt(
 
 
 def render_fields(fields: Mapping[str, Any]) -> str:
-    labels = {"hypothesis_a": "Hypothesis 1", "hypothesis_b": "Hypothesis 2"}
+    labels = {
+        "hypothesis_a": "Hypothesis 1:\n",
+        "hypothesis_b": "Hypothesis 2:\n",
+        "original_hypothesis": "**Original Hypothesis:**\n",
+        "theme_title": "Theme to write: ",
+    }
     return "\n\n".join(
-        f"{labels.get(key, key)}:\n{stable_value(fields[key])}"
+        labels.get(key, key + ":\n") + stable_value(fields[key])
         for key in sorted(fields)
         if fields[key] != ""
     )
