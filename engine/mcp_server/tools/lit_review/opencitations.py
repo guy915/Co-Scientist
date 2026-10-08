@@ -9,6 +9,7 @@ from urllib.parse import quote
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.tools._pacing import RequestPacer
 from mcp_server.tools._results import non_raising, ok
 
@@ -162,7 +163,7 @@ async def _fetch_citation_data(
                 citations = _edges(citation_rows)
                 references = _edges(reference_rows)
     except (httpx.HTTPError, TimeoutError, ValueError) as exc:
-        logger.warning("OpenCitations lookup failed")
+        logger.warning("OpenCitations lookup failed (%s)", failure_summary(exc))
         raise RuntimeError(f"OpenCitations Index unavailable: {type(exc).__name__}: {exc}") from exc
     return citation_count, reference_count, citations, references
 

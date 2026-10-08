@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.text_extraction import clean_markup
 from mcp_server.tools._results import failed, non_raising, ok
 
@@ -111,7 +112,7 @@ async def _search(
         response = await _get_with_transport_retry(params)
         records = [_record(result) for result in _results(response.json())[:limit]]
     except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
-        logger.warning("Europe PMC search failed")
+        logger.warning("Europe PMC search failed (%s)", failure_summary(exc))
         return failed(exc)
     return ok(records)
 

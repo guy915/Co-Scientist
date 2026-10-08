@@ -8,6 +8,7 @@ from Bio import Entrez
 
 from mcp_server.cache_privacy import PUBLIC_PAPERS
 from mcp_server.entrez import entrez_call
+from mcp_server.log_privacy import failure_summary
 from mcp_server.pubmed_client import _EntrezClient
 from mcp_server.pubmed_storage import (
     confined_path,
@@ -58,8 +59,8 @@ class PubmedSource(_EntrezClient):
                 _validate_pmc_id(metadata)
                 write_metadata_cache_file(metadata_file, metadata)
                 return paper_id, metadata
-            except Exception:
-                logger.warning("PubMed metadata fetch failed")
+            except Exception as exc:
+                logger.warning("PubMed metadata fetch failed (%s)", failure_summary(exc))
                 return paper_id, None
 
     async def _gather_paper_metadata(
@@ -113,8 +114,8 @@ class PubmedSource(_EntrezClient):
                 confined_path(shared_dir.parent, "shared", f"{pmc_id}.fulltext.html")
                 fulltext_file.write_text(contents, encoding="utf-8")
             return contents
-        except Exception:
-            logger.error("PMC fulltext download failed")
+        except Exception as exc:
+            logger.error("PMC fulltext download failed (%s)", failure_summary(exc))
             return None
 
     async def _download_fulltexts_for_papers(
