@@ -7,8 +7,8 @@ from co_scientist.core import run_modes
 from co_scientist.domains.chat import seed
 from co_scientist.orchestration.engine_adapter.opts import _generator_kwargs
 from co_scientist.orchestration.repository import runs, runs_views
+from co_scientist.platform.db import logs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
-from co_scientist.platform.telemetry import logs
 from co_scientist.science.scheduling import (
     Budget,
     SchedulerStats,

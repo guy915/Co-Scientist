@@ -56,8 +56,8 @@ def make_operator_client() -> TestClient:
 
 
 def append_log_row(db_path: str, message: str, **fields: Any) -> int:
-    from co_scientist.platform.telemetry import logs
-    from co_scientist.platform.telemetry.logs import NewLogRecord
+    from co_scientist.platform.db import logs
+    from co_scientist.platform.db.logs import NewLogRecord
 
     record: dict[str, Any] = {
         "level": "INFO",

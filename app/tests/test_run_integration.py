@@ -13,12 +13,12 @@ from co_scientist.domains.chat import seed
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.domains.report import build as report_build
-from co_scientist.domains.report import finalize as report_finalize
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
 from co_scientist.orchestration.engine_tasks import inputs as engine_tasks_inputs
 from co_scientist.orchestration.engine_tasks import node as engine_tasks_node
+from co_scientist.orchestration.engine_tasks import report_finalize
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
 from co_scientist.orchestration.repository import events as store_events
 from co_scientist.orchestration.repository import runs as store

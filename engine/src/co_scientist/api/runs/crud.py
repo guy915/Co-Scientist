@@ -12,6 +12,7 @@ import co_scientist.domains.documents.staged as staged_documents
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import co_scientist.orchestration.repository.receipts as run_creation_receipts
 import co_scientist.platform.retrieval.run_corpus as run_corpus
+from co_scientist.api import free_usage as free_usage_api
 from co_scientist.api.auth import client_id, require_client_scope
 from co_scientist.api.runs.models import (
     CreateRunRequest,
@@ -310,7 +311,7 @@ async def _resolve_setup(
         resolved_request = resolved_request.model_copy(update={"tier": free_usage.FREE_TIER})
         settings = callbacks.resolve_run_settings(resolved_request, interview, byok)
     if free:
-        free_usage.check_request(resolved_request, settings.run_mode)
+        free_usage_api.check_request(resolved_request, settings.run_mode)
         if deployment_routes_are_free():
             settings = settings._replace(config={**settings.config, ZERO_COST_CONFIG_KEY: True})
     return _ResolvedSetup(resolved_request, interview, byok, staged, settings, free)
@@ -358,7 +359,7 @@ def _persist_setup_transaction(
     except run_creation_receipts.StagedDocumentsUnavailableError as exc:
         raise HTTPException(status_code=404, detail="attached document not found") from exc
     except free_usage.FreeUsageExhaustedError as exc:
-        raise free_usage.exhausted_error() from exc
+        raise free_usage_api.exhausted_error() from exc
     except ProviderAdmissionError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     return run, receipt

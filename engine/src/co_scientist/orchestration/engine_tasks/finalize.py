@@ -5,12 +5,13 @@ from collections.abc import Iterator
 from typing import Any
 
 from co_scientist.core.run_modes import normalize_run_tier
-from co_scientist.domains.report import ReportRequest, finalize_report
+from co_scientist.domains.report import ReportRequest
 from co_scientist.domains.report import repository as reports
-from co_scientist.domains.safety.gate import SafetyDecision, apply_safety_gate
+from co_scientist.domains.safety.gate import SafetyDecision
 from co_scientist.orchestration.drain import persist_final_state
 from co_scientist.orchestration.engine_tasks import runtime as engine_tasks_runtime
 from co_scientist.orchestration.engine_tasks.inputs import reopen_for_pending_scientist_input
+from co_scientist.orchestration.engine_tasks.report_finalize import finalize_report
 from co_scientist.orchestration.engine_tasks.support import (
     FINALIZE_TASK,
     SafetyHoldError,
@@ -27,9 +28,10 @@ from co_scientist.orchestration.engine_tasks.support import (
 from co_scientist.orchestration.repository import events, runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.run_events import make_emitter
+from co_scientist.orchestration.safety_gate import apply_safety_gate
 from co_scientist.platform import db
+from co_scientist.platform.db import retrieval_calls as retrieval
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
-from co_scientist.platform.telemetry import retrieval_calls as retrieval
 
 
 def _finalize_replay_or_none(run: RunRow, *, db_path: str | None) -> dict[str, Any] | None:

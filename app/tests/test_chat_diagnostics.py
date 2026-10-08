@@ -3,13 +3,10 @@ from __future__ import annotations
 import logging
 
 import pytest
-from co_scientist.platform.telemetry import logs
+from co_scientist.platform.db import logs
+from co_scientist.platform.db.log_capture import configure_log_capture, shutdown_log_capture
+from co_scientist.platform.db.logs import LogFilters
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
-from co_scientist.platform.telemetry.logging_setup import (
-    configure_log_capture,
-    shutdown_log_capture,
-)
-from co_scientist.platform.telemetry.logs import LogFilters
 
 
 def test_chat_metadata_is_owned_and_excludes_text(

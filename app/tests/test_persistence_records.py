@@ -10,12 +10,12 @@ import pytest
 from co_scientist.domains.access import retention
 from co_scientist.domains.documents import repository as documents
 from co_scientist.domains.report import build as report_build
-from co_scientist.domains.report import finalize as report_finalize
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.report.content import derive_knowledge_facts
 from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewClaimEvidence
+from co_scientist.orchestration.engine_tasks import report_finalize
 from co_scientist.orchestration.repository import runs as store
 from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.orchestration.repository.events import (
@@ -25,9 +25,9 @@ from co_scientist.orchestration.repository.events import (
 )
 from co_scientist.platform import db as _store_db
 from co_scientist.platform.db import checkpoints as store_checkpoints
+from co_scientist.platform.db import logs
+from co_scientist.platform.db.logs import NewLogRecord
 from co_scientist.platform.db.models import RunStatus
-from co_scientist.platform.telemetry import logs
-from co_scientist.platform.telemetry.logs import NewLogRecord
 from fastapi.testclient import TestClient
 
 from tests._client import create_run as _create_run

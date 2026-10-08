@@ -11,12 +11,9 @@ from co_scientist.core import byok_scope
 from co_scientist.domains.chat import qa, run_start_announcement
 from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.chat.repository.messages import NewMessage
-from co_scientist.platform.telemetry import logs
-from co_scientist.platform.telemetry.logging_setup import (
-    configure_log_capture,
-    configure_logging,
-    shutdown_log_capture,
-)
+from co_scientist.platform.db import logs
+from co_scientist.platform.db.log_capture import configure_log_capture, shutdown_log_capture
+from co_scientist.platform.telemetry.logging_setup import configure_logging
 
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode

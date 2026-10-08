@@ -12,7 +12,7 @@ from co_scientist.domains.chat.repository import messages
 from co_scientist.domains.research_state.elo import INITIAL_ELO
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
-from co_scientist.domains.safety.gate import ScreenSubject, apply_safety_gate, screen_intake
+from co_scientist.domains.safety.gate import ScreenSubject, screen_intake
 from co_scientist.orchestration.engine_adapter import sync_engine_llm_backend
 from co_scientist.orchestration.engine_tasks import runtime as engine_tasks_runtime
 from co_scientist.orchestration.engine_tasks.support import (
@@ -27,6 +27,7 @@ from co_scientist.orchestration.engine_tasks.support import (
 from co_scientist.orchestration.repository import events, runs, tasks
 from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.orchestration.run_events import make_emitter
+from co_scientist.orchestration.safety_gate import apply_safety_gate
 from co_scientist.platform.db import transaction
 from co_scientist.platform.db.admission import claim_continuation
 from co_scientist.platform.db.models import (
