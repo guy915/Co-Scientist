@@ -177,10 +177,10 @@ annotated channel cannot fall through to last-write-wins there). Research has tw
 owners, and under a single-ledger channel whichever ran last was the only one
 on record.
 
-**The deep reviews go back too, and their cost is a product.** The full and
-simulation reviews already retrieve once per hypothesis;
-`research_for_review` gives them the same loop as a second round,
-sharing one gathering between both modes (`science/reflection/review_evidence.py`).
+**The deep reviews go back too, and their cost is a product.** The finalist
+review buys no probe retrieval of its own -- verification searches with its
+queries instead -- so `research_for_review` is its only retrieval, one gathering
+per finalist (`science/reflection/review_evidence.py`).
 The policy is what differs from Generation's, and it has to be: the literature
 review researches once per *run*, a review once per *hypothesis*, so a
 per-hypothesis budget alone bounds nothing. Both factors are capped in
@@ -229,13 +229,18 @@ observation, full and simulation reviews, deep verification and claim checks
 run for the run's finalists alone -- the top `finalists` (3/5/6/8 by tier) by
 Elo among ideas that have played, which are the ideas the report features. A
 first cycle therefore spends nothing on depth, and an idea that loses never
-pays for it. Issuance stays incremental: `deep_verification_issued` is
+pays for it. A finalist's depth is two calls: one `finalist_review` answers the
+observation, full and simulation reviews together and proposes verification
+queries, each part stored under its standalone key so gates and the report read
+the same shapes; deep verification then retrieves with those queries and
+answers once. A finalist is reviewed in depth once, with no recurrent refresh.
+Issuance stays incremental: `deep_verification_issued` is
 checkpointed when an attempt is *issued*, so each finalist is verified once.
 When the run ends with finalists still lacking depth, the orchestrator routes
 the terminal pass through `comprehensive_reflection`, `safety_screen` and
 `deep_verification` to the overview -- never after a budget, clock, task-count
-or safety stop, never past the call ceiling, and without the recurrent refresh
-or the blocked-idea recheck. The report features ideas with a verdict and keeps
+or safety stop, never past the call ceiling, and without the blocked-idea
+recheck. The report features ideas with a verdict and keeps
 every other released idea as its own entry marked "screened, not
 deep-verified".
 

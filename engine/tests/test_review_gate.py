@@ -20,9 +20,9 @@ from co_scientist.science.reflection.review_gate import (
     _apply_initial_review_gate,
     _gate_axes_for_criteria,
     derive_review_disposition,
+    finalist_review_needed,
     prompt_name_for,
     refresh_review_dispositions,
-    reviews_needed,
     schema_for,
 )
 from co_scientist.science.scheduling.models import TaskType
@@ -500,49 +500,13 @@ def test_an_admitted_idea_does_not_pull_the_run_into_ranking() -> None:
     assert decision.next_task is TaskType.REFLECT
 
 
-def _modes(hypothesis: object, iteration: int) -> list[str]:
-    return [review.value for review in reviews_needed(hypothesis, iteration)]  # type: ignore[arg-type]
+class TestFinalistDepth:
+    def test_a_fresh_finalist_is_owed_its_review(self) -> None:
+        assert finalist_review_needed(make_hypothesis(text="a"))
 
-
-class TestFirstMaturity:
-    def test_a_fresh_hypothesis_is_owed_both(self) -> None:
-        assert _modes(make_hypothesis(text="a"), 0) == ["full", "simulation"]
-
-    def test_a_succeeded_simulation_is_not_re_issued(self) -> None:
-        """Retrying a successful simulation because another mode failed buys
-        a new tool loop each cycle."""
+    @pytest.mark.parametrize("verdict", ["sound", "rejected", "unreviewed"])
+    def test_a_recorded_review_is_never_repaid(self, verdict: str) -> None:
         hypothesis = make_hypothesis(text="a")
-        hypothesis.enrichments["simulation"] = {"verdict": "breaks_down"}
+        hypothesis.enrichments["full"] = {"verdict": verdict}
 
-        for iteration in (0, 1, 2):
-            assert _modes(hypothesis, iteration) == ["full"]
-
-    def test_a_succeeded_full_moves_the_hypothesis_on(self) -> None:
-        hypothesis = make_hypothesis(text="a")
-        hypothesis.enrichments["full"] = {"verdict": "sound"}
-
-        assert _modes(hypothesis, 1) == ["recurrent"]
-
-
-class TestOnceMature:
-    def test_a_recurrent_review_is_owed_once_per_iteration(self) -> None:
-        hypothesis = make_hypothesis(text="a")
-        hypothesis.enrichments["full"] = {"verdict": "sound"}
-        hypothesis.enrichments["recurrent_review_iteration"] = 2
-
-        assert _modes(hypothesis, 2) == []
-        assert _modes(hypothesis, 3) == ["recurrent"]
-
-
-class TestWhatIsDeliberatelyNotRetried:
-    def test_a_failed_simulation_is_not_retried_after_full_succeeds(
-        self,
-    ) -> None:
-        """Full-review success starts recurrent reviews; filling the
-        simulation gap is not worth another tool loop."""
-        hypothesis = make_hypothesis(text="a")
-        hypothesis.enrichments["full"] = {"verdict": "sound"}
-
-        for iteration in (0, 1, 2):
-            assert "simulation" not in _modes(hypothesis, iteration)
-            hypothesis.enrichments["recurrent_review_iteration"] = iteration
+        assert not finalist_review_needed(hypothesis)

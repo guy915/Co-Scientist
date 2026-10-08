@@ -1,5 +1,6 @@
 from typing import Any
 
+from co_scientist.science.schemas.finalist_review import FINALIST_REVIEW_SCHEMA
 from co_scientist.science.schemas.generation import (
     ASSUMPTION_SUB_SCHEMA,
     ASSUMPTION_TREE_SCHEMA,
@@ -61,6 +62,7 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "review_batch": REVIEW_BATCH_SCHEMA,
     "full_review": FULL_REVIEW_SCHEMA,
     "simulation_review": SIMULATION_REVIEW_SCHEMA,
+    "finalist_review": FINALIST_REVIEW_SCHEMA,
     "evolution": EVOLUTION_SCHEMA,
     "evolution_feasibility": EVOLUTION_SCHEMA,
     "evolution_out_of_box": EVOLUTION_SCHEMA,
