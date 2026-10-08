@@ -236,6 +236,40 @@ including retries. An agreed larger allowance can be set explicitly with
 `make test-evaluations` exercises the entire replay on fake recorded SQLite
 databases with network connections forbidden and checks that inputs are unchanged.
 
+### Fixed-goal collection
+
+Collect one main baseline per fixed goal on Express, after agreeing the daily
+physical-request allowance. Use a clean checkout, an explicit zero-priced
+OpenRouter `MODEL_NAME` and `OPENROUTER_API_KEY`, with retrieval configured
+identically for both refs. No Azure or paid fallback is admitted.
+
+```bash
+.venv/bin/python -m evaluations.quality_benchmark --goal-id cell-biology \
+  --live --max-calls 150 --output /tmp/biology-main
+```
+
+Repeat for `battery-materials` and `urban-hydrology`, within the agreed shared
+allowance; collection never repeats automatically. An output directory with
+an existing run database is refused. Each fresh process saves `snapshot.db`,
+`receipt.json`, `baseline.md` and `claim-support-live.json`. The receipt records
+the exact source SHA, resolved controls, dispatch count and ceiling. Use the
+snapshot and that source SHA in the paired manifest. `run.db` is also retained
+for local inspection; the snapshot includes WAL contents and the evaluation
+dispatch receipt.
+
+The answering backend enforces `--max-calls` across concurrent tasks and retries
+(1–450 requests; default 150), independently of task admission counters. Set a
+larger bound only within the agreed daily remaining share; main Express may
+need more than 150 attempts. Track aggregate use across goals and judge calls.
+SDK retries are disabled at the counted boundary for collection and live judging;
+orchestration retries still consume the allowance. An exhausted or
+failed run stays incomplete, exits 2 and retains its database and receipts;
+do not treat it as a successful baseline. `claim-support-live.json` retains
+the existing rate, sample size and Wilson interval as descriptive measurements.
+Default collection is offline; omit `--live` to exercise persistence without
+provider credentials. The offline artifact and receipt explicitly disclaim
+scientific quality, and the collector's tests deny socket connections.
+
 ## External gaps
 
 These need data, credentials, expert panels or wet labs that are not
