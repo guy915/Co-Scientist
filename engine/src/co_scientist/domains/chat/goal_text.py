@@ -24,8 +24,7 @@ logger = logging.getLogger(__name__)
 _MAX_TITLE_CHARS = 80
 _MAX_RESTATEMENT_CHARS = 800
 
-# Adapted from Gemini Enterprise chat naming; single-goal input omits
-# conversation/attachment rules and its 30-character sidebar limit.
+# Single-goal input, so the prompt carries no conversation or attachment rules.
 _TITLE_PROMPT = (
     "You generate the sidebar title for a research session. Given the "
     "session's research goal, reply with a short title summarizing its "
