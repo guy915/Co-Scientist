@@ -23,6 +23,13 @@ def deny_network(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(socket, "create_connection", deny)
 
 
+def test_paid_counter_fingerprints_the_native_azure_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = vars(benchmark_paid.trusted_transport())["COUNTER_SHA256"]
+    monkeypatch.setattr(benchmark_paid, "version", lambda name: "synthetic-other-sdk-version")
+    changed = vars(benchmark_paid.trusted_transport())["COUNTER_SHA256"]
+    assert changed != original
+
+
 def test_paid_configuration_is_explicit_isolated_and_fresh(tmp_path: Path) -> None:
     script = """
 import os

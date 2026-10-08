@@ -10,6 +10,7 @@ import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from importlib.metadata import version
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
@@ -174,7 +175,11 @@ def trusted_transport() -> ModuleType:
     spec.loader.exec_module(transport)
     digest = hashlib.sha256(
         json.dumps(
-            {"transport": vars(transport)["COUNTER_SHA256"], "paid_policy": POLICY_SHA256},
+            {
+                "transport": vars(transport)["COUNTER_SHA256"],
+                "paid_policy": POLICY_SHA256,
+                "openai": version("openai"),
+            },
             sort_keys=True,
         ).encode()
     ).hexdigest()
