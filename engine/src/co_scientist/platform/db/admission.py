@@ -159,7 +159,7 @@ def reserve_provider(
         ),
         ("host", host, settings.provider_host_calls_per_day, settings.provider_host_tokens_per_day),
     )
-    with transaction(receipt.db_path) as conn:
+    with transaction(receipt.db_path, durable=spend is not None) as conn:
         if spend is not None:
             reserve_spend(conn, receipt.id, spend)
         claim_session(conn, owner, host, day)
@@ -194,7 +194,7 @@ def settle_provider(
     used_tokens: int,
     money: tuple[int, int, int, int | None, int | None] | None = None,
 ) -> None:
-    with transaction(receipt.db_path) as conn:
+    with transaction(receipt.db_path, durable=receipt.paid) as conn:
         if money is not None:
             settle_spend(conn, receipt.id, *money)
         row = conn.execute(

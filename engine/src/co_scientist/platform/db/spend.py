@@ -40,7 +40,7 @@ def spend_record(receipt: str, path: str) -> SpendRecord | None:
 
 
 def hold_spending(receipt: str, path: str) -> None:
-    with transaction(path) as conn:
+    with transaction(path, durable=True) as conn:
         conn.execute("INSERT OR IGNORE INTO llm_spend_holds VALUES (?)", (receipt,))
 
 

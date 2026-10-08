@@ -16,7 +16,7 @@ from co_scientist.platform.db.admission import ProviderReservation
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.free_policy import enforce_free_request
 from co_scientist.platform.llm.admission.service import reserve_physical, settle_physical
-from co_scientist.platform.llm.admission.spend import azure_config, require_enabled
+from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
 from co_scientist.platform.llm.request.backend import active_backend
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
@@ -133,7 +133,7 @@ async def complete_request(
         before_dispatch()
     require_enabled()
     if receipt is not None and receipt.paid:
-        azure_config()
+        paid_dispatch_config(receipt.db_path)
     span = start_request_span(model_name, completion_args)
     start = time.monotonic()
     try:

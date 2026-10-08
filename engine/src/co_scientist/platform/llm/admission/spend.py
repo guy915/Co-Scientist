@@ -93,14 +93,19 @@ def _blocked_path(db_path: str) -> bool:
         return db_path in _blocked
 
 
+def paid_dispatch_config(db_path: str) -> SpendConfig:
+    config = azure_config()
+    if _blocked_path(db_path):
+        raise ProviderAdmissionError(UNAVAILABLE)
+    return config
+
+
 def prepare_spend(request: dict[str, Any], tokens: int, db_path: str) -> SpendReservation | None:
     require_enabled()
     model = str(request.get("model", "")).replace("azure/responses/", "azure/")
     if not model.startswith("azure/"):
         return None
-    config = azure_config()
-    if _blocked_path(db_path):
-        raise ProviderAdmissionError(UNAVAILABLE)
+    config = paid_dispatch_config(db_path)
     price = model_profile(model).price
     if price is None or model_profile(model).version is None:
         raise ProviderAdmissionError(UNAVAILABLE)

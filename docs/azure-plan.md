@@ -18,6 +18,8 @@ keeps the reservation. No writer spans network work. Convert USD prices with
 `LLM_USD_TO_EUR=0.88`. Stop Azure after `LLM_AZURE_UNTIL`.
 
 The guard uses integer micro-EUR and snapshots FX/rates for each reservation.
+Paid transactions sync the reservation before dispatch. Native calls recheck
+kill switches, expiry and the process spend hold after any thread wait.
 Until Luna's price boundary is known, charge at the higher long-context rate.
 Reserve input bytes plus the framing allowance, the full output allowance and
 up to four cache-write prefixes. Missing Luna cache-write usage keeps the full

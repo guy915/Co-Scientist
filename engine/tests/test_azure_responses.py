@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -145,6 +146,63 @@ async def test_gateway_settles_normalized_usage_without_holding_writer_over_http
         with connect() as conn:
             tokens = conn.execute("SELECT tokens FROM provider_admissions").fetchall()
         assert len(tokens) == 3 and all(row[0] == 120 for row in tokens)
+    finally:
+        backend.close()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("LLM_ENABLED", "false"),
+        ("LLM_AZURE_ENABLED", "false"),
+        ("LLM_AZURE_UNTIL", "2020-01-04"),
+        ("financial_hold", "on"),
+    ],
+)
+async def test_native_dispatch_rechecks_policy_after_thread_wait(
+    monkeypatch: pytest.MonkeyPatch, stream: bool, name: str, value: str
+) -> None:
+    for key, setting in {
+        "LLM_ENABLED": "true",
+        "LLM_AZURE_ENABLED": "true",
+        "LLM_TOTAL_BUDGET_EUR": "1",
+        "LLM_AZURE_UNTIL": "2099-01-04",
+        "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
+        "AZURE_OPENAI_API_KEY": "fake",
+        "AZURE_OPENAI_API_VERSION": "v1",
+        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": DEPLOYMENTS[LUNA],
+        "AZURE_OPENAI_WORKER_DEPLOYMENT": DEPLOYMENTS[NANO],
+    }.items():
+        monkeypatch.setenv(key, setting)
+    captured = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json=_response())
+
+    class MockClient(httpx.Client):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(transport=httpx.MockTransport(respond), **kwargs)
+
+    monkeypatch.setattr(httpx, "Client", MockClient)
+    backend = AzureResponsesBackend.from_environment()
+
+    async def after_wait(function: Any, *args: Any) -> Any:
+        if name == "financial_hold":
+            from co_scientist.platform.llm.admission.service import current_db_path
+            from co_scientist.platform.llm.admission.spend import block_spending
+
+            block_spending(current_db_path())
+        else:
+            monkeypatch.setenv(name, value)
+        return function(*args)
+
+    monkeypatch.setattr(asyncio, "to_thread", after_wait)
+    try:
+        with using_backend(backend), pytest.raises(ProviderAdmissionError):
+            await complete_request(_request(stream=stream), NANO, byok=False, timeout_seconds=5)
+        assert captured == []
     finally:
         backend.close()
 

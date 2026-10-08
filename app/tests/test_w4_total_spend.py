@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import concurrent.futures
+import os
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -244,3 +247,56 @@ async def test_unset_spent_expired_and_disabled_policy_calls_no_provider(
     ):
         await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
     assert calls == [] and _spent(budget) == 0
+
+
+def test_paid_reservation_is_synced_and_survives_abrupt_process_exit(
+    budget: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from co_scientist.platform.db import admission
+
+    real_reserve = admission.reserve_spend
+    modes = []
+
+    def observe(conn: Any, *args: Any) -> None:
+        modes.append(conn.execute("PRAGMA synchronous").fetchone()[0])
+        real_reserve(conn, *args)
+
+    monkeypatch.setattr(admission, "reserve_spend", observe)
+    reserve_physical(_request())
+    assert modes == [2]
+    first = _spent(budget)
+    child_env = {key: os.environ[key] for key in ("PATH", "PYTHONPATH") if key in os.environ}
+    child_env.update(
+        {
+            "COSCIENTIST_DB_PATH": budget,
+            "LLM_TOTAL_BUDGET_EUR": "1",
+            "LLM_AZURE_ENABLED": "true",
+            "LLM_AZURE_UNTIL": "2099-01-04",
+            "LLM_ENABLED": "true",
+            "LLM_USD_TO_EUR": "0.88",
+            "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+            "PYTHON_DOTENV_DISABLED": "1",
+        }
+    )
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import os
+from co_scientist.platform.llm.admission.service import reserve_physical
+reserve_physical({
+    "model": "azure/gpt-5-nano-2025-08-07",
+    "messages": [{"role": "user", "content": "answer"}],
+    "max_tokens": 1000,
+})
+os._exit(0)
+""",
+        ],
+        env=child_env,
+        check=True,
+        timeout=30,
+    )
+    assert _spent(budget) == 2 * first
+    with connect(budget) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM llm_spend WHERE settled=0").fetchone()[0] == 2
