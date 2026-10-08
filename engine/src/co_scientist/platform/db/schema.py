@@ -19,6 +19,17 @@ CREATE TABLE IF NOT EXISTS provider_token_reservations (
     host TEXT NOT NULL, tokens INTEGER NOT NULL, app INTEGER NOT NULL,
     used_tokens INTEGER
 );
+CREATE TABLE IF NOT EXISTS llm_spend (
+    id TEXT PRIMARY KEY, created_at REAL NOT NULL, model TEXT NOT NULL, role TEXT NOT NULL,
+    reserved_microeur INTEGER NOT NULL CHECK(reserved_microeur >= 0),
+    charged_microeur INTEGER NOT NULL
+        CHECK(charged_microeur >= 0 AND charged_microeur <= reserved_microeur),
+    input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL, rates TEXT NOT NULL,
+    settled INTEGER NOT NULL DEFAULT 0, prompt_tokens INTEGER, output_tokens INTEGER,
+    cached_tokens INTEGER, cache_write_tokens INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_llm_spend_created_at ON llm_spend(created_at);
+CREATE TABLE IF NOT EXISTS llm_spend_holds (reason TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS run_call_admissions (
     run_id TEXT PRIMARY KEY, calls INTEGER NOT NULL, ceiling INTEGER NOT NULL
 );
