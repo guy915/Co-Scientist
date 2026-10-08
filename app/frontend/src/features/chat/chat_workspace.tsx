@@ -1,7 +1,5 @@
 import {
-  lazy,
   memo,
-  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -42,12 +40,7 @@ import {
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 import {scrollBehavior} from '@/shared/lib/reduced_motion';
 import {chatPath} from '@/shared/lib/routes';
-
-// Lazy-load the landing page so chat first paint does not wait for it; it takes
-// no props, so memo keeps composer keystrokes from re-rendering it.
-const HomeLanding = lazy(() =>
-  import('./home_landing').then(m => ({default: memo(m.default)})),
-);
+import {DeferredHomeLanding} from './deferred_home_landing';
 
 interface ChatWorkspaceLocationState {
   cosciAction?: 'new-chat' | 'focus-composer';
@@ -133,11 +126,7 @@ export function ChatWorkspace() {
               onToggleShowAll={() => setShowAllRecents(current => !current)}
             />
             {/* Phones get the composer only; the landing is a desktop surface. */}
-            {!isMobile && (
-              <Suspense fallback={null}>
-                <HomeLanding />
-              </Suspense>
-            )}
+            {!isMobile && <DeferredHomeLanding />}
           </>
         )}
         <ToastPortal toast={toast} />
