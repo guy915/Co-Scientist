@@ -364,7 +364,7 @@ function ShowMoreChatsButton({
 }) {
   return (
     <Button
-      variant="text"
+      variant="disclosure"
       size="sm"
       trailingIcon={showAllChats ? 'expand_less' : 'expand_more'}
       layoutClassName="justify-self-start"
