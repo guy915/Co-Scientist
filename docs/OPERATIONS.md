@@ -127,12 +127,6 @@ a staging record leaves text already copied into a run as that run’s evidence.
 
 ## Known limitations
 
-- **Remote images in model-written Markdown.** The Markdown renderer
-  (`app/frontend/src/shared/ui/markdown_message_renderer.tsx`) has no `img`
-  override and neither `app/frontend/public/_headers` nor `vercel.json` sets a
-  Content-Security-Policy, so Markdown a model
-  writes can load remote images. Raw HTML stays escaped; never enable `rehype-raw`
-  for model output.
 - **The reference MCP server is open when its secret is unset.**
   `SharedSecretAuthMiddleware` (`engine/mcp_server/auth_middleware.py`) accepts
   every request unless `COSCIENTIST_MCP_SHARED_SECRET` is set (only `GET /` is
@@ -384,11 +378,3 @@ per call ran about four times a run's real use, so a Standard run exhausted the
 default 16M `PROVIDER_CLIENT_TOKENS_PER_DAY`. Keep settlement rather than
 raising the ceilings or shrinking the reservation: the reservation must cover
 a call whose usage never arrives.
-
-## Decision-provider admission
-
-The optional Liquid decision client retains the shared physical-call/token
-ceilings and reserves its own daily allowance before HTTP. Failed attempts are
-not refunded. Never hold a DB writer over a provider request or replace an
-exhausted free decision route with a paid model. Configuration and the manual
-evaluation workflow are in [decision-model.md](decision-model.md).
