@@ -34,6 +34,12 @@ class Article:
     # ordinary searches may not.
     retrieval_call_id: str | None = None
 
+    def __post_init__(self) -> None:
+        # Sources serialize missing authors as null, and `.get("authors", [])`
+        # keeps that None; prompt formatting slices this list.
+        if self.authors is None:
+            self.authors = []
+
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
 

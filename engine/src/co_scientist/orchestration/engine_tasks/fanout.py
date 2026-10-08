@@ -47,24 +47,55 @@ def _hypothesis_for_item(task: ScientificTask, state: dict[str, Any]) -> tuple[s
 async def execute_review_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
+    from co_scientist.domains.research_state.models import HypothesisReview
     from co_scientist.platform.llm import scoped_telemetry
     from co_scientist.science.reflection.review import (
         ReviewContext,
+        review_comparative_batch,
         review_single_hypothesis,
     )
 
     state, expected_seq = _restore_item_checkpoint(task, db_path, superseded="review item")
-    hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
     context = ReviewContext.from_state(cast("WorkflowState", state))
+    if "hypothesis_ids" not in task.inputs:
+        # Items enqueued before batching review one idea each.
+        hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
+        with scoped_telemetry("review") as telemetry:
+            review = await review_single_hypothesis(
+                hypothesis_text=hypothesis.text,
+                context=context,
+                hypothesis_index=int(task.inputs["hypothesis_index"]),
+            )
+        return {
+            "hypothesis_id": hypothesis_id,
+            "review": dataclasses.asdict(review),
+            "model_usage": telemetry.snapshot(),
+            "checkpoint_seq": expected_seq,
+        }
+    by_id = {item.id: item for item in state["hypotheses"]}
+    ids = [str(hypothesis_id) for hypothesis_id in task.inputs["hypothesis_ids"]]
+    missing = [hypothesis_id for hypothesis_id in ids if hypothesis_id not in by_id]
+    if missing:
+        raise ValueError(f"hypotheses {missing} are absent from checkpoint")
+    hypotheses = [by_id[hypothesis_id] for hypothesis_id in ids]
     with scoped_telemetry("review") as telemetry:
-        review = await review_single_hypothesis(
-            hypothesis_text=hypothesis.text,
-            context=context,
-            hypothesis_index=int(task.inputs["hypothesis_index"]),
-        )
+        reviews: list[HypothesisReview | None]
+        if len(hypotheses) == 1:
+            reviews = [
+                await review_single_hypothesis(
+                    hypothesis_text=hypotheses[0].text, context=context, hypothesis_index=0
+                )
+            ]
+        else:
+            reviews = await review_comparative_batch(hypotheses, context)
     return {
-        "hypothesis_id": hypothesis_id,
-        "review": dataclasses.asdict(review),
+        "reviews": [
+            {
+                "hypothesis_id": hypothesis_id,
+                "review": dataclasses.asdict(review) if review is not None else None,
+            }
+            for hypothesis_id, review in zip(ids, reviews, strict=True)
+        ],
         "model_usage": telemetry.snapshot(),
         "checkpoint_seq": expected_seq,
     }
@@ -389,12 +420,21 @@ async def execute_generation_strategy(
     }
 
 
+# One comparative call screens a few ideas; a larger batch forces a wider
+# score spread on peers that may all be viable.
+SCREENING_BATCH_SIZE = 4
+
+
 def _enqueue_review_item_tasks(
     task: ScientificTask,
     unreviewed: Sequence[Any],
     checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
+    chunks = [
+        list(unreviewed[start : start + SCREENING_BATCH_SIZE])
+        for start in range(0, len(unreviewed), SCREENING_BATCH_SIZE)
+    ]
     return [
         tasks.enqueue_task(
             NewTask(
@@ -402,10 +442,9 @@ def _enqueue_review_item_tasks(
                 task_type=REVIEW_ITEM_TASK,
                 inputs={
                     "checkpoint_seq": checkpoint_seq,
-                    "hypothesis_id": hypothesis.id,
-                    "hypothesis_index": index,
+                    "hypothesis_ids": [hypothesis.id for hypothesis in chunk],
                 },
-                idempotency_key=f"review:item:{checkpoint_seq}:{hypothesis.id}",
+                idempotency_key=f"review:batch:{checkpoint_seq}:{chunk[0].id}",
                 priority=85,
                 dependencies=(task.id,),
                 provenance={
@@ -415,7 +454,7 @@ def _enqueue_review_item_tasks(
             ),
             conn=conn,
         )
-        for index, hypothesis in enumerate(unreviewed)
+        for chunk in chunks
     ]
 
 
@@ -448,10 +487,8 @@ def _enqueue_review_fanout(
     *,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Durable production review leases one task per hypothesis; the
-    internal review node deliberately retains its comparative batch
-    behavior.
-    """
+    """Durable review leases one comparative batch per few ideas, so a
+    failed batch costs only its own ideas a retry next cycle."""
     from co_scientist.domains.research_state.models import has_peer_review
 
     unreviewed = [

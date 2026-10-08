@@ -278,10 +278,34 @@ def assess_hypothesis_claims(
         _plan_claim_group(hyp_id, records, candidates, spec.assessor_id, reuse or {})
         for hyp_id, records in per_hypothesis
     ]
-    grouped = assess_claim_groups([plan.to_assess for plan in plans], candidates, spec)
+    keys = [
+        [
+            claim_fingerprint(ClaimRecord(claim, role), candidates, spec.assessor_id)
+            for claim, role in plan.records
+            if claim in plan.to_assess
+        ]
+        for plan in plans
+    ]
+    # Ideas restating one claim against the same evidence share one check.
+    first: dict[str, tuple[int, int]] = {}
+    groups: list[list[str]] = []
+    for plan_index, (plan, plan_keys) in enumerate(zip(plans, keys, strict=True)):
+        group: list[str] = []
+        for claim, key in zip(plan.to_assess, plan_keys, strict=True):
+            if key not in first:
+                first[key] = (plan_index, len(group))
+                group.append(claim)
+        groups.append(group)
+    grouped = assess_claim_groups(groups, candidates, spec)
+    shared = sum(len(plan.to_assess) for plan in plans) - sum(len(group) for group in groups)
+    if shared:
+        logger.info("Claim grounding: %s claim checks shared across ideas", shared)
     return [
-        (plan.hypothesis_id, plan.merge(assessed))
-        for plan, assessed in zip(plans, grouped, strict=True)
+        (
+            plan.hypothesis_id,
+            plan.merge([grouped[first[key][0]][first[key][1]] for key in plan_keys]),
+        )
+        for plan, plan_keys in zip(plans, keys, strict=True)
     ]
 
 

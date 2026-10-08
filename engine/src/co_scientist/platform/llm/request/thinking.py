@@ -214,6 +214,29 @@ def apply_provider_constraints(completion_args: dict[str, Any], model_name: str)
     provider's wire rules.
     """
     profile = model_profile(model_name)
+    if model_name == "anthropic/claude-haiku-5-5":
+        # A thinking-off recovery would invalidate the shared cached prefix.
+        completion_args.pop("reasoning_effort", None)
+        extra = dict(completion_args.get("extra_body") or {})
+        extra.pop("thinking", None)
+        extra.pop("output_config", None)
+        for field in ("temperature", "top_p", "top_k"):
+            extra.pop(field, None)
+            completion_args.pop(field, None)
+        if extra:
+            completion_args["extra_body"] = extra
+        else:
+            completion_args.pop("extra_body", None)
+        # Bundled SDK metadata can lag a verified provider capability.
+        completion_args["allowed_openai_params"] = list(
+            dict.fromkeys([*completion_args.get("allowed_openai_params", []), "thinking"])
+        )
+        completion_args["thinking"] = {"type": "adaptive"}
+        completion_args["output_config"] = {"effort": "low"}
+        completion_args["max_tokens"] = max(
+            completion_args.pop("max_completion_tokens", completion_args.get("max_tokens", 0)),
+            THINKING_FLOOR_MAX_TOKENS,
+        )
     if profile.fixed_sampling:
         completion_args.pop("temperature", None)
         completion_args.pop("top_p", None)

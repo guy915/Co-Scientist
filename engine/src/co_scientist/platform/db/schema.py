@@ -1,4 +1,9 @@
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS launch_control (
+    id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL, drain INTEGER NOT NULL,
+    message TEXT NOT NULL, resumes_at REAL, revision INTEGER NOT NULL,
+    drain_generation INTEGER NOT NULL
+);
 -- Admission ledgers are independent of run deletion and survive restarts.
 CREATE TABLE IF NOT EXISTS anonymous_admissions (
     day INTEGER NOT NULL, host TEXT NOT NULL, client_id TEXT NOT NULL,
