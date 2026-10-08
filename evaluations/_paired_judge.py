@@ -42,7 +42,12 @@ def judge_pair(goal: str, main: str, branch: str, judge: Judge) -> dict[str, Any
     for index, packet in enumerate(orders):
         answer = judge(packet)
         choice = answer.get("winner")
-        if choice not in {"A", "B", "tie"} or not str(answer.get("rationale", "")).strip():
+        rationale = answer.get("rationale")
+        if (
+            choice not in {"A", "B", "tie"}
+            or not isinstance(rationale, str)
+            or not rationale.strip()
+        ):
             raise ValueError("judge must return A, B or tie and a rationale")
         winner = (
             "tie"
