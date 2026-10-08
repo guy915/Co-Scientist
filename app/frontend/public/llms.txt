@@ -1,10 +1,10 @@
-# AI Co-Scientist
+# Open Co-Scientist
 
-AI Co-Scientist is a multi-agent research workspace for creating goals, generating hypotheses, reviewing evidence, ranking ideas, and synthesizing reports.
+Open Co-Scientist is a multi-agent research workspace for creating goals, generating hypotheses, reviewing evidence, ranking ideas, and synthesizing reports.
 
 ## Primary pages
 
-- [Home](https://ai-co-scientist.com/): Workspace entry point.
+- [Home](https://open-coscientist.com): Workspace entry point.
 
 ## Notes
 

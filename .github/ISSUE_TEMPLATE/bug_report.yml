@@ -71,7 +71,7 @@ body:
       label: Where it happened
       options:
         - Local checkout
-        - Hosted site (ai-co-scientist.com)
+        - Hosted site (open-coscientist.com)
     validations:
       required: true
   - type: textarea

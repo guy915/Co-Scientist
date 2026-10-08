@@ -13,13 +13,17 @@ from fastapi.testclient import TestClient
 from tests._client import create_run as _create_run
 
 
+@pytest.mark.parametrize(
+    "origin_url", ["https://open-coscientist.com", "https://ai-co-scientist.com"]
+)
 def test_client_ids_isolate_runs_across_cors_and_event_streams(
     monkeypatch: pytest.MonkeyPatch,
     isolated_db: str,
+    origin_url: str,
 ) -> None:
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app)
-    origin = {"Origin": "https://ai-co-scientist.com"}
+    origin = {"Origin": origin_url}
     headers_a = {"X-Client-ID": "researcher-a"}
     headers_b = {"X-Client-ID": "researcher-b"}
     created = _create_run(client, "Private researcher goal", headers=headers_a)
@@ -28,13 +32,13 @@ def test_client_ids_isolate_runs_across_cors_and_event_streams(
 
     owned = client.get(f"/api/runs/{run_id}", headers={**headers_a, **origin})
     assert owned.status_code == 200
-    assert owned.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
+    assert owned.headers["access-control-allow-origin"] == origin_url
 
     runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
     events = client.get(f"/api/runs/{run_id}/events", headers={**headers_a, **origin})
     assert events.status_code == 200
     assert events.headers["content-type"].startswith("text/event-stream")
-    assert events.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
+    assert events.headers["access-control-allow-origin"] == origin_url
 
     assert client.get(f"/api/runs/{run_id}", headers=headers_b).status_code == 404
 
@@ -42,7 +46,7 @@ def test_client_ids_isolate_runs_across_cors_and_event_streams(
 def _configure_allowlisted_cors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FastAPI:
-    from co_scientist.main import app
+    from co_scientist.main import DEFAULT_ALLOWED_ORIGINS, _resolve_cors_config, app
     from fastapi.middleware.cors import CORSMiddleware
 
     cors = next(
@@ -50,7 +54,8 @@ def _configure_allowlisted_cors(
         for middleware in app.user_middleware
         if cast(Any, middleware.cls) is CORSMiddleware
     )
-    monkeypatch.setitem(cors.kwargs, "allow_origins", ["https://ai-co-scientist.com"])
+    origins, _ = _resolve_cors_config(DEFAULT_ALLOWED_ORIGINS)
+    monkeypatch.setitem(cors.kwargs, "allow_origins", origins)
     monkeypatch.setitem(cors.kwargs, "allow_credentials", True)
     monkeypatch.setattr(app, "middleware_stack", None)
     return app
@@ -68,13 +73,13 @@ def test_allowed_origin_can_read_ownership_denial(
         run_path,
         headers={
             "X-Client-ID": "different-client",
-            "Origin": "https://ai-co-scientist.com",
+            "Origin": "https://open-coscientist.com",
         },
     )
 
     assert response.status_code == 404
     assert response.json() == {"detail": "run not found"}
-    assert response.headers["access-control-allow-origin"] == ("https://ai-co-scientist.com")
+    assert response.headers["access-control-allow-origin"] == ("https://open-coscientist.com")
     assert response.headers["access-control-allow-credentials"] == "true"
     assert "origin" in response.headers["vary"].lower()
 
