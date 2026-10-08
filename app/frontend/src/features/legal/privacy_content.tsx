@@ -122,9 +122,12 @@ export function PrivacyContent() {
           until their run is deleted; browser keys and preferences remain until
           you remove them. Feedback is limited to 30 days, the newest 200
           submissions and 10 MiB. Local diagnostic logs have row limits rather
-          than a fixed expiry time. Abuse counters may survive deletion for
-          their limited admission purpose. Hashed erasure markers stay for 24
-          hours to block late background writes from recreating deleted work.
+          than a fixed expiry time. Spent abuse allowances survive deletion
+          under a seven-day expiry policy; expired counters and detached
+          receipts are cleaned hourly in bounded batches. A saved run's
+          host-admission mapping remains with that run. Hashed erasure markers
+          stay for 24 hours to block late background writes from recreating
+          deleted work.
         </p>
         <p>
           Deletion from the live service does not instantly remove older
