@@ -5,7 +5,6 @@ import datetime as dt
 import enum
 import functools
 import logging
-import re
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -13,6 +12,7 @@ from dataclasses import dataclass
 import httpx
 
 import co_scientist.platform.retrieval.retraction_set as retraction_set
+from co_scientist.core.text_matching import coverage, tokenize
 from co_scientist.platform.retrieval.pinned_http import (
     UnsafeUrlError,
     request_with_screened_redirects,
@@ -305,9 +305,6 @@ class CitationRecord:
     available: bool = True
 
 
-_WORD_RE = re.compile(r"[a-z0-9]+")
-
-
 @functools.lru_cache(maxsize=256)
 def _content_tokens(text: str) -> frozenset[str]:
     """Claims repeat across citations, so cache tokenization rather than repeat
@@ -318,7 +315,7 @@ def _content_tokens(text: str) -> frozenset[str]:
     # written bare, which docs/OPERATIONS.md requires to reach the top band.
     # Drop short function words so grammatical overlap cannot inflate apparent
     # claim support.
-    return frozenset(t for t in _WORD_RE.findall(text.lower()) if len(t) > 3)
+    return frozenset(tokenize(text, min_len=4))
 
 
 def _token_overlap(claim: str, abstract: str) -> float:
@@ -329,9 +326,7 @@ def _token_overlap(claim: str, abstract: str) -> float:
         return 0.0
     a = _content_tokens(claim)
     b = _content_tokens(abstract)
-    if not a or not b:
-        return 0.0
-    return len(a & b) / len(a)
+    return coverage(a, b)
 
 
 def classify_citation(record: CitationRecord) -> CitationState:
