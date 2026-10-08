@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from co_scientist.api.auth import principal_for_request
+from co_scientist.api.operator_access import has_admin_token
 from co_scientist.core.exceptions import StorageAdmissionError
 from co_scientist.platform.db import Error
 from co_scientist.platform.db.admission import connecting_host
@@ -51,14 +52,15 @@ class RequestLimitsMiddleware:
             await self.app(scope, receive, send)
             return
         request = Request(scope)
+        operator_control = path.rstrip("/") == "/api/launch-control" and has_admin_token(request)
         try:
-            owner = principal_for_request(request).subject
+            owner = "" if operator_control else principal_for_request(request).subject
         except HTTPException as exc:
             await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(
                 scope, receive, send
             )
             return
-        if await asyncio.to_thread(is_erased_owner, owner):
+        if not operator_control and await asyncio.to_thread(is_erased_owner, owner):
             await JSONResponse(
                 {"detail": "This browser identity was deleted; reload to start again"},
                 status_code=410,
@@ -66,6 +68,8 @@ class RequestLimitsMiddleware:
             return
         peer = connecting_host(request.client.host if request.client else None)
         limit, bucket, ceilings = _body_limits(path)
+        if operator_control:
+            limit, bucket, ceilings = 4096, "operator-control", (2, 2, 2)
         raw_length = request.headers.get("content-length")
         try:
             declared = int(raw_length) if raw_length is not None else 0
@@ -102,7 +106,7 @@ class RequestLimitsMiddleware:
                     return
                 if size is None:
                     return
-                if not path.endswith("/adjudicate"):
+                if not path.endswith("/adjudicate") and not operator_control:
                     try:
                         await asyncio.to_thread(_reserve_input, owner, peer, size)
                     except HTTPException as exc:
