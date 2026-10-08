@@ -16,6 +16,15 @@ from co_scientist.platform.db.logs import NewLogRecord
 from tests._client import make_client
 
 
+@pytest.fixture(autouse=True)
+def _isolated_ingest_rates(monkeypatch: pytest.MonkeyPatch) -> None:
+    from co_scientist.api import logs_api
+
+    # Database admission is already isolated by the shared fixture. Keep the
+    # process-local host/identity window equally independent between cases.
+    monkeypatch.setattr(logs_api, "_ingest_hits", {})
+
+
 def _record(message: str, level: int = logging.INFO) -> logging.LogRecord:
     return logging.LogRecord("app.synthetic", level, __file__, 1, message, (), None)
 
