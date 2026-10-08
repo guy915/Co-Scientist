@@ -152,7 +152,11 @@ def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[st
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
-        reasoning["effort"] = profile.pinned_effort or _REASONING_EFFORT
+        if lowered == "openrouter/inclusionai/ling-3.1-flash":
+            effort = current_call_policy().effort
+            reasoning["effort"] = "low" if effort == "none" else effort
+        else:
+            reasoning["effort"] = profile.pinned_effort or _REASONING_EFFORT
     body["reasoning"] = reasoning
     return body
 

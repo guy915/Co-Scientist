@@ -51,6 +51,22 @@ CREATE TABLE IF NOT EXISTS anthropic_credit (
     prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, cache_write_tokens INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_anthropic_credit_cycle ON anthropic_credit(cycle_start);
+CREATE TABLE IF NOT EXISTS llm_routes (
+    run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+    slot TEXT NOT NULL, azure_allowed INTEGER NOT NULL,
+    forecast_microeur INTEGER NOT NULL CHECK(forecast_microeur >= 0)
+);
+CREATE TABLE IF NOT EXISTS llm_route_blocks (
+    slot TEXT PRIMARY KEY, unavailable_until REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS llm_free_calls (
+    day INTEGER PRIMARY KEY, calls INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS llm_forecast_allocations (
+    receipt_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES llm_routes(run_id) ON DELETE CASCADE,
+    converted_microeur INTEGER NOT NULL CHECK(converted_microeur >= 0)
+);
 CREATE TABLE IF NOT EXISTS run_call_admissions (
     run_id TEXT PRIMARY KEY, calls INTEGER NOT NULL, ceiling INTEGER NOT NULL
 );

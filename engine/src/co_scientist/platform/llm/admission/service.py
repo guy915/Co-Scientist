@@ -43,6 +43,16 @@ def scoped_app_admission() -> Iterator[None]:
 _client: ContextVar[str] = ContextVar("provider_usage_client", default="")
 _host: ContextVar[str] = ContextVar("provider_usage_host", default=UNKNOWN_HOST)
 _path: ContextVar[str | None] = ContextVar("provider_usage_path", default=None)
+_free_ceiling: ContextVar[int | None] = ContextVar("free_route_ceiling", default=None)
+
+
+@contextmanager
+def scoped_free_route(ceiling: int | None) -> Iterator[None]:
+    token = _free_ceiling.set(ceiling)
+    try:
+        yield
+    finally:
+        _free_ceiling.reset(token)
 
 
 def current_db_path() -> str:
@@ -104,7 +114,14 @@ def reserve_physical(
     spend = prepare_spend(request, tokens, path)
     credit = prepare_credit(request, tokens, path)
     return reserve_provider(
-        _client.get(), _host.get(), tokens, app=app, db_path=path, spend=spend, credit=credit
+        _client.get(),
+        _host.get(),
+        tokens,
+        app=app,
+        db_path=path,
+        spend=spend,
+        credit=credit,
+        free_daily_ceiling=_free_ceiling.get(),
     )
 
 
