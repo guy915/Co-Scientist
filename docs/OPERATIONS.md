@@ -203,6 +203,10 @@ Unknown outcomes on coordinator tasks still stop the run. Lost leases may retry
 only under persisted zero-price admission, without caller keys: the
 `zero_cost_admission` stamp a free run on all-free routes gets at creation,
 which binds its engine tasks to zero-price-only requests. Unstamped runs fail closed.
+A restart does not wait out the 300 s lease: graceful shutdown releases the
+process's own leases, and startup recovery expires every live lease on an
+unpaused run whose owner lacks the new process tag (`expire_earlier_process_leases`,
+sound only at one api replica), so the rules above decide it within seconds.
 
 Verification issuance markers survive failed attempts and checkpoint restore;
 otherwise recovery funds the same evidence pass again. Periodic companion nodes

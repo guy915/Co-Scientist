@@ -199,6 +199,25 @@ def _message(*, refused: bool) -> dict[str, Any]:
     }
 
 
+def test_native_sdk_header_metadata_stays_local_from_a_cold_cache(
+    providers: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from litellm import anthropic_beta_headers_manager as beta_headers
+
+    requested: list[str] = []
+
+    def unexpected_metadata(url: str, **kwargs: Any) -> httpx.Response:
+        requested.append(url)
+        raise RuntimeError("Metadata network access is unavailable")
+
+    monkeypatch.setattr(beta_headers, "_BETA_HEADERS_CONFIG", None)
+    monkeypatch.setattr(httpx, "get", unexpected_metadata)
+    loaded = beta_headers.reload_beta_headers_config()
+    assert loaded["anthropic"]
+    assert loaded == beta_headers.GetAnthropicBetaHeadersConfig.load_local_beta_headers_config()
+    assert requested == []
+
+
 def _no_writer(path: str) -> None:
     with connect(path) as conn:
         conn.execute("PRAGMA busy_timeout=0")
