@@ -10,9 +10,11 @@ export function afterFirstView(callback: () => void): void {
         ...animations.map(animation => animation.finished),
       ]).then(() => {
         requestAnimationFrame(() => {
-          if (window.requestIdleCallback)
-            window.requestIdleCallback(callback, {timeout: 2000});
-          else window.setTimeout(callback, 0);
+          requestAnimationFrame(() => {
+            if (window.requestIdleCallback)
+              window.requestIdleCallback(callback, {timeout: 2000});
+            else window.setTimeout(callback, 0);
+          });
         });
       });
     });

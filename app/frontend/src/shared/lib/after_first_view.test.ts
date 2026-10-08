@@ -70,6 +70,8 @@ it('waits for fonts and finite entry motion, ignores loops, and schedules idle w
   await Promise.resolve();
   expect(frames).toHaveLength(1);
   frames.shift()!(16);
+  expect(idle).not.toHaveBeenCalled();
+  frames.shift()!(32);
   expect(callback).not.toHaveBeenCalled();
   expect(idle).toHaveBeenCalledWith(callback, {timeout: 2000});
   idle.mock.calls[0][0]();
