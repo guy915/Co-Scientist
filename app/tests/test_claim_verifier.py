@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -22,6 +23,7 @@ from co_scientist.domains.research_state.claims.verifier import (
     make_llm_batch_assessor,
 )
 from co_scientist.platform.llm import scoped_telemetry
+from co_scientist.platform.llm.attempts import retry
 from litellm.exceptions import RateLimitError
 
 from ._llm_fake_backend import (
@@ -553,6 +555,8 @@ def test_unavailable_verification_is_observable_without_deterministic_fallback(
 def test_verification_propagates_task_control_errors(
     monkeypatch: pytest.MonkeyPatch, error: Exception, expected: type[Exception]
 ) -> None:
+    # A daily cap within 90 seconds of midnight uses retry rather than durable parking.
+    monkeypatch.setattr(retry, "time", SimpleNamespace(time=lambda: 1_700_000_000.0))
     _install_replies(monkeypatch, [_draft(), error])
     with pytest.raises(expected):
         _assess_opposition()
