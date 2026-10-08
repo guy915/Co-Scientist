@@ -5,6 +5,7 @@ import dataclasses
 import hashlib
 import logging
 import weakref
+from collections.abc import Callable, Coroutine
 from typing import Any, NamedTuple
 
 from co_scientist.core.constants import (
@@ -249,18 +250,41 @@ def _evidence_key(state: WorkflowState, hypothesis: Hypothesis) -> str:
 async def _shared_review_evidence(state: WorkflowState, hypothesis: Hypothesis) -> _ReviewEvidence:
     """Concurrent full/simulation reviews share one flight to avoid duplicate
     spend; evict failed flights so retries get a fresh attempt."""
+    return await _shared_flight(state, hypothesis, _retrieve_review_evidence)
+
+
+async def finalist_review_evidence(state: WorkflowState, hypothesis: Hypothesis) -> _ReviewEvidence:
+    """Targeted retrieval belongs to verification, which searches with the
+    review's own queries; deep tiers still fund their research loop."""
+    return await _shared_flight(state, hypothesis, _retrieve_finalist_evidence)
+
+
+async def _shared_flight(
+    state: WorkflowState,
+    hypothesis: Hypothesis,
+    retrieve: Callable[[WorkflowState, Hypothesis], Coroutine[Any, Any, _ReviewEvidence]],
+) -> _ReviewEvidence:
     loop = asyncio.get_running_loop()
     flights = _review_evidence_flights.setdefault(loop, {})
     key = _evidence_key(state, hypothesis)
     flight = flights.get(key)
     if flight is None:
-        flight = loop.create_task(_retrieve_review_evidence(state, hypothesis))
+        flight = loop.create_task(retrieve(state, hypothesis))
         flights[key] = flight
     try:
         return await flight
     except Exception:
         flights.pop(key, None)
         raise
+
+
+async def _retrieve_finalist_evidence(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> _ReviewEvidence:
+    research = await _research_for_review(state, hypothesis)
+    if research is None:
+        return _ReviewEvidence([], [], [])
+    return _ReviewEvidence([], research.articles, [], research.ledger)
 
 
 async def _retrieve_review_evidence(
