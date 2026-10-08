@@ -28,7 +28,7 @@ describe('chat workspace home', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('AI Co-Scientist')).toBeNull();
     expect(
-      screen.getByText('Start a new research goal to begin'),
+      screen.getByPlaceholderText('Start a new research goal to begin'),
     ).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeInTheDocument();
     expect(
