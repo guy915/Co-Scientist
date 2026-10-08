@@ -459,8 +459,9 @@ jobs:
         # Each job launches its own isolated stack, so they share nothing.
         # Playwright shards whole files; the first shard holds the slowest.
         include:
-          - {name: shard 1/2, suite: e2e, args: --shard=1/2}
-          - {name: shard 2/2, suite: e2e, args: --shard=2/2}
+          - {name: shard 1/3, suite: e2e, args: --shard=1/3}
+          - {name: shard 2/3, suite: e2e, args: --shard=2/3}
+          - {name: shard 3/3, suite: e2e, args: --shard=3/3}
           - {name: production, suite: e2e-production, args: ''}
     # Setup plus the isolated stack share the job timeout.
     timeout-minutes: 25
