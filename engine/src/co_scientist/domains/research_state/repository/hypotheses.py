@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.domains.research_state.hypothesis_fields import HYPOTHESIS_FIELDS
 from co_scientist.domains.research_state.elo import INITIAL_ELO
 from co_scientist.platform.db import connect, current_time, use_conn
 
@@ -178,7 +179,7 @@ def update_hypothesis_state(
 
 # Safety redaction is the sole sanctioned mutation of otherwise append-only
 # hypothesis text.
-_REDACTABLE_COLUMNS = frozenset({"mechanism", "expected_effect", "experimental_context"})
+_REDACTABLE_COLUMNS = frozenset(field.store for field in HYPOTHESIS_FIELDS if field.redacted)
 
 
 def redact_hypothesis_fields(

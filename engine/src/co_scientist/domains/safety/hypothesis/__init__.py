@@ -10,6 +10,7 @@ from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.hypotheses import HypothesisStateChanges
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
+from co_scientist.domains.safety.hypothesis_text import redactable_fields, screened_text
 from co_scientist.domains.safety.hypothesis.safety import (
     EscalatedVerdict,
     HeldHypothesis,
@@ -21,15 +22,6 @@ from co_scientist.domains.safety.hypothesis.safety import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Screen detail fields with the headline so an innocuous statement cannot hide
-# an unsafe mechanism or experiment.
-_SCREENED_FIELDS = (
-    "statement",
-    "mechanism",
-    "expected_effect",
-    "experimental_context",
-)
 
 _REDACTING_OUTCOMES = frozenset({HypothesisSafetyOutcome.REDACT, HypothesisSafetyOutcome.DUAL_USE})
 
@@ -44,12 +36,11 @@ _STICKY_STATUSES = frozenset(o.value for o in _REDACTING_OUTCOMES) | frozenset(
 
 # Hide every screened field but the statement, which stays so the hypothesis
 # remains rankable.
-_REDACTED_FIELDS = ("mechanism", "expected_effect", "experimental_context")
+_REDACTED_FIELDS = redactable_fields("store")
 
 
 def hypothesis_text(hyp: Mapping[str, Any]) -> str:
-    parts = [str(hyp.get(field) or "") for field in _SCREENED_FIELDS]
-    return "\n".join(part for part in parts if part)
+    return screened_text(hyp, "store")
 
 
 def _apply_redaction(

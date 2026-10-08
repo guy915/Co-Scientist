@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypeAlias
 
+from co_scientist.domains.safety.hypothesis_text import redact_value
 from co_scientist.core.async_bridge import propagate_context
 from co_scientist.domains.safety.rules import (
     POLICY_VERSION,
@@ -82,19 +83,7 @@ HypothesisSafetyReview: TypeAlias = SafetyReview
 
 
 def redact_fields(fields: dict[str, str]) -> dict[str, str]:
-    # Both naming conventions, because engine and store names reach this.
-    sensitive = {
-        "mechanism",
-        "expected_effect",
-        "explanation",
-        "experiment",
-        "experimental_context",
-        "literature_grounding",
-    }
-    return {
-        key: (REDACTED_PLACEHOLDER if key in sensitive and value else value)
-        for key, value in fields.items()
-    }
+    return {key: redact_value(key, value) or value for key, value in fields.items()}
 
 
 async def escalate_review(

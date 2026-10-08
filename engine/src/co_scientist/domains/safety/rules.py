@@ -7,6 +7,11 @@ import dataclasses
 import enum
 import re
 
+from co_scientist.domains.safety.hypothesis_text import (
+    REDACTED_PLACEHOLDER as REDACTED_PLACEHOLDER,
+    redact_value,
+)
+
 
 def _patterns(*sources: str) -> tuple[re.Pattern[str], ...]:
     return tuple(re.compile(s, re.IGNORECASE) for s in sources)
@@ -152,8 +157,6 @@ _CONTENT_DUAL_USE = _patterns(
 
 
 POLICY_VERSION = "coscientist-safety-v5"
-
-REDACTED_PLACEHOLDER = "[REDACTED FOR SAFETY]"
 
 
 class SafetyOutcome(str, enum.Enum):
@@ -419,7 +422,7 @@ def redact_hypothesis_fields(
     """
     return (
         text,
-        REDACTED_PLACEHOLDER if explanation else explanation,
-        REDACTED_PLACEHOLDER if experiment else experiment,
-        REDACTED_PLACEHOLDER if literature_grounding else literature_grounding,
+        redact_value("explanation", explanation),
+        redact_value("experiment", experiment),
+        redact_value("literature_grounding", literature_grounding),
     )
