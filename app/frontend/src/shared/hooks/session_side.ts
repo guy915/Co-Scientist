@@ -1,4 +1,6 @@
 import {useEffect} from 'react';
+import {useLocation} from 'react-router-dom';
+import {chatPath, runPath} from '@/shared/lib/routes';
 import {
   readStorage,
   STORAGE_KEYS,
@@ -14,6 +16,8 @@ const STORAGE_PREFIX = STORAGE_KEYS.sessionSidePrefix;
 // New sessions inherit the reader’s last switch position unless they have their
 // own memory.
 const LAST_SIDE_KEY = STORAGE_KEYS.lastSessionSide;
+
+const TAB_PREFIX = STORAGE_KEYS.sessionTabPrefix;
 
 function isSide(value: unknown): value is SessionSide {
   return value === 'chat' || value === 'results';
@@ -46,4 +50,32 @@ export function useRecordSessionSide(
   useEffect(() => {
     if (runId && side) writeSessionSide(runId, side);
   }, [runId, side]);
+}
+
+// Results reopen on the tab last viewed for that run; runPath falls back to
+// the default tab for an unknown or missing one.
+export function resultsPath(runId: string): string {
+  return runPath(runId, readStorage('local', TAB_PREFIX + runId) ?? undefined);
+}
+
+// Every way back to a run (sidebar, recents, the switch) lands where the
+// reader left it: the chat, or the Results tab.
+export function sessionEntryPath(
+  runId: string,
+  chatId: string | undefined,
+): string {
+  return chatId && preferredSessionSide(runId) === 'chat'
+    ? chatPath(chatId)
+    : resultsPath(runId);
+}
+
+// Runs without a chat have no session switch side, but still keep their tab.
+export function useRecordRunTab(): void {
+  const {pathname} = useLocation();
+  useEffect(() => {
+    const [, section, runId, tab] = pathname.split('/');
+    if (section === 'runs' && runId && tab) {
+      writeStorage('local', TAB_PREFIX + runId, tab);
+    }
+  }, [pathname]);
 }

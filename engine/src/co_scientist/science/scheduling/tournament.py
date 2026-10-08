@@ -1,13 +1,30 @@
 import logging
+from collections.abc import Sequence
 
 from co_scientist.core.constants import (
     TOURNAMENT_MATCHES_PER_HYPOTHESIS,
     TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,
 )
-from co_scientist.domains.research_state.models import Hypothesis, has_peer_review
+from co_scientist.domains.research_state.models import Hypothesis, has_peer_review, rank_by_elo
 from co_scientist.domains.research_state.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+# Checkpoints before the per-tier count featured five ideas.
+DEFAULT_FINALISTS = 5
+
+
+def finalist_count(state: WorkflowState) -> int:
+    raw = (state.get("budget") or {}).get("finalists")
+    try:
+        return max(1, int(raw)) if raw is not None else DEFAULT_FINALISTS
+    except (TypeError, ValueError):
+        return DEFAULT_FINALISTS
+
+
+def ranked_leaders(hypotheses: Sequence[Hypothesis], count: int) -> list[Hypothesis]:
+    # Seed Elo is not an earned rank.
+    return rank_by_elo([h for h in hypotheses if h.total_matches])[:count]
 
 
 def consumed_tournament_rounds(state: WorkflowState) -> int:

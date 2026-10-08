@@ -67,3 +67,11 @@ it('truncates on a word boundary and appends an ellipsis', async () => {
     'abc def ghi jkl mno…',
   );
 });
+
+it('drops punctuation left before the ellipsis', async () => {
+  const {container} = render(
+    <TruncatedLabel text="Map one target, followed by more" />,
+  );
+  await flushNextFrame();
+  expect(container.querySelector('span')!.textContent).toBe('Map one target…');
+});

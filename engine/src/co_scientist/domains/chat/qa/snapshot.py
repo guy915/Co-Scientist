@@ -7,6 +7,7 @@ from typing import Any
 
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.report import repository as reports
+from co_scientist.domains.research_state.hypothesis_fields import store_text_fields
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform.db import checkpoints, supervisor_plan
@@ -63,10 +64,7 @@ def idea_view(raw: dict[str, Any]) -> dict[str, Any]:
     return {
         **raw,
         "title": raw.get("title") or str(raw.get("text") or "Untitled")[:160],
-        "statement": raw.get("text") or "",
-        "mechanism": raw.get("literature_grounding") or "",
-        "expected_effect": raw.get("explanation") or "",
-        "experimental_context": raw.get("experiment") or "",
+        **store_text_fields(raw),
         "status": raw.get("review_disposition")
         or ("reviewed" if raw.get("reviews") else "unreviewed"),
         "verification_verdict": raw.get("deep_verification_verdict"),
