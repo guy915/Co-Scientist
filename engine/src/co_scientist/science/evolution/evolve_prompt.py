@@ -27,6 +27,11 @@ from co_scientist.science.prompts._common import (
     _format_bullet_list,
     _format_run_guidance,
 )
+from co_scientist.science.prompts.context_budget import (
+    compact_json_context,
+    select_evidence_excerpt,
+    summarize_references,
+)
 from co_scientist.science.prompts.generation_draft import (
     _build_citation_reference_section,
 )
@@ -166,7 +171,7 @@ def _specialist_feedback_for(state: WorkflowState, hypothesis: Hypothesis) -> st
     mature_reviews = mature_review_summary(hypothesis.enrichments)
     if mature_reviews is not None:
         ledger["mature_reviews"] = mature_reviews
-    return json.dumps(ledger, indent=2)[:8000]
+    return compact_json_context(json.dumps(ledger), 4_000)
 
 
 def _sample_up_to(pool: list[Hypothesis], count: int, rng: random.Random) -> list[Hypothesis]:
@@ -453,13 +458,17 @@ def _build_evolution_variables(
     variables["run_guidance"] = _format_run_guidance(
         context.run_setup_guidance, context.run_focus_guidance
     )
-    variables["articles_with_reasoning"] = context.articles_with_reasoning or ""
+    variables["articles_with_reasoning"] = select_evidence_excerpt(
+        context.articles_with_reasoning or "", hypothesis.text, 6_000
+    )
     # The schema permits only supplied C* keys; no reference index would force a
     # child to disclaim grounding or invent unresolvable citations.
     variables["citation_reference_section"] = _build_citation_reference_section(
-        context.reference_index.text if context.reference_index else ""
+        summarize_references(context.reference_index.text) if context.reference_index else ""
     )
-    variables["enhancement_grounding"] = grounding_evidence
+    variables["enhancement_grounding"] = select_evidence_excerpt(
+        grounding_evidence, hypothesis.text, 6_000
+    )
     variables["partner_context"] = _format_partner_context(operation.partners, operation.operator)
     state: Mapping[str, Any] = context.state or {}
     variables["falsified_assumptions_section"] = build_falsified_assumptions_section(
@@ -484,15 +493,18 @@ def _base_evolution_variables(
 ) -> dict[str, Any]:
     return {
         "original_hypothesis": hypothesis.text,
-        "review_feedback": _build_review_feedback(hypothesis),
-        "meta_review_insights": json.dumps(
-            {
-                "common_strengths": meta_review.get("common_strengths", []),
-                "common_weaknesses": meta_review.get("common_weaknesses", []),
-                "strategic_recommendations": meta_review.get("strategic_recommendations", []),
-                "emerging_themes": meta_review.get("emerging_themes", []),
-            },
-            indent=2,
+        "review_feedback": compact_json_context(_build_review_feedback(hypothesis), 3_000),
+        "meta_review_insights": compact_json_context(
+            json.dumps(
+                {
+                    "common_strengths": meta_review.get("common_strengths", []),
+                    "common_weaknesses": meta_review.get("common_weaknesses", []),
+                    "strategic_recommendations": meta_review.get("strategic_recommendations", []),
+                    "emerging_themes": meta_review.get("emerging_themes", []),
+                },
+                indent=2,
+            ),
+            3_000,
         ),
         "supervisor_guidance": _build_supervisor_guidance_text(supervisor_guidance),
     }
