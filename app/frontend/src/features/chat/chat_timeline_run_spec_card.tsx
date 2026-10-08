@@ -16,6 +16,8 @@ import {
 } from '@/shared/ui/classes';
 import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
+import {useLaunchStatus} from '@/shared/hooks/launch_status_context';
+import {LAUNCH_NOTICE_ID} from '@/shared/ui/launch_status_banner';
 import {
   type InferredRunSpec,
   availableTierOptions,
@@ -278,6 +280,7 @@ function RunSpecActions({
   onStart: () => void;
   canStart: boolean;
 }) {
+  const {status, runBlocked} = useLaunchStatus();
   return (
     <div className={SETUP_ACTIONS_CLASSES}>
       {!locked && (
@@ -286,17 +289,24 @@ function RunSpecActions({
         </Button>
       )}
       <Button
+        aria-describedby={status?.message ? LAUNCH_NOTICE_ID : undefined}
+        title={status?.message ?? undefined}
         aria-busy={isStarting}
         onClick={onStart}
         disabled={startActionDisabled({
           isStarting,
           locked,
           recoveryAction,
-          canStart,
+          canStart: canStart && !runBlocked,
         })}
       >
         {startActionLabel(isStarting, recoveryAction)}
       </Button>
+      {status?.message && (
+        <p className="m-0 basis-full break-words text-sm text-cosci-muted">
+          {status.message}
+        </p>
+      )}
       {isStarting && (
         <span className="sr-only" role="status" aria-live="polite">
           {startStatusMessage(recoveryAction)}

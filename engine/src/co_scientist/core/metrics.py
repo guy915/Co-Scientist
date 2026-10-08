@@ -21,6 +21,7 @@ class ModelCallStats:
     reasoning_tokens: int = 0
     cached_prompt_tokens: int = 0
     cache_write_tokens: int = 0
+    refusals: int = 0
     cost_usd: float = 0.0
     latency_seconds: float = 0.0
     retries: int = 0

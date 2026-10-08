@@ -16,7 +16,7 @@ API_URL := http://localhost:8008
 UI_URL  := http://localhost:5173
 
 help:
-	@echo "Open Co-Scientist — root commands"
+	@echo "Co-Scientist — root commands"
 	@echo "  make setup        Create .venv, install engine (editable, dev extras), install frontend"
 	@echo "  make start        One command: install missing deps, free ports, run MCP + API + UI, open browser"
 	@echo "  make stop         Stop anything listening on the dev ports (8008/5173/8888)"
@@ -74,7 +74,7 @@ $(VENV)/bin/activate:
 
 start: preflight
 	@echo ""
-	@echo "Open Co-Scientist — dev URLs"
+	@echo "Co-Scientist — dev URLs"
 	@echo "  API   : $(API_URL)"
 	@echo "  UI    : $(UI_URL)"
 	@echo ""
@@ -119,7 +119,7 @@ open-when-ready:
 	open "$(UI_URL)" 2>/dev/null || xdg-open "$(UI_URL)" 2>/dev/null || echo ">> Open $(UI_URL) in your browser"
 
 stop:
-	@echo ">> Stopping Open Co-Scientist dev servers (ports 8008/5173/8888)"
+	@echo ">> Stopping Co-Scientist dev servers (ports 8008/5173/8888)"
 	@# Kill only listeners on the dev ports. uvicorn --reload
 	@# and vite run under a supervising parent that respawns the listener, so
 	@# take out the parent too when it is a python/node/bun process.
