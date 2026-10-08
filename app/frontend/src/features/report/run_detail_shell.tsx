@@ -323,7 +323,7 @@ export function ReportList({title, values}: {title: string; values: string[]}) {
   if (!values.length) return null;
   return (
     <section className="cosci-report-list">
-      <h4 className={REPORT_H4_CLASSES}>{title}:</h4>
+      <h3 className={REPORT_H4_CLASSES}>{title}:</h3>
       <ul className={REPORT_LIST_CLASSES}>
         {values.map(value => (
           <li key={value}>{capitalizeTerm(value)}</li>
