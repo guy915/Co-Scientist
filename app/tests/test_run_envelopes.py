@@ -59,9 +59,9 @@ _PHASES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("claims", ("claim_verifier",)),
     ("plan_literature", ("supervisor", "literature_review")),
     ("generation", ("generation", "generate")),
+    ("loop", ("meta_review", "evolve", "proximity", "orchestrator")),
     ("critique", ("reflection", "review", "verification", "safety")),
     ("tournament", ("ranking",)),
-    ("loop", ("meta_review", "evolve", "proximity", "orchestrator")),
     ("overview", ("research_overview",)),
 )
 _UUID = re.compile(r"_[0-9a-f]{8}-[0-9a-f-]+$")
