@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Compose installs its mounted engine at startup; Railway bakes source into its image.
+# Compose installs its mounted engine and its dependencies at startup; Railway bakes them into its image.
 # Digest pins keep base images reproducible.
 FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b
 
@@ -9,10 +9,6 @@ RUN apt-get update && apt-get install -y \
     git \
     tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
-
-# Startup installs the mounted engine checkout; requirements-app.txt supplies the app runtime closure.
-COPY requirements-app.txt ./
-RUN pip install --no-cache-dir -r requirements-app.txt
 
 RUN mkdir -p /app/cache
 

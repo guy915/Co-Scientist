@@ -17,7 +17,7 @@ UI_URL  := http://localhost:5173
 
 help:
 	@echo "Co-Scientist — root commands"
-	@echo "  make setup        Create .venv, install engine (editable) + app (editable), install frontend"
+	@echo "  make setup        Create .venv, install engine (editable, dev extras), install frontend"
 	@echo "  make start        One command: install missing deps, free ports, run MCP + API + UI, open browser"
 	@echo "  make stop         Stop anything listening on the dev ports (8008/5173/8888)"
 	@echo "  make dev-api      Run FastAPI dev server   ($(API_URL))"
@@ -46,11 +46,6 @@ help:
 setup: check-tools $(VENV)/bin/activate
 	@echo ">> Installing engine (editable)"
 	@$(PIP) install -e "$(ENGINE)[dev]"
-	@echo ">> Installing app (editable, dev extras)"
-	@# Skip the PyPI co-scientist-engine pin (we have it editable already from $(ENGINE))
-	@$(PIP) install -e "$(APP)[dev]" --no-deps
-	@# App runtime deps are single-sourced from pyproject via requirements-app.txt.
-	@$(PIP) install -r "$(APP)/requirements-app.txt"
 	@# Reference MCP server is optional and pins Python 3.12, so we don't install it here.
 	@echo ">> Installing frontend from bun.lock"
 	@cd "$(FRONTEND)" && "$(BUN)" install --frozen-lockfile
