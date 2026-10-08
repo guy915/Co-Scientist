@@ -8,7 +8,7 @@ if (process.env.COSCI_E2E_PRODUCTION !== "1") {
 export default defineConfig({
   ...base,
   testDir: "./production",
-  grep: /@keyboard-(menu|progress)/,
+  grep: /@keyboard-(menu|semantics|progress)/,
   projects: [
     {
       name: "webkit",
