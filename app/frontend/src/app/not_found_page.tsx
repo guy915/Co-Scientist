@@ -43,7 +43,7 @@ function upsertMeta(name: string, content: string) {
 // route overwrites them without an indexable gap.
 export function NoIndex({title}: {title: string}) {
   useEffect(() => {
-    document.title = `${title} - Co-Scientist`;
+    document.title = `${title} - Open Co-Scientist`;
     upsertMeta('description', 'Co-Scientist research workspace.');
     upsertMeta('robots', 'noindex, nofollow');
     upsertMeta('googlebot', 'noindex, nofollow');
