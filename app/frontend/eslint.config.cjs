@@ -102,7 +102,6 @@ module.exports = defineConfig([
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
-      '.vercel/**',
       'scripts/**',
       'eslint.config.cjs',
       '.prettierrc.cjs',

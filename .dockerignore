@@ -17,7 +17,7 @@
 .agents
 .claude
 .superpowers
-.vercel
+.wrangler
 **/.venv*
 **/node_modules
 **/__pycache__

@@ -12,7 +12,7 @@ on:
       source_runs:
         description: Completed real-backend Benchmark run IDs, comma separated
         type: string
-        default: '37638093312,37619174808,37598146898,37572259558,37566987457,37558737903,37558735897'
+        required: true
 
 permissions:
   contents: read

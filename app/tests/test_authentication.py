@@ -13,9 +13,7 @@ from fastapi.testclient import TestClient
 from tests._client import create_run as _create_run
 
 
-@pytest.mark.parametrize(
-    "origin_url", ["https://open-coscientist.com", "https://ai-co-scientist.com"]
-)
+@pytest.mark.parametrize("origin_url", ["https://open-coscientist.com"])
 def test_client_ids_isolate_runs_across_cors_and_event_streams(
     monkeypatch: pytest.MonkeyPatch,
     isolated_db: str,
