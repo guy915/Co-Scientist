@@ -150,6 +150,7 @@ async def _call_semantic_safety_model(text: str, stage: str, model: str) -> dict
     # deployment's account.
     resolved_model, api_key = byok_scope.byok_model_and_key(model)
     spec = CompletionSpec(
+        role="safety",
         model_name=resolved_model,
         max_tokens=1_000,
         temperature=0,

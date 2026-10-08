@@ -85,6 +85,7 @@ async def _parent_search_queries(state: WorkflowState, hypothesis: Hypothesis) -
                 hypothesis=hypothesis.text,
             ),
             spec=CompletionSpec(
+                role="grounding_queries",
                 model_name=state["model_name"],
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,
