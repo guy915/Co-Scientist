@@ -121,6 +121,7 @@ async def _run_final_debate_turn(
     response = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="generation",
             model_name=state["model_name"],
             max_tokens=scaled_max_tokens(
                 EXTENDED_MAX_TOKENS,
@@ -202,6 +203,7 @@ async def _run_debate_turns(
         response_text = await call_llm(
             prompt=prompt,
             spec=CompletionSpec(
+                role="generation",
                 model_name=state["model_name"],
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=HIGH_TEMPERATURE,

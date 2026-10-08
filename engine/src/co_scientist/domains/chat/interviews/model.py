@@ -494,6 +494,7 @@ async def _run_interview_completion(
         else thinking_off_kwargs(model)
     )
     response = await llm_request.acompletion(
+        call_role="interview",
         model=model,
         messages=messages,
         temperature=0.3,

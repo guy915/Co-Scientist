@@ -56,6 +56,7 @@ async def _call_claim_json_async(
 
     resolved_model, api_key = byok_scope.byok_model_and_key(model)
     spec = CompletionSpec(
+        role="claims",
         model_name=resolved_model,
         api_key=api_key,
         max_tokens=request.max_tokens,

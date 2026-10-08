@@ -3,7 +3,6 @@ import dataclasses
 import hashlib
 import logging
 import re
-import statistics
 import weakref
 from typing import Any, Final, NamedTuple
 
@@ -545,6 +544,7 @@ async def _call_matchup_judge(
         return await call_llm_json(
             prompt=mp.prompt,
             spec=CompletionSpec(
+                role="ranking",
                 model_name=ctx.model_name,
                 max_tokens=THINKING_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,
@@ -628,18 +628,3 @@ async def judge_matchup(
     votes, run, response = await _run_debate_turns(ctx, turns, base, fallback)
     winner = _finalize_debate_response(response, votes, run, ctx.model_name)
     return winner, response
-
-
-def _median_elo(hypotheses: list[Hypothesis]) -> float:
-    if not hypotheses:
-        return 0.0
-    return statistics.median(h.elo_rating for h in hypotheses)
-
-
-def _matchup_debate_turns(hyp_a: Hypothesis, hyp_b: Hypothesis, median_elo: float) -> int:
-    """The maximum is a ceiling for contested top-ranked matchups; adaptive
-    consensus stops settled debates before spending the full depth."""
-    top_ranked = hyp_a.elo_rating >= median_elo or hyp_b.elo_rating >= median_elo
-    if top_ranked:
-        return _RANKING_DEBATE_MAX_TURNS
-    return SINGLE_TURN_DEBATE_TURNS

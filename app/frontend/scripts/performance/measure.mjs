@@ -71,8 +71,9 @@ for (const theme of ['light', 'dark']) {
       ? []
       : (process.env.FP_DEVICES || 'mobile,desktop').split(',')) {
       for (const [name, route] of Object.entries(pages)) {
-        await session.send('Network.clearBrowserCache');
+        // Stop delayed imports before clearing the previous page's cache.
         await page.goto('about:blank');
+        await session.send('Network.clearBrowserCache');
         const options = {
           port: chrome.port,
           output: 'json',
@@ -89,6 +90,14 @@ for (const theme of ['light', 'dark']) {
         if (result.lhr.runtimeError)
           throw new Error(JSON.stringify(result.lhr.runtimeError));
         const audits = result.lhr.audits;
+        const cachedAsset = audits['network-requests'].details.items.find(
+          item =>
+            item.url.startsWith(origin + '/assets/') &&
+            item.transferSize === 0 &&
+            ['Script', 'Stylesheet', 'Font'].includes(item.resourceType),
+        );
+        if (cachedAsset)
+          throw new Error(`Cold audit reused an asset: ${cachedAsset.url}`);
         const resources = audits['resource-summary'].details.items;
         const row = {
           page: name,

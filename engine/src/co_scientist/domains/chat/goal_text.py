@@ -132,6 +132,7 @@ async def _request_completion(
     )
     return await asyncio.wait_for(
         llm_request.acompletion(
+            call_role="goal_text",
             model=model,
             messages=[
                 {"role": "system", "content": request.system_prompt},
