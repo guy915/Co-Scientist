@@ -46,6 +46,9 @@ from co_scientist.orchestration.repository.tasks_lifecycle import (
     queue_health_snapshot as queue_health_snapshot,
 )
 from co_scientist.orchestration.repository.tasks_lifecycle import (
+    release_owned_leases as release_owned_leases,
+)
+from co_scientist.orchestration.repository.tasks_lifecycle import (
     renew_task_lease as renew_task_lease,
 )
 from co_scientist.orchestration.repository.tasks_lifecycle import (

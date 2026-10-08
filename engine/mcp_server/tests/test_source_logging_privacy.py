@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import urllib.error
 from collections.abc import Awaitable, Callable
+from email.message import Message
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock
@@ -12,7 +14,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from mcp_server import entrez, text_extraction
 from mcp_server.literature_review import PubmedSource
-from mcp_server.log_privacy import install_transport_log_privacy
+from mcp_server.log_privacy import failure_summary, install_transport_log_privacy
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools import biomedical_databases, web_fetch, web_providers
 from mcp_server.tools.lit_review import (
@@ -73,6 +75,7 @@ async def test_actual_provider_failure_paths_drop_query_url_and_error_payloads(
     with caplog.at_level(logging.DEBUG, logger="mcp_server"):
         result = await call(_PRIVATE)
     assert result == {"status": "failed", "records": [], "error": "HTTP 503"}
+    assert "(HTTPStatusError, HTTP 503)" in caplog.text
     _assert_private_absent(caplog)
 
 
@@ -227,3 +230,35 @@ async def test_unauthenticated_health_retains_refusal_status_without_previous_se
         "detail": "HTTP 402",
     }
     assert all(marker not in health.text for marker in _PRIVATE.split())
+
+
+class PrivateQueryError(Exception):
+    pass
+
+
+def test_failure_summary_names_only_allowlisted_classes_and_numeric_status() -> None:
+    request = httpx.Request("GET", _URL)
+    status_error = httpx.HTTPStatusError(
+        _PRIVATE, request=request, response=httpx.Response(429, request=request)
+    )
+    url_error = urllib.error.HTTPError(_URL, 400, _PRIVATE, Message(), None)
+
+    assert failure_summary(status_error) == "HTTPStatusError, HTTP 429"
+    assert failure_summary(url_error) == "HTTPError, HTTP 400"
+    assert failure_summary(IndexError(_PRIVATE)) == "IndexError"
+    assert failure_summary(httpx.ConnectTimeout(_PRIVATE)) == "ConnectTimeout"
+    assert failure_summary(PrivateQueryError(_PRIVATE)) == "other error"
+
+
+def test_a_pubmed_book_or_index_failure_is_named_in_the_log(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(search_pubmed, "initialize_entrez", lambda: None)
+    monkeypatch.setattr(search_pubmed, "_esearch_pubmed_ids", lambda query, limit: ["1"])
+    monkeypatch.setattr(
+        search_pubmed, "_fetch_pubmed_article", Mock(side_effect=IndexError(_PRIVATE))
+    )
+    with caplog.at_level(logging.DEBUG, logger="mcp_server"):
+        search_pubmed.search_pubmed(_PRIVATE, 1)
+    assert "PubMed metadata fetch failed (IndexError)" in caplog.text
+    _assert_private_absent(caplog)

@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.pdf_parser import extract_text_from_pdf
 from mcp_server.safe_http import UnsafeUrlError, get_with_screened_redirects, validate_http_url
 from mcp_server.text_extraction import truncate_markdown
@@ -94,8 +95,8 @@ def _block_to_markdown(element: Any) -> str:
 def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
     try:
         soup = BeautifulSoup(html, "lxml")
-    except Exception:
-        logger.warning("HTML parse failed")
+    except Exception as exc:
+        logger.warning("HTML parse failed (%s)", failure_summary(exc))
         return "[error: could not parse HTML]"
 
     for tag in soup.find_all(list(_CHROME_TAGS)):
@@ -187,7 +188,7 @@ async def read_url(url: str, max_chars: int = 50_000) -> dict[str, Any]:
         logger.info("URL fetch returned HTTP %d", exc.response.status_code)
         return failed(exc)
     except httpx.HTTPError as exc:
-        logger.warning("URL fetch transport failed")
+        logger.warning("URL fetch transport failed (%s)", failure_summary(exc))
         return failed(exc)
 
     return ok([{"url": url, "content": text[:max_chars]}])

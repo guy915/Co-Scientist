@@ -13,9 +13,10 @@ the code that used it, and nothing stated which module may import which.
 
 **One package, `co_scientist`, with its source at `engine/src/co_scientist/`.**
 The composition root is `co_scientist.main` (`Dockerfile.api` runs
-`scripts/api-entrypoint.sh`, which starts `co_scientist.main:app`). Keeping the
-engine's import name keeps logger names (`co_scientist.*`), the sandbox
-launcher string and test patch targets stable.
+`scripts/api-entrypoint.sh`, which starts `co_scientist.serving:create_app`, a
+trusted-proxy wrapper around `co_scientist.main:app`). Keeping the engine's
+import name keeps logger names (`co_scientist.*`), the sandbox launcher string
+and test patch targets stable.
 
 **Layers**, top to bottom. A layer imports only layers below it.
 

@@ -421,6 +421,10 @@ def _qa_failure_text(exc: Exception) -> str:
     Answering a timeout or an outage that way points at settings that are
     already correct.
     """
+    from co_scientist.core.exceptions import ProviderAdmissionError
+
+    if isinstance(exc, ProviderAdmissionError):
+        return "No model is available right now"
     if isinstance(exc, offline_guard.OfflineModeError):
         return _MISSING_PROVIDER_FALLBACK
     if is_credential_rejected(exc):
