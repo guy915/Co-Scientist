@@ -1,4 +1,5 @@
-import {lazy, type ReactElement, Suspense} from 'react';
+import {subscribeDataErasure} from '@/shared/lib/data_erasure_sync';
+import {lazy, type ReactElement, Suspense, useEffect} from 'react';
 import {Navigate, Route, Routes} from 'react-router-dom';
 import {ErrorBoundary} from '@/shared/ui/error_boundary';
 import {NoIndex} from './not_found_page';
@@ -54,6 +55,7 @@ function WorkbenchRoutes() {
 }
 
 export function WorkbenchApp() {
+  useEffect(() => subscribeDataErasure(() => window.location.assign('/')), []);
   // Keep the boundary outside theme/layout so their crashes are caught while
   // the shell persists across route changes.
   return (
