@@ -113,7 +113,7 @@ it('starts the durable run on confirmation', async () => {
   ).toBeInTheDocument();
   expect(
     screen.getByRole('heading', {
-      name: 'Investigate glucose homeostasis under cold stress',
+      name: 'Investigate Glucose Homeostasis Under Cold Stress',
     }),
   ).toBeInTheDocument();
   expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
@@ -165,7 +165,7 @@ it('shows request and response controls in the transcript', async () => {
   fireEvent.click(screen.getAllByLabelText('Copy response').at(-1)!);
   await waitFor(() => {
     expect(spies.writeText).toHaveBeenCalledWith(
-      expect.stringContaining('# Investigate glucose homeostasis'),
+      expect.stringContaining('# Investigate Glucose Homeostasis'),
     );
   });
 
