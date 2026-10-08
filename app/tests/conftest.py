@@ -98,6 +98,14 @@ def _fresh_probe_cache() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _dispatch_open() -> None:
+    # A lifespan shutdown in an earlier test stops claims process-wide.
+    from co_scientist.core import inflight
+
+    inflight.resume_dispatch()
+
+
+@pytest.fixture(autouse=True)
 def _fresh_health_check_cache() -> None:
     # Health caches reference prior isolated databases; clear them before each
     # test.
