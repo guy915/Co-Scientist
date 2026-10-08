@@ -157,6 +157,23 @@ def _proximity_neighbors_for(state: WorkflowState, hypothesis: Hypothesis) -> li
     return neighbors
 
 
+def _compact_specialist_records(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _compact_specialist_records(item) for key, item in value.items()}
+    if not isinstance(value, list):
+        return value
+    children = [_compact_specialist_records(item) for item in value]
+    if (
+        len(value) > 1
+        and isinstance(value[0], dict)
+        and value[0]
+        and all(isinstance(item, dict) and item.keys() == value[0].keys() for item in value)
+    ):
+        columns = list(value[0])
+        return {"columns": columns, "rows": [[item[key] for key in columns] for item in children]}
+    return children
+
+
 def _specialist_feedback_for(state: WorkflowState, hypothesis: Hypothesis) -> str:
     ledger: dict[str, Any] = {
         "claim_evidence_gate": hypothesis.enrichments.get("claim_gate") or {},
@@ -172,7 +189,7 @@ def _specialist_feedback_for(state: WorkflowState, hypothesis: Hypothesis) -> st
     mature_reviews = mature_review_summary(hypothesis.enrichments)
     if mature_reviews is not None:
         ledger["mature_reviews"] = mature_reviews
-    return compact_json_context(json.dumps(ledger), 4_000)
+    return compact_json_context(json.dumps(_compact_specialist_records(ledger)), 4_000)
 
 
 def _sample_up_to(pool: list[Hypothesis], count: int, rng: random.Random) -> list[Hypothesis]:
@@ -433,7 +450,8 @@ def _format_diversity_instruction(
     removed_duplicates: list[str],
     operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
 ) -> str:
-    other_hyps_formatted = _format_bullet_list(other_hypotheses_texts, truncate_chars=200)
+    peer_chars = min(200, max(0, 6_000 // max(1, len(other_hypotheses_texts)) - 6))
+    other_hyps_formatted = _format_bullet_list(other_hypotheses_texts, truncate_chars=peer_chars)
     removed_dups_formatted = _format_bullet_list(removed_duplicates[-5:], truncate_chars=200)
 
     template = (
@@ -529,7 +547,9 @@ def _build_evolution_prompt(
         context.removed_duplicates,
         operation.operator,
     )
-    prompt, schema, operator_section, _has_template_diversity_slot = render_operator_template(
+    prompt, schema, operator_section, has_template_diversity_slot = render_operator_template(
         operation.operator, variables, diversity
     )
-    return append_item_context(prompt, operator_section + diversity), schema
+    if not has_template_diversity_slot:
+        operator_section += diversity
+    return append_item_context(prompt, operator_section), schema

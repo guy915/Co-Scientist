@@ -451,3 +451,97 @@ def test_draft_cleanup_purges_prompt_evidence_only_after_successful_deletion() -
     assert delete_run(run.id, draft_before=current_time() + 1)["runs"] == 1
     assert get_run(run.id) is None
     assert (run.id, "evidence") not in _snapshots
+
+
+@pytest.mark.parametrize(
+    "operator",
+    [
+        "enhancement",
+        "coherence_feasibility",
+        "inspiration",
+        "combination",
+        "simplification",
+        "analogy",
+        "out_of_box",
+    ],
+)
+def test_evolution_sends_every_peer_once_with_a_bounded_diversity_summary(operator: str) -> None:
+    from co_scientist.science.evolution import EvolutionContext
+    from co_scientist.science.evolution.evolve_prompt import (
+        EvolutionOperator,
+        _build_evolution_prompt,
+        _EvolutionOperation,
+    )
+    from tests._state import make_hypothesis, make_state
+
+    peers = [
+        f"peer-{index:03d}: " + "Distinct causal mechanism with rescue controls. " * 12
+        for index in range(80)
+    ]
+    original = peers.copy()
+    prompt, schema = _build_evolution_prompt(
+        make_hypothesis(text="Preserve the parent mechanism and its decisive control."),
+        peers,
+        EvolutionContext(
+            model_name="test-model",
+            meta_review={},
+            removed_duplicates=["Previously removed mechanism"],
+            state=make_state(),
+        ),
+        _EvolutionOperation(operator=EvolutionOperator(operator)),
+    )
+
+    assert prompt.count("## CRITICAL: Preserve Diversity") == 1
+    for index in range(80):
+        assert prompt.count(f"peer-{index:03d}:") == 1
+    summaries = prompt.split("**Other hypotheses in the active pool:**\n", 1)[1].split(
+        "**Previously removed duplicates", 1
+    )[0]
+    assert len(summaries.strip()) <= 6_000
+    assert summaries.count("- peer-") == 80
+    assert "Previously removed mechanism" in prompt
+    assert "Preserve the parent mechanism and its decisive control." in prompt
+    assert peers == original
+    assert isinstance(prompt, CacheablePrompt)
+    assert schema is not None
+
+
+def test_specialist_feedback_keeps_every_record_field_when_headers_are_shared() -> None:
+    from co_scientist.science.evolution.evolve_prompt import _specialist_feedback_for
+    from tests._state import make_hypothesis, make_state
+
+    claims = [
+        {
+            "claim_id": f"{index:08x}-0000-4000-8000-000000000000",
+            "classification": "supported",
+            "verdict": "supported",
+            "confidence": index / 100,
+            "score_axes": ["grounding", "relevance"],
+            "evidence": [
+                {"source_id": "source-1", "verdict": "supported", "score": 0.9},
+                {"source_id": "source-2", "verdict": "unsupported", "score": 0.1},
+            ],
+        }
+        for index in range(24)
+    ]
+    gate = {
+        "claims": claims,
+        "heterogeneous": [{"score": 0.0}, {"score": 0.0, "optional": None}],
+        "score_table": {"columns": ["confidence"], "rows": [[0.75]]},
+    }
+    hypothesis = make_hypothesis(enrichments={"claim_gate": copy.deepcopy(gate)})
+    rendered = _specialist_feedback_for(make_state(), hypothesis)
+    parsed = json.loads(rendered)["claim_evidence_gate"]
+    table = parsed["claims"]
+    restored = [dict(zip(table["columns"], row, strict=True)) for row in table["rows"]]
+    for record in restored:
+        evidence = record["evidence"]
+        record["evidence"] = [
+            dict(zip(evidence["columns"], row, strict=True)) for row in evidence["rows"]
+        ]
+
+    assert restored == claims
+    assert parsed["heterogeneous"] == gate["heterogeneous"]
+    assert parsed["score_table"] == gate["score_table"]
+    assert hypothesis.enrichments["claim_gate"] == gate
+    assert len(rendered) < len(json.dumps(gate, separators=(",", ":")))
