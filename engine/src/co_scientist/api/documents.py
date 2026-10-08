@@ -17,14 +17,14 @@ from fastapi import (
 )
 
 from co_scientist.api.auth import client_id, require_client_scope
+from co_scientist.api.documents_access import (
+    resolve_owned_documents as resolve_owned_documents,
+)
 from co_scientist.api.uploads import extract_upload
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.domains.documents import repository as store
 from co_scientist.domains.documents.repository import NewStagedDocument
 from co_scientist.domains.documents.staged import document_summary as document_summary
-from co_scientist.domains.documents.staged import (
-    resolve_owned_documents as resolve_owned_documents,
-)
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 

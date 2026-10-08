@@ -8,8 +8,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from co_scientist.domains.report import repository as reports
-from co_scientist.orchestration.repository import events as store
-from co_scientist.orchestration.repository import tasks
+from co_scientist.platform.db import runs as run_ledger
 from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow
 from co_scientist.platform.retrieval.citations import STATE_RANK
 
@@ -101,10 +100,10 @@ def gather_run_progress(
     conn: Any,
     now: float,
 ) -> RunProgress:
-    started_at = store.run_execution_started_at(run.id, conn=conn)
+    started_at = run_ledger.run_execution_started_at(run.id, conn=conn)
     finished_at = run.completed_at if run.status in _TERMINAL else None
-    progress = tasks.task_progress(run.id, conn=conn)
-    events = store.recent_events(run.id, _EVENT_WINDOW, conn=conn)
+    progress = run_ledger.task_progress(run.id, conn=conn)
+    events = run_ledger.recent_events(run.id, _EVENT_WINDOW, conn=conn)
     return RunProgress(
         status=run.status,
         elapsed_seconds=(

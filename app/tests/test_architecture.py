@@ -17,7 +17,7 @@ from co_scientist.api.contracts.generate import (
 from co_scientist.orchestration.repository.events import ACTIVITY_VALUES
 
 _ENGINE_DIR = Path(__file__).resolve().parents[2] / "engine/src/co_scientist"
-_INTERVIEWS_DIR = _ENGINE_DIR / "domains/chat/interviews"
+_INTERVIEWS_DIR = _ENGINE_DIR / "api/interviews"
 _INTERVIEW_MODULES = {path.stem for path in _INTERVIEWS_DIR.glob("*.py")} - {"__init__"}
 
 
@@ -40,6 +40,7 @@ def _layering_imports(path: Path) -> list[str]:
     [
         _ENGINE_DIR / "api/operator_access.py",
         _ENGINE_DIR / "domains/documents/staged.py",
+        _ENGINE_DIR / "api/documents_access.py",
         _INTERVIEWS_DIR / "turns.py",
     ],
 )
@@ -60,15 +61,10 @@ def test_shared_services_do_not_import_endpoint_owners(source: Path) -> None:
 def test_interview_modules_do_not_reach_into_router_facade(source: str) -> None:
     path = _INTERVIEWS_DIR / source
     for node in ast.walk(ast.parse(path.read_text())):
-        if (
-            isinstance(node, ast.ImportFrom)
-            and node.module == "co_scientist.domains.chat.interviews"
-        ):
+        if isinstance(node, ast.ImportFrom) and node.module == "co_scientist.api.interviews":
             assert {alias.name for alias in node.names} <= _INTERVIEW_MODULES, path
         if isinstance(node, ast.Import):
-            assert all(
-                alias.name != "co_scientist.domains.chat.interviews" for alias in node.names
-            ), path
+            assert all(alias.name != "co_scientist.api.interviews" for alias in node.names), path
 
 
 _ROOT = Path(__file__).resolve().parents[2]

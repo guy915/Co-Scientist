@@ -8,12 +8,12 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 
 import co_scientist.domains.access.credentials as credentials
 import co_scientist.domains.access.free_usage as free_usage
-import co_scientist.domains.documents.staged as staged_documents
 import co_scientist.orchestration.engine_adapter as engine_adapter
 import co_scientist.orchestration.repository.receipts as run_creation_receipts
 import co_scientist.platform.retrieval.run_corpus as run_corpus
 from co_scientist.api import free_usage as free_usage_api
 from co_scientist.api.auth import client_id, require_client_scope
+from co_scientist.api.documents_access import resolve_owned_documents
 from co_scientist.api.runs.models import (
     CreateRunRequest,
     RenameRunRequest,
@@ -33,7 +33,7 @@ from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.chat.seed import is_current_demo_run
 from co_scientist.domains.documents import repository as documents
 from co_scientist.domains.research_state.repository import records
-from co_scientist.orchestration.repository import events, tasks
+from co_scientist.orchestration.repository import events
 from co_scientist.platform import db
 from co_scientist.platform.db import Connection, checkpoints
 from co_scientist.platform.db import runs as store
@@ -239,7 +239,7 @@ def _persist_new_run_for_owner(
 def _run_setup_documents(
     req: CreateRunRequest, interview: dict[str, Any] | None, owner: str
 ) -> list[dict[str, Any]]:
-    named = staged_documents.resolve_owned_documents(req.document_ids, owner)
+    named = resolve_owned_documents(req.document_ids, owner)
     return documents.merge_run_setup_documents(
         named, str(interview["id"]) if interview is not None else None
     )
@@ -570,7 +570,7 @@ def _runs_payload(runs: list[RunRow]) -> dict[str, Any]:
             "runs": [
                 {
                     **r.to_dict(),
-                    "execution_progress": tasks.task_progress(r.id, conn=conn),
+                    "execution_progress": store.task_progress(r.id, conn=conn),
                 }
                 for r in runs
             ]
@@ -623,7 +623,7 @@ def _run_details(run_id: str) -> dict[str, Any]:
             # publication drains them into SQL tables.
             summary["hypotheses"] = max(summary["hypotheses"], pools[0])
             summary["evidence"] = max(summary["evidence"], pools[1])
-        progress = tasks.task_progress(run_id, conn=conn)
+        progress = store.task_progress(run_id, conn=conn)
         awaiting = _awaiting_decision_count(run, conn=conn)
         failure_kind = None
         if run.status == RunStatus.FAILED.value:

@@ -162,45 +162,6 @@ def list_active_engine_task_run_ids(
 
 # Aggregate scalars in SQL without decoding kilobyte task payloads; literal
 # substr prefixes avoid LIKE underscore wildcards.
-_PROGRESS_QUERY = (
-    "SELECT COUNT(*) AS total,"
-    " COALESCE(SUM(status IN ('completed','failed','cancelled')), 0)"
-    " AS completed,"
-    " COALESCE(SUM(status='queued'), 0) AS queued,"
-    " COALESCE(MAX(substr(task_type,1,7)='engine.'), 0) AS dynamic_plan,"
-    " (SELECT task_type FROM scientific_tasks WHERE run_id=? AND"
-    "  status IN ('leased','running')"
-    "  ORDER BY created_at ASC LIMIT 1) AS active_task"
-    " FROM scientific_tasks WHERE run_id=?"
-)
-
-
-def task_progress(
-    run_id: str,
-    *,
-    db_path: str | None = None,
-    conn: sqlite3.Connection | None = None,
-) -> dict[str, Any]:
-    with use_conn(conn, db_path) as active:
-        row = active.execute(
-            _PROGRESS_QUERY,
-            (run_id, run_id),
-        ).fetchone()
-    total = int(row["total"])
-    completed = int(row["completed"])
-    # Model-expanded plans have no honest denominator and must not report
-    # determinate fractional progress.
-    determinate = total > 0 and not row["dynamic_plan"]
-    return {
-        "determinate": determinate,
-        "completed_tasks": completed,
-        "total_tasks": total,
-        "fraction": completed / total if determinate else None,
-        "active_task": row["active_task"],
-        "queued_tasks": int(row["queued"]),
-    }
-
-
 def get_task(
     task_id: str,
     *,

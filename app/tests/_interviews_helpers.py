@@ -8,8 +8,11 @@ from typing import Any, cast
 
 import pytest
 from co_scientist.domains.chat.interviews import model as interviews_model
-from co_scientist.domains.chat.interviews.model import CLOSE_MARKER, OPEN_MARKER
-from fastapi import HTTPException
+from co_scientist.domains.chat.interviews.model import (
+    CLOSE_MARKER,
+    OPEN_MARKER,
+    InterviewModelUnavailableError,
+)
 from fastapi.testclient import TestClient
 
 
@@ -101,7 +104,7 @@ def _patch_model_failing_after(
         try:
             return next(replies)
         except StopIteration:
-            raise HTTPException(status_code=503, detail="unavailable") from None
+            raise InterviewModelUnavailableError("unavailable") from None
 
     monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
 
