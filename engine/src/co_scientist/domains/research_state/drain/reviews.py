@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core.citations import citation_keys_in
 from co_scientist.domains.research_state.claims.assessor import SENTENCE_SPLIT
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.records import (
@@ -14,8 +14,6 @@ from co_scientist.domains.research_state.repository.records import (
     NewReview,
 )
 from co_scientist.platform.retrieval.citations import CitationRecord, classify_citation
-
-_BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
 
 
 def format_deep_verification_critique(
@@ -75,18 +73,10 @@ def _claim_cited_by(grounding: str, cite_key: str) -> str:
     """A source supports its cited sentences, not every claim in a multi-
     source paragraph; whole-paragraph overlap dilutes genuine support.
     """
-    marker = f"[{cite_key}]"
     cited = [
         sentence
         for sentence in SENTENCE_SPLIT.split(grounding)
-        # Citation keys can share one bracket group rather than appearing as
-        # lone markers.
-        if marker in sentence
-        or any(
-            cite_key == part.strip()
-            for group in _BRACKET_GROUP.findall(sentence)
-            for part in group.split(",")
-        )
+        if cite_key in citation_keys_in(sentence, allowed_keys={cite_key})
     ]
     return " ".join(cited).strip() or grounding
 

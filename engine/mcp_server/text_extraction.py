@@ -101,11 +101,11 @@ def _pmc_html_to_markdown(html_content: str, max_chars: int) -> str:
 def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> str:
     try:
         return _pmc_html_to_markdown(html_content, max_chars)
-    except Exception as exc:
-        logger.error("Failed to extract text from PMC HTML: %s", exc)
+    except Exception:
+        logger.error("PMC HTML text extraction failed")
         try:
             text = BeautifulSoup(html_content, "lxml-xml").get_text(separator="\n", strip=True)
             return truncate_markdown(text, max_chars)
-        except Exception as fallback_error:
-            logger.error("Fallback text extraction also failed: %s", fallback_error)
+        except Exception:
+            logger.error("Fallback text extraction failed")
             return "[error: could not extract text from HTML]"

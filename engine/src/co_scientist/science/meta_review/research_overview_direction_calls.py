@@ -145,6 +145,7 @@ async def write_direction_body(
             response = await ask(
                 prompt=prompt,
                 spec=CompletionSpec(
+                    role="overview_directions",
                     model_name=context.state["supervisor_model_name"],
                     max_tokens=RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,
                     temperature=MEDIUM_TEMPERATURE,

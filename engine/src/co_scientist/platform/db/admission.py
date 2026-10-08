@@ -6,8 +6,10 @@ import sqlite3
 import uuid
 from dataclasses import dataclass
 
+from co_scientist.core.admission_windows import UTC_DAY_SECONDS, utc_day
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, default_db_path, transaction
+from co_scientist.platform.db.spend import SpendReservation, reserve_spend, settle_spend
 
 UNKNOWN_HOST = "unknown"
 
@@ -16,6 +18,7 @@ UNKNOWN_HOST = "unknown"
 class ProviderReservation:
     id: str
     db_path: str
+    paid: bool = False
 
 
 def connecting_host(host: str | None) -> str:
@@ -62,7 +65,7 @@ def claim_session(conn: sqlite3.Connection, owner: str, host: str, day: int) -> 
 def claim_run(conn: sqlite3.Connection, run_id: str, owner: str, host: str, *, free: bool) -> None:
     from co_scientist.core.config import settings
 
-    day = int(current_time() // 86400)
+    day = utc_day(current_time())
     claim_session(conn, owner, host, day)
     total, same_host, free_total, free_host = conn.execute(
         "SELECT COUNT(*),COALESCE(SUM(host=?),0),COALESCE(SUM(free),0),"
@@ -128,15 +131,19 @@ def _reserve_app(conn: sqlite3.Connection, owner: str, day: int, tokens: int) ->
 
 
 def reserve_provider(
-    owner: str, host: str, tokens: int, *, app: bool, db_path: str | None
+    owner: str,
+    host: str,
+    tokens: int,
+    *,
+    app: bool,
+    db_path: str | None,
+    spend: SpendReservation | None = None,
 ) -> ProviderReservation:
     from co_scientist.core.config import settings
 
-    # A future EUR reservation belongs before this commit, alongside these
-    # ceilings. The provider dispatch must remain outside the transaction.
-    day = int(current_time() // 86400)
+    day = utc_day(current_time())
     receipt = ProviderReservation(
-        uuid.uuid4().hex, db_path or default_db_path() or "./coscientist.db"
+        uuid.uuid4().hex, db_path or default_db_path() or "./coscientist.db", spend is not None
     )
     ceilings = (
         (
@@ -153,7 +160,9 @@ def reserve_provider(
         ),
         ("host", host, settings.provider_host_calls_per_day, settings.provider_host_tokens_per_day),
     )
-    with transaction(receipt.db_path) as conn:
+    with transaction(receipt.db_path, durable=spend is not None) as conn:
+        if spend is not None:
+            reserve_spend(conn, receipt.id, spend)
         claim_session(conn, owner, host, day)
         for scope, subject, call_limit, token_limit in ceilings:
             row = conn.execute(
@@ -181,8 +190,14 @@ def reserve_provider(
     return receipt
 
 
-def settle_provider(receipt: ProviderReservation, used_tokens: int) -> None:
-    with transaction(receipt.db_path) as conn:
+def settle_provider(
+    receipt: ProviderReservation,
+    used_tokens: int,
+    money: tuple[int, int, int, int | None, int | None] | None = None,
+) -> None:
+    with transaction(receipt.db_path, durable=receipt.paid) as conn:
+        if money is not None:
+            settle_spend(conn, receipt.id, *money)
         row = conn.execute(
             "SELECT * FROM provider_token_reservations WHERE id=? AND used_tokens IS NULL",
             (receipt.id,),
@@ -213,7 +228,7 @@ def claim_continuation(
 ) -> None:
     from co_scientist.core.config import settings
 
-    day = int(current_time() // 86400)
+    day = utc_day(current_time())
     row = conn.execute("SELECT host FROM run_admissions WHERE run_id=?", (run_id,)).fetchone()
     host = str(row[0]) if row else UNKNOWN_HOST
     prefix = f"continuation:{run_id}:"
@@ -235,7 +250,7 @@ def claim_continuation(
     if free:
         used = conn.execute(
             "SELECT COUNT(*) FROM free_run_usage WHERE client_id=? AND created_at>=?",
-            (owner, day * 86400),
+            (owner, day * UTC_DAY_SECONDS),
         ).fetchone()[0]
         if settings.free_runs_per_day > 0 and used >= settings.free_runs_per_day:
             raise ProviderAdmissionError("daily free run admission exhausted")

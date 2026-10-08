@@ -9,7 +9,6 @@ import type {
   ResearchOverview,
   RunWithSummary,
 } from '@/shared/api/runs';
-import {sortByEloDesc} from '@/shared/lib/hypotheses';
 import {isRecord, readableText, readableTextList} from '@/shared/lib/text';
 import {useMemo} from 'react';
 import {
@@ -62,7 +61,7 @@ function winningIdeasItems(
       .slice(0, 5)
       .map(item => ({id: item.id, title: item.title, elo: item.elo}));
   }
-  return sortByEloDesc(hypotheses)
+  return hypotheses
     .slice(0, 5)
     .map(h => ({id: h.id, title: h.title, elo: h.elo_rating}));
 }
@@ -255,7 +254,7 @@ function OverviewSummary({
   if (degraded) return <DegradedSectionNotice />;
   return (
     <p>
-      The research overview appears after Co-Scientist finishes the final
+      The research overview appears after Open Co-Scientist finishes the final
       synthesis step.
     </p>
   );

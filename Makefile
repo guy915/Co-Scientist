@@ -1,4 +1,4 @@
-.PHONY: arch help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
+.PHONY: presubmit lint-python lint-frontend root-config build-checked arch help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
 
 ROOT := $(CURDIR)
 ENGINE := $(ROOT)/engine
@@ -16,7 +16,7 @@ API_URL := http://localhost:8008
 UI_URL  := http://localhost:5173
 
 help:
-	@echo "Co-Scientist — root commands"
+	@echo "Open Co-Scientist — root commands"
 	@echo "  make setup        Create .venv, install engine (editable, dev extras), install frontend"
 	@echo "  make start        One command: install missing deps, free ports, run MCP + API + UI, open browser"
 	@echo "  make stop         Stop anything listening on the dev ports (8008/5173/8888)"
@@ -27,9 +27,10 @@ help:
 	@echo "  make test-app     Run viewer backend pytest suite"
 	@echo "  make test-engine  Run engine pytest suite"
 	@echo "  make test-mcp     Run reference MCP server pytest + mypy (needs Python 3.12)"
+	@echo "  make presubmit    Run only gates affected by git diff origin/main...HEAD"
 	@echo "  make test-all     Run backend, frontend and evaluation suites"
 	@echo "  make check        Run lint, types, all suites, eval smoke, build, and browser tests"
-	@echo "  make docker-build Build both production images (never deploys)"
+	@echo "  make docker-build Build images and validate Compose (never deploys)"
 	@echo "  make audit-deps   Audit dependency locks online (see requirements/README.md)"
 	@echo "  make test-frontend Run frontend unit tests"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
@@ -45,7 +46,7 @@ help:
 
 setup: check-tools $(VENV)/bin/activate
 	@echo ">> Installing engine (editable)"
-	@$(PIP) install -e "$(ENGINE)[dev]"
+	@$(PIP) install -e "$(ENGINE)[dev]" pytest-xdist==3.8.0 markdown-it-py==4.2.0
 	@# Reference MCP server is optional and pins Python 3.12, so we don't install it here.
 	@echo ">> Installing frontend from bun.lock"
 	@cd "$(FRONTEND)" && "$(BUN)" install --frozen-lockfile
@@ -73,7 +74,7 @@ $(VENV)/bin/activate:
 
 start: preflight
 	@echo ""
-	@echo "Co-Scientist — dev URLs"
+	@echo "Open Co-Scientist — dev URLs"
 	@echo "  API   : $(API_URL)"
 	@echo "  UI    : $(UI_URL)"
 	@echo ""
@@ -118,7 +119,7 @@ open-when-ready:
 	open "$(UI_URL)" 2>/dev/null || xdg-open "$(UI_URL)" 2>/dev/null || echo ">> Open $(UI_URL) in your browser"
 
 stop:
-	@echo ">> Stopping Co-Scientist dev servers (ports 8008/5173/8888)"
+	@echo ">> Stopping Open Co-Scientist dev servers (ports 8008/5173/8888)"
 	@# Kill only listeners on the dev ports. uvicorn --reload
 	@# and vite run under a supervising parent that respawns the listener, so
 	@# take out the parent too when it is a python/node/bun process.
@@ -169,11 +170,13 @@ dev-mcp:
 	echo ">> Starting reference MCP server on http://localhost:8888"; \
 	cd "$(ENGINE)" && COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1 "$(MCP_VENV)/bin/python" -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 
+test-all test-engine test-app test-mcp test-evaluations eval-smoke arch e2e: export LITELLM_LOCAL_MODEL_COST_MAP := True
+
 test:
 	@$(MAKE) test-app
 
 test-app:
-	@cd "$(APP)" && "$(PY)" -m pytest -q
+	@cd "$(APP)" && "$(PY)" -m pytest -q -n 4
 
 test-engine:
 	@cd "$(ENGINE)" && "$(PY)" -m pytest -q
@@ -228,7 +231,9 @@ e2e: check-tools
 	else \
 		cd "$(E2E)" && "$(BUN)" x playwright install chromium; \
 	fi
-	@cd "$(E2E)" && "$(BUN)" x playwright test $(E2E_ARGS)
+	@node --test "$(E2E)/run.test.mjs"
+	@cd "$(E2E)" && "$(BUN)" test support/shards.test.ts
+	@cd "$(E2E)" && BUN="$(BUN)" node run.mjs $(E2E_ARGS)
 
 e2e-production:
 	@COSCI_E2E_PRODUCTION=1 $(MAKE) e2e
@@ -240,18 +245,23 @@ test-evaluations:
 eval-smoke:
 	@cd "$(ROOT)" && "$(PY)" -m evaluations.smoke
 
-# Include GTS locally so frontend-only lint failures do not first appear in CI.
-lint: check-tools
+lint: lint-python lint-frontend
+
+lint-python:
 	@cd "$(ENGINE)" && "$(PY)" -m ruff format --check .
 	@cd "$(APP)" && "$(PY)" -m ruff format --check .
 	@cd "$(ROOT)" && "$(PY)" -m ruff format --check evaluations
 	@cd "$(APP)" && "$(PY)" -m ruff check tests
 	@cd "$(ENGINE)" && "$(PY)" -m ruff check .
 	@cd "$(ROOT)" && "$(PY)" -m ruff check evaluations
+	@cd "$(ROOT)" && "$(PY)" -m ruff format --check scripts/__init__.py scripts/select_targets.py scripts/presubmit.py
+	@cd "$(ROOT)" && "$(PY)" -m ruff check scripts/__init__.py scripts/select_targets.py scripts/presubmit.py
+	@$(MAKE) arch
+
+lint-frontend: check-tools
 	@test -d "$(FRONTEND)/node_modules" || { echo ">> Frontend deps missing — run 'make setup' first"; exit 1; }
 	@echo ">> Linting frontend (gts)"
 	@cd "$(FRONTEND)" && "$(BUN)" run lint
-	@$(MAKE) arch
 
 arch:
 	@cd "$(APP)" && "$(PY)" -c "import sys; from importlinter.cli import lint_imports_command; sys.exit(lint_imports_command())" --config ../.importlinter --no-cache
@@ -260,9 +270,23 @@ typecheck:
 	@cd "$(APP)" && "$(PY)" -m mypy .
 	@cd "$(ENGINE)" && "$(PY)" -m mypy .
 	@cd "$(ROOT)/evaluations" && "$(PY)" -m mypy .
+	@cd "$(ROOT)" && "$(PY)" -m mypy --strict scripts/__init__.py scripts/select_targets.py scripts/presubmit.py
 
 build: check-tools
 	@cd "$(FRONTEND)" && "$(BUN)" run build
+
+build-checked: check-tools
+	@cd "$(FRONTEND)" && VITE_SENTRY_DSN=https://bundle-public@sentry.invalid/123 "$(BUN)" run build
+	@node "$(FRONTEND)/scripts/check-bundle.mjs"
+	@node --test "$(FRONTEND)/scripts/check-bundle.test.mjs"
+
+root-config:
+	@"$(PY)" -m json.tool vercel.json > /dev/null
+	@"$(PY)" -m json.tool wrangler.jsonc > /dev/null
+	@node --test "$(FRONTEND)/worker.test.mjs"
+
+presubmit:
+	@"$(PY)" -m scripts.presubmit $(PRESUBMIT_ARGS)
 
 clean:
 	rm -rf "$(VENV)" "$(MCP_VENV)" "$(FRONTEND)/dist" "$(FRONTEND)/node_modules" "$(APP)"/.coscientist_cache "$(APP)"/cache
@@ -292,6 +316,8 @@ check-tools:
 docker-build:
 	@docker build -f Dockerfile.api -t coscientist-api-local .
 	@docker build -f Dockerfile.mcp -t coscientist-mcp-local .
+	@docker build -f "$(FRONTEND)/Dockerfile" -t coscientist-ui-local "$(FRONTEND)"
+	@docker compose --env-file "$(APP)/.env.example" -f "$(APP)/docker-compose.yml" config --no-env-resolution --quiet
 
 # Online advisories are separate from offline gates; retain all findings despite earlier
 # failures.

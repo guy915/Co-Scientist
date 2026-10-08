@@ -11,7 +11,10 @@ on:
   workflow_call:
   workflow_dispatch:
 
-# PR diffs use the API; merge groups use their base/head git diff.
+env:
+  LITELLM_LOCAL_MODEL_COST_MAP: "True"
+
+# PR diffs use the API; other events select comprehensive checks.
 permissions:
   contents: read
   pull-requests: read
@@ -32,184 +35,23 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      engine: ${{ steps.select.outputs.engine || steps.all.outputs.engine }}
-      app: ${{ steps.select.outputs.app || steps.all.outputs.app }}
-      frontend: >-
-        ${{ steps.select.outputs.frontend || steps.all.outputs.frontend }}
-      evaluations: >-
-        ${{ steps.select.outputs.evaluations || steps.all.outputs.evaluations }}
-      mcp_server: >-
-        ${{ steps.select.outputs.mcp_server || steps.all.outputs.mcp_server }}
-      e2e: ${{ steps.select.outputs.e2e || steps.all.outputs.e2e }}
-      docker: ${{ steps.select.outputs.docker || steps.all.outputs.docker }}
-      root_config: >-
-        ${{ steps.select.outputs.root_config || steps.all.outputs.root_config }}
-      python_lint: ${{ steps.select.outputs.python_lint || steps.all.outputs.python_lint }}
-      protected_contexts: ${{ steps.contexts.outputs.matrix }}
+      engine: ${{ steps.select.outputs.engine }}
+      app: ${{ steps.select.outputs.app }}
+      frontend: ${{ steps.select.outputs.frontend }}
+      evaluations: ${{ steps.select.outputs.evaluations }}
+      mcp_server: ${{ steps.select.outputs.mcp_server }}
+      e2e: ${{ steps.select.outputs.e2e }}
+      docker: ${{ steps.select.outputs.docker }}
+      root_config: ${{ steps.select.outputs.root_config }}
+      python_lint: ${{ steps.select.outputs.python_lint }}
     steps:
       - name: Checkout
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Detect changed paths (presubmit only)
-        id: filter
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          # A merge group contains the queued PR diff against its synthetic base.
-          base: ${{ github.event.merge_group.base_sha }}
-          ref: ${{ github.event.merge_group.head_sha }}
-          list-files: json
-          # App imports the engine.
-          filters: |
-            files:
-              - '**'
-            engine:
-              - 'engine/**'
-              - '.ruff.toml'
-              - '.github/actions/**'
-              - '.github/workflows/ci.yml'
-            mcp_server:
-              - 'engine/mcp_server/**'
-              - '.ruff.toml'
-              - '.github/workflows/ci.yml'
-            app:
-              - '.github/actions/**'
-              - '.github/ci_shard.py'
-              - '.ruff.toml'
-              # Patterns are OR'd, so a lone negation would match every path
-              # outside the frontend; list the backend paths instead.
-              - 'app/*'
-              - 'app/tests/**'
-              - 'app/dev/**'
-              - 'app/docker/**'
-              - 'engine/**'
-              - '.github/workflows/ci.yml'
-            frontend:
-              - 'app/frontend/**'
-              - '.github/workflows/ci.yml'
-            evaluations:
-              - '**/*.py'
-              - '**/*.ts'
-              - '**/*.tsx'
-              - '**/*.css'
-              - '**/*.md'
-              - '.github/actions/**'
-              - '.ruff.toml'
-              - '.importlinter'
-              - 'evaluations/**'
-              - 'docs/**'
-              - 'app/**'
-              - 'engine/**'
-              - 'e2e/**'
-              - '.github/workflows/ci.yml'
-            e2e:
-              - 'Makefile'
-              # The browser suite drives the full stack, so any backend,
-              # frontend, engine, or harness change re-runs it. app/** already
-              # covers app/frontend/**.
-              - 'e2e/**'
-              - 'app/**'
-              - 'engine/**'
-              - '.github/workflows/ci.yml'
-            # Root Dockerfiles/compose are their own filter (a Docker-only
-            # smoke, not the granular per-tree suites): editing them changes
-            # nothing those suites would run, but should still build.
-            docker:
-              - 'Dockerfile.*'
-              - 'litestream.yml'
-              - 'scripts/api-entrypoint.sh'
-              - '.dockerignore'
-              - 'requirements/**'
-              - 'vendor/**'
-              - 'LICENSE'
-              - 'NOTICE'
-              - 'engine/pyproject.toml'
-              - 'engine/LICENSE'
-              - 'engine/NOTICE'
-              - 'engine/src/**'
-              - 'engine/.dockerignore'
-              - 'engine/mcp_server/**'
-              - 'app/.dockerignore'
-              - 'app/docker/**'
-              - 'app/docker-compose.yml'
-              - 'app/frontend/Dockerfile'
-              - 'app/frontend/.dockerignore'
-              - 'app/frontend/package.json'
-              - 'app/frontend/bun.lock'
-              - 'app/.env.example'
-              - '.github/workflows/ci.yml'
-            root_config:
-              - 'Makefile'
-              - 'vercel.json'
-              - 'wrangler.jsonc'
-              - 'app/frontend/worker*.mjs'
-              - 'app/frontend/public/_headers'
-              - '.env.example'
-              - 'app/.env.example'
-              - '.ruff.toml'
-              - '.importlinter'
-              - '.github/actions/**'
-              - '.github/workflows/ci.yml'
-      - name: Exclude documentation-only test targets
+      - name: Select affected targets from shared rules
         id: select
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         env:
-          FILTERS: ${{ toJSON(steps.filter.outputs) }}
-        run: |
-          python - <<'PYSELECT'
-          import json
-          import os
-
-          filters = json.loads(os.environ["FILTERS"])
-          paths = json.loads(filters["files_files"])
-          docs_only = bool(paths) and all(
-              path.startswith("docs/") or path.endswith(".md") for path in paths
-          )
-          test_targets = {"engine", "app", "frontend", "evaluations", "mcp_server", "e2e"}
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              lint = any(filters[target] == "true" for target in ("engine", "app", "evaluations"))
-              print(f"python_lint={str(lint).lower()}", file=output)
-              for target in (*sorted(test_targets), "docker", "root_config"):
-                  selected = filters[target] == "true" and not (docs_only and target in test_targets)
-                  print(f"{target}={str(selected).lower()}", file=output)
-          print(f"Documentation-only: {docs_only}")
-          PYSELECT
-      - name: Select all targets (postsubmit / nightly)
-        id: all
-        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
-        run: |
-          for target in engine app frontend evaluations mcp_server e2e \
-            docker root_config python_lint; do
-            echo "${target}=true" >> "$GITHUB_OUTPUT"
-          done
-
-      - name: Select legacy compatibility contexts
-        id: contexts
-        env:
-          ENGINE_SELECTED: ${{ steps.select.outputs.engine || steps.all.outputs.engine }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-
-          selected = os.environ["ENGINE_SELECTED"]
-          if selected not in {"true", "false"}:
-              raise SystemExit("Engine selection is missing or invalid")
-          contexts = [
-              {"name": "MCP server tests", "owner": "format-lint", "target": "mcp_server", "combined": True},
-              {"name": "App tests", "owner": "test-app", "target": "app"},
-              {"name": "Evaluations (parity + offline smoke)", "owner": "evaluations", "target": "evaluations"},
-              {"name": "Browser e2e (Playwright)", "owner": "e2e", "target": "e2e"},
-          ]
-          # GitHub does not expand a skipped matrix into its protected names.
-          if selected == "false":
-              contexts += [
-                  {"name": f"Engine tests (py{version})", "owner": "test-engine", "target": "engine"}
-                  for version in ("3.10", "3.12")
-              ]
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              print(f"matrix={json.dumps(contexts)}", file=output)
-          PY
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m scripts.select_targets --event
 
   # MCP and Ruff share an interpreter, while retaining independent step failures.
   format-lint:
@@ -346,11 +188,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
-      # Keep both interpreter results visible when one fails.
+      # Keep test results visible when a matrix entry fails.
       fail-fast: false
       matrix:
-        # Python 3.10 is the engine support floor; 3.12 is the primary runtime.
-        python-version: ['3.10', '3.12']
+        # Match the supported package floor and production runtime.
+        python-version: ['3.12']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -370,7 +212,7 @@ jobs:
         run: python -m pytest -q
 
   test-app:
-    name: App tests (shard ${{ matrix.shard }}/3)
+    name: App tests (shard ${{ matrix.shard }}/4)
     needs: changes
     if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
@@ -378,7 +220,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -391,8 +233,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/.github
           CI_SHARD_INDEX: ${{ matrix.shard }}
-          CI_SHARD_TOTAL: 3
-        run: python -m pytest -q -n 4 -p ci_shard
+          CI_SHARD_TOTAL: 4
+        run: python -m pytest -q -n 4 -p ci_shard --durations=25
 
   evaluations:
     name: Evaluations (tests + offline smoke)
@@ -449,18 +291,25 @@ jobs:
     name: Browser e2e (${{ matrix.name }})
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      COSCI_E2E_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
+      COSCI_E2E_BROWSER_SHARD: ${{ matrix.browser_shard }}
     strategy:
       # Keep every shard's results visible when one fails.
       fail-fast: false
       matrix:
         # Each job launches its own isolated stack, so they share nothing.
-        # Playwright shards whole files; the first shard holds the slowest.
+        # Duration weights keep stateful files together on one worker.
         include:
-          - {name: shard 1/2, suite: e2e, args: --shard=1/2}
-          - {name: shard 2/2, suite: e2e, args: --shard=2/2}
-          - {name: production, suite: e2e-production, args: ''}
-    # Setup and first-run Chromium downloads need a larger timeout than the suite itself.
+          - {name: shard 1/6, suite: e2e, args: '', browser_shard: 1/6}
+          - {name: shard 2/6, suite: e2e, args: '', browser_shard: 2/6}
+          - {name: shard 3/6, suite: e2e, args: '', browser_shard: 3/6}
+          - {name: shard 4/6, suite: e2e, args: '', browser_shard: 4/6}
+          - {name: shard 5/6, suite: e2e, args: '', browser_shard: 5/6}
+          - {name: shard 6/6, suite: e2e, args: '', browser_shard: 6/6}
+          - {name: production, suite: e2e-production, args: '', browser_shard: ''}
+    # Setup plus the isolated stack share the job timeout.
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -488,18 +337,10 @@ jobs:
         env:
           VIRTUAL_ENV: ${{ github.workspace }}/.venv
         run: make setup PIP="uv pip"
-      - name: Cache Playwright Chromium
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('e2e/bun.lock') }}
-      - name: Install Chromium with system dependencies
-        # Install Chromium OS dependencies only in CI, avoiding sudo locally.
-        # Install Bun dependencies first so bunx uses the pinned Playwright version.
-        working-directory: e2e
+      - name: Report runner Chrome version
         run: |
-          bun install --frozen-lockfile
-          bunx playwright install --with-deps chromium
+          test -x "$COSCI_E2E_CHROMIUM_EXECUTABLE"
+          "$COSCI_E2E_CHROMIUM_EXECUTABLE" --version
       - name: Run browser suite
         run: make ${{ matrix.suite }} E2E_ARGS='${{ matrix.args }}'
 
@@ -512,12 +353,37 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build api image
-        run: docker build -f Dockerfile.api -t coscientist-api-ci .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.api
+          tags: coscientist-api-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-api
+          cache-to: type=gha,scope=ci-api,mode=max
       - name: Build mcp image
-        run: docker build -f Dockerfile.mcp -t coscientist-mcp-ci .
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.mcp
+          tags: coscientist-mcp-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-mcp
+          cache-to: type=gha,scope=ci-mcp,mode=max
       - name: Build frontend dev image
-        run: docker build -t coscientist-ui-ci app/frontend
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: app/frontend
+          tags: coscientist-ui-ci
+          load: true
+          push: false
+          cache-from: type=gha,scope=ci-frontend
+          cache-to: type=gha,scope=ci-frontend,mode=max
       - name: Report image sizes
         # Image size is an optimization metric; record it on every build.
         run: docker image ls --format '{{.Repository}} {{.Size}}' 'coscientist-*-ci'
@@ -532,44 +398,6 @@ jobs:
         working-directory: app
         run: docker compose config --quiet
 
-  # Preserve legacy protected names until the owner requires only Required checks.
-  protected-contexts:
-    name: ${{ matrix.name }}
-    if: always()
-    needs: [changes, format-lint, test-engine, test-app, evaluations, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.changes.outputs.protected_contexts) }}
-    steps:
-      - name: Require the selected suite to pass
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-          CHECK_JOB: ${{ matrix.owner }}
-          CHECK_TARGET: ${{ matrix.target }}
-          COMBINED: ${{ matrix.combined || false }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          jobs = json.loads(os.environ["RESULTS"])
-          changes = jobs["changes"]
-          affected = changes["outputs"].get(os.environ["CHECK_TARGET"])
-          expected = {"true": "success", "false": "skipped"}.get(affected)
-          result = jobs[os.environ["CHECK_JOB"]]["result"]
-          valid = result == expected or (
-              affected == "false" and os.environ["COMBINED"] == "true" and result == "success"
-          )
-          if changes["result"] != "success" or expected is None or not valid:
-              print(f"Selected suite failed: affected={affected}, result={result}")
-              sys.exit(1)
-          print("The selected suite passed or was correctly excluded.")
-          PY
-
   required-checks:
     name: Required checks
     if: always()
@@ -583,7 +411,6 @@ jobs:
       - frontend
       - e2e
       - docker-build
-      - protected-contexts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -599,8 +426,28 @@ jobs:
           jobs = json.loads(os.environ["RESULTS"])
           failed = [name for name, job in jobs.items()
                     if job["result"] not in {"success", "skipped"}]
-          if jobs["changes"]["result"] != "success":
+          changes = jobs["changes"]
+          outputs = changes.get("outputs", {})
+          selections = {
+              "format-lint": ("python_lint", "mcp_server"),
+              "typecheck": ("engine", "app", "evaluations", "root_config"),
+              "test-engine": ("engine",),
+              "test-app": ("app",),
+              "evaluations": ("evaluations",),
+              "frontend": ("frontend",),
+              "e2e": ("e2e",),
+              "docker-build": ("docker",),
+          }
+          if changes["result"] != "success":
               failed.append("changes")
+          for name, targets in selections.items():
+              values = [outputs.get(target) for target in targets]
+              if any(value not in {"true", "false"} for value in values):
+                  failed.append("changes")
+                  continue
+              expected = "success" if "true" in values else "skipped"
+              if jobs.get(name, {}).get("result") != expected:
+                  failed.append(name)
           if failed:
               print("Required checks failed: " + ", ".join(sorted(set(failed))))
               sys.exit(1)

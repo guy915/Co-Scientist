@@ -113,7 +113,7 @@ it('starts the durable run on confirmation', async () => {
   ).toBeInTheDocument();
   expect(
     screen.getByRole('heading', {
-      name: 'Investigate glucose homeostasis under cold stress',
+      name: 'Investigate Glucose Homeostasis Under Cold Stress',
     }),
   ).toBeInTheDocument();
   expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
@@ -131,6 +131,24 @@ it('starts the durable run on confirmation', async () => {
   expect(
     screen.queryByText('Mitochondrial feedback hypothesis'),
   ).not.toBeInTheDocument();
+});
+
+it('keeps asking Co-Scientist through the interview and after the run starts', async () => {
+  renderWorkspace();
+  submitResearchGoal();
+  expect(
+    await screen.findByText(
+      /Review the research setup and select a focus and run type/,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByPlaceholderText('Ask Co-Scientist')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText('Start research'));
+  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
+  expect(screen.getByPlaceholderText('Ask Co-Scientist')).toBeInTheDocument();
+  expect(
+    screen.queryByPlaceholderText('Ask a question about this research session'),
+  ).toBeNull();
 });
 
 it('shows request and response controls in the transcript', async () => {
@@ -165,7 +183,7 @@ it('shows request and response controls in the transcript', async () => {
   fireEvent.click(screen.getAllByLabelText('Copy response').at(-1)!);
   await waitFor(() => {
     expect(spies.writeText).toHaveBeenCalledWith(
-      expect.stringContaining('# Investigate glucose homeostasis'),
+      expect.stringContaining('# Investigate Glucose Homeostasis'),
     );
   });
 

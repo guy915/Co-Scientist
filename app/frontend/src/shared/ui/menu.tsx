@@ -1,4 +1,5 @@
 import {
+  useLayoutEffect,
   useRef,
   type ButtonHTMLAttributes,
   type CSSProperties,
@@ -13,8 +14,10 @@ import {joinClasses} from './cx';
 import {fieldClasses} from './text_field';
 import {presenceProps, usePresence} from './use_presence';
 
+// A plain grid track grows to an unbreakable label's width, so rows could
+// never ellipsize; a minmax(0) track holds them to the menu's width.
 const SURFACE_CLASSES =
-  'ui-motion-pop grid gap-0.5 overflow-y-auto rounded-2xl border ' +
+  'ui-motion-pop grid grid-cols-[minmax(0,1fr)] gap-0.5 overflow-y-auto rounded-2xl border ' +
   'border-cosci-border bg-cosci-menu-bg p-1.5 text-cosci-fg shadow-floating';
 
 const ITEM_SELECTOR =
@@ -83,6 +86,22 @@ export function Menu({
   const {mounted, state} = usePresence(open);
   const ownRef = useRef<HTMLDivElement>(null);
   const ref = menuRef ?? ownRef;
+  const anchors = useRef(anchorRefs);
+  anchors.current = anchorRefs;
+  useLayoutEffect(() => {
+    if (!open) return;
+    const menu = ref.current;
+    const items = Array.from(
+      menu?.querySelectorAll<HTMLElement>(ITEM_SELECTOR) ?? [],
+    );
+    const selected = items.find(
+      item => item.getAttribute('aria-checked') === 'true',
+    );
+    // Anchored menus are placed by their parent after this layout effect.
+    // Focusing now must not scroll an ancestor toward the initial position.
+    (selected ?? items[0])?.focus({preventScroll: true});
+    return () => returnFocus(menu, anchors.current);
+  }, [open, ref]);
   useDismiss(open, () => {
     returnFocus(ref.current, anchorRefs);
     onClose();
@@ -95,7 +114,14 @@ export function Menu({
       aria-label={label}
       style={style}
       className={joinClasses(SURFACE_CLASSES, layoutClassName)}
-      onKeyDown={onMenuKeyDown}
+      onKeyDown={event => {
+        if (event.key === 'Tab') {
+          returnFocus(ref.current, anchorRefs);
+          onClose();
+        } else {
+          onMenuKeyDown(event);
+        }
+      }}
       {...presenceProps(state)}
     >
       {children}

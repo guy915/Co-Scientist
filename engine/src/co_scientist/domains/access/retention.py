@@ -6,6 +6,10 @@ import time
 
 from co_scientist.domains.documents import repository as store
 from co_scientist.platform.db import runs as store_runs
+from co_scientist.platform.db.privacy import (
+    purge_expired_admission_history,
+    purge_expired_tombstones,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +29,7 @@ def _retention_days(env_var: str, default_days: int) -> int:
     try:
         return max(0, int(raw))
     except ValueError:
-        logger.warning("Ignoring invalid %s=%r", env_var, raw)
+        logger.warning("Ignoring invalid %s", env_var)
         return default_days
 
 
@@ -78,7 +82,7 @@ def sweep_expired_documents(*, now: float | None = None) -> int:
     days = document_retention_days()
     if days == 0:
         return 0
-    cutoff = (now or time.time()) - days * _SECONDS_PER_DAY
+    cutoff = (time.time() if now is None else now) - days * _SECONDS_PER_DAY
     count = store.delete_staged_documents_older_than(cutoff)
     if count:
         logger.info("Retention swept %d expired staged document(s)", count)
@@ -91,6 +95,8 @@ def sweep_all(*, now: float | None = None) -> dict[str, int]:
     return {
         "runs": len(runs),
         "documents": documents,
+        "erasure_markers": purge_expired_tombstones(now=now),
+        "admission_history": purge_expired_admission_history(now=now),
     }
 
 

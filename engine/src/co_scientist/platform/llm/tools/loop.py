@@ -26,6 +26,7 @@ from co_scientist.platform.llm.request.completion import (
 )
 from co_scientist.platform.llm.request.response import _extract_completion_content
 from co_scientist.platform.llm.request.thinking import _apply_thinking_args
+from co_scientist.platform.llm.roles import current_call_policy, scoped_call_policy
 from co_scientist.platform.llm.telemetry import logical_call_span
 from co_scientist.platform.llm.tool_effects import batch_by_effects
 from co_scientist.platform.llm.tools.policy import (
@@ -133,7 +134,10 @@ def _build_tool_loop_completion_args(
     _apply_thinking_args(
         completion_args,
         request.model_name,
-        enable_thinking=escalation is not BudgetEscalation.NO_THINKING,
+        enable_thinking=(
+            current_call_policy().enable_thinking and escalation is not BudgetEscalation.NO_THINKING
+        )
+        or escalation is BudgetEscalation.MINIMAL_REASONING_REQUIRED,
     )
     _apply_timeout(completion_args)
     _apply_api_key(completion_args)
@@ -332,6 +336,9 @@ async def call_llm_with_tools(
     with (
         logical_call_span("call_llm_with_tools", spec.model_name, opt.prompt_name),
         scoped_api_key(spec.api_key),
+        scoped_call_policy(
+            opt.role or spec.role, opt.effort or spec.effort, enable_thinking=opt.enable_thinking
+        ),
     ):
         request = LLMRequest(
             prompt=prompt,
