@@ -96,7 +96,7 @@ export function Composer({
         'reference-composer relative mt-4 min-h-[7.9rem] rounded-4xl border border-cosci-composer-border bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem] [box-shadow:var(--cosci-composer-shadow)]',
         input.trim() && 'has-input',
         large &&
-          'above-phone:row-6 desktop:row-7 desktop:mt-[clamp(1.25rem,2.4vh,1.9rem)] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[6.35rem] phone:mt-[0.9rem] phone:min-h-0 phone:pt-[0.9rem] phone:pb-[0.65rem]',
+          'above-phone:row-6 desktop:row-7 desktop:mt-[clamp(1.25rem,2.4vh,1.9rem)] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[6.35rem] phone:mt-3.5 phone:min-h-0 phone:pt-3.5 phone:pb-2.5',
         attachments.length > 0 && 'has-attachments !min-h-[13.5rem] !pt-4',
       )}
     >
@@ -105,7 +105,7 @@ export function Composer({
       <label className="relative block min-h-[3.6rem] pb-12">
         <span
           className={joinClasses(
-            'absolute top-0 left-[0.4rem] z-1 flex h-6 items-center gap-[0.45rem] pointer-events-none text-base text-cosci-composer-label',
+            'absolute top-0 left-[0.4rem] z-1 flex h-6 items-center gap-2 pointer-events-none text-base text-cosci-composer-label',
             input.trim() && 'hidden',
           )}
         >
@@ -228,7 +228,7 @@ export function AttachmentStrip({
   if (attachments.length === 0) return null;
   return (
     <div
-      className="reference-attachment-strip ui-motion-enter-items flex min-w-0 flex-wrap gap-[0.8rem] pb-[1.35rem] pointer-events-auto"
+      className="reference-attachment-strip ui-motion-enter-items flex min-w-0 flex-wrap gap-3 pb-5 pointer-events-auto"
       aria-label="Attachments"
     >
       {attachments.map(attachment => (
@@ -309,18 +309,18 @@ function FileAttachmentCard({
     <div
       className={tooltipClassNames({
         className:
-          'reference-attachment-card group relative box-border grid h-[4.85rem] w-[13.75rem] flex-none items-center rounded-2xl border-0 bg-cosci-attach-bg py-[0.85rem] pr-[3.2rem] pl-4 text-cosci-attach-fg',
+          'reference-attachment-card group relative box-border grid h-[4.85rem] w-[13.75rem] flex-none items-center rounded-2xl border-0 bg-cosci-attach-bg py-3.5 pr-13 pl-4 text-cosci-attach-fg',
         placement: 'top',
         wrap: true,
         alignStart: true,
       })}
       data-tooltip={attachment.name}
     >
-      <div className="reference-attachment-text grid min-w-0 gap-[0.48rem]">
+      <div className="reference-attachment-text grid min-w-0 gap-2">
         <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-base font-medium leading-[1.15]">
           {attachment.name}
         </strong>
-        <span className="flex min-w-0 items-center gap-[0.55rem] text-[0.9rem] leading-[1.2] text-cosci-attach-meta">
+        <span className="flex min-w-0 items-center gap-2 text-[0.9rem] leading-[1.2] text-cosci-attach-meta">
           <span className="reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] place-items-center rounded-sm bg-cosci-attach-badge text-[0.48rem] leading-none font-bold text-cosci-attach-badge-fg">
             {attachment.badge}
           </span>
@@ -443,7 +443,7 @@ export function SourceControls(props: SourceControlsProps) {
   const connectorsButtonRef = useRef<HTMLButtonElement>(null);
   return (
     <div
-      className="reference-composer-source-controls pointer-events-auto relative flex min-w-[4.6rem] items-center gap-[0.45rem]"
+      className="reference-composer-source-controls pointer-events-auto relative flex min-w-[4.6rem] items-center gap-2"
       ref={sourceControlsRef}
     >
       <input

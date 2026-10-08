@@ -222,7 +222,7 @@ function useChatWorkspaceGlobalEvents({
 }
 
 const CHAT_COLUMN_CLASSES =
-  'reference-chat-column ui-motion-enter-items mx-auto grid w-[min(100%,50.75rem)] gap-[1.15rem]';
+  'reference-chat-column ui-motion-enter-items mx-auto grid w-[min(100%,50.75rem)] gap-5';
 
 function syncComposerHeight(
   composerRef: RefObject<HTMLDivElement | null>,

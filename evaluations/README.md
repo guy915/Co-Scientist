@@ -156,9 +156,10 @@ web search and literature retrieval is keyless.
   alter model output (caching, backend, frontend, CI); measure those offline.
   Batch prompt, reasoning-budget and retry changes and check each batch with
   one Express run.
-- **Standard runs need a higher ceiling.** Admission reserves the full output
-  cap per call, roughly four times what a run uses, so a Standard run stops at
-  the default `PROVIDER_CLIENT_TOKENS_PER_DAY` (16M).
+- **Token admission keeps the default 16M client ceiling.** Each call reserves
+  its input-byte bound and full output cap before dispatch. Successful calls
+  with reported usage settle to real prompt plus completion tokens. Failed
+  calls, missing usage and interrupted streams keep the full reservation.
 - Extended and Ultra get no live runs; check their call envelopes offline.
 
 ## Decision bake-off

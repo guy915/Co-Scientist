@@ -14,8 +14,8 @@ import {fieldClasses} from './text_field';
 import {presenceProps, usePresence} from './use_presence';
 
 const SURFACE_CLASSES =
-  'ui-motion-pop grid gap-[0.15rem] overflow-y-auto rounded-2xl border ' +
-  'border-cosci-border bg-cosci-menu-bg p-[0.35rem] text-cosci-fg shadow-floating';
+  'ui-motion-pop grid gap-0.5 overflow-y-auto rounded-2xl border ' +
+  'border-cosci-border bg-cosci-menu-bg p-1.5 text-cosci-fg shadow-floating';
 
 const ITEM_SELECTOR =
   '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled]), ' +
@@ -104,7 +104,7 @@ export function Menu({
 }
 
 export const MENU_ITEM_CLASSES =
-  'flex min-h-[2.5rem] w-full cursor-pointer items-center gap-[0.72rem] ' +
+  'flex min-h-[2.5rem] w-full cursor-pointer items-center gap-3 ' +
   'rounded-xl border-0 bg-transparent px-3 text-left font-[inherit] ' +
   'text-[0.875rem] text-cosci-fg no-underline hover:bg-cosci-menu-row-hover ' +
   'focus-visible:bg-cosci-menu-row-hover focus-visible:outline-2 ' +

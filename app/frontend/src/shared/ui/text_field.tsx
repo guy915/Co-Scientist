@@ -7,8 +7,8 @@ export type FieldVariant = 'outlined' | 'bare';
 // composer, the bubble editor); that surface owns their focus treatment.
 const VARIANT_CLASSES: Record<FieldVariant, string> = {
   outlined:
-    'rounded-xl border border-field-border bg-transparent px-[0.9rem] ' +
-    'py-[0.65rem] text-[0.9rem] text-cosci-fg focus-visible:border-field-focus ' +
+    'rounded-xl border border-field-border bg-transparent px-3.5 ' +
+    'py-2.5 text-[0.9rem] text-cosci-fg focus-visible:border-field-focus ' +
     'focus-visible:outline-1 focus-visible:outline-offset-0 ' +
     'focus-visible:outline-field-focus disabled:cursor-default disabled:opacity-60',
   bare: 'border-0 bg-transparent p-0 text-cosci-fg outline-none',
