@@ -138,7 +138,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
             onRetry={props.onRetryStatusLookup}
           />
           <PlanHeading onEdit={runPlanEditAction(props, editor)} />
-          <p className="reference-plan-subheading -mt-[0.35rem] m-0 text-cosci-muted">
+          <p className="reference-plan-subheading -mt-1.5 m-0 text-cosci-muted">
             Here's my plan to tackle the topic:
           </p>
           <RunSpecDocument
@@ -164,7 +164,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
 // own Save and Cancel.
 function PlanHeading({onEdit}: {onEdit?: () => void}) {
   return (
-    <div className="reference-plan-heading flex items-center gap-[0.45rem]">
+    <div className="reference-plan-heading flex items-center gap-2">
       <h2 className="m-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg max-[720px]:text-[clamp(1.5rem,6.8vw,2rem)]">
         Research plan
       </h2>
@@ -233,7 +233,7 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
     onStart,
   } = props;
   return (
-    <div className="reference-setup-document grid gap-[1.15rem] rounded-2xl bg-cosci-setup-doc-bg p-[1.5rem_1.45rem]">
+    <div className="reference-setup-document grid gap-5 rounded-2xl bg-cosci-setup-doc-bg p-[1.5rem_1.45rem]">
       <h3 className="m-0 text-[1.45rem] leading-[1.25] font-semibold">
         {conciseTitle(spec.goal)}
       </h3>
@@ -360,7 +360,7 @@ function OptionCard(props: OptionCardProps) {
   return (
     <label
       className={joinClasses(
-        'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-[0.8rem] rounded-xl border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg',
+        'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-3 rounded-xl border border-transparent bg-cosci-option-bg px-4 py-3.5 text-cosci-fg',
         optionCardState(locked, unavailable),
       )}
     >
@@ -410,13 +410,13 @@ function RunOptionGroup({
 }) {
   return (
     <fieldset
-      className="reference-option-group m-0 grid min-w-0 gap-[0.9rem] border-0 p-0"
+      className="reference-option-group m-0 grid min-w-0 gap-3.5 border-0 p-0"
       aria-label={label}
     >
       <legend className="text-[1.18rem] font-bold text-cosci-fg">
         {label}
       </legend>
-      <div className="grid grid-cols-2 gap-[0.85rem] max-[720px]:grid-cols-1">
+      <div className="grid grid-cols-2 gap-3.5 max-[720px]:grid-cols-1">
         {options.map(option => (
           <OptionCard
             key={option.id}
@@ -474,7 +474,7 @@ export function CompletionNotification({
   const {status} = useSystemStatus();
   const available = status?.email_notifications_available ?? false;
   return (
-    <fieldset className="reference-option-group m-0 grid min-w-0 gap-[0.9rem] border-0 p-0">
+    <fieldset className="reference-option-group m-0 grid min-w-0 gap-3.5 border-0 p-0">
       <legend className="text-[1.18rem] font-bold text-cosci-fg">
         Notification
       </legend>
@@ -600,7 +600,7 @@ function SessionLinkCard({
   return (
     <Link
       to={href}
-      className="reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-started-card-fg no-underline"
+      className="reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-5 rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-started-card-fg no-underline"
     >
       <span className="block min-w-0">
         <strong className="block min-w-0 text-[1.18rem] leading-[1.25]">
@@ -609,11 +609,11 @@ function SessionLinkCard({
             text={session.title}
           />
         </strong>
-        <small className="mt-[0.3rem] block text-[0.9rem] text-started-card-fg/80">
+        <small className="mt-1 block text-[0.9rem] text-started-card-fg/80">
           Research session
         </small>
       </span>
-      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-started-card-fg/75 px-5 py-[0.65rem] text-center font-semibold text-started-card-fg/90 hover:bg-started-card-fg/12 focus-visible:bg-started-card-fg/12">
+      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-started-card-fg/75 px-5 py-2.5 text-center font-semibold text-started-card-fg/90 hover:bg-started-card-fg/12 focus-visible:bg-started-card-fg/12">
         Open
       </span>
     </Link>
@@ -628,8 +628,8 @@ function SessionNextActions({
   onNewTopic: () => void;
 }) {
   return (
-    <div className="reference-started-next flex flex-wrap items-center gap-[0.55rem]">
-      <p className="basis-full m-0 mb-[0.1rem] text-[0.95rem] font-semibold text-cosci-muted">
+    <div className="reference-started-next flex flex-wrap items-center gap-2">
+      <p className="basis-full m-0 mb-0.5 text-[0.95rem] font-semibold text-cosci-muted">
         What would you like to do next?
       </p>
       <Link to={href} className={buttonClasses({variant: 'outlined'})}>

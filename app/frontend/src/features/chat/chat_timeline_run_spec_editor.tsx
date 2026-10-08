@@ -13,7 +13,7 @@ import {errorMessage} from '@/shared/lib/errors';
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
     <div className="reference-spec-row block text-base">
-      <dt className="mb-[0.85rem] text-[1.18rem] font-bold text-cosci-fg">
+      <dt className="mb-3.5 text-[1.18rem] font-bold text-cosci-fg">
         {label}:
       </dt>
       <dd className="m-0 leading-[1.45] text-cosci-fg">{children}</dd>
@@ -24,7 +24,7 @@ function SpecRow({label, children}: {label: string; children: ReactNode}) {
 function SpecList({label, values}: {label: string; values: string[]}) {
   return (
     <SpecRow label={label}>
-      <ul className="reference-spec-list m-0 grid list-disc gap-[0.8rem] pl-[1.35rem]">
+      <ul className="reference-spec-list m-0 grid list-disc gap-3 pl-5">
         {values.map(value => (
           <li key={value}>{value}</li>
         ))}
@@ -35,7 +35,7 @@ function SpecList({label, values}: {label: string; values: string[]}) {
 
 function SpecSummary({spec}: {spec: InferredRunSpec}) {
   return (
-    <dl className="reference-setup-grid m-0 grid gap-[1.55rem]">
+    <dl className="reference-setup-grid m-0 grid gap-6">
       <SpecRow label="Research Challenge">{spec.goal}</SpecRow>
       <SpecList label="Focus Area" values={spec.attributes} />
       <SpecList label="Preferences" values={spec.requirements} />
@@ -92,7 +92,7 @@ function EditableList({
     onChange(values.filter((_, i) => i !== index));
   }
   return (
-    <fieldset className="m-0 grid gap-[0.6rem] border-0 p-0">
+    <fieldset className="m-0 grid gap-2.5 border-0 p-0">
       <legend className="text-[1.18rem] font-bold text-cosci-fg">
         {label}
       </legend>
@@ -189,7 +189,7 @@ function SpecFieldsFormActions(
 
 function SpecFieldsForm(props: SpecFieldsFormProps) {
   return (
-    <div className="reference-spec-edit-form grid gap-[1.15rem]">
+    <div className="reference-spec-edit-form grid gap-5">
       <SpecFieldsFormFields values={props.values} onChange={props.onChange} />
       <SpecFieldsFormActions {...props} />
     </div>

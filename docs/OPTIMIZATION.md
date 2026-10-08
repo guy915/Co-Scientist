@@ -20,8 +20,9 @@ lost claim verification and are rejected, so the model configuration is
 unchanged. The final check on `main` (8 October, under Final check in the
 findings) completed Express in 70.5 min, inside the baselines' range. Standard
 stopped after 2 h 16 min: SR-01's per-client token ceiling reserves about 4×
-the tokens a run uses, so a Standard run cannot finish (M16, posted
-on board #238).
+the tokens a run uses, so that Standard run could not finish (M16, posted
+on board #238). The M16 fix settles successful calls with reported usage in
+one transaction, keeping the default ceilings and unknown-call reservations.
 Owner actions remain on the `Campaign board: optimization` issue.
 
 ## Scope

@@ -36,7 +36,7 @@ import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
 
 const CARD_CLASSES = cardClasses({tone: 'raised', size: 'panel'});
 const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';
-const HINT_CLASSES = 'm-0 mt-[0.55rem] text-[0.78rem] text-cosci-muted';
+const HINT_CLASSES = 'm-0 mt-2 text-[0.78rem] text-cosci-muted';
 
 // Free-text credentials commit on blur/Enter; selections commit whole values
 // immediately. Saving silently avoids covering the page with redundant
@@ -133,7 +133,7 @@ function SettingsBody({
   const theme = useTheme();
   const apiKeyField = useApiKeyField();
   return (
-    <div className="mt-5 grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-6 phone:mt-[0.9rem] phone:grid-cols-[minmax(0,1fr)] phone:grid-rows-[auto_minmax(0,1fr)] phone:gap-4">
+    <div className="mt-5 grid min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] gap-6 phone:mt-3.5 phone:grid-cols-[minmax(0,1fr)] phone:grid-rows-[auto_minmax(0,1fr)] phone:gap-4">
       <SettingsNav section={section} onSectionChange={onSectionChange} />
       <div className="grid min-h-0 gap-4 overflow-y-auto pr-1 [align-content:start]">
         {section === 'appearance' && (
@@ -230,10 +230,7 @@ export function ModelSection({
           onChange={onProviderChange}
         />
         <label
-          className={joinClasses(
-            'mt-[0.9rem] block',
-            SETTINGS_FIELD_LABEL_CLASSES,
-          )}
+          className={joinClasses('mt-3.5 block', SETTINGS_FIELD_LABEL_CLASSES)}
           htmlFor="cosci-settings-api-key"
         >
           {PROVIDER_LABELS[provider]} API key
@@ -477,7 +474,7 @@ export function ModelSelectors({
   const disabled = fields.options.length === 0;
   return (
     <>
-      <div className="mt-[0.9rem] grid grid-cols-2 gap-3 [@media(max-width:480px)]:grid-cols-[minmax(0,1fr)]">
+      <div className="mt-3.5 grid grid-cols-2 gap-3 [@media(max-width:480px)]:grid-cols-[minmax(0,1fr)]">
         {(['supervisor', 'worker'] as const).map(tier => (
           <ModelSelect
             key={tier}

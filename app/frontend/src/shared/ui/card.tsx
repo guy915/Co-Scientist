@@ -17,7 +17,7 @@ const TONE_CLASSES: Record<CardTone, string> = {
 const SIZE_CLASSES: Record<CardSize, string> = {
   block: 'rounded-md px-4 py-3',
   tile: 'rounded-md p-4',
-  panel: 'rounded-2xl px-[1.4rem] pt-5 pb-[1.4rem]',
+  panel: 'rounded-2xl px-6 pt-5 pb-6',
 };
 
 export interface CardStyle {

@@ -40,9 +40,9 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'min-h-[2.35rem] gap-[0.45rem] whitespace-nowrap px-[0.72rem] text-[0.875rem] font-semibold',
+  sm: 'min-h-[2.35rem] gap-2 whitespace-nowrap px-3 text-[0.875rem] font-semibold',
   // Long labels wrap on phones rather than overflow.
-  md: 'min-h-[2.6rem] gap-2 px-[1.45rem] py-1.5 font-medium',
+  md: 'min-h-[2.6rem] gap-2 px-6 py-1.5 font-medium',
   lg: 'min-h-12 gap-2 whitespace-nowrap px-6 text-base font-medium',
 };
 

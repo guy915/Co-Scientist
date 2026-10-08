@@ -9,7 +9,7 @@ export type ToastPlacement = 'start' | 'end';
 // `reference-toast` scopes the toast's link-button colour (tokens.css).
 const TONE_CLASSES: Record<ToastTone, string> = {
   neutral:
-    'reference-toast bg-cosci-toast-bg py-[0.7rem] text-[0.92rem] font-medium text-cosci-toast-fg',
+    'reference-toast bg-cosci-toast-bg py-3 text-[0.92rem] font-medium text-cosci-toast-fg',
   danger:
     'border border-cosci-danger-border bg-cosci-danger-bg py-3 text-cosci-danger-fg',
 };

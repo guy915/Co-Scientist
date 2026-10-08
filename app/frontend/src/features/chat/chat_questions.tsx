@@ -123,7 +123,7 @@ function lastPendingTurn(
 }
 
 const ROW_BASE_CLASSES =
-  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-xl border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg';
+  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-3 rounded-xl border border-transparent bg-cosci-option-bg px-4 py-3 text-cosci-fg hover:bg-cosci-option-hover-bg';
 
 const QUESTION_OPTION_ROW_CLASSES = `${ROW_BASE_CLASSES} has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg`;
 
@@ -161,7 +161,7 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
 
   return (
     <section
-      className="mb-[0.9rem] grid max-h-[50dvh] gap-[0.85rem] overflow-y-auto overscroll-contain border-b border-cosci-composer-border pb-[0.9rem] [scrollbar-gutter:stable]"
+      className="mb-3.5 grid max-h-[50dvh] gap-3.5 overflow-y-auto overscroll-contain border-b border-cosci-composer-border pb-3.5 [scrollbar-gutter:stable]"
       aria-label="Answer options"
     >
       <ChooserHead
@@ -202,11 +202,11 @@ function ChooserHead({
   onDismiss: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-[0.6rem]">
+    <div className="flex min-w-0 items-center justify-between gap-2.5">
       <span className="min-w-0 truncate text-[0.82rem] font-medium tracking-[0.04em] uppercase text-cosci-muted">
         {label}
       </span>
-      <div className="flex shrink-0 items-center gap-[0.15rem]">
+      <div className="flex shrink-0 items-center gap-0.5">
         <IconButton
           label={minimized ? 'Show the questions' : 'Minimize the questions'}
           icon={minimized ? 'expand_less' : 'expand_more'}
@@ -266,13 +266,11 @@ interface QuestionGroupProps {
 function QuestionGroup(props: QuestionGroupProps) {
   const {question, index, selections, setSelections, onChoose} = props;
   return (
-    <fieldset className="m-0 grid min-w-0 gap-[0.6rem] border-0 p-0">
+    <fieldset className="m-0 grid min-w-0 gap-2.5 border-0 p-0">
       <legend className="text-base leading-[1.35] font-medium text-cosci-fg">
         {question.question}
       </legend>
-      <div
-        className={joinClasses('grid grid-cols-1 gap-[0.6rem]', 'mt-[0.15rem]')}
-      >
+      <div className={joinClasses('grid grid-cols-1 gap-2.5', 'mt-0.5')}>
         {question.options.map(option => (
           <AnswerRow
             key={option.label}
@@ -349,7 +347,7 @@ function AnswerMarker({
     <span
       aria-hidden="true"
       className={joinClasses(
-        'mt-[0.08rem] grid size-[1.28rem] place-items-center rounded-md border-2 border-cosci-option-marker',
+        'mt-px grid size-[1.28rem] place-items-center rounded-md border-2 border-cosci-option-marker',
         selected && 'border-cosci-option-marker-on bg-cosci-option-marker-on',
       )}
     >
