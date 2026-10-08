@@ -1,8 +1,8 @@
 import type {IconName} from '@/shared/ui/icon';
 import type {ShapeName} from './home_landing_hooks';
 
-// Keep tier facts synchronized with app RUN_TIER_DEFAULTS and initial Elo with
-// engine constants/tournament.py.
+// Keep tier facts synchronized with engine RUN_TIER_DEFAULTS and initial Elo
+// with engine INITIAL_ELO_RATING.
 
 export type LandingTone = 'teal' | 'blue' | 'green' | 'yellow' | 'red';
 
@@ -218,7 +218,7 @@ export const FAQ: readonly FaqEntry[] = [
     answer:
       'No. Without a key you are on free usage: you can start Express runs ' +
       'only, up to 3 per day on this device. Add your own key under Model ' +
-      'to use every run type without a daily limit.',
+      'to use every run type, with higher daily limits.',
   },
   {
     question: 'Which model does it use?',
