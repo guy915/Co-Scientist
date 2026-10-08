@@ -159,11 +159,15 @@ def _fail_permanent_task(
         logger.error("Task %s rejected: %s", task.id, exc)
 
 
+def _is_retryable(exc: Exception) -> bool:
+    return not isinstance(exc, LLMTimeoutError) or exc.zero_cost_admitted
+
+
 def _fail_retryable_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
     """One task failure must remain isolated from the rest of its cohort."""
-    retryable = not isinstance(exc, LLMTimeoutError) or exc.zero_cost_admitted
+    retryable = _is_retryable(exc)
     retry_at = None
     if isinstance(exc, LLMTimeoutError) and exc.zero_cost_admitted:
         from co_scientist.platform.llm import provider_outage_backoff_seconds
@@ -188,15 +192,22 @@ def _fail_retryable_task(
 
 
 # First matching failure type wins; unmatched exceptions retain the retryable
-# default.
+# default. The outcome names the settlement on the task span.
 _FailureHandler = Callable[[ScientificTask, str, Any, "str | None"], None]
-_FAILURE_HANDLERS: tuple[tuple[type[Exception], _FailureHandler], ...] = (
-    (engine_tasks.SupersededTaskError, _complete_superseded_task),
-    (engine_tasks.SafetyHoldError, _park_held_task),
-    (LLMRateLimitParkError, _park_rate_limited_task),
-    (UnsupportedTaskError, _fail_permanent_task),
-    (LLMCallBudgetExceededError, _fail_permanent_task),
+_FAILURE_HANDLERS: tuple[tuple[type[Exception], _FailureHandler, str], ...] = (
+    (engine_tasks.SupersededTaskError, _complete_superseded_task, "superseded"),
+    (engine_tasks.SafetyHoldError, _park_held_task, "parked"),
+    (LLMRateLimitParkError, _park_rate_limited_task, "parked"),
+    (UnsupportedTaskError, _fail_permanent_task, "failed"),
+    (LLMCallBudgetExceededError, _fail_permanent_task, "failed"),
 )
+
+
+def failure_outcome(task: ScientificTask, exc: Exception) -> str:
+    for exc_type, _, outcome in _FAILURE_HANDLERS:
+        if isinstance(exc, exc_type):
+            return outcome
+    return "failed" if _is_terminal_failure(task, retryable=_is_retryable(exc)) else "retried"
 
 
 def _handle_task_failure(
@@ -206,7 +217,7 @@ def _handle_task_failure(
     and spent budgets fail permanently; other failures retain retry
     budgets.
     """
-    for exc_type, handler in _FAILURE_HANDLERS:
+    for exc_type, handler, _ in _FAILURE_HANDLERS:
         if isinstance(exc, exc_type):
             handler(task, worker_id, exc, db_path)
             return

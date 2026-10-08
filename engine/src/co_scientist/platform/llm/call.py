@@ -24,6 +24,7 @@ from co_scientist.platform.llm.structured.validate import (
     _handle_json_retries_exhausted,
     extract_response_json,
 )
+from co_scientist.platform.llm.telemetry import logical_call_span
 from co_scientist.platform.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,10 @@ async def call_llm(
     parse/schema correction.
     """
     opt = options if options is not None else LLMCallOptions()
-    with scoped_api_key(spec.api_key):
+    with (
+        logical_call_span("call_llm", spec.model_name, opt.prompt_name),
+        scoped_api_key(spec.api_key),
+    ):
         return await run_attempts(
             _call_for_attempt(prompt, spec, opt),
             AttemptPlan(spec.model_name, max_attempts),
@@ -122,7 +126,10 @@ async def call_llm_json(
     opt = options if options is not None else LLMCallOptions()
     # Scope the explicit key over every attempt, without putting it in the
     # JSON spec.
-    with scoped_api_key(spec.api_key):
+    with (
+        logical_call_span("call_llm_json", spec.model_name, opt.prompt_name),
+        scoped_api_key(spec.api_key),
+    ):
         json_spec = dataclasses.replace(spec, api_key=None, force_json=not spec.json_schema)
 
         judge = JsonJudge(prompt, json_spec)
