@@ -17,6 +17,19 @@ call in a short transaction. Missing usage, failure, interruption or restart
 keeps the reservation. No writer spans network work. Convert USD prices with
 `LLM_USD_TO_EUR=0.88`. Stop Azure after `LLM_AZURE_UNTIL`.
 
+The guard uses integer micro-EUR and snapshots FX/rates for each reservation.
+Paid transactions sync the reservation before dispatch. Native calls recheck
+kill switches, expiry and the process spend hold after any thread wait.
+Until Luna's price boundary is known, charge at the higher long-context rate.
+Reserve input bytes plus the framing allowance, the full output allowance and
+up to four cache-write prefixes. Missing Luna cache-write usage keeps the full
+money reservation. Reported reasoning stays within output tokens. Settlement
+failure keeps all reservations and stops new paid calls. Prices cover model
+tokens only; other subscription charges still reduce the owner's credit.
+
+Because the portal omits the expiry time and zone, stop at 00:00 UTC on the
+configured expiry date. This avoids using the unconfirmed final day.
+
 W4-4 compares run estimates with remaining total. If the estimate does not fit,
 do not offer Azure. There is no daily/monthly money cap, spread or carry-forward.
 Keep existing per-user/free-run limits. Read `LLM_ENABLED` and

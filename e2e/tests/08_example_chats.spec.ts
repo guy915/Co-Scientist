@@ -29,7 +29,7 @@ for (const theme of ['light', 'dark']) {
     ).toBeAttached();
     const question = `Which controls need replication in this ${theme} example?`;
     const composer = page.getByRole('textbox', {
-      name: 'Ask a question about this research session',
+      name: 'Ask Co-Scientist',
     });
     await expect(composer).toBeInViewport();
     await composer.fill(question);
@@ -80,7 +80,7 @@ test('every curated example carries its conversation, saved plan and linked resu
     ).toBeAttached();
     await expect(
       page.getByRole('textbox', {
-        name: 'Ask a question about this research session',
+        name: 'Ask Co-Scientist',
       }),
     ).toBeVisible();
     await page.getByRole('link', {name: 'View session details'}).click();
