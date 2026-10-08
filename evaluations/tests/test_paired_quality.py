@@ -223,6 +223,21 @@ def test_changed_stored_config_and_wrong_goal_fail_before_judging(tmp_path: Path
         read_snapshot(db, "r", "cell-biology", "a" * 40)
 
 
+def test_dispatch_receipt_counts_calls_lost_from_failed_task_telemetry(tmp_path: Path) -> None:
+    snapshot(tmp_path)
+    db = tmp_path / "main.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE evaluation_runs (run_id, source_commit, physical_requests)")
+        conn.execute("INSERT INTO evaluation_runs VALUES ('r',?,150)", ("a" * 40,))
+    m = read_snapshot(db, "r", "cell-biology", "a" * 40).metrics
+    assert m["physical_calls"] == 150
+    assert m["call_count_basis"] == "benchmark_dispatch_counter"
+    assert m["total_tokens"] is None
+    assert m["reported_token_subtotal"] == 1200
+    with pytest.raises(ValueError, match="source commit differs"):
+        read_snapshot(db, "r", "cell-biology", "b" * 40)
+
+
 def test_entire_pipeline_is_offline_and_does_not_write_run_databases(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

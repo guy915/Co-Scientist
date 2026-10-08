@@ -47,14 +47,21 @@ def _heading_title(heading: str) -> str:
     return re.sub(r"^(?:Open )?Co-Scientist - ", "", heading).strip()
 
 
-def _usage(metrics: dict[str, Any]) -> dict[str, Any]:
+def _usage(metrics: dict[str, Any], attempted: int | None) -> dict[str, Any]:
     usage = metrics.get("model_usage") or {}
     evidence = summarize_usage(usage)
     complete = evidence["has_usage_records"] and not evidence["unreported_usage_calls"]
+    if attempted is not None and attempted != evidence["physical_calls"]:
+        complete = False
     prompt = sum(int(row.get("prompt_tokens", 0)) for row in usage.values())
     completion = sum(int(row.get("completion_tokens", 0)) for row in usage.values())
     return {
-        "physical_calls": evidence["physical_calls"] if usage else None,
+        "physical_calls": attempted
+        if attempted is not None
+        else (evidence["physical_calls"] if usage else None),
+        "call_count_basis": "benchmark_dispatch_counter"
+        if attempted is not None
+        else "recorded_telemetry_only",
         "prompt_tokens": prompt if complete else None,
         "completion_tokens": completion if complete else None,
         # Reasoning is normally already included in completion, so never add it twice.
@@ -103,6 +110,7 @@ def read_snapshot(db: Path, run_id: str, goal_id: str, source_commit: str) -> Sn
             "SELECT metrics_json FROM run_metrics WHERE run_id=?", (run_id,)
         ).fetchone()
         metrics = json.loads(row[0]) if row else {}
+        attempted = _dispatch_count(conn, run_id, source_commit)
         times = conn.execute(
             "SELECT MIN(started_at), MAX(completed_at) FROM scientific_tasks WHERE run_id=?",
             (run_id,),
@@ -136,9 +144,25 @@ def read_snapshot(db: Path, run_id: str, goal_id: str, source_commit: str) -> Sn
         "supported_claims": len(supported),
         "delivered_supported_claims": sum(hid in ids for hid, _ in supported),
         "wall_seconds": round(wall, 3) if wall is not None else None,
-        **_usage(metrics),
+        **_usage(metrics, attempted),
     }
     return Snapshot(goal_id, markdown, facts, identity)
+
+
+def _dispatch_count(conn: sqlite3.Connection, run_id: str, source_commit: str) -> int | None:
+    # Older saved databases predate the evaluation-only dispatch receipt.
+    if not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='evaluation_runs'"
+    ).fetchone():
+        return None
+    row = conn.execute(
+        "SELECT source_commit, physical_requests FROM evaluation_runs WHERE run_id=?", (run_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    if row[0] != source_commit:
+        raise ValueError("source commit differs from the benchmark receipt")
+    return int(row[1])
 
 
 def identity_digest_goal(goal: str) -> str:

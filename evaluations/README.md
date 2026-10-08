@@ -209,6 +209,10 @@ mixes, claim verdicts, distinct supported claims (`supports` or `partial`),
 task-span wall time, physical calls and prompt/completion tokens. Missing
 usage is unknown, never zero. Wall time spans the earliest task start to the
 latest task completion, including waits; it is not summed call latency.
+When an evaluation dispatch receipt is present, its attempted physical calls
+take precedence over task telemetry (failed tasks can lose usage records).
+Missing token records then make total tokens unknown. Older databases expose
+`recorded_telemetry_only` as the call-count basis, not a claim of complete dispatch coverage.
 
 The judge sees only the fixed goal, rubric and two final reports, with provider
 and prepared-date lines removed. Both orders run independently; a winner must
