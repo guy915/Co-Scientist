@@ -9,9 +9,9 @@ import {
   UI_URL,
   VENV_PYTHON,
 } from './support/paths';
+import {browserShardFiles} from './support/shards';
 
-// Resolve one state directory so servers and teardown share the same isolated
-// store.
+// Resolve the same isolated store in the servers and test processes.
 const STATE_DIR = runStateDir();
 const PRODUCTION = process.env.COSCI_E2E_PRODUCTION === '1';
 
@@ -82,6 +82,9 @@ const frontendServer = {
 
 export default defineConfig({
   testDir: PRODUCTION ? './production' : './tests',
+  testMatch: PRODUCTION
+    ? undefined
+    : browserShardFiles(process.env.COSCI_E2E_BROWSER_SHARD),
   // Stateful shared servers run serially so mutation flows cannot contaminate
   // home assertions.
   fullyParallel: false,
@@ -89,7 +92,6 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: process.env.CI ? [['list'], ['html', {open: 'never'}]] : 'list',
-  globalTeardown: './support/paths.ts',
   timeout: 60_000,
   expect: {timeout: 15_000},
   use: {

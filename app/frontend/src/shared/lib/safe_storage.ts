@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   lastSessionSide: 'cosci:session-side',
   sessionTabPrefix: 'cosci:session-tab:',
   logsBaseline: 'cosci-logs-session-baseline',
+  logsPauseUntil: 'co_scientist_log_pause_until',
   pendingRunCreatePrefix: 'co_scientist_pending_run_create:',
   chunkReloadAt: 'coscientist:chunk-reload-at',
 } as const;
