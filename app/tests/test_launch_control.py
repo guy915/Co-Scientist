@@ -353,7 +353,7 @@ def test_late_heartbeat_can_renew_owned_lease_but_not_reclaimed_or_cancelled_lea
     assert not owns_task_lease(task.id, "first", db_path=isolated_db)
     assert not tasks.renew_task_lease(task.id, "first", 60, db_path=isolated_db)
     assert owns_task_lease(task.id, "second", db_path=isolated_db)
-    tasks.cancel_task(task.id, reason="synthetic cancellation", db_path=isolated_db)
+    tasks.cancel_run_tasks(run.id, db_path=isolated_db)
     assert not owns_task_lease(task.id, "second", db_path=isolated_db)
     assert not tasks.renew_task_lease(task.id, "second", 60, db_path=isolated_db)
 
