@@ -632,10 +632,10 @@ function SessionNextActions({
       <p className="basis-full m-0 mb-0.5 text-[0.95rem] font-semibold text-cosci-muted">
         What would you like to do next?
       </p>
-      <Link to={href} className={buttonClasses({variant: 'outlined'})}>
+      <Link to={href} className={buttonClasses({variant: 'accent'})}>
         View session details
       </Link>
-      <Button variant="outlined" onClick={onNewTopic}>
+      <Button variant="accent" onClick={onNewTopic}>
         Start a new research goal session on a new topic
       </Button>
     </div>
