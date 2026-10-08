@@ -658,6 +658,10 @@ class OfflineRouter:
     def __init__(self, inner: CompletionBackend) -> None:
         self._inner = inner
 
+    @property
+    def operator_routing(self) -> bool:
+        return bool(getattr(self._inner, "operator_routing", False))
+
     async def complete(self, **completion_args: Any) -> Any:
         model_name = str(completion_args.get("model") or "")
         if is_offline_model(model_name):

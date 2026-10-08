@@ -19,6 +19,7 @@ class SpendReservation:
     input_bound: int
     output_bound: int
     rates: str
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,14 +48,32 @@ def hold_spending(receipt: str, path: str) -> None:
 def reserve_spend(conn: sqlite3.Connection, receipt: str, spend: SpendReservation) -> None:
     now = current_time()
     spent = conn.execute("SELECT COALESCE(SUM(charged_microeur),0) FROM llm_spend").fetchone()[0]
+    forecasts = conn.execute(
+        "SELECT COALESCE(SUM(forecast_microeur),0) FROM llm_routes"
+    ).fetchone()[0]
+    converted = 0
+    if spend.run_id is not None:
+        route = conn.execute("SELECT * FROM llm_routes WHERE run_id=?", (spend.run_id,)).fetchone()
+        if route is None or not route["azure_allowed"]:
+            raise ProviderAdmissionError(UNAVAILABLE)
+        converted = min(spend.amount, route["forecast_microeur"])
     if (
         now >= spend.cutoff
         or spend.amount < 0
         or spend.total <= 0
-        or spent + spend.amount > spend.total
+        or spent + forecasts + spend.amount - converted > spend.total
         or conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone()
     ):
         raise ProviderAdmissionError(UNAVAILABLE)
+    if converted:
+        conn.execute(
+            "UPDATE llm_routes SET forecast_microeur=forecast_microeur-? WHERE run_id=?",
+            (converted, spend.run_id),
+        )
+        conn.execute(
+            "INSERT INTO llm_forecast_allocations VALUES (?,?,?)",
+            (receipt, spend.run_id, converted),
+        )
     conn.execute(
         "INSERT INTO llm_spend "
         "(id,created_at,model,role,reserved_microeur,charged_microeur,"
@@ -88,8 +107,20 @@ def settle_spend(
         return
     if not 0 <= charged <= row[0]:
         raise ProviderAdmissionError(UNAVAILABLE)
-    conn.execute(
+    changed = conn.execute(
         "UPDATE llm_spend SET charged_microeur=?,settled=1,prompt_tokens=?,output_tokens=?,"
         "cached_tokens=?,cache_write_tokens=? WHERE id=? AND settled=0",
         (charged, prompt, output, cached, written, receipt),
-    )
+    ).rowcount
+    if changed:
+        allocation = conn.execute(
+            "SELECT run_id,converted_microeur FROM llm_forecast_allocations WHERE receipt_id=?",
+            (receipt,),
+        ).fetchone()
+        if allocation:
+            refund = min(allocation["converted_microeur"], row[0] - charged)
+            conn.execute(
+                "UPDATE llm_routes SET forecast_microeur=forecast_microeur+? WHERE run_id=?",
+                (refund, allocation["run_id"]),
+            )
+            conn.execute("DELETE FROM llm_forecast_allocations WHERE receipt_id=?", (receipt,))
