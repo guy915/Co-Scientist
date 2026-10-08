@@ -1,11 +1,17 @@
-import {conciseTitle} from './text';
+import {conciseTitle, titleCase} from './text';
 
-// A stored title wins once trimmed. Otherwise each surface shortens the goal
-// its own way; the report header deliberately shows the whole goal.
+export const UNTITLED_SESSION = 'Untitled session';
+
+// The one session title every surface shows: a stored title wins once
+// trimmed, otherwise each surface shortens the goal its own way (the report
+// header deliberately shows the whole goal), and nothing at all reads
+// "Untitled session".
 export function displayTitle(
   title: string | null | undefined,
-  goal: string,
+  goal: string | null | undefined,
   shorten: (goal: string) => string = conciseTitle,
 ): string {
-  return title?.trim() || shorten(goal);
+  const goalText = (goal ?? '').trim();
+  const text = title?.trim() || (goalText ? shorten(goalText).trim() : '');
+  return text ? titleCase(text) : UNTITLED_SESSION;
 }
