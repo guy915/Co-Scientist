@@ -14,6 +14,7 @@ from co_scientist.domains.research_state.drain.reviews import (
     _persist_engine_reviews,
 )
 from co_scientist.domains.research_state.elo import INITIAL_ELO
+from co_scientist.domains.research_state.hypothesis_fields import store_text_fields
 from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records
@@ -324,11 +325,12 @@ def _persist_engine_hypothesis_row(
     identity = _derive_hypothesis_identity(h)
     parent_id = _resolve_persisted_parent_id(identity, persisted_engine_ids)
     parent_ids = _resolve_persisted_parent_ids(identity, parent_id, persisted_engine_ids)
+    text_fields = store_text_fields({**h, "text": identity.text})
     hyp_id = store.add_hypothesis(
         NewHypothesis(
             run_id=run_id,
             title=identity.title,
-            statement=identity.text,
+            statement=text_fields["statement"],
             hypothesis_id=identity.engine_id,
             parent_id=parent_id,
             parent_ids=parent_ids,
@@ -336,9 +338,9 @@ def _persist_engine_hypothesis_row(
             # Cycle zero is real and must not collapse to an absent ordinal.
             creation_iteration=h.get("creation_iteration"),
             category=h.get("category") or None,
-            mechanism=h.get("literature_grounding") or "",
-            expected_effect=h.get("explanation") or "",
-            experimental_context=h.get("experiment") or "",
+            mechanism=text_fields["mechanism"],
+            expected_effect=text_fields["expected_effect"],
+            experimental_context=text_fields["experimental_context"],
             introduction=h.get("introduction") or "",
             recent_findings=h.get("recent_findings") or "",
             safety_and_toxicity=h.get("safety_and_toxicity") or "",

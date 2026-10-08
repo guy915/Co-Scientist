@@ -8,12 +8,14 @@ from co_scientist.core.constants import (
     PROGRESS_SAFETY_SCREEN_COMPLETE,
     PROGRESS_SAFETY_SCREEN_START,
 )
+from co_scientist.domains.research_state.hypothesis_fields import HYPOTHESIS_FIELDS
 from co_scientist.domains.research_state.models import (
     Hypothesis,
     create_metrics_update,
     phase_message,
 )
 from co_scientist.domains.research_state.state import ReplaceHypotheses, WorkflowState
+from co_scientist.domains.safety.hypothesis_text import screened_text
 from co_scientist.domains.safety.rules import (
     SafetyOutcome,
     redact_hypothesis_fields,
@@ -28,8 +30,8 @@ __all__ = ["safety_screen_node"]
 
 
 def _screen_text(h: Hypothesis) -> str:
-    parts = [h.text, h.explanation, h.literature_grounding, h.experiment]
-    return " ".join(part for part in parts if part)
+    fields = {field.engine: getattr(h, field.engine) for field in HYPOTHESIS_FIELDS}
+    return screened_text(fields, "engine", separator=" ")
 
 
 def _build_safety_decision(
