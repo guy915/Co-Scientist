@@ -7,8 +7,8 @@
 //
 // One venv per config is all Pyright supports, so this points at the root
 // .venv that the Makefile builds (VENV := $(ROOT)/.venv) and that every test
-// target runs from -- it carries both editable installs, co_scientist_engine
-// and co_scientist_viewer. It deliberately does *not* point at app/.venv,
+// target runs from -- it carries the editable co_scientist_engine install.
+// It deliberately does *not* point at app/.venv,
 // which is a stale leftover missing declared dependencies (pypdf) and produces phantom unresolved-import errors. The
 // mcp_server package keeps its own 3.12 environment at .venv-mcp (see
 // AGENTS.md) whose third-party imports this cannot resolve; run mypy from

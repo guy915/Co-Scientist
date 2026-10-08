@@ -38,6 +38,23 @@ dependencies = [
     "pillow>=12.0.0,<13",
     # Spans are no-ops until the api configures an exporter (ADR-005).
     "opentelemetry-api>=1.30,<2",
+    # The HTTP server (co_scientist.main and co_scientist.api).
+    "fastapi>=0.142.2,<1",
+    "starlette>=1.3.1,<2",
+    # The standard extra brings uvloop, httptools and watchfiles (--reload).
+    "uvicorn[standard]>=0.24.0",
+    "python-dotenv>=1.0.0",
+    # Required by FastAPI for the multipart UploadFile route in co_scientist.api.runs.
+    "python-multipart>=0.0.9",
+    # PDF text extraction for uploaded documents.
+    "pypdf>=5.0.0,<7.0.0",
+    # Encrypts bring-your-own-key provider credentials at rest.
+    "cryptography>=43.0.0",
+    # Error reports stay off unless SENTRY_DSN is set.
+    "sentry-sdk>=2.0.0,<3",
+    # Traces stay off unless OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    "opentelemetry-sdk>=1.30,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
 ]
 
 [project.optional-dependencies]
@@ -49,11 +66,8 @@ dev = [
     "mypy~=1.19.1",
     "types-PyYAML",
     "types-jsonschema",
-    "python-dotenv~=1.2.1",
     "absl-py~=2.1",
     "import-linter~=2.15",
-    "opentelemetry-sdk>=1.30,<2",
-    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
 ]
 
 
