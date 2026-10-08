@@ -52,7 +52,7 @@ changed by this implementation. There is no live model quality receipt.
 ## Validation status
 
 Merged foundations and routing: #455, #468, #522, #533, #577, #592, #607 and #620.
-W4-5 is #626, awaiting review and CI. W4-6 passed its local source checks;
+W4-5 is merged as #626. W4-6 is #632; it passed its local source checks;
 the local Docker gate stopped at dependency certificate verification. Stock
 CI images and exact-head review must pass before merge.
 Hermetic receipts are on the campaign board. A live receipt is still required:
