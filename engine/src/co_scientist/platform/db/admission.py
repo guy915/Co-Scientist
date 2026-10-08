@@ -6,6 +6,7 @@ import sqlite3
 import uuid
 from dataclasses import dataclass
 
+from co_scientist.core.admission_windows import UTC_DAY_SECONDS, utc_day
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, default_db_path, transaction
 from co_scientist.platform.db.spend import SpendReservation, reserve_spend, settle_spend
@@ -64,7 +65,7 @@ def claim_session(conn: sqlite3.Connection, owner: str, host: str, day: int) -> 
 def claim_run(conn: sqlite3.Connection, run_id: str, owner: str, host: str, *, free: bool) -> None:
     from co_scientist.core.config import settings
 
-    day = int(current_time() // 86400)
+    day = utc_day(current_time())
     claim_session(conn, owner, host, day)
     total, same_host, free_total, free_host = conn.execute(
         "SELECT COUNT(*),COALESCE(SUM(host=?),0),COALESCE(SUM(free),0),"
@@ -140,7 +141,7 @@ def reserve_provider(
 ) -> ProviderReservation:
     from co_scientist.core.config import settings
 
-    day = int(current_time() // 86400)
+    day = utc_day(current_time())
     receipt = ProviderReservation(
         uuid.uuid4().hex, db_path or default_db_path() or "./coscientist.db", spend is not None
     )
@@ -227,7 +228,7 @@ def claim_continuation(
 ) -> None:
     from co_scientist.core.config import settings
 
-    day = int(current_time() // 86400)
+    day = utc_day(current_time())
     row = conn.execute("SELECT host FROM run_admissions WHERE run_id=?", (run_id,)).fetchone()
     host = str(row[0]) if row else UNKNOWN_HOST
     prefix = f"continuation:{run_id}:"
@@ -249,7 +250,7 @@ def claim_continuation(
     if free:
         used = conn.execute(
             "SELECT COUNT(*) FROM free_run_usage WHERE client_id=? AND created_at>=?",
-            (owner, day * 86400),
+            (owner, day * UTC_DAY_SECONDS),
         ).fetchone()[0]
         if settings.free_runs_per_day > 0 and used >= settings.free_runs_per_day:
             raise ProviderAdmissionError("daily free run admission exhausted")
