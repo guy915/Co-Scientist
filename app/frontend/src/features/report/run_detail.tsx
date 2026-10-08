@@ -33,6 +33,11 @@ import {DocumentSkeleton} from '@/shared/ui';
 const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto phone:overflow-x-hidden';
 
+// A failed refresh's alert sits above the body in its own row instead of taking
+// the body's row; alone, the body spans both.
+const REPORT_BODY_CLASSES =
+  'grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] [&>:only-child]:row-span-2';
+
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
 // Use history status before fetch completion to avoid flashing finished-report
@@ -101,6 +106,12 @@ function isInitialLoading(data: RunDetailData): boolean {
   return !data.loaded && !data.error;
 }
 
+// A run that never loaded (unknown id, failed first fetch) has no report to
+// show; the alert is the whole page.
+function failedWithoutRun(data: RunDetailData): boolean {
+  return data.loaded && !data.run;
+}
+
 function awaitingDecisionCount(data: RunDetailData): number {
   return data.run?.awaiting_decision_count ?? 0;
 }
@@ -117,7 +128,8 @@ export function RunDetail() {
   // Show terminal failure instead of tabs that would present partial output as
   // a finished report.
   const showEndState = terminalEndStateOf(data.run) !== null;
-  const showTabs = activity === 'inactive' && !showEndState;
+  const showTabs =
+    activity === 'inactive' && !showEndState && !failedWithoutRun(data);
   return (
     <div className={reportPageClasses(showTabs)}>
       <ReportTitlebar title={data.title} activeTab={activeTab} />
@@ -130,14 +142,15 @@ export function RunDetail() {
         />
       )}
 
-      <ReportErrorAlert message={data.error} />
-
-      <RunDetailBody
-        active={activity === 'active'}
-        activeTab={activeTab}
-        ideasViewKey={ideasViewKey}
-        data={data}
-      />
+      <div className={REPORT_BODY_CLASSES}>
+        <ReportErrorAlert message={data.error} />
+        <RunDetailBody
+          active={activity === 'active'}
+          activeTab={activeTab}
+          ideasViewKey={ideasViewKey}
+          data={data}
+        />
+      </div>
 
       <RunToast message={data.toast} />
     </div>
@@ -159,6 +172,7 @@ function RunDetailBody({
 }: RunDetailBodyProps) {
   if (isInitialLoading(data))
     return <DocumentSkeleton label="Loading report…" />;
+  if (failedWithoutRun(data)) return null;
   const endState = terminalEndStateOf(data.run);
   if (endState) {
     return (
