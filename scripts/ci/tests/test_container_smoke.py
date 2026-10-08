@@ -109,6 +109,7 @@ class ContainerSmokeTests(unittest.TestCase):
             for args in starts[:2]:
                 self.assertIn("COSCIENTIST_TEST_DOUBLE=deterministic", args)
                 self.assertIn("COSCIENTIST_FORCE_OFFLINE=1", args)
+                self.assertIn("COSCIENTIST_TRUSTED_PROXY_CIDRS=127.0.0.1/32", args)
             for args in starts:
                 self.assertIn("none", args)
                 self.assertNotIn("--entrypoint", args)
