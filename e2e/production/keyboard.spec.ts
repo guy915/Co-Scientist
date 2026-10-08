@@ -35,9 +35,13 @@ for (const theme of ["light", "dark"]) {
     await page.keyboard.press("ArrowDown");
     await expect(menu.getByRole("menuitem", { name: "Model" })).toBeFocused();
     await page.keyboard.press("ArrowDown");
+    await expect(menu.getByRole("menuitem", { name: "Data" })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
     await expect(
       menu.getByRole("menuitem", { name: "Appearance" }),
     ).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await expect(menu.getByRole("menuitem", { name: "Data" })).toBeFocused();
     await page.keyboard.press("ArrowUp");
     await expect(menu.getByRole("menuitem", { name: "Model" })).toBeFocused();
     await page.keyboard.press("Escape");
@@ -48,6 +52,13 @@ for (const theme of ["light", "dark"]) {
       menu.getByRole("menuitem", { name: "Appearance" }),
     ).toBeFocused();
     await page.keyboard.press("End");
+    await expect(menu.getByRole("menuitem", { name: "Data" })).toBeFocused();
+    await page.keyboard.press("Home");
+    await expect(
+      menu.getByRole("menuitem", { name: "Appearance" }),
+    ).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(menu.getByRole("menuitem", { name: "Model" })).toBeFocused();
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
     await expect(dialog).toBeVisible();
