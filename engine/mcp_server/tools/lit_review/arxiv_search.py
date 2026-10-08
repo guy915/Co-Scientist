@@ -11,6 +11,7 @@ import defusedxml.ElementTree as ElementTree
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.tools._results import failed, non_raising, ok
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,6 @@ async def search_arxiv(query: str, max_results: int = 10) -> dict[str, Any]:
             response.raise_for_status()
         records = _parse_feed(response.text)[:limit]
     except (httpx.HTTPError, ParseError) as exc:
-        logger.warning("arXiv search failed")
+        logger.warning("arXiv search failed (%s)", failure_summary(exc))
         return failed(exc)
     return ok(records)

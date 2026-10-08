@@ -5,6 +5,8 @@ from typing import Any
 
 from bs4 import BeautifulSoup, Tag
 
+from mcp_server.log_privacy import failure_summary
+
 logger = logging.getLogger(__name__)
 
 # Block-level markup becomes a space: "<h4>Aims</h4>The convergence" must
@@ -101,11 +103,11 @@ def _pmc_html_to_markdown(html_content: str, max_chars: int) -> str:
 def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> str:
     try:
         return _pmc_html_to_markdown(html_content, max_chars)
-    except Exception:
-        logger.error("PMC HTML text extraction failed")
+    except Exception as exc:
+        logger.error("PMC HTML text extraction failed (%s)", failure_summary(exc))
         try:
             text = BeautifulSoup(html_content, "lxml-xml").get_text(separator="\n", strip=True)
             return truncate_markdown(text, max_chars)
-        except Exception:
-            logger.error("Fallback text extraction failed")
+        except Exception as fallback_exc:
+            logger.error("Fallback text extraction failed (%s)", failure_summary(fallback_exc))
             return "[error: could not extract text from HTML]"

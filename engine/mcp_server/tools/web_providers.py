@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.tools._results import failed, keyed_records, non_raising
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ def _handle_provider_error(provider: str, query: str, exc: Exception) -> dict[st
             status,
         )
         return failed(exc)
-    logger.warning("%s web search failed", provider)
+    logger.warning("%s web search failed (%s)", provider, failure_summary(exc))
     return failed(exc)
 
 

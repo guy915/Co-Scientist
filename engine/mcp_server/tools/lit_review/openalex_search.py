@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.tools._results import failed, keyed_records, non_raising
 
 logger = logging.getLogger(__name__)
@@ -171,5 +172,5 @@ async def search_openalex(
     try:
         return keyed_records(await _collect_openalex_works(params, per_page, max_papers))
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("OpenAlex search failed")
+        logger.warning("OpenAlex search failed (%s)", failure_summary(exc))
         return failed(exc)
