@@ -2,7 +2,7 @@
 set -eu
 
 if [ "${1:-}" = "--serve" ]; then
-    exec python -m uvicorn co_scientist.main:app --host 0.0.0.0 \
+    exec python -m uvicorn co_scientist.serving:create_app --factory --no-proxy-headers --host 0.0.0.0 \
         --port "${PORT:-8008}" --timeout-graceful-shutdown 20 --timeout-keep-alive 15
 fi
 if [ "$#" -gt 0 ]; then
