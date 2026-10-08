@@ -12,19 +12,28 @@ from co_scientist.platform.db.models import RunStatus, ScientificTask
 from tests._store_helpers import enqueue_task, seed_run
 
 
-def _leased(run_title: str, owner: str, db_path: str, idempotency: str) -> ScientificTask:
+def _leased(
+    run_title: str,
+    owner: str,
+    db_path: str,
+    idempotency: str,
+    task_type: str = "engine.node.generate",
+) -> ScientificTask:
     run = seed_run(run_title)
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
-    enqueue_task(run.id, "engine.node.generate", idempotency, max_attempts=3, db_path=db_path)
+    enqueue_task(run.id, task_type, idempotency, max_attempts=3, db_path=db_path)
     leased = tasks.claim_task(owner, run_id=run.id, db_path=db_path)
     assert leased is not None and leased.attempt == 1
     return leased
 
 
+@pytest.mark.parametrize("task_type", ["engine.node.generate", "engine.fanout.review.item"])
 def test_released_lease_is_claimable_at_once_without_spending_an_attempt(
-    isolated_db: str,
+    isolated_db: str, task_type: str
 ) -> None:
-    leased = _leased("release", "embedded-api:7.boot:0", isolated_db, "generate:release")
+    leased = _leased(
+        "release", "embedded-api:7.boot:0", isolated_db, f"{task_type}:release", task_type
+    )
 
     assert tasks.release_owned_leases(["embedded-api:7.boot:0"], db_path=isolated_db) == 1
 

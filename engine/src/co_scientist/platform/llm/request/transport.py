@@ -9,8 +9,10 @@ from contextvars import copy_context
 from typing import Any
 
 from litellm.exceptions import Timeout as LiteLLMTimeout
+from openai import APIStatusError
 from opentelemetry.trace import Span
 
+from co_scientist.core import inflight
 from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
 from co_scientist.platform.db.admission import ProviderReservation
 from co_scientist.platform.llm.admission.anthropic import (
@@ -66,8 +68,10 @@ class _CompletionStream:
         start: float,
         span: Span,
         receipt: ProviderReservation | None,
+        call: inflight.CallMark,
     ) -> None:
         self._response = response
+        self._call = call
         self._iterator = response.__aiter__()
         self._model = model
         self._start = start
@@ -103,6 +107,7 @@ class _CompletionStream:
             return
         self._done = True
         latency = time.monotonic() - self._start
+        _note_answer(self._call, error)
         if error is None:
             try:
                 settle_physical(self._receipt, self._last)
@@ -130,6 +135,13 @@ class _CompletionStream:
         close = getattr(self._response, "aclose", None)
         if close is not None:
             await close()
+
+
+# Only an HTTP status the provider returned proves the request was answered;
+# connection loss, timeouts and cancellation leave its outcome unknown.
+def _note_answer(call: inflight.CallMark, error: BaseException | None) -> None:
+    if error is None or isinstance(error, APIStatusError):
+        call.answered()
 
 
 async def _await_provider(
@@ -284,6 +296,7 @@ async def _complete_physical(
     apply_dispatch_cache_key(completion_args, model_name)
     span = start_request_span(model_name, completion_args)
     start = time.monotonic()
+    call = await inflight.begin_provider_call()
     try:
         response = await _await_provider(
             completion_args, model_name, timeout_seconds, timeout_grace_seconds
@@ -298,6 +311,7 @@ async def _complete_physical(
         end_request_span(span, None, error)
         raise error from exc
     except BaseException as exc:
+        _note_answer(call, exc)
         record_completion_failure(model_name, exc, time.monotonic() - start)
         end_request_span(span, None, exc)
         if receipt is not None and receipt.credit and is_credit_error(exc):
@@ -305,7 +319,8 @@ async def _complete_physical(
             raise AnthropicSlotUnavailableError("No model is available right now") from exc
         raise
     if completion_args.get("stream"):
-        return _CompletionStream(response, model_name, start, span, receipt)
+        return _CompletionStream(response, model_name, start, span, receipt, call)
+    call.answered()
     try:
         settle_physical(receipt, response)
     except BaseException as settlement_error:

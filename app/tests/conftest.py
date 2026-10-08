@@ -99,10 +99,11 @@ def _fresh_probe_cache() -> None:
 
 @pytest.fixture(autouse=True)
 def _dispatch_open() -> None:
-    # A lifespan shutdown in an earlier test stops claims process-wide.
+    # A lifespan shutdown or unanswered call in an earlier test is process-wide.
     from co_scientist.core import inflight
 
     inflight.resume_dispatch()
+    inflight._unanswered.clear()
 
 
 @pytest.fixture(autouse=True)
