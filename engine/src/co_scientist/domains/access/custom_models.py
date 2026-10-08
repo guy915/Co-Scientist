@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import hmac
 import json
 import re
 import secrets
@@ -10,6 +8,9 @@ import threading
 from dataclasses import dataclass
 from time import monotonic
 from typing import Any
+
+from cryptography.hazmat.primitives.ciphers.algorithms import AES
+from cryptography.hazmat.primitives.cmac import CMAC
 
 from co_scientist.core.async_bridge import run_coroutine_sync
 from co_scientist.core.byok_scope import ByokCredential, CustomModelCapabilities, scoped_byok
@@ -62,15 +63,11 @@ def normalize_model_id(provider: str, requested: str) -> str:
 
 
 def _cache_key(provider: str, model: str, api_key: str) -> tuple[str, str, str]:
-    # A per-process keyed digest scopes admission to the exact key without
+    # A per-process authenticator scopes admission to the exact key without
     # retaining the credential in the cache.
-    fingerprint = hmac.new(
-        _CACHE_SECRET,
-        # codeql[py/weak-sensitive-data-hashing] Cache partition, not password storage.
-        api_key.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-    return provider, model, fingerprint
+    authenticator = CMAC(AES(_CACHE_SECRET))
+    authenticator.update(b"coscientist-custom-model-cache-v1\0" + api_key.encode())
+    return provider, model, authenticator.finalize().hex()
 
 
 def cached_validation(provider: str, model: str, api_key: str) -> ModelValidation | None:
