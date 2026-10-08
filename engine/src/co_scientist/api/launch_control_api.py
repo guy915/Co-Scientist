@@ -4,6 +4,7 @@ import os
 import time
 from dataclasses import asdict
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
@@ -26,6 +27,7 @@ from co_scientist.platform.db import (
     transaction,
 )
 from co_scientist.platform.db.admission import connecting_host
+from co_scientist.platform.db.backup_service import read_status
 from co_scientist.platform.db.launch_control import (
     RevisionConflictError,
     read_control,
@@ -229,7 +231,17 @@ def get_control(request: Request, response: Response) -> dict[str, Any]:
     response.headers["Cache-Control"] = "no-store"
     with connect() as conn:
         conn.execute("BEGIN")
-        return {**asdict(read_control(conn=conn)), "credit": _credit_snapshot(conn)}
+        enabled = os.getenv("COSCIENTIST_LITESTREAM_ACTIVE") == "1"
+        return {
+            **asdict(read_control(conn=conn)),
+            "credit": _credit_snapshot(conn),
+            "backup": {
+                "enabled": enabled,
+                "verification": read_status(Path(default_db_path() or "./coscientist.db"))
+                if enabled
+                else None,
+            },
+        }
 
 
 @router.put("/api/launch-control")
