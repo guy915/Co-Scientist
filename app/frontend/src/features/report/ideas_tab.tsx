@@ -9,7 +9,6 @@ import {
   UNDERMINED_VERDICT,
   presentedHypotheses,
   ratingLabel,
-  sortByEloDesc,
 } from '@/shared/lib/hypotheses';
 import {useMemo} from 'react';
 import {Link, useSearchParams} from 'react-router-dom';
@@ -52,10 +51,7 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
   const selectedId = params.get('idea');
   // Exclude withdrawn ideas before selecting defaults so hidden rows cannot
   // remain the selected detail.
-  const sorted = useMemo(
-    () => sortByEloDesc(presentedHypotheses(hypotheses)),
-    [hypotheses],
-  );
+  const sorted = useMemo(() => presentedHypotheses(hypotheses), [hypotheses]);
   const selected = useMemo(
     () => resolveSelectedHypothesis(sorted, selectedId, isMobile),
     [sorted, selectedId, isMobile],
