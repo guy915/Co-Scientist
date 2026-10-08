@@ -30,6 +30,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.platform.llm.stream import ReasoningRetry, reject_terminal_refusal
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
 
@@ -86,6 +87,7 @@ async def _stream_completion(
         stall_seconds=_QA_STALL_SECONDS,
         total_seconds=_QA_TOTAL_SECONDS,
     ):
+        reject_terminal_refusal(chunk)
         delta = chunk.choices[0].delta if chunk.choices else None
         if delta is None:
             continue
@@ -168,25 +170,24 @@ async def stream_llm_deltas(
     if artifacts:
         tools.append(qa_artifacts.tool_declaration())
     tool_calls: dict[int, dict[str, Any]] = {}
-    answered = False
-    reasoned = False
-    async for kind, fragment in _stream_completion(
-        _completion_request(model, api_key, messages, tools), tool_calls
-    ):
-        answered = answered or kind == "chunk"
-        reasoned = reasoned or kind == "reasoning"
-        yield kind, fragment
-    calls = _resolved_calls(tool_calls)[:4]
-    if not answered and not calls and reasoned:
-        # A turn that spent its budget on reasoning and wrote nothing is not a
-        # provider failure; the interview and the announcement retry it too.
-        logger.warning("Q&A turn reasoned and wrote no answer; retrying once with thinking off")
+    retry = ReasoningRetry()
+    for thinking_enabled in retry.attempts():
+        if not thinking_enabled:
+            logger.warning("Q&A turn reasoned and wrote no answer; retrying once with thinking off")
         async for kind, fragment in _stream_completion(
-            _completion_request(model, api_key, messages, tools, thinking_enabled=False), {}
+            _completion_request(model, api_key, messages, tools, thinking_enabled=thinking_enabled),
+            tool_calls,
         ):
+            retry.observe(
+                prose=fragment if kind == "chunk" else "",
+                reasoned=kind == "reasoning" and bool(fragment.strip()),
+            )
             yield kind, fragment
-        return
-    if answered or not calls:
+        if not thinking_enabled:
+            return
+        retry.observe(tool_requested=bool(tool_calls))
+    calls = _resolved_calls(tool_calls)[:4]
+    if retry.answered or not calls:
         return
     messages += [
         qa_ideas.assistant_tool_message(calls),
