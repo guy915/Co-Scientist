@@ -187,6 +187,7 @@ async def _call_evolution_llm(
     return await call_llm_json(
         prompt=full_prompt,
         spec=CompletionSpec(
+            role="evolution",
             model_name=context.model_name,
             max_tokens=evolve_max_tokens,
             temperature=HIGH_TEMPERATURE,

@@ -669,6 +669,7 @@ async def _analyze_paper_novelty(
         analysis = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="novelty",
                 model_name=model_name,
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=HIGH_TEMPERATURE,
@@ -704,6 +705,7 @@ async def _invoke_synthesis_llm(
     final_response, _ = await call_llm_with_tools(
         prompt=call_inputs.prompt,
         spec=CompletionSpec(
+            role="novelty",
             model_name=ctx.state["model_name"],
             max_tokens=call_inputs.max_tokens,
             temperature=HIGH_TEMPERATURE,
