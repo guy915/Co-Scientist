@@ -377,3 +377,128 @@ per call ran about four times a run's real use, so a Standard run exhausted the
 default 16M `PROVIDER_CLIENT_TOKENS_PER_DAY`. Keep settlement rather than
 raising the ceilings or shrinking the reservation: the reservation must cover
 a call whose usage never arrives.
+
+## Launch load and capacity
+
+Reproduce the isolated workload with [evaluations/load](../evaluations/load/README.md).
+The API uses the production image, one process, `WORKER_POOL_SIZE=1`, SQLite WAL
+on a disposable volume, 2 CPU / 2 GiB limits and deterministic 100 ms completion
+I/O. Runtime networking is internal-only. These measurements describe API/store
+capacity, not real model/MCP throughput, production ingress or paid quota.
+
+The five-minute mixed workload offers 500 new landing visitors/minute, 200 owned
+run pages, 50 starts, 20 report visits/minute and 10 streamed Q&A turns/minute,
+including cross-origin preflights. The measured envelope is **450 landing
+visitors/minute plus 200 concurrent run pages** with the peer qualification
+below. The fixed workload achieved 468.4 visitors/minute, 100 report visits and
+50 Q&A turns; all 44,028 requests had zero unexpected errors. Fifty starts
+admitted six and clearly refused 44. Do not quote the offered 500 as achieved.
+
+| Measurement | Before repair | After repair | Over-cap probe |
+|---|---:|---:|---:|
+| Duration / offered visitors per minute | 300 s / 500 | 300 s / 500 | 120 s / 1,000 |
+| Achieved landing visitors per minute | 482.2 | 468.4 | 749.5 |
+| Attempted / peak live run pages | 200 / 8 | 200 / 200 | 300 / 256 |
+| Unexpected errors / requests | 8 / 30,373 | 0 / 44,028 | 0 / 28,191 |
+| Unexpected error rate | 0.026% | 0% | 0% |
+| Peak API RSS / sampled FDs | 374.0 MiB / 456 | 382.5 MiB / 482 | 350.5 MiB / 658 |
+| Demo GET p50 / p95 / p99 (ms) | 96 / 300 / 630 | 110 / 420 / 1,200 | 93 / 490 / 740 |
+| SSE headers p50 / p95 / p99 (ms) | 36 / 2,200 / 2,400 | 160 / 2,100 / 3,600 | 510 / 2,600 / 2,700 |
+| Report GET p50 / p95 / p99 (ms) | 25 / 130 / 220 | 23 / 230 / 740 | 32 / 540 / 800 |
+| Chat p50 / p95 / p99 (ms) | 160 / 1,800 / 2,800 | 250 / 1,200 / 1,300 | 320 / 2,500 / 2,500 |
+| SQLite statement p50 / p95 / p99 (ms) | .17 / 3.32 / 6.07 | .23 / 4.49 / 10.06 | .33 / 5.33 / 11.94 |
+| Writer acquisition p50 / p95 / p99 (ms) | .36 / 53.98 / 137.42 | .50 / 54.90 / 229.62 | .02 / 1.99 / 2.83 |
+| Loop lag p50 / p95 / p99 (ms) | 0 / 7 / 125 | 0 / 18 / 232 | 0 / 14 / 270 |
+
+The historical before run used forty generator containers without OPTIONS;
+after/over-cap use one generator with forty actual source-address aliases and
+OPTIONS. The final after image also includes intervening main changes and the
+model double resolves schema unions; before allowed only eight streams, so it
+did less stream work. These are capacity receipts, not a controlled assertion
+of latency improvement.
+A separate otherwise identical sixty-second HTTP keepalive comparison reduced
+history connection resets from 17/5,483 requests (five seconds) to 0/5,522
+(fifteen seconds), with 200 streams in both trials. An integrated repeat still
+had 12 history GET idle-socket resets/44,501 requests (0.027%), without a raw 500. A forced-close
+wire probe shows Chromium transparently repeats that safe GET while Requests
+fails. The load client now permits one safe read retry before headers, never
+replaying POSTs, statuses, connect failures or streaming bodies; its regression
+checks GET recovery and no POST replay. The final repeat had zero unrecovered
+errors and zero recovered retries, so it does not prove that retry caused the
+difference. Both repeats are retained in the receipt. No SQLite busy/locked
+exception occurred in these trials. Timing windows are bounded, SQL writer
+acquisition includes syscall time, and one-second FD samples can miss short
+peaks. The fake backend does not establish real-provider memory/throughput or
+long-duration leak behavior. Exact image IDs, source overlays and route numbers
+are in [the load receipts](../evaluations/load/measurements/launch-2026-10-08/README.md).
+
+The first broken limit was GET SSE sharing the unset write-only peer context:
+all viewers hit one eight-stream bucket. Request-peer admission fixes that,
+with configurable global capacity and clear 429/Retry-After messages. Quiet
+streams now poll at 0.5, 1, then 2 seconds, returning to 0.5 after events; status
+fallback and keepalives keep their wall-clock deadlines. No writer or network
+I/O is added to polling. Above the measured envelope the 256-stream guard shed
+176 excess attempts without unexpected errors; the 1,000-visitor target was
+not sustained. Raising caps is not established capacity.
+
+SSE capacity is bounded globally by `SSE_MAX_CONNECTIONS` (default 256), by browser
+identity (four), and by connecting host (eight; IPv6 shares a /64). Client-supplied
+forwarded headers do not establish identity. Missing peers share one bounded
+bucket. A common ingress/NAT peer therefore permits only eight streams; the
+200-page result requires enough distinct connecting peers and does not prove
+that production ingress preserves them. Verify ingress identity before claiming
+the local capacity for production. Refusal returns 429 with a human-readable
+message and `Retry-After: 30`; the run view explains the refusal and waits at
+least thirty seconds before reconnecting.
+
+Run starts are a separate budget. The default global free limit is twenty/day,
+six/day per host and three/day per browser. This is a ceiling of 0.83 free
+starts/hour averaged over a full day, not a model completion-rate promise.
+Admitted runs may still exhaust their physical-call/token allowance. The measured
+50-attempt burst admitted six and refused 44 with a daily-admission message;
+the final integrated repeat completed three and stopped three at the shared
+host's 512-call allowance, with the stored daily-provider-admission message. Do
+not interpret six accepted requests as six completed runs. One complete Express
+probe and report Q&A were separately verified using the same deterministic
+backend. Run efficiency/model-envelope receipts must be consulted before
+allocating all twenty daily starts. A separate sixty-second profile with
+`MAX_CONCURRENT_RUNS=1` admitted two of ten starts, clearly refused four at the
+concurrent-run guard and four at the daily host guard; both admitted runs
+completed and no unexpected request error occurred.
+
+### If traffic spikes
+
+1. In Honeycomb, group `HTTP POST` spans by `http.response.status_code` and
+   compare counts and p95/p99 duration (`http.request.method=POST`). Watch 429
+   intake refusals, unexpected 5xx, and `task.execute` spans grouped by
+   `co_scientist.task.outcome`, especially failed/retry_scheduled/lease_lost.
+   The privacy exporter drops HTTP route/path attributes; GET spans also include
+   SSE lifetimes, so their duration is not ordinary GET latency. Use service
+   request logs and a local reproduction to identify slow read routes. In Sentry,
+   watch increases in `Exception`, `TimeoutError` and worker failures;
+   SQLite OperationalError and provider-specific timeouts can become generic
+   `Exception`, and exported exception text is removed. Obtain detailed SQLite
+   locked/timeout messages from scoped service diagnostics. Check process RSS/CPU,
+   descriptor usage and queue age in service diagnostics. Expected 429s are load shedding.
+   The local SQL wait/loop-lag adapter is not a production monitoring endpoint.
+2. Keep one API replica and `RAILWAY_RUN_UID=0`. Keep `WORKER_POOL_SIZE=1`, the
+   tested width. Do not add Uvicorn workers, replicas, serving VACUUM/checkpoints,
+   or database writes on polling ticks to relieve traffic.
+3. On read latency/resource pressure, reduce `SSE_MAX_CONNECTIONS` to 128 or 64.
+   Restart through the documented owner release procedure: existing streams
+   close and reconnect; refusals explain the delay. Lower `MAX_CONCURRENT_RUNS`
+   to 1 to protect reads from new research work. Preserve existing durable
+   tasks and provider transactions; do not delete the database or its WAL.
+4. On quota pressure, lower `FREE_RUNS_GLOBALLY_PER_DAY`, `FREE_RUNS_PER_HOST_PER_DAY`
+   and `FREE_RUNS_PER_DAY`; inspect `APP_LLM_GLOBAL_CALLS_PER_DAY`,
+   `APP_LLM_GLOBAL_TOKENS_PER_DAY` and `PROVIDER_HOST_*` consumption. Daily counters
+   reset on UTC boundaries. Raising free/admission/model budgets does not add
+   API capacity and can spend the remaining allowance earlier. Preserve bounded
+   call/token reservations and settlement. Resolve exhausted credentials or
+   model availability using the existing provider runbook.
+5. If ordinary API calls still fail at the tested limits, reduce intake and
+   retain logs/trace IDs, rollback the offending release using [LAUNCH.md](LAUNCH.md),
+   then reproduce locally at the observed mix. Capacity above the measured
+   envelope requires another local load result; additional replicas require a
+   store migration first. Alert configuration is in
+   [MONITORING.md](MONITORING.md#launch-alert-settings).

@@ -62,12 +62,19 @@ jobs:
       MAX_CALLS: ${{ inputs.max_calls }}
       MCP_SERVER_URL: http://127.0.0.1:8888/mcp
     steps:
-      - name: Checkout
+      - name: Checkout measurement harness
         timeout-minutes: 5
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.benchmark_ref }}
           persist-credentials: false
+      - name: Prepare isolated research source
+        timeout-minutes: 5
+        env:
+          BENCHMARK_REF: ${{ inputs.benchmark_ref }}
+        run: |
+          git fetch --depth=1 origin "$BENCHMARK_REF"
+          git worktree add --detach "$RUNNER_TEMP/benchmark-source" FETCH_HEAD
+          echo "BENCHMARK_SOURCE=$RUNNER_TEMP/benchmark-source" >> "$GITHUB_ENV"
       - name: Generate the MCP shared secret
         timeout-minutes: 1
         run: |
@@ -78,34 +85,38 @@ jobs:
         timeout-minutes: 15
         # Standard local-action syntax is required by actionlint 1.7.12.
         uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
+      - name: Install benchmarked engine
+        timeout-minutes: 5
+        run: uv pip install --system -e "$BENCHMARK_SOURCE/engine[dev]"
       - name: Install MCP server
         timeout-minutes: 10
         run: |
           python -m venv .venv-mcp
-          .venv-mcp/bin/python -m pip install -q -e engine/mcp_server
+          .venv-mcp/bin/python -m pip install -q -e "$BENCHMARK_SOURCE/engine/mcp_server"
       - name: Start MCP server
         timeout-minutes: 3
         # The server resolves as a directory package from engine/. The search
         # keys go to this step only, as in production, where the api lacks them.
-        working-directory: engine
+        working-directory: ${{ env.BENCHMARK_SOURCE }}/engine
         env:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
-          nohup ../.venv-mcp/bin/python -m uvicorn mcp_server.server:app \
-            --host 127.0.0.1 --port 8888 > ../mcp.log 2>&1 &
+          nohup "$GITHUB_WORKSPACE/.venv-mcp/bin/python" -m uvicorn mcp_server.server:app \
+            --host 127.0.0.1 --port 8888 > "$GITHUB_WORKSPACE/mcp.log" 2>&1 &
           for _ in $(seq 60); do
             curl -fsS http://127.0.0.1:8888/ >/dev/null && exit 0
             sleep 1
           done
-          cat ../mcp.log
+          cat "$GITHUB_WORKSPACE/mcp.log"
           exit 1
       - name: Run benchmark
         # Express has taken 41 to 71 minutes and standard about 2 h 16 min.
         timeout-minutes: ${{ inputs.tier == 'standard' && 240 || 120 }}
+        working-directory: ${{ env.BENCHMARK_SOURCE }}
         run: >-
-          python -m evaluations.quality_benchmark --live --tier "$TIER"
-          --goal-id "$GOAL_ID" --max-calls "$MAX_CALLS" --output benchmark-artifacts
+          python "$GITHUB_WORKSPACE/evaluations/benchmark_transport.py" collect --live --tier "$TIER"
+          --goal-id "$GOAL_ID" --max-calls "$MAX_CALLS" --output "$GITHUB_WORKSPACE/benchmark-artifacts"
       - name: Check the metric was written
         # Claims cluster within ideas, so treat the interval as a lower bound on the spread.
         if: always()
@@ -193,7 +204,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           MAX_JUDGE_CALLS: ${{ inputs.max_judge_calls }}
         run: >-
-          python -m evaluations.paired_quality paired-artifacts/prepared/pairs.json
+          python -m evaluations.benchmark_transport compare paired-artifacts/prepared/pairs.json
           --live-judge --max-judge-calls "$MAX_JUDGE_CALLS" --output paired-artifacts/paired
       - name: Report paired quality
         if: always()
