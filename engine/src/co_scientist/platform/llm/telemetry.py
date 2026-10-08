@@ -14,6 +14,7 @@ from co_scientist.core._context import _bind_contextvar
 from co_scientist.core.metrics import ModelCallStats
 from co_scientist.platform.llm.profile import MODEL_PRICING, estimate_cost_usd
 from co_scientist.platform.llm.request.response import extract_token_usage
+from co_scientist.platform.llm.roles import current_call_type_id
 from co_scientist.platform.telemetry.tracing import current_span, mark_error, tracer
 
 UNSPECIFIED_PHASE = "unspecified"
@@ -36,6 +37,7 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
         completion_tokens=a.completion_tokens + b.completion_tokens,
         reasoning_tokens=a.reasoning_tokens + b.reasoning_tokens,
         cached_prompt_tokens=(a.cached_prompt_tokens + b.cached_prompt_tokens),
+        cache_write_tokens=a.cache_write_tokens + b.cache_write_tokens,
         cost_usd=a.cost_usd + b.cost_usd,
         latency_seconds=a.latency_seconds + b.latency_seconds,
         retries=a.retries + b.retries,
@@ -126,6 +128,7 @@ def record_completion_response(model_name: str, response: Any, latency_seconds: 
         usage.prompt_tokens,
         usage.completion_tokens,
         usage.cached_prompt_tokens,
+        usage.cache_write_tokens,
     )
     record_call(
         served,
@@ -139,6 +142,7 @@ def record_completion_response(model_name: str, response: Any, latency_seconds: 
             completion_tokens=usage.completion_tokens,
             reasoning_tokens=usage.reasoning_tokens,
             cached_prompt_tokens=usage.cached_prompt_tokens,
+            cache_write_tokens=usage.cache_write_tokens,
             cost_usd=cost,
             latency_seconds=latency_seconds,
         ),
@@ -179,6 +183,7 @@ def logical_call_span(
     surface: str, model_name: str, prompt_name: str | None = None
 ) -> contextlib.AbstractContextManager[trace.Span]:
     attributes: dict[str, Any] = {
+        "co_scientist.llm.call_type": current_call_type_id(),
         "gen_ai.operation.name": _OPERATION,
         "gen_ai.request.model": model_name,
         "co_scientist.llm.surface": surface,
@@ -202,6 +207,7 @@ def record_retry_reason(error: BaseException) -> None:
 def start_request_span(model_name: str, completion_args: dict[str, Any]) -> trace.Span:
     """Streams outlive the dispatching call, so the caller ends this span."""
     attributes: dict[str, Any] = {
+        "co_scientist.llm.call_type": current_call_type_id(),
         "gen_ai.operation.name": _OPERATION,
         "gen_ai.request.model": model_name,
         "co_scientist.llm.route": str(completion_args.get("model", model_name)),
@@ -230,4 +236,5 @@ def end_request_span(span: trace.Span, response: Any, error: BaseException | Non
         span.set_attribute("gen_ai.usage.output_tokens", usage.completion_tokens)
         span.set_attribute("co_scientist.llm.reasoning_tokens", usage.reasoning_tokens)
         span.set_attribute("co_scientist.llm.cached_prompt_tokens", usage.cached_prompt_tokens)
+        span.set_attribute("co_scientist.llm.cache_write_tokens", usage.cache_write_tokens)
     span.end()

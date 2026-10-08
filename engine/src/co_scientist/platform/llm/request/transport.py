@@ -19,6 +19,7 @@ from co_scientist.platform.llm.admission.service import reserve_physical, settle
 from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
 from co_scientist.platform.llm.request.azure import LUNA, NANO
 from co_scientist.platform.llm.request.backend import active_backend
+from co_scientist.platform.llm.request.cache import apply_dispatch_cache_key, apply_prompt_cache
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
     end_request_span,
@@ -126,6 +127,7 @@ async def complete_request(
         # establish caller funding for this route.
         raise ProviderAdmissionError("No model is available right now")
     apply_provider_constraints(completion_args, model_name)
+    apply_prompt_cache(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
     receipt = None
@@ -140,6 +142,7 @@ async def complete_request(
     require_enabled()
     if receipt is not None and receipt.paid:
         paid_dispatch_config(receipt.db_path)
+    apply_dispatch_cache_key(completion_args, model_name)
     span = start_request_span(model_name, completion_args)
     start = time.monotonic()
     try:
