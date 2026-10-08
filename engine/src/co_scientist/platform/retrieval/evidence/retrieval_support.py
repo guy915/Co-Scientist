@@ -5,26 +5,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast
 
 
-def reported_failure(payload: Any) -> dict[str, Any] | None:
-    """A tool that could not answer returns its empty result with an ``error``
-    object (engine/mcp_server/tools/_results.py). Left unread, that reads as a
-    paper's full text, or as zero search hits."""
+def reported_failure(payload: Any) -> str | None:
     if isinstance(payload, str):
-        if not payload.lstrip().startswith("{"):
-            return None
         try:
             payload = json.loads(payload)
-        except json.JSONDecodeError:
+        except ValueError:
             return None
-    error = payload.get("error") if isinstance(payload, dict) else None
-    if isinstance(error, dict) and isinstance(error.get("kind"), str):
-        return error
+    if isinstance(payload, dict) and payload.get("status") == "failed":
+        return str(payload.get("error") or "search failed")
     return None
-
-
-def describe_failure(error: dict[str, Any]) -> str:
-    detail = error.get("detail")
-    return f"{error['kind']}: {detail}" if detail else str(error["kind"])
 
 
 def describe_exception(exc: BaseException) -> str:
@@ -308,19 +297,26 @@ def get_papers_needing_content(
 
 
 def _parse_content_from_string(result: str) -> str | None:
-    if reported_failure(result) is not None:
-        return None
     try:
         result_data = json.loads(result)
     except json.JSONDecodeError:
         return result
-    field = cast(str | None, result_data.get("content") or result_data.get("text"))
-    return field or result
+    if isinstance(result_data, dict):
+        return _parse_content_from_dict(result_data)
+    return result
 
 
 def _parse_content_from_dict(result: dict[str, Any]) -> str | None:
-    if reported_failure(result) is not None:
+    if result.get("status") == "failed":
         return None
+    if result.get("status") == "ok":
+        return (
+            "\n\n".join(
+                str(record.get("content") or record.get("text") or record.get("fulltext") or "")
+                for record in result["records"]
+            )
+            or None
+        )
     field = cast(str | None, result.get("content") or result.get("text"))
     return field or str(result)
 

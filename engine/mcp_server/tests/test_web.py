@@ -1,4 +1,3 @@
-import json
 import socket
 from typing import Any
 
@@ -120,16 +119,9 @@ def _redirect(location: str) -> httpx.Response:
     )
 
 
-def _unread(text: str, url: str = "https://example.com/a") -> dict[str, Any]:
-    result = json.loads(text)
-    assert result["url"] == url
-    error: dict[str, Any] = result["error"]
-    return error
-
-
 @pytest.mark.parametrize("url", ["http://localhost:8008/api/runs", "file:///x"])
-async def test_read_url_reports_a_blocked_url_as_a_failed_result(url: str) -> None:
-    assert _unread(await read_url(url), url)["kind"] == "blocked"
+async def test_read_url_reports_a_blocked_url_as_text(url: str) -> None:
+    assert (await read_url(url))["status"] == "failed"
 
 
 async def test_read_url_extracts_readable_text_without_page_furniture(
@@ -138,7 +130,7 @@ async def test_read_url_extracts_readable_text_without_page_furniture(
     resolve_to(_PUBLIC)
     stub_responses(monkeypatch, _page(200, _PAGE.encode(), "text/html; charset=utf-8"))
 
-    text = await read_url("https://example.com/a")
+    text = (await read_url("https://example.com/a"))["records"][0]["content"]
 
     for kept in (
         "# Trial readout",
@@ -161,7 +153,10 @@ async def test_read_url_extracts_an_ordinary_pdf_in_the_worker(
         _page(200, _pdf(["isolated PDF control"]), "application/pdf"),
     )
 
-    assert "isolated PDF control" in await read_url("https://example.com/paper.pdf")
+    assert (
+        "isolated PDF control"
+        in (await read_url("https://example.com/paper.pdf"))["records"][0]["content"]
+    )
 
 
 async def test_read_url_rejects_a_stream_over_the_response_budget(
@@ -171,10 +166,7 @@ async def test_read_url_rejects_a_stream_over_the_response_budget(
     monkeypatch.setattr(web_fetch, "_MAX_BYTES", 5)
     transport_responses(monkeypatch, _page(200, b"123456", "text/plain"))
 
-    assert _unread(await read_url("https://example.com/large"), "https://example.com/large") == {
-        "kind": "network_error",
-        "detail": "ResponseTooLargeError",
-    }
+    assert (await read_url("https://example.com/large"))["status"] == "failed"
 
 
 @pytest.mark.parametrize(
@@ -190,7 +182,7 @@ async def test_read_url_handles_div_only_and_oversized_pages(
     resolve_to(_PUBLIC)
     stub_responses(monkeypatch, _page(200, body.encode(), "text/html"))
 
-    text = await read_url("https://example.com/a")
+    text = (await read_url("https://example.com/a"))["records"][0]["content"]
 
     assert expected in text
     assert len(text) <= 50_000
@@ -199,26 +191,27 @@ async def test_read_url_handles_div_only_and_oversized_pages(
 @pytest.mark.parametrize(
     ("response", "expected"),
     [
-        (
-            _page(404, b"nope", None),
-            {"kind": "http_status", "status_code": 404, "detail": "HTTP 404"},
-        ),
+        (_page(404, b"nope", None), "[error: HTTP 404"),
         (
             _page(200, b"\x00\x01", "image/png"),
-            {"kind": "invalid_response", "detail": "unsupported content type image/png"},
+            "[note: unsupported content type image/png",
         ),
     ],
 )
-async def test_read_url_reports_failures_and_unreadable_types_as_failed_results(
+async def test_read_url_reports_failures_and_unreadable_types_as_text(
     monkeypatch: pytest.MonkeyPatch,
     resolve_to: Any,
     response: httpx.Response,
-    expected: dict[str, Any],
+    expected: str,
 ) -> None:
     resolve_to(_PUBLIC)
     stub_responses(monkeypatch, response)
 
-    assert _unread(await read_url("https://example.com/a")) == expected
+    result = await read_url("https://example.com/a")
+    if expected.startswith("[error:"):
+        assert result["status"] == "failed"
+    else:
+        assert result["records"][0]["content"].startswith(expected)
 
 
 async def test_read_url_screens_every_redirect_hop(
@@ -229,7 +222,7 @@ async def test_read_url_screens_every_redirect_hop(
 
     result = await read_url("https://example.com/a")
 
-    assert _unread(result)["kind"] == "blocked"
+    assert result["status"] == "failed"
     assert len(client.calls) == 1
 
 
@@ -242,12 +235,11 @@ async def test_read_url_follows_a_safe_redirect_and_cuts_off_loops(
         _redirect("https://example.com/b"),
         _page(200, b"<p>Landed</p>", "text/html"),
     )
-    assert "Landed" in await read_url("https://example.com/a")
+    assert "Landed" in (await read_url("https://example.com/a"))["records"][0]["content"]
 
     stub_responses(monkeypatch, *[_redirect("https://example.com/a")] * 5)
-    error = _unread(await read_url("https://example.com/a"))
-    assert error["kind"] == "blocked"
-    assert error["detail"].startswith("too many redirects")
+    result = await read_url("https://example.com/a")
+    assert result["status"] == "failed"
 
 
 _BRAVE_PAYLOAD: dict[str, Any] = {
@@ -282,7 +274,8 @@ async def test_brave_results_normalize_into_clean_stable_records(
     again = await search_brave("glp-1", 10, 0)
     capped = await search_brave("glp-1", 1, 0)
 
-    first, second = out.values()
+    first, second = out["records"]
+    assert first.pop("source_id") == again["records"][0]["source_id"]
     assert first == {
         "title": "GLP-1 trial results",
         "url": "https://example.com/a",
@@ -293,8 +286,8 @@ async def test_brave_results_normalize_into_clean_stable_records(
     }
     assert second["abstract"] == "<script>alert(1)</script>"
     # Lineage and dedup depend on stable URL-based ids across runs.
-    assert list(out) == list(again)
-    assert len(capped) == 1
+    assert second["source_id"] == again["records"][1]["source_id"]
+    assert len(capped["records"]) == 1
 
 
 @pytest.fixture
@@ -354,9 +347,7 @@ class TestWebSearchProviders:
         monkeypatch.setenv(key, "k")
         stub_failure(monkeypatch, _status_error(status))
 
-        assert await search("anything", 5, 0) == {
-            "error": {"kind": "http_status", "status_code": status, "detail": f"HTTP {status}"}
-        }
+        assert (await search("anything", 5, 0))["status"] == "failed"
 
         recorded = web_search_credential_error()
         assert recorded is not None
@@ -369,7 +360,7 @@ class TestWebSearchProviders:
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         stub_failure(monkeypatch, failure)
 
-        assert set(await search_brave("anything", 5, 0)) == {"error"}
+        assert (await search_brave("anything", 5, 0))["status"] == "failed"
         assert web_search_credential_error() is None
 
     async def test_availability_follows_refusals_and_a_success_clears_them(
@@ -388,7 +379,7 @@ class TestWebSearchProviders:
             monkeypatch,
             {"web": {"results": [{"title": "t", "url": "https://e.com"}]}},
         )
-        assert await search_brave("anything", 5, 0) != {}
+        assert (await search_brave("anything", 5, 0))["status"] == "ok"
         assert web_search_credential_error() is None
         assert await check_web_search_available() is True
 
@@ -421,7 +412,7 @@ class TestWebSearchProviders:
 
         results = await search_web("anything")
 
-        assert bool(results) is found
+        assert bool(results["records"]) is found
         assert ["brave" if "brave" in url else "tavily" for url, _ in client.calls] == asked
 
 

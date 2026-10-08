@@ -54,7 +54,7 @@ async def test_registered_biomedical_tools_report_outcome_at_mcp_boundary(
 ) -> None:
     tool_name = tool_case["tool_name"]
     query = tool_case["query"]
-    envelope = {"source": tool_case["source"], "query": query, "records": []}
+    envelope = {"status": "ok", "records": []}
     requests = transport_responses(
         monkeypatch,
         httpx.Response(200, json=tool_case["success_payload"]),
@@ -78,16 +78,13 @@ async def test_registered_biomedical_tools_report_outcome_at_mcp_boundary(
     assert "error" not in success.data
     assert empty.data == envelope
     assert [failure.data for failure in failures] == [
-        envelope | {"error": error}
+        {"status": "failed", "records": [], "error": error}
         for error in (
-            {"kind": "http_status", "status_code": 503, "detail": "HTTP 503"},
-            {
-                "kind": "invalid_response",
-                "detail": "JSONDecodeError: Expecting value: line 1 column 1 (char 0)",
-            },
-            {"kind": "invalid_response", "detail": "ValueError: response omitted its record list"},
-            {"kind": "timeout", "detail": "ReadTimeout"},
-            {"kind": "network_error", "detail": "ConnectError"},
+            "HTTP 503",
+            "invalid_response",
+            "invalid_response",
+            "timeout",
+            "network_error",
         )
     ]
     assert all(result.is_error is not True for result in results)
@@ -136,9 +133,9 @@ async def test_association_lookup_preserves_source_and_effect_context(
     result = await databases.search_gwas_catalog_associations(_RS_ID)
 
     (record,) = result["records"]
-    assert result["source"] == "GWAS Catalog"
-    assert result["query"] == {"rs_id": _RS_ID, "page": 0, "size": 20}
-    assert result["access_date"]
+    assert result["status"] == "ok"
+    assert record["rs_id"] == _RS_ID
+    assert record["access_date"]
     assert record["association_id"] == 226290633
     assert record["study_accession"] == "GCST90480652"
     assert record["trait"] == "platelet count"
@@ -147,7 +144,7 @@ async def test_association_lookup_preserves_source_and_effect_context(
     assert record["mapped_genes"] == ["HBB"]
     assert record["source_url"] == _ASSOCIATION_URL
     assert "does not establish causality" in record["interpretation"]
-    assert result["page"]["total_elements"] == 134
+    assert record["page"]["total_elements"] == 134
     assert dict(requests[0].url.params) == {
         "rs_id": _RS_ID,
         "page": "0",
@@ -163,10 +160,7 @@ async def test_invalid_rs_id_is_rejected_without_a_request(
     result = await databases.search_gwas_catalog_associations("rs334 OR 1=1")
 
     assert result["records"] == []
-    assert result["error"] == {
-        "kind": "invalid_request",
-        "detail": "rs_id must be an rs identifier such as rs334",
-    }
+    assert result["error"] == "rs_id must be an rs identifier such as rs334"
     assert requests == []
 
 
@@ -179,18 +173,18 @@ def _without_accession() -> dict[str, Any]:
 @pytest.mark.parametrize(
     ("response", "expected_error"),
     [
-        (httpx.ConnectError("offline"), "ConnectError"),
-        (httpx.ReadTimeout("slow"), "ReadTimeout"),
+        (httpx.ConnectError("offline"), "network_error"),
+        (httpx.ReadTimeout("slow"), "timeout"),
         (httpx.Response(429, json={"message": "secret"}), "429"),
         (httpx.Response(500, json={"message": "secret"}), "500"),
-        (_without_accession(), "study accession"),
+        (_without_accession(), "invalid_response"),
         *(
             (
                 {
                     "page": {"totalElements": total},
                     "_links": {"self": {"href": "x"}},
                 },
-                "association list",
+                "invalid_response",
             )
             for total in (1, None)
         ),
@@ -208,5 +202,5 @@ async def test_failures_are_errors_never_a_lookup_with_no_associations(
     result = await databases.search_gwas_catalog_associations(_RS_ID)
 
     assert result["records"] == []
-    assert expected_error in result["error"]["detail"]
+    assert expected_error in result["error"]
     assert "secret" not in repr(result) + caplog.text

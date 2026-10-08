@@ -204,8 +204,9 @@ def test_a_cached_missing_value_sentinel_is_read_as_missing() -> None:
 
 
 _FAILED_READ = {
-    "url": "https://example.com/paper",
-    "error": {"kind": "http_status", "status_code": 503, "detail": "HTTP 503"},
+    "status": "failed",
+    "records": [],
+    "error": "HTTP 503",
 }
 
 
@@ -221,7 +222,7 @@ def test_a_failed_read_is_not_read_as_a_papers_full_text() -> None:
 @pytest.mark.parametrize(
     "raw",
     [
-        {"source": "ChEMBL", "query": "WEE1", "records": [], "error": {"kind": "timeout"}},
+        {"status": "failed", "records": [], "error": "timeout"},
         json.dumps({"source": "STRING", "query": "WEE1", "records": []}),
     ],
 )

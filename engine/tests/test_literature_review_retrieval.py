@@ -161,7 +161,7 @@ async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> N
     class Client:
         async def call_tool(self, name: str, **_: Any) -> Any:
             if name == "search_europepmc":
-                return {"source": "Europe PMC", "query": "q1", "records": [], "error": _HTTP_503}
+                return {"status": "failed", "records": [], "error": "Europe PMC HTTP 503"}
             return {"P1": {"title": "Healthy source paper"}}
 
     errors: list[str] = []
@@ -183,10 +183,10 @@ _HTTP_503 = {"kind": "http_status", "status_code": 503, "detail": "HTTP 503"}
 @pytest.mark.parametrize(
     "failed",
     [
-        {"source": "Europe PMC", "query": "q1", "records": [], "error": _HTTP_503},
+        {"status": "failed", "records": [], "error": "Europe PMC HTTP 503"},
         # Keyed-by-id tools carry only the error.
-        {"error": _HTTP_503},
-        json.dumps({"results": [], "count": 0, "error": _HTTP_503}),
+        {"status": "failed", "records": [], "error": "HTTP 503"},
+        json.dumps({"status": "failed", "records": [], "error": "HTTP 503"}),
     ],
 )
 async def test_a_failed_lookup_is_recorded_once_not_broadened_as_no_match(failed: Any) -> None:

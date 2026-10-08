@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
-from mcp_server.tools import _results
+from mcp_server.tools._results import failed, keyed_records, non_raising
 
 logger = logging.getLogger(__name__)
 
@@ -66,21 +66,20 @@ def _clear_credential_error(provider: str | None = None) -> None:
 
 
 def _handle_provider_error(provider: str, query: str, exc: Exception) -> dict[str, Any]:
-    error = _results.failure(exc)
     status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
     if status is not None and status in _KEY_REJECTED_STATUSES:
         _record_credential_error(provider, status, str(exc))
         # Logged at error, not warning: this one does not clear on its own,
-        # and the search moves to another provider or returns the failure.
+        # and the search moves to another provider or returns nothing.
         logger.error(
             "%s refused the configured API key (HTTP %s) - searches move to "
             "the next provider, if one is configured",
             provider,
             status,
         )
-        return _results.failed(error)
-    logger.warning("%s web search failed for %r: %s", provider, query, error["detail"])
-    return _results.failed(error)
+        return failed(exc)
+    logger.warning("%s web search failed for %r: %s", provider, query, exc)
+    return failed(exc)
 
 
 _BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
@@ -129,7 +128,7 @@ def _normalize_results(
     provider_fields: Callable[[dict[str, Any]], dict[str, Any]],
 ) -> dict[str, Any]:
     if not isinstance(results, list):
-        return {}
+        raise ValueError("invalid web results")
 
     out: dict[str, Any] = {}
     for index, item in enumerate(results[: max(max_results, 0)]):
@@ -176,6 +175,7 @@ def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
     return _normalize_results(results, max_results, "tavily", fields)
 
 
+@non_raising
 async def search_brave(query: str, max_results: int, recency_days: int) -> dict[str, Any]:
     params: dict[str, str] = {
         "q": query,
@@ -196,9 +196,10 @@ async def search_brave(query: str, max_results: int, recency_days: int) -> dict[
     except (httpx.HTTPError, ValueError) as exc:
         return _handle_provider_error("brave", query, exc)
     _clear_credential_error("brave")
-    return results
+    return keyed_records(results)
 
 
+@non_raising
 async def search_tavily(query: str, max_results: int, recency_days: int) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "query": query,
@@ -219,7 +220,7 @@ async def search_tavily(query: str, max_results: int, recency_days: int) -> dict
     except (httpx.HTTPError, ValueError) as exc:
         return _handle_provider_error("tavily", query, exc)
     _clear_credential_error("tavily")
-    return results
+    return keyed_records(results)
 
 
 SearchFn = Callable[[str, int, int], Awaitable[dict[str, Any]]]
@@ -280,6 +281,7 @@ def resolve_provider() -> tuple[str, SearchFn] | None:
 _MAX_RESULTS_CEILING = 20
 
 
+@non_raising
 async def search_web(
     query: str,
     max_results: int = 10,
@@ -300,39 +302,32 @@ async def search_web(
     Returns:
         A dict keyed by result id, each value carrying title, url, abstract
         (the result snippet or extracted page text), source, and
-        published_date; empty when the search found nothing. When no
-        provider could answer, the only key is ``error``, with non-secret
-        metadata saying why.
+        published_date. Empty on any error so a failed search degrades
+        gracefully.
     """
     candidates = candidate_providers()
     if not candidates:
         logger.warning("Web search requested but no provider key is configured")
-        return _results.failed(_results.unavailable("no web search provider is configured"))
+        return failed("no web provider configured")
 
     capped = min(max(max_results, 1), _MAX_RESULTS_CEILING)
-    refused: dict[str, Any] = {}
     for name, search_fn in candidates:
         results = await search_fn(query, capped, max(recency_days, 0))
-        if "error" in results:
-            # Only a refused key justifies spending another provider's quota.
-            if credential_error_for(name) is None:
-                return results
-            logger.warning("%s refused the search; trying the next provider", name)
-            refused = results
-            continue
-        if results:
+        if results.get("status") == "ok":
             logger.debug(
                 "web search via %s returned %s results for %r",
                 name,
-                len(results),
+                len(results["records"]),
                 query,
             )
             return results
         # Empty success is an answer; do not spend another allowance to hear it
         # twice.
-        logger.debug("web search via %s found nothing for %r", name, query)
-        return {}
-    return refused
+        if credential_error_for(name) is None:
+            logger.debug("web search via %s found nothing for %r", name, query)
+            return results
+        logger.warning("%s refused the search; trying the next provider", name)
+    return failed("all web providers refused the search")
 
 
 async def check_web_search_available() -> bool:

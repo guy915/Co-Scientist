@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS run_credentials (
     created_at REAL NOT NULL,
     supervisor_provider TEXT,        -- NULL = supervisor shares worker key
     encrypted_supervisor_key TEXT,   -- Fernet token for that provider
+    custom_models_json TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
@@ -786,4 +787,5 @@ ADDED_COLUMNS = (
     ("evidence", "peer_hash", "TEXT NOT NULL DEFAULT 'unknown'"),
     ("run_credentials", "supervisor_provider", "TEXT"),
     ("run_credentials", "encrypted_supervisor_key", "TEXT"),
+    ("run_credentials", "custom_models_json", "TEXT NOT NULL DEFAULT '{}'"),
 )

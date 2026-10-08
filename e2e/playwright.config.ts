@@ -17,7 +17,7 @@ const PRODUCTION = process.env.COSCI_E2E_PRODUCTION === '1';
 
 const backendServer = {
   command:
-    `${VENV_PYTHON} -m uvicorn co_scientist.main:app ` +
+    `${VENV_PYTHON} -m uvicorn byok_app:app --app-dir ../e2e/support ` +
     `--host 127.0.0.1 --port ${API_PORT}`,
   cwd: APP_DIR,
   url: `${API_URL}/health`,
@@ -44,6 +44,7 @@ const backendServer = {
     RUNS_PER_HOST_PER_DAY: '500',
     RUNS_PER_DAY: '500',
     SMTP_HOST: '',
+    BYOK_ENCRYPTION_KEY: 'synthetic-browser-test-encryption',
     // Fresh per-invocation stores must never touch developer data or inherit
     // earlier runs.
     COSCIENTIST_DB_PATH: `${STATE_DIR}/coscientist.db`,

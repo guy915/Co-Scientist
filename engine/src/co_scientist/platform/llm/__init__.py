@@ -29,6 +29,11 @@ if TYPE_CHECKING:
         rate_limited_attempt_count,
     )
     from co_scientist.platform.llm.call import call_llm, call_llm_json
+    from co_scientist.platform.llm.model_catalog import (
+        ModelCatalogError,
+        ModelCatalogTimeoutError,
+        read_provider_models,
+    )
     from co_scientist.platform.llm.profile import ModelProfile, model_profile
     from co_scientist.platform.llm.request.thinking import (
         deepseek_thinking_extra_body,
@@ -60,6 +65,8 @@ __all__ = [
     "CompletionSpec",
     "LLMCallOptions",
     "ModelCallStats",
+    "ModelCatalogError",
+    "ModelCatalogTimeoutError",
     "ModelProfile",
     "ToolLoop",
     "api_key_for_model",
@@ -79,6 +86,7 @@ __all__ = [
     "parse_tool_loop_json",
     "provider_outage_backoff_seconds",
     "rate_limited_attempt_count",
+    "read_provider_models",
     "reasoning_effort_args",
     "record_call",
     "record_deterministic_fallback",
@@ -92,6 +100,9 @@ __all__ = [
 ]
 
 _EXPORTS: dict[str, str] = {
+    "ModelCatalogError": "co_scientist.platform.llm.model_catalog",
+    "ModelCatalogTimeoutError": "co_scientist.platform.llm.model_catalog",
+    "read_provider_models": "co_scientist.platform.llm.model_catalog",
     "effective_max_tokens": "co_scientist.platform.llm.request.thinking",
     "complete_request": "co_scientist.platform.llm.request.transport",
     "scoped_completion_budget": "co_scientist.platform.llm.admission.call_budget",

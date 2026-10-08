@@ -66,6 +66,7 @@ export const DEFAULT_BYOK_PROVIDER: ByokProvider = 'deepseek';
 export interface ModelChoice {
   provider: ByokProvider;
   model: string;
+  custom?: boolean;
 }
 
 type ApiKeys = Partial<Record<ByokProvider, string>>;
@@ -168,12 +169,53 @@ export function getStoredModel(tier: ModelTier): ModelChoice | null {
     const parsed = JSON.parse(
       readStorage('local', MODEL_KEYS[tier]) ?? 'null',
     ) as Partial<ModelChoice> | null;
-    return parsed && isProvider(parsed.provider) && parsed.model
-      ? {provider: parsed.provider, model: parsed.model}
+    return parsed &&
+      isProvider(parsed.provider) &&
+      typeof parsed.model === 'string'
+      ? {
+          provider: parsed.provider,
+          model: parsed.model,
+          ...(parsed.custom === true ? {custom: true} : {}),
+        }
       : null;
   } catch {
     return null;
   }
+}
+
+export function getStoredCustomModel(
+  tier: ModelTier,
+  provider: ByokProvider,
+): string {
+  try {
+    const values = JSON.parse(
+      readStorage('local', STORAGE_KEYS.customModels) ?? '{}',
+    ) as Record<string, unknown>;
+    const value = values[`${tier}:${provider}`];
+    return typeof value === 'string' ? value : '';
+  } catch {
+    return '';
+  }
+}
+
+export function setStoredCustomModel(
+  tier: ModelTier,
+  provider: ByokProvider,
+  model: string,
+): void {
+  let values: Record<string, unknown> = {};
+  try {
+    values = JSON.parse(
+      readStorage('local', STORAGE_KEYS.customModels) ?? '{}',
+    ) as Record<string, unknown>;
+  } catch {
+    // Corrupt preferences do not prevent saving a new choice.
+  }
+  writeStorage(
+    'local',
+    STORAGE_KEYS.customModels,
+    JSON.stringify({...values, [`${tier}:${provider}`]: model}),
+  );
 }
 
 export function setStoredModel(

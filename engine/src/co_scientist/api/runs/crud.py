@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
@@ -24,6 +25,11 @@ from co_scientist.core import byok_scope
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import byok_enabled
 from co_scientist.core.exceptions import ProviderAdmissionError
+from co_scientist.domains.access.byok_models import (
+    SUPERVISOR_MODEL_HEADER,
+    WORKER_MODEL_HEADER,
+    model_catalog,
+)
 from co_scientist.domains.chat.goal_text import (
     clean_title,
     generate_goal_restatement,
@@ -52,7 +58,17 @@ async def _resolve_byok(request: Request) -> byok_scope.ByokCredential | None:
     rejected keys create no run and never hold the writer.
     """
     try:
-        credential = credentials.credential_from_headers(request.headers)
+        offered = {model for models in model_catalog().values() for model in models}
+        choices = (
+            request.headers.get(WORKER_MODEL_HEADER),
+            request.headers.get(SUPERVISOR_MODEL_HEADER),
+        )
+        if any(choice and choice.strip() not in offered for choice in choices):
+            credential = await asyncio.to_thread(
+                credentials.credential_from_headers, request.headers
+            )
+        else:
+            credential = credentials.credential_from_headers(request.headers)
     except credentials.ByokRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if credential is None:
@@ -132,6 +148,11 @@ def _resolve_run_settings(
         # Persist only a provider flag, never a key; both backend resolution and
         # generator construction honor it.
         config["byok_provider"] = byok.provider
+        if byok.custom_models:
+            config["byok_models"] = {
+                "worker": byok.model,
+                "supervisor": byok.supervisor_model or byok.model,
+            }
     return _ResolvedRunSettings(
         config=config,
         run_mode=tier,

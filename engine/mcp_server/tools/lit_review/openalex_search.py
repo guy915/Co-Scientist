@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
-from mcp_server.tools import _results
+from mcp_server.tools._results import failed, keyed_records, non_raising
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,10 @@ def _sanitize_query(query: str) -> str:
     return cleaned
 
 
+class OpenAlexUnavailableError(RuntimeError):
+    """OpenAlex could not be searched, as distinct from having no match."""
+
+
 def _refusal_detail(response: httpx.Response) -> str:
     try:
         body = response.json()
@@ -43,15 +47,20 @@ def _refusal_detail(response: httpx.Response) -> str:
     return str(body.get("message") or body.get("error") or "")
 
 
-def _failure(exc: Exception) -> dict[str, Any]:
+def _unavailable_reason(exc: Exception) -> str:
     """Quota error bodies expose the lockout reason and duration absent from
     a bare status.
     """
-    error = _results.failure(exc)
-    if isinstance(exc, httpx.HTTPStatusError) and (detail := _refusal_detail(exc.response)):
-        status, *retry = error["detail"].split("; ", 1)
-        error["detail"] = "; ".join([status, detail, *retry])
-    return error
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return f"{type(exc).__name__}: {exc}"
+    parts = [f"HTTP {exc.response.status_code}"]
+    detail = _refusal_detail(exc.response)
+    if detail:
+        parts.append(detail)
+    retry_after = exc.response.headers.get("retry-after")
+    if retry_after:
+        parts.append(f"retry after {retry_after}s")
+    return "; ".join(parts)
 
 
 def _reconstruct_abstract(inverted_index: Any) -> str:
@@ -71,7 +80,7 @@ def _reconstruct_abstract(inverted_index: Any) -> str:
 def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
     results = data.get("results") if isinstance(data, dict) else None
     if not isinstance(results, list):
-        return {}
+        raise ValueError("invalid OpenAlex results")
     normalized: dict[str, Any] = {}
     for work in results[: max(max_papers, 0)]:
         if not isinstance(work, dict):
@@ -158,6 +167,7 @@ async def _collect_openalex_works(
     return collected
 
 
+@non_raising
 async def search_openalex(
     query: str,
     max_papers: int = 10,
@@ -175,14 +185,18 @@ async def search_openalex(
 
     Returns:
         A dict of normalized works, empty when OpenAlex answered and had
-        no match. When OpenAlex could not be asked -- refused, unreachable,
-        or answering with something unparseable -- the only key is
-        ``error``, with non-secret metadata saying why.
+        no match.
+
+    Raises:
+        OpenAlexUnavailableError: OpenAlex could not be asked -- refused,
+            unreachable, or answering with something unparseable. Raised
+            rather than returned as no results so the caller can tell a
+            missing source from an empty one.
     """
     params, per_page = _build_search_params(query, max_papers, recency_years)
     try:
-        return await _collect_openalex_works(params, per_page, max_papers)
+        return keyed_records(await _collect_openalex_works(params, per_page, max_papers))
     except (httpx.HTTPError, ValueError) as exc:
-        error = _failure(exc)
-        logger.warning("OpenAlex search failed for %r: %s", query, error["detail"])
-        return _results.failed(error)
+        reason = _unavailable_reason(exc)
+        logger.warning("OpenAlex search failed for %r: %s", query, reason)
+        return failed(exc)

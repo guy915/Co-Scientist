@@ -127,12 +127,6 @@ a staging record leaves text already copied into a run as that run’s evidence.
 
 ## Known limitations
 
-- **Remote images in model-written Markdown.** The Markdown renderer
-  (`app/frontend/src/shared/ui/markdown_message_renderer.tsx`) has no `img`
-  override and neither `app/frontend/public/_headers` nor `vercel.json` sets a
-  Content-Security-Policy, so Markdown a model
-  writes can load remote images. Raw HTML stays escaped; never enable `rehype-raw`
-  for model output.
 - **The reference MCP server is open when its secret is unset.**
   `SharedSecretAuthMiddleware` (`engine/mcp_server/auth_middleware.py`) accepts
   every request unless `COSCIENTIST_MCP_SHARED_SECRET` is set (only `GET /` is
@@ -265,14 +259,15 @@ reuse the workspace rather than remounting it.
 Capture lexical retrieval scores before stamping hybrid scores. Reusing the
 overwritten score double-weights the semantic term and can collapse rankings.
 
-A tool that cannot answer returns its empty result with an `error` object
-(`engine/mcp_server/tools/_results.py`); it never raises or returns a bare
-empty result for an upstream failure. The engine reads that field
-(`reported_failure`) and treats it as a permanent query failure, and its MCP
+Every MCP search returns `{"status": "ok", "records": [...]}` or
+`{"status": "failed", "records": [], "error": "<short reason>"}` from
+`engine/mcp_server/tools/_results.py`, without raising. The engine reads
+`status` and treats a reported failure as a permanent query failure, and its MCP
 client raises `ToolException` for any execution error rather than accepting
 FastMCP's error text as a result. Transient transport failures use bounded,
 jittered retries (`call_search_tool`); distinguish failed queries from
-successful zero-hit responses.
+successful zero-hit responses. Failed novelty retrieval stays unknown, receives
+no novelty credit, and its sources are named in stored reviews and reports.
 
 Owed review cannot override the provider-call ceiling: scheduler and transport
 use the same counter, so its first call would turn budget termination into a
@@ -387,11 +382,3 @@ per call ran about four times a run's real use, so a Standard run exhausted the
 default 16M `PROVIDER_CLIENT_TOKENS_PER_DAY`. Keep settlement rather than
 raising the ceilings or shrinking the reservation: the reservation must cover
 a call whose usage never arrives.
-
-## Decision-provider admission
-
-The optional Liquid decision client retains the shared physical-call/token
-ceilings and reserves its own daily allowance before HTTP. Failed attempts are
-not refunded. Never hold a DB writer over a provider request or replace an
-exhausted free decision route with a paid model. Configuration and the manual
-evaluation workflow are in [decision-model.md](decision-model.md).

@@ -55,6 +55,13 @@ function MarkdownTable({children}: Props<'table'>) {
 // Local typography prevents unrelated report styling from changing chat prose.
 const COMPONENTS = {
   a: MarkdownLink,
+  // Model-selected URLs must never make a request from the reader's browser.
+  img: ({alt, src}: Props<'img'>) => (
+    <span>
+      {alt || 'Image'}
+      {src ? ` (${src})` : ''}
+    </span>
+  ),
   table: MarkdownTable,
   p: ({children}: Props<'p'>) => (
     <p className={`${BLOCK} my-2 leading-[1.55]`}>{children}</p>

@@ -28,7 +28,6 @@ def _add_stats(a: ModelCallStats, b: ModelCallStats) -> ModelCallStats:
             Counter(a.deterministic_fallbacks) + Counter(b.deterministic_fallbacks)
         ),
         calls=a.calls + b.calls,
-        decision_calls=a.decision_calls + b.decision_calls,
         observed_model_calls=a.observed_model_calls + b.observed_model_calls,
         reported_usage_calls=a.reported_usage_calls + b.reported_usage_calls,
         priced_usage_calls=a.priced_usage_calls + b.priced_usage_calls,

@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 import httpx
@@ -26,9 +25,14 @@ _RECORD_TOOLS = [
 
 
 def _assert_error(error: Any, kind: str) -> None:
-    assert isinstance(error, dict)
-    assert error["kind"] == kind
-    assert isinstance(error["detail"], str) and error["detail"]
+    assert isinstance(error, str) and error
+    expected = {
+        "http_status": "HTTP",
+        "invalid_request": "invalid_response",
+        "blocked": "blocked",
+        "unavailable": "invalid_response",
+    }.get(kind, kind)
+    assert expected in error
 
 
 @pytest.mark.parametrize(("tool_name", "arguments", "source"), _RECORD_TOOLS)
@@ -41,10 +45,10 @@ async def test_an_upstream_refusal_is_an_explicit_failed_result_not_a_raise_or_n
         result = await client.call_tool(tool_name, arguments, raise_on_error=False)
 
     assert result.is_error is not True
-    assert result.data["source"] == source
+    assert result.data["status"] == "failed"
     assert result.data["records"] == []
     _assert_error(result.data["error"], "http_status")
-    assert result.data["error"]["status_code"] == 503
+    assert "503" in result.data["error"]
 
 
 @pytest.mark.parametrize(("tool_name", "arguments", "source"), _RECORD_TOOLS)
@@ -69,7 +73,7 @@ async def test_an_unknown_gene_symbol_is_an_empty_answer_not_a_failure(
     async with registered_tools() as client:
         result = await client.call_tool("search_ensembl_gene", {"query": "NOTAGENE"})
 
-    assert result.data == {"source": "Ensembl", "query": "NOTAGENE", "records": []}
+    assert result.data == {"status": "ok", "records": []}
 
 
 async def test_openalex_failure_is_an_explicit_failed_result(
@@ -82,7 +86,7 @@ async def test_openalex_failure_is_an_explicit_failed_result(
 
     assert result.is_error is not True
     _assert_error(result.data["error"], "http_status")
-    assert set(result.data) == {"error"}
+    assert set(result.data) == {"status", "records", "error"}
 
 
 async def test_citation_edge_failures_are_explicit_failed_results(
@@ -99,7 +103,7 @@ async def test_citation_edge_failures_are_explicit_failed_results(
         )
 
     assert outage.is_error is not True
-    assert outage.data["doi"] == "10.1234/example"
+    assert outage.data["status"] == "failed"
     _assert_error(outage.data["error"], "http_status")
     assert invalid.is_error is not True
     _assert_error(invalid.data["error"], "invalid_request")
@@ -114,11 +118,11 @@ async def test_pubmed_failures_are_explicit_failed_results(
     install_entrez(monkeypatch, esearch=refuse)
     monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(tmp_path))
 
-    searched = json.loads(search_pubmed.search_pubmed("WEE1"))
+    searched = search_pubmed.search_pubmed("WEE1")
     fulltext = await search_pubmed.pubmed_search_with_fulltext("WEE1", slug="goal")
     invalid = await search_pubmed.pubmed_search_with_fulltext("WEE1", slug="../escape")
 
-    assert searched["results"] == [] and searched["count"] == 0
+    assert searched["status"] == "failed" and searched["records"] == []
     _assert_error(searched["error"], "unavailable")
     _assert_error(fulltext["error"], "unavailable")
     _assert_error(invalid["error"], "invalid_request")
@@ -135,7 +139,7 @@ async def test_a_web_search_outage_is_an_explicit_failed_result(
     result = await web_providers.search_web("WEE1")
 
     _assert_error(result["error"], "http_status")
-    assert result["error"]["status_code"] == 429
+    assert "429" in result["error"]
 
 
 @pytest.mark.parametrize(
@@ -156,9 +160,9 @@ async def test_an_unreadable_url_is_an_explicit_failed_result(
     if response is not None:
         transport_responses(monkeypatch, response)
 
-    result = json.loads(await read_url(url))
+    result = await read_url(url)
 
-    assert result["url"] == url
+    assert result["status"] == "failed"
     _assert_error(result["error"], kind)
 
 
@@ -170,7 +174,7 @@ def _refuse(target: str) -> None:
     ("result", "described"),
     [
         (
-            {"source": "S", "query": "q", "records": [], "error": {"kind": "timeout"}},
+            {"status": "failed", "records": [], "error": "timeout"},
             "failed (timeout)",
         ),
         ({"source": "S", "query": "q", "records": []}, "empty"),

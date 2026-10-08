@@ -315,8 +315,6 @@ class MCPToolClient:
             server_names,
         )
 
-        # An MCP execution error raises ToolException instead of arriving as
-        # ordinary result text that every reader would have to recognise.
         client = MultiServerMCPClient(
             cast(dict[str, Connection], self._server_configs), handle_tool_errors=False
         )
