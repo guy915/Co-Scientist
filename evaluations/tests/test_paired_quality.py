@@ -230,8 +230,9 @@ def test_dispatch_receipt_counts_calls_lost_from_failed_task_telemetry(tmp_path:
         conn.execute("CREATE TABLE evaluation_runs (run_id, source_commit, physical_requests)")
         conn.execute("INSERT INTO evaluation_runs VALUES ('r',?,150)", ("a" * 40,))
     m = read_snapshot(db, "r", "cell-biology", "a" * 40).metrics
-    assert m["physical_calls"] == 150
-    assert m["call_count_basis"] == "benchmark_dispatch_counter"
+    assert m["physical_calls"] is None
+    assert m["recorded_backend_invocations"] == 150
+    assert m["call_count_basis"] == "backend_invocations"
     assert m["total_tokens"] is None
     assert m["reported_token_subtotal"] == 1200
     with pytest.raises(ValueError, match="source commit differs"):
