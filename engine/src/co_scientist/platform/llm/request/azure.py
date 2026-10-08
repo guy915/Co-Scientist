@@ -4,7 +4,7 @@ import asyncio
 import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlsplit
 
 import httpx
@@ -388,7 +388,10 @@ class AzureResponsesBackend:
         return normalize_response(response, model)
 
     def _stream_request(self, request: dict[str, Any]) -> openai.Stream[ResponseStreamEvent]:
-        return self._client.responses.create(stream=True, **request)
+        return cast(
+            openai.Stream[ResponseStreamEvent],
+            self._client.responses.create(stream=True, **request),
+        )
 
     def _response_request(self, request: dict[str, Any]) -> Response:
-        return self._client.responses.create(stream=False, **request)
+        return cast(Response, self._client.responses.create(stream=False, **request))
