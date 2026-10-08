@@ -67,6 +67,7 @@ USER coscientist
 # walk.
 # Discard the import-created smoke database.
 RUN COSCIENTIST_FORCE_OFFLINE=1 PYTHON_DOTENV_DISABLED=1 \
+    LITELLM_LOCAL_MODEL_COST_MAP=True \
     COSCIENTIST_DB_PATH=/tmp/coscientist-image-smoke.db \
     python -c "import co_scientist.main, co_scientist.core.constants, co_scientist.science.generation; \
 import importlib, pkgutil, co_scientist; \

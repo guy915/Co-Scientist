@@ -9,6 +9,16 @@ from mcp_server.tools import web_providers
 from mcp_server.tools.lit_review import search_pubmed
 from mcp_server.tools.web_fetch import UrlNotFetchableError, read_url
 
+
+@pytest.fixture(autouse=True)
+def _fake_transport_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These cases assert error envelopes, not elapsed retry pacing.
+    monkeypatch.setattr(
+        "mcp_server.tools.lit_review.europepmc_search._TRANSPORT_RETRY_DELAYS_SECONDS",
+        (0.0, 0.0),
+    )
+
+
 _RECORD_TOOLS = [
     ("search_chembl", {"query": "aspirin"}, "ChEMBL"),
     ("search_uniprot", {"query": "EGFR"}, "UniProtKB/Swiss-Prot"),
@@ -159,12 +169,18 @@ async def test_an_unreadable_url_is_an_explicit_failed_result(
         lambda target: None if urlsplit(target).hostname == "example.com" else _refuse(target),
     )
     if response is not None:
-        transport_responses(monkeypatch, response)
+        monkeypatch.setattr(
+            "mcp_server.safe_http.validate_http_url",
+            lambda target: ("example.com", "93.184.216.34"),
+        )
+        requests = transport_responses(monkeypatch, response)
 
     result = await read_url(url)
 
     assert result["status"] == "failed"
     _assert_error(result["error"], kind)
+    if response is not None:
+        assert len(requests) == 1
 
 
 def _refuse(target: str) -> None:
