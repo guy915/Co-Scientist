@@ -39,8 +39,7 @@ downloads are unavailable; its revision can differ from CI's.
 
 ## Layout
 
-- `tests/` — development-server specs: home, run lifecycle, acceptance,
-  mobile interview, example chats, landing and feedback.
+- `tests/` — development-server specs, one file per feature area.
 - `production/` — built-asset specs.
 - `run.mjs` — isolated state, test invocation and cleanup after server shutdown.
 - `support/paths.ts` — ports, paths and the raw-CLI state fallback.
@@ -48,11 +47,11 @@ downloads are unavailable; its revision can differ from CI's.
 - `support/fixtures.ts` — the API fixture, viewports and helpers such as
   `createCompletedRun`.
 
-Development CI uses six weighted shards from `support/shard_weights.json`.
+Development CI uses eight weighted shards from `support/shard_weights.json`.
 Weights are the case-duration sums from successful run 37770026920; an
 unlisted new spec receives 20 seconds and remains included. The planner discovers
 all development specs, so no manifest can omit a new test. Every shard keeps
-one worker and whole stateful files. Production runs all production specs.
+one worker and whole stateful files. Production specs run in two whole-file shards.
 
 Use `make e2e` or `BUN=bun node e2e/run.mjs` for cleanup after server shutdown.
 Raw `bun x playwright test` creates an isolated fallback directory but leaves it
