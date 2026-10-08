@@ -164,6 +164,7 @@ async def review_hypothesis(
         result = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="review",
                 model_name=state["model_name"],
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,

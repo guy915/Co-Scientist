@@ -202,6 +202,7 @@ async def _call_hypothesis_query_llm(
                 hypothesis=hypothesis.text,
             ),
             spec=CompletionSpec(
+                role="evidence_queries",
                 model_name=state["model_name"],
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,

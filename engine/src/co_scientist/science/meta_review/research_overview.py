@@ -396,6 +396,7 @@ async def _call_research_overview_llm(
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="overview",
             model_name=state["supervisor_model_name"],
             max_tokens=max_tokens,
             temperature=MEDIUM_TEMPERATURE,

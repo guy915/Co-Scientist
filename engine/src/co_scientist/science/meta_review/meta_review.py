@@ -160,6 +160,7 @@ async def _synthesize_meta_review(
     response = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="meta_review",
             model_name=state["supervisor_model_name"],
             max_tokens=THINKING_MAX_TOKENS,
             json_schema=schema,

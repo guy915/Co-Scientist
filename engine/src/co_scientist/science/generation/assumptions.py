@@ -165,6 +165,7 @@ async def _call_assumptions_llm(
     return await call_llm_json(
         prompt,
         spec=CompletionSpec(
+            role="generation",
             model_name=state["model_name"],
             max_tokens=params.max_tokens,
             temperature=params.temperature,

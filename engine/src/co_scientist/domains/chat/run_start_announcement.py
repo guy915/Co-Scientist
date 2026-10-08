@@ -97,6 +97,7 @@ async def _stream_model_fragments(
         deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
     )
     response = await llm_request.acompletion(
+        call_role="announcement",
         model=model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
