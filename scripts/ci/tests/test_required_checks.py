@@ -1,4 +1,8 @@
 import copy
+import json
+import os
+import subprocess
+import sys
 import unittest
 
 from scripts.ci.required_checks import failures
@@ -100,6 +104,30 @@ class RequiredChecksTests(unittest.TestCase):
     def test_a_new_failed_dependency_is_never_ignored(self):
         self.jobs["new-guard"] = {"result": "failure"}
         self.assertIn("new-guard", failures(self.jobs, "pull_request"))
+
+    def test_cli_rejects_failed_guards_and_malformed_payloads(self):
+        broken = copy.deepcopy(self.jobs)
+        broken["cross-browser"]["result"] = "skipped"
+        for payload, expected in (
+            (json.dumps(self.jobs), 0),
+            (json.dumps(broken), 1),
+            ("{", 1),
+            (json.dumps({"changes": {"result": []}}), 1),
+        ):
+            with self.subTest(payload=payload):
+                result = subprocess.run(
+                    [sys.executable, "-m", "scripts.ci.required_checks"],
+                    env={
+                        **os.environ,
+                        "RESULTS": payload,
+                        "GITHUB_EVENT_NAME": "pull_request",
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, expected)
+                self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":
