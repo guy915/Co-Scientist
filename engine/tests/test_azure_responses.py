@@ -412,3 +412,18 @@ def test_factory_refuses_non_resource_endpoints_without_http(
     monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", endpoint)
     with pytest.raises(ProviderAdmissionError):
         AzureResponsesBackend.from_environment()
+
+
+@pytest.mark.parametrize("model", [LUNA, NANO])
+async def test_real_responses_sdk_sends_partitioned_cache_key(model: str) -> None:
+    sent = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json=_response())
+
+    backend = _backend(respond)
+    request = _request(model=model, prompt_cache_key="run:claims:1")
+    await backend.complete(**request)
+    assert sent[0]["prompt_cache_key"] == "run:claims:1"
+    assert "prompt_cache_options" not in sent[0]
