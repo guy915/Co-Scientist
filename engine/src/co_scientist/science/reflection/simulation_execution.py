@@ -121,6 +121,7 @@ async def _observe(
         observations, _ = await call_llm_with_tools(
             prompt=prompt,
             spec=CompletionSpec(
+                role="simulation",
                 model_name=state["model_name"],
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,

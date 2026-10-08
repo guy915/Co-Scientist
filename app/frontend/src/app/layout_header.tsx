@@ -31,7 +31,7 @@ const HEADER_TITLE_CLASSES =
 // after leaving a run.
 const HEADER_ACTIONS_CLASSES =
   'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-2 [transform:translateY(-50%)] ' +
-  'phone:right-2 phone:[&>:not(.ucs-session-switch):not(.ucs-feedback-control)]:hidden';
+  'phone:static phone:flex-none phone:[transform:none] phone:[&>:not(.ucs-session-switch):not(.ucs-feedback-control)]:hidden';
 
 function HamburgerButton({
   navOpen,
