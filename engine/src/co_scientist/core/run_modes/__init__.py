@@ -234,6 +234,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "max_llm_calls": 1200,
         "max_ideas": 12,
         "max_matches_per_idea": 4,
+        "finalists": 3,
     },
     DEFAULT_RUN_TIER: {
         "initial_hypotheses_count": 8,
@@ -244,6 +245,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "max_llm_calls": 2500,
         "max_ideas": 32,
         "max_matches_per_idea": 7,
+        "finalists": 5,
     },
     "extended": {
         "initial_hypotheses_count": 12,
@@ -254,6 +256,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "max_llm_calls": 7000,
         "max_ideas": 60,
         "max_matches_per_idea": 11,
+        "finalists": 6,
     },
     "ultra": {
         "initial_hypotheses_count": 16,
@@ -264,6 +267,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "max_llm_calls": 14000,
         "max_ideas": 96,
         "max_matches_per_idea": 17,
+        "finalists": 8,
     },
 }
 
