@@ -119,7 +119,7 @@ async def run_quota_diagnostic(
     report: dict[str, Any] = {"diagnostic_only": True, "adoption_ready": False}
     with scoped_telemetry("decision_quota") as telemetry:
         try:
-            result = await client.decide(case.prompt, case.questions)
+            result = await client.decide(case.decision_prompt or case.prompt, case.questions)
             report["rate_limits"] = result.rate_limits
             report["input_tokens"] = result.input_tokens
         except Exception as error:

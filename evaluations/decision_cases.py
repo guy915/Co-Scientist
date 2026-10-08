@@ -17,6 +17,7 @@ class DecisionCase:
     questions: dict[str, Question]
     reverse_prompt: str | None = None
     side_ids: tuple[str, str] | None = None
+    decision_prompt: str | None = None
 
 
 def _identifier(text: str) -> str:
@@ -89,8 +90,10 @@ def _ranking_cases(hypotheses: list[dict[str, Any]]) -> list[DecisionCase]:
 
 
 def _relevance_cases(papers: list[dict[str, Any]]) -> list[DecisionCase]:
-    from co_scientist.platform.llm.decisions.relevance import relevance_questions
-    from co_scientist.platform.retrieval.evidence.relevance import _build_candidates_block
+    from co_scientist.platform.retrieval.evidence.relevance import (
+        _build_candidates_block,
+        _decision_inputs,
+    )
     from co_scientist.science.prompts.literature import get_literature_review_relevance_batch_prompt
     from co_scientist.science.schemas import LITERATURE_RELEVANCE_BATCH_SCHEMA
 
@@ -106,12 +109,14 @@ def _relevance_cases(papers: list[dict[str, Any]]) -> list[DecisionCase]:
             prompt = get_literature_review_relevance_batch_prompt(
                 goal, _build_candidates_block(list(ranked), ranked)
             )
+            state, questions = _decision_inputs(list(ranked), ranked, goal)
             cases.append(
                 DecisionCase(
                     _identifier(prompt),
                     prompt,
                     LITERATURE_RELEVANCE_BATCH_SCHEMA,
-                    relevance_questions(len(batch)),
+                    questions,
+                    decision_prompt=state,
                 )
             )
     return cases

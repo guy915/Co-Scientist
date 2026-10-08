@@ -101,7 +101,7 @@ def agrees(site: str, reference: dict[str, Any], decision: dict[str, Any]) -> bo
 
 
 async def _decide(client: SystemOneClient, case: DecisionCase, delay: float) -> DecisionResult:
-    forward = await client.decide(case.prompt, case.questions)
+    forward = await client.decide(case.decision_prompt or case.prompt, case.questions)
     if case.reverse_prompt is None:
         return forward
     await asyncio.sleep(delay)
@@ -258,6 +258,8 @@ async def run_panel(
                 row["rate_limits"] = result.rate_limits
                 row["input_tokens"] = result.input_tokens
                 row["state"] = case.prompt
+                if case.decision_prompt is not None:
+                    row["decision_representation"] = "per-candidate-question/v1"
                 row["answers"] = {
                     name: dataclasses.asdict(answer) for name, answer in result.answers.items()
                 }
@@ -327,7 +329,7 @@ async def run_live(
     oversized = []
     for case in cases:
         try:
-            client.estimate_tokens(case.prompt, case.questions)
+            client.estimate_tokens(case.decision_prompt or case.prompt, case.questions)
             if case.reverse_prompt:
                 client.estimate_tokens(case.reverse_prompt, case.questions)
         except DecisionUnavailableError as error:

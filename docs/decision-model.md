@@ -94,6 +94,14 @@ note and a distinct retriever version; LLM fallback clears prior decision
 provenance. Original abstract boundaries remain identical, with no extra
 truncation to fit Liquid.
 
+Each typed question receives the registered single-candidate prompt, preserving
+the protected goal, scoring policy and original paper text. Common state carries
+the registered goal/policy without papers. The template scores papers independently;
+this avoids processing every sibling abstract again for every question. Evaluation
+keeps the full original batch prompt on the reference LLM and marks the changed
+decision representation; prior full-state pilot labels are not calibration data
+for this representation.
+
 The manual workflow's `delay` input selects four- or thirty-second gaps. Thirty
 seconds is the default after a large free Liquid batch returned 429; it is an
 evaluation pacing choice, not a verified provider allowance. Provider errors

@@ -64,6 +64,12 @@ async def test_accepted_batch_preserves_fusion_and_stores_decider_provenance(
     papers = _papers()
     result = await relevance.apply_semantic_relevance(papers, "Goal", "offline/deterministic", 2)
     assert len(seen) == 1 and len(seen[0]["questions"]) == 2
+    first = seen[0]["questions"]["relevance_1"]["instructions"]
+    second = seen[0]["questions"]["relevance_2"]["instructions"]
+    assert "alpha" in first and "beta" not in first
+    assert "beta" in second and "alpha" not in second
+    assert "Goal" in first and "Goal" in second
+    assert "alpha" not in seen[0]["state"] and "beta" not in seen[0]["state"]
     assert list(result) == ["a", "b"]
     assert result["a"]["retrieval_score"] == 0.6
     assert result["b"]["retrieval_score"] == 0.4

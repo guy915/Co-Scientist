@@ -14,7 +14,7 @@ from co_scientist.platform.llm import CompletionSpec, call_llm_json
 from co_scientist.platform.llm.decisions import decision_or_fallback
 from co_scientist.platform.llm.decisions.relevance import relevance_questions
 from co_scientist.platform.llm.decisions.settings import calibrated_threshold
-from co_scientist.platform.llm.decisions.types import DecisionResult
+from co_scientist.platform.llm.decisions.types import DecisionResult, Question
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,24 @@ def _build_candidates_block(pool_ids: list[str], ranked: dict[str, dict[str, Any
         abstract = str(metadata.get("abstract") or "")[:_ABSTRACT_CHAR_BUDGET]
         lines.append(f"**Candidate {number}:**\nTitle: {title}\nAbstract: {abstract}")
     return "\n\n".join(lines)
+
+
+def _decision_inputs(
+    pool_ids: list[str], ranked: dict[str, dict[str, Any]], research_goal: str
+) -> tuple[str, dict[str, Question]]:
+    if _judgment_prompt is None:
+        raise RuntimeError("no relevance judgment prompt is registered")
+    # Liquid processes state for every question; independent scores need only
+    # their own candidate, with the original source boundaries preserved.
+    contexts = [
+        _judgment_prompt(
+            research_goal=research_goal,
+            candidates_block=_build_candidates_block([paper_id], ranked),
+        )
+        for paper_id in pool_ids
+    ]
+    state = _judgment_prompt(research_goal=research_goal, candidates_block="")
+    return state, relevance_questions(len(pool_ids), contexts)
 
 
 def _match_batch_judgments(judgments: list[Any], pool_ids: list[str]) -> list[Any]:
@@ -176,9 +194,10 @@ async def _judge_batch(
         return {"judgments": judgments}
 
     try:
+        decision_state, questions = _decision_inputs(pool_ids, ranked, research_goal)
         result = await decision_or_fallback(
-            prompt,
-            relevance_questions(len(pool_ids)),
+            decision_state,
+            questions,
             calibrated_threshold("LITERATURE_RELEVANCE"),
             accept,
             llm,
