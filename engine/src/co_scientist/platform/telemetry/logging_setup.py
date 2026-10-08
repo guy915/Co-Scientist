@@ -35,11 +35,32 @@ class RunIdFilter(logging.Filter):
         return True
 
 
+# LiteLLM's logging worker orphans its task whenever another event loop rebinds
+# it, and asyncio reports the unreachable task at ERROR. No hook this app owns
+# can reach it, and it never affects a completion.
+_ORPHANED_LITELLM_WORKER_MARKER = "LoggingWorker."
+_ORPHANED_LITELLM_WORKER_NOTE = "orphaned LiteLLM logging worker task; completions are unaffected"
+
+
+def is_orphaned_litellm_worker(record: logging.LogRecord) -> bool:
+    if record.name != "asyncio":
+        return False
+    try:
+        message = record.getMessage()
+    except Exception:
+        return False
+    return _ORPHANED_LITELLM_WORKER_MARKER in message
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        level = record.levelname
+        orphaned_worker = record.levelno > logging.WARNING and is_orphaned_litellm_worker(record)
+        if orphaned_worker:
+            level = logging.getLevelName(logging.WARNING)
         payload: dict[str, object] = {
             "time": self.formatTime(record),
-            "level": record.levelname,
+            "level": level,
             "logger": record.name,
             "message": record.getMessage(),
         }
@@ -51,6 +72,8 @@ class JsonFormatter(logging.Formatter):
             payload["trace_id"] = trace_id
         if record.exc_info:
             payload["exc_info"] = record.exc_text or self.formatException(record.exc_info)
+        if orphaned_worker:
+            payload["note"] = _ORPHANED_LITELLM_WORKER_NOTE
         return json.dumps(payload, default=str)
 
 
