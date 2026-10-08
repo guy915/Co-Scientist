@@ -73,10 +73,26 @@ class FundedTestMode:
         return True
 
 
+def concrete_schema(value: Any) -> Any:
+    if isinstance(value, list):
+        return [concrete_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    for union in ("oneOf", "anyOf"):
+        if union in value:
+            choice: dict[str, Any] = next(
+                (item for item in value[union] if item.get("type") != "null"), {}
+            )
+            return concrete_schema(
+                {**{key: item for key, item in value.items() if key != union}, **choice}
+            )
+    return {key: concrete_schema(item) for key, item in value.items()}
+
+
 class DeterministicBackend:
     async def complete(self, **args: Any) -> Any:
         await asyncio.sleep(float(os.getenv("LOAD_MODEL_DELAY", "0.1")))
-        response = await offline_acompletion(**args)
+        response = await offline_acompletion(**concrete_schema(args))
         response.usage = SimpleNamespace(prompt_tokens=100, completion_tokens=100, total_tokens=200)
         schema = (args.get("response_format") or {}).get("json_schema", {}).get("schema", {})
         if "offensive_score" in schema.get("properties", {}):
@@ -130,7 +146,12 @@ def seed_fixtures() -> None:
     demo = runs.list_runs(client_id=DEMO_CLIENT_ID)[0]
     chat = open_example_chat(demo.id, "load-report")
     report = runs.list_runs(client_id="load-report")[0]
-    _fixture.update(report=report.id, interview=chat["id"], demo=demo.id)
+    _fixture.update(
+        report=report.id,
+        interview=chat["id"],
+        demo=demo.id,
+        peers=[f"172.29.251.{101 + index}" for index in range(int(os.getenv("LOAD_PEERS", "40")))],
+    )
     for index in range(int(os.getenv("LOAD_FIXTURE_PAGES", "200"))):
         owner = f"load-viewer-{index}"
         run = runs.create_run(
@@ -186,6 +207,16 @@ def percentiles(values: list[float]) -> dict[str, float]:
     )
 
 
+def started_run_statuses() -> dict[str, int]:
+    with contextlib.closing(_original_connect(os.environ["COSCIENTIST_DB_PATH"])) as connection:
+        return dict(
+            connection.execute(
+                "SELECT status, COUNT(*) FROM runs "
+                "WHERE client_id LIKE 'load-starter-%' GROUP BY status"
+            ).fetchall()
+        )
+
+
 @app.get("/__load__/metrics")
 async def metrics() -> dict[str, Any]:
     from co_scientist.api.runs import stream_admission
@@ -206,6 +237,7 @@ async def metrics() -> dict[str, Any]:
         "memory_kib": memory,
         "fds": len(list(Path("/proc/self/fd").iterdir())),
         "active_sse": stream_admission._active,
+        "started_run_statuses": await asyncio.to_thread(started_run_statuses),
     }
 
 
