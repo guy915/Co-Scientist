@@ -27,7 +27,7 @@ class ReasoningRetry:
             yield False
 
 
-def reject_terminal_refusal(response: Any) -> None:
+def check_text_response(response: Any, *, allow_tools: bool = False) -> None:
     choices = getattr(response, "choices", None) or []
     if not choices:
         return
@@ -37,3 +37,5 @@ def reject_terminal_refusal(response: Any) -> None:
         message, "refusal", None
     ):
         raise LLMContentFilteredError("The provider refused the response.")
+    if not allow_tools and getattr(message, "tool_calls", None):
+        raise ValueError("Unexpected tool request during text generation.")

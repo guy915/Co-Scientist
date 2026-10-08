@@ -21,7 +21,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
-from co_scientist.platform.llm.stream import ReasoningRetry, reject_terminal_refusal
+from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 
 logger = logging.getLogger(__name__)
 
@@ -523,7 +523,7 @@ async def _relay_chunk(chunk: Any, splitter: TurnSplitter, sinks: TurnSinks) -> 
     """Trailing state blocks are withheld; clients must never render and
     retract them.
     """
-    reject_terminal_refusal(chunk)
+    check_text_response(chunk)
     if not chunk.choices:
         return False
     delta = chunk.choices[0].delta

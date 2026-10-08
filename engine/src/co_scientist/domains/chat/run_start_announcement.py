@@ -19,7 +19,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
-from co_scientist.platform.llm.stream import ReasoningRetry, reject_terminal_refusal
+from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
 
@@ -78,7 +78,7 @@ def _announcement_prompt(run: RunRow) -> str:
 
 
 def _delta_text(chunk: Any) -> tuple[str, str]:
-    reject_terminal_refusal(chunk)
+    check_text_response(chunk)
     if not chunk.choices:
         return "", ""
     delta = chunk.choices[0].delta

@@ -16,7 +16,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
-from co_scientist.platform.llm.stream import ReasoningRetry, reject_terminal_refusal
+from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ async def _generate_text(goal: str, request: _TextRequest) -> str | None:
             )
         try:
             response = await _request_completion(goal, request, thinking_enabled=thinking_enabled)
-            reject_terminal_refusal(response)
+            check_text_response(response)
         except Exception as exc:
             logger.warning("%s generation failed: %s", request.purpose, exc)
             return None

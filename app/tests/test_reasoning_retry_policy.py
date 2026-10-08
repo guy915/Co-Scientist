@@ -149,3 +149,22 @@ async def test_qa_incomplete_tool_request_does_not_retry(
     ]
     assert len(calls) == 1
     assert frames == [("reasoning", "looking up evidence")]
+
+
+def test_announcement_tool_request_cannot_trigger_an_answer_retry() -> None:
+    from types import SimpleNamespace
+
+    from co_scientist.domains.chat.run_start_announcement import _delta_text
+
+    chunk = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                delta=SimpleNamespace(
+                    content="", reasoning_content="thought", tool_calls=[{"id": "call"}]
+                ),
+                finish_reason="tool_calls",
+            )
+        ]
+    )
+    with pytest.raises(ValueError, match="Unexpected tool request"):
+        _delta_text(chunk)
