@@ -102,6 +102,8 @@ def smoke(api_image: str, mcp_image: str) -> None:
                 args.append(api_image)
                 launch_container(name, args)
                 wait_ready(name, "/health", 8008, 60)
+                # VFS runners copy a full image layer for each live container.
+                docker("rm", "-f", name, check=False)
             else:
                 args += [
                     "--env",
