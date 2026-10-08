@@ -165,18 +165,26 @@ rather than subtracting cursor IDs.
 Staged documents default to 30 days (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`),
 terminal runs to 90 (`COSCIENTIST_RUN_RETENTION_DAYS`) and drafts to 7
 (`COSCIENTIST_DRAFT_RETENTION_DAYS`); `0` disables that expiry
-(`domains/access/retention.py`). Nothing schedules the sweep: `sweep_all` runs
-only when someone invokes the module (`python -m co_scientist.domains.access.retention`),
-and no startup hook, worker or Makefile target calls it. A separate Railway cron
-service cannot reach the api's mounted volume, so any schedule must run inside
-the API process, with short per-run transactions and never a long writer hold.
+(`domains/access/retention.py`). Launch explicitly sets run retention to `0`.
+The API schedules `sweep_all` hourly after startup, off the port-binding path,
+with short per-run transactions. It also prunes expired erasure markers and
+seven-day admission history in bounded batches. The module remains available
+for operator maintenance (`python -m co_scientist.domains.access.retention`).
+A separate Railway cron cannot reach the API volume. Never hold a writer over
+network I/O, VACUUM or truncate the WAL from the serving process.
+
+Staged document expiry does not remove text already copied into chats/runs;
+those copies follow their parent's lifetime. See [data and privacy](#data-and-privacy)
+for the complete inventory, data-rights controls and external backup decisions.
 
 ## Gateway routing and privacy
 
 OpenRouter accepts at most three entries in a models array; free allowances belong
 to individual models. Preserve upstream preference for cache locality rather than
 round-robin hosts. `require_parameters` binds support to the selected host, and
-privacy admission requires verified zero-retention hosts.
+a profile's declared zero-retention restriction binds its checked upstream
+host. Unpinned free/trial profiles do not establish that restriction; do not
+promise that every route avoids logging or training.
 
 ## Ranking and steering
 
@@ -502,3 +510,147 @@ completed and no unexpected request error occurred.
    envelope requires another local load result; additional replicas require a
    store migration first. Alert configuration is in
    [MONITORING.md](MONITORING.md#launch-alert-settings).
+
+## Data and privacy
+
+The launch controller is Guy Barel, an individual in the Netherlands, contact
+`guy.barel@open-coscientist.com`. Public notices are at `/privacy` and `/terms`;
+the owner reviews both before launch. These drafts are not legal advice.
+Launch uses browser ownership identities, not email/password accounts. The
+random `X-Client-ID` is a private capability; never ask a visitor to email it.
+
+The inventory below follows the persisted schema, browser storage, provider
+profiles and MCP implementations. Deletion of a live record does not erase a
+copy already received by an outside service.
+
+| Personal or user-supplied data | Storage | Retention | Outside recipients |
+| --- | --- | --- | --- |
+| Ownership ID, run/chat/document IDs, links and timestamps | Browser storage; SQLite owner columns | Browser until cleared; records with their work; hashed erasure markers 24 hours | Railway API; optional R2 database backups |
+| Goals, generated titles/restatements, challenges, constraints, preferences, tier, configuration and sources | SQLite `runs`, interviews, tasks/checkpoints | Launch `COSCIENTIST_RUN_RETENTION_DAYS=0` keeps runs until deletion; terminal default otherwise 90 days; drafts 7 days | Selected model provider; derived queries to research APIs |
+| User and assistant chats, suggested answers, steering, Q&A, reasoning | SQLite `interviews`, `interview_turns`, `messages`, run events, task payloads/checkpoints | Standalone chats until deleted; run-bound copies with their run | Selected model provider, Railway, R2 |
+| Uploaded title/filename, MIME type, size, hash, extraction metadata and extracted text | SQLite `staged_documents`; text copied into evidence/tasks/science outputs | Staged documents 30 days; copied text with its run/chat until deletion | Railway extraction; model providers; derived query words to research APIs |
+| Original uploaded file bytes and extraction intermediates | Request memory and temporary parser/OCR files | Processing lifetime; original uploads are not retained | Railway; local parsers/OCR, not an external conversion service |
+| Hypotheses, reviews, comparisons, citations, retrieval queries/results, full text, claims, plans, reports, errors | SQLite science tables, tasks, events and checkpoints | Run lifetime; may echo supplied text | Selected model provider, Railway, R2 |
+| BYOK worker/supervisor credentials, provider/model/custom-model choices | Browser key vault; encrypted SQLite `run_credentials`; request and brief validation memory | Browser until removed; stored credentials with their run; all removed by browser-identity deletion | Railway API; selected provider for catalog/probe/completion; R2 holds encrypted rows |
+| Appearance, models, session view and pending creation/reload recovery | Browser local/session storage, listed below | Local until cleared; session until completion/removal/tab closes | Preferences used in requested API calls; no advertising recipient |
+| Optional email in legacy data/configuration | SQLite legacy run configuration/tasks | With the run | Public completion email is disabled; any separately configured legacy delivery has its own mail processor |
+| Feedback category/message, URL, run ID, supplied diagnostic export | SQLite `feedback` | 30 days, newest 200 entries and 10 MiB cap, enforced on submission | Railway/R2; maintainer, no external feedback-mail service |
+| Browser/server diagnostic logs, route/interaction context, trace references | SQLite `app_logs`, bounded browser memory, stdout | Default capture cap 20,000 rows; browser 2,000; no fixed time expiry; owned logs erased on deletion | Railway stdout; a user-selected feedback export; R2 |
+| Connecting-peer hashes, client/day/minute usage, reservations and idempotency receipts | SQLite admission ledgers and in-memory limits | Seven-day expiry, hourly bounded cleanup; live run host mapping with its run | Railway receives connection IP; R2 contains database counters |
+| Numeric operator-funded charges, token bounds/usage, model/role/rates and random receipt IDs | SQLite `llm_spend`; current ownership link through `provider_token_reservations` | Funding ledger has no automatic expiry; admission link expires after seven days or detaches on deletion; spent money is not refunded by erasure | Railway/R2; no goal/document/email/key/owner-ID columns |
+| Technical exception class/position, method and build metadata | Sentry SDK event projections | Project retention is an owner-confirmed external setting | Sentry; fresh projections remove arbitrary error messages, user/email, URLs, breadcrumbs, attachments, goals, documents and keys |
+| Timing/outcome, trace/run/task IDs, numeric usage/budget/attempt metadata | Projected OTLP spans | Exporter-destination retention is an owner-confirmed external setting | Configured tracing processor; owner reports Honeycomb EU; no prompt/document/email/key text or raw exception events |
+| Website/API request IP and browser headers | Infrastructure access logs | Provider configuration, not established by source | Cloudflare and Railway; historical Vercel hosting until the launch cutover |
+| Entire SQLite database/WAL, including research, feedback and encrypted keys | Optional Litestream S3 replica in Cloudflare R2 | Owner must confirm backup expiry and refresh policy; Litestream restore anchors alone do not bound all old copies | Cloudflare R2 |
+| Derived literature queries, topic/run identifiers and public papers | Query in request memory; public papers only in MCP `.public-papers-v1/shared` cache; owned retrieval copies in SQLite | Public-paper cache has no user content by design; legacy private query/run manifests are purged before MCP serves tools | Railway MCP; selected source APIs |
+| Trailer request metadata | No embedded player or automatic Google request; explicit external link | YouTube's external policy after the visitor opens the link | YouTube/Google only after that click |
+
+### External recipients and model policy
+
+Provider/model selection determines which service receives goals, chat context
+and document excerpts. OpenRouter trial/free routes can retain prompts or use
+them for training. Only the checked `qwen/qwen3.8-27b:free` profile pins ModelRun
+with `only=["modelrun"]`, `zdr=true`, `data_collection="deny"`; do not extend
+that promise to Ling, Nexpro, GLM, MiniMax, Nemotron, Gemma, Dots or fallbacks.
+Inspect each actual `platform/llm/profile/` entry and request-routing policy
+when changing a model. BYOK supports Anthropic, DeepSeek, Gemini, OpenAI and
+OpenRouter/custom models under the chosen provider's policy. The owner's
+Azure resource is Sweden Central, but Global Standard inference is not a
+guarantee that processing remains in the EU.
+
+MCP research requests may send supplied or derived search words/entities to
+NCBI PubMed/PMC, OpenAlex, Europe PMC, arXiv, OpenCitations, ChEMBL, UniProt,
+STRING, Reactome, Open Targets, Ensembl, gnomAD, GWAS Catalog and
+ClinicalTrials.gov. Brave/Tavily are optional web-search recipients; opening
+a source contacts its public publisher/site. Available science-skill tools
+can add database recipients. A query can reveal personal information even
+though the full uploaded file is not sent to these sources by design.
+
+Hosting/diagnostic services are processors for contracted services; model and
+research services can also process data for their own purposes. The owner
+must confirm contracts, applicable adequacy decisions/transfer safeguards and
+external retention before launch. A European resource or dataset name alone
+does not establish those facts. Do not submit confidential information,
+personal data, medical records or credentials in research content.
+
+### Browser storage and data-rights controls
+
+The application sets/reads no first-party cookies. All application storage
+supports requested functionality; there are no advertising/analytics storage
+keys, and no cookie banner is needed after replacing the optional embed.
+
+| Location | Exact key or prefix | Purpose |
+| --- | --- | --- |
+| localStorage | `co_scientist_client_id` | Private ownership identity |
+| localStorage | `cosci-theme` | Chosen appearance |
+| localStorage | `cosci-api-keys`, legacy `cosci-api-key` | BYOK vault; legacy key migrated and removed |
+| localStorage | `cosci-api-provider`, `cosci-api-model`, `cosci-api-supervisor-model`, `cosci-api-custom-models` | Chosen providers/models and custom drafts |
+| localStorage | `cosci:session-side`, `cosci:session-side:<runId>`, `cosci:session-tab:<runId>` | Chosen session view |
+| sessionStorage | `cosci-logs-session-baseline` | Diagnostic session anchor |
+| sessionStorage | `co_scientist_log_pause_until` | Necessary one-minute diagnostic refusal/reload recovery |
+| sessionStorage | `co_scientist_pending_run_create:<chatId>` | Safe idempotent creation recovery |
+| sessionStorage | `coscientist:chunk-reload-at` | Reload-loop guard |
+
+Settings → Data exports a JSON ZIP of owned runs/chats/extracted documents and
+settings, excluding provider keys and original file bytes. Export generation
+uses a consistent read snapshot and private temporary file, closes SQLite
+before response I/O and removes the file on completion/disconnect. Deletion
+requires exact `DELETE`, checks ownership and atomically removes owned work,
+stored credentials, staged documents and logs; it clears application storage
+in this and other open tabs. Other owners' rows and spent shared quotas remain.
+Deleted run pages return 404. Seven-day history expiry preserves current spent
+quotas and recent settlement receipts. The separate monetary ledger keeps the
+deployment's charged total without an automatic expiry; deletion detaches its
+ownership link rather than refunding that total. Exports include currently
+owned charge receipts. Twenty-four-hour hashed markers prevent delayed
+background writes from recreating the erased identity's work. Clearing the
+ownership ID without deletion only makes its server data inaccessible.
+
+Time-based retention runs hourly after API startup, outside port binding, with
+short transactions. Never use VACUUM or truncating checkpoints from the server,
+or hold a SQLite writer over network I/O. Original-source privacy tests cover
+cross-owner export/deletion, erased-run 404, late writers, rollback, disconnected
+download cleanup, backup snapshots and concurrent response/writer behavior.
+
+The owner handles access, correction, restriction, objection and portability
+requests, normally within one month, and explains any lawful limitation. The
+Dutch supervisory authority is the Autoriteit Persoonsgegevens. When restoring
+a backup, preserve erasure decisions and reapply deletions before serving old
+work; restoring an older snapshot is not permission to revive erased content.
+
+### Retention settings and external decisions
+
+Run/draft/document settings are `COSCIENTIST_RUN_RETENTION_DAYS` (launch0,
+default90), `COSCIENTIST_DRAFT_RETENTION_DAYS` (7) and
+`COSCIENTIST_DOCUMENT_RETENTION_DAYS` (30). BYOK needs the owner's persistent
+`BYOK_ENCRYPTION_KEY`; operator log access uses `LOGS_ADMIN_TOKEN`.
+`LOG_CAPTURE_ENABLED=true`, `LOG_CAPTURE_LEVEL=INFO`,
+`LOG_CAPTURE_MAX_ROWS=20000`, `LOGS_INGEST_PER_MINUTE=120` are code defaults.
+
+`SENTRY_DSN`/`SENTRY_ENVIRONMENT` are server destination/environment;
+`VITE_SENTRY_DSN` is the owner-required frontend build destination (build MODE
+supplies production environment). `OTEL_EXPORTER_OTLP_ENDPOINT` enables
+traces; `OTEL_SDK_DISABLED=true` disables them.
+`OTEL_EXPORTER_OTLP_HEADERS`/`OTEL_EXPORTER_OTLP_TRACES_HEADERS` hold exporter
+credentials and are validated before SDK parsing. Never print secret values
+or put operator/provider credentials into browser configuration.
+
+Optional R2 backups require `LITESTREAM_R2_BUCKET`, `LITESTREAM_R2_ENDPOINT`,
+`LITESTREAM_R2_ACCESS_KEY_ID`, `LITESTREAM_R2_SECRET_ACCESS_KEY` and a fresh
+owner-approved `LITESTREAM_R2_PATH`. `LITESTREAM_CONFIG` defaults to
+`/etc/litestream.yml`; `COSCIENTIST_LITESTREAM_ACTIVE` is entrypoint-owned.
+Litestream0.5.17 keeps restore anchors and last level files, so its default
+24-hour snapshot retention is not a deadline for all old user data. Unchanged
+database positions skip duplicate snapshots. An object lifecycle alone can
+expire an idle database’s only restore base; pair expiry with a refreshed,
+verified restore generation. R2 documents normal deletion within 24 hours of
+object expiration, with possible delays. No configured launch rule has been
+verified. See [R2 lifecycle behavior](https://developers.cloudflare.com/r2/buckets/object-lifecycles/).
+The owner must select, enforce and publish backup expiry and refresh policy,
+and confirm actual Sentry/tracing/hosting-log retention and transfer arrangements before
+public launch. Do not invent a deadline from the repository defaults.
+
+## Incidents
+
+See [incident playbooks](INCIDENTS.md) for signals, first actions, rollback and
+ownership, including the local [Litestream restore drill](RESTORE-DRILL.md).
