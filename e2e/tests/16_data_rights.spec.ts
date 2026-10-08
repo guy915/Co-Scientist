@@ -64,6 +64,10 @@ for (const theme of ["light", "dark"] as const) {
               "co_scientist_pending_run_create:old-chat",
               "private-retry",
             );
+            sessionStorage.setItem(
+              "co_scientist_log_pause_until",
+              String(Date.now() + 60_000),
+            );
           },
           [owner, theme],
         );
@@ -109,12 +113,16 @@ for (const theme of ["light", "dark"] as const) {
         expect(content).not.toContain("synthetic-private-browser-key");
         const otherTab = await page.context().newPage();
         await otherTab.goto(`/runs/${ownId}/overview`);
-        await otherTab.evaluate(() =>
+        await otherTab.evaluate(() => {
           sessionStorage.setItem(
             "co_scientist_pending_run_create:other-tab",
             "private-retry",
-          ),
-        );
+          );
+          sessionStorage.setItem(
+            "co_scientist_log_pause_until",
+            String(Date.now() + 60_000),
+          );
+        });
         const erase = dialog.getByRole("button", {
           name: "Delete all my data",
         });
@@ -140,6 +148,11 @@ for (const theme of ["light", "dark"] as const) {
             sessionStorage.getItem("co_scientist_pending_run_create:other-tab"),
           ),
         ).toBeNull();
+        expect(
+          await otherTab.evaluate(() =>
+            sessionStorage.getItem("co_scientist_log_pause_until"),
+          ),
+        ).toBeNull();
         await otherTab.close();
         await expect
           .poll(async () =>
@@ -149,6 +162,11 @@ for (const theme of ["light", "dark"] as const) {
         expect(
           await page.evaluate(() =>
             sessionStorage.getItem("co_scientist_pending_run_create:old-chat"),
+          ),
+        ).toBeNull();
+        expect(
+          await page.evaluate(() =>
+            sessionStorage.getItem("co_scientist_log_pause_until"),
           ),
         ).toBeNull();
         expect((await ownApi.get(`/api/runs/${ownId}`)).status()).toBe(404);
