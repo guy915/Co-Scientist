@@ -50,6 +50,7 @@ class Budget:
     max_wall_clock_s: float | None = None
     max_ideas: int | None = None
     max_matches_per_idea: float | None = None
+    finalists: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
