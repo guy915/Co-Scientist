@@ -1,21 +1,26 @@
 """Operations mutate caller-owned ideas without store writes; guidance and
-median Elo are snapshots at the caller's tournament/wave boundary."""
+debating leaders are snapshots at the caller's tournament/wave boundary."""
 
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core.constants import SINGLE_TURN_DEBATE_TURNS
 from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.science.ranking.ranking_debate import (
+    _RANKING_DEBATE_MAX_TURNS,
     _DebateContext,
-    _matchup_debate_turns,
-    _median_elo,
     build_matchup,
     judge_matchup,
 )
 from co_scientist.science.ranking.ranking_lifecycle import (
     TournamentGuidance,
     _gather_tournament_context,
+)
+from co_scientist.science.scheduling.tournament import (
+    DEFAULT_FINALISTS,
+    finalist_count,
+    ranked_leaders,
 )
 
 
@@ -27,12 +32,13 @@ class RankingPromptContext:
     run_id: str | None = None
     criteria: list[str] | None = None
     preferences: str | None = None
+    finalists: int = DEFAULT_FINALISTS
 
 
 @dataclass(frozen=True)
 class RankingJudgingContext:
     prompt: RankingPromptContext
-    median_elo: float
+    debate_ids: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -60,13 +66,16 @@ def prepare_ranking_prompt_context(
         run_id=state.get("run_id"),
         criteria=state.get("criteria"),
         preferences=preferences,
+        finalists=finalist_count(state),
     )
 
 
 def prepare_ranking_judging_context(
     prompt: RankingPromptContext, hypotheses: list[Hypothesis]
 ) -> RankingJudgingContext:
-    return RankingJudgingContext(prompt, _median_elo(hypotheses))
+    # Sibling results cannot promote a newcomer within the parallel wave.
+    leaders = ranked_leaders(hypotheses, prompt.finalists)
+    return RankingJudgingContext(prompt, frozenset(h.id for h in leaders))
 
 
 async def judge_ranking_matchup(
@@ -76,7 +85,11 @@ async def judge_ranking_matchup(
 ) -> RankingJudgement:
     prompt = context.prompt
     guidance = prompt.guidance
-    depth = _matchup_debate_turns(pair[0], pair[1], context.median_elo)
+    depth = (
+        _RANKING_DEBATE_MAX_TURNS
+        if all(hypothesis.id in context.debate_ids for hypothesis in pair)
+        else SINGLE_TURN_DEBATE_TURNS
+    )
     debate = _DebateContext(
         pair[0],
         pair[1],
