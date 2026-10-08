@@ -107,6 +107,7 @@ class LlmResearchModel:
         result = await call_llm_json(
             prompt,
             CompletionSpec(
+                role="research_extract" if prompt_name == "research_extract" else "research",
                 model_name=self._model,
                 max_tokens=max_tokens,
                 temperature=self._temperature,
