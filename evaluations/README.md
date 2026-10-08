@@ -34,8 +34,6 @@ network) unless a runner says otherwise. Runners write dated JSON artifacts to
   `datasets/citation_usefulness_v1.json`. The default lexical judge is a floor
   (about 0.38 by construction); `--llm` scores a real model. The product does
   not judge its own retrievals this way, so the judge here is the eval's own.
-- `decision_bakeoff.py`, `decision_cases.py` — the manual decision-model
-  comparison; see [Decision bake-off](#decision-bake-off).
 - `_run_driver.py` — plumbing for `claim_support_eval.py --live`. It creates a
   run through `co_scientist.platform.db.runs`, enqueues it with
   `orchestration.task_worker`, drains the worker pool and reads back the
@@ -157,16 +155,6 @@ web search and literature retrieval is keyless.
   with reported usage settle to real prompt plus completion tokens. Failed
   calls, missing usage and interrupted streams keep the full reservation.
 - Extended and Ultra get no live runs; check their call envelopes offline.
-
-## Decision bake-off
-
-The manual `Decision bake-off` workflow compares Liquid `d1:free` with the
-current free LLM at four call sites (`literature_relevance`,
-`ranking_pairwise`, `proximity`, `semantic_safety`) on inputs recorded by
-earlier `Benchmark` runs. Pass their run IDs as `source_runs`. It needs the
-`LIQUID_API_KEY` and `OPENROUTER_API_KEY` secrets, and `decision_bakeoff.py`
-refuses to run outside a manual Actions dispatch. Method and adoption rules:
-[decision model](../docs/decision-model.md).
 
 ## External gaps
 

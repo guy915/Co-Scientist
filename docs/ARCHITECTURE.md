@@ -83,12 +83,11 @@ co_scientist/
                   mcp_client/, citations/, tools/, connectors, article
     llm/          request/ (wire policy, thinking), profile/ (ModelProfile),
                   structured/, tools/, admission/, attempts/, offline/,
-                  decisions/ (typed decision client), provider_usage,
-                  llm_request, scoped_loop, tool_effects
+                  provider_usage, llm_request, scoped_loop, tool_effects
     sandbox/      confinement (landlock, seccomp, cgroups, seatbelt), runner,
                   workspace/, skills/, patch/
     db/           schema, models, runs, checkpoints, supervisor_plan,
-                  admission, call_admission, storage_admission, decision_usage,
+                  admission, call_admission, storage_admission,
                   logs, log_capture, retrieval_calls
     telemetry/    logging_setup, error_tracking, tracing, progress,
                   diagnostic_events
@@ -190,7 +189,6 @@ owning module; other modules go through it.
 | `run_credentials`, `free_run_usage` | `domains/access/` | encrypted BYOK keys and the free-generation allowance |
 | `feedback`, `feedback_admissions` | `domains/feedback/repository.py` | newest 200 within 10 MiB for 30 days; rolling-minute budgets |
 | `*_admissions`, `app_llm_usage` | `platform/db/admission.py`, `call_admission.py`, `storage_admission.py` | durable admission and spend ceilings |
-| `decision_usage` | `platform/db/decision_usage.py` | daily decision-client call and token quotas |
 | `retrieval_calls`, `app_logs` | `platform/db/retrieval_calls.py`, `logs.py` | per-run retrieval provenance and captured logs |
 
 `hypothesis_state` is the critical decoupling: it holds the values that must
