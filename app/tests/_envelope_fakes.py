@@ -110,7 +110,7 @@ def mcp_tool_names() -> list[str]:
 class FakeMCPClient:
     names: ClassVar[list[str]] = []
 
-    def __init__(self, connections: Any) -> None:
+    def __init__(self, connections: Any, **_options: Any) -> None:
         self.connections = connections
 
     async def get_tools(self) -> list[StructuredTool]:

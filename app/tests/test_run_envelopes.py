@@ -212,6 +212,8 @@ def test_offline_run_stays_inside_its_tier_envelope(
     assert final is not None
     assert final.status == RunStatus.COMPLETED.value, "an unfinished run measures nothing"
     measured = _measure(exporter, recorder)
+    nodes = {node for _, node, *_ in measured["calls_by_prompt"]}
+    assert "literature_review" in nodes, "the fake MCP server went unused; the meter is blind"
     if out := os.environ.get("METER_OUT"):
         with open(os.path.join(out, f"{tier}.json"), "w") as handle:
             json.dump({"tier": tier, **measured}, handle, indent=1)
