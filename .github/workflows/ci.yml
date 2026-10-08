@@ -14,7 +14,7 @@ on:
 env:
   LITELLM_LOCAL_MODEL_COST_MAP: "True"
 
-# PR diffs use the API; merge groups use their base/head git diff.
+# PR diffs use the API; other events select comprehensive checks.
 permissions:
   contents: read
   pull-requests: read
@@ -35,155 +35,23 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      engine: ${{ steps.select.outputs.engine || steps.all.outputs.engine }}
-      app: ${{ steps.select.outputs.app || steps.all.outputs.app }}
-      frontend: >-
-        ${{ steps.select.outputs.frontend || steps.all.outputs.frontend }}
-      evaluations: >-
-        ${{ steps.select.outputs.evaluations || steps.all.outputs.evaluations }}
-      mcp_server: >-
-        ${{ steps.select.outputs.mcp_server || steps.all.outputs.mcp_server }}
-      e2e: ${{ steps.select.outputs.e2e || steps.all.outputs.e2e }}
-      docker: ${{ steps.select.outputs.docker || steps.all.outputs.docker }}
-      root_config: >-
-        ${{ steps.select.outputs.root_config || steps.all.outputs.root_config }}
-      python_lint: ${{ steps.select.outputs.python_lint || steps.all.outputs.python_lint }}
+      engine: ${{ steps.select.outputs.engine }}
+      app: ${{ steps.select.outputs.app }}
+      frontend: ${{ steps.select.outputs.frontend }}
+      evaluations: ${{ steps.select.outputs.evaluations }}
+      mcp_server: ${{ steps.select.outputs.mcp_server }}
+      e2e: ${{ steps.select.outputs.e2e }}
+      docker: ${{ steps.select.outputs.docker }}
+      root_config: ${{ steps.select.outputs.root_config }}
+      python_lint: ${{ steps.select.outputs.python_lint }}
     steps:
       - name: Checkout
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Detect changed paths (presubmit only)
-        id: filter
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          # A merge group contains the queued PR diff against its synthetic base.
-          base: ${{ github.event.merge_group.base_sha }}
-          ref: ${{ github.event.merge_group.head_sha }}
-          list-files: json
-          # App imports the engine.
-          filters: |
-            files:
-              - '**'
-            engine:
-              - 'engine/**'
-              - '.ruff.toml'
-              - '.github/actions/**'
-              - '.github/workflows/ci.yml'
-            mcp_server:
-              - 'engine/mcp_server/**'
-              - '.ruff.toml'
-              - '.github/workflows/ci.yml'
-            app:
-              - '.github/actions/**'
-              - '.github/ci_shard.py'
-              - '.ruff.toml'
-              # Patterns are OR'd, so a lone negation would match every path
-              # outside the frontend; list the backend paths instead.
-              - 'app/*'
-              - 'app/tests/**'
-              - 'app/dev/**'
-              - 'app/docker/**'
-              - 'engine/**'
-              - '.github/workflows/ci.yml'
-            frontend:
-              - 'app/frontend/**'
-              - '.github/workflows/ci.yml'
-            evaluations:
-              - '**/*.py'
-              - '**/*.ts'
-              - '**/*.tsx'
-              - '**/*.css'
-              - '**/*.md'
-              - '.github/actions/**'
-              - '.ruff.toml'
-              - '.importlinter'
-              - 'evaluations/**'
-              - 'docs/**'
-              - 'app/**'
-              - 'engine/**'
-              - 'e2e/**'
-              - '.github/workflows/ci.yml'
-            e2e:
-              - 'Makefile'
-              # The browser suite drives the full stack, so any backend,
-              # frontend, engine, or harness change re-runs it. app/** already
-              # covers app/frontend/**.
-              - 'e2e/**'
-              - 'app/**'
-              - 'engine/**'
-              - '.github/workflows/ci.yml'
-            # Root Dockerfiles/compose are their own filter (a Docker-only
-            # smoke, not the granular per-tree suites): editing them changes
-            # nothing those suites would run, but should still build.
-            docker:
-              - 'Dockerfile.*'
-              - 'litestream.yml'
-              - 'scripts/api-entrypoint.sh'
-              - '.dockerignore'
-              - 'requirements/**'
-              - 'vendor/**'
-              - 'LICENSE'
-              - 'NOTICE'
-              - 'engine/pyproject.toml'
-              - 'engine/LICENSE'
-              - 'engine/NOTICE'
-              - 'engine/src/**'
-              - 'engine/.dockerignore'
-              - 'engine/mcp_server/**'
-              - 'app/.dockerignore'
-              - 'app/docker/**'
-              - 'app/docker-compose.yml'
-              - 'app/frontend/Dockerfile'
-              - 'app/frontend/.dockerignore'
-              - 'app/frontend/package.json'
-              - 'app/frontend/bun.lock'
-              - 'app/.env.example'
-              - '.github/workflows/ci.yml'
-            root_config:
-              - 'Makefile'
-              - 'vercel.json'
-              - 'wrangler.jsonc'
-              - 'app/frontend/worker*.mjs'
-              - 'app/frontend/public/_headers'
-              - '.env.example'
-              - 'app/.env.example'
-              - '.ruff.toml'
-              - '.importlinter'
-              - '.github/actions/**'
-              - '.github/workflows/ci.yml'
-      - name: Exclude documentation-only test targets
+      - name: Select affected targets from shared rules
         id: select
-        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         env:
-          FILTERS: ${{ toJSON(steps.filter.outputs) }}
-        run: |
-          python - <<'PYSELECT'
-          import json
-          import os
-
-          filters = json.loads(os.environ["FILTERS"])
-          paths = json.loads(filters["files_files"])
-          docs_only = bool(paths) and all(
-              path.startswith("docs/") or path.endswith(".md") for path in paths
-          )
-          test_targets = {"engine", "app", "frontend", "evaluations", "mcp_server", "e2e"}
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              lint = any(filters[target] == "true" for target in ("engine", "app", "evaluations"))
-              print(f"python_lint={str(lint).lower()}", file=output)
-              for target in (*sorted(test_targets), "docker", "root_config"):
-                  selected = filters[target] == "true" and not (docs_only and target in test_targets)
-                  print(f"{target}={str(selected).lower()}", file=output)
-          print(f"Documentation-only: {docs_only}")
-          PYSELECT
-      - name: Select all targets (postsubmit / nightly)
-        id: all
-        if: github.event_name != 'pull_request' && github.event_name != 'merge_group'
-        run: |
-          for target in engine app frontend evaluations mcp_server e2e \
-            docker root_config python_lint; do
-            echo "${target}=true" >> "$GITHUB_OUTPUT"
-          done
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m scripts.select_targets --event
 
   # MCP and Ruff share an interpreter, while retaining independent step failures.
   format-lint:

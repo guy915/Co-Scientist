@@ -39,6 +39,6 @@ def submit_feedback(body: FeedbackRequest, request: Request) -> dict[str, str]:
         identity = feedback.submit(owner, host_key, feedback.Submission(**body.model_dump()))
     except feedback.RateExceededError as exc:
         raise HTTPException(
-            status_code=429, detail=str(exc), headers={"Retry-After": "60"}
+            status_code=429, detail=str(exc), headers={"Retry-After": str(exc.retry_after)}
         ) from exc
     return {"id": identity, "status": "submitted"}
