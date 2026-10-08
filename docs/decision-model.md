@@ -86,9 +86,9 @@ sites unadopted. The docs lane publishes the accepted training-use disclosure.
 ## Relevance draft
 
 `DECISION_LITERATURE_RELEVANCE_THRESHOLD` stays unset until the local quality
-panel passes. One ordered five-level question per candidate preserves the
-existing continuous semantic score and 50/50 lexical fusion. Every candidate
-must exceed the calibrated threshold to accept its batch; otherwise the
+panel passes. One ordered five-level question per candidate produces a
+continuous semantic score for the existing 50/50 lexical fusion. Every candidate
+must meet the calibrated threshold to accept its batch; otherwise the
 original whole-batch LLM scorer runs. Accepted records carry a model/probability
 note and a distinct retriever version; LLM fallback clears prior decision
 provenance. Original abstract boundaries remain identical, with no extra
