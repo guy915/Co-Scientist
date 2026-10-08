@@ -37,7 +37,7 @@ repositories have no queue or `merge_group` trigger.
 | `docker-build` | Three images, real API/MCP starts and Compose validation | 30 |
 | `workflow-lint` | Verified actionlint, offline zizmor and detector failure controls | 5 |
 | `dependency-review` | PR changes; rejects high/critical advisories in runtime/development/unknown scopes | 5 |
-| `sandbox-macos` | Native sandbox tests; selected PRs, nightly and manual runs | Leaf: 10 |
+| `sandbox-macos` | Native sandbox tests; selected PRs, nightly and manual runs | Leaf: 15 |
 | `cross-browser` / `cross-browser-full` | Six production native guard jobs, selected PRs / immediate comprehensive non-PR runs | Leaf: 10 |
 | `required-checks` | Rejects failed, cancelled, omitted and incorrectly skipped dependencies | 5 |
 
