@@ -137,7 +137,7 @@ it('checks Other on blur, stores the exact ID, and keeps it when reopened', asyn
   await screen.findAllByText('deepseek-flash');
   await user.click(trigger(/Worker model/));
   await user.click(
-    screen.getByRole('menuitemradio', {name: 'Other', exact: true}),
+    screen.getByRole('menuitemradio', {name: /^Other$/}),
   );
   const input = screen.getByLabelText(/Custom worker model ID/);
   await user.type(input, 'new-model');
@@ -181,7 +181,7 @@ it('reports an unsupported Other model on submit', async () => {
   await screen.findAllByText('deepseek-flash');
   await user.click(trigger(/Supervisor model/));
   await user.click(
-    screen.getByRole('menuitemradio', {name: 'Other', exact: true}),
+    screen.getByRole('menuitemradio', {name: /^Other$/}),
   );
   await user.type(
     screen.getByLabelText(/Custom supervisor model ID/),
@@ -216,7 +216,7 @@ it('does not mark edited text valid when an earlier check returns', async () => 
   await screen.findAllByText('deepseek-flash');
   await user.click(trigger(/Worker model/));
   await user.click(
-    screen.getByRole('menuitemradio', {name: 'Other', exact: true}),
+    screen.getByRole('menuitemradio', {name: /^Other$/}),
   );
   const input = screen.getByLabelText(/Custom worker model ID/);
   await user.type(input, 'first{Enter}');
