@@ -1,18 +1,19 @@
 import json
 import logging
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast
 
-# FastMCP returns a tool's exception as an ordinary text result, so every
-# reader of a tool result has to recognise it. Left unrecognised it reads as a
-# paper's full text, or as zero search hits.
-_TOOL_ERROR_ENVELOPE_RE = re.compile(r"^Error calling tool '[^']*':")
 
-
-def is_tool_reported_error(payload: Any) -> bool:
-    return isinstance(payload, str) and bool(_TOOL_ERROR_ENVELOPE_RE.match(payload.strip()))
+def reported_failure(payload: Any) -> str | None:
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except ValueError:
+            return None
+    if isinstance(payload, dict) and payload.get("status") == "failed":
+        return str(payload.get("error") or "search failed")
+    return None
 
 
 def describe_exception(exc: BaseException) -> str:
@@ -296,17 +297,26 @@ def get_papers_needing_content(
 
 
 def _parse_content_from_string(result: str) -> str | None:
-    if is_tool_reported_error(result):
-        return None
     try:
         result_data = json.loads(result)
     except json.JSONDecodeError:
         return result
-    field = cast(str | None, result_data.get("content") or result_data.get("text"))
-    return field or result
+    if isinstance(result_data, dict):
+        return _parse_content_from_dict(result_data)
+    return result
 
 
-def _parse_content_from_dict(result: dict[str, Any]) -> str:
+def _parse_content_from_dict(result: dict[str, Any]) -> str | None:
+    if result.get("status") == "failed":
+        return None
+    if result.get("status") == "ok":
+        return (
+            "\n\n".join(
+                str(record.get("content") or record.get("text") or record.get("fulltext") or "")
+                for record in result["records"]
+            )
+            or None
+        )
     field = cast(str | None, result.get("content") or result.get("text"))
     return field or str(result)
 

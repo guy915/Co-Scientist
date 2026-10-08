@@ -2,8 +2,11 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    labels: ["type: maintenance", "area: ci"]
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -11,9 +14,27 @@ updates:
     directories:
       - /app/frontend
       - /e2e
+    labels: ["type: maintenance"]
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       development:
         dependency-type: development
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /app/docker
+      - /app/frontend
+      - /engine/docker
+      - /engine/mcp_server
+    labels: ["type: maintenance", "area: ci"]
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      images:
+        patterns: ["*"]

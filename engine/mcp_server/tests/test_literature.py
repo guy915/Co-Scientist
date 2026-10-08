@@ -15,7 +15,6 @@ from mcp_server.tools.lit_review import (
     opencitations,
 )
 from mcp_server.tools.lit_review.openalex_search import (
-    OpenAlexUnavailableError,
     search_openalex,
 )
 
@@ -49,8 +48,7 @@ async def test_an_arxiv_feed_normalizes_to_records(
 
     result = await arxiv_search.search_arxiv("resistance reversal")
 
-    assert result["source"] == "arXiv"
-    assert result["query"] == "resistance reversal"
+    assert result["status"] == "ok"
     (record,) = result["records"]
     assert record["title"] == "A Model of Resistance Reversal"
     assert record["abstract"] == "An abstract that wraps across lines."
@@ -63,19 +61,23 @@ async def test_an_arxiv_feed_normalizes_to_records(
     assert record["source_id"] == "2401.01234"
 
 
-async def test_an_arxiv_error_entry_without_an_id_is_not_a_record(
+@pytest.mark.parametrize(
+    "entry_id", ["", "<id>http://arxiv.org/api/errors#incorrect_id_format</id>"]
+)
+async def test_an_arxiv_query_error_is_failed_not_zero_hits(
     monkeypatch: pytest.MonkeyPatch,
+    entry_id: str,
 ) -> None:
     # Query errors can look like entries; admitting them invents empty-titled
     # papers.
     stub_responses(
         monkeypatch,
-        '<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>error</title></entry></feed>',
+        f'<feed xmlns="http://www.w3.org/2005/Atom"><entry>{entry_id}<title>error</title></entry></feed>',
     )
 
     result = await arxiv_search.search_arxiv("resistance reversal")
 
-    assert result["records"] == []
+    assert result == {"status": "failed", "records": [], "error": "invalid_response"}
 
 
 @pytest.fixture
@@ -130,8 +132,11 @@ class TestEuropepmcSearch:
     ) -> None:
         stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
-        with pytest.raises(RuntimeError, match=source):
-            await tool("PKMYT1")
+        assert (await tool("PKMYT1")) == {
+            "status": "failed",
+            "records": [],
+            "error": "network_error",
+        }
 
     async def test_a_persistent_transport_failure_still_fails_the_source(
         self,
@@ -139,8 +144,7 @@ class TestEuropepmcSearch:
     ) -> None:
         client = stub_failure(monkeypatch, httpx.RemoteProtocolError("Server disconnected"))
 
-        with pytest.raises(RuntimeError, match="RemoteProtocolError"):
-            await europepmc_search.search_europepmc("PKMYT1")
+        assert (await europepmc_search.search_europepmc("PKMYT1"))["status"] == "failed"
 
         assert len(client.calls) == 3
 
@@ -181,8 +185,7 @@ async def test_openalex_failure_raises_instead_of_looking_like_no_match(
 ) -> None:
     stub_responses(monkeypatch, StubResponse(None, error=httpx.HTTPError("x")))
 
-    with pytest.raises(OpenAlexUnavailableError, match="could not be"):
-        await search_openalex("q")
+    assert (await search_openalex("q"))["status"] == "failed"
 
 
 async def test_openalex_follows_cursor_pages_and_excludes_retractions(
@@ -198,9 +201,9 @@ async def test_openalex_follows_cursor_pages_and_excludes_retractions(
 
     out = await search_openalex("nitrogen fixation", max_papers=3, recency_years=5)
     capped = stub_responses(monkeypatch, first)
-    assert len(await search_openalex("nitrogen fixation", max_papers=1)) == 1
+    assert len((await search_openalex("nitrogen fixation", max_papers=1))["records"]) == 1
 
-    assert set(out) == {"W123", "W456", "W789"}
+    assert {r["source_id"] for r in out["records"]} == {"W123", "W456", "W789"}
     assert [str(params["cursor"]) for _, params in client.calls] == [
         "*",
         "cursor-2",
@@ -259,18 +262,18 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
         result = await client.call_tool(tool_name, {"doi": _DOI})
 
     assert tool_name in {tool.name for tool in tools}
-    assert result.data["citations"]["edges"][0]["cited"] == [
+    assert result.data["records"][0]["citations"]["edges"][0]["cited"] == [
         f"doi:{_DOI}",
         "omid:br/2",
     ]
-    assert result.data["references"]["edges"][0]["citing"] == [
+    assert result.data["records"][0]["references"]["edges"][0]["citing"] == [
         f"doi:{_DOI}",
         "omid:br/3",
     ]
-    assert result.data["source"] == "OpenCitations Index v2"
-    assert result.data["citations"]["edge_request_url"] == str(requests[2].url)
-    assert result.data["references"]["edge_request_url"] == str(requests[3].url)
-    assert "do not establish" in result.data["interpretation_note"]
+    assert result.data["records"][0]["source"] == "OpenCitations Index v2"
+    assert result.data["records"][0]["citations"]["edge_request_url"] == str(requests[2].url)
+    assert result.data["records"][0]["references"]["edge_request_url"] == str(requests[3].url)
+    assert "do not establish" in result.data["records"][0]["interpretation_note"]
     assert len(requests) == 4
 
 
@@ -322,7 +325,8 @@ async def test_unusable_upstream_answers_fail_instead_of_looking_complete(
 ) -> None:
     requests = _install_responses(monkeypatch, responses)
 
-    with pytest.raises(RuntimeError, match=error):
-        await opencitations.get_opencitations_citation_edges(_DOI)
+    result = await opencitations.get_opencitations_citation_edges(_DOI)
+    assert result["status"] == "failed"
+    assert result["records"] == []
 
     assert len(requests) == request_count
