@@ -15,15 +15,16 @@ Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
 Search [open issues](https://github.com/guy915/Open-Co-Scientist/issues) before
 starting. The project labels are defined in [.github/labels.yml](.github/labels.yml).
 Start with `good first issue` for bounded work with context, or `help wanted`
-for work the maintainer has opened to contributors. Filter by area, such as
-`area: evaluations`, `area: engine`, `area: frontend` or `area: docs`.
+for work the maintainer has opened to contributors. Filter by area:
+`area: engine`, `area: api`, `area: frontend`, `area: mcp`,
+`area: evaluations`, `area: e2e`, `area: ci` or `area: docs`.
 Types include `type: bug`, `type: feature`, `type: docs`, `type: maintenance`
 and `type: question`. Priority labels range from `priority: critical` to
 `priority: low`. An issue marked `needs triage` still needs its scope,
 reproduction, ownership or priority reviewed.
 
 Choose a small issue that matches your interests. Comment with your proposed
-approach before starting, especially while folders are moving. If the scope
+approach before starting. If the scope
 is unclear, ask in the issue. This helps avoid overlapping work.
 
 For a feature, use the feature request form from the
@@ -52,19 +53,30 @@ Keep credentials, local environment files and research outputs out of commits.
 
 ## Code layout
 
-- `app/`: API and web workbench.
-- `engine/`: research engine and reference MCP tools.
-- `evaluations/`: offline evaluation harness, datasets and tests.
-- `e2e/`: browser tests.
+| Path | Contents | Area label |
+| --- | --- | --- |
+| `engine/src/co_scientist/` | The Python package: API server, durable runtime, agents and platform | `area: engine`, `area: api` |
+| `engine/mcp_server/` | Reference MCP server for literature and database tools | `area: mcp` |
+| `app/frontend/` | React workbench | `area: frontend` |
+| `app/tests/` | API test suite | `area: api` |
+| `evaluations/` | Offline evaluation harness, datasets and benchmarks | `area: evaluations` |
+| `e2e/` | Playwright browser tests | `area: e2e` |
+| `docs/` | Architecture, operations and decision records | `area: docs` |
+| `.github/` | CI workflows, issue forms and repository settings | `area: ci` |
+| `requirements/` | Hash-pinned runtime dependency locks | `area: ci` |
+| `vendor/` | Third-party code shipped unmodified; never reformat it | — |
 
-The folders below these are changing during the re-architecture. Read
-[AGENTS.md](AGENTS.md) and the relevant project's guide before changing code.
+The package is layered `main` > `api` > `orchestration` > `science` >
+`domains` > `platform` > `core`, and a layer imports only those below it;
+`make arch` enforces this. Start with the [architecture](docs/ARCHITECTURE.md),
+then read [AGENTS.md](AGENTS.md) and the guide beside the code you change
+(`engine/AGENTS.md` or `app/AGENTS.md`).
 
 ## Checks and evidence
 
 For code changes, run `make check` before requesting review. It covers lint,
 types, backend and frontend suites, evaluation smoke, the frontend build and
-isolated browser tests. CI tests must not need network access or provider keys.
+both browser suites. CI tests must not need network access or provider keys.
 
 For documentation changes, run `make lint` and
 `.venv/bin/python -m pytest evaluations/tests -q` explicitly. Record each
