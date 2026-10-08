@@ -58,9 +58,12 @@ for (const theme of ['light', 'dark']) {
         const dialog = page.getByRole('dialog');
         const firstTab = dialog.getByRole('navigation').getByRole('button');
         const title = dialog.getByRole('heading', {name: 'Settings'});
-        const tabBox = (await firstTab.first().boundingBox())!;
-        const titleBox = (await title.boundingBox())!;
-        expect(Math.abs(tabBox.x - titleBox.x)).toBeLessThanOrEqual(1);
+        // The dialog scales in; measure once it has settled.
+        await expect(async () => {
+          const tabBox = (await firstTab.first().boundingBox())!;
+          const titleBox = (await title.boundingBox())!;
+          expect(Math.abs(tabBox.x - titleBox.x)).toBeLessThanOrEqual(1);
+        }).toPass();
 
         const trigger = dialog.locator('button[aria-haspopup="menu"]').first();
         await trigger.click();
