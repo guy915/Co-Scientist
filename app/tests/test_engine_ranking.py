@@ -85,6 +85,8 @@ def _tasks_gate_multi_claim_state() -> dict[str, Any]:
         experiment="Measure ATP recovery under lactate blockade.",
     )
     hypothesis.review_disposition = "viable"
+    # A reviewed idea alone in its pool is a finalist, so the gate checks it.
+    _add_fixture_review(hypothesis)
     return {
         "hypotheses": [hypothesis],
         "articles": [
@@ -103,6 +105,8 @@ async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
         literature_grounding=("Astrocyte lactate accelerates synaptic ATP recovery."),
     )
     hypothesis.review_disposition = "viable"
+    # A reviewed idea alone in its pool is a finalist, so the gate checks it.
+    _add_fixture_review(hypothesis)
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
     await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
     assert hypothesis.review_disposition == "viable"
@@ -124,6 +128,8 @@ async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
         literature_grounding="Astrocyte lactate accelerates ATP recovery.",
     )
     hypothesis.review_disposition = "viable"
+    # A reviewed idea alone in its pool is a finalist, so the gate checks it.
+    _add_fixture_review(hypothesis)
     state = {
         "hypotheses": [hypothesis],
         "articles": [
@@ -159,6 +165,8 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
         ),
     )
     hypothesis.review_disposition = "viable"
+    # A reviewed idea alone in its pool is a finalist, so the gate checks it.
+    _add_fixture_review(hypothesis)
     state = {
         "hypotheses": [hypothesis],
         "articles": [
@@ -193,6 +201,8 @@ def test_gate_verdict_blocks_only_a_categorical_contradiction(role: str, disposi
     claim = "Kinase X inhibition reduces AML relapse rates."
     hypothesis = Hypothesis(text=claim)
     hypothesis.review_disposition = "viable"
+    # A reviewed idea alone in its pool is a finalist, so the gate checks it.
+    _add_fixture_review(hypothesis)
     span = SupportSpan(evidence_id="e1", quote="no effect", start=0, end=9)
     assessment = ClaimAssessment(
         claim=claim,
