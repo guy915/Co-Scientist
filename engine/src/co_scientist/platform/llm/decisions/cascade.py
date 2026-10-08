@@ -52,7 +52,7 @@ async def decision_or_fallback(
     client: SystemOneClient | None = None,
     decide: Callable[[SystemOneClient], Awaitable[DecisionResult]] | None = None,
 ) -> T:
-    if threshold is None or not math.isfinite(threshold) or not 0.5 < threshold <= 1:
+    if threshold is None or not math.isfinite(threshold) or not 0 < threshold <= 1:
         return await fallback()
     try:
         active = client or SystemOneClient(DecisionSettings.from_env())

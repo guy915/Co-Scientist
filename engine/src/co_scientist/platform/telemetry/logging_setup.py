@@ -8,6 +8,8 @@ import sys
 from collections.abc import Generator
 from contextvars import ContextVar
 
+from co_scientist.platform.telemetry.tracing import current_trace_id
+
 # Child tasks inherit run context, allowing one workflow binding to correlate
 # every emitted record.
 _run_id_var: ContextVar[str | None] = ContextVar("cosci_run_id", default=None)
@@ -29,6 +31,7 @@ def run_log_context(run_id: str) -> Generator[None, None, None]:
 class RunIdFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.run_id = _run_id_var.get()
+        record.trace_id = current_trace_id()
         return True
 
 
@@ -43,6 +46,9 @@ class JsonFormatter(logging.Formatter):
         run_id = getattr(record, "run_id", None)
         if run_id:
             payload["run_id"] = run_id
+        trace_id = getattr(record, "trace_id", None)
+        if trace_id:
+            payload["trace_id"] = trace_id
         if record.exc_info:
             payload["exc_info"] = record.exc_text or self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
@@ -58,16 +64,9 @@ _LITELLM_LOGGER_NAMES: tuple[str, ...] = (
 
 
 def silence_litellm_logging() -> None:
-    """LiteLLM's own logger handlers bypass root levels; its provider banner
-    is a separate print guarded by suppress_debug_info.
-    """
+    """LiteLLM's own logger handlers bypass root levels."""
     for name in _LITELLM_LOGGER_NAMES:
         logging.getLogger(name).setLevel(logging.WARNING)
-    try:
-        import litellm
-    except ImportError:
-        return
-    litellm.suppress_debug_info = True
 
 
 silence_litellm_logging()

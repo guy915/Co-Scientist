@@ -200,6 +200,7 @@ _ALLOWED_UPWARD = {("telemetry", "request.response")}
 # Telemetry reads request.response; request.completion records into telemetry.
 # That request-layer edge is the explicit layering exception.
 _LAYERS = (
+    "scoped_loop",
     "profile",
     "values",
     "admission",

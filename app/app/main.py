@@ -15,13 +15,14 @@ from co_scientist.api.diagnostics_api import router as diagnostics_api_router
 from co_scientist.api.documents import router as documents_router
 from co_scientist.api.feedback_api import router as feedback_router
 from co_scientist.api.free_usage import router as free_usage_router
+from co_scientist.api.interviews import router as interviews_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
+from co_scientist.api.tracing import TracingMiddleware
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import StorageAdmissionError
-from co_scientist.domains.chat.interviews import router as interviews_router
 from co_scientist.domains.chat.seed import is_current_demo_run, seed_demo_runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks
@@ -32,6 +33,7 @@ from co_scientist.platform.db.log_capture import configure_log_capture, shutdown
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.telemetry.error_tracking import init_error_tracking
 from co_scientist.platform.telemetry.logging_setup import configure_logging, level_to_number
+from co_scientist.platform.telemetry.tracing import configure_tracing, shutdown_tracing
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -183,6 +185,7 @@ async def lifespan(
 ) -> AsyncGenerator[None, None]:
     # A prior lifespan cycle may have drained capture, so startup reinstalls it.
     _install_log_capture()
+    configure_tracing()
     logger.info("Starting Co-Scientist server...")
     _startup_engine_setup()
 
@@ -202,6 +205,7 @@ async def lifespan(
         logger.info("Shutting down Co-Scientist server...")
         # Drain queued logging before the shutdown WAL merge.
         shutdown_log_capture()
+        shutdown_tracing()
         db.checkpoint_wal()
 
 
@@ -313,6 +317,8 @@ app.add_middleware(
 # Reports and collections are large, repetitive JSON; the run event stream
 # (text/event-stream) is excluded by Starlette so events are never held back.
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+# Outermost, so the server span covers every other middleware.
+app.add_middleware(TracingMiddleware)
 
 
 app.include_router(runs_router)

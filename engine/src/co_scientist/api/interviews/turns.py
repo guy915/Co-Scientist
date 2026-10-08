@@ -12,6 +12,7 @@ import co_scientist.domains.chat.interviews.model as model
 import co_scientist.domains.chat.interviews.questions as question_repair
 import co_scientist.domains.documents.staged as staged_documents
 from co_scientist.api.auth import client_id
+from co_scientist.api.documents_access import resolve_owned_documents
 from co_scientist.core import byok_scope
 from co_scientist.domains.chat.interviews.model import (
     ProseSink,
@@ -62,7 +63,7 @@ def _attach_documents(interview_id: str, document_ids: list[str], request: Reque
     if not document_ids:
         return
     owner = client_id(request)
-    staged_documents.resolve_owned_documents(document_ids, owner)
+    resolve_owned_documents(document_ids, owner)
     documents.attach_documents_to_interview(interview_id, document_ids, owner)
 
 
@@ -179,9 +180,7 @@ async def _run_interview_turn(
     try:
         response = await model._call_interview_model(interview, on_reasoning, on_prose)
         return response, False
-    except HTTPException as exc:
-        if exc.status_code != 503:
-            raise
+    except model.InterviewModelUnavailableError:
         return model._fallback_interview_response(interview), True
 
 

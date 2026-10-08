@@ -575,3 +575,80 @@ def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None)
         run.top_hypotheses = top_hypotheses.get(run.id, [])
         run.latest_stage = latest_stage.get(run.id)
     return runs
+
+
+_PROGRESS_QUERY = (
+    "SELECT COUNT(*) AS total,"
+    " COALESCE(SUM(status IN ('completed','failed','cancelled')), 0)"
+    " AS completed,"
+    " COALESCE(SUM(status='queued'), 0) AS queued,"
+    " COALESCE(MAX(substr(task_type,1,7)='engine.'), 0) AS dynamic_plan,"
+    " (SELECT task_type FROM scientific_tasks WHERE run_id=? AND"
+    "  status IN ('leased','running')"
+    "  ORDER BY created_at ASC LIMIT 1) AS active_task"
+    " FROM scientific_tasks WHERE run_id=?"
+)
+
+
+def task_progress(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any]:
+    with use_conn(conn, db_path) as active:
+        row = active.execute(
+            _PROGRESS_QUERY,
+            (run_id, run_id),
+        ).fetchone()
+    total = int(row["total"])
+    completed = int(row["completed"])
+    # Model-expanded plans have no honest denominator and must not report
+    # determinate fractional progress.
+    determinate = total > 0 and not row["dynamic_plan"]
+    return {
+        "determinate": determinate,
+        "completed_tasks": completed,
+        "total_tasks": total,
+        "fraction": completed / total if determinate else None,
+        "active_task": row["active_task"],
+        "queued_tasks": int(row["queued"]),
+    }
+
+
+def recent_events(
+    run_id: str,
+    limit: int,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    """Bound the decoded Q&A context tail rather than loading the run's
+    entire event history.
+    """
+    with use_conn(conn, None) as active:
+        rows = active.execute(
+            "SELECT seq, type, payload_json, created_at FROM run_events "
+            "WHERE run_id=? ORDER BY seq DESC LIMIT ?",
+            (run_id, limit),
+        ).fetchall()
+    return [
+        {
+            "seq": r["seq"],
+            "type": r["type"],
+            "payload": json.loads(r["payload_json"]),
+            "created_at": r["created_at"],
+        }
+        for r in reversed(rows)
+    ]
+
+
+def run_execution_started_at(run_id: str, conn: sqlite3.Connection | None = None) -> float | None:
+    """Draft creation is not compute start; elapsed execution begins with
+    the first queued lifecycle event.
+    """
+    with use_conn(conn, None) as active:
+        row = active.execute(
+            "SELECT MIN(created_at) AS started FROM run_events WHERE run_id=? AND type='lifecycle'",
+            (run_id,),
+        ).fetchone()
+    started = row["started"] if row is not None else None
+    return float(started) if started is not None else None

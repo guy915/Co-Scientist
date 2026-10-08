@@ -6,11 +6,10 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.core.exceptions import LLMCallBudgetExceededError
+from co_scientist.core.exceptions import LLMCallBudgetExceededError, ProviderAdmissionError
 from co_scientist.platform import db
 from co_scientist.platform.llm import provider_usage
 from co_scientist.platform.llm.request.transport import complete_request
-from fastapi import HTTPException
 
 from tests._client import create_run, make_client
 from tests._llm_fake_backend import install_completion_backend
@@ -127,7 +126,7 @@ def test_rejected_app_quota_does_not_consume_global_quota(
     monkeypatch.setattr(settings, "app_llm_global_calls_per_day", 2)
     with provider_usage.scoped_client("first"):
         provider_usage.reserve({"max_tokens": 10})
-        with pytest.raises(HTTPException):
+        with pytest.raises(ProviderAdmissionError):
             provider_usage.reserve({"max_tokens": 10})
     with provider_usage.scoped_client("second"):
         provider_usage.reserve_physical({"max_tokens": 10})

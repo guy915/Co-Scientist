@@ -9,6 +9,7 @@ from contextvars import copy_context
 from typing import Any
 
 from litellm.exceptions import Timeout as LiteLLMTimeout
+from opentelemetry.trace import Span
 
 from co_scientist.core.exceptions import LLMTimeoutError
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
@@ -17,8 +18,10 @@ from co_scientist.platform.llm.admission.service import reserve_physical
 from co_scientist.platform.llm.request.backend import active_backend
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
+    end_request_span,
     record_completion_failure,
     record_completion_response,
+    start_request_span,
 )
 
 
@@ -27,11 +30,12 @@ class _CompletionStream:
     initiating task.
     """
 
-    def __init__(self, response: Any, model: str, start: float) -> None:
+    def __init__(self, response: Any, model: str, start: float, span: Span) -> None:
         self._response = response
         self._iterator = response.__aiter__()
         self._model = model
         self._start = start
+        self._span = span
         self._context = copy_context()
         self._last = response
         self._done = False
@@ -61,6 +65,7 @@ class _CompletionStream:
             self._context.run(record_completion_response, self._model, self._last, latency)
         else:
             self._context.run(record_completion_failure, self._model, error, latency)
+        end_request_span(self._span, self._last, error)
 
     async def aclose(self) -> None:
         self._finish(asyncio.CancelledError())
@@ -108,6 +113,7 @@ async def complete_request(
         reserve_physical(completion_args)
     if before_dispatch is not None:
         before_dispatch()
+    span = start_request_span(model_name, completion_args)
     start = time.monotonic()
     try:
         response = await _await_provider(
@@ -120,11 +126,14 @@ async def complete_request(
             zero_cost_admitted=zero_cost and not byok,
         )
         record_completion_failure(model_name, error, time.monotonic() - start)
+        end_request_span(span, None, error)
         raise error from exc
     except BaseException as exc:
         record_completion_failure(model_name, exc, time.monotonic() - start)
+        end_request_span(span, None, exc)
         raise
     if completion_args.get("stream"):
-        return _CompletionStream(response, model_name, start)
+        return _CompletionStream(response, model_name, start, span)
     record_completion_response(model_name, response, time.monotonic() - start)
+    end_request_span(span, response, None)
     return response

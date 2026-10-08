@@ -5,9 +5,9 @@ import contextlib
 from typing import Any
 
 import pytest
+from co_scientist.api.interviews import stream as interviews_stream
 from co_scientist.core.config import settings
 from co_scientist.domains.chat.interviews import model as interviews_model
-from co_scientist.domains.chat.interviews import stream as interviews_stream
 from co_scientist.domains.chat.repository import interviews as store
 from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
 from fastapi.testclient import TestClient

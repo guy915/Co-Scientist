@@ -52,8 +52,10 @@ def _install(monkeypatch: pytest.MonkeyPatch, transport: httpx.MockTransport) ->
     return client
 
 
+@pytest.mark.parametrize("threshold", ["0.9", "0.3"])
 async def test_pairwise_orders_are_swapped_and_provenance_survives_roundtrip(
     monkeypatch: pytest.MonkeyPatch,
+    threshold: str,
 ) -> None:
     ctx = _context()
     prompts: list[str] = []
@@ -63,6 +65,7 @@ async def test_pairwise_orders_are_swapped_and_provenance_survives_roundtrip(
         return httpx.Response(200, json=_answer("A" if len(prompts) == 1 else "B"))
 
     client = _install(monkeypatch, httpx.MockTransport(reply))
+    monkeypatch.setenv("DECISION_RANKING_THRESHOLD", threshold)
 
     async def unexpected(**kwargs: Any) -> dict[str, Any]:
         raise AssertionError("accepted decisions must not call the LLM")
@@ -115,7 +118,7 @@ async def test_order_disagreement_falls_back_to_the_identical_llm_prompt(
     assert response["physical_calls"] == 3
 
 
-@pytest.mark.parametrize("threshold", ["", "nan", "0.5", "invalid"])
+@pytest.mark.parametrize("threshold", ["", "nan", "0", "invalid"])
 async def test_unvalidated_ranking_never_builds_a_decision_client(
     monkeypatch: pytest.MonkeyPatch, threshold: str
 ) -> None:

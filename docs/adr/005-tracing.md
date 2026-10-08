@@ -1,7 +1,7 @@
 # ADR-005: Tracing
 
 **Status:** accepted, 7 October 2026. Re-architecture phase 1; built in
-phase 6.
+phase 6. Span names and attributes are listed in `docs/MONITORING.md`.
 
 ## Context
 
@@ -27,8 +27,9 @@ when the standard exporter variable is set.**
   or socket exists. CI, tests and local runs never set it.
 - **Seams:**
   - **LLM gateway** (ADR-004): one span per logical call
-    (`call_llm`, `call_llm_json`, `call_llm_with_tools`, `complete_surface`)
-    and one child span per physical attempt at `complete_request`. Attributes
+    (`call_llm`, `call_llm_json`, `call_llm_with_tools`), one per attempt of
+    the attempt loop, and one per physical provider request at
+    `complete_request`. Attributes
     follow the OpenTelemetry GenAI semantic conventions where a name exists
     (`gen_ai.operation.name`, `gen_ai.request.model`,
     `gen_ai.response.model`, `gen_ai.usage.input_tokens`,

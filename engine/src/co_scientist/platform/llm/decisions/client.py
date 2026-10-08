@@ -87,6 +87,10 @@ class SystemOneClient:
         settings.validate()
         if not settings.configured:
             raise DecisionUnavailableError("decision provider is not configured")
+        from co_scientist.core.byok_scope import current_byok
+
+        if current_byok() is not None:
+            raise DecisionUnavailableError("scoped BYOK keeps its existing provider")
         if self._transport is None and os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1":
             raise DecisionUnavailableError("offline execution cannot contact decision providers")
         body, tokens = _body_and_tokens(state, questions, settings)

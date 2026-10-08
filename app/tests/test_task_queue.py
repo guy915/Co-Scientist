@@ -229,7 +229,7 @@ def test_task_progress_is_monotonic_and_budget_derived(
     run_id = _run()
     first = _enqueue(run_id, "retrieval.pubmed", "progress:retrieval", isolated_db)
     _enqueue(run_id, "generation.initial", "progress:generation", isolated_db)
-    initial = tasks.task_progress(run_id, db_path=isolated_db)
+    initial = runs.task_progress(run_id, db_path=isolated_db)
     assert initial == {
         "determinate": True,
         "completed_tasks": 0,
@@ -241,12 +241,12 @@ def test_task_progress_is_monotonic_and_budget_derived(
 
     leased = tasks.claim_task("worker", run_id=run_id, db_path=isolated_db)
     assert leased is not None and leased.id == first.id
-    active = tasks.task_progress(run_id, db_path=isolated_db)
+    active = runs.task_progress(run_id, db_path=isolated_db)
     assert active["fraction"] == 0.0
     assert active["active_task"] == "retrieval.pubmed"
 
     assert lifecycle.complete_task(first.id, "worker", {"count": 4}, db_path=isolated_db)
-    completed = tasks.task_progress(run_id, db_path=isolated_db)
+    completed = runs.task_progress(run_id, db_path=isolated_db)
     assert completed["fraction"] == 0.5
     assert completed["completed_tasks"] == 1
 
@@ -256,7 +256,7 @@ def test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand(
 ) -> None:
     run_id = _run()
     enqueue_task(run_id, "engine.bootstrap", "engine-bootstrap", db_path=isolated_db)
-    progress = tasks.task_progress(run_id, db_path=isolated_db)
+    progress = runs.task_progress(run_id, db_path=isolated_db)
     assert progress["determinate"] is False
     assert progress["fraction"] is None
     assert progress["total_tasks"] == 1

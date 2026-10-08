@@ -26,6 +26,7 @@ from co_scientist.platform.llm.request.completion import (
 )
 from co_scientist.platform.llm.request.response import _extract_completion_content
 from co_scientist.platform.llm.request.thinking import _apply_thinking_args
+from co_scientist.platform.llm.telemetry import logical_call_span
 from co_scientist.platform.llm.tool_effects import batch_by_effects
 from co_scientist.platform.llm.tools.policy import (
     DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
@@ -325,9 +326,13 @@ async def call_llm_with_tools(
     loop: ToolLoop,
     options: LLMCallOptions | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
+    opt = options if options is not None else LLMCallOptions()
     # An explicit key overrides this task context for the loop, not shared
     # backend state.
-    with scoped_api_key(spec.api_key):
+    with (
+        logical_call_span("call_llm_with_tools", spec.model_name, opt.prompt_name),
+        scoped_api_key(spec.api_key),
+    ):
         request = LLMRequest(
             prompt=prompt,
             model_name=spec.model_name,

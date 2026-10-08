@@ -20,6 +20,10 @@ class CompletionBackend(Protocol):
     def supports_json_schema(self, model_name: str) -> bool: ...
 
 
+def is_authentication_error(error: BaseException) -> bool:
+    return isinstance(error, litellm.exceptions.AuthenticationError)
+
+
 @functools.cache
 def litellm_supports_json_schema(model_name: str) -> bool:
     """Model capability is process-static; explicit profiles override

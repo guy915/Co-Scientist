@@ -6,9 +6,6 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from fastapi import HTTPException
-from pydantic import BaseModel, Field
-
 import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core import byok_scope
 from co_scientist.core.config import (
@@ -26,6 +23,11 @@ from co_scientist.platform.llm.request.thinking import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class InterviewModelUnavailableError(RuntimeError):
+    """The interview model call failed; callers fall back to a deterministic turn."""
+
 
 OPEN_MARKER = "<run_spec>"
 CLOSE_MARKER = "</run_spec>"
@@ -98,40 +100,6 @@ class TurnSplitter:
             whole,
             _parse_spec_body(body if end == -1 else body[:end]),
         )
-
-
-class CreateInterviewRequest(BaseModel):
-    """Initial scientist challenge for a new interview.
-
-    ``document_ids`` names documents already staged through
-    ``/api/documents``. They are attached to the interview, so the very
-    first turn is scoped with the scientist's own material rather than
-    reaching the work only after the plan is fixed.
-    """
-
-    research_challenge: str = Field(..., min_length=1, max_length=20_000)
-    document_ids: list[str] = Field(default_factory=list)
-
-
-class InterviewTurnRequest(BaseModel):
-    """One scientist answer or correction, with any newly attached documents."""
-
-    content: str = Field(..., min_length=1, max_length=20_000)
-    document_ids: list[str] = Field(default_factory=list)
-
-
-class InterviewFieldsRequest(BaseModel):
-    """Scientist-authored edits to the five structured fields.
-
-    Omitted ``title`` and ``lab_constraints`` keep their stored values, so a
-    client that does not edit them cannot erase them.
-    """
-
-    research_challenge: str = Field(..., min_length=1, max_length=20_000)
-    focus_area: list[str]
-    preferences: list[str]
-    lab_constraints: list[str] = Field(default_factory=list)
-    title: str | None = Field(None, max_length=200)
 
 
 _FORMAT_PROMPT = (
@@ -603,9 +571,8 @@ async def _call_interview_model(
         )
     except Exception as exc:
         logger.warning("Interview model failed: %s", exc)
-        raise HTTPException(
-            status_code=503,
-            detail="The interview Agent is temporarily unavailable.",
+        raise InterviewModelUnavailableError(
+            "The interview Agent is temporarily unavailable."
         ) from exc
     return _turn_response(interview, prose, fields)
 
