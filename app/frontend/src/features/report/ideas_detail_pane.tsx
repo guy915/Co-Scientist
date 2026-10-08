@@ -156,7 +156,7 @@ function smoothSectionClick(
 export function SectionsRail() {
   return (
     <Card
-      as="aside"
+      as="section"
       size="panel"
       layoutClassName="idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start max-[1023px]:hidden"
       aria-label="Sections"
@@ -164,7 +164,7 @@ export function SectionsRail() {
       <span className="text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text">
         Sections
       </span>
-      <nav className="mt-5 grid gap-6">
+      <nav aria-label="Hypothesis sections" className="mt-5 grid gap-6">
         {RAIL_SECTIONS.map(item => (
           <a
             key={item}
