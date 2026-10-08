@@ -436,13 +436,11 @@ export default function HomeLanding() {
         <TiersSection reduceMotion={reduceMotion} />
         <ClosingSection onStart={onStart} />
         <FaqSection />
-        <footer
-          role="contentinfo"
-          aria-label="Site information"
-          className="flex flex-wrap gap-6 border-t border-t-(--l-line) py-6 text-(--l-muted)"
-        >
-          <Link to="/privacy">Privacy notice</Link>
-          <Link to="/terms">Terms of use</Link>
+        <footer className="border-t border-t-(--l-line) py-6 text-(--l-muted)">
+          <nav aria-label="Legal information" className="flex flex-wrap gap-6">
+            <Link to="/privacy">Privacy notice</Link>
+            <Link to="/terms">Terms of use</Link>
+          </nav>
         </footer>
       </div>
     </div>
