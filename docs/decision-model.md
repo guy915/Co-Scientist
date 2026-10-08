@@ -100,6 +100,11 @@ evaluation pacing choice, not a verified provider allowance. Provider errors
 still stop the panel without retry. Reports retain the selected delay.
 
 The manual site selector can evaluate one site without dispatching the others.
+`quota_diagnostics=true` instead selects one relevance request with Liquid only.
+It supplies no OpenRouter key, obtains no oracle labels and exports only bounded
+numeric quota fields, recognized units/windows and existing safe headers.
+It exports no error body, research state or arbitrary provider string. This mode
+uses the same admission and timeout checks and never establishes adoption.
 Relevance cases are production-sized batches of up to ten unique papers. The
 first complete batches providing at least 100 paper labels calibrate the
 threshold; subsequent complete batches form the holdout. Reports distinguish

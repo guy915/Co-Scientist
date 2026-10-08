@@ -5,6 +5,7 @@ import json
 import math
 import os
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -70,10 +71,15 @@ def _body_and_tokens(
 
 class SystemOneClient:
     def __init__(
-        self, settings: DecisionSettings, *, transport: httpx.AsyncBaseTransport | None = None
+        self,
+        settings: DecisionSettings,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+        response_hook: Callable[[httpx.Response], Awaitable[None]] | None = None,
     ) -> None:
         self.settings = settings
         self._transport = transport
+        self._response_hook = response_hook
 
     def estimate_tokens(self, state: str | dict[str, Any], questions: dict[str, Question]) -> int:
         self.settings.validate()
@@ -130,6 +136,7 @@ class SystemOneClient:
                 trust_env=False,
                 follow_redirects=False,
                 headers={"Authorization": f"Bearer {settings.api_key}"},
+                event_hooks={"response": [self._response_hook]} if self._response_hook else None,
             ) as client,
             client.stream(
                 "POST", f"{settings.base_url.rstrip('/')}/systemone", json=body

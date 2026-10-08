@@ -358,13 +358,17 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cases", type=int, default=5)
     parser.add_argument("--delay", type=float, choices=(4, 30), default=30)
+    parser.add_argument("--quota-diagnostics", action="store_true")
     args = parser.parse_args()
     if (
         os.getenv("GITHUB_EVENT_NAME") != "workflow_dispatch"
         or os.getenv("GITHUB_ACTIONS") != "true"
     ):
         raise ValueError("live decision bake-off requires manual GitHub Actions dispatch")
-    if not all(os.getenv(name, "").strip() for name in ("LIQUID_API_KEY", "OPENROUTER_API_KEY")):
+    required = (
+        ("LIQUID_API_KEY",) if args.quota_diagnostics else ("LIQUID_API_KEY", "OPENROUTER_API_KEY")
+    )
+    if not all(os.getenv(name, "").strip() for name in required):
         raise ValueError("manual bake-off credentials are missing")
     if not 1 <= args.cases <= 150:
         raise ValueError("case limit must be between 1 and 150")
@@ -372,6 +376,12 @@ def main() -> int:
     if not cases:
         raise ValueError("no real-backend corpus inputs found")
     settings = DecisionSettings.from_env()
+    if args.quota_diagnostics:
+        from evaluations.decision_quota import run_quota_diagnostic
+
+        report = asyncio.run(run_quota_diagnostic(cases[0], settings, args.output))
+        print(json.dumps(report, indent=2))
+        return 0 if report["quota_metadata"].get("status") in (200, 429) else 1
     report = asyncio.run(run_live(args.site, cases, settings, args.output, delay=args.delay))
     print(json.dumps(report["summary"], indent=2))
     return 1 if report["summary"]["errors"] else 0
