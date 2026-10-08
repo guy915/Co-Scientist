@@ -109,6 +109,64 @@ def test_delete_removes_private_content_keys_and_preserves_another_owner() -> No
     )
 
 
+def test_owned_spend_export_and_erasure_preserve_shared_funding_and_late_settlement(
+    isolated_db: str,
+) -> None:
+    from co_scientist.platform.db import current_time
+    from co_scientist.platform.db.admission import reserve_provider, settle_provider
+    from co_scientist.platform.db.spend import SpendReservation
+
+    receipts = [
+        reserve_provider(
+            owner,
+            "synthetic-shared-host",
+            100,
+            app=False,
+            db_path=isolated_db,
+            spend=SpendReservation(
+                "azure/test", "worker", 100, 1000, current_time() + 600, 100, 100, "{}"
+            ),
+        )
+        for owner in ("owner-a", "owner-b")
+    ]
+    response = _rights_client("owner-a").post("/api/data/export", json={})
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        tables = json.loads(archive.read("data.json"))["tables"]
+    assert [row["id"] for row in tables["llm_spend"]] == [receipts[0].id]
+    assert tables["llm_spend"][0]["charged_microeur"] == 100
+    assert receipts[1].id not in json.dumps(tables)
+
+    assert (
+        _rights_client("owner-a")
+        .post("/api/data/delete", json={"confirmation": "DELETE"})
+        .status_code
+        == 200
+    )
+    with connect() as conn:
+        assert conn.execute("SELECT SUM(charged_microeur) FROM llm_spend").fetchone()[0] == 200
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM provider_token_reservations WHERE client_id='owner-a'"
+            ).fetchone()[0]
+            == 0
+        )
+    assert _rights_client("owner-a").post("/api/data/export", json={}).status_code == 410
+    response = _rights_client("owner-b").post("/api/data/export", json={})
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        tables = json.loads(archive.read("data.json"))["tables"]
+    assert [row["id"] for row in tables["llm_spend"]] == [receipts[1].id]
+    assert receipts[0].id not in json.dumps(tables)
+
+    settle_provider(receipts[0], 30, money=(30, 20, 10, 0, 0))
+    settle_provider(receipts[0], 0, money=(0, 0, 0, 0, 0))
+    with connect() as conn:
+        assert conn.execute("SELECT SUM(charged_microeur) FROM llm_spend").fetchone()[0] == 130
+        assert conn.execute(
+            "SELECT charged_microeur,settled FROM llm_spend WHERE id=?", (receipts[0].id,)
+        ).fetchone()[:] == (30, 1)
+
+
 def test_rights_routes_refuse_empty_demo_or_overlong_identity_and_owner_override() -> None:
     from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
