@@ -8,7 +8,7 @@ if (process.env.COSCI_E2E_PRODUCTION !== "1") {
 export default defineConfig({
   ...base,
   testDir: "./production",
-  grep: /@keyboard-menu/,
+  grep: /@keyboard-(menu|stream|semantics|progress)/,
   projects: [
     {
       name: "webkit",
@@ -20,6 +20,7 @@ export default defineConfig({
     },
     {
       name: "webkit-iphone",
+      testIgnore: ["**/landing-navigation.spec.ts", "**/landing-focus.spec.ts"],
       use: { ...devices["iPhone 14"], launchOptions: {} },
     },
     {

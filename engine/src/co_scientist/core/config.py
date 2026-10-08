@@ -1,6 +1,6 @@
 import os
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from co_scientist.core.constants import (
@@ -124,6 +124,9 @@ class Settings(BaseSettings):
     # Error tracking is off unless a DSN is set; see docs/MONITORING.md.
     sentry_dsn: str = ""
     sentry_environment: str = ""
+    # Disabled until both secrets are configured; the receiver shares API uptime.
+    sentry_alert_client_secret: SecretStr = SecretStr("")
+    honeycomb_marker_api_key: SecretStr = SecretStr("")
     # Removing the daily cap does not remove the free express-only envelope.
     free_runs_per_day: int = 3
 
@@ -158,7 +161,7 @@ settings = Settings()
 
 PROVIDER_CREDENTIAL_ENV: dict[str, tuple[str, ...]] = {
     "anthropic": ("ANTHROPIC_API_KEY",),
-    "azure": ("AZURE_API_KEY",),
+    "azure": ("AZURE_OPENAI_API_KEY", "AZURE_API_KEY"),
     "deepseek": ("DEEPSEEK_API_KEY",),
     "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     "openai": ("OPENAI_API_KEY",),

@@ -164,6 +164,9 @@ _NUMERIC_ATTRIBUTES = frozenset(
         "gen_ai.usage.output_tokens",
         "co_scientist.llm.reasoning_tokens",
         "co_scientist.llm.cached_prompt_tokens",
+        "co_scientist.llm.cache_write_tokens",
+        "co_scientist.llm.call_type",
+        "co_scientist.llm.refusal",
         "co_scientist.llm.attempt",
         "co_scientist.task.attempt",
     }
@@ -171,7 +174,7 @@ _NUMERIC_ATTRIBUTES = frozenset(
 _ID_ATTRIBUTES = frozenset({"co_scientist.run_id", "co_scientist.task.id"})
 _METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 _SPAN_NAMES = frozenset(
-    {"task.execute", "llm.call_llm", "llm.call_llm_json", "llm.call_llm_stream", "llm.attempt"}
+    {"task.execute", "llm.call_llm", "llm.call_llm_json", "llm.call_llm_with_tools", "llm.attempt"}
 )
 
 

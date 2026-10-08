@@ -6,6 +6,7 @@ from typing import Any, TypedDict, Unpack
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.tools._pacing import RequestPacer
 from mcp_server.tools._results import failed, non_raising, ok
 
@@ -39,7 +40,7 @@ def _response_records(payload: Any, field: str) -> list[dict[str, Any]]:
 
 
 def _failure_result(source: str, query: str, exc: Exception, provider_name: str) -> dict[str, Any]:
-    logger.warning("%s search failed for %r", provider_name, query)
+    logger.warning("%s search failed (%s)", provider_name, failure_summary(exc))
     return failed(exc)
 
 
@@ -207,7 +208,7 @@ async def search_clinical_trials(query: str, max_results: int = 10) -> dict[str,
         payload = await _get_json(_TRIALS_URL, params=params)
         studies = _response_records(payload, "studies")[:limit]
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("ClinicalTrials.gov search failed for %r: %s", query, exc)
+        logger.warning("ClinicalTrials.gov search failed (%s)", failure_summary(exc))
         return failed(exc)
     return ok([_record(study) for study in studies])
 
@@ -242,7 +243,7 @@ async def search_ensembl_gene(query: str, max_results: int = 1) -> dict[str, Any
     except (httpx.HTTPError, ValueError) as exc:
         if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 404:
             return ok([])
-        logger.warning("Ensembl lookup failed for %r: %s", query, exc)
+        logger.warning("Ensembl lookup failed (%s)", failure_summary(exc))
         return failed(exc)
     record = {
         "ensembl_id": gene.get("id"),
@@ -298,7 +299,7 @@ async def search_gnomad_constraint(query: str, max_results: int = 1) -> dict[str
             return failed("gnomAD query failed")
         gene = ((payload.get("data") or {}).get("gene")) or {}
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("gnomAD lookup failed for %r: %s", query, exc)
+        logger.warning("gnomAD lookup failed (%s)", failure_summary(exc))
         return failed(exc)
     constraint = gene.get("gnomad_constraint") or {}
     if not gene.get("gene_id") or not constraint:
@@ -364,7 +365,7 @@ async def search_string_interactions(query: str, max_results: int = 10) -> dict[
     try:
         partners = await _get_json(_STRING_URL, params=params)
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("STRING lookup failed for %r: %s", query, exc)
+        logger.warning("STRING lookup failed (%s)", failure_summary(exc))
         return failed(exc)
     records = [
         {
@@ -433,7 +434,7 @@ async def search_reactome_pathways(query: str, max_results: int = 10) -> dict[st
             response.raise_for_status()
         pathways = response.json()
     except (httpx.HTTPError, ValueError, KeyError) as exc:
-        logger.warning("Reactome lookup failed for %r: %s", query, exc)
+        logger.warning("Reactome lookup failed (%s)", failure_summary(exc))
         return failed(exc)
     records = [
         {
@@ -508,7 +509,7 @@ async def search_open_targets(query: str, max_results: int = 10) -> dict[str, An
             return failed("Open Targets query failed")
         hits = (((payload.get("data") or {}).get("search") or {}).get("hits")) or []
     except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("Open Targets lookup failed for %r: %s", query, exc)
+        logger.warning("Open Targets lookup failed (%s)", failure_summary(exc))
         return failed(exc)
     if not hits:
         return _systems_biology_empty_result("Open Targets", query)
@@ -722,7 +723,6 @@ async def search_gwas_catalog_associations(
             )
         return ok(records)
     except (httpx.HTTPError, ValueError) as exc:
-        detail = f"{type(exc).__name__}: {exc}"
-        logger.warning("GWAS Catalog lookup failed for %s: %s", normalized, detail)
+        logger.warning("GWAS Catalog lookup failed (%s)", failure_summary(exc))
         return failed(exc)
     return result

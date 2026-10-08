@@ -143,8 +143,10 @@ export interface QuestionChooserProps {
 }
 
 // Selection never sends a turn; the chooser owns commit. Remount on turn id to
-// reset selections and dismissal. Long options scroll inside the panel (dvh
-// follows the Safari toolbar) instead of pushing the question off a phone.
+// reset selections and dismissal. Only the options scroll, and only past a
+// height a typical question fits within on desktop (dvh follows the Safari
+// toolbar on phones); the head stays outside the scroller so its tooltips
+// cannot widen it into a horizontal scrollbar.
 export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   const [selections, setSelections] = useState(emptySelections);
   const [minimized, setMinimized] = useState(false);
@@ -161,24 +163,26 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
 
   return (
     <section
-      className="mb-3.5 grid max-h-[50dvh] gap-3.5 overflow-y-auto overscroll-contain border-b border-cosci-composer-border pb-3.5 [scrollbar-gutter:stable]"
+      className="mb-3.5 grid gap-3.5 border-b border-cosci-composer-border pb-3.5"
       aria-label="Answer options"
     >
       <ChooserHead
         label={headLabel(questions)}
+        answered={answer.length > 0}
+        onSend={sendAnswer}
         minimized={minimized}
         onToggleMinimize={() => setMinimized(open => !open)}
         onDismiss={() => setDismissed(true)}
       />
       {!minimized && (
-        <ChooserBody
-          questions={questions}
-          selections={selections}
-          setSelections={setSelections}
-          onChoose={choose}
-          send={sendAnswer}
-          answered={answer.length > 0}
-        />
+        <div className="grid max-h-[50dvh] min-w-0 gap-3.5 overflow-x-hidden overflow-y-auto overscroll-contain above-phone:max-h-[min(36rem,70dvh)]">
+          <ChooserBody
+            questions={questions}
+            selections={selections}
+            setSelections={setSelections}
+            onChoose={choose}
+          />
+        </div>
       )}
     </section>
   );
@@ -190,13 +194,19 @@ function headLabel(questions: InterviewQuestion[]): string {
     .join(' · ');
 }
 
+// One send commits every question's answer, so it sits in the head rather
+// than beside any single question's field.
 function ChooserHead({
   label,
+  answered,
+  onSend,
   minimized,
   onToggleMinimize,
   onDismiss,
 }: {
   label: string;
+  answered: boolean;
+  onSend: () => void;
   minimized: boolean;
   onToggleMinimize: () => void;
   onDismiss: () => void;
@@ -207,6 +217,16 @@ function ChooserHead({
         {label}
       </span>
       <div className="flex shrink-0 items-center gap-0.5">
+        <Button
+          size="sm"
+          icon="send"
+          aria-label="Send answer"
+          layoutClassName="mr-1.5"
+          disabled={!answered}
+          onClick={onSend}
+        >
+          Send
+        </Button>
         <IconButton
           label={minimized ? 'Show the questions' : 'Minimize the questions'}
           icon={minimized ? 'expand_less' : 'expand_more'}
@@ -227,13 +247,10 @@ interface ChooserBodyProps {
   selections: QuestionSelections;
   setSelections: (selections: QuestionSelections) => void;
   onChoose: (index: number, label: string) => void;
-  send: () => void;
-  answered: boolean;
 }
 
 function ChooserBody(props: ChooserBodyProps) {
-  const {questions, selections, setSelections, onChoose, send, answered} =
-    props;
+  const {questions, selections, setSelections, onChoose} = props;
   return (
     <>
       {questions.map((question, index) => (
@@ -246,11 +263,6 @@ function ChooserBody(props: ChooserBodyProps) {
           onChoose={onChoose}
         />
       ))}
-      <div className="flex justify-end">
-        <Button variant="outlined" disabled={!answered} onClick={send}>
-          Send answer
-        </Button>
-      </div>
     </>
   );
 }
@@ -315,7 +327,7 @@ function OtherAnswerRow({
         placeholder={OTHER_PLACEHOLDER}
         value={text}
         onChange={event => onChangeText(event.target.value)}
-        // Swallow Enter inside this nested field; only the chooser send
+        // Swallow Enter inside this nested field; only the head's send
         // control commits an answer.
         onKeyDown={event => {
           if (event.key === 'Enter') event.preventDefault();
@@ -382,7 +394,8 @@ function AnswerRow(props: AnswerRowProps) {
         onClick={onSelect}
       />
       <AnswerMarker multiSelect={multiSelect} selected={selected} />
-      <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+      {/* The description always takes its own line under the label. */}
+      <span className="grid min-w-0 gap-0.5">
         <strong className="min-w-0 text-base leading-[1.2] font-bold">
           {label}
         </strong>

@@ -10,6 +10,7 @@ from co_scientist.science.prompts._common import (
 from co_scientist.science.prompts.context_budget import (
     bounded_excerpt,
     select_evidence_excerpt,
+    summarize_references,
     summarize_transcript,
 )
 from co_scientist.science.prompts.generation_draft import (
@@ -178,7 +179,9 @@ def _build_debate_literature_variables(
 ) -> dict[str, Any]:
     variables: dict[str, Any] = {
         "articles_metadata": format_articles_metadata(articles or []),
-        "citation_reference_section": _build_citation_reference_section(reference_list or ""),
+        "citation_reference_section": _build_citation_reference_section(
+            summarize_references(reference_list or "")
+        ),
     }
     if articles_with_reasoning:
         variables["articles_with_reasoning"] = articles_with_reasoning

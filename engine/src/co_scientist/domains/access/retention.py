@@ -6,7 +6,10 @@ import time
 
 from co_scientist.domains.documents import repository as store
 from co_scientist.platform.db import runs as store_runs
-from co_scientist.platform.db.privacy import purge_expired_tombstones
+from co_scientist.platform.db.privacy import (
+    purge_expired_admission_history,
+    purge_expired_tombstones,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,7 @@ def sweep_all(*, now: float | None = None) -> dict[str, int]:
         "runs": len(runs),
         "documents": documents,
         "erasure_markers": purge_expired_tombstones(now=now),
+        "admission_history": purge_expired_admission_history(now=now),
     }
 
 

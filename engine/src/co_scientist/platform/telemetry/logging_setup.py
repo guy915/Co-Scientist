@@ -4,7 +4,9 @@ import contextlib
 import json
 import logging
 import logging.handlers
+import re
 import sys
+import traceback
 from collections.abc import Generator
 from contextvars import ContextVar
 
@@ -35,11 +37,61 @@ class RunIdFilter(logging.Filter):
         return True
 
 
+# LiteLLM's logging worker orphans its task whenever another event loop rebinds
+# it, and asyncio reports the unreachable task at ERROR. No hook this app owns
+# can reach it, and it never affects a completion. Identity comes from the
+# parsed task repr, never from exception text, so application failures that
+# mention the worker stay errors.
+_ORPHANED_LITELLM_WORKER_NOTE = "orphaned LiteLLM logging worker task; completions are unaffected"
+_LITELLM_WORKER_TASK = re.compile(
+    r"(?:task|future): <Task (?:pending|finished|cancelled) "
+    r"name=(?:'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\") "
+    r"coro=<LoggingWorker\.(?P<coroutine>_worker_loop|_process_log_task)\(\) "
+    r"(?:running at|done, defined at) \S*/litellm/litellm_core_utils/logging_worker\.py:\d+>"
+)
+_DESTROYED_PENDING = "Task was destroyed but it is pending!"
+_NEVER_RETRIEVED = "Task exception was never retrieved"
+_WORKER_QUEUE_UNDERFLOW = "ValueError: task_done() called too many times"
+
+
+def _exception_summary(record: logging.LogRecord) -> str | None:
+    if record.exc_info and record.exc_info[1] is not None:
+        return "".join(traceback.format_exception_only(record.exc_info[1])).strip()
+    if record.exc_text:
+        return record.exc_text.rstrip().rsplit("\n", 1)[-1]
+    return None
+
+
+def is_orphaned_litellm_worker(record: logging.LogRecord) -> bool:
+    if record.name != "asyncio":
+        return False
+    try:
+        message = record.getMessage()
+    except Exception:
+        return False
+    headline, _, detail = message.partition("\n")
+    task = _LITELLM_WORKER_TASK.match(detail.partition("\n")[0])
+    if task is None:
+        return False
+    if headline == _DESTROYED_PENDING:
+        return task["coroutine"] == "_worker_loop" and _exception_summary(record) is None
+    if headline == _NEVER_RETRIEVED:
+        return (
+            task["coroutine"] == "_process_log_task"
+            and _exception_summary(record) == _WORKER_QUEUE_UNDERFLOW
+        )
+    return False
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
+        level = record.levelname
+        orphaned_worker = record.levelno > logging.WARNING and is_orphaned_litellm_worker(record)
+        if orphaned_worker:
+            level = logging.getLevelName(logging.WARNING)
         payload: dict[str, object] = {
             "time": self.formatTime(record),
-            "level": record.levelname,
+            "level": level,
             "logger": record.name,
             "message": record.getMessage(),
         }
@@ -51,6 +103,8 @@ class JsonFormatter(logging.Formatter):
             payload["trace_id"] = trace_id
         if record.exc_info:
             payload["exc_info"] = record.exc_text or self.formatException(record.exc_info)
+        if orphaned_worker:
+            payload["note"] = _ORPHANED_LITELLM_WORKER_NOTE
         return json.dumps(payload, default=str)
 
 
@@ -70,6 +124,25 @@ def silence_litellm_logging() -> None:
 
 
 silence_litellm_logging()
+
+
+# Uvicorn's own config writes lifecycle lines and ASGI tracebacks to stderr as
+# plain text, which the host files at error severity line by line. Only the
+# parents carry handlers; "uvicorn.error" propagates to "uvicorn".
+_UVICORN_HANDLER_LOGGERS: tuple[str, ...] = ("uvicorn", "uvicorn.access")
+
+
+def _route_uvicorn_logging(handler: logging.Handler) -> None:
+    """Replace only stream handlers: log capture attaches its own queue
+    handler to these loggers and must survive a reconfiguration.
+    """
+    for name in _UVICORN_HANDLER_LOGGERS:
+        uvicorn_logger = logging.getLogger(name)
+        for existing in list(uvicorn_logger.handlers):
+            if isinstance(existing, logging.StreamHandler):
+                uvicorn_logger.removeHandler(existing)
+        uvicorn_logger.addHandler(handler)
+        uvicorn_logger.propagate = False
 
 
 def _byok_redaction_filter() -> logging.Filter:
@@ -96,6 +169,7 @@ def configure_logging(level: int = logging.INFO) -> logging.Handler:
     handler.addFilter(_byok_redaction_filter())
     root.addHandler(handler)
     root.setLevel(level)
+    _route_uvicorn_logging(handler)
     silence_litellm_logging()
     return handler
 

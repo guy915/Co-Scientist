@@ -1,4 +1,15 @@
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS alert_markers (
+    id TEXT PRIMARY KEY, label TEXT NOT NULL, event_time INTEGER NOT NULL,
+    next_attempt REAL NOT NULL, attempts INTEGER NOT NULL, delivered_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_alert_markers_pending
+    ON alert_markers(next_attempt) WHERE delivered_at IS NULL;
+CREATE TABLE IF NOT EXISTS launch_control (
+    id INTEGER PRIMARY KEY CHECK(id=1), paused INTEGER NOT NULL, drain INTEGER NOT NULL,
+    message TEXT NOT NULL, resumes_at REAL, revision INTEGER NOT NULL,
+    drain_generation INTEGER NOT NULL
+);
 -- Admission ledgers are independent of run deletion and survive restarts.
 CREATE TABLE IF NOT EXISTS anonymous_admissions (
     day INTEGER NOT NULL, host TEXT NOT NULL, client_id TEXT NOT NULL,
@@ -18,6 +29,49 @@ CREATE TABLE IF NOT EXISTS provider_token_reservations (
     id TEXT PRIMARY KEY, day INTEGER NOT NULL, client_id TEXT NOT NULL,
     host TEXT NOT NULL, tokens INTEGER NOT NULL, app INTEGER NOT NULL,
     used_tokens INTEGER
+);
+CREATE TABLE IF NOT EXISTS llm_spend (
+    id TEXT PRIMARY KEY, created_at REAL NOT NULL, model TEXT NOT NULL, role TEXT NOT NULL,
+    reserved_microeur INTEGER NOT NULL CHECK(reserved_microeur >= 0),
+    charged_microeur INTEGER NOT NULL
+        CHECK(charged_microeur >= 0 AND charged_microeur <= reserved_microeur),
+    input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL, rates TEXT NOT NULL,
+    settled INTEGER NOT NULL DEFAULT 0, prompt_tokens INTEGER, output_tokens INTEGER,
+    cached_tokens INTEGER, cache_write_tokens INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_llm_spend_created_at ON llm_spend(created_at);
+CREATE TABLE IF NOT EXISTS llm_spend_holds (reason TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS anthropic_credit_cycles (
+    start REAL PRIMARY KEY, end REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS anthropic_credit_state (
+    slot TEXT PRIMARY KEY, disabled_until REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS anthropic_credit (
+    id TEXT PRIMARY KEY, cycle_start REAL NOT NULL, created_at REAL NOT NULL,
+    role TEXT NOT NULL, reserved_microusd INTEGER NOT NULL CHECK(reserved_microusd >= 0),
+    charged_microusd INTEGER NOT NULL
+        CHECK(charged_microusd >= 0 AND charged_microusd <= reserved_microusd),
+    settled INTEGER NOT NULL DEFAULT 0, input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL,
+    rates TEXT NOT NULL,
+    prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, cache_write_tokens INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_anthropic_credit_cycle ON anthropic_credit(cycle_start);
+CREATE TABLE IF NOT EXISTS llm_routes (
+    run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,
+    slot TEXT NOT NULL, azure_allowed INTEGER NOT NULL,
+    forecast_microeur INTEGER NOT NULL CHECK(forecast_microeur >= 0)
+);
+CREATE TABLE IF NOT EXISTS llm_route_blocks (
+    slot TEXT PRIMARY KEY, unavailable_until REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS llm_free_calls (
+    day INTEGER PRIMARY KEY, calls INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS llm_forecast_allocations (
+    receipt_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL REFERENCES llm_routes(run_id) ON DELETE CASCADE,
+    converted_microeur INTEGER NOT NULL CHECK(converted_microeur >= 0)
 );
 CREATE TABLE IF NOT EXISTS run_call_admissions (
     run_id TEXT PRIMARY KEY, calls INTEGER NOT NULL, ceiling INTEGER NOT NULL

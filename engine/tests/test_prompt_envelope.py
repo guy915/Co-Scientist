@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 
+from co_scientist.science.generation.literature_review import synthesis
 from co_scientist.science.prompts import (
     DebatePromptRequest,
     DraftPromptRequest,
@@ -13,7 +14,9 @@ from co_scientist.science.prompts.planning import (
     DirectionWritingMaterial,
     get_research_overview_direction_prompt,
 )
-from tests._state import make_article
+from co_scientist.science.reflection import comprehensive_reflection as cr
+from tests._llm_fake import mock_call_llm_json
+from tests._state import make_article, make_hypothesis, make_state
 
 
 def _evidence() -> str:
@@ -26,6 +29,116 @@ def _evidence() -> str:
 
 def _request_bytes(prompt: str, schema: dict[str, object] | None) -> int:
     return len((prompt + json.dumps(schema)).encode())
+
+
+def _references() -> str:
+    return "\n".join(
+        f"[C{i}] Author et al., 2023 — " + f"Experiment {i} with rescue controls. " * 60
+        for i in range(1, 81)
+    )
+
+
+@pytest.mark.parametrize("paper_budget,omit_last", [(4, False), (4, True), (8, False)])
+async def test_fulltext_analysis_bounds_each_request_and_retains_every_paper(
+    monkeypatch: pytest.MonkeyPatch, paper_budget: int, omit_last: bool
+) -> None:
+    papers = {
+        f"pmid-{i}": {
+            "title": f"Causal rescue study {i}",
+            "authors": [f"Researcher {i}"],
+            "year": 2024,
+            "fulltext": "\n\n".join(
+                f"Section {j}: causal rescue assay evidence. " * 80 for j in range(80)
+            ),
+        }
+        for i in range(1, 5)
+    }
+    packets: list[str] = []
+
+    async def answer(*, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        schema = kwargs["spec"].json_schema
+        assert _request_bytes(prompt, schema) <= 32_000
+        assert "omitted text is not evidence of absence" in prompt
+        assert kwargs["spec"].role == "literature_analysis"
+        packets.append(prompt)
+        analysis = {
+            field: f"Retained {field}"
+            for field in (
+                "key_findings",
+                "gaps_identified",
+                "future_work",
+                "methodology_limitations",
+                "unexplored_areas",
+                "relevance",
+            )
+        }
+        if "### Paper 1" in prompt:
+            return {
+                "analyses": [
+                    {"paper_index": i, **analysis} for i in range(1, 4 if omit_last else 5)
+                ]
+            }
+        return analysis
+
+    monkeypatch.setattr(synthesis, "call_llm_json", answer)
+    analyses = await synthesis._phase3_analyze_papers(
+        papers, make_state(literature_review_papers_count=paper_budget)
+    )
+
+    expected_calls = (2 if omit_last else 1) if paper_budget == 4 else 4
+    assert len(packets) == expected_calls
+    assert [entry["paper_id"] for entry in analyses] == list(papers)
+    for entry in analyses:
+        assert entry["metadata"] is papers[entry["paper_id"]]
+        assert len(entry["metadata"]["fulltext"]) > 200_000
+        assert set(entry["analysis"]) == {
+            "key_findings",
+            "gaps_identified",
+            "future_work",
+            "methodology_limitations",
+            "unexplored_areas",
+            "relevance",
+        }
+    if paper_budget == 4:
+        for i in range(1, 5):
+            assert f"### Paper {i}" in packets[0]
+            assert f"Causal rescue study {i}" in packets[0]
+
+
+async def test_finalist_review_bounds_literature_without_changing_stored_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    literature = _evidence()
+    state = make_state(articles_with_reasoning=literature, articles=[])
+    fake = mock_call_llm_json(
+        monkeypatch,
+        cr,
+        {
+            "observation": {"classification": "neutral"},
+            "full_review": {"verdict": "sound"},
+            "simulation": {"verdict": "holds"},
+            "verification_queries": [],
+        },
+    )
+
+    run = await cr.review_finalist(state, make_hypothesis())
+
+    assert fake.call_args is not None
+    prompt = fake.call_args.kwargs["prompt"]
+    schema = fake.call_args.kwargs["spec"].json_schema
+    assert _request_bytes(prompt, schema) <= 32_000
+    assert "evidence-1" in prompt and "pmid-1" in prompt
+    assert "omitted text is not evidence of absence" in prompt
+    assert state["articles_with_reasoning"] == literature
+    assert run.result is not None
+    assert run.result["full_review"]["verdict"] == "sound"
+    assert run.result["retrieved_articles"] == []
+    assert schema is not None
+    assert set(schema["schema"]["required"]) == {
+        "full_review",
+        "simulation",
+        "verification_queries",
+    }
 
 
 def test_direction_writer_bounds_context_and_retains_grounding_handles() -> None:
@@ -63,7 +176,7 @@ def test_generation_debate_sends_bounded_turn_summaries(final_turn: bool) -> Non
             research_goal="Test causal feedback in metabolic disease",
             transcript=transcript,
             articles_with_reasoning=_evidence(),
-            reference_list="\n".join(f"[C{i}] Experiment {i}; pmid-{i}" for i in range(1, 81)),
+            reference_list=_references(),
             is_final_turn=final_turn,
         )
     )
@@ -72,7 +185,8 @@ def test_generation_debate_sends_bounded_turn_summaries(final_turn: bool) -> Non
     assert "Turn 1" in prompt
     assert "Turn 10" in prompt
     assert "Resolution 10" in prompt
-    assert "[C1]" in prompt
+    for i in range(1, 81):
+        assert f"[C{i}]" in prompt
     if final_turn:
         assert schema is not None
         assert "literature_grounding" in prompt
@@ -88,13 +202,14 @@ def test_generation_draft_bounds_repeated_literature_context() -> None:
             articles=[
                 make_article(title=f"Experiment {i}", used_in_analysis=True) for i in range(80)
             ],
-            reference_list="\n".join(f"[C{i}] Experiment {i}; pmid-{i}" for i in range(1, 81)),
+            reference_list=_references(),
             lab_constraints=["Use primary cells; no animal experiments."],
         )
     )
 
     assert _request_bytes(prompt, schema) <= 32_000
-    assert "[C1]" in prompt
+    for i in range(1, 81):
+        assert f"[C{i}]" in prompt
     assert "no animal experiments" in prompt
     assert schema is not None
 
@@ -146,7 +261,7 @@ def test_meta_review_summarizes_history_without_losing_votes_or_assessments() ->
         for row in table["rows"]
     ]
 
-    assert len(summarized) <= 18_000
+    assert len(summarized) <= 10_000
     assert [record["hypothesis_index"] for record in parsed[:-1]] == list(range(1, 21))
     assert parsed[1]["deep_verification_verdict"] == "unsupported"
     assert parsed[0]["latest_score"] == 4
@@ -210,3 +325,85 @@ def test_evolution_bounds_evidence_but_keeps_every_reference_key() -> None:
     assert "evidence-1" in prompt
     assert index.text == references
     assert schema is not None
+
+
+def test_compact_context_preserves_bare_ids_when_required_fields_exceed_the_cap() -> None:
+    from co_scientist.science.prompts.context_budget import compact_json_context
+
+    record = {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "claim_id": "00000000-0000-0000-0000-000000000002",
+        "verdict": "sound",
+        "classification": "other explanations more likely",
+        "reasoning": "A long evidence explanation. " * 200,
+    }
+    compact = json.loads(compact_json_context(json.dumps(record), 120))
+
+    assert set(compact) == set(record)
+    assert compact["id"] == record["id"]
+    assert compact["claim_id"] == record["claim_id"]
+    assert compact["verdict"] == "sound"
+    assert compact["classification"] == record["classification"]
+    assert "[excerpt]" in compact["reasoning"]
+
+
+def test_compact_context_reaches_its_prose_floor_without_losing_records() -> None:
+    from co_scientist.science.prompts.context_budget import compact_json_context
+
+    records = [
+        {"score": i, "reasoning": "Evidence from rescue controls. " * 100} for i in range(100)
+    ]
+
+    serialized = compact_json_context(json.dumps(records), 4_800)
+    compact = json.loads(serialized)
+
+    assert len(serialized) <= 4_800
+    assert [record["score"] for record in compact] == list(range(100))
+    assert all(set(record) == {"score", "reasoning"} for record in compact)
+    assert all("[excerpt]" in record["reasoning"] for record in compact)
+
+
+@pytest.mark.parametrize("limit", [600, 30_000])
+def test_feedback_deduplicates_identifiers_without_losing_records(limit: int) -> None:
+    from co_scientist.science.prompts.context_budget import summarize_feedback
+
+    first = "12345678-1234-4234-8234-123456789abc"
+    second = "87654321-4321-4321-8321-cba987654321"
+    records = [
+        {
+            "record_type": "ranking_debate",
+            "match_index": index,
+            "hypothesis_a_id": first,
+            "hypothesis_b_id": second,
+            "winner_id": first if index % 2 else second,
+            "confidence": 0.75,
+            "reasoning": "Supported",
+            "opaque_label": "record_1_id",
+        }
+        for index in range(1, 13)
+    ]
+    rendered = summarize_feedback(json.dumps(records), limit=limit)
+    assert rendered.count(first) == rendered.count(second) == 1
+    summary = json.loads(rendered)
+    identifiers = summary.pop("record_ids")
+
+    def restore(value: object) -> object:
+        if isinstance(value, str):
+            return identifiers.get(value, value)
+        if isinstance(value, list):
+            return [restore(item) for item in value]
+        if isinstance(value, dict):
+            return {identifiers.get(key, key): restore(item) for key, item in value.items()}
+        return value
+
+    restored = restore(summary)
+    assert isinstance(restored, dict)
+    history = restored["ranking_history_summary"]
+    assert history["match_count"] == 12
+    assert history["winner_counts"] == {first: 6, second: 6}
+    table = restored["ranking_debate"]
+    expected = [
+        {key: value for key, value in record.items() if key != "record_type"}
+        for record in records[-8:]
+    ]
+    assert [dict(zip(table["columns"], row, strict=True)) for row in table["rows"]] == expected

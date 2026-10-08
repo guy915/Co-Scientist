@@ -1,11 +1,59 @@
+import io
 import subprocess
 import unittest
+from contextlib import redirect_stderr
 from unittest.mock import call, patch
 
 from scripts.ci.container_smoke import smoke, wait_ready
 
 
 class ContainerSmokeTests(unittest.TestCase):
+    def test_completed_variants_release_their_layer_before_the_next_start(self):
+        active = set()
+
+        def docker(*args, **kwargs):
+            if args[0] == "run":
+                if active:
+                    raise subprocess.CalledProcessError(
+                        125, ["docker", *args], stderr="container layer budget exceeded"
+                    )
+                active.add(args[args.index("--name") + 1])
+            elif args[:2] == ("rm", "-f"):
+                active.discard(args[2])
+            return ""
+
+        with (
+            patch("scripts.ci.container_smoke.docker", side_effect=docker),
+            patch("scripts.ci.container_smoke.wait_ready") as ready,
+        ):
+            smoke("api-image", "mcp-image")
+        self.assertEqual(ready.call_count, 3)
+        self.assertFalse(active)
+
+    def test_launch_failure_reports_cli_error_logs_and_cleans_resources(self):
+        def docker(*args, **kwargs):
+            if args[0] == "run":
+                raise subprocess.CalledProcessError(
+                    125, ["docker", *args], stderr="no space left on device"
+                )
+            return ""
+
+        stderr = io.StringIO()
+        with (
+            patch("scripts.ci.container_smoke.docker", side_effect=docker) as run,
+            redirect_stderr(stderr),
+        ):
+            with self.assertRaises(subprocess.CalledProcessError):
+                smoke("api-image", "mcp-image")
+        self.assertIn("no space left on device", stderr.getvalue())
+        self.assertTrue(any(item.args[0] == "logs" for item in run.call_args_list))
+        self.assertTrue(
+            any(item.args[:2] == ("rm", "-f") for item in run.call_args_list)
+        )
+        self.assertTrue(
+            any(item.args[:2] == ("volume", "rm") for item in run.call_args_list)
+        )
+
     def test_lifespan_failure_fails_and_prints_logs(self):
         def docker(*args, **kwargs):
             if args[:2] == ("inspect", "--format"):
@@ -57,6 +105,11 @@ class ContainerSmokeTests(unittest.TestCase):
             self.assertIn("0", starts[0])
             self.assertTrue(any("volume-nocopy" in arg for arg in starts[0]))
             self.assertNotIn("--user", starts[1])
+            self.assertNotIn("--mount", starts[1])
+            for args in starts[:2]:
+                self.assertIn("COSCIENTIST_TEST_DOUBLE=deterministic", args)
+                self.assertIn("COSCIENTIST_FORCE_OFFLINE=1", args)
+                self.assertIn("COSCIENTIST_TRUSTED_PROXY_CIDRS=127.0.0.1/32", args)
             for args in starts:
                 self.assertIn("none", args)
                 self.assertNotIn("--entrypoint", args)

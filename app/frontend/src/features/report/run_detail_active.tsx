@@ -62,7 +62,12 @@ export function ActiveRunView(props: ActiveRunViewProps) {
     [events],
   );
   return (
-    <div className="min-h-0 overflow-auto px-8 py-7 phone:px-4">
+    <div
+      className="min-h-0 overflow-auto px-8 py-7 phone:px-4"
+      role="region"
+      aria-label="Research progress and activity"
+      tabIndex={0}
+    >
       {/* The section's three children are the progress header, the metric
           cards, and the activity log, so this gap *is* the space above and
           below the cards. 24px rather than 28: the cards sit 12px apart

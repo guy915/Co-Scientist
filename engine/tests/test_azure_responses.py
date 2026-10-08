@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -125,7 +126,14 @@ async def test_provider_429_is_one_http_request_even_if_sdk_was_configured_to_re
         backend.close()
 
 
-async def test_gateway_settles_normalized_usage_without_holding_writer_over_http() -> None:
+async def test_gateway_settles_normalized_usage_without_holding_writer_over_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
+    monkeypatch.setenv("LLM_AZURE_UNTIL", "2099-01-04")
+
     def respond(_: httpx.Request) -> httpx.Response:
         with transaction() as conn:
             conn.execute("UPDATE provider_admissions SET tokens=tokens")
@@ -138,6 +146,98 @@ async def test_gateway_settles_normalized_usage_without_holding_writer_over_http
         with connect() as conn:
             tokens = conn.execute("SELECT tokens FROM provider_admissions").fetchall()
         assert len(tokens) == 3 and all(row[0] == 120 for row in tokens)
+    finally:
+        backend.close()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("LLM_ENABLED", "false"),
+        ("LLM_AZURE_ENABLED", "false"),
+        ("LLM_AZURE_UNTIL", "2020-01-04"),
+        ("financial_hold", "on"),
+    ],
+)
+async def test_native_dispatch_rechecks_policy_after_thread_wait(
+    monkeypatch: pytest.MonkeyPatch, stream: bool, name: str, value: str
+) -> None:
+    for key, setting in {
+        "LLM_ENABLED": "true",
+        "LLM_AZURE_ENABLED": "true",
+        "LLM_TOTAL_BUDGET_EUR": "1",
+        "LLM_AZURE_UNTIL": "2099-01-04",
+        "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
+        "AZURE_OPENAI_API_KEY": "fake",
+        "AZURE_OPENAI_API_VERSION": "v1",
+        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": DEPLOYMENTS[LUNA],
+        "AZURE_OPENAI_WORKER_DEPLOYMENT": DEPLOYMENTS[NANO],
+    }.items():
+        monkeypatch.setenv(key, setting)
+    captured = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json=_response())
+
+    class MockClient(httpx.Client):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(transport=httpx.MockTransport(respond), **kwargs)
+
+    monkeypatch.setattr(httpx, "Client", MockClient)
+    backend = AzureResponsesBackend.from_environment()
+
+    async def after_wait(function: Any, *args: Any) -> Any:
+        if name == "financial_hold":
+            from co_scientist.platform.llm.admission.service import current_db_path
+            from co_scientist.platform.llm.admission.spend import block_spending
+
+            block_spending(current_db_path())
+        else:
+            monkeypatch.setenv(name, value)
+        return function(*args)
+
+    monkeypatch.setattr(asyncio, "to_thread", after_wait)
+    try:
+        with using_backend(backend), pytest.raises(ProviderAdmissionError):
+            await complete_request(_request(stream=stream), NANO, byok=False, timeout_seconds=5)
+        assert captured == []
+    finally:
+        backend.close()
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        LUNA,
+        NANO,
+        LUNA.replace("azure/", "azure/responses/"),
+        NANO.replace("azure/", "azure/responses/"),
+    ],
+)
+@pytest.mark.parametrize("policy", ["disabled", "unset", "expired", "enabled"])
+async def test_byok_flag_cannot_exempt_native_deployment_from_funding(
+    monkeypatch: pytest.MonkeyPatch, model: str, policy: str
+) -> None:
+    monkeypatch.setenv("LLM_AZURE_ENABLED", "false" if policy == "disabled" else "true")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "" if policy == "unset" else "0.000001")
+    monkeypatch.setenv("LLM_AZURE_UNTIL", "2020-01-04" if policy == "expired" else "2099-01-04")
+    captured = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json=_response())
+
+    backend = _backend(respond)
+    try:
+        with using_backend(backend), pytest.raises(ProviderAdmissionError):
+            await complete_request(
+                _request(model=model, api_key="caller-key"), model, byok=True, timeout_seconds=5
+            )
+        assert captured == []
+        with connect() as conn:
+            assert conn.execute("SELECT COUNT(*) FROM llm_spend").fetchone()[0] == 0
     finally:
         backend.close()
 
@@ -312,3 +412,18 @@ def test_factory_refuses_non_resource_endpoints_without_http(
     monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", endpoint)
     with pytest.raises(ProviderAdmissionError):
         AzureResponsesBackend.from_environment()
+
+
+@pytest.mark.parametrize("model", [LUNA, NANO])
+async def test_real_responses_sdk_sends_partitioned_cache_key(model: str) -> None:
+    sent = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json=_response())
+
+    backend = _backend(respond)
+    request = _request(model=model, prompt_cache_key="run:claims:1")
+    await backend.complete(**request)
+    assert sent[0]["prompt_cache_key"] == "run:claims:1"
+    assert "prompt_cache_options" not in sent[0]

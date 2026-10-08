@@ -2,7 +2,7 @@
 set -eu
 
 if [ "${1:-}" = "--serve" ]; then
-    exec python -m uvicorn co_scientist.main:app --host 0.0.0.0 \
+    exec python -m uvicorn co_scientist.serving:create_app --factory --no-proxy-headers --host 0.0.0.0 \
         --port "${PORT:-8008}" --timeout-graceful-shutdown 20 --timeout-keep-alive 15
 fi
 if [ "$#" -gt 0 ]; then
@@ -22,4 +22,4 @@ config="${LITESTREAM_CONFIG:-/etc/litestream.yml}"
 
 # Missing replicas are a fresh install; network or corrupt-backup errors must fail closed.
 litestream restore -config "$config" -if-db-not-exists -if-replica-exists "$COSCIENTIST_DB_PATH"
-exec litestream replicate -config "$config" -exec "$0 --serve"
+exec python -m co_scientist.platform.db.backup_service --config "$config" -- "$0" --serve

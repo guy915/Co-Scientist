@@ -153,7 +153,7 @@ export function ReportTabNav({
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
-    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4">
+    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4 self-start phone:mx-4">
       {message}
     </ErrorNotice>
   );
@@ -269,19 +269,6 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
   );
 }
 
-export function RunDetailSkeleton() {
-  return (
-    <div
-      className="cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 phone:mt-5 phone:mb-12 phone:w-[min(100%_-_1.2rem,100%)] phone:max-w-none"
-      aria-busy="true"
-    >
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-8 w-64" />
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-12 w-full" />
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-48 w-full" />
-    </div>
-  );
-}
-
 export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] ' +
   'text-base leading-[1.5] phone:mt-5 phone:mb-12 ' +
@@ -323,7 +310,7 @@ export function ReportList({title, values}: {title: string; values: string[]}) {
   if (!values.length) return null;
   return (
     <section className="cosci-report-list">
-      <h4 className={REPORT_H4_CLASSES}>{title}:</h4>
+      <h3 className={REPORT_H4_CLASSES}>{title}:</h3>
       <ul className={REPORT_LIST_CLASSES}>
         {values.map(value => (
           <li key={value}>{capitalizeTerm(value)}</li>

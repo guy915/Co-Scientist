@@ -35,6 +35,47 @@ class MarkdownLinksTests(unittest.TestCase):
         self.assertFalse(doc.links)
         self.assertFalse(doc.anchors)
 
+    def test_picture_and_media_sources_are_checked(self):
+        doc = parse_document(
+            '<picture><source srcset="light.png 1x, dark.png 2x">'
+            '<img src="fallback.png"></picture>\n'
+            '<video src="clip.webm"></video>'
+        )
+        self.assertEqual(
+            {link.target for link in doc.links},
+            {"light.png", "dark.png", "fallback.png", "clip.webm"},
+        )
+
+    def test_missing_secondary_picture_source_fails_without_network(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "existing.png").touch()
+            (root / "README.md").write_text(
+                '<picture><source srcset="existing.png 1x, missing.png 2x">'
+                '<img src="existing.png"></picture>'
+            )
+            with patch(
+                "urllib.request.urlopen",
+                side_effect=AssertionError("network forbidden"),
+            ):
+                findings = check_links(root, ["README.md", "existing.png"])
+            self.assertEqual(len(findings), 1)
+            self.assertIn("missing.png", findings[0])
+
+    def test_srcset_keeps_url_commas_and_skips_descriptors(self):
+        doc = parse_document(
+            '<img srcset=" data:image/png;base64,AAAA 1x, '
+            'https://invalid.example/image.png 2x, local.png, ">'
+        )
+        self.assertEqual(
+            [link.target for link in doc.links],
+            [
+                "data:image/png;base64,AAAA",
+                "https://invalid.example/image.png",
+                "local.png",
+            ],
+        )
+
     def test_all_relative_targets_and_anchors_resolve_without_network(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -71,6 +112,41 @@ class MarkdownLinksTests(unittest.TestCase):
             (root / "docs/a.md").write_text("# A")
             (root / "README.md").write_text("[docs](docs/)")
             self.assertEqual(check_links(root, ["README.md", "docs/a.md"]), [])
+
+    def test_directory_fragments_resolve_readme_heading_and_html_anchors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs").mkdir()
+            (root / "docs/readme.md").write_text("# Guide\n<a id='manual'></a>")
+            (root / "README.md").write_text(
+                "[guide](docs/#guide) [manual](/docs#manual)"
+            )
+            with patch(
+                "urllib.request.urlopen",
+                side_effect=AssertionError("network forbidden"),
+            ):
+                self.assertEqual(check_links(root, ["README.md", "docs/readme.md"]), [])
+
+    def test_directory_fragment_with_absent_readme_heading_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs").mkdir()
+            (root / "docs/README.md").write_text("# Guide")
+            (root / "README.md").write_text("[absent](docs/#absent)")
+            findings = check_links(root, ["README.md", "docs/README.md"])
+            self.assertEqual(len(findings), 1)
+            self.assertIn("docs/#absent", findings[0])
+
+    def test_directory_fragment_cannot_resolve_an_untracked_readme(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs").mkdir()
+            (root / "docs/a.md").write_text("# Tracked")
+            (root / "docs/README.md").write_text("# Untracked")
+            (root / "README.md").write_text("[ignored](docs/#untracked)")
+            findings = check_links(root, ["README.md", "docs/a.md"])
+            self.assertEqual(len(findings), 1)
+            self.assertIn("docs/#untracked", findings[0])
 
     def test_only_the_three_approved_vendor_links_are_excepted(self):
         with tempfile.TemporaryDirectory() as directory:

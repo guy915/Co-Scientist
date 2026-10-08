@@ -1,4 +1,4 @@
-import {mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -22,24 +22,11 @@ export const UI_PORT = Number(process.env.COSCI_E2E_UI_PORT ?? 5273);
 export const API_URL = `http://127.0.0.1:${API_PORT}`;
 export const UI_URL = `http://127.0.0.1:${UI_PORT}`;
 
-// One fresh directory per invocation is shared through the environment with
-// servers and teardown.
+// The wrapper supplies one isolated directory; raw Playwright gets a fresh fallback.
 export function runStateDir(): string {
   const existing = process.env.COSCI_E2E_STATE_DIR;
   if (existing) return existing;
   const dir = mkdtempSync(join(tmpdir(), 'cosci-e2e-'));
   process.env.COSCI_E2E_STATE_DIR = dir;
   return dir;
-}
-
-// Cleanup failures cannot invalidate a passing suite; the next invocation gets
-// fresh state.
-export default function globalTeardown(): void {
-  const dir = process.env.COSCI_E2E_STATE_DIR;
-  if (!dir) return;
-  try {
-    rmSync(dir, {recursive: true, force: true});
-  } catch {
-    // Leaving a temp dir behind is harmless; never fail teardown over it.
-  }
 }

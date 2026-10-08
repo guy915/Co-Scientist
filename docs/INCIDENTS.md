@@ -1,10 +1,8 @@
 # Incidents
 
-These playbooks require tested operator pause/drain controls and W4's
-credit/admission policy before launch. They are not a claim that those
-pending controls already exist. Do not launch without their offline
-acceptance checks. The deployment owner executes hosted actions; these
-instructions do not authorize a lane to change production.
+Use the [operator pause and cancellation control](LAUNCH-CONTROL.md) with
+W4's durable credit/admission policy. The deployment owner executes hosted
+actions; these instructions do not authorize a lane to change production.
 
 The deployment owner is incident commander and the only person who changes hosted settings. Lane labels below identify the code specialist, not a second production operator. Record start time, signal, chosen action, compatible rollback revision, and recovery checks on the launch board; do not attach secrets, DB files, researcher text or raw error payloads. Use the operator token only in a private operator client. Keep exactly one API writer.
 
@@ -68,4 +66,11 @@ Pause new runs, continuations and chat replies first when an incident threatens 
 
 ## Alert settings and recovery evidence
 
-Use the exact web/app-only [launch alert settings](MONITORING.md#launch-alert-settings). No additional email alerts; preserve the existing €150 Azure alert. The local Litestream 0.5.17 [restore drill](RESTORE-DRILL.md) exited 0 on 8 October 2026: 0.033 s restore, 3.008 s restore-to-healthy API. This synthetic fixture does not establish production RTO/RPO or actual R2 backup freshness.
+Use the exact web/app-only [launch alert settings](MONITORING.md#launch-alert-settings). No additional email alerts; preserve the existing €150 Azure alert. The local Litestream 0.5.17 [restore drill](RESTORE-DRILL.md) exited 0 on 8 October 2026: 0.033 s restore, 3.008 s restore-to-healthy API. The expanded idle-backup proof verified a freshly uploaded complete base in 0.092 s after aging only its synthetic local replica by 31 days. This synthetic fixture does not establish production RTO/RPO or actual R2 backup freshness.
+
+## Backup verification failed or stale
+
+- **Signal:** Sentry's fixed backup-verification error, private operator verification status and last verified time; missing metadata is unknown. Investigate a failed refresh or no verified refresh for more than 25 hours. UptimeRobot catches an API stopped after an unexpected replication-daemon exit.
+- **First action:** Keep new work paused; automatic failure pause lets admitted work finish. Owner checks volume headroom, R2 availability and the last complete base without exposing credentials or researcher data. Require a fresh forced snapshot and an integrity-checked scratch restore. Do not disable replication or clear the ledger to recover.
+- **Rollback and recovery:** Use the last compatible release with working daily verified refresh; if none exists, keep admission paused while O fixes the refresh. Retain previous recovery files and the matching encryption key privately. A successful retry does not resume work: Owner verifies freshness and recovery, then explicitly resumes. Keep the approved 30-day policy; Owner alone changes hosted lifecycle settings.
+- **Who:** Owner, with O for backup/entrypoint recovery and P for retention and private recovery data.

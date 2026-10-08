@@ -51,10 +51,13 @@ from co_scientist.orchestration.engine_tasks.support import (
     SupersededTaskError as SupersededTaskError,
 )
 from co_scientist.platform.db import runs
+from co_scientist.platform.db.llm_routes import route_for_run
 from co_scientist.platform.db.models import ScientificTask
+from co_scientist.platform.llm.admission.service import current_db_path
 from co_scientist.platform.llm.execution_policy import (
     zero_cost_admission_for_config,
 )
+from co_scientist.platform.llm.routing import scoped_operator_routing
 
 _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     BOOTSTRAP_TASK: execute_bootstrap,
@@ -117,5 +120,9 @@ async def execute_engine_task(
         ),
         scoped_llm_call_budget(task.run_id, ceiling),
         scoped_zero_cost_admission(zero_cost_admission_for_config(run.config)),
+        scoped_operator_routing(
+            run.id,
+            enabled=credential is None and route_for_run(run.id, current_db_path()) is not None,
+        ),
     ):
         return await _dispatch_engine_task(task, db_path=db_path)

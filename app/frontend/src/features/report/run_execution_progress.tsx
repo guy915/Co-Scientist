@@ -28,7 +28,13 @@ export function RunExecutionProgress({run}: {run: Run}) {
   const counts = committedTaskCounts(run);
 
   return (
-    <section className="mt-4" aria-label="Run execution progress">
+    <section
+      className="mt-4"
+      aria-label="Run execution progress"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       <strong className="block text-xs font-medium text-cosci-fg">
         {activeTask}
       </strong>

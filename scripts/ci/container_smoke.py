@@ -1,5 +1,6 @@
 import argparse
 import subprocess
+import sys
 import time
 import uuid
 
@@ -62,6 +63,15 @@ def wait_ready(
         raise
 
 
+def launch_container(name: str, args: list[str]) -> None:
+    try:
+        docker(*args)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        print(error.stderr or str(error), file=sys.stderr)
+        docker("logs", name, capture=False, check=False)
+        raise
+
+
 def smoke(api_image: str, mcp_image: str) -> None:
     prefix = f"coscientist-smoke-{uuid.uuid4().hex[:12]}"
     volume = f"{prefix}-data"
@@ -80,7 +90,17 @@ def smoke(api_image: str, mcp_image: str) -> None:
                 "PYTHON_DOTENV_DISABLED=1",
             ]
             if index < 2:
-                args += ["--env", "COSCIENTIST_FORCE_OFFLINE=1", "--env", "PORT=8008"]
+                args += [
+                    "--env",
+                    "COSCIENTIST_FORCE_OFFLINE=1",
+                    "--env",
+                    "COSCIENTIST_TEST_DOUBLE=deterministic",
+                    "--env",
+                    "PORT=8008",
+                    # Readiness has no visitor header even from a trusted peer.
+                    "--env",
+                    "COSCIENTIST_TRUSTED_PROXY_CIDRS=127.0.0.1/32",
+                ]
                 if index == 0:
                     # volume-nocopy preserves the root-owned empty mount Railway supplies.
                     args += [
@@ -90,15 +110,17 @@ def smoke(api_image: str, mcp_image: str) -> None:
                         f"type=volume,src={volume},dst=/app/data,volume-nocopy",
                     ]
                 args.append(api_image)
-                docker(*args)
+                launch_container(name, args)
                 wait_ready(name, "/health", 8008, 60)
+                # VFS runners copy a full image layer for each live container.
+                docker("rm", "-f", name, check=False)
             else:
                 args += [
                     "--env",
                     "COSCIENTIST_MCP_SHARED_SECRET=ci-smoke-test-placeholder",
                     mcp_image,
                 ]
-                docker(*args)
+                launch_container(name, args)
                 wait_ready(name, "/", 8888, 60, "[::1]")
     finally:
         for name in names:

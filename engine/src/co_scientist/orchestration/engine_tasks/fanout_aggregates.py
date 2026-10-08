@@ -59,6 +59,10 @@ def _apply_one_reflection_item(
     review: dict[str, Any],
     current_iteration: int,
 ) -> None:
+    from co_scientist.science.reflection.comprehensive_reflection import (
+        store_failed_finalist_review,
+        store_finalist_review,
+    )
     from co_scientist.science.reflection.reflection import (
         apply_observation_result,
     )
@@ -67,6 +71,12 @@ def _apply_one_reflection_item(
         store_mature_review_result,
     )
 
+    if mode is ReviewType.FINALIST:
+        if review.get("verdict") == "unreviewed":
+            store_failed_finalist_review(hypothesis, review.get("justification"), current_iteration)
+        else:
+            store_finalist_review(hypothesis, review, current_iteration)
+        return
     if mode is ReviewType.OBSERVATION:
         # Shared engine application carries confirmed strengths into notes on
         # both execution paths.
@@ -377,12 +387,33 @@ def _enqueue_aggregate_task(
     )
 
 
+@dataclass(frozen=True)
+class _AppliedReviews:
+    successful: int
+    failed: int
+    llm_calls: int
+    model_usage: dict[str, dict[str, Any]]
+
+
+def _review_entries(item: Any) -> list[tuple[str, dict[str, Any] | None]]:
+    if "reviews" in item.result:
+        return [(str(entry["hypothesis_id"]), entry["review"]) for entry in item.result["reviews"]]
+    return [(str(item.result["hypothesis_id"]), item.result["review"])]
+
+
+def _item_hypothesis_ids(item: Any) -> list[str]:
+    ids = item.inputs.get("hypothesis_ids")
+    if ids is None:
+        ids = [item.inputs.get("hypothesis_id", "")]
+    return [str(hypothesis_id) for hypothesis_id in ids]
+
+
 def _apply_review_items(
     by_id: dict[str, Any],
     item_task_ids: Sequence[Any],
     db_path: str | None,
     criteria: list[str] | None = None,
-) -> tuple[int, int, dict[str, dict[str, Any]]]:
+) -> _AppliedReviews:
     from co_scientist.domains.research_state.models import HypothesisReview
     from co_scientist.science.reflection import apply_initial_review_gate
     from co_scientist.science.reflection.review_gate import (
@@ -394,29 +425,37 @@ def _apply_review_items(
     usage_snapshots: list[dict[str, Any]] = []
     for item_id in item_task_ids:
         item = _require_item_task(item_id, db_path, kind="review item")
-        if item.status != "completed" or not item.result:
-            failed += 1
-            hypothesis_id = str(item.inputs.get("hypothesis_id", ""))
-            if hypothesis_id in by_id:
-                by_id[hypothesis_id].review_disposition = "review_failed"
-            continue
-        hypothesis = by_id[str(item.result["hypothesis_id"])]
-        review = HypothesisReview(**item.result["review"])
-        hypothesis.reviews.append(review)
-        hypothesis.score = review.overall_score
-        apply_initial_review_gate([hypothesis], [review], criteria)
-        usage_snapshots.append(item.result.get("model_usage") or {})
-        successful += 1
+        completed = item.status == "completed" and bool(item.result)
+        entries = (
+            _review_entries(item)
+            if completed
+            else [(hypothesis_id, None) for hypothesis_id in _item_hypothesis_ids(item)]
+        )
+        for hypothesis_id, payload in entries:
+            hypothesis = by_id.get(hypothesis_id)
+            if payload is None:
+                failed += 1
+                if hypothesis is not None:
+                    hypothesis.review_disposition = "review_failed"
+                continue
+            review = HypothesisReview(**payload)
+            hypothesis = by_id[hypothesis_id]
+            hypothesis.reviews.append(review)
+            hypothesis.score = review.overall_score
+            apply_initial_review_gate([hypothesis], [review], criteria)
+            successful += 1
+        if completed and item.result:
+            usage_snapshots.append(item.result.get("model_usage") or {})
     refresh_review_dispositions(by_id.values(), criteria)
-    return successful, failed, merge_usage_snapshots(usage_snapshots)
+    return _AppliedReviews(
+        successful=successful,
+        failed=failed,
+        llm_calls=len(item_task_ids),
+        model_usage=merge_usage_snapshots(usage_snapshots),
+    )
 
 
-def _review_aggregate_update(
-    state: dict[str, Any],
-    successful: int,
-    failed: int,
-    model_usage: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+def _review_aggregate_update(state: dict[str, Any], applied: _AppliedReviews) -> dict[str, Any]:
     from co_scientist.domains.research_state.models import (
         MetricDeltas,
         create_metrics_update,
@@ -426,13 +465,13 @@ def _review_aggregate_update(
     return {
         "hypotheses": state["hypotheses"],
         "metrics": create_metrics_update(
-            deltas=MetricDeltas(reviews=successful, llm_calls=successful + failed),
-            model_usage=model_usage,
+            deltas=MetricDeltas(reviews=applied.successful, llm_calls=applied.llm_calls),
+            model_usage=applied.model_usage,
         ),
         "messages": phase_message(
             "review",
-            f"Reviewed {successful} hypotheses; {failed} isolated failures",
-            strategy="durable_parallel_individual",
+            f"Reviewed {applied.successful} hypotheses; {applied.failed} isolated failures",
+            strategy="durable_comparative_batches",
         ),
     }
 
@@ -444,7 +483,7 @@ async def execute_review_aggregate(
     if replay is not None:
         return replay
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
-    successful, failed, model_usage = _apply_review_items(
+    applied = _apply_review_items(
         by_id,
         task.inputs.get("item_task_ids", []),
         db_path,
@@ -456,7 +495,7 @@ async def execute_review_aggregate(
         "dict[str, Any]",
         apply_task_update(
             cast("WorkflowState", state),
-            _review_aggregate_update(state, successful, failed, model_usage),
+            _review_aggregate_update(state, applied),
         ),
     )
     checkpoint_seq, successor_id = await _checkpoint_and_advance(
@@ -465,8 +504,8 @@ async def execute_review_aggregate(
     return {
         "checkpoint_seq": checkpoint_seq,
         "successor_task_id": successor_id,
-        "successful_reviews": successful,
-        "failed_reviews": failed,
+        "successful_reviews": applied.successful,
+        "failed_reviews": applied.failed,
     }
 
 

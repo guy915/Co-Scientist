@@ -52,10 +52,11 @@ export function PrivacyContent() {
         <p>
           Research goals, chat context and document excerpts are sent to the
           model providers used for your request. The service uses OpenRouter
-          free or promotional routes and their upstream hosts, and may use Azure
-          OpenAI when available. With BYOK, your selected provider (Anthropic,
-          DeepSeek, Gemini, OpenAI or OpenRouter) receives the request and its
-          key. A custom model follows that provider’s terms.
+          free or promotional routes and their upstream hosts. Operator-funded
+          requests may also use Anthropic or Azure OpenAI when available. With
+          BYOK, your selected provider (Anthropic, DeepSeek, Gemini, OpenAI or
+          OpenRouter) receives the request and its key. A custom model follows
+          that provider’s terms.
         </p>
         <p>
           Free routes may retain prompts or use them for training. Most free
@@ -122,17 +123,52 @@ export function PrivacyContent() {
           until their run is deleted; browser keys and preferences remain until
           you remove them. Feedback is limited to 30 days, the newest 200
           submissions and 10 MiB. Local diagnostic logs have row limits rather
-          than a fixed expiry time. Abuse counters may survive deletion for
-          their limited admission purpose. Hashed erasure markers stay for 24
-          hours to block late background writes from recreating deleted work.
+          than a fixed expiry time. Spent abuse allowances survive deletion
+          under a seven-day expiry policy; expired counters and detached
+          receipts are cleaned hourly in bounded batches. A saved run's
+          host-admission mapping remains with that run. Hashed erasure markers
+          stay for 24 hours to block late background writes from recreating
+          deleted work.
+        </p>
+        <p>
+          A separate operator funding ledger keeps numeric charge, usage and
+          receipt records without an automatic expiry to enforce the total
+          spending cap. It stores no research text, provider keys or browser
+          ownership ID. Your export includes receipts linked to your current
+          admission records; deletion removes that ownership link without
+          refunding spent money.
         </p>
         <p>
           Deletion from the live service does not instantly remove older
-          database backups or copies held by external recipients. The owner must
-          confirm and publish the R2 backup expiry and the configured Sentry,
-          tracing and hosting log retention before launch. We do not promise
-          that deleting our copy erases prompts a model provider has already
+          database backups or copies held by external recipients. R2 backups
+          have a 30-day object-expiry policy. Cloudflare normally removes
+          expired objects within 24 hours, with possible delays. If we restore a
+          backup, we must reapply erasure decisions before serving that work.
+          Deleting our copy does not erase prompts a model provider has already
           received.
+        </p>
+        <p>
+          Sentry’s free Developer plan provides a{' '}
+          <ExternalLink href="https://sentry.io/pricing/">
+            30-day lookback
+          </ExternalLink>
+          . Honeycomb retains trace events for{' '}
+          <ExternalLink href="https://docs.honeycomb.io/get-started/manage-costs/how-honeycomb-calculates-usage/">
+            60 days from ingestion
+          </ExternalLink>
+          .{' '}
+          <ExternalLink href="https://docs.railway.com/observability/logs">
+            Railway’s application log history
+          </ExternalLink>{' '}
+          is seven days on Hobby or 30 days on Pro; upgrading can make older
+          history visible again. When enabled,{' '}
+          <ExternalLink href="https://developers.cloudflare.com/workers/observability/logs/workers-logs/">
+            Cloudflare Workers Logs
+          </ExternalLink>{' '}
+          retain logs for three days on Free or seven days on Paid. These
+          plan-dependent application-log windows do not establish when every
+          infrastructure or security record is erased. Contact the owner for the
+          applicable hosting plan and other provider-held records.
         </p>
       </section>
       <section>
@@ -175,10 +211,11 @@ export function PrivacyContent() {
           application advertising or analytics storage keys.
         </p>
         <p>
-          The current desktop trailer is an embedded YouTube video. Loading it
-          contacts Google, which applies its own privacy and storage policies.
-          The video is optional and is separate from the necessary application
-          storage listed here.
+          The trailer is a link to YouTube. We load no embedded video or Google
+          resources: YouTube receives a request only when you open that link,
+          and its own privacy and storage policies then apply. All application
+          storage serves the necessary functions listed here, so the application
+          does not need a cookie-consent banner.
         </p>
         <p>
           Local storage keys are co_scientist_client_id, cosci-theme,
@@ -186,7 +223,8 @@ export function PrivacyContent() {
           cosci-api-model, cosci-api-supervisor-model, cosci-api-custom-models,
           cosci:session-side, cosci:session-side:&lt;runId&gt; and
           cosci:session-tab:&lt;runId&gt;. Session storage keys are
-          cosci-logs-session-baseline,
+          cosci-logs-session-baseline, co_scientist_log_pause_until (temporary
+          diagnostic rate-limit recovery),
           co_scientist_pending_run_create:&lt;chatId&gt; and
           coscientist:chunk-reload-at. Local values last until cleared; session
           values normally end when the tab closes.

@@ -197,6 +197,10 @@ function DesktopIdeaSplit({
   );
 }
 
+const SCREENED_TOOLTIP =
+  'Screened, not deep-verified: passed the safety screen and a screening ' +
+  'review but was not a finalist';
+
 function ideaRowClassName(selected: boolean): string {
   return selected
     ? `${IDEA_RANK_ROW_CLASSES} selected !border-cosci-idea-row-selected-border !bg-cosci-idea-row-selected-bg hover:!border-cosci-idea-row-selected-border hover:!bg-cosci-idea-row-selected-hover-bg`
@@ -211,7 +215,7 @@ function IdeaRankHead({
   hypothesis: Hypothesis;
 }) {
   return (
-    <span className="idea-rank-head flex min-w-0 flex-nowrap items-center gap-2.5 overflow-hidden">
+    <span className="idea-rank-head flex min-w-0 flex-wrap items-center gap-2.5">
       <Chip
         tone="info"
         layoutClassName="idea-rank-number min-w-7 justify-center"
@@ -239,6 +243,18 @@ function IdeaRankHead({
       hypothesis.verification_verdict !== UNDERMINED_VERDICT ? (
         <Chip tone="info" icon="warning" layoutClassName="idea-unverified-chip">
           Unverified
+        </Chip>
+      ) : null}
+      {hypothesis.screened ? (
+        // Depth goes to finalists; a screened idea was never examined, so it
+        // is neither verified nor unverified.
+        <Chip
+          tone="neutral"
+          layoutClassName="idea-screened-chip max-w-full !h-auto !whitespace-normal py-1"
+          tooltip={SCREENED_TOOLTIP}
+          aria-label={SCREENED_TOOLTIP}
+        >
+          Screened, not deep-verified
         </Chip>
       ) : null}
     </span>

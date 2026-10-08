@@ -86,7 +86,7 @@ score alone is not evidence of scientific quality.
 | Assessor | Panel | n | Accuracy | Contradiction recall | Gates |
 |---|---|---|---|---|---|
 | lexical | v1 | 20 | 1.00 | 1.00 | pass |
-| lexical | challenge | 30 | 0.17 | 0.00 | fail, as intended |
+| lexical | challenge | 30 | 0.03 | 0.00 | fail, as intended |
 
 The lexical assessor's collapse on the challenge panel is the point: token
 overlap is a retrieval feature, not proof, so it is only an offline fallback.
@@ -174,6 +174,7 @@ report packets private, outside commits.
 
 Download the six saved `snapshot.db` files, which include independent dispatch
 receipts, and create `pairs.json` using paths relative to that manifest.
+Keep any accompanying `snapshot.db-wal`; legacy metadata may still be there.
 It contains exactly one entry per fixed goal:
 
 ```json
@@ -195,7 +196,7 @@ that later analyzes it. Use the benchmark receipt to verify it.
 ```bash
 # One comparison command; only this explicit mode makes free-route judge calls:
 MODEL_NAME=openrouter/inclusionai/ling-3.1-flash \
-  .venv/bin/python -m evaluations.paired_quality pairs.json --live-judge --output results/paired
+  .venv/bin/python -m evaluations.benchmark_transport compare pairs.json --live-judge --output results/paired
 
 # Hermetic replay of saved judgments (no provider imports or network):
 .venv/bin/python -m evaluations.paired_quality pairs.json --judgments judgments.json --output results/paired
@@ -209,9 +210,10 @@ mixes, claim verdicts, distinct supported claims (`supports` or `partial`),
 task-span wall time, physical calls and prompt/completion tokens. Missing
 usage is unknown, never zero. Wall time spans the earliest task start to the
 latest task completion, including waits; it is not summed call latency.
-When an evaluation dispatch receipt is present, its attempted physical calls
+When a versioned HTTP attempt receipt is present, its physical calls
 take precedence over task telemetry (failed tasks can lose usage records).
-Missing token records then make total tokens unknown. Older databases expose
+Missing token records then make total tokens unknown. Legacy invocation receipts
+make live physical counts unknown. Databases without a receipt expose
 `recorded_telemetry_only` as the call-count basis, not a claim of complete dispatch coverage.
 
 The judge sees only the fixed goal, rubric and two final reports, with provider
@@ -246,7 +248,7 @@ OpenRouter `MODEL_NAME` and `OPENROUTER_API_KEY`, with retrieval configured
 identically for both refs. No Azure or paid fallback is admitted.
 
 ```bash
-.venv/bin/python -m evaluations.quality_benchmark --goal-id cell-biology \
+.venv/bin/python -m evaluations.benchmark_transport collect --goal-id cell-biology \
   --live --max-calls 150 --output /tmp/biology-main
 ```
 
@@ -259,18 +261,37 @@ snapshot and that source SHA in the paired manifest. `run.db` is also retained
 for local inspection; the snapshot includes WAL contents and the evaluation
 dispatch receipt.
 
-The answering backend enforces `--max-calls` across concurrent tasks and retries
+The live measurement launcher enforces `--max-calls` across concurrent HTTP attempts and retries
 (1–450 requests; default 150), independently of task admission counters. Set a
 larger bound only within the agreed daily remaining share; main Express may
 need more than 150 attempts. Track aggregate use across goals and judge calls.
-SDK retries are disabled at the counted boundary for collection and live judging;
-orchestration retries still consume the allowance. An exhausted or
+Use `python -m evaluations.benchmark_transport collect` in place of the direct
+collector command for live runs, and `python -m evaluations.benchmark_transport
+compare` in place of the direct paired command for live judging. The launcher
+counts HTTP transport attempts before sending, including SDK connection replays
+and redirects. It disables hidden connect retries and records the counter's
+code/SDK identity digest in the snapshot. Zero SDK retry options alone do not disable
+OpenRouter's separate connection replay. All such attempts consume the allowance.
+Legacy receipts record backend invocations; their live HTTP count and token
+total remain unknown and require review. The artifact-based live dispatch
+rejects legacy counters before judging. An exhausted or
 failed run stays incomplete, exits 2 and retains its database and receipts;
 do not treat it as a successful baseline. `claim-support-live.json` retains
 the existing rate, sample size and Wilson interval as descriptive measurements.
 Default collection is offline; omit `--live` to exercise persistence without
 provider credentials. The offline artifact and receipt explicitly disclaim
 scientific quality, and the collector's tests deny socket connections.
+
+Artifacts contain checked databases, receipts and reports. Raw MCP logs and
+downloaded source ZIPs are excluded: console secret masking does not redact
+artifact bytes, and historical MCP refs can log credential-bearing URLs.
+Before publishing, the trusted harness checks outputs for configured provider
+credentials in literal, URL and JSON forms; unsafe files block the entire upload
+without altering scientific databases. The comparison checks prepared inputs
+before judging and outputs before publishing. A failed or missing check cannot
+authorize an upload. Keep local raw diagnostics private. If an older artifact
+exposed a key, contain that artifact and have its owner revoke/rotate the key;
+this check cannot revoke copies already obtained.
 
 The manual **Benchmark** workflow accepts `goal_id`, `benchmark_ref`, `tier`,
 `max_calls` and `label`. Dispatch one fixed goal on an exact source SHA:
@@ -281,9 +302,15 @@ gh workflow run benchmark.yml --ref main -f goal_id=cell-biology \
 ```
 
 Its summary includes the baseline row and descriptive claim sample/interval;
-the uploaded artifact retains the database, snapshot, receipt and logs even
-when the run step fails. Dispatch the other goals only within the agreed
-remaining daily share. The workflow never runs on pull requests.
+the uploaded artifact retains the checked database, snapshot and receipt even
+when the run step fails, provided the credential check passes. Dispatch the other
+goals only within the agreed remaining daily share. The workflow never runs on pull requests.
+Collection installs the selected research engine in an isolated clean worktree
+and uses the dispatched measurement launcher outside it. This instruments older
+research refs without editing them; receipts retain the actual research SHA and
+measurement-counter digest. New snapshots checkpoint their private copy before
+analysis; the artifact importer also preserves any legacy WAL. Both arms must use the same measurement counter
+and SDK versions.
 
 After collecting the three main and three branch runs, compare their artifacts
 with one dispatch (the IDs can be in any goal order):
@@ -311,6 +338,57 @@ The JSON maps `main` and `branch` to three ZIP paths each, relative to that
 file. Then run the recorded-judgment command above against
 `replay/prepared/pairs.json`. No network is used unless `--download` or
 `--live-judge` is explicitly selected.
+
+### Authorized Claude or Azure cohort
+
+The owner's shared monetary allowance must cover the run: the HTTP ceiling
+alone does not enforce a shared money ledger. Resolve
+the money reservation and billing controls before provider-backed collection.
+The `operation=preflight` workflow checks native configuration with sockets
+denied and makes no provider request; it is not authentication or science.
+
+An explicitly authorized paid cohort can use `model=anthropic/MODEL_ID` or
+`model=azure/DEPLOYMENT_ID` on the same workflow. The default remains the free
+OpenRouter route. Select one provider/model for all six research runs; switching
+providers after an incomplete run does not make an incompatible pair valid.
+The comparison requires the same provider policy, endpoint digest and configured
+model roles across all six archives. Paid results are a separate cohort, not a
+free-route quality certification.
+
+Claude requires `ANTHROPIC_API_KEY`. Azure requires `AZURE_API_KEY` or
+`AZURE_OPENAI_API_KEY`, `AZURE_API_BASE` (an HTTPS Azure resource root) and
+`AZURE_API_VERSION`. Set these in the execution environment or existing repository
+secrets, never in workflow inputs or committed files. The paid path uses the
+owner's explicit key scope; operator-only Azure deployments retain their existing
+restriction and are not converted into BYOK routes. Missing configuration refuses
+execution before provider calls. Other provider credentials and dotenv loading
+are disabled. Claude/Azure keys join the artifact credential guard.
+
+```bash
+gh workflow run benchmark.yml --ref main -f operation=collect -f tier=express \
+  -f goal_id=cell-biology -f benchmark_ref=SOURCE_SHA -f max_calls=160 \
+  -f model=anthropic/claude-sonnet-5-5 -f label=paid-biology-main
+```
+
+The local equivalent uses the trusted launcher outside the clean research
+checkout, without editing its source:
+
+```bash
+python /path/to/harness/evaluations/benchmark_paid.py collect \
+  --provider anthropic --model anthropic/claude-sonnet-5-5 --live --tier express \
+  --goal-id cell-biology --max-calls 160 --output /private/new-biology-output
+```
+
+The counter includes native token-count preflights, SDK attempts and redirects
+to the declared provider. An ambiguous connection replay and undeclared provider
+or model are refused. The counter identity includes the paid adapter and SDK
+versions; all attempts consume the declared ceiling. Report unknown billing and
+missing token totals explicitly. Do not overwrite or rerun outcomes for score.
+
+Use the same `model` input for the six-run comparison dispatch above. For
+recorded replay, add `--provider anthropic` or `--provider azure` to
+`evaluations.paired_artifacts`; without this explicit option, paid archives are
+rejected by the original free path. Recorded judging remains hermetic.
 
 ## External gaps
 

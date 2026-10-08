@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import {readFileSync} from 'node:fs';
+import {thirdPartyLicenses} from './scripts/third_party_licenses.mjs';
 
 // Preview must exercise the same policy as Cloudflare, including on deep links.
 const previewHeaders = Object.fromEntries(
@@ -27,7 +28,7 @@ if (previewApi && /^http:\/\/127\.0\.0\.1:\d+$/.test(previewApi)) {
 
 export default defineConfig({
   preview: {headers: previewHeaders},
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), thirdPartyLicenses({root: __dirname})],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

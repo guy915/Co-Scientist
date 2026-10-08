@@ -27,11 +27,46 @@ def _digest(text: str) -> str:
 _DEBATE_TURN = "collaborative discourse concerning the generation"
 
 
+_CITATION_KEYS = frozenset({"supporting", "contradicting"})
+
+
+def _cite_as_lists(value: Any) -> Any:
+    """The offline filler leaves a `oneOf` field as `{}`; a real model lists
+    its citations, so claim checks must not fail validation and retry."""
+    if isinstance(value, dict):
+        return {
+            key: [] if key in _CITATION_KEYS and item == {} else _cite_as_lists(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_cite_as_lists(item) for item in value]
+    return value
+
+
+_PAPER_HEADING = re.compile(r"^### Paper (\d+)$", re.M)
+
+
+def _analysis_per_paper(prompt: str, content: str) -> str:
+    """The offline filler returns a fixed-length list; a real model analyzes
+    every numbered paper."""
+    answer = json.loads(content)
+    template = (answer.get("analyses") or [{}])[0]
+    answer["analyses"] = [
+        {**template, "paper_index": int(number), "key_findings": f"Finding of paper {number}."}
+        for number in _PAPER_HEADING.findall(prompt)
+    ]
+    return json.dumps(answer)
+
+
 def realistic_answer(prompt: str, content: str, schema_name: str) -> str:
     """A real debate panel converges after its first exchange, and a real judge
     prefers the side whose text hashes lower, whichever position it holds."""
     if not schema_name and _DEBATE_TURN in prompt:
         return f"{content}\nHYPOTHESIS: the panel agrees on the proposal above."
+    if schema_name == "response" and any(f'"{key}": {{}}' in content for key in _CITATION_KEYS):
+        return json.dumps(_cite_as_lists(json.loads(content)))
+    if schema_name == "paper_analysis_batch":
+        return _analysis_per_paper(prompt, content)
     if schema_name not in _RANKING_SCHEMAS:
         return content
     sides = _SIDES.search(prompt)
@@ -63,19 +98,23 @@ def _paper(tool: str, query: str, index: int) -> dict[str, Any]:
     }
 
 
-def _search_result(tool: str, query: str, count: int, *, records: bool) -> str:
-    papers = [_paper(tool, query, index) for index in range(count)]
-    if records:
-        return json.dumps({"records": papers})
-    return json.dumps({paper.pop("source_id"): paper for paper in papers})
+_SEARCH_TOOLS = frozenset(
+    {
+        "search_pubmed",
+        "pubmed_search_with_fulltext",
+        "search_openalex",
+        "search_web",
+        "search_europepmc",
+        "search_preprints",
+        "search_arxiv",
+        "search_biorxiv",
+    }
+)
 
 
-_RECORD_TOOLS = frozenset(
-    {"search_europepmc", "search_preprints", "search_arxiv", "search_biorxiv"}
-)
-_KEYED_TOOLS = frozenset(
-    {"search_pubmed", "pubmed_search_with_fulltext", "search_openalex", "search_web"}
-)
+def _ok(records: list[dict[str, Any]]) -> str:
+    # The MCP result contract (`engine/mcp_server/tools/_results.py`).
+    return json.dumps({"status": "ok", "records": records})
 
 
 def _tool(name: str) -> StructuredTool:
@@ -84,11 +123,12 @@ def _tool(name: str) -> StructuredTool:
             return "true"
         query = str(kwargs.get("query") or kwargs.get("entity_name") or "topic")
         count = int(kwargs.get("max_papers") or kwargs.get("max_results") or 3)
-        if name in _KEYED_TOOLS or name in _RECORD_TOOLS:
-            return _search_result(name, query, min(count, 4), records=name in _RECORD_TOOLS)
+        if name in _SEARCH_TOOLS:
+            return _ok([_paper(name, query, index) for index in range(min(count, 4))])
         if name == "read_url":
-            return f"Page text about {query[:120]}."
-        return json.dumps({})
+            url = str(kwargs.get("url") or "")
+            return _ok([{"url": url, "content": f"Page text about {query[:120]}."}])
+        return _ok([])
 
     return StructuredTool.from_function(
         coroutine=_impl, name=name, description=f"offline {name}", infer_schema=False
@@ -105,7 +145,7 @@ def mcp_tool_names() -> list[str]:
 class FakeMCPClient:
     names: ClassVar[list[str]] = []
 
-    def __init__(self, connections: Any) -> None:
+    def __init__(self, connections: Any, **_options: Any) -> None:
         self.connections = connections
 
     async def get_tools(self) -> list[StructuredTool]:

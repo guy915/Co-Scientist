@@ -88,7 +88,7 @@ alert contract; do not filter on internal fields that the exporter drops.
 |---|---|
 | `HTTP GET`, `HTTP POST`, etc. | `http.request.method`, `http.response.status_code` |
 | `task.execute` | `co_scientist.run_id`, `co_scientist.task.id`, `co_scientist.task.attempt`, `co_scientist.task.outcome` |
-| `llm.call_llm`, `llm.call_llm_json`, `llm.call_llm_stream` | fixed span name; no prompt/model identifier |
+| `llm.call_llm`, `llm.call_llm_json` | fixed span name; no prompt/model identifier; tool-loop calls export as `operation` |
 | `llm.attempt` | `co_scientist.llm.attempt`, `co_scientist.llm.retry_reason` |
 | `llm.request` | `gen_ai.request.max_tokens`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `co_scientist.llm.reasoning_tokens`, `co_scientist.llm.cached_prompt_tokens` |
 
@@ -148,3 +148,15 @@ burst; it does not require a separate aggregate metric-alert subscription.
 Remove every “Send a notification via email” action. Keep the existing
 redaction boundaries. Source maps are absent, so retain release metadata
 and reproduce browser failures offline.
+
+### Backup verification
+
+The backup supervisor emits the fixed API error “Backup verification failed;
+new research paused” through the existing Sentry privacy projection when
+configured. The new/regressed API issue rules above cover it; no additional
+email action is needed. The authenticated [operator view](LAUNCH-CONTROL.md)
+shows whether replication is configured, verification status and the last
+verified timestamp. Missing metadata is unknown, not a successful backup.
+An unexpected replication-daemon exit stops the API and reaches the uptime
+monitors. Follow the [backup recovery playbook](INCIDENTS.md#backup-verification-failed-or-stale)
+and [idle refresh drill](RESTORE-DRILL.md#daily-idle-backup-proof) before resuming.

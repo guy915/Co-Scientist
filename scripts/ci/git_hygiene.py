@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 import subprocess
@@ -58,8 +59,12 @@ def git(root: Path, *args: str) -> str:
     return subprocess.check_output(["git", "-C", str(root), *args], text=True)
 
 
-def main(root: Path = Path(".")) -> int:
-    findings = check_pr(os.environ.get("PR_TITLE", ""), os.environ.get("PR_BODY", ""))
+def main(root: Path = Path("."), *, commits_only: bool = False) -> int:
+    findings = (
+        []
+        if commits_only
+        else check_pr(os.environ.get("PR_TITLE", ""), os.environ.get("PR_BODY", ""))
+    )
     base = revision(os.environ.get("BASE_SHA", ""))
     head = revision(os.environ.get("HEAD_SHA", ""))
     commits = git(root, "rev-list", "--reverse", f"{base}..{head}").splitlines()
@@ -77,4 +82,6 @@ def main(root: Path = Path(".")) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--commits-only", action="store_true")
+    sys.exit(main(commits_only=parser.parse_args().commits_only))

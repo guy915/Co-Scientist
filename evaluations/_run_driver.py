@@ -20,7 +20,7 @@ def configure_environment(db_path: str, *, live: bool) -> None:
     """Configure before settings imports."""
     os.environ["COSCIENTIST_DB_PATH"] = db_path
     if not live:
-        os.environ["COSCIENTIST_FORCE_OFFLINE"] = "1"
+        os.environ["COSCIENTIST_TEST_DOUBLE"] = "deterministic"
         # Clear credentials as well as forcing offline so nonconsulting call
         # sites cannot spend.
         for name in [n for n in os.environ if n.endswith("_API_KEY")]:
@@ -30,6 +30,7 @@ def configure_environment(db_path: str, *, live: bool) -> None:
         os.environ["FORCE_LITERATURE_REVIEW"] = "0"
         return
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
+    os.environ.pop("COSCIENTIST_TEST_DOUBLE", None)
     from evaluations._live_config import configure_live_environment
 
     configure_live_environment()

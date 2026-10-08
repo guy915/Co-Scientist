@@ -18,6 +18,30 @@ from evaluations._paired_judge import judge_pair, packets, recorded_judge
 from evaluations.quality_goals import GOALS
 
 
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [("COSCIENTIST_FORCE_OFFLINE", "1"), ("COSCIENTIST_TEST_DOUBLE", "deterministic")],
+)
+def test_live_judge_rejects_current_and_legacy_test_selection_before_setup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, flag: str, value: str
+) -> None:
+    monkeypatch.setenv(flag, value)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "paired_quality",
+            str(tmp_path / "absent.json"),
+            "--live-judge",
+            "--output",
+            str(tmp_path / "output.json"),
+        ],
+    )
+    with pytest.raises(ValueError, match="live judge cannot use"):
+        paired_quality.main()
+    assert not (tmp_path / "output.json").exists()
+
+
 def fake_database(path: Path, goal_id: str, *, branch: bool = False) -> None:
     identity = {
         "version": 1,
@@ -111,6 +135,31 @@ def snapshot(tmp_path: Path, *, branch: bool = False) -> Snapshot:
     db = tmp_path / ("branch.db" if branch else "main.db")
     fake_database(db, "cell-biology", branch=branch)
     return read_snapshot(db, "r", "cell-biology", "a" * 40)
+
+
+@pytest.mark.parametrize("branch", [False, True])
+def test_duplicate_delivered_titles_refuse_to_credit_multiple_hypotheses(
+    tmp_path: Path, branch: bool
+) -> None:
+    db = tmp_path / "duplicate.db"
+    fake_database(db, "cell-biology", branch=branch)
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE hypotheses SET title='Idea two' WHERE id='hidden'")
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    with pytest.raises(ValueError, match="ambiguous delivered hypothesis identity"):
+        read_snapshot(db, "r", "cell-biology", "a" * 40)
+    assert hashlib.sha256(db.read_bytes()).hexdigest() == before
+
+
+def test_duplicate_undelivered_titles_do_not_inflate_report_counts(tmp_path: Path) -> None:
+    db = tmp_path / "undelivered.db"
+    fake_database(db, "cell-biology")
+    with sqlite3.connect(db) as conn:
+        conn.execute("INSERT INTO hypotheses VALUES ('other', 'r', 'Idea hidden')")
+    facts = read_snapshot(db, "r", "cell-biology", "a" * 40).metrics
+    assert (facts["ideas_generated"], facts["ideas_delivered"]) == (4, 2)
+    assert facts["delivered_ids"] == ["h1", "h2"]
+    assert facts["delivered_supported_claims"] == 2
 
 
 def test_counts_report_entries_not_pool_mentions_and_deduplicates_claims(tmp_path: Path) -> None:
@@ -230,8 +279,9 @@ def test_dispatch_receipt_counts_calls_lost_from_failed_task_telemetry(tmp_path:
         conn.execute("CREATE TABLE evaluation_runs (run_id, source_commit, physical_requests)")
         conn.execute("INSERT INTO evaluation_runs VALUES ('r',?,150)", ("a" * 40,))
     m = read_snapshot(db, "r", "cell-biology", "a" * 40).metrics
-    assert m["physical_calls"] == 150
-    assert m["call_count_basis"] == "benchmark_dispatch_counter"
+    assert m["physical_calls"] is None
+    assert m["recorded_backend_invocations"] == 150
+    assert m["call_count_basis"] == "backend_invocations"
     assert m["total_tokens"] is None
     assert m["reported_token_subtotal"] == 1200
     with pytest.raises(ValueError, match="source commit differs"):

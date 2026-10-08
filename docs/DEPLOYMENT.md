@@ -37,11 +37,14 @@ artifacts; keep those exclusions when adding an image or context.
   injected `PORT` (default 8008) and passes `--timeout-graceful-shutdown 20`
   so open SSE streams cannot hold shutdown until the platform kills the
   process; keep the Railway draining window at least that long. With the four
-  `LITESTREAM_R2_*` credentials set it runs the API under Litestream (below);
-  without them it serves directly. The image has a `HEALTHCHECK` on `/health`, installs
+  `LITESTREAM_R2_*` credentials set it runs the API under the backup
+  supervisor and Litestream (below); without them it serves directly. The image has a `HEALTHCHECK` on `/health`, installs
   `tesseract-ocr` (image and PDF-figure OCR; uploads fail without it, and the
   test suite fakes the dependency), and defaults `COSCIENTIST_DB_PATH` to
-  `/app/data/coscientist.db`, the persistent volume mount.
+  `/app/data/coscientist.db`, the persistent volume mount. It serves
+  `co_scientist.serving:create_app`, which reads Railway's `X-Real-IP` only
+  from peers in `COSCIENTIST_TRUSTED_PROXY_CIDRS`; without that variable, the
+  socket peer is the host bucket ([trusted visitor addresses](TRUSTED-PROXY.md)).
 - **MCP.** Deliberately ignores `PORT` and pins 8888, binding `--host ::` for
   Railway's IPv6 private network. Its healthcheck probes `[::1]:8888`, since
   a 127.0.0.1 probe can miss an IPv6-only socket. It runs as the unprivileged
@@ -122,8 +125,10 @@ frontend host; everything there is compiled into public assets.
 - Headers: `/assets/*` is cached for a year and immutable; every path sends
   `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`,
-  `X-Frame-Options: DENY`, and a `Permissions-Policy` that denies camera,
-  microphone, geolocation and payment.
+  `X-Frame-Options: DENY`, a `Permissions-Policy` that denies camera,
+  microphone, geolocation and payment, and a Content-Security-Policy. `/` and
+  `*.html` are `no-cache`. The policy's `connect-src` names the API origin:
+  a new API domain needs a `_headers` change as well as `VITE_API_BASE_URL`.
 
 ## Database replication (optional)
 
@@ -139,6 +144,15 @@ mark (`truncate-page-n: 0`), because Litestream owns checkpointing and a
 truncating checkpoint can stall serving writers. Replication does not replace
 tested restores ([backup and restore](LAUNCH.md#backup-and-restore)).
 
+The entrypoint starts the API under `platform/db/backup_service.py`. The
+supervisor runs `litestream replicate`. When the database file exists, and
+then every 24 hours, it pauses replication, forces a snapshot, restores it into a scratch file and runs `PRAGMA integrity_check`.
+A failed check pauses new research ([launch control](LAUNCH-CONTROL.md)),
+reports one error to Sentry when a DSN is set, and retries after one hour. A
+success does not resume admission. The result is written to
+`<database>.backup-status.json` beside the database. If replication stops, the
+supervisor stops the API so that Railway restarts the service.
+
 ## API configuration
 
 Non-secret routing and storage variables on the `api` service:
@@ -147,9 +161,16 @@ Non-secret routing and storage variables on the `api` service:
 MCP_SERVER_URL=http://<mcp-private-host>:8888/mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
 RAILWAY_RUN_UID=0                                  # must stay set
+COSCIENTIST_TRUSTED_PROXY_CIDRS=100.64.0.0/24      # see TRUSTED-PROXY.md
 ALLOWED_ORIGINS=https://open-coscientist.com
 COSCIENTIST_RUN_RETENTION_DAYS=0
 ```
+
+The optional paid Azure fallback needs `LLM_AZURE_ENABLED=1`,
+`LLM_TOTAL_BUDGET_EUR`, `LLM_AZURE_UNTIL`, `AZURE_OPENAI_ENDPOINT`,
+`AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_SUPERVISOR_DEPLOYMENT` and
+`AZURE_OPENAI_WORKER_DEPLOYMENT`; without all of them Azure stays off
+([Azure plan](azure-plan.md)).
 
 The zero run-retention setting disables scheduled deletion of completed runs;
 document retention remains separate (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`).
@@ -183,14 +204,16 @@ settings, distinct from the public build-time `VITE_SENTRY_DSN`.
   - `BYOK_ENCRYPTION_KEY`, which encrypts bring-your-own-key credentials for
     the run lifetime; BYOK is unavailable without it.
   - `LOGS_ADMIN_TOKEN`, the operator token for the app-wide persisted-log
-    view, sent as `X-Logs-Token`. Without it, only loopback callers get that
-    view.
+    view, sent as `X-Logs-Token`. Without it, no caller gets that view;
+    loopback callers get no operator access.
 - **MCP shared secret.** `COSCIENTIST_MCP_SHARED_SECRET` must be identical on
   both services. When set, every MCP call except the plain `/` status route
   must carry it in `X-MCP-Shared-Secret` or receive 401
   (`engine/mcp_server/auth_middleware.py`); the engine client adds the header
-  (`platform/retrieval/mcp_client/__init__.py`). Unset on both, the check is
-  a no-op. Read back its presence on both services without exposing it. MCP
+  (`platform/retrieval/mcp_client/__init__.py`). When it is unset, MCP refuses
+  every call except `/`. Only local development can opt out, with
+  `COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1` and a loopback peer. Read
+  back its presence on both services without exposing it. MCP
   is server-to-server only and allows no browser origin.
 - **MCP service variables:** `COSCIENTIST_MCP_PORT=8888`, the search keys
   (`WEB_SEARCH_PROVIDER` with `BRAVE_API_KEY` or `TAVILY_API_KEY`),

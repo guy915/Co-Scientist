@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.tools._results import failed, keyed_records, non_raising
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,9 @@ def _record_credential_error(provider: str, status: int, detail: str) -> None:
     _credential_errors[provider] = {
         "provider": provider,
         "status": status,
-        "detail": detail,
+        # This record is returned by unauthenticated health checks. Provider
+        # exceptions include private search URLs, even with ordinary HTTPX errors.
+        "detail": f"HTTP {status}",
     }
 
 
@@ -78,7 +81,7 @@ def _handle_provider_error(provider: str, query: str, exc: Exception) -> dict[st
             status,
         )
         return failed(exc)
-    logger.warning("%s web search failed for %r: %s", provider, query, exc)
+    logger.warning("%s web search failed (%s)", provider, failure_summary(exc))
     return failed(exc)
 
 
@@ -315,16 +318,15 @@ async def search_web(
         results = await search_fn(query, capped, max(recency_days, 0))
         if results.get("status") == "ok":
             logger.debug(
-                "web search via %s returned %s results for %r",
+                "web search via %s returned %s results",
                 name,
                 len(results["records"]),
-                query,
             )
             return results
         # Empty success is an answer; do not spend another allowance to hear it
         # twice.
         if credential_error_for(name) is None:
-            logger.debug("web search via %s found nothing for %r", name, query)
+            logger.debug("web search via %s returned no results", name)
             return results
         logger.warning("%s refused the search; trying the next provider", name)
     return failed("all web providers refused the search")

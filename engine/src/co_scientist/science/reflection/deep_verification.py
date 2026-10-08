@@ -40,6 +40,8 @@ from co_scientist.science.prompts import get_deep_verification_prompt
 from co_scientist.science.reflection.review_evidence import (
     with_researched as _with_researched,
 )
+from co_scientist.science.reflection.review_gate import VERIFICATION_QUERIES_KEY
+from co_scientist.science.scheduling.funnel import finalists
 from co_scientist.science.schemas.review import (
     DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS,
     DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS,
@@ -137,8 +139,7 @@ def select_hypotheses_to_verify(
     hypotheses: list[Hypothesis],
     model_name: str,
 ) -> list[Hypothesis]:
-    """Verification precedes ranking, so no tournament Elo ordering exists
-    yet."""
+    """Callers pass the finalists; issuance markers keep each verified once."""
     return [hypothesis for hypothesis in hypotheses if _needs_verification(hypothesis, model_name)]
 
 
@@ -216,8 +217,11 @@ async def _verify_with_probes(
     context: _VerificationContext,
     evidence_context: str,
 ) -> dict[str, Any]:
-    """Reuse already-funded research; the targeted probe retry buys only one
-    search round."""
+    """Reuse already-funded research. A finalist review's queries retrieve
+    before the one call; without them, the probe retry buys one round."""
+    queries = _review_queries(hypothesis)
+    if queries:
+        return await _verify_once(hypothesis, context, evidence_context, queries)
     initial = await _call_verification(hypothesis, context, evidence_context)
     queries = _probe_queries(initial)
     probed, retrieval_errors = await _retrieve_probe_evidence(context.state, queries)
@@ -238,6 +242,33 @@ async def _verify_with_probes(
     result["retrieval_errors"] = retrieval_errors
     result["retrieved_articles"] = [article.to_dict() for article in articles]
     result["verification_llm_calls"] = 2
+    return result
+
+
+def _review_queries(hypothesis: Hypothesis) -> list[str]:
+    queries = hypothesis.enrichments.get(VERIFICATION_QUERIES_KEY)
+    if not isinstance(queries, list):
+        return []
+    return [str(query) for query in queries if str(query).strip()]
+
+
+async def _verify_once(
+    hypothesis: Hypothesis,
+    context: _VerificationContext,
+    evidence_context: str,
+    queries: list[str],
+) -> dict[str, Any]:
+    probed, retrieval_errors = await _retrieve_probe_evidence(context.state, queries)
+    articles = _with_researched(context.state, hypothesis, probed)
+    if articles:
+        evidence_context = (
+            f"{evidence_context}\n\nTargeted evidence:\n{_retrieved_evidence_context(articles)}"
+        )
+    result = await _call_verification(hypothesis, context, evidence_context)
+    result["retrieval_queries"] = queries
+    result["retrieval_errors"] = retrieval_errors
+    result["retrieved_articles"] = [article.to_dict() for article in articles]
+    result["verification_llm_calls"] = 1
     return result
 
 
@@ -303,20 +334,19 @@ def _apply_verification_results(
 
 
 async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
-    """Verify each admitted idea once before ranking; new children add work,
-    but later cycles must not repeat the whole pool."""
+    """Verify each finalist once; later cycles verify only new finalists."""
     hypotheses = state["hypotheses"]
     if not hypotheses:
         return {}
 
-    to_verify = select_hypotheses_to_verify(hypotheses, state["model_name"])
+    to_verify = select_hypotheses_to_verify(finalists(state), state["model_name"])
 
     if not to_verify:
-        logger.info("Deep verification: every idea already verified, reusing")
+        logger.info("Deep verification: every finalist already verified, reusing")
         await emit_progress(
             state,
             "deep_verification_complete",
-            "Reused deep verification for the whole pool",
+            "Reused deep verification for every finalist",
             PROGRESS_DEEP_VERIFICATION_COMPLETE,
         )
         return {}

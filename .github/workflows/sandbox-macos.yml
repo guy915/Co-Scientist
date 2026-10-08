@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# Keep the guard distinct from its calling workflow's cancellation group.
+concurrency:
+  group: sandbox-macos-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   seatbelt:
     name: Seatbelt confinement
@@ -15,7 +20,9 @@ jobs:
     timeout-minutes: 15
     env:
       COSCIENTIST_FORCE_OFFLINE: '1'
+      COSCIENTIST_TEST_DOUBLE: deterministic
       PYTHON_DOTENV_DISABLED: '1'
+      LITELLM_LOCAL_MODEL_COST_MAP: 'True'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

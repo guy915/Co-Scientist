@@ -1,17 +1,13 @@
-import asyncio
 import dataclasses
 import logging
-from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.core.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
-    PROGRESS_REFLECTION_COMPLETE,
-    PROGRESS_REFLECTION_START,
 )
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.domains.research_state.models import Hypothesis, phase_message
+from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
@@ -19,7 +15,6 @@ from co_scientist.platform.llm import (
     call_llm_json,
     indexed_prompt_name,
 )
-from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.science.prompts import PromptRunContext, get_reflection_prompt
 from co_scientist.science.schemas.review import (
     REFLECTION_MAX_POSITIVE_OBSERVATIONS,
@@ -184,112 +179,7 @@ def _format_reflection_result(
 
 
 async def reflection_node(state: WorkflowState) -> dict[str, Any]:
-    logger.debug("\n=== reflection node ===")
-    logger.info("Analyzing hypotheses against literature observations")
-
-    # No successful literature review means no observation evidence; leave notes
-    # unset and let hypotheses proceed to their independent peer review.
-    inputs = _extract_reflection_inputs(state)
-    if inputs is None:
-        return {}
-    articles_with_reasoning, hypotheses = inputs
-
-    logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
-
-    await _run_reflection_phase(state, hypotheses, articles_with_reasoning)
-
-    logger.info("Completed reflection analysis for %s hypotheses", len(hypotheses))
-
-    return _build_reflection_result(hypotheses)
-
-
-async def _run_reflection_phase(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-    articles_with_reasoning: str,
-) -> None:
-    await emit_progress(
-        state,
-        "reflection_start",
-        f"Analyzing {len(hypotheses)} hypotheses against literature...",
-        PROGRESS_REFLECTION_START,
-        hypotheses_count=len(hypotheses),
-    )
-
-    logger.info("Running %s reflection analyses in parallel", len(hypotheses))
-    analysis_results = await _run_reflection_analysis(state, hypotheses, articles_with_reasoning)
-
-    _apply_reflection_results(hypotheses, analysis_results)
-
-    await emit_progress(
-        state,
-        "reflection_complete",
-        "Reflection analysis complete",
-        PROGRESS_REFLECTION_COMPLETE,
-        hypotheses_count=len(hypotheses),
-    )
-
-
-async def _run_reflection_analysis(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-    articles_with_reasoning: str,
-) -> list[dict[str, Any] | None]:
-    """gather preserves input order so positional hypothesis/result pairing
-    stays valid."""
-    analysis_tasks = _build_analysis_tasks(state, hypotheses, articles_with_reasoning)
-    return await asyncio.gather(*analysis_tasks)
-
-
-def _build_reflection_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
-    """These are the same mutated objects; the hypothesis reducer treats full
-    text overlap as replacement rather than appending another pool."""
-    return {
-        "hypotheses": hypotheses,
-        "messages": phase_message(
-            "reflection",
-            f"completed reflection analysis for {len(hypotheses)} hypotheses",
-        ),
-    }
-
-
-def _extract_reflection_inputs(
-    state: WorkflowState,
-) -> tuple[str, list[Hypothesis]] | None:
-    articles_with_reasoning = state.get("articles_with_reasoning")
-    if not articles_with_reasoning:
-        logger.warning("No articles_with_reasoning in state, skipping reflection")
-        return None
-
-    hypotheses = state.get("hypotheses", [])
-    if not hypotheses:
-        logger.warning("No hypotheses in state, skipping reflection")
-        return None
-
-    return articles_with_reasoning, hypotheses
-
-
-def _build_analysis_tasks(
-    state: WorkflowState,
-    hypotheses: list[Hypothesis],
-    articles_with_reasoning: str,
-) -> list[Coroutine[Any, Any, dict[str, Any] | None]]:
-    """Only initial generation reaches reflection; evolved ideas re-enter
-    review, so meta-review is normally absent here."""
-    return [
-        observe_hypothesis(
-            state,
-            hyp,
-            hypothesis_index=i + 1,
-            total_count=len(hypotheses),
-        )
-        for i, hyp in enumerate(hypotheses)
-    ]
-
-
-def _apply_reflection_results(
-    hypotheses: list[Hypothesis],
-    analysis_results: list[dict[str, Any] | None],
-) -> None:
-    for hypothesis, result in zip(hypotheses, analysis_results, strict=True):
-        apply_observation_result(hypothesis, result)
+    """Observation is part of each finalist's one in-depth review; the node
+    keeps its persisted key and route so stored runs resume through it."""
+    del state
+    return {}

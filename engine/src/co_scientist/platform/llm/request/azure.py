@@ -12,6 +12,7 @@ import openai
 from openai.types.responses import Response, ResponseStreamEvent
 
 from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
+from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
 from co_scientist.platform.llm.profile import model_profile
 from co_scientist.platform.llm.roles import current_call_policy
 
@@ -182,6 +183,8 @@ def response_request(request: dict[str, Any], deployments: dict[str, str]) -> di
         "include": ["reasoning.encrypted_content"],
         "stream": bool(request.get("stream")),
     }
+    if "prompt_cache_key" in request:
+        body["prompt_cache_key"] = request["prompt_cache_key"]
     if "timeout" in request:
         body["timeout"] = request["timeout"]
     fmt = request.get("response_format")
@@ -337,9 +340,12 @@ class AzureResponsesBackend:
     remains at the counted gateway boundary.
     """
 
-    def __init__(self, client: openai.OpenAI, deployments: dict[str, str]) -> None:
+    def __init__(
+        self, client: openai.OpenAI, deployments: dict[str, str], *, operator_funded: bool = False
+    ) -> None:
         self._client = client.with_options(max_retries=0)
         self._deployments = dict(deployments)
+        self._operator_funded = operator_funded
 
     @classmethod
     def from_environment(cls) -> AzureResponsesBackend:
@@ -373,7 +379,7 @@ class AzureResponsesBackend:
             max_retries=0,
             http_client=httpx.Client(follow_redirects=False),
         )
-        return cls(client, deployments)
+        return cls(client, deployments, operator_funded=True)
 
     def close(self) -> None:
         self._client.close()
@@ -396,11 +402,21 @@ class AzureResponsesBackend:
             ) from error
         return normalize_response(response, model)
 
+    def _dispatch_guard(self) -> None:
+        # A thread can become runnable after the gateway's policy check.
+        require_enabled()
+        if self._operator_funded:
+            from co_scientist.platform.llm.admission.service import current_db_path
+
+            paid_dispatch_config(current_db_path())
+
     def _stream_request(self, request: dict[str, Any]) -> openai.Stream[ResponseStreamEvent]:
+        self._dispatch_guard()
         return cast(
             openai.Stream[ResponseStreamEvent],
             self._client.responses.create(stream=True, **request),
         )
 
     def _response_request(self, request: dict[str, Any]) -> Response:
+        self._dispatch_guard()
         return cast(Response, self._client.responses.create(stream=False, **request))

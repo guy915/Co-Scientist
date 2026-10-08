@@ -14,6 +14,8 @@ export {IconButton, iconButtonClasses} from './icon_button';
 export {MENU_ITEM_CLASSES, Menu, MenuItem, SelectTrigger} from './menu';
 export {NavItemButton, NavItemLink} from './nav_item';
 export {Select} from './select';
+export {DocumentSkeleton, Skeleton, SkeletonRegion} from './skeleton';
+export type {SkeletonShape} from './skeleton';
 export {
   SectionNav,
   SegmentedControl,
@@ -21,7 +23,7 @@ export {
   TabNavLink,
   tabLinkClasses,
 } from './tabs';
-export {ErrorNotice, PageStatus, StatusText} from './states';
+export {ErrorNotice, StatusText} from './states';
 export type {StatusTone} from './states';
 export {TextArea, TextField, fieldClasses} from './text_field';
 export {Toast} from './toast';

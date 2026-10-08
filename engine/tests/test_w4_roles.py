@@ -13,7 +13,7 @@ from co_scientist.platform.llm import (
     call_llm_with_tools,
 )
 from co_scientist.platform.llm.profile import model_profile
-from co_scientist.platform.llm.roles import current_call_policy, scoped_call_policy
+from co_scientist.platform.llm.roles import CallRole, current_call_policy, scoped_call_policy
 from tests._llm_fake import (
     SEARCH_TOOL,
     echo_executor,
@@ -25,6 +25,51 @@ from tests._llm_fake import (
 
 LUNA = "azure/gpt-6-luna-2026-09-22"
 NANO = "azure/gpt-5-nano-2025-08-07"
+
+
+@pytest.mark.parametrize(
+    ("role", "effort"),
+    [
+        ("evidence_queries", "low"),
+        ("grounding_queries", "low"),
+        ("research_extract", "low"),
+        ("reflection", "medium"),
+        ("generation", "medium"),
+        ("overview_outline", "low"),
+    ],
+)
+async def test_free_route_receives_role_effort_without_changing_price_cap(
+    monkeypatch: pytest.MonkeyPatch, role: CallRole, effort: str
+) -> None:
+    captured: list[dict[str, Any]] = []
+
+    async def respond(**kwargs: Any) -> Any:
+        captured.append(kwargs)
+        return make_completion(make_message('{"ok":1}'))
+
+    install_fake_backend(monkeypatch, respond)
+    assert await call_llm_json(
+        "Answer",
+        CompletionSpec(model_name="openrouter/inclusionai/ling-3.1-flash", role=role),
+        max_attempts=1,
+    ) == {"ok": 1}
+    body = captured[0]["extra_body"]
+    assert body["reasoning"] == {"enabled": True, "effort": effort}
+    assert body["provider"]["max_price"] == {
+        "prompt": 0.0,
+        "completion": 0.0,
+        "request": 0.0,
+    }
+    assert "reasoning_effort" not in captured[0]
+
+
+@pytest.fixture(autouse=True)
+def funded_fake_azure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
+    monkeypatch.setenv("LLM_AZURE_UNTIL", "2099-01-04")
+    monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
 
 
 async def test_options_role_and_effort_survive_json_retry(monkeypatch: pytest.MonkeyPatch) -> None:

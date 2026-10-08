@@ -6,6 +6,7 @@ from typing import Any
 _ELISION = "\n[Context excerpt shortened; omitted text is not evidence of absence.]\n"
 _TURN = re.compile(r"(?=\n*Turn \d+:\n)")
 _WORDS = re.compile(r"[a-zA-Z]{3,}")
+_RECORD_UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", re.I)
 
 
 def bounded_excerpt(text: str, limit: int) -> str:
@@ -88,7 +89,9 @@ def compact_json_context(serialized: str, limit: int = 6_000) -> str:
         return bounded_excerpt(serialized, limit)
 
     def shorten(value: object, allowance: int, field: str = "") -> object:
-        if field in {"columns", "score_axes"} or field.endswith(("_id", "_verdict")):
+        if field in {"id", "verdict", "classification", "columns", "score_axes"} or field.endswith(
+            ("_id", "_verdict", "_classification", "_disposition")
+        ):
             return value
         if isinstance(value, str):
             if len(value) <= allowance:
@@ -118,13 +121,15 @@ def compact_json_context(serialized: str, limit: int = 6_000) -> str:
     # shrink; arbitrary slicing would produce invalid JSON and lose verdicts.
     allowance = 700
     result = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    while len(result) > limit and allowance >= 16:
+    while len(result) > limit:
         result = json.dumps(shorten(data, allowance), ensure_ascii=False, separators=(",", ":"))
-        allowance //= 2
+        if allowance == 16:
+            break
+        allowance = max(16, allowance // 2)
     return result
 
 
-def summarize_feedback(serialized: str, limit: int = 18_000) -> str:
+def summarize_feedback(serialized: str, limit: int = 10_000) -> str:
     try:
         records = json.loads(serialized)
     except (ValueError, TypeError):
@@ -193,7 +198,52 @@ def summarize_feedback(serialized: str, limit: int = 18_000) -> str:
             if latest_reviews and isinstance(latest_reviews[0], dict):
                 summary.update({f"latest_{key}": value for key, value in latest_reviews[0].items()})
         grouped.setdefault(kind, []).append(summary)
-    return compact_json_context(json.dumps(_feedback_tables(grouped)), limit)
+    tables = _feedback_tables(grouped)
+    return compact_json_context(json.dumps(_compact_feedback_identifiers(tables)), limit)
+
+
+def _compact_feedback_identifiers(tables: dict[str, Any]) -> dict[str, Any]:
+    # Repeated UUIDs dominate the essential skeleton after prose reaches its
+    # floor; references preserve full identifiers and winner-count keys.
+    strings: list[str] = []
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            strings.append(value)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                collect(key)
+                collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+
+    collect(tables)
+    counts = Counter(value for value in strings if _RECORD_UUID.fullmatch(value))
+    identifiers = sorted(value for value, count in counts.items() if count > 1)
+    if not identifiers:
+        return tables
+    reserved = set(strings)
+    prefix = "record"
+    while any(f"{prefix}_{index}_id" in reserved for index in range(1, len(identifiers) + 1)):
+        prefix = "_" + prefix
+    aliases = {value: f"{prefix}_{index}_id" for index, value in enumerate(identifiers, start=1)}
+
+    def replace(value: Any) -> Any:
+        if isinstance(value, str):
+            return aliases.get(value, value)
+        if isinstance(value, dict):
+            return {aliases.get(key, key): replace(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [replace(item) for item in value]
+        return value
+
+    result: dict[str, Any] = replace(tables)
+    field = "record_ids"
+    while field in result:
+        field = "_" + field
+    result[field] = {alias: value for value, alias in aliases.items()}
+    return result
 
 
 def _feedback_tables(grouped: dict[str, list[dict[str, object]]]) -> dict[str, Any]:

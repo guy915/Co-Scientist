@@ -53,7 +53,8 @@ changing a service. Confirm these settings on the intended release:
 
 Ownership is a per-browser client ID: neither CORS nor client-selected IDs
 establish identity, so treat runs as private-by-obscurity, not authenticated.
-Configure trusted proxy handling for per-IP limits.
+Set `COSCIENTIST_TRUSTED_PROXY_CIDRS` and check it before you open admission
+([trusted visitor addresses](TRUSTED-PROXY.md)).
 
 Deploy the validated revision through the established release process.
 Record the commit and deployment identifiers, health/readiness results, and
@@ -104,6 +105,10 @@ Run the steps in order; each ends with a check.
    deployment has served real runs.
 
 ## Backup and restore
+
+With R2 replication on, the API verifies a fresh backup every day
+([deployment](DEPLOYMENT.md#database-replication-optional)). Take manual
+backups as well before risky changes.
 
 Create a consistent SQLite backup through the backup API rather than copying
 only the `.db` while its WAL may contain committed work. From the repo root:

@@ -156,7 +156,7 @@ function smoothSectionClick(
 export function SectionsRail() {
   return (
     <Card
-      as="aside"
+      as="section"
       size="panel"
       layoutClassName="idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start max-[1023px]:hidden"
       aria-label="Sections"
@@ -164,7 +164,7 @@ export function SectionsRail() {
       <span className="text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text">
         Sections
       </span>
-      <nav className="mt-5 grid gap-6">
+      <nav aria-label="Hypothesis sections" className="mt-5 grid gap-6">
         {RAIL_SECTIONS.map(item => (
           <a
             key={item}
@@ -281,6 +281,17 @@ export function HypothesisDetailSections({
       aria-label="Hypothesis detail"
     >
       <DetailSection title={SECTIONS.overview}>
+        {hypothesis.screened && (
+          <details className="mb-3 rounded border border-th-border p-3 text-sm">
+            <summary className="cursor-pointer font-medium focus-visible:outline-2 focus-visible:outline-th-ring">
+              Screened, not deep-verified
+            </summary>
+            <p className="mt-2">
+              This idea passed the safety screen and a screening review. It was
+              not selected for finalist review or deep verification.
+            </p>
+          </details>
+        )}
         <p>{hypothesis.statement}</p>
       </DetailSection>
 

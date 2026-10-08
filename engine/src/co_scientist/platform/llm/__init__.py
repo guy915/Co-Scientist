@@ -1,15 +1,12 @@
 """Lazy exports avoid re-entering foundation modules while half-initialized."""
 
 import importlib
+import sys
 from typing import TYPE_CHECKING, Any
 
-# Keep the supported co_scientist.platform.llm.litellm.acompletion patch seam.
-import litellm as litellm
-
-# LiteLLM's provider banner is a print that only suppress_debug_info stops.
-litellm.suppress_debug_info = True
-
 if TYPE_CHECKING:
+    import litellm as litellm
+
     from co_scientist.core.metrics import ModelCallStats
     from co_scientist.platform.llm.admission.call_budget import (
         current_run_call_count,
@@ -144,9 +141,18 @@ if not TYPE_CHECKING:
     # accepted.
 
     def __getattr__(name: str) -> Any:
+        if name == "litellm":
+            value = importlib.import_module(name)
+            value.suppress_debug_info = True
+            globals()[name] = value
+            return value
         module = _EXPORTS.get(name)
         if module is None:
             raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
         value = getattr(importlib.import_module(module), name)
+        # Budget-only exports must stay SDK-free; request exports suppress
+        # the SDK's print-based banner once their dependency is loaded.
+        if "litellm" in sys.modules:
+            importlib.import_module("litellm").suppress_debug_info = True
         globals()[name] = value
         return value

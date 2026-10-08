@@ -19,6 +19,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
 
@@ -43,7 +44,7 @@ FALLBACK_ANNOUNCEMENT = (
     "it might take a few minutes for the first ideas to be ready to view."
 )
 
-_SYSTEM_PROMPT = """You are the Agent in Google Hypothesis Generation.
+_SYSTEM_PROMPT = """You are the Agent in Open Co-Scientist.
 
 The scientist has just started a research session. The multi-agent system is
 already exploring their goal on its own, and a card naming the session --
@@ -77,6 +78,7 @@ def _announcement_prompt(run: RunRow) -> str:
 
 
 def _delta_text(chunk: Any) -> tuple[str, str]:
+    check_text_response(chunk)
     if not chunk.choices:
         return "", ""
     delta = chunk.choices[0].delta
@@ -188,17 +190,18 @@ async def _announcement_attempts(
     """A clean stream ending with reasoning alone gets one thinking-off
     retry; that is distinct from provider failure.
     """
+    retry = ReasoningRetry()
     with byok_scope.scoped_byok(byok):
-        async for frame in _relay_announcement(run, prose, reasoning):
-            yield frame
-        if "".join(prose).strip() or not "".join(reasoning).strip():
-            return
-        logger.info(
-            "session announcement for run %s reasoned and wrote nothing; retrying without thinking",
-            run.id,
-        )
-        async for frame in _relay_announcement(run, prose, reasoning, thinking_enabled=False):
-            yield frame
+        for thinking_enabled in retry.attempts():
+            if not thinking_enabled:
+                logger.info(
+                    "session announcement reasoned and wrote nothing; retrying without thinking"
+                )
+            async for frame in _relay_announcement(
+                run, prose, reasoning, thinking_enabled=thinking_enabled
+            ):
+                yield frame
+            retry.observe(prose="".join(prose), reasoned=bool("".join(reasoning).strip()))
 
 
 @budgeted_stream("announcement")

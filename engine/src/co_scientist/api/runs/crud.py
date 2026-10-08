@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Protocol
 
@@ -44,13 +45,15 @@ from co_scientist.platform import db
 from co_scientist.platform.db import Connection, checkpoints
 from co_scientist.platform.db import runs as store
 from co_scientist.platform.db.admission import claim_run, connecting_host
+from co_scientist.platform.db.llm_routes import admit_route
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from co_scientist.platform.db.runs import RunCreateOptions
 from co_scientist.platform.llm.execution_policy import (
     ZERO_COST_CONFIG_KEY,
     deployment_routes_are_free,
 )
-from co_scientist.platform.llm.process_mode import offline_mode
+from co_scientist.platform.llm.process_mode import offline_mode, production_routing_enabled
+from co_scientist.platform.llm.routing import RoutingAdmission, available_slots, express_estimate
 
 
 async def _resolve_byok(request: Request) -> byok_scope.ByokCredential | None:
@@ -282,6 +285,8 @@ class _ResolvedSetup:
     staged_documents: list[dict[str, Any]]
     settings: _ResolvedRunSettings
     free_usage: bool = False
+    routing: RoutingAdmission | None = None
+    estimate: int = 0
 
 
 def _admit_request(
@@ -334,7 +339,25 @@ async def _resolve_setup(
         free_usage_api.check_request(resolved_request, settings.run_mode)
         if deployment_routes_are_free():
             settings = settings._replace(config={**settings.config, ZERO_COST_CONFIG_KEY: True})
-    return _ResolvedSetup(resolved_request, interview, byok, staged, settings, free)
+    routing = None
+    estimate = 0
+    if free and production_routing_enabled():
+        try:
+            routing = available_slots(db.default_db_path() or "./coscientist.db")
+            estimate = (
+                express_estimate(resolved_request.research_goal, settings.config, routing.azure)
+                if routing.azure
+                else 0
+            )
+        except ProviderAdmissionError as error:
+            raise HTTPException(503, str(error)) from error
+        # Recovery can replay only the run's original all-free contract.
+        # Any admitted credit/paid slot makes unknown outcomes non-replayable.
+        all_free = routing.slots == ("openrouter",)
+        settings = settings._replace(config={**settings.config, ZERO_COST_CONFIG_KEY: all_free})
+    return _ResolvedSetup(
+        resolved_request, interview, byok, staged, settings, free, routing, estimate
+    )
 
 
 def _persist_setup_transaction(
@@ -348,6 +371,9 @@ def _persist_setup_transaction(
 ]:
 
     def persist_run(conn: Connection) -> RunRow:
+        from co_scientist.platform.db.launch_control import require_unpaused
+
+        require_unpaused(conn=conn)
         run = callbacks.persist_new_run(
             setup.request,
             request,
@@ -364,6 +390,14 @@ def _persist_setup_transaction(
             connecting_host(request.client.host if request.client else None),
             free=setup.free_usage,
         )
+        if setup.routing is not None:
+            admit_route(
+                conn,
+                run.id,
+                slots=setup.routing.slots,
+                estimate=setup.estimate,
+                total=setup.routing.azure.total if setup.routing.azure else None,
+            )
         return run
 
     try:
@@ -508,6 +542,16 @@ async def _generate_run_text(
         return await generate(goal)
 
 
+@contextmanager
+def _run_text_scope(run_id: str) -> Iterator[None]:
+    from co_scientist.platform.llm.admission.service import scoped_client
+    from co_scientist.platform.telemetry.logging_setup import run_log_context
+
+    run = store.get_run(run_id)
+    with scoped_client(run.client_id if run else ""), run_log_context(run_id):
+        yield
+
+
 async def _populate_run_title(
     run_id: str,
     goal: str,
@@ -516,7 +560,8 @@ async def _populate_run_title(
     """Background titling preserves interview-chosen titles and leaves goal-
     clause fallback available when generation fails.
     """
-    title = await _generate_run_text(goal, byok)
+    with _run_text_scope(run_id):
+        title = await _generate_run_text(goal, byok)
     if title:
         store.set_run_title(run_id, title)
 
@@ -529,7 +574,8 @@ async def _populate_goal_restatement(
     """Goal restatement is a distinct report artifact, independent of
     whether the interview supplied a title.
     """
-    restatement = await _generate_run_text(goal, byok, restatement=True)
+    with _run_text_scope(run_id):
+        restatement = await _generate_run_text(goal, byok, restatement=True)
     if restatement:
         store.set_run_goal_restatement(run_id, restatement)
 

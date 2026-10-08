@@ -18,6 +18,7 @@ from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.llm.offline import llm as offline_llm
 from co_scientist.platform.llm.request import backend
+from co_scientist.platform.llm.request.completion import _inject_schema_into_prompt
 from co_scientist.platform.retrieval import mcp_client
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -55,6 +56,14 @@ class _PromptRecorder:
             len(self.encoding.encode(str(message.get("content") or ""), disallowed_special=()))
             for message in kwargs.get("messages") or [{}]
         )
+        if schema := (kwargs.get("response_format") or {}).get("json_schema"):
+            # Free routes may put the same required schema into message text.
+            tokens += len(
+                self.encoding.encode(_inject_schema_into_prompt("", schema), disallowed_special=())
+            )
+        for field in ("tools", "functions"):
+            if definitions := kwargs.get(field):
+                tokens += len(self.encoding.encode(json.dumps(definitions), disallowed_special=()))
         started = time.perf_counter()
         try:
             return await self.inner.complete(**kwargs)
@@ -140,7 +149,10 @@ def test_every_call_fits_its_prompt_envelope(
                     "tier": tier,
                     **measured,
                     "elapsed_minutes": (time.perf_counter() - started) / 60,
-                    "estimator": "cl100k_base message content; excludes provider framing",
+                    "estimator": (
+                        "cl100k_base message content, schemas at inline-fallback size and tool "
+                        "definitions; excludes provider framing"
+                    ),
                     "prompt_usage": {
                         key: dataclasses.asdict(row) for key, row in prompt_usage.items()
                     },

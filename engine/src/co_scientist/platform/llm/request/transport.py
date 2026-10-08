@@ -9,15 +9,45 @@ from contextvars import copy_context
 from typing import Any
 
 from litellm.exceptions import Timeout as LiteLLMTimeout
+from openai import APIStatusError
 from opentelemetry.trace import Span
 
-from co_scientist.core.exceptions import LLMTimeoutError
+from co_scientist.core import inflight
+from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
 from co_scientist.platform.db.admission import ProviderReservation
+from co_scientist.platform.llm.admission.anthropic import (
+    mark_credit_exhausted,
+    require_credit_available,
+)
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.free_policy import enforce_free_request
-from co_scientist.platform.llm.admission.service import reserve_physical, settle_physical
+from co_scientist.platform.llm.admission.service import (
+    current_db_path,
+    reserve_physical,
+    settle_physical,
+)
+from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
+from co_scientist.platform.llm.profile import model_profile
+from co_scientist.platform.llm.request.anthropic import (
+    API_BASE,
+    AnthropicSlotUnavailableError,
+    is_credit_error,
+    require_prompt_fits,
+)
+from co_scientist.platform.llm.request.azure import LUNA, NANO
 from co_scientist.platform.llm.request.backend import active_backend
-from co_scientist.platform.llm.request.thinking import apply_provider_constraints
+from co_scientist.platform.llm.request.cache import (
+    HAIKU,
+    apply_dispatch_cache_key,
+    apply_prompt_cache,
+)
+from co_scientist.platform.llm.request.response import is_model_refusal
+from co_scientist.platform.llm.request.thinking import (
+    _apply_thinking_args,
+    apply_provider_constraints,
+)
+from co_scientist.platform.llm.roles import current_call_policy
+from co_scientist.platform.llm.routing import routed_completion, routing_scope
 from co_scientist.platform.llm.telemetry import (
     end_request_span,
     record_completion_failure,
@@ -38,8 +68,10 @@ class _CompletionStream:
         start: float,
         span: Span,
         receipt: ProviderReservation | None,
+        call: inflight.CallMark,
     ) -> None:
         self._response = response
+        self._call = call
         self._iterator = response.__aiter__()
         self._model = model
         self._start = start
@@ -48,6 +80,7 @@ class _CompletionStream:
         self._last = response
         self._done = False
         self._receipt = receipt
+        self._refused = False
 
     def __aiter__(self) -> "_CompletionStream":
         return self
@@ -60,7 +93,11 @@ class _CompletionStream:
             raise
         except BaseException as error:
             self._finish(error)
+            if self._receipt is not None and self._receipt.credit and is_credit_error(error):
+                mark_credit_exhausted(self._receipt.db_path)
+                raise AnthropicSlotUnavailableError("No model is available right now") from error
             raise
+        self._refused = self._refused or is_model_refusal(chunk)
         if getattr(chunk, "usage", None) is not None:
             self._last = chunk
         return chunk
@@ -70,18 +107,41 @@ class _CompletionStream:
             return
         self._done = True
         latency = time.monotonic() - self._start
+        _note_answer(self._call, error)
         if error is None:
-            settle_physical(self._receipt, self._last)
-            self._context.run(record_completion_response, self._model, self._last, latency)
+            try:
+                settle_physical(self._receipt, self._last)
+            except BaseException as settlement_error:
+                self._context.run(
+                    record_completion_failure,
+                    self._model,
+                    settlement_error,
+                    latency,
+                    refused=self._refused,
+                )
+                end_request_span(self._span, self._last, settlement_error, refused=self._refused)
+                raise
+            self._context.run(
+                record_completion_response, self._model, self._last, latency, refused=self._refused
+            )
         else:
-            self._context.run(record_completion_failure, self._model, error, latency)
-        end_request_span(self._span, self._last, error)
+            self._context.run(
+                record_completion_failure, self._model, error, latency, refused=self._refused
+            )
+        end_request_span(self._span, self._last, error, refused=self._refused)
 
     async def aclose(self) -> None:
         self._finish(asyncio.CancelledError())
         close = getattr(self._response, "aclose", None)
         if close is not None:
             await close()
+
+
+# Only an HTTP status the provider returned proves the request was answered;
+# connection loss, timeouts and cancellation leave its outcome unknown.
+def _note_answer(call: inflight.CallMark, error: BaseException | None) -> None:
+    if error is None or isinstance(error, APIStatusError):
+        call.answered()
 
 
 async def _await_provider(
@@ -98,7 +158,92 @@ async def _await_provider(
         ) from exc
 
 
+def _routed_args(original: dict[str, Any], model: str) -> dict[str, Any]:
+    from co_scientist.core.config import settings
+
+    args = dict(original)
+    output = args.pop(
+        "max_completion_tokens", args.get("max_tokens", settings.app_llm_max_output_tokens)
+    )
+    for key in (
+        "extra_body",
+        "api_key",
+        "api_base",
+        "thinking",
+        "output_config",
+        "allowed_openai_params",
+        "reasoning_effort",
+        "cache_control",
+        "prompt_cache_key",
+    ):
+        args.pop(key, None)
+    args["model"] = model
+    args["max_tokens"] = output
+    args["messages"] = [dict(message) for message in original.get("messages", ())]
+    fmt = args.get("response_format") or {}
+    if fmt.get("type") == "json_schema" and not model_profile(model).json_schema:
+        from co_scientist.platform.llm.request.completion import _inject_schema_into_prompt
+
+        for message in reversed(args["messages"]):
+            if message.get("role") == "user" and isinstance(message.get("content"), str):
+                message["content"] = _inject_schema_into_prompt(
+                    message["content"], fmt["json_schema"]
+                )
+                break
+        args.pop("response_format", None)
+    elif fmt and fmt.get("type") != "json_schema" and not model_profile(model).json_object:
+        args.pop("response_format", None)
+    policy = current_call_policy()
+    _apply_thinking_args(args, model, policy.enable_thinking)
+    if model in (LUNA, NANO):
+        args["reasoning_effort"] = policy.effort
+    long_roles = {"overview", "meta_review", "literature_analysis"}
+    ceiling = 600.0 if policy.role in long_roles else 180.0
+    requested_timeout = args.get("timeout")
+    args["timeout"] = (
+        min(ceiling, float(requested_timeout)) if requested_timeout is not None else ceiling
+    )
+    return args
+
+
 async def complete_request(
+    completion_args: dict[str, Any],
+    model_name: str,
+    *,
+    byok: bool,
+    timeout_seconds: float | None,
+    timeout_grace_seconds: float = 0.0,
+    before_dispatch: Callable[[], None] | None = None,
+) -> Any:
+    async def dispatch(args: dict[str, Any], model: str) -> Any:
+        requested = args.get("timeout", timeout_seconds)
+        timeout = float(requested) if requested is not None else None
+        return await _complete_physical(
+            args,
+            model,
+            byok=byok,
+            timeout_seconds=timeout,
+            timeout_grace_seconds=timeout_grace_seconds,
+            before_dispatch=before_dispatch,
+        )
+
+    if (
+        byok
+        or routing_scope() is None
+        or model_name.startswith("offline/")
+        or not getattr(active_backend(), "operator_routing", False)
+    ):
+        return await dispatch(completion_args, model_name)
+    return await routed_completion(
+        completion_args,
+        model_name,
+        dispatch=dispatch,
+        prepare=_routed_args,
+        refused=is_model_refusal,
+    )
+
+
+async def _complete_physical(
     completion_args: dict[str, Any],
     model_name: str,
     *,
@@ -112,8 +257,27 @@ async def complete_request(
     """
     from co_scientist.core.config import settings
 
+    require_enabled()
+    native_model = str(completion_args.get("model", "")).replace("azure/responses/", "azure/")
+    if byok and native_model in (LUNA, NANO):
+        # The native deployment client owns its key; a caller key cannot
+        # establish caller funding for this route.
+        raise ProviderAdmissionError("No model is available right now")
     apply_provider_constraints(completion_args, model_name)
+    apply_prompt_cache(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
+    input_tokens_bound = None
+    if not byok and model_name == HAIKU:
+        try:
+            input_tokens_bound = await require_prompt_fits(completion_args, current_db_path())
+        except BaseException as preflight_error:
+            if is_credit_error(preflight_error):
+                mark_credit_exhausted(current_db_path())
+                raise AnthropicSlotUnavailableError(
+                    "No model is available right now"
+                ) from preflight_error
+            raise
+        completion_args["api_base"] = API_BASE
     record_provider_request()
     receipt = None
     if not byok:
@@ -121,11 +285,18 @@ async def complete_request(
         # to the SDK. Admission covers every scientific and app retry here.
         if "max_completion_tokens" not in completion_args:
             completion_args.setdefault("max_tokens", settings.app_llm_max_output_tokens)
-        receipt = reserve_physical(completion_args)
+        receipt = reserve_physical(completion_args, input_tokens_bound=input_tokens_bound)
     if before_dispatch is not None:
         before_dispatch()
+    require_enabled()
+    if receipt is not None and receipt.paid:
+        paid_dispatch_config(receipt.db_path)
+    if receipt is not None and receipt.credit:
+        require_credit_available(receipt.db_path, dispatch=True)
+    apply_dispatch_cache_key(completion_args, model_name)
     span = start_request_span(model_name, completion_args)
     start = time.monotonic()
+    call = await inflight.begin_provider_call()
     try:
         response = await _await_provider(
             completion_args, model_name, timeout_seconds, timeout_grace_seconds
@@ -140,12 +311,22 @@ async def complete_request(
         end_request_span(span, None, error)
         raise error from exc
     except BaseException as exc:
+        _note_answer(call, exc)
         record_completion_failure(model_name, exc, time.monotonic() - start)
         end_request_span(span, None, exc)
+        if receipt is not None and receipt.credit and is_credit_error(exc):
+            mark_credit_exhausted(receipt.db_path)
+            raise AnthropicSlotUnavailableError("No model is available right now") from exc
         raise
     if completion_args.get("stream"):
-        return _CompletionStream(response, model_name, start, span, receipt)
-    settle_physical(receipt, response)
+        return _CompletionStream(response, model_name, start, span, receipt, call)
+    call.answered()
+    try:
+        settle_physical(receipt, response)
+    except BaseException as settlement_error:
+        record_completion_failure(model_name, settlement_error, time.monotonic() - start)
+        end_request_span(span, response, settlement_error)
+        raise
     record_completion_response(model_name, response, time.monotonic() - start)
     end_request_span(span, response, None)
     return response

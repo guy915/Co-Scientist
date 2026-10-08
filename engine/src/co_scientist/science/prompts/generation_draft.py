@@ -8,7 +8,11 @@ from co_scientist.science.prompts._common import (
     _run_guidance_section,
     format_lab_constraints_section,
 )
-from co_scientist.science.prompts.context_budget import bounded_excerpt, select_evidence_excerpt
+from co_scientist.science.prompts.context_budget import (
+    bounded_excerpt,
+    select_evidence_excerpt,
+    summarize_references,
+)
 from co_scientist.science.prompts.loading import _build_prompt
 from co_scientist.science.prompts.untrusted import untrusted_evidence
 
@@ -264,7 +268,7 @@ def _build_draft_prompt_variables(req: DraftPromptRequest) -> dict[str, Any]:
             else bounded_excerpt(format_articles_metadata(req.articles or []), 2_000),
         ),
         "citation_reference_section": _build_citation_reference_section(
-            untrusted_evidence("citation provenance", req.reference_list)
+            untrusted_evidence("citation provenance", summarize_references(req.reference_list))
             if req.reference_list
             else ""
         ),

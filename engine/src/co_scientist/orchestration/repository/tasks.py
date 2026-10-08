@@ -46,6 +46,9 @@ from co_scientist.orchestration.repository.tasks_lifecycle import (
     queue_health_snapshot as queue_health_snapshot,
 )
 from co_scientist.orchestration.repository.tasks_lifecycle import (
+    release_owned_leases as release_owned_leases,
+)
+from co_scientist.orchestration.repository.tasks_lifecycle import (
     renew_task_lease as renew_task_lease,
 )
 from co_scientist.orchestration.repository.tasks_lifecycle import (
@@ -201,6 +204,24 @@ def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
         f"AND ({_ENGINE_RUN_STATUS_GUARD})",
         (now, now),
     )
+
+
+def expire_earlier_process_leases(process_tag: str, *, db_path: str | None = None) -> int:
+    """The api runs as one replica, so at startup a live lease without this
+    process's tag belongs to a stopped process; ordinary expiry decides it.
+    Paused runs keep theirs, since rescue skips them and resume would revive.
+    """
+    with transaction(db_path) as conn:
+        now = current_time()
+        expired = conn.execute(
+            "UPDATE scientific_tasks SET lease_expires_at=?, updated_at=? "
+            "WHERE status='leased' AND lease_expires_at>? AND instr(lease_owner, ?)=0 "
+            f"AND ({_ENGINE_RUN_STATUS_GUARD})",
+            (now, now, now, f".{process_tag}:"),
+        ).rowcount
+        if expired:
+            _rescue_expired_leases(conn, now)
+    return int(expired)
 
 
 def _queued_tasks_query(run_id: str | None, now: float) -> tuple[str, list[Any]]:

@@ -29,7 +29,7 @@ def test_restore_drill_drops_credentials_and_does_not_load_repository_dotenv(
     ):
         monkeypatch.setenv(name, "must-not-reach-the-drill")
     environment = isolated_environment(tmp_path, tmp_path / "restored.db")
-    assert environment["COSCIENTIST_FORCE_OFFLINE"] == "1"
+    assert environment["COSCIENTIST_TEST_DOUBLE"] == "deterministic"
     assert environment["OTEL_SDK_DISABLED"] == "true"
     assert environment["COSCIENTIST_LITESTREAM_ACTIVE"] == "1"
     assert environment["LITELLM_LOCAL_MODEL_COST_MAP"] == "True"

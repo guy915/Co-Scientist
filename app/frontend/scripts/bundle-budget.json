@@ -54,5 +54,21 @@
     ],
     "js": 200000,
     "css": 24000
+  },
+  "spend": {
+    "entries": [
+      "index.html",
+      "src/features/diagnostics/spend_view.tsx"
+    ],
+    "js": 200000,
+    "css": 24000
+  },
+  "operations": {
+    "entries": [
+      "index.html",
+      "src/features/diagnostics/launch_operations.tsx"
+    ],
+    "js": 200000,
+    "css": 24000
   }
 }

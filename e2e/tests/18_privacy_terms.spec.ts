@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import {
   assertNoHorizontalOverflow,
   captureViewport,
@@ -21,9 +22,10 @@ for (const theme of ["light", "dark"]) {
             exact: true,
           }),
         ).toBeVisible();
+        await expect(page.getByText("Updated · 8 October 2026")).toBeVisible();
         await expect(
           page.getByText(
-            "This text is not legal advice; the owner reviews it before launch.",
+            "This text is not legal advice.",
           ),
         ).toBeVisible();
         await expect(
@@ -70,8 +72,13 @@ test("landing footer links to both notices and sitemap lists them", async ({
   await page
     .getByRole("button", { name: "Scroll to see how Open Co-Scientist works" })
     .click();
-  const footer = page.getByRole("contentinfo");
+  const footer = page.getByRole("navigation", { name: "Legal information" });
   await footer.scrollIntoViewIfNeeded();
+  await expect(footer.locator("..")).toHaveJSProperty("tagName", "FOOTER");
+  const audit = await new AxeBuilder({ page })
+    .withRules(["landmark-contentinfo-is-top-level"])
+    .analyze();
+  expect(audit.violations).toEqual([]);
   await expect(
     footer.getByRole("link", { name: "Privacy notice" }),
   ).toHaveAttribute("href", "/privacy");

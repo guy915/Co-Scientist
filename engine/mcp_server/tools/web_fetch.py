@@ -7,6 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from mcp_server.http_client import make_client
+from mcp_server.log_privacy import failure_summary
 from mcp_server.pdf_parser import extract_text_from_pdf
 from mcp_server.safe_http import UnsafeUrlError, get_with_screened_redirects, validate_http_url
 from mcp_server.text_extraction import truncate_markdown
@@ -95,7 +96,7 @@ def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
     try:
         soup = BeautifulSoup(html, "lxml")
     except Exception as exc:
-        logger.warning("HTML parse failed: %s", exc)
+        logger.warning("HTML parse failed (%s)", failure_summary(exc))
         return "[error: could not parse HTML]"
 
     for tag in soup.find_all(list(_CHROME_TAGS)):
@@ -174,20 +175,20 @@ async def read_url(url: str, max_chars: int = 50_000) -> dict[str, Any]:
         # In a worker thread: the screen resolves DNS with blocking socket
         # calls, which would stall every other in-flight tool call.
         await asyncio.to_thread(check_fetchable, url)
-    except UrlNotFetchableError as exc:
-        logger.info("Blocked fetch of %s: %s", url, exc)
+    except UrlNotFetchableError:
+        logger.info("Blocked URL fetch")
         return failed("blocked URL")
 
     try:
         text = await _fetch_and_render(url)
-    except UrlNotFetchableError as exc:
-        logger.info("Blocked redirect while fetching %s: %s", url, exc)
+    except UrlNotFetchableError:
+        logger.info("Blocked URL redirect")
         return failed("blocked URL")
     except httpx.HTTPStatusError as exc:
-        logger.info("Fetch of %s returned %s", url, exc.response.status_code)
+        logger.info("URL fetch returned HTTP %d", exc.response.status_code)
         return failed(exc)
     except httpx.HTTPError as exc:
-        logger.warning("Fetch of %s failed: %s", url, exc)
+        logger.warning("URL fetch transport failed (%s)", failure_summary(exc))
         return failed(exc)
 
     return ok([{"url": url, "content": text[:max_chars]}])

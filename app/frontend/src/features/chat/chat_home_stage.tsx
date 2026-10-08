@@ -434,7 +434,7 @@ const RECENTS_PANEL_CLASSES =
 const RECENTS_PANEL_EMPTY_CLASSES = 'grid-rows-[auto_1fr] self-stretch pb-8';
 
 const RECENTS_LIST_CLASSES =
-  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-10 desktop:scroll-p-[0.55rem_0.55rem_2.15rem] desktop:gap-11';
+  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-7 desktop:scroll-p-[0.55rem_0.55rem_2.15rem]';
 
 // Background-independent masks soften the scroll edge in both themes without
 // matching surface colors; symmetric 1181px+ insets leave scrollbar slack so

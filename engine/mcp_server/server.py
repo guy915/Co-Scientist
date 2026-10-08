@@ -1,5 +1,8 @@
+import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -9,6 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 
+from mcp_server.log_format import configure_json_logging, route_library_loggers
+
+configure_json_logging()
+
 # Load the server's co-located .env before importing tools that read it.
 # Deployments can also supply these variables directly.
 logger = logging.getLogger(__name__)
@@ -17,26 +24,27 @@ if env_path.exists():
     load_dotenv(dotenv_path=env_path)
     logger.info("Loaded environment from %s", env_path)
 else:
-    logger.warning(".env file not found at %s - using system environment only", env_path)
+    logger.info("No .env file at %s; using the process environment", env_path)
 
 configured_log_level = (
     os.environ.get("COSCIENTIST_MCP_LOG_LEVEL") or os.environ.get("LOG_LEVEL", "INFO")
 ).upper()
 log_level = getattr(logging, configured_log_level, logging.INFO)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 
 # Only this package's logger honors the configured LOG_LEVEL; third-party
 # libraries stay at the INFO default set above.
 logging.getLogger("mcp_server").setLevel(log_level)
 
+from mcp_server.log_privacy import install_transport_log_privacy
+
+install_transport_log_privacy()
+
 from mcp_server.auth_middleware import (
+    MCP_LOCAL_AUTH_ENV,
     SharedSecretAuthMiddleware,
     resolve_shared_secret,
 )
+from mcp_server.cache_privacy import migrate_literature_cache
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools.biomedical_databases import (
     search_chembl,
@@ -140,7 +148,16 @@ logger.info(
 # and cleanup.
 # Stateless HTTP avoids restart/replica session affinity.
 mcp_http_app = mcp.http_app(stateless_http=True)
-app = FastAPI(lifespan=mcp_http_app.lifespan)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await asyncio.to_thread(migrate_literature_cache)
+    async with mcp_http_app.lifespan(app):
+        yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Only server callers use MCP; browsers need no trusted origin or credentialed
 # CORS.
@@ -157,7 +174,11 @@ _mcp_shared_secret = resolve_shared_secret()
 app.add_middleware(SharedSecretAuthMiddleware, secret=_mcp_shared_secret)
 logger.info(
     "MCP shared-secret auth: %s",
-    "enabled" if _mcp_shared_secret else "disabled (env var unset)",
+    "enabled"
+    if _mcp_shared_secret
+    else "loopback development exception"
+    if os.environ.get(MCP_LOCAL_AUTH_ENV) == "1"
+    else "requests refused (shared secret unset)",
 )
 
 
@@ -191,6 +212,7 @@ async def root() -> JSONResponse:
 
 # Mount after root so health JSON wins before the catch-all MCP application.
 app.mount("/", mcp_http_app)
+route_library_loggers()
 
 if __name__ == "__main__":
     port = int(os.environ.get("COSCIENTIST_MCP_PORT", 8888))

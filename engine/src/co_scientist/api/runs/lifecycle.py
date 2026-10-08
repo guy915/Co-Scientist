@@ -15,6 +15,7 @@ from co_scientist.api.runs.models import SafetyAdjudicationRequest, StartRunRequ
 from co_scientist.api.runs.support import _run_or_404
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
+from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.domains.research_state.repository import records
 from co_scientist.orchestration.repository import events, tasks
 from co_scientist.orchestration.repository import runs_views as views
@@ -28,6 +29,7 @@ from co_scientist.platform.db.models import (
     RunStatus,
     ScientificTask,
 )
+from co_scientist.platform.llm.routing import prepare_readmission, recheck_readmission
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,11 @@ def _queue_resume_workflow(
     expected_status: str,
     expected_lifecycle_revision: int,
 ) -> ScientificTask:
+    before = _run_or_404(run_id)
+    try:
+        admission = prepare_readmission(run_id, before.research_goal, before.config)
+    except ProviderAdmissionError as error:
+        raise HTTPException(503, str(error)) from error
     with db.transaction() as conn:
         _check_resume_admission(
             run_id,
@@ -128,6 +135,10 @@ def _queue_resume_workflow(
             conn=conn,
         )
         run = _run_or_404(run_id, conn=conn)
+        try:
+            recheck_readmission(conn, run_id, admission)
+        except ProviderAdmissionError as error:
+            raise HTTPException(503, str(error)) from error
         if not runs.has_run_capacity_in_transaction(
             conn, run.id, run.client_id, settings.max_concurrent_runs
         ):
@@ -270,7 +281,18 @@ def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
 def _enqueue_workflow_and_maybe_launch_worker(
     run: RunRow, background: BackgroundTasks
 ) -> ScientificTask:
+    try:
+        admission = prepare_readmission(run.id, run.research_goal, run.config)
+    except ProviderAdmissionError as error:
+        raise HTTPException(503, str(error)) from error
     with db.transaction() as conn:
+        from co_scientist.platform.db.launch_control import require_unpaused
+
+        require_unpaused(conn=conn)
+        try:
+            recheck_readmission(conn, run.id, admission)
+        except ProviderAdmissionError as error:
+            raise HTTPException(503, str(error)) from error
         _reserve_capacity_or_409(run, conn)
         lifecycle.revive_task_for_retry(
             run.id,

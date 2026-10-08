@@ -55,10 +55,12 @@ at import time, never by importing upward:
 ```
 co_scientist/
   main            composition root: FastAPI app, lifespan, worker startup
+  serving         production ASGI factory: trusted-proxy visitor address
   api/            runs/ (lifecycle, read, chat, SSE), interviews/, contracts/,
                   tracing (HTTP spans),
                   documents, uploads, free_usage, byok_models, feedback_api,
-                  logs_api, diagnostics, auth, operator_access, request_limits
+                  logs_api, diagnostics, auth, operator_access, request_limits,
+                  launch_admission, launch_control_api, trusted_proxy
   orchestration/  engine_tasks/ (durable node, fan-out and match executor,
                   report_finalize), task_worker/ (leased cohorts),
                   repository/ (tasks, tasks_lifecycle, events, receipts, runs_views),
@@ -84,7 +86,7 @@ co_scientist/
     llm/          request/ (wire policy, thinking), profile/ (ModelProfile),
                   structured/, tools/, admission/, attempts/, offline/,
                   provider_usage, llm_request, scoped_loop, tool_effects
-    sandbox/      confinement (landlock, seccomp, cgroups, seatbelt), runner,
+    sandbox/      confinement (landlock, seccomp, cgroups, seatbelt modules), runner,
                   workspace/, skills/, patch/
     db/           schema, models, runs, checkpoints, supervisor_plan,
                   admission, call_admission, storage_admission,
@@ -145,8 +147,9 @@ Events 1-2 come from the HTTP layer. Events 3-5 come from the worker:
 `safety.intake` is the `engine.bootstrap` task's first act
 (`orchestration/engine_tasks/inputs.py::_screen_bootstrap_intake`, which is
 also where the run flips to `running`), then one `scientific_task` per node
-commit. Events 6-11 come from the terminal `engine.finalize` task
-(`orchestration/engine_tasks/report_finalize.py::finalize_report`), which is
+commit. Events 6-11 come from the terminal `engine.finalize` task: 6-8 from
+`orchestration/engine_tasks/finalize.py::_finalize_stage_events` and 9-11
+from `orchestration/engine_tasks/report_finalize.py::finalize_report`. This is
 why the citation audit lands after `research_overview`. There is no
 `status (running)` event: the transition is a `runs` row update.
 
@@ -189,6 +192,7 @@ owning module; other modules go through it.
 | `run_credentials`, `free_run_usage` | `domains/access/` | encrypted BYOK keys and the free-generation allowance |
 | `feedback`, `feedback_admissions` | `domains/feedback/repository.py` | newest 200 within 10 MiB for 30 days; rolling-minute budgets |
 | `*_admissions`, `app_llm_usage` | `platform/db/admission.py`, `call_admission.py`, `storage_admission.py` | durable admission and spend ceilings |
+| `launch_control` | `platform/db/launch_control.py` | one operator pause and visitor notice row |
 | `retrieval_calls`, `app_logs` | `platform/db/retrieval_calls.py`, `logs.py` | per-run retrieval provenance and captured logs |
 
 `hypothesis_state` is the critical decoupling: it holds the values that must
@@ -199,8 +203,8 @@ change as the run progresses without mutating the historical hypothesis row.
 `orchestration.engine_adapter.select_provider()` always returns `"engine"`;
 the engine is a hard runtime dependency. What varies per run is the LLM
 backend. `platform/llm/process_mode.py::offline_mode()` is true when
-`COSCIENTIST_FORCE_OFFLINE=1` is set or no supported provider key is
-configured. An offline run still executes the real durable engine:
+`COSCIENTIST_TEST_DOUBLE=deterministic` explicitly selects the private test
+adapter. Missing keys never select it; production returns a no-model error. An offline run still executes the real durable engine:
 `platform/llm/offline/llm.py::install_offline_router()` serves deterministic,
 schema-valid completions for `offline/` models. The resolved backend
 (`offline` | `real`) is persisted per run as `llm_backend` and reported at
@@ -237,9 +241,9 @@ scope. The numbered evidence manifest is the sole citation namespace.
 
 ## Frontend
 
-React 19, Vite 7, Tailwind v4 and Bun. `app/frontend/src/` is split into
+React 19, Vite 8, Tailwind v4 and Bun. `app/frontend/src/` is split into
 `app/` (shell, routes in `workbench_app.tsx`), `features/` (`chat`, `report`,
-`runs`, `access`, `diagnostics`) and `shared/` (`api`, `hooks`, `lib`, `ui`).
+`runs`, `access`, `diagnostics`, `legal`) and `shared/` (`api`, `hooks`, `lib`, `ui`).
 Wire types are generated from the backend contracts
 (`app/tests/test_architecture.py` checks they match).
 
