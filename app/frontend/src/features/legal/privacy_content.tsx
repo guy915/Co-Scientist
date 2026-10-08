@@ -175,8 +175,9 @@ export function PrivacyContent() {
           Local storage keys are co_scientist_client_id, cosci-theme,
           cosci-api-keys, the migrated legacy cosci-api-key, cosci-api-provider,
           cosci-api-model, cosci-api-supervisor-model, cosci-api-custom-models,
-          cosci:session-side and cosci:session-side:&lt;runId&gt;. Session
-          storage keys are cosci-logs-session-baseline,
+          cosci:session-side, cosci:session-side:&lt;runId&gt; and
+          cosci:session-tab:&lt;runId&gt;. Session storage keys are
+          cosci-logs-session-baseline,
           co_scientist_pending_run_create:&lt;chatId&gt; and
           coscientist:chunk-reload-at. Local values last until cleared; session
           values normally end when the tab closes.
