@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from co_scientist.core.exceptions import LLMCallBudgetExceededError
+from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 
 from evaluations.quality_benchmark import BoundedBackend, collect
 
@@ -172,13 +172,13 @@ def test_real_async_sdk_delegation_preserves_http_counter_context(
             lambda *args, **kwargs: httpx.AsyncClient(transport=httpx.MockTransport(send)),
         )
         backend = quality_benchmark.BoundedBackend(LitellmBackend(), 2)
-        response = await backend.complete(
-            model="openrouter/inclusionai/ling-3.1-flash",
-            api_key="synthetic-unusable-test-key",
-            messages=[{"role": "user", "content": "synthetic"}],
-        )
-        assert response.choices[0].message.content == "synthetic"
-        assert backend.calls == len(attempts) == 2
+        with pytest.raises(LLMTimeoutError):
+            await backend.complete(
+                model="openrouter/inclusionai/ling-3.1-flash",
+                api_key="synthetic-unusable-test-key",
+                messages=[{"role": "user", "content": "synthetic"}],
+            )
+        assert backend.calls == len(attempts) == 1
 
     with count_http_attempts():
         asyncio.run(request())

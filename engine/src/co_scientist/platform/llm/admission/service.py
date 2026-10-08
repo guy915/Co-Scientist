@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -12,6 +13,12 @@ from co_scientist.platform.db.admission import (
     ProviderReservation,
     reserve_provider,
     settle_provider,
+)
+from co_scientist.platform.db.spend import hold_spending, spend_record
+from co_scientist.platform.llm.admission.spend import (
+    block_spending,
+    prepare_spend,
+    settled_cost,
 )
 
 _app: ContextVar[bool] = ContextVar("service_admission_app", default=False)
@@ -77,7 +84,9 @@ def _token_reservation(request: dict[str, Any], *, app: bool) -> int:
 def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> ProviderReservation:
     app = _app.get() if app is None else app
     tokens = _token_reservation(request, app=app)
-    return reserve_provider(_client.get(), _host.get(), tokens, app=app, db_path=_path.get())
+    path = current_db_path()
+    spend = prepare_spend(request, tokens, path)
+    return reserve_provider(_client.get(), _host.get(), tokens, app=app, db_path=path, spend=spend)
 
 
 def settle_physical(receipt: ProviderReservation | None, response: Any) -> None:
@@ -92,4 +101,18 @@ def settle_physical(receipt: ProviderReservation | None, response: Any) -> None:
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             return
         total += value
-    settle_provider(receipt, total)
+    try:
+        row = spend_record(receipt.id, receipt.db_path) if receipt.paid else None
+        if receipt.paid and row is None:
+            raise ProviderAdmissionError("No model is available right now")
+        money = settled_cost(row, usage) if row is not None else None
+        settle_provider(receipt, total, money)
+    except Exception as error:
+        if receipt.paid:
+            block_spending(receipt.db_path)
+            # A failed writer may also prevent the durable hold. The process
+            # hold stops calls while the original full reservation survives.
+            with contextlib.suppress(Exception):
+                hold_spending(receipt.id, receipt.db_path)
+            raise ProviderAdmissionError("No model is available right now") from error
+        raise
