@@ -53,6 +53,20 @@ test('a multi-select question waits for the send control', () => {
   expect(onAnswer).toHaveBeenCalledWith('Exclusions: Gene therapy, Devices');
 });
 
+test('one send in the head answers every question, outside their fields', () => {
+  const {onAnswer} = renderChooser([MODEL_SYSTEM, EXCLUSIONS]);
+  const send = screen.getByRole('button', {name: 'Send answer'});
+  expect(send.closest('fieldset')).toBeNull();
+  expect(send).toHaveProperty('disabled', true);
+  fireEvent.click(screen.getByLabelText(/iPSC-derived line/));
+  fireEvent.click(screen.getByLabelText(/Devices/));
+  fireEvent.click(screen.getByRole('button', {name: 'Minimize the questions'}));
+  fireEvent.click(send);
+  expect(onAnswer).toHaveBeenCalledWith(
+    'Model system: iPSC-derived line\nExclusions: Devices',
+  );
+});
+
 describe('answer state and pending questions', () => {
   const EXCLUSIONS: InterviewQuestion = {
     header: '',
