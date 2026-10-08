@@ -108,7 +108,7 @@ a fresh verified snapshot. No restored database or child diagnostic payload is
 sent to Sentry. The status file is private, atomic, and contains timestamps,
 transaction ID and duration only; supervisor polls do not write the database.
 
-Owner6060056260 approves a 30-day R2 maximum-age lifecycle at cutover. The owner
+The owner approved a 30-day R2 maximum-age lifecycle at cutover. The owner
 must actually configure and verify that rule and notification destinations;
 this code does not change R2 or any hosting account. Stop launch if the rule,
 fresh verified base or matching encryption-key recovery cannot be established.
