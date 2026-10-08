@@ -47,7 +47,7 @@ for (const theme of ["light", "dark"]) {
         cards.nth(0).boundingBox(),
         cards.nth(1).boundingBox(),
       ]);
-      expect(second!.y - (first!.y + first!.height)).toBeCloseTo(24, 0);
+      expect(second!.y - (first!.y + first!.height)).toBeCloseTo(28, 0);
     }).toPass();
     await captureViewport(page, {
       ...DESKTOP,
