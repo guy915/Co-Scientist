@@ -31,6 +31,7 @@ const backendServer = {
     // harness.
     COSCIENTIST_FORCE_OFFLINE: '1',
     PYTHON_DOTENV_DISABLED: '1',
+    COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL: '1',
     EVIDENCE_RESOLVER: 'offline',
     // A shared fake-provider store spans the whole browser suite. Exhaustion
     // and restart accounting are covered by the isolated admission tests.

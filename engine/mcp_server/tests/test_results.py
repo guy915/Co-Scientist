@@ -1,4 +1,5 @@
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -155,7 +156,7 @@ async def test_an_unreadable_url_is_an_explicit_failed_result(
 ) -> None:
     monkeypatch.setattr(
         "mcp_server.tools.web_fetch.check_fetchable",
-        lambda target: None if "example.com" in target else _refuse(target),
+        lambda target: None if urlsplit(target).hostname == "example.com" else _refuse(target),
     )
     if response is not None:
         transport_responses(monkeypatch, response)
