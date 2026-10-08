@@ -57,6 +57,7 @@ def test_run_coroutine_sync_runs_many_calls_concurrently() -> None:
 
     assert results == [5] * 5
 
+
 def test_propagate_context_restores_a_reused_worker_thread() -> None:
     with ThreadPoolExecutor(max_workers=1) as pool:
         with scoped_api_key("scoped-key"):
