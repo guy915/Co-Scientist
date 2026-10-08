@@ -5,6 +5,8 @@ models require a separate owner decision. `LIQUID_API_KEY` is a server-side
 secret; the owner supplies a separate production key through the launch
 runbook. Missing credentials or `DECISION_ENABLED=false` preserve the LLM path.
 No call site is enabled by the client alone.
+Scoped BYOK execution refuses the operator's decision provider before admission
+or HTTP; its existing model and credential remain the fallback path.
 
 The client accepts typed `noul`, `choice` and `score` questions, validates
 complete finite probability distributions and reserves every physical request
@@ -77,7 +79,10 @@ No production setting is changed.
 Results distinguish judge agreement from correctness. The paired one-sided
 lower bound is `mean(d) - 1.645 * stdev(d) / sqrt(n)`, with a provisional -0.02
 agreement tolerance. Fewer than 100 labels yield no threshold. Thresholds are
-not adoption approval: ranking requires owner spot checks and mature-review
+finite values in `(0, 1]`, selected from local observations: score distributions
+can span adjacent rubric levels without a probability above 0.5. Zero-confidence
+swapped disagreements always escalate. No threshold is supplied by default.
+Thresholds are not adoption approval: ranking requires owner spot checks and mature-review
 inputs; relevance also requires score/order agreement; proximity requires
 full-pool equivalence and false-deduplication validation; safety needs risk-domain
 coverage and class-specific false-allow checks. The initial report marks all
