@@ -70,6 +70,22 @@ jobs:
             throw new Error(`Playwright ${actual} needs a matching pinned container image`);
           }
           JS
+      - name: Match the ephemeral container home to the job user
+        run: |
+          python - <<'PY'
+          import os
+          import stat
+          from pathlib import Path
+
+          home = Path.home()
+          before = home.lstat()
+          if not stat.S_ISDIR(before.st_mode):
+              raise SystemExit('The mounted job home must be a directory')
+          os.chown(home, os.getuid(), os.getgid())
+          if home.stat().st_uid != os.getuid():
+              raise SystemExit('The browser job must own its home directory')
+          print(f'Job home ownership: {before.st_uid} -> {os.getuid()}')
+          PY
       - name: Run keyboard guards through the isolated browser runner
         env:
           KEYBOARD_PROJECT: ${{ matrix.project }}
