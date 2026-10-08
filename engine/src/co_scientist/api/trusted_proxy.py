@@ -79,6 +79,15 @@ class TrustedProxyMiddleware:
         if scope["type"] not in {"http", "websocket"}:
             await self.app(scope, receive, send)
             return
+        # Railway readiness has no visitor headers. This public endpoint exposes
+        # no visitor or admission state, so preserve its raw peer and scheme.
+        if (
+            scope["type"] == "http"
+            and scope.get("method") == "GET"
+            and scope.get("path") == "/health"
+        ):
+            await self.app(scope, receive, send)
+            return
         peer = scope.get("client")
         try:
             address = _address(peer[0]) if peer else None
