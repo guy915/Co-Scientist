@@ -7,8 +7,10 @@ import uvicorn
 from co_scientist.api.trusted_proxy import TrustedProxyMiddleware, trusted_networks
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import ProviderAdmissionError
+from co_scientist.main import app
 from co_scientist.platform.db import connect, transaction
 from co_scientist.platform.db.admission import claim_run, connecting_host
+from fastapi.testclient import TestClient
 from starlette.types import Message, Receive, Scope, Send
 
 
@@ -47,6 +49,67 @@ async def _request(
         send,
     )
     return scopes, messages
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "headers",
+    [
+        [],
+        [(b"x-real-ip", b"invalid")],
+        [(b"x-real-ip", b"198.51.100.9"), (b"x-real-ip", b"198.51.100.10")],
+        [(b"x-real-ip", b"198.51.100.9")],
+    ],
+)
+async def test_readiness_preserves_raw_peer_without_parsing_visitor_headers(
+    headers: list[tuple[bytes, bytes]],
+) -> None:
+    scopes, messages = await _request("100.64.0.1", headers, path="/health")
+    assert len(scopes) == 1
+    assert scopes[0]["client"] == ("100.64.0.1", 12345)
+    assert scopes[0]["scheme"] == "http"
+    assert scopes[0]["headers"] == headers
+    assert messages == []
+
+
+def test_actual_readiness_accepts_the_headerless_railway_probe() -> None:
+    middleware = TrustedProxyMiddleware(app, trusted_networks("100.64.0.0/24"))
+    client = TestClient(middleware, client=("100.64.0.1", 39947))
+    response = client.get(
+        "/health",
+        headers={"Host": "healthcheck.railway.app", "User-Agent": "RailwayHealthCheck/1.0"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
+    assert response.json()["model_name"] is None
+    assert "100.64.0.1" not in response.text
+    assert client.post("/api/runs").status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("scope_type", "method", "path"),
+    [
+        ("http", "HEAD", "/health"),
+        ("http", "POST", "/health"),
+        ("http", "GET", "/health/"),
+        ("http", "GET", "/api/proxy-status"),
+        ("http", "POST", "/api/runs"),
+        ("websocket", "GET", "/health"),
+    ],
+)
+async def test_readiness_exception_does_not_relax_other_requests(
+    scope_type: str, method: str, path: str
+) -> None:
+    scopes, messages = await _request(
+        "100.64.0.1", [], scope_type=scope_type, method=method, path=path
+    )
+    assert scopes == []
+    if scope_type == "websocket":
+        assert messages == [{"type": "websocket.close", "code": 1008}]
+    else:
+        assert messages[0]["type"] == "http.response.start"
+        assert messages[0]["status"] == 400
 
 
 @pytest.mark.asyncio
