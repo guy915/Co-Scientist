@@ -264,10 +264,13 @@ reuse the workspace rather than remounting it.
 Capture lexical retrieval scores before stamping hybrid scores. Reusing the
 overwritten score double-weights the semantic term and can collapse rankings.
 
-FastMCP may return an execution error as ordinary result text. Treat its error
-envelope as a permanent query failure (`is_tool_reported_error` in
-`platform/retrieval/evidence/search_query.py`). Transient transport failures use
-bounded, jittered retries (`call_search_tool`); distinguish failed queries from
+A tool that cannot answer returns its empty result with an `error` object
+(`engine/mcp_server/tools/_results.py`); it never raises or returns a bare
+empty result for an upstream failure. The engine reads that field
+(`reported_failure`) and treats it as a permanent query failure, and its MCP
+client raises `ToolException` for any execution error rather than accepting
+FastMCP's error text as a result. Transient transport failures use bounded,
+jittered retries (`call_search_tool`); distinguish failed queries from
 successful zero-hit responses.
 
 Owed review cannot override the provider-call ceiling: scheduler and transport
