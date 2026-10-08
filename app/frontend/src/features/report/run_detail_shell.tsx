@@ -269,19 +269,6 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
   );
 }
 
-export function RunDetailSkeleton() {
-  return (
-    <div
-      className="cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 phone:mt-5 phone:mb-12 phone:w-[min(100%_-_1.2rem,100%)] phone:max-w-none"
-      aria-busy="true"
-    >
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-8 w-64" />
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-12 w-full" />
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-48 w-full" />
-    </div>
-  );
-}
-
 export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] ' +
   'text-base leading-[1.5] phone:mt-5 phone:mb-12 ' +

@@ -86,7 +86,7 @@ score alone is not evidence of scientific quality.
 | Assessor | Panel | n | Accuracy | Contradiction recall | Gates |
 |---|---|---|---|---|---|
 | lexical | v1 | 20 | 1.00 | 1.00 | pass |
-| lexical | challenge | 30 | 0.17 | 0.00 | fail, as intended |
+| lexical | challenge | 30 | 0.03 | 0.00 | fail, as intended |
 
 The lexical assessor's collapse on the challenge panel is the point: token
 overlap is a retrieval feature, not proof, so it is only an offline fallback.
