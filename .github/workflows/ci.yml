@@ -302,13 +302,16 @@ jobs:
         # Each job launches its own isolated stack, so they share nothing.
         # Duration weights keep stateful files together on one worker.
         include:
-          - {name: shard 1/6, suite: e2e, args: '', browser_shard: 1/6}
-          - {name: shard 2/6, suite: e2e, args: '', browser_shard: 2/6}
-          - {name: shard 3/6, suite: e2e, args: '', browser_shard: 3/6}
-          - {name: shard 4/6, suite: e2e, args: '', browser_shard: 4/6}
-          - {name: shard 5/6, suite: e2e, args: '', browser_shard: 5/6}
-          - {name: shard 6/6, suite: e2e, args: '', browser_shard: 6/6}
-          - {name: production, suite: e2e-production, args: '', browser_shard: ''}
+          - {name: shard 1/8, suite: e2e, args: '', browser_shard: 1/8}
+          - {name: shard 2/8, suite: e2e, args: '', browser_shard: 2/8}
+          - {name: shard 3/8, suite: e2e, args: '', browser_shard: 3/8}
+          - {name: shard 4/8, suite: e2e, args: '', browser_shard: 4/8}
+          - {name: shard 5/8, suite: e2e, args: '', browser_shard: 5/8}
+          - {name: shard 6/8, suite: e2e, args: '', browser_shard: 6/8}
+          - {name: shard 7/8, suite: e2e, args: '', browser_shard: 7/8}
+          - {name: shard 8/8, suite: e2e, args: '', browser_shard: 8/8}
+          - {name: production 1/2, suite: e2e-production, args: '--shard=1/2', browser_shard: ''}
+          - {name: production 2/2, suite: e2e-production, args: '--shard=2/2', browser_shard: ''}
     # Setup plus the isolated stack share the job timeout.
     timeout-minutes: 25
     steps:
@@ -376,14 +379,8 @@ jobs:
           cache-from: type=gha,scope=ci-mcp
           cache-to: type=gha,scope=ci-mcp,mode=max
       - name: Build frontend dev image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: app/frontend
-          tags: coscientist-ui-ci
-          load: true
-          push: false
-          cache-from: type=gha,scope=ci-frontend
-          cache-to: type=gha,scope=ci-frontend,mode=max
+        # Loading this large development image from a remote cache costs more than building.
+        run: docker build -t coscientist-ui-ci app/frontend
       - name: Report image sizes
         # Image size is an optimization metric; record it on every build.
         run: docker image ls --format '{{.Repository}} {{.Size}}' 'coscientist-*-ci'
