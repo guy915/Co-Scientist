@@ -16,8 +16,6 @@ from mcp_server.pubmed_client import (
     search_with_relaxation,
 )
 from mcp_server.pubmed_storage import (
-    link_metadata_to_run,
-    link_shared_file_to_run,
     write_metadata_cache_file,
 )
 from mcp_server.tests._entrez import (
@@ -101,7 +99,7 @@ _MARKUP_TEXT = (
         ),
     ],
 )
-def test_the_fulltext_tool_returns_article_metadata_and_links_it_to_the_run(
+def test_the_fulltext_tool_returns_article_metadata_without_run_associations(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     article: dict[str, Any],
@@ -121,8 +119,9 @@ def test_the_fulltext_tool_returns_article_metadata_and_links_it_to_the_run(
     }
     assert results.keys() == {"123"}
     assert {key: results["123"][key] for key in expected} == expected
-    metadata_path = tmp_path / "pubmed/slug/runs/run/123.metadata.json"
-    assert metadata_path.is_symlink()
+    metadata_path = tmp_path / "pubmed/.public-papers-v1/shared/123.metadata.json"
+    assert not metadata_path.is_symlink()
+    assert not (tmp_path / "pubmed/slug").exists()
     assert json.loads(metadata_path.read_text(encoding="utf-8")) == results["123"]
 
 
@@ -265,27 +264,18 @@ def test_first_rung_target_survives_when_anchored_rung_fills_buffer() -> None:
     assert calls == [query, anchored_relaxed_query(query)]
 
 
-def test_metadata_links_survive_cache_relocation(tmp_path: Path) -> None:
+def test_public_metadata_survives_cache_relocation(tmp_path: Path) -> None:
     tree = tmp_path / "original"
-    shared_dir = tree / "slug" / "shared"
-    shared_dir.mkdir(parents=True)
-    run_dir = tree / "slug" / "runs" / "run-id"
-    run_dir.mkdir(parents=True)
-    metadata_file = shared_dir / "101.metadata.json"
+    metadata_file = tree / ".public-papers-v1" / "shared" / "101.metadata.json"
+    metadata_file.parent.mkdir(parents=True)
     metadata = {"title": "Paper β", "pmc_full_text_id": None}
-
     write_metadata_cache_file(metadata_file, metadata)
-    link_metadata_to_run(run_dir, "101")
-    link_metadata_to_run(run_dir, "101")
-    link_metadata_to_run(None, "101")
-    assert metadata_file.read_text() == ('{"title": "Paper \\u03b2", "pmc_full_text_id": null}')
-    assert (run_dir / metadata_file.name).readlink() == Path("../../shared/101.metadata.json")
-
     relocated = tmp_path / "relocated"
     tree.rename(relocated)
-    relocated_metadata = relocated / "slug" / "shared" / metadata_file.name
-    run_link = relocated / "slug" / "runs" / "run-id" / metadata_file.name
-    assert run_link.read_bytes() == relocated_metadata.read_bytes()
+    assert (
+        json.loads((relocated / ".public-papers-v1" / "shared" / metadata_file.name).read_text())
+        == metadata
+    )
 
 
 @pytest.mark.parametrize("slug", ["../outside", "/tmp/outside", "bad/slug"])
@@ -307,15 +297,13 @@ def test_cache_run_id_cannot_escape_slug_root(tmp_path: Path) -> None:
     assert not (tmp_path.parent / "outside").exists()
 
 
-def test_run_cache_link_rejects_an_existing_external_symlink(tmp_path: Path) -> None:
-    run_dir = tmp_path / "slug" / "runs" / "run"
-    run_dir.mkdir(parents=True)
-    outside = tmp_path.parent / f"{tmp_path.name}-outside.json"
-    outside.write_text("private", encoding="utf-8")
-    (run_dir / "123.metadata.json").symlink_to(outside)
-
+def test_public_cache_rejects_an_existing_external_symlink(tmp_path: Path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir()
+    (tmp_path / ".public-papers-v1").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ValueError, match="escapes"):
-        link_shared_file_to_run(run_dir, "123.metadata.json")
+        PubmedSource(tmp_path)._prepare_run_directories("slug", "run")
+    assert list(outside.iterdir()) == []
 
 
 @pytest.mark.parametrize(
