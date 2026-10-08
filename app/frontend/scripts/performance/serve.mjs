@@ -50,11 +50,23 @@ const server = createServer(async (req, res) => {
           'X-Client-ID': req.headers['x-client-id'] || 'fp-performance',
         },
       });
-      res.writeHead(upstream.status, {
+      const headers = {
         'content-type':
           upstream.headers.get('content-type') || 'application/json',
-      });
-      res.end(Buffer.from(await upstream.arrayBuffer()));
+        vary: 'Accept-Encoding',
+      };
+      let body = Buffer.from(await upstream.arrayBuffer());
+      // fetch decodes the API's gzip response; retain its wire compression.
+      if (
+        body.length >= 1024 &&
+        /\bgzip\b/.test(req.headers['accept-encoding'] || '')
+      ) {
+        body = gzipSync(body, {level: 6});
+        headers['content-encoding'] = 'gzip';
+      }
+      headers['content-length'] = body.length;
+      res.writeHead(upstream.status, headers);
+      res.end(body);
       return;
     }
     let assetPath = url.pathname;
