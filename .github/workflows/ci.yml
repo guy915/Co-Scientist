@@ -127,7 +127,6 @@ jobs:
               - 'engine/src/**'
               - 'engine/.dockerignore'
               - 'engine/mcp_server/**'
-              - 'app/requirements-app.txt'
               - 'app/.dockerignore'
               - 'app/docker/**'
               - 'app/docker-compose.yml'
