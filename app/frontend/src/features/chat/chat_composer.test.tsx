@@ -61,3 +61,19 @@ test('Stop calls onStop and does not submit the form', () => {
   expect(onStop).toHaveBeenCalledOnce();
   expect(onSubmit).not.toHaveBeenCalled();
 });
+
+test('asks for a research goal first, then for the next message', () => {
+  renderComposer();
+  expect(screen.getByRole('textbox')).toHaveAttribute(
+    'placeholder',
+    'Start a new research goal to begin',
+  );
+});
+
+test('asks Co-Scientist once the conversation has a message', () => {
+  renderComposer({inConversation: true});
+  const textbox = screen.getByRole('textbox', {name: 'Ask Co-Scientist'});
+  expect(textbox).toHaveAttribute('placeholder', 'Ask Co-Scientist');
+  // The placeholder is the field's own, so it starts where the caret does.
+  expect(textbox.parentElement!.querySelector('svg')).toBeNull();
+});

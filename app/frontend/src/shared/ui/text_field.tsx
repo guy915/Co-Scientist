@@ -1,4 +1,9 @@
-import type {InputHTMLAttributes, Ref, TextareaHTMLAttributes} from 'react';
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  Ref,
+  TextareaHTMLAttributes,
+} from 'react';
 import {joinClasses} from './cx';
 
 export type FieldVariant = 'outlined' | 'bare';
@@ -26,19 +31,39 @@ interface Shared {
   layoutClassName?: string;
 }
 
+// A trailing action (send, clear) sits inside the field's box, so it never
+// needs a row of its own.
 export function TextField({
   variant,
   layoutClassName,
+  trailing,
   ...rest
 }: Shared &
   Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> & {
     ref?: Ref<HTMLInputElement>;
+    trailing?: ReactNode;
   }) {
+  if (!trailing) {
+    return (
+      <input
+        className={joinClasses(fieldClasses(variant), layoutClassName)}
+        {...rest}
+      />
+    );
+  }
   return (
-    <input
-      className={joinClasses(fieldClasses(variant), layoutClassName)}
-      {...rest}
-    />
+    <div
+      className={joinClasses(
+        'relative flex min-w-0 items-center',
+        layoutClassName,
+      )}
+    >
+      <input
+        className={joinClasses(fieldClasses(variant), 'pr-11')}
+        {...rest}
+      />
+      <span className="absolute right-1 flex">{trailing}</span>
+    </div>
   );
 }
 

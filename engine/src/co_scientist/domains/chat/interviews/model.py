@@ -21,6 +21,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 
 logger = logging.getLogger(__name__)
 
@@ -465,16 +466,19 @@ async def _stream_interview_content(
     offline_guard.require_remote_chat("the interview")
     model, messages = _interview_request(interview)
     model, api_key = byok_scope.byok_model_and_key(model)
-    prose, fields, reasoned = await _run_interview_completion(
-        model, messages, api_key, sinks, thinking_enabled=True
-    )
-    if prose.strip() or not reasoned:
-        return prose, fields
-    logger.warning("Interview turn reasoned and wrote no answer; retrying once with thinking off")
-    await _emit(sinks.on_reasoning, _THINKING_ONLY_RETRY_NOTE)
-    prose, fields, _ = await _run_interview_completion(
-        model, messages, api_key, sinks, thinking_enabled=False
-    )
+    retry = ReasoningRetry()
+    prose = ""
+    fields: dict[str, Any] | None = None
+    for thinking_enabled in retry.attempts():
+        if not thinking_enabled:
+            logger.warning(
+                "Interview turn reasoned and wrote no answer; retrying once with thinking off"
+            )
+            await _emit(sinks.on_reasoning, _THINKING_ONLY_RETRY_NOTE)
+        prose, fields, reasoned = await _run_interview_completion(
+            model, messages, api_key, sinks, thinking_enabled=thinking_enabled
+        )
+        retry.observe(prose=prose, reasoned=reasoned)
     return prose, fields
 
 
@@ -519,13 +523,14 @@ async def _relay_chunk(chunk: Any, splitter: TurnSplitter, sinks: TurnSinks) -> 
     """Trailing state blocks are withheld; clients must never render and
     retract them.
     """
+    check_text_response(chunk)
     if not chunk.choices:
         return False
     delta = chunk.choices[0].delta
     reasoning = getattr(delta, "reasoning_content", "") or ""
     await _emit(sinks.on_reasoning, reasoning)
     await _emit(sinks.on_prose, splitter.feed(delta.content or ""))
-    return bool(reasoning)
+    return bool(reasoning.strip())
 
 
 async def _collect_stream_content(

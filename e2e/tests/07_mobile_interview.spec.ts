@@ -23,7 +23,7 @@ for (const theme of ['light', 'dark']) {
     expect(bounds!.y).toBeGreaterThanOrEqual(0);
     expect(bounds!.height).toBeLessThan(viewport.height * 0.6);
     await expect(panel.locator('legend')).toBeInViewport();
-    await panel.evaluate(el => {el.scrollTop = el.scrollHeight;});
+    await panel.getByPlaceholder('Type your own answer').scrollIntoViewIfNeeded();
     await expect(panel.getByPlaceholder('Type your own answer')).toBeInViewport();
     await expect(panel.getByRole('button', {name: 'Send answer'})).toBeInViewport();
     await expect(page.locator('textarea').last()).toBeInViewport();

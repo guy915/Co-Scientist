@@ -5,11 +5,13 @@ export async function tabTo(page: Page, target: Locator): Promise<void> {
   for (let step = 0; step < 80; step++) {
     if (await target.evaluate((node) => node === document.activeElement))
       return;
-    const backwards = await target.evaluate((node) =>
-      Boolean(
-        node.compareDocumentPosition(document.activeElement!) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-      ),
+    const backwards = await target.evaluate(
+      (node) =>
+        !document.hasFocus() ||
+        Boolean(
+          node.compareDocumentPosition(document.activeElement!) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
     );
     await page.keyboard.press(backwards ? "Shift+Tab" : "Tab");
   }

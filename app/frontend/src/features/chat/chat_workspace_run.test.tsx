@@ -133,6 +133,24 @@ it('starts the durable run on confirmation', async () => {
   ).not.toBeInTheDocument();
 });
 
+it('keeps asking Co-Scientist through the interview and after the run starts', async () => {
+  renderWorkspace();
+  submitResearchGoal();
+  expect(
+    await screen.findByText(
+      /Review the research setup and select a focus and run type/,
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByPlaceholderText('Ask Co-Scientist')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText('Start research'));
+  expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
+  expect(screen.getByPlaceholderText('Ask Co-Scientist')).toBeInTheDocument();
+  expect(
+    screen.queryByPlaceholderText('Ask a question about this research session'),
+  ).toBeNull();
+});
+
 it('shows request and response controls in the transcript', async () => {
   const spies = installClipboardAndDownloadSpies();
 
