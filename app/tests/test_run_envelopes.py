@@ -48,10 +48,10 @@ class Envelope:
 # Lane E targets on live runs: Express <= 50 calls and <= 500k tokens, Standard
 # <= 2M tokens, Ultra <= 15M tokens. These offline ceilings fall as the work lands.
 CEILINGS: dict[str, Envelope] = {
-    "express": Envelope(calls=170, max_tokens=2_150_000),
-    "standard": Envelope(calls=440, max_tokens=5_600_000),
-    "extended": Envelope(calls=790, max_tokens=10_000_000),
-    "ultra": Envelope(calls=960, max_tokens=11_700_000),
+    "express": Envelope(calls=100, max_tokens=1_150_000),
+    "standard": Envelope(calls=180, max_tokens=2_000_000),
+    "extended": Envelope(calls=280, max_tokens=3_150_000),
+    "ultra": Envelope(calls=420, max_tokens=4_600_000),
 }
 
 # Owner's phase split for the final-check Express run.
