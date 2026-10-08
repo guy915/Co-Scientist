@@ -119,6 +119,9 @@ def runtime_read_roots() -> tuple[Path, ...]:
         candidates.append(Path(sys.base_prefix) / "lib" / libname)
         if isinstance(libdir, str):
             candidates.append(Path(libdir) / libname)
+    # A venv interpreter reads pyvenv.cfg at startup; the rest of the venv stays out.
+    if sys.prefix != sys.base_prefix:
+        candidates.append(Path(sys.prefix) / "pyvenv.cfg")
     skills = os.getenv("COSCIENTIST_SKILLS_DIR")
     if skills:
         candidates.append(Path(skills).expanduser())

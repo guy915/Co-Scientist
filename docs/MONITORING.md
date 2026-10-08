@@ -11,9 +11,9 @@ five-minute interval and email alerts.
 
 | Monitor | URL | Alert when |
 |---|---|---|
-| API up | `https://api.ai-co-scientist.com/health` | status is not 200 |
+| API up | `https://api.open-coscientist.com/health` | status is not 200 |
 | API healthy | same URL, keyword check | `"status":"healthy"` is absent |
-| Site up | `https://ai-co-scientist.com/` | status is not 200 |
+| Site up | `https://open-coscientist.com` | status is not 200 |
 
 `/health` returns 503 only when the store is unreachable. A stuck run, a
 terminally failed task or low disk report `"status":"degraded"` with 200, so
@@ -30,11 +30,17 @@ protocol) with one project for the API and one for the frontend.
 |---|---|---|
 | Railway, api | `SENTRY_DSN` | the API project's DSN |
 | Railway, api | `SENTRY_ENVIRONMENT` | `production` |
-| Vercel, production | `VITE_SENTRY_DSN` | the frontend project's DSN |
-| Vercel, build (optional) | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | source-map upload for readable stack traces |
+| Frontend host, build environment | `VITE_SENTRY_DSN` | the frontend project's DSN |
 
 Both SDKs stay off while their DSN is unset, so local runs, CI and forks
 send nothing. Researcher data must not leave through error reports.
+
+The frontend reads `VITE_SENTRY_DSN` at build time
+(`src/shared/lib/error_tracking.ts`, loaded as its own chunk only when built
+with a DSN), so whichever host builds the frontend needs it set there; a
+host change that omits it silently disables browser reporting. Frontend
+reports carry no PII or console breadcrumbs, and the browser's client ID and
+saved provider keys are redacted. Source-map upload is not implemented.
 
 The API (`platform/telemetry/error_tracking.py`) reports unhandled exceptions and
 `ERROR` log records. Each report:
@@ -76,19 +82,3 @@ Spans carry no prompt, completion, tool argument, goal, query string, header
 or body, and a failure records its exception type only. Stdout log lines carry
 `trace_id` while a span is active; persisted logs are unchanged. Span names
 and attributes are an operator contract, renamed only deliberately.
-
-## Status
-
-Live since 7 October 2026:
-- Uptime (UptimeRobot, free plan, five-minute checks, email alerts): a
-  keyword monitor on `/health` for `"status":"healthy"`, which also alerts
-  when the API is down or not 200, and an HTTP monitor on the site. Together
-  they cover the three rows above.
-- Error tracking, API: Sentry project `co-scientist-api`; `SENTRY_DSN` and
-  `SENTRY_ENVIRONMENT=production` are set on the Railway api service.
-- Error tracking, frontend: Sentry project `co-scientist-ui`
-  (`src/shared/lib/error_tracking.ts`, loaded as its own chunk only when built with
-  a DSN); `VITE_SENTRY_DSN` is set for Vercel production builds. Reports
-  carry no PII or console breadcrumbs, and the browser's client ID and saved
-  provider keys are redacted. The DSN is read at build time, so the launch's
-  frontend host needs it set again.

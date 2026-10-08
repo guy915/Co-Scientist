@@ -77,7 +77,12 @@ make check         # lint, types, suites, evaluations, smoke, build, browser tes
 make docker-build  # production image builds; no deployment
 ```
 
-`make test-all` includes backend and frontend unit tests and the evaluation harness tests.
+`make test-all` runs the engine, app and MCP pytest suites, the frontend
+Vitest suite and the evaluation harness tests. Each also runs alone:
+`make test-engine`, `make test-app`, `make test-mcp`, `make test-frontend` and
+`make test-evaluations`. `make test-sandbox-linux` runs the sandbox tests in a
+Linux container with Docker, and `make audit-deps` checks the runtime locks
+against online advisories (needs uv).
 `make e2e` runs Playwright with a fresh temporary SQLite store, offline model
 responses, API port 8108, and UI port 5273. `make e2e-production` builds the
 frontend and serves its bundled assets.
@@ -97,7 +102,7 @@ Playwright-managed browser. Port overrides are `COSCI_E2E_API_PORT` and
 `COSCI_E2E_UI_PORT`. Run the targets sequentially when using the same ports.
 The production browser target builds into its temporary state directory and
 leaves the normal frontend `dist/` artifact untouched. Vite preview tests built
-assets and browser flows; it does not verify Vercel or Railway routing and
+assets and browser flows, not the hosting platform's routing and
 configuration.
 
 ## Worktrees

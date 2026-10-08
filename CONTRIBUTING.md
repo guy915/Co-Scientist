@@ -71,7 +71,7 @@ For documentation changes, run `make lint` and
 command's exit status in the pull request. State any checks you could not run.
 For launch-wide code or configuration changes, also run `make docker-build`.
 Changes to model behavior should include benchmark scores before and after;
-see [evaluation guidance](docs/OPTIMIZATION.md).
+see the [quality benchmark](evaluations/README.md#quality-benchmark).
 
 Follow the documentation policy in [AGENTS.md](AGENTS.md). Comments explain
 hidden reasons or invariants, not what the code already says. Preserve

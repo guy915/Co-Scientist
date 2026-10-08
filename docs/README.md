@@ -2,25 +2,23 @@
 
 | Guide | Contents |
 | --- | --- |
-| [Architecture](ARCHITECTURE.md) | App, engine and MCP boundaries |
-| [Engine architecture](../engine/docs/ARCHITECTURE.md) | Scientific stages and execution |
+| [Architecture](ARCHITECTURE.md) | Layers, package map, persistence and request path |
+| [Engine architecture](../engine/docs/ARCHITECTURE.md) | Agents, durable workflow and orchestration |
+| [Glossary](GLOSSARY.md) | Domain terms used in module and type names |
+| [Architecture decisions](adr/) | Module map, layering, durable runtime, LLM gateway, tracing |
 | [Local setup](RUNNING-LOCALLY.md) | Toolchain, services and worktrees |
 | [CI](CI.md) | Hermetic gates and local equivalents |
 | [Deployment](DEPLOYMENT.md) | Hosting, networking and configuration |
 | [Operations](OPERATIONS.md) | Persistence, provider and scientific safeguards |
-| [Monitoring](MONITORING.md) | Uptime checks and error tracking to set up |
-| [Launch](LAUNCH.md) | Release validation, backups and security settings |
+| [Monitoring](MONITORING.md) | Uptime checks, error tracking and tracing |
+| [Launch](LAUNCH.md) | Release validation, backups and repository settings |
+| [Evaluations](../evaluations/README.md) | Offline harness, live benchmark and decision bake-off |
+| [Decision model](decision-model.md) | Optional decision-model client, quotas and bake-off method |
 | [Dependencies](../requirements/README.md) | Hash-pinned runtime locks and audits |
+| [Engine package](../engine/README.md) | Engine install and development |
+| [MCP server](../engine/mcp_server/README.md) | Reference literature and database tools |
+| [Frontend](../app/frontend/README.md) | Workbench commands and source layout |
 | [Contributor guidance](../AGENTS.md) | Repository rules and operating invariants |
-| [Parallel campaigns](CAMPAIGNS.md) | Schedule, ownership and merge rules for the three campaigns below |
-| [Production cuts](PROD-CUTS.md) | Agreed feature removals, next after the test campaign |
-| [Production shrink](PROD-SHRINK.md) | Behavior-preserving size reduction, folder by folder after the cuts |
-| [Optimization](OPTIMIZATION.md) | Performance, efficiency and launch readiness |
-| [Re-architecture](REARCHITECTURE.md) | Target structure, phases and rules for the next campaign |
-| [Re-architecture survey](rearchitecture/survey.md) | Phase 0 measurements: sizes, import graph, hot spots, break points |
-| [Glossary](GLOSSARY.md) | Domain terms used in module and type names |
-| [Architecture decisions](adr/) | ADR-001 module map, ADR-002 layering, ADR-003 durable runtime, ADR-004 LLM gateway, ADR-005 tracing |
 
-Retired audits, guides, incident records and screenshots remain in
-[immutable history at 33ec8984](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688/docs).
-Runtime prompt templates remain beside the engine source.
+Runtime prompt templates live beside the engine source in
+`engine/src/co_scientist/science/prompts/templates/`.
