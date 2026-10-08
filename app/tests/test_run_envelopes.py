@@ -49,9 +49,9 @@ class Envelope:
 # <= 2M tokens, Ultra <= 15M tokens. These offline ceilings fall as the work lands.
 CEILINGS: dict[str, Envelope] = {
     "express": Envelope(calls=100, max_tokens=1_150_000),
-    "standard": Envelope(calls=180, max_tokens=2_000_000),
-    "extended": Envelope(calls=280, max_tokens=3_150_000),
-    "ultra": Envelope(calls=420, max_tokens=4_600_000),
+    "standard": Envelope(calls=235, max_tokens=2_450_000),
+    "extended": Envelope(calls=380, max_tokens=4_000_000),
+    "ultra": Envelope(calls=545, max_tokens=5_600_000),
 }
 
 # Owner's phase split for the final-check Express run.
@@ -84,9 +84,11 @@ def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
 class _RecordingBackend:
     """Records prompt size per attempt and makes the double's answers realistic."""
 
-    def __init__(self, inner: Any) -> None:
+    def __init__(self, inner: Any, escaped: list[str]) -> None:
         self._inner = inner
         self.prompt_chars: dict[int, int] = {}
+        # Fallbacks absorb an escaped call, so the meter must count them itself.
+        self.escaped = escaped
 
     async def complete(self, **kwargs: Any) -> Any:
         messages = kwargs.get("messages") or [{}]
@@ -113,18 +115,22 @@ def _install_production_shape(
         monkeypatch.setattr(settings, field, 100_000)
     for field in ("provider_client_tokens_per_day", "provider_host_tokens_per_day"):
         monkeypatch.setattr(settings, field, 10**12)
-    monkeypatch.setattr(settings, "semantic_safety_model", offline_llm.DEFAULT_OFFLINE_MODEL)
+    for field in ("semantic_safety_model", "claim_verifier_model"):
+        monkeypatch.setattr(settings, field, offline_llm.DEFAULT_OFFLINE_MODEL)
     monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "1")
     # Claim and safety assessors take their model path only outside offline
     # mode; the run's offline model still answers every call.
     process.online(credential=True)
 
+    escaped: list[str] = []
+
     async def _escaped(**kwargs: Any) -> Any:
+        escaped.append(str(kwargs.get("model")))
         raise AssertionError(f"a call escaped the offline router: {kwargs.get('model')!r}")
 
     load_engine_fake().install_fake_backend(monkeypatch, _escaped)
     offline_llm.install_offline_router()
-    recorder = _RecordingBackend(backend.active_backend())
+    recorder = _RecordingBackend(backend.active_backend(), escaped)
     backend.install_backend(recorder)
 
     FakeMCPClient.names = mcp_tool_names()
@@ -214,6 +220,7 @@ def test_offline_run_stays_inside_its_tier_envelope(
     measured = _measure(exporter, recorder)
     nodes = {node for _, node, *_ in measured["calls_by_prompt"]}
     assert "literature_review" in nodes, "the fake MCP server went unused; the meter is blind"
+    assert not recorder.escaped, f"calls escaped the offline router: {set(recorder.escaped)}"
     if out := os.environ.get("METER_OUT"):
         with open(os.path.join(out, f"{tier}.json"), "w") as handle:
             json.dump({"tier": tier, **measured}, handle, indent=1)

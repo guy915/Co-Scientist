@@ -64,6 +64,21 @@ async def test_deep_verification_skips_ideas_that_are_not_finalists(
     assert [h.text for h in pool if h.deep_verification_verdict] == ["leader", "runner-up"]
 
 
+async def test_observing_finalists_keeps_every_other_idea_in_the_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.science.reflection import reflection
+
+    mock_call_llm_json(monkeypatch, reflection, {"classification": "neutral", "reasoning": "r"})
+    pool = _ranked_pool()
+    state = make_state(hypotheses=pool, budget={"finalists": 1}, articles_with_reasoning="A")
+
+    result = await reflection.reflection_node(state)
+
+    assert result["hypotheses"] == pool
+    assert [h.text for h in pool if h.reflection_notes] == ["leader"]
+
+
 def test_comprehensive_reflection_queues_depth_for_finalists_only() -> None:
     state = make_state(hypotheses=_ranked_pool(), budget={"finalists": 2})
 

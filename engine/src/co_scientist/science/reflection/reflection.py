@@ -201,7 +201,8 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
 
     logger.info("Completed reflection analysis for %s hypotheses", len(hypotheses))
 
-    return _build_reflection_result(hypotheses)
+    # A bare list replaces the pool; return all of it, not just the observed.
+    return _build_reflection_result(state["hypotheses"], observed=len(hypotheses))
 
 
 async def _run_reflection_phase(
@@ -242,14 +243,14 @@ async def _run_reflection_analysis(
     return await asyncio.gather(*analysis_tasks)
 
 
-def _build_reflection_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
+def _build_reflection_result(hypotheses: list[Hypothesis], *, observed: int) -> dict[str, Any]:
     """These are the same mutated objects; the hypothesis reducer treats full
     text overlap as replacement rather than appending another pool."""
     return {
         "hypotheses": hypotheses,
         "messages": phase_message(
             "reflection",
-            f"completed reflection analysis for {len(hypotheses)} hypotheses",
+            f"completed reflection analysis for {observed} hypotheses",
         ),
     }
 
