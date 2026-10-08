@@ -1,0 +1,54 @@
+name: Inspect retained native failure
+
+on:
+  push:
+    branches: [test/ci-native-home-debug]
+
+permissions:
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Inspect the original synthetic Home-key failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64
+          import io
+          import os
+          import zipfile
+          from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+          class StorageRedirect(HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+                  if redirected is not None:
+                      redirected.remove_header('Authorization')
+                  return redirected
+
+          url = ('https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY']
+                 + '/actions/artifacts/11563883368/zip')
+          request = Request(url, headers={
+              'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+          })
+          with build_opener(StorageRedirect()).open(request, timeout=60) as response:
+              archive = zipfile.ZipFile(io.BytesIO(response.read()))
+          prefix = ('test-results/progress-keyboard--keyboar-f3830-e-scrolls-with-arrows'
+                    '-light-webkit-iphone/')
+          context = archive.read(prefix + 'error-context.md').decode()
+          print('NATIVE_FAILURE_CONTEXT_BEGIN', flush=True)
+          print(context, flush=True)
+          print('NATIVE_FAILURE_CONTEXT_END', flush=True)
+          screenshot = archive.read(prefix + 'test-failed-1.png')
+          print('NATIVE_FAILURE_IMAGE_BEGIN', flush=True)
+          encoded = base64.b64encode(screenshot).decode()
+          for index in range(0, len(encoded), 76):
+              print(encoded[index:index + 76], flush=True)
+          print('NATIVE_FAILURE_IMAGE_END', flush=True)
+          PY
