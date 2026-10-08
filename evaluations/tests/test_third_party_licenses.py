@@ -52,14 +52,11 @@ def test_reviewed_licences_are_on_the_allowlist() -> None:
 
 
 def _declared(distribution: metadata.Distribution) -> str:
-    fields = distribution.metadata
-    license_line = (fields.get("License") or "").strip().splitlines()[:1]
-    classifiers = [c for c in fields.get_all("Classifier") or [] if c.startswith("License")]
-    return " | ".join(
-        part
-        for part in [fields.get("License-Expression") or "", *license_line, *classifiers]
-        if part
-    )
+    fields = distribution.metadata.json
+    license_line = str(fields.get("license", "")).strip().splitlines()[:1]
+    classifiers = [c for c in fields.get("classifier", []) if c.startswith("License")]
+    expression = str(fields.get("license_expression", ""))
+    return " | ".join(part for part in [expression, *license_line, *classifiers] if part)
 
 
 @pytest.mark.parametrize("blocked", ["AGPL-3.0-only", "GPL-3.0-or-later", "SSPL-1.0", "BUSL-1.1"])
