@@ -44,10 +44,15 @@ logger = logging.getLogger(__name__)
 _EMAIL_TASK = "notification.email"
 
 # Pids repeat across containers on one volume; the boot tag keeps this
-# process's leases apart from a previous container's at shutdown release.
+# process's leases apart from a previous container's at shutdown release and
+# startup recovery.
 _PROCESS_TAG = f"{os.getpid()}.{uuid.uuid4().hex[:8]}"
 _process_worker_ids: set[str] = set()
 _process_worker_ids_lock = threading.Lock()
+
+
+def process_tag() -> str:
+    return _PROCESS_TAG
 
 
 def process_worker_ids() -> frozenset[str]:
