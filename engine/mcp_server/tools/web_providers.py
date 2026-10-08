@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.tools import _results
 
 logger = logging.getLogger(__name__)
 
@@ -65,20 +66,21 @@ def _clear_credential_error(provider: str | None = None) -> None:
 
 
 def _handle_provider_error(provider: str, query: str, exc: Exception) -> dict[str, Any]:
+    error = _results.failure(exc)
     status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
     if status is not None and status in _KEY_REJECTED_STATUSES:
         _record_credential_error(provider, status, str(exc))
         # Logged at error, not warning: this one does not clear on its own,
-        # and the search moves to another provider or returns nothing.
+        # and the search moves to another provider or returns the failure.
         logger.error(
             "%s refused the configured API key (HTTP %s) - searches move to "
             "the next provider, if one is configured",
             provider,
             status,
         )
-        return {}
-    logger.warning("%s web search failed for %r: %s", provider, query, exc)
-    return {}
+        return _results.failed(error)
+    logger.warning("%s web search failed for %r: %s", provider, query, error["detail"])
+    return _results.failed(error)
 
 
 _BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
@@ -298,17 +300,26 @@ async def search_web(
     Returns:
         A dict keyed by result id, each value carrying title, url, abstract
         (the result snippet or extracted page text), source, and
-        published_date. Empty on any error so a failed search degrades
-        gracefully.
+        published_date; empty when the search found nothing. When no
+        provider could answer, the only key is ``error``, with non-secret
+        metadata saying why.
     """
     candidates = candidate_providers()
     if not candidates:
         logger.warning("Web search requested but no provider key is configured")
-        return {}
+        return _results.failed(_results.unavailable("no web search provider is configured"))
 
     capped = min(max(max_results, 1), _MAX_RESULTS_CEILING)
+    refused: dict[str, Any] = {}
     for name, search_fn in candidates:
         results = await search_fn(query, capped, max(recency_days, 0))
+        if "error" in results:
+            # Only a refused key justifies spending another provider's quota.
+            if credential_error_for(name) is None:
+                return results
+            logger.warning("%s refused the search; trying the next provider", name)
+            refused = results
+            continue
         if results:
             logger.debug(
                 "web search via %s returned %s results for %r",
@@ -319,11 +330,9 @@ async def search_web(
             return results
         # Empty success is an answer; do not spend another allowance to hear it
         # twice.
-        if credential_error_for(name) is None:
-            logger.debug("web search via %s found nothing for %r", name, query)
-            return {}
-        logger.warning("%s refused the search; trying the next provider", name)
-    return {}
+        logger.debug("web search via %s found nothing for %r", name, query)
+        return {}
+    return refused
 
 
 async def check_web_search_available() -> bool:

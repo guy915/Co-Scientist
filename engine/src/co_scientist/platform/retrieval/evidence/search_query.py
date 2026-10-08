@@ -11,7 +11,8 @@ from co_scientist.core.backoff import jittered_backoff_seconds
 from co_scientist.core.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.platform.retrieval.evidence.retrieval_support import (
     describe_exception,
-    is_tool_reported_error,
+    describe_failure,
+    reported_failure,
 )
 from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
@@ -50,11 +51,16 @@ _SEARCH_RETRY_BASE_DELAY_SECONDS = 0.5
 _SEARCH_RETRY_MAX_DELAY_SECONDS = 8.0
 
 
-def _decode_search_result(result: Any) -> Any:
-    # Re-asking a rejected query will not fix that permanent failure.
-    if is_tool_reported_error(result):
-        raise ToolException(result)
-    return parse_mcp_result(result)
+def _decode_search_result(tool_name: str, result: Any) -> Any:
+    decoded = parse_mcp_result(result)
+    # The tool already retried its transport; asking again would only multiply
+    # calls to a source that is down or refusing.
+    if (error := reported_failure(decoded)) is not None:
+        source = decoded.get("source") if isinstance(decoded, dict) else None
+        raise ToolException(
+            f"{tool_name} ({source or 'source'}) could not answer: {describe_failure(error)}"
+        )
+    return decoded
 
 
 def _search_retry_delay(attempt: int) -> float:
@@ -77,7 +83,7 @@ async def call_search_tool(
     for attempt in range(1, _SEARCH_ATTEMPTS + 1):
         try:
             result = await mcp_client.call_tool(tool_name, **tool_params)
-            return _decode_search_result(result)
+            return _decode_search_result(tool_name, result)
         # Tool errors and unregistered tools repeat identically; do not retry them.
         except (ToolException, UnknownToolError):
             raise

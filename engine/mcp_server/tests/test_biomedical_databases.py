@@ -80,11 +80,14 @@ async def test_registered_biomedical_tools_report_outcome_at_mcp_boundary(
     assert [failure.data for failure in failures] == [
         envelope | {"error": error}
         for error in (
-            {"kind": "http_status", "status_code": 503},
-            {"kind": "invalid_response"},
-            {"kind": "invalid_response"},
-            {"kind": "timeout"},
-            {"kind": "network_error"},
+            {"kind": "http_status", "status_code": 503, "detail": "HTTP 503"},
+            {
+                "kind": "invalid_response",
+                "detail": "JSONDecodeError: Expecting value: line 1 column 1 (char 0)",
+            },
+            {"kind": "invalid_response", "detail": "ValueError: response omitted its record list"},
+            {"kind": "timeout", "detail": "ReadTimeout"},
+            {"kind": "network_error", "detail": "ConnectError"},
         )
     ]
     assert all(result.is_error is not True for result in results)
@@ -160,7 +163,10 @@ async def test_invalid_rs_id_is_rejected_without_a_request(
     result = await databases.search_gwas_catalog_associations("rs334 OR 1=1")
 
     assert result["records"] == []
-    assert result["error"] == "rs_id must be an rs identifier such as rs334"
+    assert result["error"] == {
+        "kind": "invalid_request",
+        "detail": "rs_id must be an rs identifier such as rs334",
+    }
     assert requests == []
 
 
@@ -202,5 +208,5 @@ async def test_failures_are_errors_never_a_lookup_with_no_associations(
     result = await databases.search_gwas_catalog_associations(_RS_ID)
 
     assert result["records"] == []
-    assert expected_error in result["error"]
+    assert expected_error in result["error"]["detail"]
     assert "secret" not in repr(result) + caplog.text

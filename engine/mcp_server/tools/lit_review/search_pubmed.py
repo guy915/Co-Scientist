@@ -13,6 +13,7 @@ from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import search_with_relaxation
 from mcp_server.pubmed_storage import confined_path, validate_cache_identifier
 from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
+from mcp_server.tools import _results
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,10 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
     Args:
         query: Search query for PubMed.
         max_papers: Maximum number of papers to retrieve.
+
+    Returns:
+        JSON with ``results`` and ``count``, plus non-secret ``error``
+        metadata when PubMed could not be searched.
     """
     initialize_entrez()
     try:
@@ -57,8 +62,9 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
                 logger.warning("Failed to fetch metadata for paper %s: %s", paper_id, exc)
         return json.dumps({"results": articles, "count": len(articles)})
     except Exception as exc:
-        logger.error("Error searching PubMed: %s", exc)
-        return json.dumps({"error": str(exc), "results": [], "count": 0})
+        error = _results.failure(exc)
+        logger.error("Error searching PubMed: %s", error["detail"])
+        return json.dumps({"results": [], "count": 0, "error": error})
 
 
 @dataclass
@@ -230,21 +236,31 @@ async def pubmed_search_with_fulltext(
             PMC-linked selection and metadata provenance.
 
     Returns:
-        Metadata keyed by PubMed ID, with fulltext where available.
+        Metadata keyed by PubMed ID, with fulltext where available. When
+        the request is invalid or PubMed could not be searched, the only
+        key is ``error``, with non-secret metadata saying why.
     """
     lit_review_dir = _pubmed_cache_dir()
-    validate_cache_identifier(slug, label="slug")
-    if run_id is not None:
-        validate_cache_identifier(run_id, label="run ID")
+    try:
+        validate_cache_identifier(slug, label="slug")
+        if run_id is not None:
+            validate_cache_identifier(run_id, label="run ID")
+    except ValueError as exc:
+        return _results.failed(_results.invalid_request(str(exc)))
     source = PubmedSource(lit_review_dir / "pubmed")
-    results = await source.pubmed_search(
-        query,
-        slug,
-        max_papers,
-        recency_years,
-        run_id,
-        include_fulltext=include_fulltext,
-    )
+    try:
+        results = await source.pubmed_search(
+            query,
+            slug,
+            max_papers,
+            recency_years,
+            run_id,
+            include_fulltext=include_fulltext,
+        )
+    except Exception as exc:
+        error = _results.failure(exc)
+        logger.error("PubMed search failed for %r: %s", query, error["detail"])
+        return _results.failed(error)
     if include_fulltext:
         base_dir = confined_path(lit_review_dir, "pubmed", slug)
         run_dir = confined_path(base_dir, "runs", run_id) if run_id else base_dir

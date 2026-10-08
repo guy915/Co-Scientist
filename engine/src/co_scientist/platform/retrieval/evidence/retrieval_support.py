@@ -1,18 +1,30 @@
 import json
 import logging
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast
 
-# FastMCP returns a tool's exception as an ordinary text result, so every
-# reader of a tool result has to recognise it. Left unrecognised it reads as a
-# paper's full text, or as zero search hits.
-_TOOL_ERROR_ENVELOPE_RE = re.compile(r"^Error calling tool '[^']*':")
+
+def reported_failure(payload: Any) -> dict[str, Any] | None:
+    """A tool that could not answer returns its empty result with an ``error``
+    object (engine/mcp_server/tools/_results.py). Left unread, that reads as a
+    paper's full text, or as zero search hits."""
+    if isinstance(payload, str):
+        if not payload.lstrip().startswith("{"):
+            return None
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(error, dict) and isinstance(error.get("kind"), str):
+        return error
+    return None
 
 
-def is_tool_reported_error(payload: Any) -> bool:
-    return isinstance(payload, str) and bool(_TOOL_ERROR_ENVELOPE_RE.match(payload.strip()))
+def describe_failure(error: dict[str, Any]) -> str:
+    detail = error.get("detail")
+    return f"{error['kind']}: {detail}" if detail else str(error["kind"])
 
 
 def describe_exception(exc: BaseException) -> str:
@@ -296,7 +308,7 @@ def get_papers_needing_content(
 
 
 def _parse_content_from_string(result: str) -> str | None:
-    if is_tool_reported_error(result):
+    if reported_failure(result) is not None:
         return None
     try:
         result_data = json.loads(result)
@@ -306,7 +318,9 @@ def _parse_content_from_string(result: str) -> str | None:
     return field or result
 
 
-def _parse_content_from_dict(result: dict[str, Any]) -> str:
+def _parse_content_from_dict(result: dict[str, Any]) -> str | None:
+    if reported_failure(result) is not None:
+        return None
     field = cast(str | None, result.get("content") or result.get("text"))
     return field or str(result)
 

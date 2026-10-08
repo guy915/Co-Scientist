@@ -9,6 +9,7 @@ from urllib.parse import quote
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.tools import _results
 from mcp_server.tools._pacing import RequestPacer
 
 logger = logging.getLogger(__name__)
@@ -139,30 +140,26 @@ def _citation_urls(doi: str) -> dict[str, str]:
 async def _fetch_citation_data(
     doi: str, urls: dict[str, str]
 ) -> tuple[int, int, list[dict[str, Any]], list[dict[str, Any]]]:
-    try:
-        async with asyncio.timeout(_TOTAL_TIMEOUT_SECONDS):
-            async with make_client(
-                _REQUEST_TIMEOUT_SECONDS,
-                headers={"Accept": "application/json"},
-                honour_proxy_env=False,
-            ) as client:
-                # Check counts before requesting potentially large unpaginated
-                # edge sets.
-                citation_count = _count(await _response_json(client, urls["citations_count"]))
-                reference_count = _count(await _response_json(client, urls["references_count"]))
-                citation_fetched = 0 < citation_count <= _MAX_EDGES
-                reference_fetched = 0 < reference_count <= _MAX_EDGES
-                citation_rows = (
-                    await _response_json(client, urls["citations"]) if citation_fetched else []
-                )
-                reference_rows = (
-                    await _response_json(client, urls["references"]) if reference_fetched else []
-                )
-                citations = _edges(citation_rows)
-                references = _edges(reference_rows)
-    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
-        logger.warning("OpenCitations lookup failed for %s: %s", doi, exc)
-        raise RuntimeError(f"OpenCitations Index unavailable: {type(exc).__name__}: {exc}") from exc
+    async with asyncio.timeout(_TOTAL_TIMEOUT_SECONDS):
+        async with make_client(
+            _REQUEST_TIMEOUT_SECONDS,
+            headers={"Accept": "application/json"},
+            honour_proxy_env=False,
+        ) as client:
+            # Check counts before requesting potentially large unpaginated
+            # edge sets.
+            citation_count = _count(await _response_json(client, urls["citations_count"]))
+            reference_count = _count(await _response_json(client, urls["references_count"]))
+            citation_fetched = 0 < citation_count <= _MAX_EDGES
+            reference_fetched = 0 < reference_count <= _MAX_EDGES
+            citation_rows = (
+                await _response_json(client, urls["citations"]) if citation_fetched else []
+            )
+            reference_rows = (
+                await _response_json(client, urls["references"]) if reference_fetched else []
+            )
+            citations = _edges(citation_rows)
+            references = _edges(reference_rows)
     return citation_count, reference_count, citations, references
 
 
@@ -189,8 +186,9 @@ async def get_opencitations_citation_edges(doi: str) -> dict[str, Any]:
     The API's count endpoints are queried before its unpaginated edge
     endpoints. Edges are fetched only when the respective count is at most
     50; every response is capped at 1 MB and the whole lookup at 30 seconds.
-    A successful count of zero means no edges are indexed. Upstream and
-    malformed-response failures raise instead of being represented as zero.
+    A successful count of zero means no edges are indexed. An invalid DOI,
+    an upstream failure or a malformed response returns the DOI with an
+    ``error`` object instead of counts, never a count of zero.
 
     Citation links indicate bibliographic relationships only; they do not
     establish whether one work supports or contradicts a scientific claim.
@@ -199,25 +197,27 @@ async def get_opencitations_citation_edges(doi: str) -> dict[str, Any]:
         doi: DOI in raw form, optionally prefixed with ``doi:``.
 
     Returns:
-        Directional citation and reference edges with counts and provenance.
-
-    Raises:
-        ValueError: If ``doi`` is not a DOI.
-        RuntimeError: If OpenCitations is unavailable or returns invalid data.
+        Directional citation and reference edges with counts and provenance,
+        or the DOI and non-secret error metadata when the lookup failed.
     """
-    normalized_doi = _normalize_doi(doi)
+    try:
+        normalized_doi = _normalize_doi(doi)
+    except ValueError as exc:
+        return _results.failed(_results.invalid_request(str(exc)), **_provenance(doi))
     urls = _citation_urls(normalized_doi)
-    (
-        citation_count,
-        reference_count,
-        citations,
-        references,
-    ) = await _fetch_citation_data(normalized_doi, urls)
+    try:
+        (
+            citation_count,
+            reference_count,
+            citations,
+            references,
+        ) = await _fetch_citation_data(normalized_doi, urls)
+    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
+        error = _results.failure(exc)
+        logger.warning("OpenCitations lookup failed for %s: %s", normalized_doi, error["detail"])
+        return _results.failed(error, **_provenance(normalized_doi))
     return {
-        "source": "OpenCitations Index v2",
-        "source_url": _API_URL,
-        "accessed_at": datetime.now(timezone.utc).isoformat(),
-        "doi": normalized_doi,
+        **_provenance(normalized_doi),
         "citation_count": citation_count,
         "reference_count": reference_count,
         "citations": _directional_edges(
@@ -238,6 +238,15 @@ async def get_opencitations_citation_edges(doi: str) -> dict[str, Any]:
             "Citation links indicate bibliographic relationships only; they "
             "do not establish whether a work supports or contradicts a claim."
         ),
+    }
+
+
+def _provenance(doi: str) -> dict[str, Any]:
+    return {
+        "source": "OpenCitations Index v2",
+        "source_url": _API_URL,
+        "accessed_at": datetime.now(timezone.utc).isoformat(),
+        "doi": doi,
     }
 
 

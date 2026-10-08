@@ -34,6 +34,10 @@ def _describe_result(result: Any) -> str:
             parsed = json.loads(result)
         except (ValueError, TypeError):
             return f"{size} chars"
+    if isinstance(parsed, dict) and isinstance(parsed.get("error"), dict):
+        return f"failed ({parsed['error'].get('kind')})"
+    if isinstance(parsed, dict) and isinstance(parsed.get("records"), list):
+        parsed = parsed["records"]
     if isinstance(parsed, (dict, list)):
         count = len(parsed)
         detail = f"{count} item{'' if count == 1 else 's'}"

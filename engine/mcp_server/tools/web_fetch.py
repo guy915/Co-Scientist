@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import Any
 from urllib.parse import ParseResult, urlparse
@@ -7,9 +8,10 @@ import httpx
 from bs4 import BeautifulSoup
 
 from mcp_server.http_client import make_client
-from mcp_server.pdf_parser import extract_text_from_pdf
+from mcp_server.pdf_parser import PDF_ERROR, PDF_NO_TEXT, extract_text_from_pdf
 from mcp_server.safe_http import UnsafeUrlError, get_with_screened_redirects, validate_http_url
 from mcp_server.text_extraction import truncate_markdown
+from mcp_server.tools import _results
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +92,21 @@ def _block_to_markdown(element: Any) -> str:
     return text
 
 
+HTML_ERROR = "[error: could not parse HTML]"
+# Extractors report an unreadable document as these placeholders.
+_UNREADABLE = {
+    PDF_ERROR: "could not extract text from PDF",
+    PDF_NO_TEXT: "PDF has no extractable text layer, likely a scan",
+    HTML_ERROR: "could not parse HTML",
+}
+
+
 def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
     try:
         soup = BeautifulSoup(html, "lxml")
     except Exception as exc:
         logger.warning("HTML parse failed: %s", exc)
-        return "[error: could not parse HTML]"
+        return HTML_ERROR
 
     for tag in soup.find_all(list(_CHROME_TAGS)):
         tag.decompose()
@@ -129,19 +140,23 @@ async def _get_with_screened_redirects(client: httpx.AsyncClient, url: str) -> h
         raise UrlNotFetchableError(str(exc)) from exc
 
 
-def _render_response(response: httpx.Response) -> str:
+def _render_response(response: httpx.Response) -> str | dict[str, Any]:
     content_type = response.headers.get("content-type", "").lower()
 
     if "pdf" in content_type:
-        return extract_text_from_pdf(response.content)
-    if "html" in content_type or "xml" in content_type:
-        return extract_text_from_html(response.text)
-    if content_type.startswith("text/") or "json" in content_type:
+        text = extract_text_from_pdf(response.content)
+    elif "html" in content_type or "xml" in content_type:
+        text = extract_text_from_html(response.text)
+    elif content_type.startswith("text/") or "json" in content_type:
         return response.text[:_MAX_BYTES]
-    return f"[note: unsupported content type {content_type or 'unknown'}]"
+    else:
+        return _results.unreadable(f"unsupported content type {content_type or 'unknown'}")
+    if text in _UNREADABLE:
+        return _results.unreadable(_UNREADABLE[text])
+    return text
 
 
-async def _fetch_and_render(url: str) -> str:
+async def _fetch_and_render(url: str) -> str | dict[str, Any]:
     """The caller screens the initial URL; this path screens redirects."""
     headers: dict[str, Any] = {"User-Agent": _USER_AGENT}
     async with make_client(_REQUEST_TIMEOUT, headers=headers, honour_proxy_env=False) as client:
@@ -163,10 +178,10 @@ async def read_url(url: str, max_chars: int = 50_000) -> str:
         max_chars: Maximum characters to return before truncating.
 
     Returns:
-        Markdown-ish text for HTML and PDF pages. On failure, returns a
-        bracketed placeholder describing what went wrong rather than
-        raising, so the agent can read the reason and choose a different
-        URL instead of retrying a URL that will never work.
+        Markdown-ish text for HTML and PDF pages. When the page cannot be
+        read, returns JSON with the ``url`` and an ``error`` object saying
+        why rather than raising, so the agent can read the reason and choose
+        a different URL instead of retrying a URL that will never work.
     """
     try:
         # In a worker thread: the screen resolves DNS with blocking socket
@@ -174,18 +189,21 @@ async def read_url(url: str, max_chars: int = 50_000) -> str:
         await asyncio.to_thread(check_fetchable, url)
     except UrlNotFetchableError as exc:
         logger.info("Blocked fetch of %s: %s", url, exc)
-        return f"[blocked: {exc}]"
+        return _unread(url, _results.blocked(str(exc)))
 
     try:
         text = await _fetch_and_render(url)
     except UrlNotFetchableError as exc:
         logger.info("Blocked redirect while fetching %s: %s", url, exc)
-        return f"[blocked: {exc}]"
-    except httpx.HTTPStatusError as exc:
-        logger.info("Fetch of %s returned %s", url, exc.response.status_code)
-        return f"[error: HTTP {exc.response.status_code} fetching {url}]"
+        return _unread(url, _results.blocked(str(exc)))
     except httpx.HTTPError as exc:
-        logger.warning("Fetch of %s failed: %s", url, exc)
-        return f"[error: could not fetch {url}]"
-
+        error = _results.failure(exc)
+        logger.info("Fetch of %s failed: %s", url, error["detail"])
+        return _unread(url, error)
+    if isinstance(text, dict):
+        return _unread(url, text)
     return text[:max_chars]
+
+
+def _unread(url: str, error: dict[str, Any]) -> str:
+    return json.dumps(_results.failed(error, url=url))

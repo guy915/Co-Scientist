@@ -6,6 +6,7 @@ from typing import Any, TypedDict, Unpack
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.tools import _results
 from mcp_server.tools._pacing import RequestPacer
 
 logger = logging.getLogger(__name__)
@@ -37,21 +38,14 @@ def _response_records(payload: Any, field: str) -> list[dict[str, Any]]:
     return records
 
 
-def _failure_result(source: str, query: str, exc: Exception, provider_name: str) -> dict[str, Any]:
-    if isinstance(exc, httpx.TimeoutException):
-        error: dict[str, Any] = {"kind": "timeout"}
-    elif isinstance(exc, httpx.HTTPStatusError):
-        error = {
-            "kind": "http_status",
-            "status_code": exc.response.status_code,
-        }
-    elif isinstance(exc, (ValueError, TypeError, AttributeError, KeyError, IndexError)):
-        error = {"kind": "invalid_response"}
-    else:
-        error = {"kind": "network_error"}
+# Unreachable, refused and malformed answers all fail the lookup, never empty it.
+_LOOKUP_ERRORS = (httpx.HTTPError, ValueError, TypeError, AttributeError, KeyError, IndexError)
 
-    logger.warning("%s search failed for %r (%s)", provider_name, query, error["kind"])
-    return {"source": source, "query": query, "records": [], "error": error}
+
+def _failed_lookup(source: str, query: str, exc: Exception) -> dict[str, Any]:
+    error = _results.failure(exc)
+    logger.warning("%s lookup failed for %r (%s)", source, query, error["detail"])
+    return _results.failed_records(source, query, error)
 
 
 def _chembl_record(molecule: dict[str, Any]) -> dict[str, Any]:
@@ -87,17 +81,10 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
         payload = await _get_json(f"{_CHEMBL_URL}/molecule/search.json", params=params)
         molecules = _response_records(payload, "molecules")
         records = [_chembl_record(molecule) for molecule in molecules[:limit]]
-    except (
-        httpx.HTTPError,
-        ValueError,
-        TypeError,
-        AttributeError,
-        KeyError,
-        IndexError,
-    ) as exc:
+    except _LOOKUP_ERRORS as exc:
         # Per-source network/parsing failure must not abort the whole literature
         # review.
-        return _failure_result("ChEMBL", query, exc, "ChEMBL")
+        return _failed_lookup("ChEMBL", query, exc)
     return {"source": "ChEMBL", "query": query, "records": records}
 
 
@@ -142,17 +129,10 @@ async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
         payload = await _get_json(_UNIPROT_URL, params=params)
         results = _response_records(payload, "results")[:limit]
         records = [_uniprot_record(result) for result in results]
-    except (
-        httpx.HTTPError,
-        ValueError,
-        TypeError,
-        AttributeError,
-        KeyError,
-        IndexError,
-    ) as exc:
+    except _LOOKUP_ERRORS as exc:
         # Per-source network/parsing failure must not abort the whole literature
         # review.
-        return _failure_result("UniProtKB/Swiss-Prot", query, exc, "UniProt")
+        return _failed_lookup("UniProtKB/Swiss-Prot", query, exc)
     return {
         "source": "UniProtKB/Swiss-Prot",
         "query": query,
@@ -161,10 +141,6 @@ async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
 
 
 _TRIALS_URL = "https://clinicaltrials.gov/api/v2/studies"
-
-
-def _clinical_trials_empty_result(query: str) -> dict[str, Any]:
-    return {"source": "ClinicalTrials.gov", "query": query, "records": []}
 
 
 def _record(study: dict[str, Any]) -> dict[str, Any]:
@@ -207,7 +183,8 @@ async def search_clinical_trials(query: str, max_results: int = 10) -> dict[str,
 
     Returns:
         Source-stamped trial records carrying status and, where a trial
-        stopped early, why -- or an empty-records envelope.
+        stopped early, why -- or an empty-records envelope, with non-secret
+        error metadata if the lookup fails.
     """
     limit = max(1, min(max_results, 25))
     params: dict[str, str | int] = {
@@ -218,22 +195,14 @@ async def search_clinical_trials(query: str, max_results: int = 10) -> dict[str,
     try:
         payload = await _get_json(_TRIALS_URL, params=params)
         studies = (payload.get("studies") or [])[:limit]
-    except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("ClinicalTrials.gov search failed for %r: %s", query, exc)
-        return _clinical_trials_empty_result(query)
-    return {
-        "source": "ClinicalTrials.gov",
-        "query": query,
-        "records": [_record(study) for study in studies],
-    }
+        records = [_record(study) for study in studies]
+    except _LOOKUP_ERRORS as exc:
+        return _failed_lookup("ClinicalTrials.gov", query, exc)
+    return _results.records("ClinicalTrials.gov", query, records)
 
 
 _ENSEMBL_URL = "https://rest.ensembl.org/lookup/symbol/homo_sapiens"
 _GNOMAD_URL = "https://gnomad.broadinstitute.org/api"
-
-
-def _genomics_databases_empty_result(source: str, query: str) -> dict[str, Any]:
-    return {"source": source, "query": query, "records": []}
 
 
 async def search_ensembl_gene(query: str, max_results: int = 1) -> dict[str, Any]:
@@ -246,7 +215,8 @@ async def search_ensembl_gene(query: str, max_results: int = 1) -> dict[str, Any
 
     Returns:
         A source-stamped record with the stable id, locus, biotype and
-        description, or an empty-records envelope.
+        description, or an empty-records envelope (an unknown symbol), with
+        non-secret error metadata if the lookup fails.
     """
     del max_results
     try:
@@ -254,9 +224,15 @@ async def search_ensembl_gene(query: str, max_results: int = 1) -> dict[str, Any
             f"{_ENSEMBL_URL}/{query}",
             headers={"Content-Type": "application/json"},
         )
-    except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("Ensembl lookup failed for %r: %s", query, exc)
-        return _genomics_databases_empty_result("Ensembl", query)
+        if not isinstance(gene, dict):
+            raise ValueError("expected a JSON object")
+    except httpx.HTTPStatusError as exc:
+        # Ensembl answers an unknown symbol with 404: that is no match, not an outage.
+        if exc.response.status_code == 404:
+            return _results.records("Ensembl", query, [])
+        return _failed_lookup("Ensembl", query, exc)
+    except _LOOKUP_ERRORS as exc:
+        return _failed_lookup("Ensembl", query, exc)
     record = {
         "ensembl_id": gene.get("id"),
         "symbol": gene.get("display_name"),
@@ -266,7 +242,7 @@ async def search_ensembl_gene(query: str, max_results: int = 1) -> dict[str, Any
         "strand": gene.get("strand"),
         "url": f"https://www.ensembl.org/Homo_sapiens/Gene/Summary?g={gene.get('id')}",
     }
-    return {"source": "Ensembl", "query": query, "records": [record]}
+    return _results.records("Ensembl", query, [record])
 
 
 _GNOMAD_QUERY = """
@@ -295,7 +271,8 @@ async def search_gnomad_constraint(query: str, max_results: int = 1) -> dict[str
             every search tool shares one parameter mapping.
 
     Returns:
-        A source-stamped constraint record, or an empty-records envelope.
+        A source-stamped constraint record, or an empty-records envelope,
+        with non-secret error metadata if the lookup fails.
     """
     del max_results
     try:
@@ -306,17 +283,12 @@ async def search_gnomad_constraint(query: str, max_results: int = 1) -> dict[str
             )
             response.raise_for_status()
         gene = ((response.json().get("data") or {}).get("gene")) or {}
-    except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("gnomAD lookup failed for %r: %s", query, exc)
-        return _genomics_databases_empty_result("gnomAD", query)
-    constraint = gene.get("gnomad_constraint") or {}
+        constraint = gene.get("gnomad_constraint") or {}
+    except _LOOKUP_ERRORS as exc:
+        return _failed_lookup("gnomAD", query, exc)
     if not gene.get("gene_id") or not constraint:
-        return _genomics_databases_empty_result("gnomAD", query)
-    return {
-        "source": "gnomAD",
-        "query": query,
-        "records": [_constraint_record(gene, constraint)],
-    }
+        return _results.records("gnomAD", query, [])
+    return _results.records("gnomAD", query, [_constraint_record(gene, constraint)])
 
 
 def _constraint_record(gene: dict[str, Any], constraint: dict[str, Any]) -> dict[str, Any]:
@@ -348,10 +320,6 @@ _OPENTARGETS_URL = "https://api.platform.opentargets.org/api/v4/graphql"
 _HUMAN_TAXON = 9606
 
 
-def _systems_biology_empty_result(source: str, query: str) -> dict[str, Any]:
-    return {"source": source, "query": query, "records": []}
-
-
 def _capped(max_results: int) -> int:
     return max(1, min(max_results, 25))
 
@@ -365,7 +333,8 @@ async def search_string_interactions(query: str, max_results: int = 10) -> dict[
 
     Returns:
         Source-stamped interaction partners with STRING's combined score
-        and its evidence channels, or an empty-records envelope.
+        and its evidence channels, or an empty-records envelope, with
+        non-secret error metadata if the lookup fails.
     """
     limit = _capped(max_results)
     params: dict[str, str | int] = {
@@ -375,10 +344,16 @@ async def search_string_interactions(query: str, max_results: int = 10) -> dict[
     }
     try:
         partners = await _get_json(_STRING_URL, params=params)
-    except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("STRING lookup failed for %r: %s", query, exc)
-        return _systems_biology_empty_result("STRING", query)
-    records = [
+        records = _string_records(partners, limit)
+    except _LOOKUP_ERRORS as exc:
+        return _failed_lookup("STRING", query, exc)
+    return _results.records("STRING", query, records)
+
+
+def _string_records(partners: Any, limit: int) -> list[dict[str, Any]]:
+    if not isinstance(partners, list):
+        raise ValueError("expected a JSON list of interaction partners")
+    return [
         {
             "partner": partner.get("preferredName_B"),
             "combined_score": partner.get("score"),
@@ -393,7 +368,6 @@ async def search_string_interactions(query: str, max_results: int = 10) -> dict[
         for partner in partners[:limit]
         if isinstance(partner, dict)
     ]
-    return {"source": "STRING", "query": query, "records": records}
 
 
 async def _reactome_entity(client: httpx.AsyncClient, query: str) -> str | None:
@@ -429,23 +403,25 @@ async def search_reactome_pathways(query: str, max_results: int = 10) -> dict[st
         max_results: Maximum pathways to return, capped at 25.
 
     Returns:
-        Source-stamped pathway records, or an empty-records envelope.
+        Source-stamped pathway records, or an empty-records envelope, with
+        non-secret error metadata if the lookup fails.
     """
     limit = _capped(max_results)
     try:
         async with make_client(30) as client:
             entity = await _reactome_entity(client, query)
             if entity is None:
-                return _systems_biology_empty_result("Reactome", query)
+                return _results.records("Reactome", query, [])
             response = await client.get(
                 f"{_REACTOME_PATHWAYS}/entity/{entity}/allForms",
                 params={"species": str(_HUMAN_TAXON)},
             )
             response.raise_for_status()
         pathways = response.json()
-    except (httpx.HTTPError, ValueError, KeyError) as exc:
-        logger.warning("Reactome lookup failed for %r: %s", query, exc)
-        return _systems_biology_empty_result("Reactome", query)
+        if not isinstance(pathways, list):
+            raise ValueError("expected a JSON list of pathways")
+    except _LOOKUP_ERRORS as exc:
+        return _failed_lookup("Reactome", query, exc)
     records = [
         {
             "pathway_id": pathway.get("stId"),
@@ -455,7 +431,7 @@ async def search_reactome_pathways(query: str, max_results: int = 10) -> dict[st
         for pathway in pathways[:limit]
         if isinstance(pathway, dict)
     ]
-    return {"source": "Reactome", "query": query, "records": records}
+    return _results.records("Reactome", query, records)
 
 
 _OPENTARGETS_QUERY = """
@@ -500,7 +476,8 @@ async def search_open_targets(query: str, max_results: int = 10) -> dict[str, An
     Returns:
         A single source-stamped target record carrying scored disease
         associations and the tractability buckets it satisfies, or an
-        empty-records envelope.
+        empty-records envelope, with non-secret error metadata if the lookup
+        fails.
     """
     limit = _capped(max_results)
     try:
@@ -514,16 +491,10 @@ async def search_open_targets(query: str, max_results: int = 10) -> dict[str, An
             )
             response.raise_for_status()
         hits = (((response.json().get("data") or {}).get("search") or {}).get("hits")) or []
-    except (httpx.HTTPError, ValueError) as exc:
-        logger.warning("Open Targets lookup failed for %r: %s", query, exc)
-        return _systems_biology_empty_result("Open Targets", query)
-    if not hits:
-        return _systems_biology_empty_result("Open Targets", query)
-    return {
-        "source": "Open Targets",
-        "query": query,
-        "records": [_open_targets_record(hits[0])],
-    }
+        records = [_open_targets_record(hits[0])] if hits else []
+    except _LOOKUP_ERRORS as exc:
+        return _failed_lookup("Open Targets", query, exc)
+    return _results.records("Open Targets", query, records)
 
 
 def _open_targets_record(hit: dict[str, Any]) -> dict[str, Any]:
@@ -557,7 +528,7 @@ _wait_for_request_slot = RequestPacer(0.1).wait
 
 
 def _gwas_catalog_empty_result(
-    rs_id: str, page: int, size: int, source_url: str, error: str | None = None
+    rs_id: str, page: int, size: int, source_url: str, error: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "source": "GWAS Catalog",
@@ -717,7 +688,7 @@ async def search_gwas_catalog_associations(
             0,
             20,
             _API_URL,
-            "rs_id must be an rs identifier such as rs334",
+            _results.invalid_request("rs_id must be an rs identifier such as rs334"),
         )
 
     bounded_size = max(1, min(size, MAX_PAGE_SIZE))
@@ -736,7 +707,8 @@ async def search_gwas_catalog_associations(
             payload, normalized, bounded_page, bounded_size
         )
     except (httpx.HTTPError, ValueError) as exc:
-        detail = f"{type(exc).__name__}: {exc}"
-        logger.warning("GWAS Catalog lookup failed for %s: %s", normalized, detail)
-        result["error"] = detail
+        result["error"] = _results.failure(exc)
+        logger.warning(
+            "GWAS Catalog lookup failed for %s: %s", normalized, result["error"]["detail"]
+        )
     return result

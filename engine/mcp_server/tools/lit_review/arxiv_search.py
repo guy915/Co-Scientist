@@ -11,6 +11,7 @@ import defusedxml.ElementTree as ElementTree
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.tools import _results
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +94,8 @@ async def search_arxiv(query: str, max_results: int = 10) -> dict[str, Any]:
         max_results: Maximum records to return, capped at 25.
 
     Returns:
-        Source-stamped preprint records, or an empty-records envelope on
-        any failure to reach or parse arXiv's response.
+        Source-stamped preprint records, or an empty-records envelope, with
+        non-secret error metadata if arXiv cannot be reached or parsed.
     """
     limit = max(1, min(max_results, 25))
     params = {
@@ -108,6 +109,7 @@ async def search_arxiv(query: str, max_results: int = 10) -> dict[str, Any]:
             response.raise_for_status()
         records = _parse_feed(response.text)[:limit]
     except (httpx.HTTPError, ParseError) as exc:
-        logger.warning("arXiv search failed for %r: %s", query, exc)
-        records = []
-    return {"source": "arXiv", "query": query, "records": records}
+        error = _results.failure(exc)
+        logger.warning("arXiv search failed for %r: %s", query, error["detail"])
+        return _results.failed_records("arXiv", query, error)
+    return _results.records("arXiv", query, records)

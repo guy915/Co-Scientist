@@ -161,7 +161,7 @@ async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> N
     class Client:
         async def call_tool(self, name: str, **_: Any) -> Any:
             if name == "search_europepmc":
-                return "Error calling tool 'search_europepmc': Europe PMC unavailable: HTTP 503"
+                return {"source": "Europe PMC", "query": "q1", "records": [], "error": _HTTP_503}
             return {"P1": {"title": "Healthy source paper"}}
 
     errors: list[str] = []
@@ -175,6 +175,40 @@ async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> N
     assert len(errors) == 1
     assert "search_europepmc" in errors[0] and "Europe PMC" in errors[0]
     assert "HTTP 503" in errors[0]
+
+
+_HTTP_503 = {"kind": "http_status", "status_code": 503, "detail": "HTTP 503"}
+
+
+@pytest.mark.parametrize(
+    "failed",
+    [
+        {"source": "Europe PMC", "query": "q1", "records": [], "error": _HTTP_503},
+        # Keyed-by-id tools carry only the error.
+        {"error": _HTTP_503},
+        json.dumps({"results": [], "count": 0, "error": _HTTP_503}),
+    ],
+)
+async def test_a_failed_lookup_is_recorded_once_not_broadened_as_no_match(failed: Any) -> None:
+    registry = make_tool_lookup_registry(
+        {"src_a": make_tool_config(mcp_tool_name="search_europepmc")}
+    )
+    calls: list[str] = []
+
+    class Client:
+        async def call_tool(self, name: str, **_: Any) -> Any:
+            calls.append(name)
+            return failed
+
+    errors: list[str] = []
+
+    papers, _ = await _collect_multi_source(
+        registry, Client(), errors, papers_per_query=1, semantic=False
+    )
+
+    assert papers == {}
+    assert calls == ["search_europepmc"]
+    assert len(errors) == 1 and "HTTP 503" in errors[0]
 
 
 _AGENT_MODULES = (

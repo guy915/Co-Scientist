@@ -10,6 +10,7 @@ import httpx
 
 from mcp_server.http_client import make_client
 from mcp_server.text_extraction import clean_markup
+from mcp_server.tools import _results
 
 logger = logging.getLogger(__name__)
 
@@ -28,21 +29,13 @@ _BIORXIV_FILTER = 'PUBLISHER:"bioRxiv"'
 _TRANSPORT_RETRY_DELAYS_SECONDS = (0.5, 1.5)
 
 
-def _results(payload: Any) -> list[dict[str, Any]]:
+def _result_list(payload: Any) -> list[dict[str, Any]]:
     """Require a result list so a broken response cannot imply no matches."""
     result_list = payload.get("resultList") if isinstance(payload, dict) else None
     results = result_list.get("result") if isinstance(result_list, dict) else None
     if not isinstance(results, list) or any(not isinstance(record, dict) for record in results):
         raise ValueError("invalid Europe PMC resultList.result")
     return results
-
-
-def _failure_detail(exc: Exception) -> str:
-    """Keep HTTP status and retry timing when MCP serializes the error."""
-    if isinstance(exc, httpx.HTTPStatusError):
-        retry_after = exc.response.headers.get("retry-after", "unspecified")
-        return f"HTTP {exc.response.status_code}; Retry-After={retry_after}"
-    return f"{type(exc).__name__}: {exc}"
 
 
 def _record(result: dict[str, Any]) -> dict[str, Any]:
@@ -110,15 +103,12 @@ async def _search(
     }
     try:
         response = await _get_with_transport_retry(params)
-        records = [_record(result) for result in _results(response.json())[:limit]]
+        records = [_record(result) for result in _result_list(response.json())[:limit]]
     except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
-        logger.warning("Europe PMC search failed for %r: %s", query, exc)
-        raise RuntimeError(f"{source_label} search unavailable: {_failure_detail(exc)}") from exc
-    return {
-        "source": source_label,
-        "query": asked,
-        "records": records,
-    }
+        error = _results.failure(exc)
+        logger.warning("%s search failed for %r: %s", source_label, query, error["detail"])
+        return _results.failed_records(source_label, asked, error)
+    return _results.records(source_label, asked, records)
 
 
 async def search_europepmc(query: str, max_results: int = 10) -> dict[str, Any]:
@@ -130,7 +120,8 @@ async def search_europepmc(query: str, max_results: int = 10) -> dict[str, Any]:
 
     Returns:
         Source-stamped paper records, each flagged as preprint or not, or
-        an empty-records envelope.
+        an empty-records envelope, with non-secret error metadata if the
+        search fails.
     """
     return await _search(query, max_results, "Europe PMC")
 
@@ -143,7 +134,8 @@ async def search_preprints(query: str, max_results: int = 10) -> dict[str, Any]:
         max_results: Maximum records to return, capped at 25.
 
     Returns:
-        Source-stamped preprint records, or an empty-records envelope.
+        Source-stamped preprint records, or an empty-records envelope, with
+        non-secret error metadata if the search fails.
     """
     return await _search(
         f"({query}) AND {_PREPRINT_FILTER}",
@@ -166,7 +158,8 @@ async def search_biorxiv(query: str, max_results: int = 10) -> dict[str, Any]:
         max_results: Maximum records to return, capped at 25.
 
     Returns:
-        Source-stamped bioRxiv records, or an empty-records envelope.
+        Source-stamped bioRxiv records, or an empty-records envelope, with
+        non-secret error metadata if the search fails.
     """
     return await _search(
         f"({query}) AND {_PREPRINT_FILTER} AND {_BIORXIV_FILTER}",

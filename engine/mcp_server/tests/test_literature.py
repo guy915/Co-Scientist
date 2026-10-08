@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 import httpx
@@ -14,10 +15,7 @@ from mcp_server.tools.lit_review import (
     europepmc_search,
     opencitations,
 )
-from mcp_server.tools.lit_review.openalex_search import (
-    OpenAlexUnavailableError,
-    search_openalex,
-)
+from mcp_server.tools.lit_review.openalex_search import search_openalex
 
 _FEED_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom"
@@ -130,8 +128,11 @@ class TestEuropepmcSearch:
     ) -> None:
         stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
-        with pytest.raises(RuntimeError, match=source):
-            await tool("PKMYT1")
+        result = await tool("PKMYT1")
+
+        assert result["source"] == source
+        assert result["records"] == []
+        assert result["error"] == {"kind": "network_error", "detail": "ConnectError"}
 
     async def test_a_persistent_transport_failure_still_fails_the_source(
         self,
@@ -139,9 +140,9 @@ class TestEuropepmcSearch:
     ) -> None:
         client = stub_failure(monkeypatch, httpx.RemoteProtocolError("Server disconnected"))
 
-        with pytest.raises(RuntimeError, match="RemoteProtocolError"):
-            await europepmc_search.search_europepmc("PKMYT1")
+        result = await europepmc_search.search_europepmc("PKMYT1")
 
+        assert result["error"] == {"kind": "network_error", "detail": "RemoteProtocolError"}
         assert len(client.calls) == 3
 
 
@@ -176,13 +177,12 @@ _SAMPLE: dict[str, Any] = {
 }
 
 
-async def test_openalex_failure_raises_instead_of_looking_like_no_match(
+async def test_openalex_failure_is_reported_instead_of_looking_like_no_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_responses(monkeypatch, StubResponse(None, error=httpx.HTTPError("x")))
 
-    with pytest.raises(OpenAlexUnavailableError, match="could not be"):
-        await search_openalex("q")
+    assert await search_openalex("q") == {"error": {"kind": "network_error", "detail": "HTTPError"}}
 
 
 async def test_openalex_follows_cursor_pages_and_excludes_retractions(
@@ -298,7 +298,7 @@ _ONE_EDGE = {"oci": "1-2", "citing": f"doi:{_DOI}", "cited": "doi:10.1111/x"}
         ),
         pytest.param(
             [httpx.Response(503, json={"error": "unavailable"})],
-            r"HTTPStatusError.*503",
+            "HTTP 503",
             1,
             id="upstream error is not reported as zero",
         ),
@@ -322,7 +322,8 @@ async def test_unusable_upstream_answers_fail_instead_of_looking_complete(
 ) -> None:
     requests = _install_responses(monkeypatch, responses)
 
-    with pytest.raises(RuntimeError, match=error):
-        await opencitations.get_opencitations_citation_edges(_DOI)
+    result = await opencitations.get_opencitations_citation_edges(_DOI)
 
+    assert re.search(error, result["error"]["detail"])
+    assert "citation_count" not in result and "citations" not in result
     assert len(requests) == request_count

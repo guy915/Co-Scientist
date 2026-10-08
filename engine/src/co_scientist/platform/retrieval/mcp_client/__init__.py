@@ -315,7 +315,11 @@ class MCPToolClient:
             server_names,
         )
 
-        client = MultiServerMCPClient(cast(dict[str, Connection], self._server_configs))
+        # An MCP execution error raises ToolException instead of arriving as
+        # ordinary result text that every reader would have to recognise.
+        client = MultiServerMCPClient(
+            cast(dict[str, Connection], self._server_configs), handle_tool_errors=False
+        )
         # Publish only after every server has yielded complete tool indexes.
         tools = await client.get_tools()
         self._client = client

@@ -1,3 +1,4 @@
+import json
 import socket
 from typing import Any
 
@@ -119,9 +120,16 @@ def _redirect(location: str) -> httpx.Response:
     )
 
 
+def _unread(text: str, url: str = "https://example.com/a") -> dict[str, Any]:
+    result = json.loads(text)
+    assert result["url"] == url
+    error: dict[str, Any] = result["error"]
+    return error
+
+
 @pytest.mark.parametrize("url", ["http://localhost:8008/api/runs", "file:///x"])
-async def test_read_url_reports_a_blocked_url_as_text(url: str) -> None:
-    assert (await read_url(url)).startswith("[blocked:")
+async def test_read_url_reports_a_blocked_url_as_a_failed_result(url: str) -> None:
+    assert _unread(await read_url(url), url)["kind"] == "blocked"
 
 
 async def test_read_url_extracts_readable_text_without_page_furniture(
@@ -163,9 +171,10 @@ async def test_read_url_rejects_a_stream_over_the_response_budget(
     monkeypatch.setattr(web_fetch, "_MAX_BYTES", 5)
     transport_responses(monkeypatch, _page(200, b"123456", "text/plain"))
 
-    assert await read_url("https://example.com/large") == (
-        "[error: could not fetch https://example.com/large]"
-    )
+    assert _unread(await read_url("https://example.com/large"), "https://example.com/large") == {
+        "kind": "network_error",
+        "detail": "ResponseTooLargeError",
+    }
 
 
 @pytest.mark.parametrize(
@@ -190,23 +199,26 @@ async def test_read_url_handles_div_only_and_oversized_pages(
 @pytest.mark.parametrize(
     ("response", "expected"),
     [
-        (_page(404, b"nope", None), "[error: HTTP 404"),
+        (
+            _page(404, b"nope", None),
+            {"kind": "http_status", "status_code": 404, "detail": "HTTP 404"},
+        ),
         (
             _page(200, b"\x00\x01", "image/png"),
-            "[note: unsupported content type image/png",
+            {"kind": "invalid_response", "detail": "unsupported content type image/png"},
         ),
     ],
 )
-async def test_read_url_reports_failures_and_unreadable_types_as_text(
+async def test_read_url_reports_failures_and_unreadable_types_as_failed_results(
     monkeypatch: pytest.MonkeyPatch,
     resolve_to: Any,
     response: httpx.Response,
-    expected: str,
+    expected: dict[str, Any],
 ) -> None:
     resolve_to(_PUBLIC)
     stub_responses(monkeypatch, response)
 
-    assert (await read_url("https://example.com/a")).startswith(expected)
+    assert _unread(await read_url("https://example.com/a")) == expected
 
 
 async def test_read_url_screens_every_redirect_hop(
@@ -217,7 +229,7 @@ async def test_read_url_screens_every_redirect_hop(
 
     result = await read_url("https://example.com/a")
 
-    assert result.startswith("[blocked:")
+    assert _unread(result)["kind"] == "blocked"
     assert len(client.calls) == 1
 
 
@@ -233,8 +245,9 @@ async def test_read_url_follows_a_safe_redirect_and_cuts_off_loops(
     assert "Landed" in await read_url("https://example.com/a")
 
     stub_responses(monkeypatch, *[_redirect("https://example.com/a")] * 5)
-    result = await read_url("https://example.com/a")
-    assert result.startswith("[blocked: too many redirects")
+    error = _unread(await read_url("https://example.com/a"))
+    assert error["kind"] == "blocked"
+    assert error["detail"].startswith("too many redirects")
 
 
 _BRAVE_PAYLOAD: dict[str, Any] = {
@@ -341,7 +354,9 @@ class TestWebSearchProviders:
         monkeypatch.setenv(key, "k")
         stub_failure(monkeypatch, _status_error(status))
 
-        assert await search("anything", 5, 0) == {}
+        assert await search("anything", 5, 0) == {
+            "error": {"kind": "http_status", "status_code": status, "detail": f"HTTP {status}"}
+        }
 
         recorded = web_search_credential_error()
         assert recorded is not None
@@ -354,7 +369,7 @@ class TestWebSearchProviders:
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         stub_failure(monkeypatch, failure)
 
-        assert await search_brave("anything", 5, 0) == {}
+        assert set(await search_brave("anything", 5, 0)) == {"error"}
         assert web_search_credential_error() is None
 
     async def test_availability_follows_refusals_and_a_success_clears_them(
