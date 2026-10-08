@@ -166,10 +166,11 @@ export function PrivacyContent() {
           application advertising or analytics storage keys.
         </p>
         <p>
-          The current desktop trailer is an embedded YouTube video. Loading it
-          contacts Google, which applies its own privacy and storage policies.
-          The video is optional and is separate from the necessary application
-          storage listed here.
+          The trailer is a link to YouTube. We load no embedded video or Google
+          resources: YouTube receives a request only when you open that link,
+          and its own privacy and storage policies then apply. All application
+          storage serves the necessary functions listed here, so the application
+          does not need a cookie-consent banner.
         </p>
         <p>
           Local storage keys are co_scientist_client_id, cosci-theme,
