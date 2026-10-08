@@ -17,7 +17,8 @@ List the relevant checks and their results. For launch-wide changes, run
 Workflow changes: link the latest-commit run and show that selected commands ran
 and excluded targets were correctly skipped.
 
-Model-affecting changes: benchmark scores before and after (see docs/OPTIMIZATION.md)
+Model-affecting changes: benchmark scores before and after (see the quality
+benchmark in evaluations/README.md).
 
 ## Release notes
 
