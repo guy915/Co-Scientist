@@ -10,14 +10,8 @@ function renderIdeas(ui: ReactElement, path = '/runs/run-1/ideas') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 }
 
-it('renders idea rows sorted by Elo with their scores', () => {
+it('renders idea rows in server publication order with their scores', () => {
   const hypotheses: Hypothesis[] = [
-    makeHypothesis({
-      id: 'low',
-      title: 'Low-ranked idea',
-      statement: 'A weaker statement.',
-      elo_rating: 1150,
-    }),
     makeHypothesis({
       id: 'high',
       title: 'High-ranked idea',
@@ -25,6 +19,12 @@ it('renders idea rows sorted by Elo with their scores', () => {
       elo_rating: 1300,
       win_count: 4,
       loss_count: 1,
+    }),
+    makeHypothesis({
+      id: 'low',
+      title: 'Low-ranked idea',
+      statement: 'A weaker statement.',
+      elo_rating: 1150,
     }),
   ];
   renderIdeas(<IdeasTab hypotheses={hypotheses} reviews={[]} />);
