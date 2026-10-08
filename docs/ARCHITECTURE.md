@@ -55,11 +55,12 @@ at import time, never by importing upward:
 ```
 co_scientist/
   main            composition root: FastAPI app, lifespan, worker startup
+  serving         production ASGI factory: trusted-proxy visitor address
   api/            runs/ (lifecycle, read, chat, SSE), interviews/, contracts/,
                   tracing (HTTP spans),
                   documents, uploads, free_usage, byok_models, feedback_api,
                   logs_api, diagnostics, auth, operator_access, request_limits,
-                  launch_admission, launch_control_api
+                  launch_admission, launch_control_api, trusted_proxy
   orchestration/  engine_tasks/ (durable node, fan-out and match executor,
                   report_finalize), task_worker/ (leased cohorts),
                   repository/ (tasks, tasks_lifecycle, events, receipts, runs_views),

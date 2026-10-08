@@ -12,6 +12,7 @@
 | [Operations](OPERATIONS.md) | Persistence, provider and scientific safeguards |
 | [Monitoring](MONITORING.md) | Uptime checks, error tracking and tracing |
 | [Launch](LAUNCH.md) | Release validation, backups and repository settings |
+| [Trusted proxy](TRUSTED-PROXY.md) | Visitor addresses behind the Railway edge |
 | [Launch control](LAUNCH-CONTROL.md) | Operator pause, drain and visitor notice |
 | [Incidents](INCIDENTS.md) | Incident playbooks |
 | [Restore drill](RESTORE-DRILL.md) | Local Litestream backup and restore check |
