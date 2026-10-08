@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from typing import Any, Protocol
 
 import litellm
+import openai
 
 from co_scientist.platform.llm.profile import model_profile
 
@@ -21,7 +22,7 @@ class CompletionBackend(Protocol):
 
 
 def is_authentication_error(error: BaseException) -> bool:
-    return isinstance(error, litellm.exceptions.AuthenticationError)
+    return isinstance(error, (litellm.exceptions.AuthenticationError, openai.AuthenticationError))
 
 
 def litellm_supports_json_schema(model_name: str) -> bool:
@@ -47,6 +48,8 @@ class LitellmBackend:
         """Read the live LiteLLM attribute so existing patch paths still
         steer built requests.
         """
+        # SDK retries would send requests that admission has not reserved.
+        completion_args.update(num_retries=0, max_retries=0)
         return await litellm.acompletion(**completion_args)
 
     def supports_json_schema(self, model_name: str) -> bool:
