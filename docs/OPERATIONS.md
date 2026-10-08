@@ -127,12 +127,6 @@ a staging record leaves text already copied into a run as that run’s evidence.
 
 ## Known limitations
 
-- **Remote images in model-written Markdown.** The Markdown renderer
-  (`app/frontend/src/shared/ui/markdown_message_renderer.tsx`) has no `img`
-  override and neither `app/frontend/public/_headers` nor `vercel.json` sets a
-  Content-Security-Policy, so Markdown a model
-  writes can load remote images. Raw HTML stays escaped; never enable `rehype-raw`
-  for model output.
 - **Ownership is not authority.** A client ID must never confer safety-review
   power: adjudication requires the operator token (`LOGS_ADMIN_TOKEN`, sent as
   `X-Logs-Token`; `has_admin_token` in `api/operator_access.py`), checked in
