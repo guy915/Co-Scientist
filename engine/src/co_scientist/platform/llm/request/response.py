@@ -23,6 +23,7 @@ class TokenUsage:
     completion_tokens: int = 0
     reasoning_tokens: int = 0
     cached_prompt_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 def extract_token_usage(response: Any) -> TokenUsage:
@@ -36,11 +37,15 @@ def extract_token_usage(response: Any) -> TokenUsage:
     reasoning_tokens = getattr(details, "reasoning_tokens", None) or 0
     prompt_details = getattr(usage, "prompt_tokens_details", None)
     cached = getattr(prompt_details, "cached_tokens", None) or 0
+    written = getattr(prompt_details, "cache_write_tokens", None)
+    if written is None:
+        written = getattr(prompt_details, "cache_creation_tokens", None) or 0
     return TokenUsage(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         reasoning_tokens=reasoning_tokens,
         cached_prompt_tokens=min(cached, prompt_tokens),
+        cache_write_tokens=written,
     )
 
 

@@ -344,3 +344,26 @@ def test_privacy_erasure_and_admission_retention_keep_lifetime_spend(budget: str
         )
     settle_physical(unknown, _usage())
     assert _spent(budget) == 30
+
+
+def test_cache_write_charge_is_durable_and_can_exhaust_remaining_total(
+    budget: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = reserve_physical(_request(LUNA))
+    settle_physical(
+        receipt,
+        _usage(
+            prompt_tokens=1000,
+            completion_tokens=100,
+            prompt_tokens_details={"cached_tokens": 800, "cache_write_tokens": 1000},
+        ),
+    )
+    # The ledger saves conservative long-context rates until the Azure
+    # short/long boundary is confirmed; writes are an additional charge.
+    assert _spent(budget) == 336
+    with connect(budget) as conn:
+        row = conn.execute("SELECT cache_write_tokens, settled FROM llm_spend").fetchone()
+        assert tuple(row) == (1000, 1)
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.000336")
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request(LUNA))
