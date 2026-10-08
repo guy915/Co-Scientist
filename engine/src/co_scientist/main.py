@@ -222,6 +222,12 @@ app = FastAPI(
 )
 
 
+DEFAULT_ALLOWED_ORIGINS = (
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "https://open-coscientist.com,https://ai-co-scientist.com"
+)
+
+
 def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:
     """Credentialed CORS requires an explicit origin allowlist; wildcard
     credentials would reflect arbitrary origins.
@@ -232,7 +238,9 @@ def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:
     return origins, True
 
 
-_allowed_origins, _allow_credentials = _resolve_cors_config(os.getenv("ALLOWED_ORIGINS", ""))
+_allowed_origins, _allow_credentials = _resolve_cors_config(
+    os.getenv("ALLOWED_ORIGINS", DEFAULT_ALLOWED_ORIGINS)
+)
 
 
 @off_loop
