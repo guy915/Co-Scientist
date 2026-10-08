@@ -9,6 +9,11 @@ from dataclasses import dataclass
 from co_scientist.core.admission_windows import UTC_DAY_SECONDS, utc_day
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, default_db_path, transaction
+from co_scientist.platform.db.anthropic_credit import (
+    CreditReservation,
+    reserve_credit,
+    settle_credit_amount,
+)
 from co_scientist.platform.db.spend import SpendReservation, reserve_spend, settle_spend
 
 UNKNOWN_HOST = "unknown"
@@ -19,6 +24,7 @@ class ProviderReservation:
     id: str
     db_path: str
     paid: bool = False
+    credit: bool = False
 
 
 def connecting_host(host: str | None) -> str:
@@ -138,12 +144,16 @@ def reserve_provider(
     app: bool,
     db_path: str | None,
     spend: SpendReservation | None = None,
+    credit: CreditReservation | None = None,
 ) -> ProviderReservation:
     from co_scientist.core.config import settings
 
     day = utc_day(current_time())
     receipt = ProviderReservation(
-        uuid.uuid4().hex, db_path or default_db_path() or "./coscientist.db", spend is not None
+        uuid.uuid4().hex,
+        db_path or default_db_path() or "./coscientist.db",
+        spend is not None,
+        credit is not None,
     )
     ceilings = (
         (
@@ -160,9 +170,11 @@ def reserve_provider(
         ),
         ("host", host, settings.provider_host_calls_per_day, settings.provider_host_tokens_per_day),
     )
-    with transaction(receipt.db_path, durable=spend is not None) as conn:
+    with transaction(receipt.db_path, durable=spend is not None or credit is not None) as conn:
         if spend is not None:
             reserve_spend(conn, receipt.id, spend)
+        if credit is not None:
+            reserve_credit(conn, receipt.id, credit, current_time())
         claim_session(conn, owner, host, day)
         for scope, subject, call_limit, token_limit in ceilings:
             row = conn.execute(
@@ -194,10 +206,22 @@ def settle_provider(
     receipt: ProviderReservation,
     used_tokens: int,
     money: tuple[int, int, int, int | None, int | None] | None = None,
+    credit_money: tuple[int, int, int, int, int] | None = None,
 ) -> None:
-    with transaction(receipt.db_path, durable=receipt.paid) as conn:
+    with transaction(receipt.db_path, durable=receipt.paid or receipt.credit) as conn:
         if money is not None:
             settle_spend(conn, receipt.id, *money)
+        if credit_money is not None:
+            charged, prompt, output, cached, written = credit_money
+            settle_credit_amount(
+                conn,
+                receipt.id,
+                charged=charged,
+                prompt=prompt,
+                output=output,
+                cached=cached,
+                written=written,
+            )
         row = conn.execute(
             "SELECT * FROM provider_token_reservations WHERE id=? AND used_tokens IS NULL",
             (receipt.id,),

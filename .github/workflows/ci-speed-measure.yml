@@ -16,11 +16,11 @@ jobs:
       - name: Run serial full CI measurements
         env:
           GH_TOKEN: ${{ github.token }}
-          CI_MEASURE_THEME: browser-refreshed
-          CI_MEASURE_REF: chore/ci-refresh-browser-weights
-          CI_MEASURE_SHA: 9561ae3a2da3980d63fbdc8b2f1ac848ab454585
+          CI_MEASURE_THEME: browser-refreshed-fixed
+          CI_MEASURE_REF: fix/ci-backup-progress-sync
+          CI_MEASURE_SHA: 32aa78a274d50698d97f0badd6842f239eadd612
           CI_MEASURE_COUNT: '5'
-          CI_MEASURE_NOT_BEFORE: '2026-10-08T15:04:00Z'
+          CI_MEASURE_NOT_BEFORE: '2026-10-08T15:57:00Z'
         run: |
           python - <<'PY'
           import datetime
@@ -115,7 +115,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-speed-browser-refreshed
+          name: ci-speed-browser-refreshed-fixed
           path: ci-speed-results
           if-no-files-found: error
           retention-days: 7

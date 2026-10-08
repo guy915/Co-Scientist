@@ -47,10 +47,11 @@ class RequiredChecksTests(unittest.TestCase):
             )
         }
         self.jobs["changes"]["outputs"] = self.outputs
+        self.jobs["cross-browser-full"] = {"result": "skipped"}
 
     def test_every_selected_check_must_succeed(self):
         self.assertEqual(failures(self.jobs, "pull_request"), [])
-        for name in self.jobs:
+        for name in self.jobs.keys() - {"cross-browser-full"}:
             for result in ("failure", "cancelled", "skipped"):
                 with self.subTest(name=name, result=result):
                     jobs = copy.deepcopy(self.jobs)
@@ -84,12 +85,44 @@ class RequiredChecksTests(unittest.TestCase):
         jobs = copy.deepcopy(self.jobs)
         jobs["dependency-review"]["result"] = "skipped"
         jobs["sandbox-macos"]["result"] = "skipped"
+        jobs["cross-browser"]["result"] = "skipped"
+        jobs["cross-browser-full"]["result"] = "success"
         self.assertEqual(failures(jobs, "push"), [])
         for event in ("schedule", "workflow_dispatch", "workflow_call"):
             self.assertIn("sandbox-macos", failures(jobs, event))
             jobs["sandbox-macos"]["result"] = "success"
             self.assertEqual(failures(jobs, event), [])
             jobs["sandbox-macos"]["result"] = "skipped"
+
+    def test_native_call_must_match_the_event_even_when_other_call_succeeds(self):
+        for event in (
+            "pull_request",
+            "push",
+            "schedule",
+            "workflow_dispatch",
+            "workflow_call",
+        ):
+            jobs = copy.deepcopy(self.jobs)
+            if event != "pull_request":
+                jobs["dependency-review"]["result"] = "skipped"
+                jobs["cross-browser"]["result"] = "skipped"
+                jobs["cross-browser-full"]["result"] = "success"
+            if event == "push":
+                jobs["sandbox-macos"]["result"] = "skipped"
+            self.assertEqual(failures(jobs, event), [])
+            for name in ("cross-browser", "cross-browser-full"):
+                broken = copy.deepcopy(jobs)
+                broken[name]["result"] = (
+                    "skipped" if jobs[name]["result"] == "success" else "success"
+                )
+                with self.subTest(event=event, wrong_call=name):
+                    self.assertIn(name, failures(broken, event))
+        jobs = copy.deepcopy(self.jobs)
+        jobs["changes"]["outputs"]["cross_browser"] = "false"
+        jobs["cross-browser"]["result"] = "skipped"
+        self.assertEqual(failures(jobs, "pull_request"), [])
+        jobs["cross-browser-full"]["result"] = "success"
+        self.assertIn("cross-browser-full", failures(jobs, "pull_request"))
 
     def test_invalid_outputs_payloads_and_unknown_events_fail(self):
         for value in (None, True, "", "yes", 1):

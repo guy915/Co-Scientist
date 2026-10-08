@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from co_scientist.core.constants import RANKING_WAVE_SIZE as RANKING_WAVE_SIZE
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.orchestration.engine_tasks.support import (
     RANKING_FINALIZE_TASK,
     RANKING_MATCH_TASK,
@@ -27,7 +28,9 @@ from co_scientist.platform import db
 from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import _ACTIVE_RUN_STATUSES, ScientificTask
 from co_scientist.platform.llm import scoped_telemetry
+from co_scientist.science.prompts import PromptRunContext, RankingSide, get_ranking_prompt
 from co_scientist.science.ranking import RankingJudgement, RankingJudgingContext
+from co_scientist.science.review_summary import mature_review_summary
 
 if TYPE_CHECKING:
     from co_scientist.domains.research_state.state import WorkflowState
@@ -69,6 +72,7 @@ class _WaveResult:
 class _JudgedWave:
     pairs: list[Any]
     judgements: list[RankingJudgement]
+    input_fingerprints: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -90,32 +94,68 @@ def _judged_pairs(state: dict[str, Any]) -> set[frozenset[str]]:
     return judged
 
 
-def judge_inputs_key(pair: tuple[Any, Any], state: dict[str, Any]) -> str:
-    """Everything a judge reads for one pair: both texts, the run's guidance
-    and criteria, and the model. A rematch on the same key would only repeat
-    a verdict the Elo already counts."""
-    guidance = {
-        key: state.get(key)
-        for key in (
-            "supervisor_guidance",
-            "meta_review",
-            "run_setup_guidance",
-            "run_focus_guidance",
-            "criteria",
-            "model_name",
-        )
-    }
-    payload = json.dumps(
-        {"texts": sorted(h.text for h in pair), "guidance": guidance},
-        sort_keys=True,
-        default=str,
+def _judge_side(hypothesis: Hypothesis) -> RankingSide:
+    review = hypothesis.review_summary()
+    return RankingSide(
+        text=hypothesis.text,
+        review={"scores": review["scores"], "overall_score": review["overall_score"]}
+        if review is not None
+        else None,
+        reflection_notes=hypothesis.reflection_notes,
+        deep_verification=hypothesis.deep_verification_summary(),
+        mature_reviews=mature_review_summary(hypothesis.enrichments),
     )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _judge_inputs_key(pair: tuple[Hypothesis, Hypothesis], context: RankingJudgingContext) -> str:
+    # Hash rendered inputs so review projections, domain guidance and template
+    # changes invalidate old verdicts without storing another copy of private text.
+    prompt = context.prompt
+    guidance = prompt.guidance
+    first, second = sorted(pair, key=lambda hypothesis: hypothesis.id)
+    rendered, schema = get_ranking_prompt(
+        prompt.research_goal,
+        _judge_side(first),
+        _judge_side(second),
+        PromptRunContext(
+            supervisor_guidance=guidance.supervisor_guidance,
+            meta_review=guidance.meta_review,
+            tool_registry=guidance.tool_registry,
+            run_setup_guidance=guidance.run_setup_guidance,
+            run_focus_guidance=guidance.run_focus_guidance,
+            criteria=prompt.criteria,
+            preferences=prompt.preferences,
+        ),
+        debate=all(hypothesis.id in context.debate_ids for hypothesis in pair),
+    )
+    payload = json.dumps(
+        {"version": 2, "model": prompt.model_name, "prompt": rendered, "schema": schema},
+        sort_keys=True,
+    )
+    return "v2:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def judge_inputs_key(pair: tuple[Hypothesis, Hypothesis], state: dict[str, Any]) -> str:
+    from co_scientist.science.ranking import (
+        prepare_ranking_judging_context,
+        prepare_ranking_prompt_context,
+    )
+
+    prompt = prepare_ranking_prompt_context(cast("WorkflowState", state))
+    context = prepare_ranking_judging_context(prompt, _ranking_eligible(state))
+    return _judge_inputs_key(pair, context)
 
 
 def _unchanged_rematches(state: dict[str, Any], eligible: list[Any]) -> set[frozenset[str]]:
     """Cross-cycle rematches stay open while either idea or the guidance
     changed; an unchanged pair keeps its earlier verdict instead."""
+    from co_scientist.science.ranking import (
+        prepare_ranking_judging_context,
+        prepare_ranking_prompt_context,
+    )
+
+    prompt = prepare_ranking_prompt_context(cast("WorkflowState", state))
+    context = prepare_ranking_judging_context(prompt, eligible)
     by_id = {hypothesis.id: hypothesis for hypothesis in eligible}
     unchanged: set[frozenset[str]] = set()
     for detail in state.get("tournament_matchups") or []:
@@ -124,7 +164,7 @@ def _unchanged_rematches(state: dict[str, Any], eligible: list[Any]) -> set[froz
         if (
             first is not None
             and second is not None
-            and detail.get("input_fingerprint") == judge_inputs_key((first, second), state)
+            and detail.get("input_fingerprint") == _judge_inputs_key((first, second), context)
         ):
             unchanged.add(frozenset({first.id, second.id}))
     return unchanged
@@ -234,18 +274,27 @@ async def _judge_wave_matchups(
     # guidance/median snapshot across the wave.
     prompt = prepare_ranking_prompt_context(cast("WorkflowState", state))
     context = prepare_ranking_judging_context(prompt, eligible)
+    fingerprints = {
+        tuple(h.id for h in pair): _judge_inputs_key(pair, context) for pair in plan.wave
+    }
     judge_context = _WaveJudgeContext(context, plan.index)
     judged = await asyncio.gather(
         *(_judge_one_matchup(pair, offset, judge_context) for offset, pair in enumerate(plan.wave)),
         return_exceptions=True,
     )
-    return _surviving_judgements(plan.wave, list(judged))
+    survived = _surviving_judgements(plan.wave, list(judged))
+    return _JudgedWave(
+        survived.pairs,
+        survived.judgements,
+        [fingerprints[tuple(h.id for h in pair)] for pair in survived.pairs],
+    )
 
 
 def _apply_wave_elo(
     wave: list[Any],
     judged: list[RankingJudgement],
     state: dict[str, Any],
+    input_fingerprints: list[str],
 ) -> tuple[list[dict[str, Any]], int, list[str]]:
     """Apply verdicts in wave order so shared hypotheses start each rating
     update where their previous matchup left them.
@@ -258,11 +307,11 @@ def _apply_wave_elo(
     details: list[dict[str, Any]] = []
     total_calls = 0
     last_pair: list[str] = []
-    for pair, judgement in zip(wave, judged, strict=True):
+    for pair, judgement, fingerprint in zip(wave, judged, input_fingerprints, strict=True):
         result = apply_ranking_matchup(
             pair, judgement, k_factor=k_factor, current_iteration=iteration
         )
-        details.append({**result.detail, "input_fingerprint": judge_inputs_key(pair, state)})
+        details.append({**result.detail, "input_fingerprint": fingerprint})
         total_calls += result.llm_calls
         last_pair = [pair[0].id, pair[1].id]
     return details, total_calls, last_pair
@@ -285,7 +334,7 @@ async def _advance_ranking_wave(
     with scoped_telemetry("ranking") as telemetry:
         survived = await _judge_wave_matchups(plan, state, eligible)
     new_details, calls_delta, last_pair = _apply_wave_elo(
-        survived.pairs, survived.judgements, state
+        survived.pairs, survived.judgements, state, survived.input_fingerprints
     )
     # Failed matchups spend their budget slot; rewinding would re-offer the same
     # pair indefinitely.

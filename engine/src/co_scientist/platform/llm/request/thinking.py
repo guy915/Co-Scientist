@@ -11,6 +11,7 @@ from co_scientist.core.constants import (
 )
 from co_scientist.core.env_vars import parse_list_env
 from co_scientist.platform.llm.profile import ModelProfile, Thinking, model_profile
+from co_scientist.platform.llm.request.anthropic import output_limit
 from co_scientist.platform.llm.roles import current_call_policy
 
 logger = logging.getLogger(__name__)
@@ -176,6 +177,8 @@ def effective_max_tokens(model_name: str, max_tokens: int, enable_thinking: bool
     """Funding and failure records must share the wire budget, including
     forced reasoning.
     """
+    if model_name == "anthropic/claude-haiku-5-5":
+        return min(max_tokens, output_limit())
     if not (effective_thinking_enabled(model_name, enable_thinking) and model_reasons(model_name)):
         return max_tokens
     return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
@@ -233,9 +236,9 @@ def apply_provider_constraints(completion_args: dict[str, Any], model_name: str)
         )
         completion_args["thinking"] = {"type": "adaptive"}
         completion_args["output_config"] = {"effort": "low"}
-        completion_args["max_tokens"] = max(
+        completion_args["max_tokens"] = min(
             completion_args.pop("max_completion_tokens", completion_args.get("max_tokens", 0)),
-            THINKING_FLOOR_MAX_TOKENS,
+            output_limit(),
         )
     if profile.fixed_sampling:
         completion_args.pop("temperature", None)
