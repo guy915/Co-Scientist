@@ -57,7 +57,7 @@ and [DEPLOYMENT.md](DEPLOYMENT.md) for authenticated hosting.
 The default free route is `openrouter/inclusionai/ling-3.1-flash` with
 `OPENROUTER_API_KEY`. Operator Express calls use free OpenRouter, then the direct
 subscriber API credit, then Azure. Standard and higher tiers require BYOK.
-See [credit setup](azure-plan.md). Inspect `/status` for retrieval availability.
+See [credit setup](azure-setup.md). Inspect `/status` for retrieval availability.
 
 Missing keys never enable synthetic product answers. The retired
 `COSCIENTIST_FORCE_OFFLINE` flag has no effect. For a private test only, set
