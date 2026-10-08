@@ -266,6 +266,7 @@ async def review_finalist(state: WorkflowState, hypothesis: Hypothesis) -> Revie
         result = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="review",
                 model_name=state["model_name"],
                 max_tokens=_FINALIST_REVIEW_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,
