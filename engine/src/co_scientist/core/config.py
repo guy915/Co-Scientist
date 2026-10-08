@@ -158,7 +158,7 @@ settings = Settings()
 
 PROVIDER_CREDENTIAL_ENV: dict[str, tuple[str, ...]] = {
     "anthropic": ("ANTHROPIC_API_KEY",),
-    "azure": ("AZURE_API_KEY",),
+    "azure": ("AZURE_OPENAI_API_KEY", "AZURE_API_KEY"),
     "deepseek": ("DEEPSEEK_API_KEY",),
     "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     "openai": ("OPENAI_API_KEY",),

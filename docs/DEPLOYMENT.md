@@ -41,7 +41,10 @@ artifacts; keep those exclusions when adding an image or context.
   supervisor and Litestream (below); without them it serves directly. The image has a `HEALTHCHECK` on `/health`, installs
   `tesseract-ocr` (image and PDF-figure OCR; uploads fail without it, and the
   test suite fakes the dependency), and defaults `COSCIENTIST_DB_PATH` to
-  `/app/data/coscientist.db`, the persistent volume mount.
+  `/app/data/coscientist.db`, the persistent volume mount. It serves
+  `co_scientist.serving:create_app`, which reads Railway's `X-Real-IP` only
+  from peers in `COSCIENTIST_TRUSTED_PROXY_CIDRS`; without that variable, the
+  socket peer is the host bucket ([trusted visitor addresses](TRUSTED-PROXY.md)).
 - **MCP.** Deliberately ignores `PORT` and pins 8888, binding `--host ::` for
   Railway's IPv6 private network. Its healthcheck probes `[::1]:8888`, since
   a 127.0.0.1 probe can miss an IPv6-only socket. It runs as the unprivileged
@@ -158,9 +161,16 @@ Non-secret routing and storage variables on the `api` service:
 MCP_SERVER_URL=http://<mcp-private-host>:8888/mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
 RAILWAY_RUN_UID=0                                  # must stay set
+COSCIENTIST_TRUSTED_PROXY_CIDRS=100.64.0.0/24      # see TRUSTED-PROXY.md
 ALLOWED_ORIGINS=https://open-coscientist.com
 COSCIENTIST_RUN_RETENTION_DAYS=0
 ```
+
+The optional paid Azure fallback needs `LLM_AZURE_ENABLED=1`,
+`LLM_TOTAL_BUDGET_EUR`, `LLM_AZURE_UNTIL`, `AZURE_OPENAI_ENDPOINT`,
+`AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_SUPERVISOR_DEPLOYMENT` and
+`AZURE_OPENAI_WORKER_DEPLOYMENT`; without all of them Azure stays off
+([Azure plan](azure-plan.md)).
 
 The zero run-retention setting disables scheduled deletion of completed runs;
 document retention remains separate (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`).

@@ -30,6 +30,7 @@ from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_err
 from co_scientist.api.runs import router as runs_router
 from co_scientist.api.tracing import TracingMiddleware
 from co_scientist.api.version import API_VERSION
+from co_scientist.core import inflight
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import StorageAdmissionError
@@ -66,10 +67,12 @@ def _reclaim_disk_space() -> None:
 
 
 def _startup_engine_setup() -> None:
-    """The offline router is a harmless passthrough for real models."""
-    from co_scientist.platform.llm.offline.llm import install_offline_router
+    from co_scientist.platform.llm.process_mode import offline_mode
 
-    install_offline_router()
+    if offline_mode():
+        from co_scientist.platform.llm.offline.llm import install_offline_router
+
+        install_offline_router()
     logger.info("Model: %s", settings.model_name)
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
@@ -200,6 +203,29 @@ async def _privacy_retention_loop() -> None:
         await asyncio.sleep(3600)
 
 
+def _release_leases_for_next_process() -> None:
+    """A deploy must not idle every run for a full lease; a task with an
+    unanswered provider call keeps its lease so the unknown-outcome rule
+    still decides it after expiry.
+    """
+    import co_scientist.orchestration.task_worker as task_worker
+
+    in_flight = inflight.begin_shutdown()
+    try:
+        released = tasks.release_owned_leases(
+            task_worker.process_worker_ids(), keep_task_ids=in_flight
+        )
+    except Exception:
+        logger.warning("Releasing task leases at shutdown failed", exc_info=True)
+        return
+    if released or in_flight:
+        logger.info(
+            "Released %d task lease(s) for the next process; %d kept with a call in flight",
+            released,
+            len(in_flight),
+        )
+
+
 @asynccontextmanager
 async def lifespan(
     app: FastAPI,
@@ -207,6 +233,7 @@ async def lifespan(
     # A prior lifespan cycle may have drained capture, so startup reinstalls it.
     _install_log_capture()
     configure_tracing()
+    inflight.resume_dispatch()
     logger.info("Starting Co-Scientist server...")
     _startup_engine_setup()
 
@@ -223,6 +250,7 @@ async def lifespan(
     try:
         yield
     finally:
+        _release_leases_for_next_process()
         privacy_retention.cancel()
         await asyncio.gather(privacy_retention, return_exceptions=True)
         await _shutdown_recovery(recovery, recovery_workers)

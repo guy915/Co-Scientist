@@ -66,7 +66,7 @@ Pause new runs, continuations and chat replies first when an incident threatens 
 
 ## Alert settings and recovery evidence
 
-Use the exact web/app-only [launch alert settings](MONITORING.md#launch-alert-settings). No additional email alerts; preserve the existing €150 Azure alert. The local Litestream 0.5.17 [restore drill](RESTORE-DRILL.md) exited 0 on 8 October 2026: 0.033 s restore, 3.838 s restore-to-healthy API. The expanded idle-backup proof verified a freshly uploaded complete base in 0.092 s after aging only its synthetic local replica by 31 days. This synthetic fixture does not establish production RTO/RPO or actual R2 backup freshness.
+Use the exact web/app-only [launch alert settings](MONITORING.md#launch-alert-settings). No additional email alerts; preserve the existing €150 Azure alert. The local Litestream 0.5.17 [restore drill](RESTORE-DRILL.md) exited 0 on 8 October 2026: 0.033 s restore, 3.008 s restore-to-healthy API. The expanded idle-backup proof verified a freshly uploaded complete base in 0.092 s after aging only its synthetic local replica by 31 days. This synthetic fixture does not establish production RTO/RPO or actual R2 backup freshness.
 
 ## Backup verification failed or stale
 

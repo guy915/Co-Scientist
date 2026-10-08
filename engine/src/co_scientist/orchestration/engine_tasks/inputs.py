@@ -28,7 +28,7 @@ from co_scientist.orchestration.repository import events, tasks
 from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.orchestration.safety_gate import apply_safety_gate
-from co_scientist.platform.db import runs, transaction
+from co_scientist.platform.db import connect, runs, transaction
 from co_scientist.platform.db.admission import claim_continuation
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,
@@ -37,6 +37,7 @@ from co_scientist.platform.db.models import (
     ScientificTask,
     row_to_task,
 )
+from co_scientist.platform.llm.routing import prepare_readmission, recheck_readmission
 
 # Human categorical verdicts share agents' 1-10 rubric because the latest review
 # score enters ranking/evolution prompts.
@@ -143,6 +144,21 @@ def enqueue_scientist_continuation(
     db_path: str | None = None,
 ) -> ScientificTask | None:
     key = f"engine:scientist-continuation:{input_id}"
+    before = runs.get_run(run_id, db_path=db_path)
+    if before is None:
+        return None
+    with connect(db_path) as conn:
+        existing = conn.execute(
+            "SELECT * FROM scientific_tasks WHERE run_id=? AND idempotency_key=?", (run_id, key)
+        ).fetchone()
+        if existing:
+            return row_to_task(existing)
+    try:
+        admission = prepare_readmission(
+            run_id, before.research_goal, before.config, db_path=db_path
+        )
+    except ProviderAdmissionError as error:
+        raise ContinuationAdmissionError(str(error)) from error
     with transaction(db_path) as conn:
         run = runs.get_run(run_id, conn=conn)
         if run is None or run.provider != "engine":
@@ -168,6 +184,7 @@ def enqueue_scientist_continuation(
             raise ContinuationAdmissionError("concurrent run limit reached", capacity=True)
         byok = conn.execute("SELECT 1 FROM run_credentials WHERE run_id=?", (run_id,)).fetchone()
         try:
+            recheck_readmission(conn, run_id, admission)
             claim_continuation(
                 conn, run_id, input_id, run.client_id, free=run.llm_backend == "real" and not byok
             )

@@ -27,5 +27,3 @@ Exact USD prices and model versions live in `platform/llm/profile/`. Azure
 deployment names do not define prices. Luna includes cache-write and
 long-context rates; Nano has no extra cache-write fee. The spend ledger must
 use Luna's long-context rate until its price boundary is confirmed.
-
-This change does not enable Azure or send a provider request.

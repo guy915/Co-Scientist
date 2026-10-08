@@ -9,7 +9,7 @@ import openai
 from litellm.llms.anthropic.chat.transformation import AnthropicConfig
 from litellm.types.llms.openai import AllMessageValues
 
-from co_scientist.core.exceptions import ProviderAdmissionError
+from co_scientist.platform.db.anthropic_credit import AnthropicCreditUnavailableError
 from co_scientist.platform.db.spend import UNAVAILABLE
 from co_scientist.platform.llm.admission.anthropic import require_credit_available
 from co_scientist.platform.llm.request.cache import HAIKU
@@ -43,7 +43,7 @@ OUTPUT_LIMITS = {
 }
 
 
-class AnthropicSlotUnavailableError(ProviderAdmissionError):
+class AnthropicSlotUnavailableError(AnthropicCreditUnavailableError):
     pass
 
 

@@ -153,7 +153,7 @@ export function ReportTabNav({
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
-    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4">
+    <ErrorNotice layoutClassName="cosci-report-alert mx-8 mt-4 self-start phone:mx-4">
       {message}
     </ErrorNotice>
   );
@@ -266,19 +266,6 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
         to let the run continue.
       </p>
     </Card>
-  );
-}
-
-export function RunDetailSkeleton() {
-  return (
-    <div
-      className="cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 phone:mt-5 phone:mb-12 phone:w-[min(100%_-_1.2rem,100%)] phone:max-w-none"
-      aria-busy="true"
-    >
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-8 w-64" />
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-12 w-full" />
-      <div className="rounded-md bg-cosci-icon-button-hover-bg h-48 w-full" />
-    </div>
   );
 }
 

@@ -90,7 +90,14 @@ def smoke(api_image: str, mcp_image: str) -> None:
                 "PYTHON_DOTENV_DISABLED=1",
             ]
             if index < 2:
-                args += ["--env", "COSCIENTIST_FORCE_OFFLINE=1", "--env", "PORT=8008"]
+                args += [
+                    "--env",
+                    "COSCIENTIST_FORCE_OFFLINE=1",
+                    "--env",
+                    "COSCIENTIST_TEST_DOUBLE=deterministic",
+                    "--env",
+                    "PORT=8008",
+                ]
                 if index == 0:
                     # volume-nocopy preserves the root-owned empty mount Railway supplies.
                     args += [
