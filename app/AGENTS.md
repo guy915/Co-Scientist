@@ -146,7 +146,7 @@ React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter
 | One value in place | `SegmentedControl` (pressed buttons with a sliding thumb; `md` in the shell, `lg` on the landing). `SectionNav` switches the sections of one surface (Settings). |
 | Route sections | `TabNav` + `TabNavLink` (`underline` for report sections, `pill` for the session switch): real links with `aria-current="page"`. |
 | Hint | `tooltip` on `Button` / `IconButton`; `Tooltip` for non-interactive content. Never native `title`. |
-| Label or status | `Chip`: `tonal` or `outlined`, tone `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs`, `sm`, `md`. |
+| Label or status | `Chip`: `tonal` or `outlined`, tone `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs`, `sm`, `md`, and `lg` (a small `Button`'s height and type, for status beside header actions). |
 | Text input | `TextField` / `TextArea`: `outlined`, or `bare` inside a surface that already draws the box (composer, bubble editor). |
 | Grouping surface | `Card`: `block` (notices, `rounded-md`), `tile` (stats and summaries) or `panel` (control groups and side rails, `rounded-2xl`). Tones `neutral`, `raised`, `warning`, `danger`; `outlined` adds the hairline. `CardButton` is a card that is one action as a whole (home suggestions). |
 | Link off the app | `ExternalLink`: opens in a new tab with `rel="noopener noreferrer"`, and renders its `fallback` instead when the URL is not `http(s)` or `mailto` (model-written URLs reach it). |

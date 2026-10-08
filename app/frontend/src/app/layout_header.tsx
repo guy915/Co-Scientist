@@ -178,7 +178,7 @@ export function SystemStatusIndicator() {
   return (
     <Chip
       role="status"
-      size="sm"
+      size="lg"
       tone={chip.danger ? 'danger' : 'accent'}
       icon={chip.icon}
       tooltip={chip.detail}
