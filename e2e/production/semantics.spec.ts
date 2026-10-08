@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect } from "../support/fixtures";
+import { test, expect, createCompletedRun } from "../support/fixtures";
 import { tabTo } from "../support/keyboard";
 
 for (const theme of ["light", "dark"]) {
@@ -46,5 +46,31 @@ for (const theme of ["light", "dark"]) {
       path: screenshot,
       contentType: "image/png",
     });
+  });
+}
+
+for (const theme of ["light", "dark"]) {
+  test(`@keyboard-semantics specification headings follow the document title ${theme}`, async ({page, api}, info) => {
+    await page.addInitScript(mode => localStorage.setItem("cosci-theme", mode), theme);
+    const id = await createCompletedRun(api, {
+      research_goal: "Offline specification heading navigation",
+      tier: "express",
+      attributes: ["Human evidence and causal mechanisms"],
+      requirements: ["Matched controls and reproducible experiments"],
+    });
+    await page.goto(`/runs/${id}/details`);
+    await expect(page.getByRole("heading", {name: "Run Specifications", exact: true})).toBeVisible();
+    const tree = info.outputPath("specification-headings.yml");
+    await writeFile(tree, await page.locator("body").ariaSnapshot());
+    await info.attach("specification-headings-tree", {path: tree, contentType: "text/yaml"});
+    const image = info.outputPath("specification-headings.png");
+    await page.screenshot({path: image});
+    await info.attach("specification-headings", {path: image, contentType: "image/png"});
+    const results = await new AxeBuilder({page}).withRules(["heading-order"]).analyze();
+    expect.soft(results.violations).toEqual([]);
+    await expect(page.getByRole("heading", {name: "Focus Area:", level: 3})).toBeVisible();
+    await expect(page.getByRole("heading", {name: "Preferences:", level: 3})).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", {name: "Focus Area:", level: 3})).toBeVisible();
   });
 }

@@ -52,8 +52,34 @@ for (const theme of ['light', 'dark']) {
     const screenshot = info.outputPath('progress-scroll.png');
     await page.screenshot({path: screenshot});
     await info.attach('progress-scroll', {path: screenshot, contentType: 'image/png'});
-    const results = await new AxeBuilder({page}).withRules(['scrollable-region-focusable']).analyze();
+    await expect(page.getByText('Reconnecting...', {exact: true})).toBeVisible();
+    await page.locator('.ui-motion-enter-items > li').evaluateAll(nodes => {
+      for (const node of nodes) {
+        // Restart the actual entry animation and inspect a fixed entry frame.
+        const style = (node as HTMLElement).style;
+        style.animation = 'none';
+        void (node as HTMLElement).offsetWidth;
+        style.animation = '';
+        for (const animation of node.getAnimations()) {
+          animation.pause();
+          const timing = animation.effect!.getTiming();
+          animation.currentTime = (timing.delay ?? 0) + Number(timing.duration) * 0.2;
+        }
+      }
+    });
+    const entryImage = info.outputPath('progress-entry-contrast.png');
+    await page.screenshot({path: entryImage});
+    await info.attach('progress-entry-contrast', {path: entryImage, contentType: 'image/png'});
+    const results = await new AxeBuilder({page}).withRules(['scrollable-region-focusable', 'color-contrast']).analyze();
+    const contrast = info.outputPath('progress-contrast.json');
+    await writeFile(contrast, JSON.stringify(results.violations, null, 2));
+    await info.attach('progress-contrast', {path: contrast, contentType: 'application/json'});
     expect.soft(results.violations).toEqual([]);
+    await page.locator('.ui-motion-enter-items > li').evaluateAll(nodes => {
+      for (const node of nodes) {
+        for (const animation of node.getAnimations()) animation.finish();
+      }
+    });
     await expect(pane).toHaveAttribute('tabindex', '0');
     await expect(pane).toHaveAttribute('role', 'region');
     await expect(pane).toHaveAttribute('aria-label', 'Research progress and activity');

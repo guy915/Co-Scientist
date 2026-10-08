@@ -271,6 +271,9 @@ def _enqueue_workflow_and_maybe_launch_worker(
     run: RunRow, background: BackgroundTasks
 ) -> ScientificTask:
     with db.transaction() as conn:
+        from co_scientist.platform.db.launch_control import require_unpaused
+
+        require_unpaused(conn=conn)
         _reserve_capacity_or_409(run, conn)
         lifecycle.revive_task_for_retry(
             run.id,

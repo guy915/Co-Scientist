@@ -515,7 +515,8 @@ completed and no unexpected request error occurred.
 
 The launch controller is Guy Barel, an individual in the Netherlands, contact
 `guy.barel@open-coscientist.com`. Public notices are at `/privacy` and `/terms`;
-the owner reviews both before launch. These drafts are not legal advice.
+the owner [approved both](https://github.com/guy915/Co-Scientist/issues/453#issuecomment-6060056260)
+before launch. The text is not legal advice.
 Launch uses browser ownership identities, not email/password accounts. The
 random `X-Client-ID` is a private capability; never ask a visitor to email it.
 
@@ -531,6 +532,7 @@ copy already received by an outside service.
 | Uploaded title/filename, MIME type, size, hash, extraction metadata and extracted text | SQLite `staged_documents`; text copied into evidence/tasks/science outputs | Staged documents 30 days; copied text with its run/chat until deletion | Railway extraction; model providers; derived query words to research APIs |
 | Original uploaded file bytes and extraction intermediates | Request memory and temporary parser/OCR files | Processing lifetime; original uploads are not retained | Railway; local parsers/OCR, not an external conversion service |
 | Hypotheses, reviews, comparisons, citations, retrieval queries/results, full text, claims, plans, reports, errors | SQLite science tables, tasks, events and checkpoints | Run lifetime; may echo supplied text | Selected model provider, Railway, R2 |
+| Prompt-cache text, run/role cache identifier and request partition | Request memory; Azure partition tracker limited to 4,096 run/role keys; external provider cache | Anthropic requests five-minute ephemeral caching; other provider retention follows its policy. Local tracker entries last until eviction/restart; rolling 60-second call cleanup is not key expiry | Anthropic and Azure; Azure receives the run ID/role/optional partition in its cache key |
 | BYOK worker/supervisor credentials, provider/model/custom-model choices | Browser key vault; encrypted SQLite `run_credentials`; request and brief validation memory | Browser until removed; stored credentials with their run; all removed by browser-identity deletion | Railway API; selected provider for catalog/probe/completion; R2 holds encrypted rows |
 | Appearance, models, session view and pending creation/reload recovery | Browser local/session storage, listed below | Local until cleared; session until completion/removal/tab closes | Preferences used in requested API calls; no advertising recipient |
 | Optional email in legacy data/configuration | SQLite legacy run configuration/tasks | With the run | Public completion email is disabled; any separately configured legacy delivery has its own mail processor |
@@ -538,10 +540,10 @@ copy already received by an outside service.
 | Browser/server diagnostic logs, route/interaction context, trace references | SQLite `app_logs`, bounded browser memory, stdout | Default capture cap 20,000 rows; browser 2,000; no fixed time expiry; owned logs erased on deletion | Railway stdout; a user-selected feedback export; R2 |
 | Connecting-peer hashes, client/day/minute usage, reservations and idempotency receipts | SQLite admission ledgers and in-memory limits | Seven-day expiry, hourly bounded cleanup; live run host mapping with its run | Railway receives connection IP; R2 contains database counters |
 | Numeric operator-funded charges, token bounds/usage, model/role/rates and random receipt IDs | SQLite `llm_spend`; current ownership link through `provider_token_reservations` | Funding ledger has no automatic expiry; admission link expires after seven days or detaches on deletion; spent money is not refunded by erasure | Railway/R2; no goal/document/email/key/owner-ID columns |
-| Technical exception class/position, method and build metadata | Sentry SDK event projections | Project retention is an owner-confirmed external setting | Sentry; fresh projections remove arbitrary error messages, user/email, URLs, breadcrumbs, attachments, goals, documents and keys |
-| Timing/outcome, trace/run/task IDs, numeric usage/budget/attempt metadata | Projected OTLP spans | Exporter-destination retention is an owner-confirmed external setting | Configured tracing processor; owner reports Honeycomb EU; no prompt/document/email/key text or raw exception events |
-| Website/API request IP and browser headers | Infrastructure access logs | Provider configuration, not established by source | Cloudflare and Railway; historical Vercel hosting until the launch cutover |
-| Entire SQLite database/WAL, including research, feedback and encrypted keys | Optional Litestream S3 replica in Cloudflare R2 | Owner must confirm backup expiry and refresh policy; Litestream restore anchors alone do not bound all old copies | Cloudflare R2 |
+| Technical exception class/position, method and build metadata | Sentry SDK event projections | Sentry free/Developer: 30-day lookback; dashboard verification before launch | Sentry; fresh projections remove arbitrary error messages, user/email, URLs, breadcrumbs, attachments, goals, documents and keys |
+| Timing/outcome, trace/run/task IDs, numeric usage/budget/attempt metadata | Projected OTLP spans | Honeycomb events: 60 days from ingestion; dashboard verification before launch | Configured tracing processor; owner reports Honeycomb EU; no prompt/document/email/key text or raw exception events |
+| Website/API request IP and browser headers | Infrastructure access logs | Application logs: Railway Hobby 7/Pro 30 days; Workers Logs Free 3/Paid 7 days when enabled; other infrastructure records follow provider policy | Cloudflare and Railway; historical Vercel hosting until the launch cutover |
+| Entire SQLite database/WAL, including research, feedback and encrypted keys | Optional Litestream S3 replica in Cloudflare R2 | Owner policy: 30-day object expiry plus daily forced/verified snapshot refresh; launch configuration and restore drill are required | Cloudflare R2 |
 | Derived literature queries, topic/run identifiers and public papers | Query in request memory; public papers only in MCP `.public-papers-v1/shared` cache; owned retrieval copies in SQLite | Public-paper cache has no user content by design; legacy private query/run manifests are purged before MCP serves tools | Railway MCP; selected source APIs |
 | Trailer request metadata | No embedded player or automatic Google request; explicit external link | YouTube's external policy after the visitor opens the link | YouTube/Google only after that click |
 
@@ -557,6 +559,15 @@ when changing a model. BYOK supports Anthropic, DeepSeek, Gemini, OpenAI and
 OpenRouter/custom models under the chosen provider's policy. The owner's
 Azure resource is Sweden Central, but Global Standard inference is not a
 guarantee that processing remains in the EU.
+
+Provider prompt caching does not establish overall prompt retention. The
+Anthropic adapter requests a five-minute ephemeral cache; Azure receives a
+run-specific cache key containing the run ID, role and optional request
+partition. The local Azure partition tracker is bounded to 4,096 run/role keys,
+with entries retained until eviction or process restart. Numeric cache usage
+may appear in stored call statistics and projected telemetry; prompt text and
+cache-key text must not enter Sentry or exported spans. Source:
+`platform/llm/request/cache.py` and `platform/llm/telemetry.py`.
 
 MCP research requests may send supplied or derived search words/entities to
 NCBI PubMed/PMC, OpenAlex, Europe PMC, arXiv, OpenCitations, ChEMBL, UniProt,
@@ -644,11 +655,29 @@ Litestream0.5.17 keeps restore anchors and last level files, so its default
 database positions skip duplicate snapshots. An object lifecycle alone can
 expire an idle database’s only restore base; pair expiry with a refreshed,
 verified restore generation. R2 documents normal deletion within 24 hours of
-object expiration, with possible delays. No configured launch rule has been
-verified. See [R2 lifecycle behavior](https://developers.cloudflare.com/r2/buckets/object-lifecycles/).
-The owner must select, enforce and publish backup expiry and refresh policy,
-and confirm actual Sentry/tracing/hosting-log retention and transfer arrangements before
-public launch. Do not invent a deadline from the repository defaults.
+object expiration, with possible delays. See [R2 lifecycle behavior](https://developers.cloudflare.com/r2/buckets/object-lifecycles/).
+
+The owner selects backups ON with a 30-day object-expiry policy. Before
+launch, the owner installs the R2 lifecycle rule; O implements and verifies a
+daily forced Litestream snapshot even for an idle database, with a hermetic
+regression and a restore-drill step. Both are launch prerequisites, not facts
+established by a source-only review. Reapply erasure decisions before a restored
+database serves traffic. Litestream's default retention alone is insufficient.
+
+Provider documentation checked on 8 October 2026:
+
+| Recipient / data | Documented period | Verification and limits |
+| --- | --- | --- |
+| [Sentry](https://sentry.io/pricing/), technical errors | Free Developer: 30-day lookback | MONITORING selects free; confirm project plan/configuration |
+| [Honeycomb EU](https://docs.honeycomb.io/get-started/manage-costs/how-honeycomb-calculates-usage/), exported span events | 60 days from ingestion | Event/log retention, not the separate 13-month metrics policy; confirm actual dataset |
+| [Railway](https://docs.railway.com/observability/logs), application stdout | Hobby 7 days; Pro 30 days (Free 3; Trial 7; Enterprise up to 90) | Actual launch plan is not established by source. Upgrading restores previously hidden history: do not promise physical erasure at the lookback deadline |
+| [Cloudflare Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/), when enabled | Workers Free 3 days; Paid 7 days | Actual plan/enabled state needs confirmation; these are application logs, not all infrastructure/security records. Recheck pricing after 1 December 2026 |
+
+The owner checks dashboards, processor contracts and applicable transfer
+arrangements against `/privacy` on launch day **before making the launch
+repository public**. Stop cutover on any mismatch; update the notice and this
+table before proceeding. Do not invent a selected Railway/Workers tier or
+claim configured periods from public plan documentation alone.
 
 ## Incidents
 

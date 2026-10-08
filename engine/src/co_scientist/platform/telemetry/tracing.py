@@ -166,6 +166,7 @@ _NUMERIC_ATTRIBUTES = frozenset(
         "co_scientist.llm.cached_prompt_tokens",
         "co_scientist.llm.cache_write_tokens",
         "co_scientist.llm.call_type",
+        "co_scientist.llm.refusal",
         "co_scientist.llm.attempt",
         "co_scientist.task.attempt",
     }

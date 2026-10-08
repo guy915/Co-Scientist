@@ -19,6 +19,7 @@ from co_scientist.science.schemas.literature import (
     RESEARCH_QUESTIONS_SCHEMA,
     RESEARCH_STANCES_SCHEMA,
 )
+from co_scientist.science.schemas.literature_batch import LITERATURE_PAPER_ANALYSIS_BATCH_SCHEMA
 from co_scientist.science.schemas.planning import (
     META_REVIEW_SCHEMA,
     SUPERVISOR_SCHEMA,
@@ -83,6 +84,7 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "research_overview_revise": RESEARCH_OVERVIEW_SCHEMA,
     "supervisor": SUPERVISOR_SCHEMA,
     "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
+    "literature_review_paper_analysis_batch": LITERATURE_PAPER_ANALYSIS_BATCH_SCHEMA,
     "literature_review_relevance_batch": LITERATURE_RELEVANCE_BATCH_SCHEMA,
     "hypothesis_novelty_analysis": HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
     "hypothesis_validation_synthesis_with_tools": (HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA),

@@ -220,6 +220,9 @@ def apply_provider_constraints(completion_args: dict[str, Any], model_name: str)
         extra = dict(completion_args.get("extra_body") or {})
         extra.pop("thinking", None)
         extra.pop("output_config", None)
+        for field in ("temperature", "top_p", "top_k"):
+            extra.pop(field, None)
+            completion_args.pop(field, None)
         if extra:
             completion_args["extra_body"] = extra
         else:

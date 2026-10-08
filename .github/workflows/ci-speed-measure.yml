@@ -16,11 +16,11 @@ jobs:
       - name: Run serial full CI measurements
         env:
           GH_TOKEN: ${{ github.token }}
-          CI_MEASURE_THEME: uv-cache
-          CI_MEASURE_REF: chore/ci-uv-cache
-          CI_MEASURE_SHA: 56a89896143897842a080d0ae46a1e84b5ef5a3b
+          CI_MEASURE_THEME: critical-path
+          CI_MEASURE_REF: chore/ci-critical-path
+          CI_MEASURE_SHA: 73637c6f3075cb24b8a570c45143cc75417a28ab
           CI_MEASURE_COUNT: '5'
-          CI_MEASURE_NOT_BEFORE: '2026-10-08T13:33:00Z'
+          CI_MEASURE_NOT_BEFORE: '2026-10-08T14:18:00Z'
         run: |
           python - <<'PY'
           import datetime
@@ -115,7 +115,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ci-speed-uv-cache
+          name: ci-speed-critical-path
           path: ci-speed-results
           if-no-files-found: error
           retention-days: 7
