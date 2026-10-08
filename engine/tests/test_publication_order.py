@@ -9,6 +9,8 @@ from co_scientist.domains.research_state.elo import live_leaderboard
 from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
 from co_scientist.domains.research_state.models import rank_for_publication as rank_models
 from co_scientist.domains.research_state.publication import rank_for_publication
+from co_scientist.domains.research_state.repository import hypotheses
+from co_scientist.platform.db import runs
 
 
 def _rows() -> list[dict[str, Any]]:
@@ -57,8 +59,8 @@ def test_models_and_leaderboard_share_played_first_stable_order() -> None:
 @pytest.mark.asyncio
 async def test_collection_returns_publication_order(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(collections, "_run_or_404", lambda run_id: {})
-    monkeypatch.setattr(collections.hypotheses, "list_hypotheses", lambda run_id: _rows())
-    monkeypatch.setattr(collections.runs, "run_used_offline", lambda run: True)
+    monkeypatch.setattr(hypotheses, "list_hypotheses", lambda run_id: _rows())
+    monkeypatch.setattr(runs, "run_used_offline", lambda run: True)
     response = await collections.get_hypotheses("run")
     assert [row["id"] for row in response["hypotheses"]] == [
         "top",
