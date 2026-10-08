@@ -1,6 +1,7 @@
 // Identity headers are required: unidentified deployed callers see no owned
 // logs, and their submitted records become ownerless.
 import {clientHeaders, fetchJson, jsonRequest} from './runs';
+import type {ClientLogRecord} from './wire_system';
 
 export interface AppLogRecord {
   id: number;
@@ -37,12 +38,7 @@ export function getAppLogs(
   );
 }
 
-export interface ClientLogRecord {
-  message: string;
-  level?: string;
-  logger?: string;
-  run_id?: string;
-}
+export type {ClientLogRecord} from './wire_system';
 
 export async function postAppLogs(
   records: ClientLogRecord[],

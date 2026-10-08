@@ -18,6 +18,7 @@ export type * from './wire_interviews';
 export type * from './wire_reports';
 export type * from './wire_runs';
 export type * from './wire_science';
+export type * from './wire_system';
 
 export function runGoal(run: Run | null | undefined): string {
   if (!run) return '';
