@@ -7,6 +7,19 @@ import {
 
 describe('markdown message', () => {
   describe('MarkdownMessage', () => {
+    it.each([
+      'https://tracker.example/pixel?private=research',
+      '/api/private-image',
+      '//tracker.example/pixel',
+    ])('renders image alt text and URL without a request: %s', src => {
+      const {container} = render(
+        <MarkdownMessage content={`![Study diagram](${src})`} />,
+      );
+      expect(container.querySelector('img')).toBeNull();
+      expect(container.querySelector('a')).toBeNull();
+      expect(screen.getByText(`Study diagram (${src})`)).toBeVisible();
+    });
+
     it('opens links in a new tab without handing over the opener', () => {
       render(<MarkdownMessage content="[PubMed](https://pubmed.gov)" />);
 
