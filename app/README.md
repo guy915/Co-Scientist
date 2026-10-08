@@ -9,7 +9,7 @@ composition root is `co_scientist.main`.
 | `frontend/` | React workbench; see [its README](frontend/README.md) |
 | `tests/` | API test suite (`make test-app`) |
 | `dev/` | Operator scripts: `backup_db.py` (consistent SQLite backups, see [launch](../docs/LAUNCH.md#backup-and-restore)) and `refresh_retractions.py` (rebuilds the committed retraction extract) |
-| `pyproject.toml`, `requirements-app.txt` | The API's runtime dependencies; keep the two lists in sync |
+| `pyproject.toml` | Ruff, mypy and pytest settings for `tests/`; runtime dependencies live in `engine/pyproject.toml` |
 | `.env.example` | Every API setting with its default |
 | `docker-compose.yml`, `docker/` | Development containers for the API and MCP server |
 | `Makefile` | Shortcuts for working from this folder |

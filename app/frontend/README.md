@@ -52,6 +52,9 @@ and prerendering default to `dist/`.
 | `src/shared/api/` | REST and streaming client (`runs.ts`); `wire_*.ts` are generated from the backend models |
 | `src/shared/hooks/` | Theme, history, system status and run-stream hooks |
 | `src/shared/ui/` | Shared primitives: buttons, dialogs, Markdown renderer, Material 3 color scheme |
+| `src/shared/lib/` | Framework-free helpers: client ID, error tracking, routes, safe storage, HTML sanitizing, text and time |
+| `src/shared/testing/` | Test render helpers and fixtures |
+| `src/types/`, `src/assets/` | Ambient type declarations and landing-page images |
 | `src/index.css`, `src/styles/` | Token bridge and Tailwind layers |
 
 Tests sit beside the files they cover as `*.test.ts(x)`; the Vitest setup is

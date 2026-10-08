@@ -24,7 +24,7 @@ section below says so.
 |---|---|---|
 | `changes` ("Affected targets") | Path filters and target selection; builds the legacy-context matrix | 5 |
 | `format-lint` | `ruff format --check` and `ruff check` over `engine`, `app/tests` and `evaluations`; when `engine/mcp_server` changed, also the MCP server tests and its strict `mypy` | 20 |
-| `typecheck` | `make typecheck` (strict mypy over `app`, `engine`, `evaluations`) and `make arch` (import contracts). When root config changed: `vercel.json` syntax check, `make setup`, `make lint` | 30 |
+| `typecheck` | `make typecheck` (strict mypy over `app`, `engine`, `evaluations`) and `make arch` (import contracts). When root config changed: `vercel.json` and `wrangler.jsonc` syntax checks, the Cloudflare worker test (`node --test app/frontend/worker.test.mjs`), `make setup`, `make lint` | 30 |
 | `test-engine` | Engine pytest on Python 3.10 (support floor) and 3.12, `fail-fast: false` | 15 |
 | `test-app` | App pytest in 3 shards | 25 |
 | `evaluations` | `evaluations/tests` and the offline `evaluations.smoke` suite | 15 |
@@ -67,7 +67,8 @@ No blocking job uses the network for test traffic, model keys or retries.
 - Fetching the repository, actions, registries (PyPI, npm), the Chromium
   download and Docker base images is infrastructure, not test traffic.
   Lockfiles are frozen and tool versions pinned (`ruff==0.15.21`, Bun
-  `1.3.14`, Node `24.19.0`, uv `0.11.32`), but the registry fetch itself is
+  `1.3.14`, Node `24.19.0`, uv `0.11.32` in CI and `0.12.19` for lock
+  regeneration and the dependency audit), but the registry fetch itself is
   trusted. `ubuntu-latest` floats; the nightly run is the canary for image
   drift.
 - Actions are pinned by SHA with the version in a trailing comment;
