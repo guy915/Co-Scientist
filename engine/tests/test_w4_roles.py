@@ -105,5 +105,6 @@ def test_azure_prices_include_cache_write_and_long_context_without_guessing_depl
     assert luna.price.cache_write_usd_per_million == 0.125
     assert luna.price.long_context.cache_write_usd_per_million == 0.25
     assert nano.price.cache_write_usd_per_million == 0
+    assert nano.price.cached_prompt_usd_per_million == 0.01
     assert "none" not in (nano.supported_efforts or ())
     assert model_profile("azure/unmapped-deployment").price is None

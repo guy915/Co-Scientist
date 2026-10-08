@@ -134,7 +134,7 @@ ROUTES: Final[dict[str, Facts]] = {
         "fixed_sampling": True,
         "version": "2025-08-07",
         "supported_efforts": ("low", "medium"),
-        "price": ModelPrice(0.05, 0.40, 0.005),
+        "price": ModelPrice(0.05, 0.40, 0.01),
     },
     # Retained explicit route: both Nex variants reason and need bounded-minimal
     # reasoning.
