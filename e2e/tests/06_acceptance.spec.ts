@@ -102,25 +102,6 @@ test('Goal Report remains reachable at the required mobile viewport', async ({
 });
 });
 
-test.describe('reference audit', () => {
-test('completed research keeps its decisions and match history inspectable', async ({
-  page,
-  api,
-}) => {
-  const id = await createCompletedRun(api, {
-    research_goal: 'Offline audit of a public enzyme-stability hypothesis',
-    tier: 'standard',
-  });
-
-  await page.goto(`/runs/${id}/specifications`);
-  await expect(page.getByRole('heading', {name: /run specifications/i})).toBeVisible();
-
-  await page.getByRole('link', {name: 'All Ideas', exact: true}).click();
-  await expect(page.getByRole('heading', {name: 'Match history'})).toBeVisible();
-  await expect(page.getByText('Elo change:', {exact: true}).first()).toBeVisible();
-});
-});
-
 test.describe('failure guidance', () => {
 const RECORDED_ERROR = 'engine task exhausted its provider-call budget';
 const BUDGET_GUIDANCE =

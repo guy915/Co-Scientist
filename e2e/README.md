@@ -7,6 +7,7 @@ throwaway store, so it never touches `coscientist.db` or a running
 ```bash
 make setup                # once: backend venv and frontend dependencies
 make e2e                  # development server suite (tests/)
+make e2e E2E_ARGS="--shard=1/3" # one development shard, as in CI
 make e2e-production       # built assets under vite preview (production/)
 make e2e E2E_ARGS="tests/03_run_lifecycle.spec.ts --headed"
 ```

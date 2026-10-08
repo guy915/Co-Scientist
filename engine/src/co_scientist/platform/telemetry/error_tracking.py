@@ -1,20 +1,21 @@
 from __future__ import annotations
 
+import math
 import os
 import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
 from co_scientist.core.byok_scope import redact_byok_text
-from co_scientist.platform.telemetry.tracing import OTLP_HEADER_ENV_VARS
+from co_scientist.platform.telemetry.tracing import OTLP_HEADER_ENV_VARS, private_error_type
 
 # Deployment credentials can surface in provider error text; any variable
 # named like a secret is scrubbed wherever it appears in a report.
 _SECRET_NAME = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|DSN)$")
 _MIN_SECRET_LENGTH = 8
-# X-Client-ID is a bearer-style ownership capability, and bodies carry
-# research content and keys, so reports keep only the method and route.
-_DROPPED_REQUEST_FIELDS = ("headers", "cookies", "data", "query_string", "env")
+_HTTP_METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 
 
 def _deployment_secrets() -> tuple[str, ...]:
@@ -45,12 +46,73 @@ def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
     return value
 
 
+@lru_cache(maxsize=1)
+def _source_files() -> dict[str, str]:
+    root = Path(__file__).resolve().parents[2]
+    return {str(path.resolve()): str(path.relative_to(root)) for path in root.rglob("*.py")}
+
+
+def _frames(stacktrace: Any) -> list[dict[str, Any]]:
+    if not isinstance(stacktrace, dict) or not isinstance(stacktrace.get("frames"), list):
+        return []
+    result = []
+    for frame in stacktrace["frames"][-50:]:
+        if not isinstance(frame, dict):
+            continue
+        path = frame.get("abs_path") or frame.get("filename")
+        filename = _source_files().get(path) if isinstance(path, str) else None
+        if filename is None:
+            continue
+        safe: dict[str, Any] = {"filename": "co_scientist/" + filename}
+        for key in ("lineno", "colno"):
+            value = frame.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 2**31:
+                safe[key] = value
+        result.append(safe)
+    return result
+
+
 def scrub_event(event: dict[str, Any], secrets: tuple[str, ...]) -> dict[str, Any]:
+    # Known-key replacement cannot identify arbitrary research text. Build a
+    # fresh event so SDK additions and nested diagnostic payloads stay private.
+    result: dict[str, Any] = {
+        "level": "error",
+        "platform": "python",
+        "message": "Application error",
+    }
+    event_id = event.get("event_id")
+    if isinstance(event_id, str) and re.fullmatch(r"[a-fA-F0-9]{32}", event_id):
+        result["event_id"] = event_id
+    timestamp = event.get("timestamp")
+    if (
+        isinstance(timestamp, int | float)
+        and not isinstance(timestamp, bool)
+        and 0 <= timestamp <= 253402300800
+        and math.isfinite(timestamp)
+    ):
+        result["timestamp"] = timestamp
     request = event.get("request")
-    if isinstance(request, dict):
-        for field in _DROPPED_REQUEST_FIELDS:
-            request.pop(field, None)
-    scrubbed: dict[str, Any] = _scrub(event, secrets)
+    if (
+        isinstance(request, dict)
+        and isinstance(request.get("method"), str)
+        and request["method"] in _HTTP_METHODS
+    ):
+        result["request"] = {"method": request["method"]}
+    exception = event.get("exception")
+    values = exception.get("values") if isinstance(exception, dict) else None
+    if isinstance(values, list):
+        result["exception"] = {
+            "values": [
+                {
+                    "type": private_error_type(value.get("type")),
+                    "value": "Error details withheld for privacy",
+                    "stacktrace": {"frames": _frames(value.get("stacktrace"))},
+                }
+                for value in values[:5]
+                if isinstance(value, dict)
+            ]
+        }
+    scrubbed: dict[str, Any] = _scrub(result, secrets)
     return scrubbed
 
 
@@ -67,12 +129,15 @@ def init_error_tracking(dsn: str, environment: str) -> bool:
     secrets = _deployment_secrets()
 
     def before_send(event: Any, hint: Any) -> Any:
+        hint["attachments"] = []
         return scrub_event(event, secrets)
 
     sentry_sdk.init(
         dsn=dsn.strip(),
         environment=environment.strip() or None,
         send_default_pii=False,
+        max_breadcrumbs=0,
+        before_breadcrumb=lambda breadcrumb, hint: None,
         include_local_variables=False,
         max_request_body_size="never",
         traces_sample_rate=None,
