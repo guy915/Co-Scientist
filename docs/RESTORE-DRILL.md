@@ -39,7 +39,8 @@ The script performs these steps, stopping on an error:
    The child runs in scratch with an environment allowlist: forced offline
    execution, LiteLLM's local-only cost catalog, disabled tracing and no
    inherited provider, SMTP, Sentry, proxy or Python-path settings. No
-   repository dotenv file is loaded.
+   repository dotenv file is loaded: `PYTHON_DOTENV_DISABLED=1` disables
+   python-dotenv's module-relative search and the settings dotenv reader.
    SQLite application checkpoints remain disabled as under Litestream.
 5. Poll `/health` until healthy, with a 60-second readiness deadline. Record
    restore-only and restore-to-healthy elapsed time.
@@ -55,7 +56,7 @@ for the synthetic source or restored target.
 
 On 8 October 2026, Linux x86_64, Litestream 0.5.17, this procedure exited
 **0**. Restore took **0.033 seconds**; restore through healthy API took
-**3.339 seconds**. SQLite integrity was `ok` before and after API startup and
+**3.008 seconds**. SQLite integrity was `ok` before and after API startup and
 shutdown, and the original marker survived. No provider call, production
 data access or hosting change occurred.
 
