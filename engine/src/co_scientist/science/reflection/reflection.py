@@ -131,6 +131,7 @@ async def _run_reflection_llm_or_none(
         response = await call_llm_json(
             prompt=call.prompt,
             spec=CompletionSpec(
+                role="reflection",
                 model_name=context.model_name,
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,

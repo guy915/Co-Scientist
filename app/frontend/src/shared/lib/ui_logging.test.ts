@@ -17,6 +17,37 @@ beforeEach(() => {
 });
 
 describe('error logging', () => {
+  it('pauses after a rate refusal, expires the pause, and preserves other failures', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2020-01-01T00:00:00Z'));
+    try {
+      logsApiMock.postAppLogs.mockRejectedValueOnce(
+        Object.assign(new Error('rate exceeded'), {status: 429}),
+      );
+      logUiError('first');
+      await Promise.resolve();
+      logUiError('paused');
+      expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(59_999);
+      logUiError('still paused');
+      expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      logUiError('resumed');
+      expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(2);
+
+      logsApiMock.postAppLogs.mockRejectedValueOnce(
+        Object.assign(new Error('server failure'), {status: 500}),
+      );
+      logUiError('unavailable');
+      await Promise.resolve();
+      logUiError('next error');
+      expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(4);
+    } finally {
+      window.sessionStorage.clear();
+      vi.useRealTimers();
+    }
+  });
+
   it('persists uncaught errors', () => {
     const uninstall = installUiErrorLogging();
     window.dispatchEvent(
