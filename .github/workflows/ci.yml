@@ -48,7 +48,6 @@ jobs:
       root_config: >-
         ${{ steps.select.outputs.root_config || steps.all.outputs.root_config }}
       python_lint: ${{ steps.select.outputs.python_lint || steps.all.outputs.python_lint }}
-      protected_contexts: ${{ steps.contexts.outputs.matrix }}
     steps:
       - name: Checkout
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
@@ -185,34 +184,6 @@ jobs:
             docker root_config python_lint; do
             echo "${target}=true" >> "$GITHUB_OUTPUT"
           done
-
-      - name: Select legacy compatibility contexts
-        id: contexts
-        env:
-          ENGINE_SELECTED: ${{ steps.select.outputs.engine || steps.all.outputs.engine }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-
-          selected = os.environ["ENGINE_SELECTED"]
-          if selected not in {"true", "false"}:
-              raise SystemExit("Engine selection is missing or invalid")
-          contexts = [
-              {"name": "MCP server tests", "owner": "format-lint", "target": "mcp_server", "combined": True},
-              {"name": "App tests", "owner": "test-app", "target": "app"},
-              {"name": "Evaluations (parity + offline smoke)", "owner": "evaluations", "target": "evaluations"},
-              {"name": "Browser e2e (Playwright)", "owner": "e2e", "target": "e2e"},
-          ]
-          # GitHub does not expand a skipped matrix into its protected names.
-          if selected == "false":
-              contexts += [
-                  {"name": f"Engine tests (py{version})", "owner": "test-engine", "target": "engine"}
-                  for version in ("3.10", "3.12")
-              ]
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              print(f"matrix={json.dumps(contexts)}", file=output)
-          PY
 
   # MCP and Ruff share an interpreter, while retaining independent step failures.
   format-lint:
@@ -555,44 +526,6 @@ jobs:
         working-directory: app
         run: docker compose config --quiet
 
-  # Preserve legacy protected names until the owner requires only Required checks.
-  protected-contexts:
-    name: ${{ matrix.name }}
-    if: always()
-    needs: [changes, format-lint, test-engine, test-app, evaluations, e2e]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.changes.outputs.protected_contexts) }}
-    steps:
-      - name: Require the selected suite to pass
-        env:
-          RESULTS: ${{ toJSON(needs) }}
-          CHECK_JOB: ${{ matrix.owner }}
-          CHECK_TARGET: ${{ matrix.target }}
-          COMBINED: ${{ matrix.combined || false }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          jobs = json.loads(os.environ["RESULTS"])
-          changes = jobs["changes"]
-          affected = changes["outputs"].get(os.environ["CHECK_TARGET"])
-          expected = {"true": "success", "false": "skipped"}.get(affected)
-          result = jobs[os.environ["CHECK_JOB"]]["result"]
-          valid = result == expected or (
-              affected == "false" and os.environ["COMBINED"] == "true" and result == "success"
-          )
-          if changes["result"] != "success" or expected is None or not valid:
-              print(f"Selected suite failed: affected={affected}, result={result}")
-              sys.exit(1)
-          print("The selected suite passed or was correctly excluded.")
-          PY
-
   required-checks:
     name: Required checks
     if: always()
@@ -606,7 +539,6 @@ jobs:
       - frontend
       - e2e
       - docker-build
-      - protected-contexts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -622,8 +554,28 @@ jobs:
           jobs = json.loads(os.environ["RESULTS"])
           failed = [name for name, job in jobs.items()
                     if job["result"] not in {"success", "skipped"}]
-          if jobs["changes"]["result"] != "success":
+          changes = jobs["changes"]
+          outputs = changes.get("outputs", {})
+          selections = {
+              "format-lint": ("python_lint", "mcp_server"),
+              "typecheck": ("engine", "app", "evaluations", "root_config"),
+              "test-engine": ("engine",),
+              "test-app": ("app",),
+              "evaluations": ("evaluations",),
+              "frontend": ("frontend",),
+              "e2e": ("e2e",),
+              "docker-build": ("docker",),
+          }
+          if changes["result"] != "success":
               failed.append("changes")
+          for name, targets in selections.items():
+              values = [outputs.get(target) for target in targets]
+              if any(value not in {"true", "false"} for value in values):
+                  failed.append("changes")
+                  continue
+              expected = "success" if "true" in values else "skipped"
+              if jobs.get(name, {}).get("result") != expected:
+                  failed.append(name)
           if failed:
               print("Required checks failed: " + ", ".join(sorted(set(failed))))
               sys.exit(1)
