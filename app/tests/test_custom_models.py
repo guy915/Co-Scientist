@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from typing import Any
 
@@ -178,14 +179,19 @@ def test_list_requests_use_fixed_provider_host_and_header_credentials(
     monkeypatch: pytest.MonkeyPatch, provider: str
 ) -> None:
     seen: list[httpx.Request] = []
-    original_client = httpx.Client
+    original_client = httpx.AsyncClient
 
     def respond(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json={"models" if provider == "gemini" else "data": []})
+        return httpx.Response(
+            200,
+            stream=httpx.ByteStream(
+                json.dumps({"models" if provider == "gemini" else "data": []}).encode()
+            ),
+        )
 
     monkeypatch.setattr(
-        "co_scientist.platform.llm.model_catalog.httpx.Client",
+        "co_scientist.platform.llm.model_catalog.httpx.AsyncClient",
         lambda **kwargs: original_client(**kwargs, transport=httpx.MockTransport(respond)),
     )
     assert model_catalog.read_provider_models(provider, _KEY) == []

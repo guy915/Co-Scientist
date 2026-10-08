@@ -266,6 +266,9 @@ def _mean_review_novelty(h: dict[str, Any]) -> float | None:
     """Novelty comes from its own review axis, not overall score; averaging
     prevents a single review from defining it.
     """
+    validation = h.get("novelty_validation")
+    if isinstance(validation, dict) and validation.get("decision") == "unknown":
+        return None
     scores = [
         float(value)
         for review in h.get("reviews") or []
@@ -351,6 +354,8 @@ def _persist_engine_hypothesis_row(
             win_delta=int(h.get("win_count", 0)),
             loss_delta=int(h.get("loss_count", 0)),
             novelty=_mean_review_novelty(h),
+            clear_novelty=isinstance(h.get("novelty_validation"), dict)
+            and h["novelty_validation"].get("decision") == "unknown",
             status=_hypothesis_status(h),
             verification_verdict=h.get("deep_verification_verdict"),
         ),

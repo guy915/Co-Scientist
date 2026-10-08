@@ -84,9 +84,10 @@ class FakeMultiServerMCPClient:
     tools: ClassVar[list[StructuredTool]] = []
     error: Exception | None = None
 
-    def __init__(self, connections: Any) -> None:
+    def __init__(self, connections: Any, *, handle_tool_errors: bool = True) -> None:
         type(self).instances_created += 1
         self.connections = connections
+        self.handle_tool_errors = handle_tool_errors
 
     async def get_tools(self) -> list[StructuredTool]:
         err = type(self).error

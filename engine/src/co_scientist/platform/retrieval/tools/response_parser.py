@@ -141,6 +141,19 @@ class ResponseParser:
         if data is None:
             return []
 
+        if isinstance(data, dict) and data.get("status") == "failed":
+            return []
+        if isinstance(data, dict) and data.get("status") == "ok":
+            # IDs formerly carried by mapping keys now travel with each record.
+            records = data["records"]
+            if self.response_format.is_dict:
+                return self._map_dict_results(
+                    {
+                        str(record.get("source_id") or index): record
+                        for index, record in enumerate(records)
+                    }
+                )
+            return self._map_list_results(records)
         results = self._navigate_path(data, self.response_format.results_path)
 
         if results is None:
