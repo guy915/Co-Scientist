@@ -67,10 +67,12 @@ def _reclaim_disk_space() -> None:
 
 
 def _startup_engine_setup() -> None:
-    """The offline router is a harmless passthrough for real models."""
-    from co_scientist.platform.llm.offline.llm import install_offline_router
+    from co_scientist.platform.llm.process_mode import offline_mode
 
-    install_offline_router()
+    if offline_mode():
+        from co_scientist.platform.llm.offline.llm import install_offline_router
+
+        install_offline_router()
     logger.info("Model: %s", settings.model_name)
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)

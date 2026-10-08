@@ -29,7 +29,7 @@ const backendServer = {
     PATH: process.env.PATH ?? '',
     // Force offline operation even when environment credentials leak into the
     // harness.
-    COSCIENTIST_FORCE_OFFLINE: '1',
+    COSCIENTIST_TEST_DOUBLE: 'deterministic',
     PYTHON_DOTENV_DISABLED: '1',
     COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL: '1',
     EVIDENCE_RESOLVER: 'offline',

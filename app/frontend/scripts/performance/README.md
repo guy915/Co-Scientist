@@ -13,7 +13,7 @@ After root `make setup`, start the API from `app/` in a separate terminal:
 
 ```bash
 mkdir -p /tmp/fp-state
-COSCIENTIST_FORCE_OFFLINE=1 PYTHON_DOTENV_DISABLED=1 \
+COSCIENTIST_TEST_DOUBLE=deterministic PYTHON_DOTENV_DISABLED=1 \
 EVIDENCE_RESOLVER=offline COSCIENTIST_DB_PATH=/tmp/fp-state/coscientist.db \
 MCP_SERVER_URL=http://127.0.0.1:9/mcp ALLOWED_ORIGINS=http://127.0.0.1:4173 \
 ../.venv/bin/python -m uvicorn co_scientist.main:app --host 127.0.0.1 --port 8108

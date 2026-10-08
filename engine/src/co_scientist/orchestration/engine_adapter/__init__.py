@@ -5,8 +5,10 @@ import sys
 from typing import Any
 
 from co_scientist.core.config import any_provider_credential, byok_enabled, settings
+from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import runs
-from co_scientist.platform.llm.process_mode import offline_mode
+from co_scientist.platform.db.spend import UNAVAILABLE
+from co_scientist.platform.llm.process_mode import offline_mode, production_routing_enabled
 from co_scientist.platform.retrieval.connectors import (
     connectors_report as connectors_report,
 )
@@ -48,6 +50,8 @@ def resolve_offline_backend(cfg: dict[str, Any]) -> bool:
     """
     backend = cfg.get("llm_backend")
     if backend == "offline":
+        if production_routing_enabled():
+            raise ProviderAdmissionError(UNAVAILABLE)
         return True
     if backend == "real":
         return False
