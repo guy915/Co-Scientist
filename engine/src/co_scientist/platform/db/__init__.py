@@ -47,12 +47,17 @@ def _open_raw_connection(db_path: str) -> sqlite3.Connection:
     # the asynchronous caller's thread boundary.
     conn = sqlite3.connect(db_path, timeout=30, isolation_level=None, check_same_thread=False)
     conn.row_factory = sqlite3.Row  # Rows behave like dicts: row["col"].
+    from co_scientist.platform.db.privacy import ownership_digest
+
+    conn.create_function("cosci_owner_digest", 1, ownership_digest, deterministic=True)
     # WAL NORMAL avoids per-commit fsync saturation; checkpoints sync
     # durability, with recent transactions vulnerable only to OS failure.
     conn.execute("PRAGMA synchronous=NORMAL")
     # Foreign-key enforcement is per connection, not file-wide; otherwise
     # deletes silently leave orphan rows.
     conn.execute("PRAGMA foreign_keys=ON")
+    # Erased payloads must not remain in free pages of later backup snapshots.
+    conn.execute("PRAGMA secure_delete=ON")
     if os.getenv("COSCIENTIST_LITESTREAM_ACTIVE") == "1":
         conn.execute("PRAGMA wal_autocheckpoint=0")
     return conn
