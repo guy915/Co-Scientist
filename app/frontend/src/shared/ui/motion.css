@@ -140,3 +140,36 @@
   animation-duration: var(--motion-duration-long);
   animation-timing-function: var(--motion-ease-standard);
 }
+
+/* Loading placeholders share one sweep: the gradient is fixed to the viewport,
+   so a single highlight crosses every shape together instead of each shape
+   running its own. Reduced motion holds the base tone. */
+@keyframes ui-skeleton-sweep {
+  from {
+    background-position: -120vw 0;
+  }
+
+  70%,
+  to {
+    background-position: 20vw 0;
+  }
+}
+
+@layer components {
+  .ui-skeleton {
+    background: linear-gradient(
+        100deg,
+        var(--skeleton-bg) 40%,
+        var(--skeleton-shine) 50%,
+        var(--skeleton-bg) 60%
+      )
+      -120vw 0 / 200vw 100% fixed no-repeat var(--skeleton-bg);
+    animation: ui-skeleton-sweep 2s var(--motion-ease-standard) infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-skeleton {
+      animation: none;
+    }
+  }
+}
