@@ -53,6 +53,8 @@ def _open_raw_connection(db_path: str) -> sqlite3.Connection:
     # Foreign-key enforcement is per connection, not file-wide; otherwise
     # deletes silently leave orphan rows.
     conn.execute("PRAGMA foreign_keys=ON")
+    if os.getenv("COSCIENTIST_LITESTREAM_ACTIVE") == "1":
+        conn.execute("PRAGMA wal_autocheckpoint=0")
     return conn
 
 
@@ -136,6 +138,8 @@ def checkpoint_wal(db_path: str | None = None) -> None:
     """Graceful shutdown flushes WAL transactions into the main database
     file for file-only copies.
     """
+    if os.getenv("COSCIENTIST_LITESTREAM_ACTIVE") == "1":
+        return
     try:
         with connect(db_path) as conn:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")

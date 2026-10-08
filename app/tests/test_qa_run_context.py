@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from co_scientist.api.runs.chat import _gather_qa_context
-from co_scientist.domains.chat.qa import artifacts
+from co_scientist.domains.chat.qa import artifacts, build_system_prompt
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.research_state.repository import hypotheses
 from co_scientist.platform import db
@@ -38,8 +38,10 @@ def _checkpoint(run: Any, state: dict[str, Any], version: int = 1) -> None:
     )
 
 
+@pytest.mark.parametrize("reason_key", ["reasoning", "rationale"])
 def test_mid_run_reads_committed_science_without_draining_or_writing(
     monkeypatch: pytest.MonkeyPatch,
+    reason_key: str,
 ) -> None:
     run = _run()
     state = {
@@ -58,7 +60,7 @@ def test_mid_run_reads_committed_science_without_draining_or_writing(
             }
         ],
         "articles": [{"title": "Full literature", "abstract": "Grounding text"}],
-        "tournament_matchups": [{"winner_id": "h1", "rationale": "Better controlled"}],
+        "tournament_matchups": [{"winner_id": "h1", reason_key: "Better controlled"}],
         "meta_review": {"conclusion": "Still preliminary"},
         "supervisor_guidance": {"goal": "Test replication"},
         "constraints": ["Human cells"],
@@ -84,6 +86,7 @@ def test_mid_run_reads_committed_science_without_draining_or_writing(
     assert context.progress and context.progress.idea_count == 1
     assert context.reviews[0]["summary"] == "Needs replication"
     assert context.matches[0]["rationale"] == "Better controlled"
+    assert "Better controlled" in build_system_prompt(context)
     assert context.manifest == []  # checkpoint literature is not verified
     for section in (
         "articles",

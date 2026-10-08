@@ -1,157 +1,157 @@
-<h1 align="center">Co-Scientist</h1>
+<h1 align="center">Open Co-Scientist</h1>
 
 <p align="center">
-  A multi-agent hypothesis-generation system for scientific discovery.
+  <strong>An open multi-agent research partner that turns a research goal into ranked, literature-grounded hypotheses.</strong>
 </p>
 
 <p align="center">
-  <a href="https://deepwiki.com/guy915/Co-Scientist"><img src="docs/assets/deepwiki-badge.svg" alt="DeepWiki"/></a>
+  <a href="https://open-coscientist.com"><strong>Try it at open-coscientist.com</strong></a>
+  ·
+  <a href="#quick-start">Run it locally</a>
+  ·
+  <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
-<table align="center">
-<tr>
-<td align="center"><strong>Pipeline architecture</strong></td>
-<td align="center"><strong>Workbench</strong></td>
-</tr>
-<tr>
-<td><img src="docs/assets/pipeline.svg" alt="Multi-agent hypothesis pipeline" width="440"/></td>
-<td><img src="docs/assets/chat.png" alt="Co-Scientist workbench" width="440"/></td>
-</tr>
-</table>
+<p align="center">
+  <img src="docs/assets/chat.png" alt="The Open Co-Scientist workbench: a research chat beside a run's progress" width="820"/>
+</p>
 
-## Overview
+Describe what you want to understand, such as a mechanism, a drug-repurposing
+question or an unexplained observation. Open Co-Scientist searches the
+literature, drafts competing hypotheses, critiques and fact-checks them, runs
+an Elo tournament of scientific debates, and evolves the strongest ideas. You
+get a report with ranked hypotheses, the mechanism behind each, a proposed
+experiment, and the sources every claim rests on. You can steer the run while
+it works.
 
-Co-Scientist generates, reviews, ranks, and evolves research hypotheses with a
-multi-agent engine and streams progress into a web workbench.
-Researchers can attach documents, refine their goals, steer a run, inspect
-its evidence and hypothesis lineage, and share a final report.
+It is an open, independent implementation of the agent design in Google's
+[AI co-scientist](https://arxiv.org/abs/2502.18864). It is not affiliated with
+or endorsed by Google.
 
-This is an independent implementation inspired by Google's published
-AI Co-Scientist research. It is not affiliated with or endorsed by Google.
-Passing implementation tests does not establish scientific validity, expert agreement, or wet-lab results.
-Generated hypotheses need researcher review and experimental validation.
+## How a run works
+
+```mermaid
+flowchart LR
+    goal([Research goal]) --> plan[Supervisor<br/>plans the run]
+    plan --> lit[Literature review<br/>PubMed, OpenAlex, web]
+    lit --> gen[Generation<br/>debate and grounding]
+    gen --> review[Reflection<br/>review and verify claims]
+    review --> safety[Safety screen]
+    safety --> rank[Ranking<br/>Elo tournament]
+    rank --> sup{Supervisor<br/>next task?}
+    sup -->|more ideas| gen
+    sup -->|improve the best| evolve[Evolution]
+    evolve --> review
+    sup -->|merge duplicates| prox[Proximity]
+    prox --> sup
+    sup -->|converged| report([Research overview<br/>and report])
+```
+
+The supervisor model advises on each next step, and a deterministic policy
+enforces budgets, forced transitions and convergence from live statistics such
+as pool growth, Elo stability and match coverage. Every step is a durable task,
+so a run survives restarts and resumes where it stopped.
 
 ## Features
 
-- Supervised hypothesis generation, review, Elo ranking, and evolution.
-- Durable, resumable task execution with persisted progress and lineage.
-- Literature retrieval, document attachments, and claim-level evidence assessment.
-- Intake, hypothesis, and final-output safety screening. Contextual judgments
-  still need researcher review; offline evaluations do not establish safety.
-- Researcher steering and grounded Q&A during a run.
-- Authenticated hosted access, BYOK credentials, and revocable report sharing.
-- Deterministic offline mode for development without a model API key.
+- **Six cooperating agents under a supervisor**: generation, reflection,
+  ranking, evolution, proximity and meta-review, following the published
+  design.
+- **Evidence you can check.** Hypotheses cite retrieved sources with `[C*]`
+  keys, each claim is checked against its passages for support or
+  contradiction, and retracted papers are flagged.
+- **Literature and database tools** through a bundled MCP server: PubMed and
+  PMC full text, OpenAlex, Europe PMC, arXiv and preprints, ChEMBL, UniProt,
+  STRING, Reactome, Open Targets, Ensembl, gnomAD, the GWAS Catalog,
+  ClinicalTrials.gov, and web search when a search key is configured.
+- **Steering and questions**: add constraints or ask about the evidence while a
+  run works, and attach your own documents.
+- **Safety screening** of the goal, each hypothesis and the final report.
+- **Bring your own key** for your preferred provider and larger run sizes;
+  keys are encrypted at rest.
+- **Offline mode** with a deterministic backend, so you can develop and test
+  the whole pipeline without an API key.
+
+## Honest limits
+
+- **Free model routes.** The hosted service runs on free OpenRouter routes:
+  Ling 3.1 Flash, with free Nemotron fallbacks. They are slower and weaker
+  than frontier models, their zero price is the provider's decision and can
+  end, and results depend heavily on the model.
+- **Capacity.** Without your own key, each browser gets three Express runs a
+  day by default, behind per-network and global daily caps. The free routes
+  are rate-limited for the whole deployment, so a busy day can park runs until
+  the daily reset. Larger run sizes need your own key. Runs take from tens of
+  minutes to several hours, depending on size and provider speed.
+- **One server.** The API is a single process on SQLite. It favors durability
+  and simplicity over scale.
+- **Hypotheses, not findings.** Passing tests shows the software works, not
+  that its hypotheses are right. Treat every output as a starting point for
+  expert review and experiment. The [evaluations](evaluations/README.md) say
+  what has and has not been measured.
+- **Private by obscurity.** Runs belong to a per-browser ID, not a verified
+  account.
 
 ## Quick start
 
-Install Python **3.12**, Node.js **22.13+**, and Bun **1.3.14**
-(`curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`). The internal
-engine package retains Python 3.10+ compatibility. The Makefile needs `bash`
-and `lsof`, so use macOS or Linux; on Windows, use WSL2.
+You need Python 3.12, Node.js 22.13+ and Bun 1.3.14 on macOS or Linux (on
+Windows, use WSL2).
 
 ```bash
-git clone https://github.com/guy915/Co-Scientist.git && cd Co-Scientist
-make setup          # Python venv + locked frontend dependencies
-make start          # API :8008, UI :5173, MCP :8888
+git clone https://github.com/guy915/Open-Co-Scientist.git
+cd Open-Co-Scientist
+make setup    # Python virtual environment and locked frontend dependencies
+make start    # API on :8008, workbench on :5173, MCP server on :8888
 ```
 
-`make start` stops whatever is listening on ports 8008, 5173 and 8888.
+`make start` opens [localhost:5173](http://localhost:5173) when it is ready,
+and stops anything already listening on those three ports. With no API key,
+every stage runs on the deterministic offline backend. To use a real model,
+set `OPENROUTER_API_KEY` in the root `.env` that `make setup` created; see
+[`.env.example`](.env.example) and the
+[full API configuration](app/.env.example). The MCP server reads its own
+`engine/mcp_server/.env` ([template](engine/mcp_server/.env.example)).
 
-Open [localhost:5173](http://localhost:5173). Leave provider keys empty to use
-all hypothesis-generation stages with deterministic offline responses.
-MCP retrieval is a separate service and may contact public scientific sources.
+`make check` runs the CI checks apart from the image builds: lint, types,
+every test suite, the evaluation smoke test, the production build and the
+browser tests. `make help` lists
+every target, and [local setup](docs/RUNNING-LOCALLY.md) covers details and
+troubleshooting.
 
-To use a real model, edit the root `.env`. The default system route needs
-`OPENROUTER_API_KEY`; another provider requires its own model configuration
-and matching key. See [`.env.example`](.env.example) and
-[the complete API configuration reference](app/.env.example).
+## Architecture
 
-```dotenv
-OPENROUTER_API_KEY=
-MODEL_NAME=openrouter/inclusionai/ling-3.1-flash
-```
-
-`make setup` creates `app/.env` as a link to the root `.env`. The MCP server
-has its own configuration under `engine/mcp_server/.env`. See
-[local setup](docs/RUNNING-LOCALLY.md) for prerequisites and troubleshooting.
-Run `make help` for all targets.
-
-Before exposing the API, follow [deployment](docs/DEPLOYMENT.md) and
-[launch guidance](docs/LAUNCH.md). Ownership is a per-browser client ID, not
-verified identity.
-
-## Using the workbench
-
-Describe a research goal in chat, review its configuration, and select
-**Start**. The chat timeline shows progress and accepts steering messages.
-Completed runs have four report views:
-
-| View | Contents |
-| --- | --- |
-| Details | Configuration, provider, artifact counts, and safety decisions |
-| Learning | Retrieved sources and citation classifications |
-| Overview | Synthesized report with Markdown and JSON downloads |
-| Ideas | Ranked hypotheses, mechanisms, experimental designs, and lineage |
-
-With no usable provider credential, or `COSCIENTIST_FORCE_OFFLINE=1`, runs use
-the offline backend. Check `/status` for `llm_backend` (`offline` or `real`).
-Offline runs exercise the pipeline and do not establish hypothesis quality.
-
-## Development checks
-
-```bash
-make check          # lint, types, all suites, eval smoke, build, browser tests
-make docker-build   # build both production images; never deploys
-make audit-deps     # online advisory review; requires uv
-```
-
-Individual checks: `make lint`, `make typecheck`, `make test-app`,
-`make test-engine`, `make test-mcp`, `make test-frontend`, `make test-evaluations`,
-`make eval-smoke`, `make build`, `make e2e`, and `make e2e-production`.
-The browser suite uses an
-isolated database and offline model responses. Provider-backed evaluations
-remain explicit opt-in operations.
-
-## Repository map
-
-| Path | Purpose |
-| --- | --- |
-| `app/` | FastAPI API, SQLite store, and React workbench |
-| `engine/` | Internal hypothesis-generation engine and reference MCP server |
-| `evaluations/` | Offline evaluation tools and release gate |
-| `e2e/` | Playwright browser tests |
-| `requirements/` | Hash-pinned Python runtime dependencies for production images |
-| `docs/` | [Documentation index](docs/README.md), architecture, operations, and launch guidance |
-| `.github/` | CI, nightly checks, dependency updates, and review template |
-| `vendor/` | Unmodified third-party science skills; provenance in [NOTICE](NOTICE) |
-
-Start with [architecture](docs/ARCHITECTURE.md),
-[launch readiness](docs/LAUNCH.md), and [contributor guidance](AGENTS.md).
+Open Co-Scientist is one Python package, `co_scientist`
+(`engine/src/co_scientist/`), served by FastAPI. It is layered from the
+composition root through the API, orchestration, the scientific agents and
+domain logic down to the platform (models, retrieval, sandbox and the SQLite
+store) and core, and import contracts enforce that layering in CI. A React
+workbench (`app/frontend/`) streams progress over server-sent events, and a
+reference MCP server (`engine/mcp_server/`) provides the literature and
+database tools. Read the [architecture](docs/ARCHITECTURE.md), the
+[engine architecture](engine/docs/ARCHITECTURE.md) and the
+[documentation index](docs/README.md).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+Scientists and developers are both welcome. You can report a bug, propose a
+research question or an evaluation dataset, reproduce a result, or send code.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), and ask questions in
+[Discussions](https://github.com/guy915/Open-Co-Scientist/discussions).
+Everyone follows the [Code of Conduct](CODE_OF_CONDUCT.md). Report
+vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-## Security
-
-Report vulnerabilities privately through
-[GitHub security advisories](https://github.com/guy915/Co-Scientist/security/advisories/new),
-excluding credentials and researcher data. See [SECURITY.md](SECURITY.md).
-
-## License
+## License and credit
 
 First-party software is licensed under [Apache 2.0](LICENSE).
-[NOTICE](NOTICE) records included third-party software and data provenance.
-Vendored documentation, referenced papers, and scientific data retain their
-own terms; the software license does not grant rights to those materials.
+[NOTICE](NOTICE) records third-party software and data; vendored material,
+cited papers and scientific data keep their own terms.
 
-## Acknowledgements
+This project builds on Google's AI co-scientist research:
 
-- [Towards an AI Co-Scientist](https://arxiv.org/abs/2502.18864)
-- [Accelerating scientific discovery with Co-Scientist](https://doi.org/10.1038/s41586-026-10644-y)
-- [Gemini Enterprise — Idea Generation agent](https://docs.cloud.google.com/gemini/enterprise/docs/idea-generation)
-- [Science Skills for Antigravity](https://github.com/google-deepmind/science-skills)
-- [Jataware Open Co-Scientist](https://github.com/jataware/open-coscientist)
-- [Sakana AI Scientist](https://github.com/SakanaAI/AI-Scientist)
-- [Pi Agent](https://github.com/Dicklesworthstone/pi_agent_rust)
+- Gottweis et al., [Towards an AI co-scientist](https://arxiv.org/abs/2502.18864), 2025.
+- [Accelerating scientific discovery with Co-Scientist](https://doi.org/10.1038/s41586-026-10644-y), *Nature*, 2026.
+
+It also draws on [Science Skills](https://github.com/google-deepmind/science-skills)
+(vendored under `vendor/`), [Jataware's open-coscientist](https://github.com/jataware/open-coscientist),
+[Sakana AI's AI Scientist](https://github.com/SakanaAI/AI-Scientist) and
+[Pi Agent](https://github.com/Dicklesworthstone/pi_agent_rust).

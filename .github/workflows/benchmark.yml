@@ -1,4 +1,4 @@
-# Not CI: a manual, live quality benchmark for docs/OPTIMIZATION.md. It calls
+# Not CI: a manual, live quality benchmark; see evaluations/README.md. It calls
 # the free default model with a repository secret, so it never runs on PRs.
 name: Benchmark
 
@@ -22,8 +22,9 @@ jobs:
   benchmark:
     name: Benchmark (${{ inputs.tier }}, ${{ inputs.label }})
     runs-on: ubuntu-latest
-    # GitHub-hosted jobs stop at six hours.
-    timeout-minutes: 350
+    # A hung provider call once held a run for the six-hour runner limit with no
+    # result. The run step stops first, so the result check and uploads still run.
+    timeout-minutes: ${{ inputs.tier == 'standard' && 270 || 150 }}
     env:
       MODEL_NAME: openrouter/inclusionai/ling-3.1-flash
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -33,19 +34,24 @@ jobs:
       CLAIM_SUPPORT_KEEP_DB: benchmark-artifacts/run.db
     steps:
       - name: Checkout
+        timeout-minutes: 5
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate the MCP shared secret
+        timeout-minutes: 1
         run: |
           secret="$(openssl rand -hex 32)"
           echo "::add-mask::$secret"
           echo "COSCIENTIST_MCP_SHARED_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Set up backend
+        timeout-minutes: 15
         uses: ./.github/actions/setup-backend
       - name: Install MCP server
+        timeout-minutes: 10
         run: |
           python -m venv .venv-mcp
           .venv-mcp/bin/python -m pip install -q -e engine/mcp_server
       - name: Start MCP server
+        timeout-minutes: 3
         # The server resolves as a directory package from engine/. The search
         # keys go to this step only, as in production, where the api lacks them.
         working-directory: engine
@@ -62,9 +68,36 @@ jobs:
           cat ../mcp.log
           exit 1
       - name: Run benchmark
+        # Express has taken 41 to 71 minutes and standard about 2 h 16 min.
+        timeout-minutes: ${{ inputs.tier == 'standard' && 240 || 120 }}
         run: python -m evaluations.claim_support_eval --live --tier "$TIER"
+      - name: Check the metric was written
+        # Claims cluster within ideas, so treat the interval as a lower bound on the spread.
+        if: always()
+        timeout-minutes: 2
+        run: |
+          python - <<'PY'
+          import glob, json, os, sys
+
+          files = sorted(glob.glob("evaluations/results/claim-support-live-*.json"))
+          if not files:
+              print("::error title=No benchmark metric::The run wrote no claim-support result.")
+              sys.exit(1)
+          report = json.load(open(files[-1]))
+          rate = report.get("unsupported_claim_rate")
+          n = report.get("claims_assessed")
+          if rate is None:
+              print(f"::error title=No benchmark metric::{files[-1]} has no unsupported_claim_rate (n={n}).")
+              sys.exit(1)
+          low, high = report["unsupported_claim_rate_ci95"]
+          line = f"unsupported_claim_rate {rate} (n={n} claims, 95% Wilson CI {low} to {high})"
+          print(line)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"**{line}**\n\n")
+          PY
       - name: Report
         if: always()
+        timeout-minutes: 5
         run: |
           for f in evaluations/results/claim-support-live-*.json; do
             [ -e "$f" ] || continue
@@ -78,6 +111,7 @@ jobs:
           tail -n 200 mcp.log || true
       - name: Upload run database and logs
         if: always()
+        timeout-minutes: 10
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: benchmark-${{ inputs.tier }}-${{ inputs.label }}
