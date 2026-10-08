@@ -80,6 +80,7 @@ def configure(provider: str, model: str) -> tuple[str, str]:
             del os.environ[name]
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
     os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+    os.environ["LITELLM_LOCAL_ANTHROPIC_BETA_HEADERS"] = "True"
     os.environ["COSCIENTIST_REQUIRE_FREE_MODELS"] = "0"
     os.environ.pop("COSCIENTIST_TEST_DOUBLE", None)
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)

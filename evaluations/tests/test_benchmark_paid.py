@@ -37,6 +37,7 @@ from evaluations.benchmark_paid import configure
 configure('anthropic', 'anthropic/fixture-model')
 assert os.environ['COSCIENTIST_REQUIRE_FREE_MODELS']=='0'
 assert os.environ['PYTHON_DOTENV_DISABLED']=='1'
+assert os.environ['LITELLM_LOCAL_ANTHROPIC_BETA_HEADERS']=='True'
 assert os.environ['ANTHROPIC_API_KEY']=='synthetic-key'
 assert 'OPENROUTER_API_KEY' not in os.environ
 assert 'AZURE_API_KEY' not in os.environ
