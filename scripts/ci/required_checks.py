@@ -41,6 +41,7 @@ def failures(jobs, event):
 
     expect("launch-checks", "success")
     expect("dependency-review", "success" if event == "pull_request" else "skipped")
+    expect("cross-browser-full", "skipped" if event == "pull_request" else "success")
     for name, targets in SELECTIONS.items():
         values = [outputs.get(target) for target in targets]
         if any(value not in {"true", "false"} for value in values):
@@ -48,6 +49,8 @@ def failures(jobs, event):
             continue
         selected = "true" in values
         if name == "sandbox-macos" and event == "push":
+            selected = False
+        if name == "cross-browser" and event != "pull_request":
             selected = False
         expect(name, "success" if selected else "skipped")
     return sorted(failed)

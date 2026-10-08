@@ -59,7 +59,10 @@
     ".github/workflows/ci.yml",
     ".github/ci_paths.json",
     "scripts/select_targets.py",
-    "scripts/presubmit.py"
+    "scripts/presubmit.py",
+    "requirements/**",
+    "**/LICENSE",
+    "**/NOTICE"
   ],
   "e2e": [
     "Makefile",
@@ -115,5 +118,36 @@
     ".github/ci_paths.json",
     "scripts/select_targets.py",
     "scripts/presubmit.py"
+  ],
+  "workflows": [
+    ".github/**",
+    "scripts/ci/**",
+    "Makefile",
+    "scripts/select_targets.py",
+    "scripts/presubmit.py"
+  ],
+  "sandbox": [
+    "engine/src/co_scientist/platform/sandbox/**",
+    "engine/tests/test_sandbox.py",
+    "engine/pyproject.toml",
+    ".github/workflows/sandbox-macos.yml",
+    "scripts/ci/macos_sandbox_diagnostics.py",
+    "Makefile",
+    ".github/workflows/ci.yml",
+    ".github/ci_paths.json",
+    "scripts/select_targets.py",
+    "scripts/presubmit.py"
+  ],
+  "cross_browser": [
+    "Makefile",
+    "e2e/**",
+    "app/**",
+    "engine/**",
+    ".github/workflows/ci.yml",
+    ".github/ci_paths.json",
+    "scripts/select_targets.py",
+    "scripts/presubmit.py",
+    ".github/workflows/cross-browser.yml",
+    "scripts/ci/native_browser_shards.py"
   ]
 }

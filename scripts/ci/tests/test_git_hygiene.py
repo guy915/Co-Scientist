@@ -105,6 +105,10 @@ class GitHygieneTests(unittest.TestCase):
                 },
             ):
                 self.assertEqual(main(root), 0)
+            with patch.dict(
+                os.environ, {"PR_TITLE": "", "BASE_SHA": base, "HEAD_SHA": head}
+            ):
+                self.assertEqual(main(root, commits_only=True), 0)
             git(
                 "commit",
                 "--allow-empty",
@@ -121,6 +125,7 @@ class GitHygieneTests(unittest.TestCase):
                 },
             ):
                 self.assertEqual(main(root), 1)
+                self.assertEqual(main(root, commits_only=True), 1)
 
 
 if __name__ == "__main__":

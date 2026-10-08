@@ -37,7 +37,46 @@ def test_docs_only_skip_test_targets_but_keep_other_affected_gates() -> None:
     selected = selector.select(["engine/README.md"], selector.load_rules(ROOT))
     assert not any(selected[target] for target in selector.TEST_TARGETS)
     assert selected["python_lint"]
-    assert commands_for(selected) == ["lint-python"]
+    assert commands_for(selected) == ["ci-guards", "lint-python"]
+
+
+@pytest.mark.parametrize(
+    "path", ["requirements/api-linux-py312.txt", "NOTICE", "engine/NOTICE", "app/LICENSE"]
+)
+def test_licence_and_lock_changes_run_the_inventory_guard(path: str) -> None:
+    selected = selector.select([path], selector.load_rules(ROOT))
+    assert selected["evaluations"]
+    assert "test-evaluations" in commands_for(selected)
+
+
+def test_native_and_workflow_changes_have_explicit_local_equivalents() -> None:
+    rules = selector.load_rules(ROOT)
+    sandbox = selector.select(["engine/src/co_scientist/platform/sandbox/seatbelt.py"], rules)
+    assert sandbox["sandbox"]
+    assert "test-engine" in commands_for(sandbox)
+    native = selector.select([".github/workflows/cross-browser.yml"], rules)
+    assert native["cross_browser"] and native["workflows"]
+    assert "lint-workflows" in commands_for(native)
+    assert "e2e-production" in commands_for(native)
+    frontend = selector.select(["app/frontend/src/app/layout.tsx"], rules)
+    assert frontend["cross_browser"] and not frontend["sandbox"]
+    assert not frontend["workflows"]
+
+
+def test_launch_guards_run_even_with_no_changed_targets() -> None:
+    selected = selector.select([], selector.load_rules(ROOT))
+    assert commands_for(selected) == ["ci-guards"]
+
+
+@pytest.mark.parametrize("target", ["sandbox", "cross_browser", "workflows"])
+def test_missing_launch_selection_rules_fail_closed(tmp_path: Path, target: str) -> None:
+    rules = selector.load_rules(ROOT)
+    rules.pop(target)
+    directory = tmp_path / ".github"
+    directory.mkdir()
+    (directory / "ci_paths.json").write_text(json.dumps(rules))
+    with pytest.raises(ValueError, match="Missing target rules"):
+        selector.load_rules(tmp_path)
 
 
 def test_unknown_paths_and_full_events_select_comprehensive_checks() -> None:
