@@ -35,6 +35,47 @@ class MarkdownLinksTests(unittest.TestCase):
         self.assertFalse(doc.links)
         self.assertFalse(doc.anchors)
 
+    def test_picture_and_media_sources_are_checked(self):
+        doc = parse_document(
+            '<picture><source srcset="light.png 1x, dark.png 2x">'
+            '<img src="fallback.png"></picture>\n'
+            '<video src="clip.webm"></video>'
+        )
+        self.assertEqual(
+            {link.target for link in doc.links},
+            {"light.png", "dark.png", "fallback.png", "clip.webm"},
+        )
+
+    def test_missing_secondary_picture_source_fails_without_network(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "existing.png").touch()
+            (root / "README.md").write_text(
+                '<picture><source srcset="existing.png 1x, missing.png 2x">'
+                '<img src="existing.png"></picture>'
+            )
+            with patch(
+                "urllib.request.urlopen",
+                side_effect=AssertionError("network forbidden"),
+            ):
+                findings = check_links(root, ["README.md", "existing.png"])
+            self.assertEqual(len(findings), 1)
+            self.assertIn("missing.png", findings[0])
+
+    def test_srcset_keeps_url_commas_and_skips_descriptors(self):
+        doc = parse_document(
+            '<img srcset=" data:image/png;base64,AAAA 1x, '
+            'https://invalid.example/image.png 2x, local.png, ">'
+        )
+        self.assertEqual(
+            [link.target for link in doc.links],
+            [
+                "data:image/png;base64,AAAA",
+                "https://invalid.example/image.png",
+                "local.png",
+            ],
+        )
+
     def test_all_relative_targets_and_anchors_resolve_without_network(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
