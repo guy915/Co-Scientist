@@ -16,6 +16,7 @@ from co_scientist.platform.db.admission import ProviderReservation
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.free_policy import enforce_free_request
 from co_scientist.platform.llm.admission.service import reserve_physical, settle_physical
+from co_scientist.platform.llm.admission.spend import azure_config, require_enabled
 from co_scientist.platform.llm.request.backend import active_backend
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
@@ -71,7 +72,12 @@ class _CompletionStream:
         self._done = True
         latency = time.monotonic() - self._start
         if error is None:
-            settle_physical(self._receipt, self._last)
+            try:
+                settle_physical(self._receipt, self._last)
+            except BaseException as settlement_error:
+                self._context.run(record_completion_failure, self._model, settlement_error, latency)
+                end_request_span(self._span, self._last, settlement_error)
+                raise
             self._context.run(record_completion_response, self._model, self._last, latency)
         else:
             self._context.run(record_completion_failure, self._model, error, latency)
@@ -112,6 +118,7 @@ async def complete_request(
     """
     from co_scientist.core.config import settings
 
+    require_enabled()
     apply_provider_constraints(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
@@ -124,6 +131,9 @@ async def complete_request(
         receipt = reserve_physical(completion_args)
     if before_dispatch is not None:
         before_dispatch()
+    require_enabled()
+    if receipt is not None and receipt.paid:
+        azure_config()
     span = start_request_span(model_name, completion_args)
     start = time.monotonic()
     try:
@@ -145,7 +155,12 @@ async def complete_request(
         raise
     if completion_args.get("stream"):
         return _CompletionStream(response, model_name, start, span, receipt)
-    settle_physical(receipt, response)
+    try:
+        settle_physical(receipt, response)
+    except BaseException as settlement_error:
+        record_completion_failure(model_name, settlement_error, time.monotonic() - start)
+        end_request_span(span, response, settlement_error)
+        raise
     record_completion_response(model_name, response, time.monotonic() - start)
     end_request_span(span, response, None)
     return response

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, default_db_path, transaction
+from co_scientist.platform.db.spend import SpendReservation, reserve_spend, settle_spend
 
 UNKNOWN_HOST = "unknown"
 
@@ -16,6 +17,7 @@ UNKNOWN_HOST = "unknown"
 class ProviderReservation:
     id: str
     db_path: str
+    paid: bool = False
 
 
 def connecting_host(host: str | None) -> str:
@@ -128,15 +130,19 @@ def _reserve_app(conn: sqlite3.Connection, owner: str, day: int, tokens: int) ->
 
 
 def reserve_provider(
-    owner: str, host: str, tokens: int, *, app: bool, db_path: str | None
+    owner: str,
+    host: str,
+    tokens: int,
+    *,
+    app: bool,
+    db_path: str | None,
+    spend: SpendReservation | None = None,
 ) -> ProviderReservation:
     from co_scientist.core.config import settings
 
-    # A future EUR reservation belongs before this commit, alongside these
-    # ceilings. The provider dispatch must remain outside the transaction.
     day = int(current_time() // 86400)
     receipt = ProviderReservation(
-        uuid.uuid4().hex, db_path or default_db_path() or "./coscientist.db"
+        uuid.uuid4().hex, db_path or default_db_path() or "./coscientist.db", spend is not None
     )
     ceilings = (
         (
@@ -154,6 +160,8 @@ def reserve_provider(
         ("host", host, settings.provider_host_calls_per_day, settings.provider_host_tokens_per_day),
     )
     with transaction(receipt.db_path) as conn:
+        if spend is not None:
+            reserve_spend(conn, receipt.id, spend)
         claim_session(conn, owner, host, day)
         for scope, subject, call_limit, token_limit in ceilings:
             row = conn.execute(
@@ -181,8 +189,14 @@ def reserve_provider(
     return receipt
 
 
-def settle_provider(receipt: ProviderReservation, used_tokens: int) -> None:
+def settle_provider(
+    receipt: ProviderReservation,
+    used_tokens: int,
+    money: tuple[int, int, int, int | None, int | None] | None = None,
+) -> None:
     with transaction(receipt.db_path) as conn:
+        if money is not None:
+            settle_spend(conn, receipt.id, *money)
         row = conn.execute(
             "SELECT * FROM provider_token_reservations WHERE id=? AND used_tokens IS NULL",
             (receipt.id,),

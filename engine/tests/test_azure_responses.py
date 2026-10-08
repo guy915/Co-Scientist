@@ -125,7 +125,14 @@ async def test_provider_429_is_one_http_request_even_if_sdk_was_configured_to_re
         backend.close()
 
 
-async def test_gateway_settles_normalized_usage_without_holding_writer_over_http() -> None:
+async def test_gateway_settles_normalized_usage_without_holding_writer_over_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
+    monkeypatch.setenv("LLM_AZURE_UNTIL", "2099-01-04")
+
     def respond(_: httpx.Request) -> httpx.Response:
         with transaction() as conn:
             conn.execute("UPDATE provider_admissions SET tokens=tokens")
