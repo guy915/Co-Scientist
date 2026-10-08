@@ -4,8 +4,8 @@
   "description": "A multi-agent workspace for generating, evaluating, and ranking research hypotheses.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fbfdfc",
-  "theme_color": "#7c4dff",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "/icon-192.png",
