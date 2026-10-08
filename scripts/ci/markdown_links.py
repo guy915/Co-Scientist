@@ -42,6 +42,37 @@ class Document:
     links: list[Link] = field(default_factory=list)
 
 
+def srcset_targets(value: str) -> list[str]:
+    # HTML collects a URL up to ASCII whitespace; commas inside data URLs belong
+    # to the URL. Only trailing commas and descriptor separators split candidates.
+    targets = []
+    remaining = value
+    whitespace = " \t\n\r\f"
+    while remaining:
+        remaining = remaining.lstrip(whitespace + ",")
+        if not remaining:
+            break
+        match = re.match(r"[^ \t\n\r\f]+", remaining)
+        assert match is not None
+        target = match.group()
+        remaining = remaining[len(target) :]
+        targets.append(target.rstrip(","))
+        if target.endswith(","):
+            continue
+        depth = 0
+        for index, char in enumerate(remaining):
+            if char == "(":
+                depth += 1
+            elif char == ")" and depth:
+                depth -= 1
+            elif char == "," and not depth:
+                remaining = remaining[index + 1 :]
+                break
+        else:
+            break
+    return targets
+
+
 class HtmlLinks(HTMLParser):
     def __init__(self, document: Document, line: int):
         super().__init__()
@@ -54,9 +85,10 @@ class HtmlLinks(HTMLParser):
                 continue
             if key == "id" or (tag == "a" and key == "name"):
                 self.document.anchors.add(value)
-            if key == "href" or (tag == "img" and key == "src"):
-                self.document.links.append(
-                    Link(value, self.line + self.getpos()[0] - 1)
+            if key in {"href", "src", "srcset"}:
+                targets = srcset_targets(value) if key == "srcset" else [value]
+                self.document.links.extend(
+                    Link(target, self.line + self.getpos()[0] - 1) for target in targets
                 )
 
 
