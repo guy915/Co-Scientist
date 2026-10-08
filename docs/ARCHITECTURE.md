@@ -15,16 +15,13 @@ keeps it that way.
 
 | Layer | Package | Holds |
 |---|---|---|
-| 1 | `app.main` | Composition root: builds the FastAPI app, lifespan, worker startup |
+| 1 | `co_scientist.main` | Composition root: builds the FastAPI app, lifespan, worker startup |
 | 2 | `co_scientist.api` | Routers, SSE, wire contracts, request auth |
 | 3 | `co_scientist.orchestration` | Durable task runtime, run lifecycle, node registry, drain and finalize |
 | 4 | `co_scientist.science` | One package per agent, plus shared prompts, schemas and scheduling |
 | 5 | `co_scientist.domains` | `chat` > `report` > `safety` > `research_state` > `documents` \| `access` \| `feedback` |
 | 6 | `co_scientist.platform` | `retrieval` > `llm` \| `sandbox` \| `db` > `telemetry` |
 | 7 | `co_scientist.core` | Configuration, constants, errors, run modes, context and async helpers |
-
-`app.main` sits in `app/app/` until the Railway start command stops naming it;
-it then moves to `co_scientist.main`.
 
 The other contracts:
 
@@ -54,6 +51,7 @@ at import time, never by importing upward:
 
 ```
 co_scientist/
+  main            composition root: FastAPI app, lifespan, worker startup
   api/            runs/ (lifecycle, read, chat, SSE), interviews/, contracts/,
                   tracing (HTTP spans),
                   documents, uploads, free_usage, byok_models, feedback_api,
@@ -101,7 +99,7 @@ co_scientist/
 React workbench (app/frontend)
   |  HTTP + SSE (fetch with X-Client-ID)
   v
-app.main ──> co_scientist.api.*            routers validate, authorize, enqueue
+co_scientist.main ──> co_scientist.api.*   routers validate, authorize, enqueue
                  |
                  v
         orchestration.task_worker          leased cohorts drain scientific_tasks

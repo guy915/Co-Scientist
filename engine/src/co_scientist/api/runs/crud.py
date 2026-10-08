@@ -669,7 +669,7 @@ def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
 
     Raises:
         HTTPException: 404 if the run does not exist (or is not owned by
-            the caller -- ``app.main.enforce_run_ownership`` answers that
+            the caller -- ``co_scientist.main.enforce_run_ownership`` answers that
             before this handler runs); 403 for a shared demo run, which
             that middleware deliberately exempts from ownership so every
             caller can read it, and which is therefore no one caller's to

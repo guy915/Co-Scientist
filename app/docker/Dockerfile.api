@@ -10,13 +10,9 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
-# Skip the published engine dependency until startup installs the mounted checkout.
-# requirements-app.txt supplies the app runtime closure.
-COPY pyproject.toml requirements-app.txt LICENSE NOTICE ./
-RUN pip install --no-cache-dir -e . --no-deps \
-    && pip install --no-cache-dir -r requirements-app.txt
-
-COPY app/ ./app/
+# Startup installs the mounted engine checkout; requirements-app.txt supplies the app runtime closure.
+COPY requirements-app.txt ./
+RUN pip install --no-cache-dir -r requirements-app.txt
 
 RUN mkdir -p /app/cache
 

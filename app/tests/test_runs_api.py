@@ -5,6 +5,7 @@ import importlib
 import time
 from typing import Any, cast
 
+import co_scientist.main
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.chat import seed
@@ -13,7 +14,6 @@ from co_scientist.platform.db import runs as store
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
-import app.main
 from tests._client import DEFAULT_TEST_CLIENT_ID
 from tests._client import create_run as _create_run
 from tests._client import make_client as _client
@@ -315,8 +315,8 @@ def test_default_run_completes_persists_and_reopens_after_restart(
     assert all(h.get("unverified") is False for h in hyps)
     assert views["report"]["payload"]["leaderboard"]
 
-    importlib.reload(app.main)
-    reopened = TestClient(app.main.app, headers={"X-Client-ID": DEFAULT_TEST_CLIENT_ID})
+    importlib.reload(co_scientist.main)
+    reopened = TestClient(co_scientist.main.app, headers={"X-Client-ID": DEFAULT_TEST_CLIENT_ID})
     assert reopened.get(f"/api/runs/{run_id}").json()["status"] == "completed"
     markdown = reopened.get(f"/api/runs/{run_id}/report.md")
     assert markdown.status_code == 200

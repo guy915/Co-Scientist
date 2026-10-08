@@ -6,20 +6,7 @@ A web workbench for running and monitoring the multi-agent hypothesis-generation
 
 ```
 app/
-├── app/            FastAPI backend (Python)
-│   ├── main.py     App setup, lifespan, ownership middleware, router mounting
-│   ├── runs/       Durable run-lifecycle router (create / start / stream / cancel); runs.lifecycle/collections/contrib/chat back it
-│   ├── diagnostics_api.py  /health, /status (mounted by app.main)
-│   ├── engine_tasks/      Durable run execution — the production path — plus task_worker/
-│   ├── store/      SQLite persistence layer (WAL, append-only event log)
-│   ├── engine_adapter/    Provider selection + offline/real LLM backend switch
-│   ├── report/            Goal Report package: payload, markdown, release gate, finalize path
-│   ├── run_events.py      Run-event emission (make_emitter) for engine tasks and the adapter
-│   ├── claims/ (gate, grounding, verifier), citations/   Citation-grounding pipeline
-│   ├── safety/, hypothesis/safety.py, hypothesis/screening.py   Intake/final gates + per-hypothesis policy
-│   ├── qa/                    Q&A
-│   ├── elo.py      Elo rating utilities
-│   └── config.py   Pydantic-settings config (loads .env)
+├── tests/          Backend pytest suite; the server is co_scientist.main in engine/src/
 ├── dev/            Offline maintenance scripts (corpus_ingest.py, build_catalog.py) — not shipped code
 └── frontend/       React 19 + Vite 7 + TypeScript + Tailwind v4
     └── src/

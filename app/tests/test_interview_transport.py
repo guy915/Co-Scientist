@@ -10,9 +10,9 @@ from co_scientist.core.config import settings
 from co_scientist.domains.chat.interviews import model as interviews_model
 from co_scientist.domains.chat.repository import interviews as store
 from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
+from co_scientist.main import app
 from fastapi.testclient import TestClient
 
-from app.main import app
 from tests._llm_fake_backend import install_completion_backend
 
 from ._interviews_helpers import (

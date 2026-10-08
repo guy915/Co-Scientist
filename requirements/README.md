@@ -1,8 +1,8 @@
 # Production Python dependencies
 
 The production images install these Python 3.12/Linux runtime closures with
-`pip install --require-hashes`. The local engine and viewer are then installed
-with `--no-deps`; their source remains the checkout being built.
+`pip install --require-hashes`. The local engine is then installed with
+`--no-deps`; its source remains the checkout being built.
 
 | Lock | Inputs | Consumer |
 | --- | --- | --- |

@@ -7,13 +7,12 @@ import pytest
 from co_scientist.domains.chat import seed
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.chat.repository.examples import open_example_chat
+from co_scientist.main import app
 from co_scientist.platform import db
 from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.db.runs import RunCreateOptions
 from fastapi.testclient import TestClient
-
-from app.main import app
 
 
 def _seed(db_path: str) -> list[RunRow]:

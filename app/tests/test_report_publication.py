@@ -530,7 +530,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     assert retrieval.get_run_metrics(run_id, db_path=isolated_db) == {"llm_calls": 3}
     assert tasks.claim_task("before-finalize-resume", run_id=run_id, db_path=isolated_db) is None
 
-    from app import main
+    from co_scientist import main
 
     recovered = main._reconcile_and_log_interrupted_runs()
     assert run_id not in recovered["failed"]

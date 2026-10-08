@@ -79,7 +79,6 @@ jobs:
               # Patterns are OR'd, so a lone negation would match every path
               # outside the frontend; list the backend paths instead.
               - 'app/*'
-              - 'app/app/**'
               - 'app/tests/**'
               - 'app/dev/**'
               - 'app/docker/**'
@@ -128,10 +127,6 @@ jobs:
               - 'engine/src/**'
               - 'engine/.dockerignore'
               - 'engine/mcp_server/**'
-              - 'app/app/**'
-              - 'app/pyproject.toml'
-              - 'app/LICENSE'
-              - 'app/NOTICE'
               - 'app/requirements-app.txt'
               - 'app/.dockerignore'
               - 'app/docker/**'
@@ -243,11 +238,11 @@ jobs:
       - name: Check formatting (app)
         if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         working-directory: app
-        run: python -m ruff format --check app tests
+        run: python -m ruff format --check tests
       - name: Lint (app)
         if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         working-directory: app
-        run: python -m ruff check app tests
+        run: python -m ruff check tests
       - name: Check formatting (evaluations)
         if: ${{ !cancelled() && needs.changes.outputs.python_lint == 'true' }}
         run: python -m ruff format --check evaluations

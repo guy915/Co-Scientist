@@ -20,7 +20,6 @@ services:
       - COSCIENTIST_ENGINE_REF=main
     volumes:
       - ./data:/app/data
-      - ./app:/app/app
       - ${COSCIENTIST_ENGINE_PATH:-../engine}:/workspace/co-scientist-engine
     depends_on:
       mcp:

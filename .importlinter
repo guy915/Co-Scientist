@@ -2,20 +2,17 @@
 # Modules keep their current names; each move PR renames them here.
 # Every ignore_imports entry is a current violation. A fix deletes its entry;
 # evaluations/tests/test_import_contracts.py pins the count, so it only shrinks.
-# Run from app/ (make arch): from the repository root, `app` resolves to the
-# app/ directory instead of the package.
 
 [importlinter]
 root_packages =
     co_scientist
-    app
 include_external_packages = True
 
 [importlinter:contract:layers]
 name = Layers (ADR-001)
 type = layers
 layers =
-    (co_scientist.main) : app.main
+    co_scientist.main
     co_scientist.api
     co_scientist.orchestration
     co_scientist.science
@@ -70,7 +67,7 @@ allow_indirect_imports = True
 name = litellm only in the LLM gateway
 type = forbidden
 source_modules =
-    app.main
+    co_scientist.main
     co_scientist.api
     co_scientist.orchestration
     co_scientist.science
@@ -94,7 +91,7 @@ allow_indirect_imports = True
 name = httpx only in the LLM gateway and retrieval
 type = forbidden
 source_modules =
-    app.main
+    co_scientist.main
     co_scientist.api
     co_scientist.orchestration
     co_scientist.science
@@ -117,7 +114,7 @@ allow_indirect_imports = True
 name = sqlite3 only in platform.db, domains and orchestration
 type = forbidden
 source_modules =
-    app.main
+    co_scientist.main
     co_scientist.api
     co_scientist.science
     co_scientist.platform.retrieval
@@ -127,55 +124,4 @@ source_modules =
     co_scientist.core
 forbidden_modules =
     sqlite3
-allow_indirect_imports = True
-
-[importlinter:contract:engine-app]
-name = Modules that began in the engine do not import app
-type = forbidden
-source_modules =
-    co_scientist.orchestration.registry
-    co_scientist.orchestration.checkpoint
-    co_scientist.platform.retrieval.config
-    co_scientist.platform.retrieval.evidence
-    co_scientist.orchestration.generator
-    co_scientist.platform.llm.admission
-    co_scientist.platform.llm.attempts
-    co_scientist.platform.llm.call
-    co_scientist.platform.llm.precall
-    co_scientist.platform.llm.profile
-    co_scientist.platform.llm.request
-    co_scientist.platform.llm.structured
-    co_scientist.platform.llm.telemetry
-    co_scientist.platform.llm.tools
-    co_scientist.platform.llm.values
-    co_scientist.platform.llm.offline
-    co_scientist.platform.llm.tool_effects
-    co_scientist.platform.retrieval.mcp_client
-    co_scientist.domains.research_state.models
-    co_scientist.platform.sandbox.patch
-    co_scientist.platform.telemetry.progress
-    co_scientist.science
-    co_scientist.platform.retrieval.research_adapter
-    co_scientist.platform.retrieval.research
-    co_scientist.platform.retrieval.degradation
-    co_scientist.platform.retrieval.article
-    co_scientist.domains.research_state.entity_names
-    co_scientist.domains.research_state.proximity_edges
-    co_scientist.core.json_schema
-    co_scientist.domains.safety.rules
-    co_scientist.platform.sandbox
-    co_scientist.platform.sandbox.skills
-    co_scientist.domains.research_state.state
-    co_scientist.orchestration.task_runtime
-    co_scientist.platform.retrieval.tools
-    co_scientist.orchestration.workflow_topology
-    co_scientist.platform.sandbox.workspace
-    co_scientist.core.exceptions
-    co_scientist.core._context
-    co_scientist.core.backoff
-    co_scientist.core.env_vars
-    co_scientist.core.metrics
-    co_scientist.core.constants
-forbidden_modules =
-    app
 allow_indirect_imports = True
