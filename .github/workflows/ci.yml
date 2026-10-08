@@ -12,6 +12,9 @@ on:
   workflow_dispatch:
 
 # PR diffs use the API; merge groups use their base/head git diff.
+env:
+  LITELLM_LOCAL_MODEL_COST_MAP: "True"
+
 permissions:
   contents: read
   pull-requests: read
