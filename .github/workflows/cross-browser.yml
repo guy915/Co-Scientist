@@ -78,12 +78,12 @@ jobs:
           import stat
           from pathlib import Path
 
-          home = Path.home()
-          before = home.lstat()
+          job_home = Path.home()
+          before = job_home.lstat()
           if not stat.S_ISDIR(before.st_mode):
               raise SystemExit('The mounted job home must be a directory')
-          os.chown(home, os.getuid(), os.getgid())
-          if home.stat().st_uid != os.getuid():
+          os.chown(job_home, os.getuid(), os.getgid())
+          if job_home.stat().st_uid != os.getuid():
               raise SystemExit('The browser job must own its home directory')
           print(f'Job home ownership: {before.st_uid} -> {os.getuid()}')
           PY
