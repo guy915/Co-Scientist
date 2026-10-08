@@ -281,6 +281,17 @@ export function HypothesisDetailSections({
       aria-label="Hypothesis detail"
     >
       <DetailSection title={SECTIONS.overview}>
+        {hypothesis.screened && (
+          <details className="mb-3 rounded border border-th-border p-3 text-sm">
+            <summary className="cursor-pointer font-medium focus-visible:outline-2 focus-visible:outline-th-ring">
+              Screened, not deep-verified
+            </summary>
+            <p className="mt-2">
+              This idea passed the safety screen and a screening review. It was
+              not selected for finalist review or deep verification.
+            </p>
+          </details>
+        )}
         <p>{hypothesis.statement}</p>
       </DetailSection>
 

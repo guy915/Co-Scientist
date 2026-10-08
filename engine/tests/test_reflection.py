@@ -46,13 +46,12 @@ from tests._state import make_article, make_hypothesis, make_review, make_state
 _ARTICLES = "Article 1: observation A supports pathway X."
 
 
-@pytest.mark.parametrize("pool", [[], [make_hypothesis(text="a hypothesis")]])
-async def test_reflection_needs_hypotheses_and_literature_to_run(
-    pool: list[Any],
-) -> None:
-    articles = _ARTICLES if not pool else None
-    state = make_state(hypotheses=pool, articles_with_reasoning=articles)
+async def test_observation_is_left_to_the_finalist_review() -> None:
+    pool = [make_hypothesis(text="a", reviews=[make_review()], win_count=1)]
+    state = make_state(hypotheses=pool, articles_with_reasoning=_ARTICLES)
+
     assert await reflection_node(state) == {}
+    assert pool[0].reflection_notes is None
 
 
 def _stub_review_research(monkeypatch: pytest.MonkeyPatch, *, fails: bool = False) -> None:

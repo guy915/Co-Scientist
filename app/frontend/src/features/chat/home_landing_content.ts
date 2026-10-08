@@ -195,8 +195,9 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'What does a run produce?',
     answer:
-      'A ranked set of hypotheses, each with reviews, an Elo rating from the ' +
-      'tournament, and claims checked against the literature. It also writes ' +
+      'A ranked set of hypotheses, each with reviews and an Elo rating from ' +
+      'the tournament. The leading ideas also have their claims checked ' +
+      'against the literature. It also writes ' +
       'a research overview with open questions and draft specific aims.',
   },
   {
