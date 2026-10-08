@@ -59,6 +59,9 @@ for (const theme of ['light', 'dark']) {
     await expect(pane).toHaveAttribute('aria-label', 'Research progress and activity');
     await tabTo(page, pane);
     await expect(pane).toBeFocused();
+    const focusImage = info.outputPath('progress-scroll-focused.png');
+    await page.screenshot({path: focusImage});
+    await info.attach('progress-scroll-focused', {path: focusImage, contentType: 'image/png'});
     const initial = await pane.evaluate(node => node.scrollTop);
     await page.keyboard.press('ArrowDown');
     await expect.poll(() => pane.evaluate(node => node.scrollTop)).toBeGreaterThan(initial);
