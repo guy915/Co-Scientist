@@ -33,6 +33,8 @@ import {
 } from '@/features/runs/session_switch';
 import {useChatHistoryContext} from '@/shared/hooks/history_context';
 import {routeIds} from '@/shared/lib/routes';
+import {useLaunchStatus} from '@/shared/hooks/launch_status_context';
+import {LaunchStatusBanner} from '@/shared/ui/launch_status_banner';
 
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
@@ -248,9 +250,14 @@ function ShellWorkspace({
   pageClasses,
   children,
 }: ShellWorkspaceProps) {
+  const {status} = useLaunchStatus();
+  const notice = Boolean(status?.message);
   return (
-    <section className={workspaceClasses}>
-      <div role="banner" aria-label="Workspace header" className="contents">
+    <section
+      className={workspaceClasses}
+      style={notice ? {height: '100dvh'} : undefined}
+    >
+      <div role="banner" aria-label="Workspace header" className="min-w-0">
         <ShellHeader
           navOpen={chrome.navOpen}
           toggleNav={chrome.toggleNav}
@@ -260,8 +267,12 @@ function ShellWorkspace({
           runStatus={runStatus}
           headerActionsRef={chrome.headerActionsRef}
         />
+        <LaunchStatusBanner />
       </div>
-      <main className={pageClasses}>
+      <main
+        className={pageClasses}
+        style={notice ? {height: 'auto', minHeight: 0} : undefined}
+      >
         {conversationHeading && (
           <h1 className="sr-only">{conversationHeading}</h1>
         )}

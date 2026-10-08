@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, FiniteFloat, model_validator
 
 from co_scientist.api.auth import client_id
 from co_scientist.api.operator_access import has_admin_token
+from co_scientist.core.admission_windows import utc_day
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import ProviderAdmissionError
@@ -32,7 +33,8 @@ from co_scientist.platform.db.launch_control import (
 )
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.llm.admission.spend import azure_config
-from co_scientist.platform.llm.process_mode import offline_mode
+from co_scientist.platform.llm.execution_policy import deployment_routes_are_free
+from co_scientist.platform.llm.process_mode import credential_available, offline_mode
 
 router = APIRouter(tags=["launch-operations"])
 
@@ -60,7 +62,7 @@ def _require_operator(request: Request) -> None:
 
 
 def _credit_snapshot(conn: Connection) -> dict[str, Any]:
-    enabled = os.getenv("LLM_AZURE_ENABLED", "").lower() in {"true", "1", "yes", "on"}
+    enabled = os.getenv("LLM_AZURE_ENABLED", "").lower() in {"true", "1"}
     if not enabled:
         return {
             "enabled": False,
@@ -99,8 +101,8 @@ def _cached_credit(path: str, bucket: int, config: tuple[str, ...]) -> dict[str,
 
 def _free_refusal(
     conn: Connection, owner: str, host: str, now: float
-) -> tuple[str | None, float | None]:
-    day = int(now // 86400)
+) -> tuple[str | None, float | None, bool]:
+    day = utc_day(now)
     reset = float((day + 1) * 86400)
     total, peers, free_total, free_peers = conn.execute(
         "SELECT COUNT(*),COALESCE(SUM(host=?),0),COALESCE(SUM(free),0),"
@@ -108,7 +110,15 @@ def _free_refusal(
         (host, host, day),
     ).fetchone()
     if total >= settings.runs_per_day or peers >= settings.runs_per_host_per_day:
-        return "Today's shared run capacity is used up.", reset
+        return "Today's shared run capacity is used up.", reset, False
+    active = conn.execute(
+        "SELECT COUNT(*),COALESCE(SUM(COALESCE(a.host,'unknown')=?),0) FROM runs r "
+        "LEFT JOIN run_admissions a ON a.run_id=r.id "
+        "WHERE r.status IN ('queued','running','synthesizing')",
+        (host,),
+    ).fetchone()
+    if active[0] >= settings.max_concurrent_runs or active[1] >= settings.concurrent_runs_per_host:
+        return "Research capacity is busy while current runs finish.", None, False
     if not offline_mode():
         limit = daily_limit()
         if (
@@ -119,29 +129,40 @@ def _free_refusal(
             return (
                 "Today's free research capacity is used up. You can use your own key in Settings.",
                 reset,
+                True,
             )
-        row = conn.execute(
-            "SELECT calls,tokens FROM provider_admissions "
-            "WHERE day=? AND scope='global' AND subject=''",
-            (day,),
-        ).fetchone()
-        if row and (
-            row[0] >= settings.app_llm_global_calls_per_day
-            or row[1] >= settings.app_llm_global_tokens_per_day
+        for scope, subject, calls, tokens in (
+            (
+                "global",
+                "",
+                settings.app_llm_global_calls_per_day,
+                settings.app_llm_global_tokens_per_day,
+            ),
+            (
+                "host",
+                host,
+                settings.provider_host_calls_per_day,
+                settings.provider_host_tokens_per_day,
+            ),
+            (
+                "client",
+                owner,
+                settings.provider_client_calls_per_day,
+                settings.provider_client_tokens_per_day,
+            ),
         ):
-            return (
-                "Today's free model capacity is used up. You can use your own key in Settings.",
-                reset,
-            )
-    active = conn.execute(
-        "SELECT COUNT(*),COALESCE(SUM(COALESCE(a.host,'unknown')=?),0) FROM runs r "
-        "LEFT JOIN run_admissions a ON a.run_id=r.id "
-        "WHERE r.status IN ('queued','running','synthesizing')",
-        (host,),
-    ).fetchone()
-    if active[0] >= settings.max_concurrent_runs or active[1] >= settings.concurrent_runs_per_host:
-        return "Research capacity is busy while current runs finish.", None
-    return None, None
+            row = conn.execute(
+                "SELECT calls,tokens FROM provider_admissions "
+                "WHERE day=? AND scope=? AND subject=?",
+                (day, scope, subject),
+            ).fetchone()
+            if row and (row[0] >= calls or row[1] >= tokens):
+                return (
+                    "Today's free model capacity is used up. You can use your own key in Settings.",
+                    reset,
+                    True,
+                )
+    return None, None, True
 
 
 @router.get("/api/launch-status")
@@ -166,7 +187,7 @@ def launch_status(request: Request, response: Response) -> dict[str, Any]:
     with connect() as conn:
         conn.execute("BEGIN")
         control = read_control(conn=conn)
-        message, reset = _free_refusal(
+        message, reset, byok_allowed = _free_refusal(
             conn,
             client_id(request),
             connecting_host(request.client.host if request.client else None),
@@ -174,19 +195,30 @@ def launch_status(request: Request, response: Response) -> dict[str, Any]:
         )
     reason: str | None = None
     resumes_at: float | None = None
+    free_allowed = message is None
     if control.paused:
         reason, message, resumes_at = "paused", control.message, control.resumes_at
     elif message is not None:
         reason, resumes_at = "free_capacity", reset
     elif not offline_mode() and credit["enabled"] and not credit["available"]:
         reason = "credit_exhausted"
-        message = "Azure credit is unavailable. Free routes or your own key may still be available."
+        free_allowed = deployment_routes_are_free() and all(
+            credential_available(model)
+            for model in (settings.model_name, settings.effective_supervisor_model)
+            if model
+        )
+        message = (
+            "Azure credit is unavailable. Free routes remain available."
+            if free_allowed
+            else "Azure credit is unavailable. You can use your own key in Settings."
+        )
     return {
         "reason": reason,
         "message": message,
         "resumes_at": resumes_at,
         "paused": control.paused,
-        "free_runs_allowed": reason not in {"paused", "free_capacity"},
+        "free_runs_allowed": free_allowed and not control.paused,
+        "byok_runs_allowed": byok_allowed and not control.paused,
     }
 
 

@@ -387,6 +387,7 @@ def test_capacity_and_credit_notices_use_real_ledgers_and_never_invent_an_azure_
     assert notice["reason"] == "free_capacity"
     assert notice["resumes_at"] == (int(db.current_time() // 86400) + 1) * 86400
     assert not notice["free_runs_allowed"]
+    assert notice["byok_runs_allowed"]
     monkeypatch.setattr(settings, "free_runs_globally_per_day", 20)
     monkeypatch.setenv("LLM_AZURE_ENABLED", "1")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")

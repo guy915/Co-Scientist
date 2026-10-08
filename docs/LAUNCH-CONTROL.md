@@ -5,6 +5,15 @@ or restart is needed. A configured `LOGS_ADMIN_TOKEN`, sent privately as
 `X-Logs-Token`, is required to read or update the control. Browser identity,
 loopback addresses and forwarded headers do not grant authority.
 
+Open `/operations` on the site, enter the operator token and select **Load
+control**. Select **Pause new work; let current work finish** for the default
+pause, or the explicit cancellation option to stop current work as well.
+Set one short visitor message and optionally a future return time in your
+local timezone, then **Apply control**. The token stays only in page memory;
+closing or navigating away clears it. Reload before acting on a conflict.
+The shared visitor banner polls the read-only status every three seconds
+while visible and refreshes on return to the tab. Stop/cancel remains usable.
+
 `GET /api/launch-control` returns the current revision and the private numeric
 credit snapshot. `PUT /api/launch-control` requires `expected_revision` from
 that read. A stale revision returns 409; reload rather than overwriting
