@@ -252,16 +252,16 @@ async def test_unset_spent_expired_and_disabled_policy_calls_no_provider(
 def test_paid_reservation_is_synced_and_survives_abrupt_process_exit(
     budget: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from co_scientist.platform.db import admission
+    from co_scientist.platform.db.spend import reserve_spend
 
-    real_reserve = admission.reserve_spend
+    real_reserve = reserve_spend
     modes = []
 
     def observe(conn: Any, *args: Any) -> None:
         modes.append(conn.execute("PRAGMA synchronous").fetchone()[0])
         real_reserve(conn, *args)
 
-    monkeypatch.setattr(admission, "reserve_spend", observe)
+    monkeypatch.setattr("co_scientist.platform.db.admission.reserve_spend", observe)
     reserve_physical(_request())
     assert modes == [2]
     first = _spent(budget)
