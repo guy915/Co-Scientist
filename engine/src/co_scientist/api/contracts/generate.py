@@ -6,12 +6,28 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 from typing_extensions import is_typeddict
 
 from co_scientist.api.contracts import common, interviews, reports, runs, science
+from co_scientist.api.diagnostics_api import Connector, ProbeStatus, SystemStatusResponse
+from co_scientist.api.feedback_api import FeedbackRequest
+from co_scientist.api.logs_api import ClientLogRecord
 
 GROUPS: tuple[ModuleType, ...] = (common, interviews, reports, runs, science)
+
+# Endpoint models that are already the validated wire shape. FastAPI writes
+# every field of a response model, so their fields are all required; request
+# models keep their defaults optional.
+MODEL_GROUPS: dict[str, dict[str, tuple[type[BaseModel], bool]]] = {
+    "system": {
+        "Connector": (Connector, True),
+        "ProbeStatus": (ProbeStatus, True),
+        "SystemStatusResponse": (SystemStatusResponse, True),
+        "ClientLogRecord": (ClientLogRecord, False),
+        "FeedbackRequest": (FeedbackRequest, False),
+    },
+}
 
 
 def contracts() -> dict[str, dict[str, Any]]:
@@ -29,6 +45,19 @@ def contracts() -> dict[str, dict[str, Any]]:
     return result
 
 
+def all_required(schema: dict[str, Any]) -> dict[str, Any]:
+    for value in (schema, *schema.get("$defs", {}).values()):
+        if "properties" in value:
+            value["required"] = list(value["properties"])
+    return schema
+
+
+def model_schema(model: type[BaseModel], response: bool) -> dict[str, Any]:
+    if response:
+        return all_required(model.model_json_schema(mode="serialization"))
+    return model.model_json_schema(mode="validation")
+
+
 def schemas() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     definitions: dict[str, dict[str, Any]] = {}
     owners: dict[str, str] = {}
@@ -38,6 +67,12 @@ def schemas() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
             definitions.update(schema.pop("$defs", {}))
             if "$ref" not in schema:
                 definitions[name] = schema
+            owners[name] = group
+    for group, models in MODEL_GROUPS.items():
+        for name, (model, response) in models.items():
+            schema = model_schema(model, response)
+            definitions.update(schema.pop("$defs", {}))
+            definitions[name] = schema
             owners[name] = group
     return definitions, owners
 
