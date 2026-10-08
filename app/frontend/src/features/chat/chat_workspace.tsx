@@ -481,14 +481,15 @@ function JumpToBottomButton({
   if (!away) return null;
   // The wrapper owns placement: tooltip anchors are position: relative, which
   // would turn the button itself back into a grid row above the composer.
+  // Flex centring leaves `translate` free for the column's enter motion.
   return (
-    <span className="absolute bottom-full left-1/2 mb-3 -translate-x-1/2">
+    <span className="pointer-events-none absolute inset-x-0 bottom-full mb-3 flex justify-center">
       <IconButton
         variant="elevated"
         size="md"
         icon="arrow_downward"
         label="Jump to latest message"
-        layoutClassName="reference-jump-to-bottom"
+        layoutClassName="reference-jump-to-bottom pointer-events-auto"
         onClick={() => {
           const scroller = scrollRef.current;
           scroller?.scrollTo({
