@@ -29,10 +29,17 @@ The script performs these steps, stopping on an error:
 
 1. Initialize the actual application schema and a synthetic marker in
    `source.db`. No research task is queued.
-2. Run `litestream replicate -config <scratch>/litestream.yml -once` with a
-   file replica and `truncate-page-n: 0`.
+2. Use the production refresh helper to run `litestream replicate -config
+   <scratch>/litestream.yml -once -force-snapshot`, with a file replica and
+   `truncate-page-n: 0`. Verify the restore plan selects a newly uploaded
+   complete level-9 snapshot, restore that transaction ID privately and check
+   SQLite integrity. Age only this synthetic replica's complete base by 31 days,
+   then repeat with no application database write. Assert the transaction ID
+   stays unchanged, the base's modification time is refreshed, and recovery
+   verifies again. Temporary verification copies are removed on success/error.
 3. Start the recovery timer and run
-   `litestream restore -o <scratch>/restored.db file://<scratch>/replica`.
+   `litestream restore -txid <verified-id> -o <scratch>/restored.db
+   file://<scratch>/replica`.
    Verify `PRAGMA integrity_check` and the original marker using a read-only
    connection.
 4. Start one API with the restored database on an ephemeral 127.0.0.1 port.
@@ -70,3 +77,38 @@ release before replacing any store; see
 matching encryption key private. Stop all writers for actual replacement,
 retain the old database and sidecars together, never pair a restored DB
 with another snapshot's WAL/SHM, and restart exactly one API writer.
+
+### Daily idle-backup proof
+
+The expanded drill on 8 October 2026 exited **0** with Litestream 0.5.17.
+Both forced uploads used transaction ID `0000000000000001`; no application
+data changed between them. The deliberately 31-day-old complete local base
+was reuploaded and selected for an integrity-checked restore. The second
+force/upload/verification took **0.219 seconds**, final restore **0.123 seconds**,
+and restore through healthy offline API **4.226 seconds**. The marker and
+integrity survived startup/shutdown. This remains synthetic local evidence,
+not a measurement or assertion about the owner's R2 account.
+
+When all four R2 settings are present, the entrypoint starts the backup
+supervisor. It starts the API independently of replication, then forces and
+verifies a full snapshot at startup and every 24 hours. Only the replication
+daemon is stopped during each bounded refresh; API writers keep serving.
+The supervisor never runs two Litestream writers or holds an application
+write transaction across replication, restore or integrity checking. Each
+command has a 120-second timeout. Verification uses a private temporary
+directory on the database volume and removes its copy and sidecars.
+
+A failure preserves the last verified timestamp, records sanitized metadata,
+pauses new work without cancelling admitted work, and retries after one hour.
+Success never unpauses an operator decision. An unexpected daemon exit stops
+the API rather than continuing without replication. The owner checks failed
+verification via the operator view and the fixed Sentry error when configured,
+checks volume headroom and R2 availability, then explicitly resumes only after
+a fresh verified snapshot. No restored database or child diagnostic payload is
+sent to Sentry. The status file is private, atomic, and contains timestamps,
+transaction ID and duration only; supervisor polls do not write the database.
+
+Owner6060056260 approves a 30-day R2 maximum-age lifecycle at cutover. The owner
+must actually configure and verify that rule and notification destinations;
+this code does not change R2 or any hosting account. Stop launch if the rule,
+fresh verified base or matching encryption-key recovery cannot be established.
