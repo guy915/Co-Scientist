@@ -10,6 +10,7 @@ import httpx
 
 from mcp_server.http_client import make_client
 from mcp_server.text_extraction import clean_markup
+from mcp_server.tools._results import failed, non_raising, ok
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,6 @@ async def _search(
 ) -> dict[str, Any]:
     """Echo the caller's question rather than source filters the tool added."""
     limit = max(1, min(max_results, 25))
-    asked = echo if echo is not None else query
     params: dict[str, str | int] = {
         "query": query,
         "format": "json",
@@ -113,14 +113,11 @@ async def _search(
         records = [_record(result) for result in _results(response.json())[:limit]]
     except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
         logger.warning("Europe PMC search failed for %r: %s", query, exc)
-        raise RuntimeError(f"{source_label} search unavailable: {_failure_detail(exc)}") from exc
-    return {
-        "source": source_label,
-        "query": asked,
-        "records": records,
-    }
+        return failed(exc)
+    return ok(records)
 
 
+@non_raising
 async def search_europepmc(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search Europe PMC's full corpus of papers and preprints.
 
@@ -135,6 +132,7 @@ async def search_europepmc(query: str, max_results: int = 10) -> dict[str, Any]:
     return await _search(query, max_results, "Europe PMC")
 
 
+@non_raising
 async def search_preprints(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search bioRxiv, medRxiv and other preprint servers.
 
@@ -153,6 +151,7 @@ async def search_preprints(query: str, max_results: int = 10) -> dict[str, Any]:
     )
 
 
+@non_raising
 async def search_biorxiv(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search bioRxiv specifically, not the broader preprint set above.
 
