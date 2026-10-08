@@ -118,7 +118,7 @@ test('phones get the composer and compact feedback without landing', async ({
   await expect(page.getByRole('textbox')).toBeInViewport();
   await expect(page.locator('.ucs-landing')).toHaveCount(0);
   await expect(
-    page.getByRole('button', {name: 'Scroll to see how Co-Scientist works'}),
+    page.getByRole('button', {name: 'Scroll to see how Open Co-Scientist works'}),
   ).toHaveCount(0);
   await expect(
     page.getByRole('navigation', {name: 'Example chats'}),
