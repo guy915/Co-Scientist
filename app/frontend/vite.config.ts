@@ -2,8 +2,31 @@ import {defineConfig} from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import {readFileSync} from 'node:fs';
+
+// Preview must exercise the same policy as Cloudflare, including on deep links.
+const previewHeaders = Object.fromEntries(
+  readFileSync(path.resolve(__dirname, 'public/_headers'), 'utf8')
+    .split('\n/*\n')[1]
+    .trim()
+    .split('\n')
+    .map(line => {
+      const separator = line.indexOf(':');
+      return [
+        line.slice(0, separator).trim(),
+        line.slice(separator + 1).trim(),
+      ];
+    }),
+);
+const previewApi = process.env.VITE_API_BASE_URL;
+if (previewApi && /^http:\/\/127\.0\.0\.1:\d+$/.test(previewApi)) {
+  previewHeaders['Content-Security-Policy'] = previewHeaders[
+    'Content-Security-Policy'
+  ].replace('connect-src', `connect-src ${previewApi}`);
+}
 
 export default defineConfig({
+  preview: {headers: previewHeaders},
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
