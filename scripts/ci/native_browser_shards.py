@@ -80,6 +80,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", choices=PROJECTS, required=True)
     parser.add_argument("--shard", type=int, choices=(1, 2), required=True)
+    parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     e2e = root / "e2e"
@@ -117,16 +118,13 @@ def main():
         flush=True,
     )
     patterns = ["/production/" + re.escape(name) + "$" for name in files]
+    command = ["node", "e2e/run.mjs", *patterns, "--config", config]
+    if args.list:
+        command += ["--list", "--reporter=json"]
+    # Playwright's variadic project option must follow the file filters.
+    command += ["--project", args.project]
     return subprocess.run(
-        [
-            "node",
-            "e2e/run.mjs",
-            "--config",
-            config,
-            "--project",
-            args.project,
-            *patterns,
-        ],
+        command,
         cwd=root,
         check=False,
     ).returncode
