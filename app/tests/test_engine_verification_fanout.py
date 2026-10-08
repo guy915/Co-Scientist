@@ -17,6 +17,7 @@ from co_scientist.platform.db import checkpoints
 from co_scientist.platform.retrieval.article import Article
 
 from tests._engine_tasks_helpers import (
+    _as_finalist,
     _Generator,
     _milestones,
     _patch_generator,
@@ -49,9 +50,10 @@ async def test_a_resumed_run_fans_out_only_the_ideas_still_owed_one(
     run = seed_run("Task-level science")
     leased = _lease_verification_parent(run.id, isolated_db)
     state = _task_state(run.id)
-    verified = Hypothesis(text="already verified")
+    # Depth goes to finalists: reviewed ideas that have played.
+    verified = _as_finalist(Hypothesis(text="already verified"))
     verified.enrichments["deep_verification_issued"] = True
-    fresh = Hypothesis(text="an evolution child")
+    fresh = _as_finalist(Hypothesis(text="an evolution child"))
     state["hypotheses"] = [
         Hypothesis.from_dict(verified.to_dict()),
         Hypothesis.from_dict(fresh.to_dict()),
@@ -116,7 +118,8 @@ async def _advance_verification_node(
 ) -> dict[str, Any]:
     state = _task_state(run_id)
     state["hypotheses"] = [
-        Hypothesis(text=f"candidate-{index}", elo_rating=1200 + index) for index in range(3)
+        _as_finalist(Hypothesis(text=f"candidate-{index}", elo_rating=1200 + index))
+        for index in range(3)
     ]
     for hypothesis in state["hypotheses"]:
         hypothesis.enrichments["deep_verification_issued"] = issued

@@ -156,6 +156,14 @@ def _add_fixture_review(hypothesis: Hypothesis) -> Hypothesis:
     return hypothesis
 
 
+def _as_finalist(hypothesis: Hypothesis) -> Hypothesis:
+    """Depth (verification, mature reviews, claim checks) goes only to
+    reviewed ideas that have played a match."""
+    _add_fixture_review(hypothesis)
+    hypothesis.win_count = max(hypothesis.win_count, 1)
+    return hypothesis
+
+
 def _viable_hypotheses(count: int, played: bool = False) -> list[Hypothesis]:
     # Budget-exhaustion fixtures must mark pools played because unmatched ideas
     # are still owed a first match.
