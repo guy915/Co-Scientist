@@ -178,8 +178,8 @@ def test_evolution_bounds_evidence_but_keeps_every_reference_key() -> None:
     from co_scientist.science.citations import ReferenceIndex
     from co_scientist.science.evolution import EvolutionContext
     from co_scientist.science.evolution.evolve_prompt import (
-        _EvolutionOperation,
         _build_evolution_prompt,
+        _EvolutionOperation,
     )
     from tests._state import make_hypothesis, make_state
 

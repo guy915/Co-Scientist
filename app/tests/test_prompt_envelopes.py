@@ -23,13 +23,14 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from . import test_run_envelopes as meter
+from ._envelope_fakes import FakeMCPClient
 from ._process_mode_helpers import FakeProcessMode
 from ._store_helpers import drive_offline_run, seed_run
 
 PROMPT_TOKEN_CEILING = 8_000
 
 
-class _PromptMCPClient(meter.FakeMCPClient):
+class _PromptMCPClient(FakeMCPClient):
     def __init__(self, connections: Any, *, handle_tool_errors: bool = False) -> None:
         super().__init__(connections)
 
