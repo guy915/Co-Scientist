@@ -27,6 +27,12 @@ PATH = "/webhooks/sentry/alerts"
 @pytest.fixture
 def enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     from co_scientist.core.config import settings
+    from co_scientist.platform import db
+
+    # These clients skip lifespan; production initializes the store before
+    # accepting requests with a sub-second acknowledgement deadline.
+    with db.connect():
+        pass
 
     monkeypatch.setattr(settings, "sentry_alert_client_secret", SecretStr(SECRET), raising=False)
     monkeypatch.setattr(
