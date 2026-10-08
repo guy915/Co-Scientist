@@ -17,8 +17,21 @@ for (const theme of ['light', 'dark']) {
           contentType: 'text/html',
         }),
       );
+      const landingRequests: string[] = [];
+      page.on('request', request => {
+        if (/\/home_landing[^/]*\.(?:tsx?|js)(?:\?|$)/.test(request.url())) {
+          landingRequests.push(request.url());
+        }
+      });
       await page.goto('/');
+      await expect(page.getByRole('textbox')).toBeVisible();
+      await page.waitForLoadState('networkidle');
       const trailer = page.locator('iframe[title="Co-Scientist trailer"]');
+      expect(landingRequests).toEqual([]);
+      await expect(trailer).toHaveCount(0);
+      await page
+        .getByRole('button', {name: 'Scroll to see how Co-Scientist works'})
+        .click();
       await expect(trailer).toHaveAttribute('loading', 'lazy');
       await expect(trailer).toHaveAttribute(
         'src',
