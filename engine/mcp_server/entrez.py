@@ -15,7 +15,7 @@ def read_entrez(handle: Any) -> Any:
     try:
         return Entrez.read(handle)
     except Exception:
-        logger.debug("Entrez response parsing failed", exc_info=True)
+        logger.debug("entrez response parsing failed")
         raise
     finally:
         handle.close()
@@ -54,7 +54,7 @@ def _init_entrez_email() -> None:
     entrez_email = os.environ.get("ENTREZ_EMAIL")
     if entrez_email:
         Entrez.email = entrez_email
-        logger.info("Initialized Entrez with email: %s", entrez_email)
+        logger.info("Initialized Entrez contact email")
     else:
         # NCBI asks for a contact email to identify traffic; requests
         # still work without one but may be throttled more readily.

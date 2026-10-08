@@ -107,6 +107,6 @@ async def search_arxiv(query: str, max_results: int = 10) -> dict[str, Any]:
             response.raise_for_status()
         records = _parse_feed(response.text)[:limit]
     except (httpx.HTTPError, ParseError) as exc:
-        logger.warning("arXiv search failed for %r: %s", query, exc)
+        logger.warning("arXiv search failed")
         return failed(exc)
     return ok(records)

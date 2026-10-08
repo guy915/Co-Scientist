@@ -162,7 +162,7 @@ async def _fetch_citation_data(
                 citations = _edges(citation_rows)
                 references = _edges(reference_rows)
     except (httpx.HTTPError, TimeoutError, ValueError) as exc:
-        logger.warning("OpenCitations lookup failed for %s: %s", doi, exc)
+        logger.warning("OpenCitations lookup failed")
         raise RuntimeError(f"OpenCitations Index unavailable: {type(exc).__name__}: {exc}") from exc
     return citation_count, reference_count, citations, references
 

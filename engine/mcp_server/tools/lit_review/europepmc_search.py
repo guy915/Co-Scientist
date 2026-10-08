@@ -82,12 +82,11 @@ async def _get_with_transport_retry(
                 response = await client.get(_EUROPEPMC_URL, params=params)
                 response.raise_for_status()
             return response
-        except httpx.TransportError as exc:
+        except httpx.TransportError:
             if delay is None:
                 raise
             logger.info(
-                "Europe PMC connection failed (%s); retrying in %.1fs",
-                type(exc).__name__,
+                "Europe PMC connection failed; retrying in %.1fs",
                 delay,
             )
             await asyncio.sleep(delay)
@@ -112,7 +111,7 @@ async def _search(
         response = await _get_with_transport_retry(params)
         records = [_record(result) for result in _results(response.json())[:limit]]
     except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
-        logger.warning("Europe PMC search failed for %r: %s", query, exc)
+        logger.warning("Europe PMC search failed")
         return failed(exc)
     return ok(records)
 
