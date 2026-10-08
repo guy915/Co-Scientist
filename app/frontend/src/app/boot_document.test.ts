@@ -8,8 +8,12 @@ const headers = readFileSync(
   resolve(__dirname, '../../public/_headers'),
   'utf8',
 );
-const inlineScripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
-  match => match[1],
+// Every classic inline script runs under the CSP; JSON-LD data blocks do not.
+const inlineScripts = Array.from(
+  new DOMParser()
+    .parseFromString(html, 'text/html')
+    .querySelectorAll('script:not([src]):not([type])'),
+  script => script.textContent ?? '',
 );
 
 function runBootScript(
