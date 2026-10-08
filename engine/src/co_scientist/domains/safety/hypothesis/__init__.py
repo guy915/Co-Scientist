@@ -10,7 +10,6 @@ from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.hypotheses import HypothesisStateChanges
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
-from co_scientist.domains.safety.hypothesis_text import redactable_fields, screened_text
 from co_scientist.domains.safety.hypothesis.safety import (
     EscalatedVerdict,
     HeldHypothesis,
@@ -20,6 +19,7 @@ from co_scientist.domains.safety.hypothesis.safety import (
     redact_fields,
     review_hypothesis_safety,
 )
+from co_scientist.domains.safety.hypothesis_text import redactable_fields, screened_text
 
 logger = logging.getLogger(__name__)
 

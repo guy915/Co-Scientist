@@ -6,8 +6,8 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypeAlias
 
-from co_scientist.domains.safety.hypothesis_text import redact_value
 from co_scientist.core.async_bridge import propagate_context
+from co_scientist.domains.safety.hypothesis_text import redact_value
 from co_scientist.domains.safety.rules import (
     POLICY_VERSION,
     REDACTED_PLACEHOLDER,

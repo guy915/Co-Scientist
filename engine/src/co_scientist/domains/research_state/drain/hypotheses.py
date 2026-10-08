@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 import co_scientist.platform.retrieval.citations as citation_resolver
-from co_scientist.domains.research_state.hypothesis_fields import store_text_fields
 from co_scientist.core.config import settings
 from co_scientist.domains.research_state.drain.reviews import (
     _CitationSink,
@@ -15,6 +14,7 @@ from co_scientist.domains.research_state.drain.reviews import (
     _persist_engine_reviews,
 )
 from co_scientist.domains.research_state.elo import INITIAL_ELO
+from co_scientist.domains.research_state.hypothesis_fields import store_text_fields
 from co_scientist.domains.research_state.models import Hypothesis
 from co_scientist.domains.research_state.repository import hypotheses as store
 from co_scientist.domains.research_state.repository import records

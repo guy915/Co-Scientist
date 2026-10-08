@@ -9,6 +9,8 @@ import re
 
 from co_scientist.domains.safety.hypothesis_text import (
     REDACTED_PLACEHOLDER as REDACTED_PLACEHOLDER,
+)
+from co_scientist.domains.safety.hypothesis_text import (
     redact_value,
 )
 

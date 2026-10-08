@@ -5,9 +5,9 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from co_scientist.domains.research_state.hypothesis_fields import store_text_fields
 from co_scientist.domains.chat.repository import interviews
 from co_scientist.domains.report import repository as reports
+from co_scientist.domains.research_state.hypothesis_fields import store_text_fields
 from co_scientist.domains.research_state.repository import hypotheses as store_hypotheses
 from co_scientist.domains.research_state.repository import records
 from co_scientist.platform.db import checkpoints, supervisor_plan

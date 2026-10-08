@@ -6,8 +6,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.domains.research_state.hypothesis_fields import HYPOTHESIS_FIELDS
 from co_scientist.domains.research_state.elo import INITIAL_ELO
+from co_scientist.domains.research_state.hypothesis_fields import HYPOTHESIS_FIELDS
 from co_scientist.platform.db import connect, current_time, use_conn
 
 
