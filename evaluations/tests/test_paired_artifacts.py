@@ -4,10 +4,11 @@ import hashlib
 import json
 import socket
 import sqlite3
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 import pytest
 
@@ -196,7 +197,113 @@ def test_malformed_download_ids_and_duplicate_runs_are_rejected_before_network(
             paired_artifacts.parse_run_ids(value)
     with pytest.raises(ValueError, match="distinct"):
         paired_artifacts.download(
-            "guy915/Co-Scientist",
+            "fixture-owner/research",
             {"main": ["1", "2", "3"], "branch": ["1", "2", "3"]},
             tmp_path / "download",
         )
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_download_cli_uses_current_repository_for_the_whole_recorded_cohort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit: bool
+) -> None:
+    arms = cohort(tmp_path)
+    archives = dict(zip(range(1, 7), arms["main"] + arms["branch"], strict=True))
+    repository = "launch-owner/Research-Workbench"
+    monkeypatch.setenv("GITHUB_REPOSITORY", "wrong/environment" if explicit else repository)
+    routes: list[str] = []
+
+    def check_output(command: list[str], *, timeout: int) -> bytes:
+        assert command[:2] == ["gh", "api"]
+        route = command[2]
+        assert route.startswith(f"repos/{repository}/actions/runs/")
+        routes.append(route)
+        run_id = int(route.split("/")[5])
+        if route.endswith("/artifacts"):
+            return json.dumps(
+                {
+                    "artifacts": [
+                        {
+                            "id": run_id,
+                            "name": "benchmark-express-fixture",
+                            "expired": False,
+                            "size_in_bytes": archives[run_id].stat().st_size,
+                        }
+                    ]
+                }
+            ).encode()
+        return json.dumps(
+            {
+                "path": ".github/workflows/benchmark.yml",
+                "event": "workflow_dispatch",
+                "status": "completed",
+            }
+        ).encode()
+
+    def run(
+        command: list[str], *, stdout: BinaryIO, check: bool, timeout: int
+    ) -> subprocess.CompletedProcess[str]:
+        assert command[:2] == ["gh", "api"]
+        route = command[2]
+        assert route.startswith(f"repos/{repository}/actions/artifacts/")
+        assert route.endswith("/zip")
+        routes.append(route)
+        stdout.write(archives[int(route.split("/")[5])].read_bytes())
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(subprocess, "check_output", check_output)
+    monkeypatch.setattr(subprocess, "run", run)
+    output = tmp_path / "outputs"
+    argv = [
+        "paired-artifacts",
+        "--download",
+        "--main-runs",
+        "1,2,3",
+        "--branch-runs",
+        "4,5,6",
+        "--output",
+        str(output),
+    ]
+    if explicit:
+        argv.extend(["--repository", repository])
+    monkeypatch.setattr(sys, "argv", argv)
+    assert paired_artifacts.main() == 0
+    pairs = paired_quality.load_pairs(output / "prepared" / "pairs.json")
+    assert len(pairs) == 3
+    assert len(routes) == 18
+    assert all(route.startswith(f"repos/{repository}/") for route in routes)
+
+
+@pytest.mark.parametrize(
+    "repository", [None, "", "--help", "owner/repo/extra", "https://github.com"]
+)
+def test_download_cli_rejects_missing_or_invalid_repository_before_any_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repository: str | None
+) -> None:
+    if repository is None:
+        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_REPOSITORY", repository)
+
+    def deny_request(*args: object, **kwargs: object) -> bytes:
+        raise AssertionError("request before repository validation")
+
+    monkeypatch.setattr(subprocess, "check_output", deny_request)
+    output = tmp_path / "outputs"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "paired-artifacts",
+            "--download",
+            "--main-runs",
+            "1,2,3",
+            "--branch-runs",
+            "4,5,6",
+            "--output",
+            str(output),
+        ],
+    )
+    with pytest.raises(ValueError, match="invalid repository"):
+        paired_artifacts.main()
+    assert not output.exists()
