@@ -56,9 +56,8 @@ class PubmedSource(_EntrezClient):
                 _validate_pmc_id(metadata)
                 write_metadata_cache_file(metadata_file, metadata)
                 return paper_id, metadata
-            except Exception as exc:
-                logger.warning("Failed to read paper %s: %s", paper_id, exc)
-                logger.debug("Metadata fetch failed", exc_info=True)
+            except Exception:
+                logger.warning("PubMed metadata fetch failed")
                 return paper_id, None
 
     async def _gather_paper_metadata(
@@ -112,14 +111,8 @@ class PubmedSource(_EntrezClient):
                 confined_path(shared_dir.parent, "shared", f"{pmc_id}.fulltext.html")
                 fulltext_file.write_text(contents, encoding="utf-8")
             return contents
-        except Exception as exc:
-            logger.error(
-                "Failed to download PMC fulltext for %s: %s: %s",
-                pmc_id,
-                type(exc).__name__,
-                exc,
-            )
-            logger.debug("PMC download failed", exc_info=True)
+        except Exception:
+            logger.error("PMC fulltext download failed")
             return None
 
     async def _download_fulltexts_for_papers(

@@ -29,38 +29,12 @@ def _sanitize_query(query: str) -> str:
     stripped = _WILDCARD_CHARS_RE.sub("", query)
     cleaned = _WHITESPACE_RE.sub(" ", stripped).strip()
     if cleaned != query:
-        logger.info("Rewrote OpenAlex query %r to %r", query, cleaned)
+        logger.info("Normalized OpenAlex query syntax")
     return cleaned
 
 
 class OpenAlexUnavailableError(RuntimeError):
     """OpenAlex could not be searched, as distinct from having no match."""
-
-
-def _refusal_detail(response: httpx.Response) -> str:
-    try:
-        body = response.json()
-    except ValueError:
-        return ""
-    if not isinstance(body, dict):
-        return ""
-    return str(body.get("message") or body.get("error") or "")
-
-
-def _unavailable_reason(exc: Exception) -> str:
-    """Quota error bodies expose the lockout reason and duration absent from
-    a bare status.
-    """
-    if not isinstance(exc, httpx.HTTPStatusError):
-        return f"{type(exc).__name__}: {exc}"
-    parts = [f"HTTP {exc.response.status_code}"]
-    detail = _refusal_detail(exc.response)
-    if detail:
-        parts.append(detail)
-    retry_after = exc.response.headers.get("retry-after")
-    if retry_after:
-        parts.append(f"retry after {retry_after}s")
-    return "; ".join(parts)
 
 
 def _reconstruct_abstract(inverted_index: Any) -> str:
@@ -197,6 +171,5 @@ async def search_openalex(
     try:
         return keyed_records(await _collect_openalex_works(params, per_page, max_papers))
     except (httpx.HTTPError, ValueError) as exc:
-        reason = _unavailable_reason(exc)
-        logger.warning("OpenAlex search failed for %r: %s", query, reason)
+        logger.warning("OpenAlex search failed")
         return failed(exc)

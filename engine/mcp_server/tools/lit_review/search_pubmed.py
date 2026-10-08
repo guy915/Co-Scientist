@@ -25,9 +25,8 @@ def check_pubmed_available() -> str:
     try:
         results = read_entrez(entrez_call(Entrez.esearch, db="pubmed", term="cancer", retmax=1))
         return "true" if results.get("IdList") else "false"
-    except Exception as exc:
-        logger.warning("PubMed availability query failed: %s", exc)
-        logger.debug("PubMed availability query failed", exc_info=True)
+    except Exception:
+        logger.warning("PubMed availability query failed")
         return "false"
 
 
@@ -55,13 +54,13 @@ def search_pubmed(query: str, max_papers: int = 10) -> dict[str, Any]:
         for paper_id in _esearch_pubmed_ids(query, max_papers):
             try:
                 articles.append(_fetch_pubmed_article(paper_id).to_dict())
-            except Exception as exc:
+            except Exception:
                 # A malformed paper must not discard successful siblings.
-                logger.warning("Failed to fetch metadata for paper %s: %s", paper_id, exc)
+                logger.warning("PubMed metadata fetch failed")
                 metadata_failed = True
         return failed("PubMed metadata unavailable") if metadata_failed else ok(articles)
     except Exception as exc:
-        logger.error("Error searching PubMed: %s", exc)
+        logger.error("PubMed search failed")
         return failed(exc)
 
 
@@ -121,13 +120,13 @@ async def _extract_fulltext(
         relative_run_dir = run_dir.relative_to(cache_root)
         html_file = confined_path(cache_root, *relative_run_dir.parts, f"{pmc_id}.fulltext.html")
         if not html_file.exists():
-            logger.warning("Fulltext file not found for %s at %s", pmc_id, html_file)
+            logger.warning("PMC fulltext cache file not found")
             return False
         # Full-article parsing is CPU-heavy; keep it off the event loop.
         metadata["fulltext"] = await asyncio.to_thread(_read_and_extract_fulltext, html_file)
         return True
-    except Exception as exc:
-        logger.error("Failed to extract text from %s: %s", pmc_id, exc)
+    except Exception:
+        logger.error("PMC fulltext extraction failed")
         return False
 
 
