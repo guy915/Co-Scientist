@@ -267,6 +267,8 @@ function RunDetailTabContent({
       className={joinClasses(REPORT_SCROLL_CLASSES, 'ui-motion-enter')}
       key={activeTab}
       aria-label={reportSectionLabel(activeTab)}
+      role="region"
+      tabIndex={0}
     >
       <AwaitingDecisionNotice count={awaitingDecisionCount(data)} />
       {reportIsUngrounded(data) && <ReportUngroundedNotice />}

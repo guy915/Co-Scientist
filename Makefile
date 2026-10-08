@@ -119,9 +119,7 @@ open-when-ready:
 
 stop:
 	@echo ">> Stopping Co-Scientist dev servers (ports 8008/5173/8888)"
-	@pkill -f "uvicorn co_scientist.main:app" 2>/dev/null || true
-	@pkill -f "uvicorn mcp_server.server:app" 2>/dev/null || true
-	@# Catch-all: kill whatever still listens on the dev ports. uvicorn --reload
+	@# Kill only listeners on the dev ports. uvicorn --reload
 	@# and vite run under a supervising parent that respawns the listener, so
 	@# take out the parent too when it is a python/node/bun process.
 	@for port in 8008 5173 8888; do \
@@ -169,7 +167,7 @@ dev-mcp:
 		"$(MCP_VENV)/bin/python" -m pip install -q -e "$(ENGINE)/mcp_server" || { echo ">> MCP deps install failed (offline?); skipping MCP server"; exit 0; }; \
 	fi; \
 	echo ">> Starting reference MCP server on http://localhost:8888"; \
-	cd "$(ENGINE)" && "$(MCP_VENV)/bin/python" -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
+	cd "$(ENGINE)" && COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1 "$(MCP_VENV)/bin/python" -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 
 test:
 	@$(MAKE) test-app

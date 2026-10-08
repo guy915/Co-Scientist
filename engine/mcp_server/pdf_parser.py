@@ -19,8 +19,8 @@ MAX_PDF_DECODED_BYTES = 64 * 1024 * 1024
 MAX_PDF_RESPONSE_BYTES = 512 * 1024
 MAX_PDF_WALL_SECONDS = 15
 
-_PDF_ERROR = "[error: could not extract text from PDF]"
-_PDF_NO_TEXT = "[note: PDF has no extractable text layer, likely a scan]"
+PDF_ERROR = "[error: could not extract text from PDF]"
+PDF_NO_TEXT = "[note: PDF has no extractable text layer, likely a scan]"
 
 
 class _PdfBudgetExceededError(ValueError):
@@ -29,7 +29,7 @@ class _PdfBudgetExceededError(ValueError):
 
 def extract_text_from_pdf(data: bytes, max_chars: int = 50_000) -> str:
     if len(data) > MAX_PDF_INPUT_BYTES or max_chars < 0:
-        return _PDF_ERROR
+        return PDF_ERROR
     with tempfile.TemporaryFile() as output:
         try:
             process = subprocess.Popen(
@@ -40,36 +40,36 @@ def extract_text_from_pdf(data: bytes, max_chars: int = 50_000) -> str:
                 start_new_session=True,
             )
         except OSError:
-            return _PDF_ERROR
+            return PDF_ERROR
         try:
             process.communicate(data, timeout=MAX_PDF_WALL_SECONDS)
         except BaseException as exc:
             _kill_worker_group(process.pid)
             process.communicate()
             if isinstance(exc, subprocess.TimeoutExpired):
-                return _PDF_ERROR
+                return PDF_ERROR
             raise
         finally:
             if process.returncode is None:
                 _kill_worker_group(process.pid)
         if process.returncode != 0:
-            return _PDF_ERROR
+            return PDF_ERROR
         output.seek(0, os.SEEK_END)
         if output.tell() > MAX_PDF_RESPONSE_BYTES:
-            return _PDF_ERROR
+            return PDF_ERROR
         output.seek(0)
         response = output.read(MAX_PDF_RESPONSE_BYTES + 1)
     try:
         payload = json.loads(response)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return _PDF_ERROR
+        return PDF_ERROR
     if not isinstance(payload, dict) or payload.get("ok") is not True:
-        return _PDF_ERROR
+        return PDF_ERROR
     text = payload.get("text")
     if not isinstance(text, str):
-        return _PDF_ERROR
+        return PDF_ERROR
     if not text.strip():
-        return _PDF_NO_TEXT
+        return PDF_NO_TEXT
     return truncate_markdown(text, max_chars)
 
 
