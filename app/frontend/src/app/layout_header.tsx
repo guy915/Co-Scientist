@@ -183,7 +183,7 @@ export function SystemStatusIndicator() {
       icon={chip.icon}
       tooltip={chip.detail}
       tooltipPlacement="bottom"
-      layoutClassName="ucs-system-status ui-motion-enter"
+      layoutClassName="ucs-system-status"
     >
       <span>{chip.label}</span>
     </Chip>
