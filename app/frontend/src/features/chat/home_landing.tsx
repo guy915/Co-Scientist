@@ -208,18 +208,31 @@ function useActiveSection(): string {
   const [active, setActive] = useState(LANDING_SECTIONS[0].id);
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      entries => {
-        const hit = entries.find(entry => entry.isIntersecting);
-        if (hit) setActive(hit.target.id);
-      },
-      {rootMargin: '-30% 0px -65% 0px'},
-    );
-    for (const {id} of LANDING_SECTIONS) {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
+    const sections = LANDING_SECTIONS.flatMap(({id}) => {
+      const section = document.getElementById(id);
+      return section ? [section] : [];
+    });
+    // Native observer entries can lag a smooth scroll. Read current geometry
+    // on notifications and reconcile once more when the pane finishes moving.
+    const update = () => {
+      const top = window.innerHeight * 0.3;
+      const bottom = window.innerHeight * 0.35;
+      const hit = sections.find(section => {
+        const rect = section.getBoundingClientRect();
+        return rect.top <= bottom && rect.bottom >= top;
+      });
+      if (hit) setActive(hit.id);
+    };
+    const observer = new IntersectionObserver(update, {
+      rootMargin: '-30% 0px -65% 0px',
+    });
+    for (const section of sections) observer.observe(section);
+    const pane = sections[0]?.closest(HOME_SCROLLER);
+    pane?.addEventListener('scrollend', update);
+    return () => {
+      observer.disconnect();
+      pane?.removeEventListener('scrollend', update);
+    };
   }, []);
   return active;
 }
