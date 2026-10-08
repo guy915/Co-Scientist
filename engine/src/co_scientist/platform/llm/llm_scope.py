@@ -16,7 +16,10 @@ from typing import Any, ParamSpec, TypeVar
 
 from co_scientist.platform.llm.admission.call_budget import scoped_completion_budget
 from co_scientist.platform.llm.admission.service import scoped_app_admission
+from co_scientist.platform.llm.process_mode import offline_mode, production_routing_enabled
+from co_scientist.platform.llm.routing import scoped_operator_routing
 from co_scientist.platform.llm.telemetry import scoped_telemetry
+from co_scientist.platform.telemetry.logging_setup import current_run_id
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,9 @@ def app_call_scope(surface: str) -> Iterator[None]:
         scoped_completion_budget(settings.app_llm_max_calls) as budget,
         scoped_app_admission(),
         scoped_telemetry(f"app.{surface}") as telemetry,
+        scoped_operator_routing(
+            current_run_id(), enabled=production_routing_enabled() and not offline_mode()
+        ),
     ):
         try:
             yield

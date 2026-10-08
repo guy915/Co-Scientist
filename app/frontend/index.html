@@ -13,8 +13,8 @@
     <meta name="keywords" content="Co-Scientist, multi-agent AI, research hypotheses, hypothesis ranking" />
     <meta name="robots" content="index, follow" />
     <meta name="googlebot" content="index, follow" />
-    <meta name="theme-color" content="#EEF4FF" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#7C4DFF" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#131314" media="(prefers-color-scheme: dark)" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Open Co-Scientist" />
     <meta property="og:description" content="Generate, evaluate, and rank research hypotheses with a team of agents." />
@@ -31,109 +31,251 @@
     <meta name="twitter:description" content="Generate, evaluate, and rank research hypotheses with a team of agents." />
     <meta name="twitter:image" content="https://open-coscientist.com/social-card.jpg" />
     <meta name="twitter:image:alt" content="Open Co-Scientist" />
-  <style>
-    :root {
-      --sk-bg: #F5FAFA;
-      --sk-base: #DCE8E8;
-      --sk-hi: #EEF6F6;
-      --sk-border: #CDD9D9;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --sk-bg: #191C1C;
-        --sk-base: #232929;
-        --sk-hi: #2C3333;
-        --sk-border: #252B2B;
-      }
-    }
-    @keyframes sk-shimmer {
-      0%   { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-    .sk {
-      background: linear-gradient(90deg, var(--sk-base) 25%, var(--sk-hi) 50%, var(--sk-base) 75%);
-      background-size: 200% 100%;
-      animation: sk-shimmer 1.5s ease-in-out infinite;
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .sk {
-        animation: none;
-      }
-    }
-    .sk-wrap {
-      min-height: 100vh;
-      background: var(--sk-bg);
-      display: flex;
-      flex-direction: column;
-    }
-    .sk-header {
-      border-bottom: 1px solid var(--sk-border);
-      position: sticky;
-      top: 0;
-      background: var(--sk-bg);
-      padding: 12px 24px;
-    }
-    .sk-header-inner {
-      max-width: 80rem;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .sk-main {
-      flex: 1;
-      width: min(100% - 2rem, 76rem);
-      margin-inline: auto;
-    }
-    .sk-hero {
-      display: grid;
-      grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
-      gap: clamp(3rem, 6vw, 6rem);
-      align-items: center;
-      min-height: min(46rem, calc(100svh - 4.25rem));
-      padding-block: clamp(4.5rem, 10vw, 8rem);
-      box-sizing: border-box;
-    }
-    .sk-copy {
-      max-width: 35rem;
-      display: flex;
-      flex-direction: column;
-    }
-  </style>
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var mode = null;
+        try {
+          mode = localStorage.getItem('cosci-theme');
+        } catch (error) {}
+        var dark =
+          mode === 'dark' ||
+          (mode !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        root.dataset.theme = dark ? 'dark' : 'light';
+        var path = location.pathname;
+        root.dataset.boot = /^\/(runs(\/new)?\/?)?$/.test(path)
+          ? 'home'
+          : /^\/(chats|examples)\/[^/]/.test(path)
+            ? 'chat'
+            : /^\/runs\/[^/]/.test(path)
+              ? 'report'
+              : 'page';
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"><div class="sk-wrap">
-      <header class="sk-header">
-        <div class="sk-header-inner">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div class="sk" style="width:20px;height:20px;border-radius:3px;flex-shrink:0"></div>
-            <div class="sk" style="width:88px;height:15px;border-radius:4px"></div>
+    <div id="root">
+      <div class="boot" aria-busy="true">
+        <p class="boot-status" role="status">Loading Co-Scientist…</p>
+        <div class="boot-rail">
+          <div class="boot-rail-group">
+            <span class="ui-skeleton boot-icon"></span>
+            <span class="ui-skeleton boot-icon"></span>
           </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="sk" style="width:76px;height:13px;border-radius:4px"></div>
-            <div class="sk" style="width:52px;height:13px;border-radius:4px"></div>
-            <div class="sk" style="width:20px;height:20px;border-radius:50%"></div>
-            <div class="sk" style="width:88px;height:32px;border-radius:999px"></div>
-          </div>
+          <span class="ui-skeleton boot-icon"></span>
         </div>
-      </header>
-      <main class="sk-main">
-        <div class="sk-hero">
-          <div class="sk-copy">
-            <div class="sk" style="width:100%;height:clamp(2.4rem,5vw,3.8rem);border-radius:8px"></div>
-            <div class="sk" style="width:78%;height:clamp(2.4rem,5vw,3.8rem);border-radius:8px;margin-top:10px"></div>
-            <div class="sk" style="width:82%;height:1.1rem;border-radius:6px;margin-top:1.75rem"></div>
-            <div class="sk" style="width:62%;height:1.1rem;border-radius:6px;margin-top:10px"></div>
-            <div style="display:flex;gap:12px;margin-top:2rem">
-              <div class="sk" style="width:150px;height:48px;border-radius:999px"></div>
-              <div class="sk" style="width:134px;height:48px;border-radius:999px"></div>
+        <div class="boot-workspace">
+          <div class="boot-header">
+            <span class="ui-skeleton boot-icon boot-menu"></span>
+            <div class="boot-brand">
+              <span class="ui-skeleton boot-logo"></span>
+              <span class="ui-skeleton boot-line boot-wordmark"></span>
+            </div>
+            <span class="ui-skeleton boot-line boot-action"></span>
+          </div>
+          <div class="boot-page">
+            <div class="boot-view boot-home">
+              <div class="boot-home-main">
+                <span class="ui-skeleton boot-logo-mark"></span>
+                <div class="boot-greeting">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <div class="boot-steps">
+                  <div class="boot-step">
+                    <span class="ui-skeleton boot-step-number"></span>
+                    <div class="boot-step-lines">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                  </div>
+                  <div class="boot-step">
+                    <span class="ui-skeleton boot-step-number"></span>
+                    <div class="boot-step-lines">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                  </div>
+                  <div class="boot-step">
+                    <span class="ui-skeleton boot-step-number"></span>
+                    <div class="boot-step-lines">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="boot-suggestions">
+                  <div class="boot-suggestion">
+                    <span class="ui-skeleton boot-suggestion-icon"></span>
+                    <span class="ui-skeleton boot-line"></span>
+                    <span class="ui-skeleton boot-line"></span>
+                  </div>
+                  <div class="boot-suggestion">
+                    <span class="ui-skeleton boot-suggestion-icon"></span>
+                    <span class="ui-skeleton boot-line"></span>
+                    <span class="ui-skeleton boot-line"></span>
+                  </div>
+                  <div class="boot-suggestion">
+                    <span class="ui-skeleton boot-suggestion-icon"></span>
+                    <span class="ui-skeleton boot-line"></span>
+                    <span class="ui-skeleton boot-line"></span>
+                  </div>
+                </div>
+                <div class="boot-composer">
+                  <span class="ui-skeleton boot-line"></span>
+                  <div class="boot-composer-tools">
+                    <span class="ui-skeleton boot-icon"></span>
+                    <span class="ui-skeleton boot-icon"></span>
+                    <span class="ui-skeleton boot-icon"></span>
+                  </div>
+                </div>
+                <div class="boot-scroll-hint"></div>
+              </div>
+              <div class="boot-recents">
+                <div class="boot-recents-heading">
+                  <span class="ui-skeleton boot-icon"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <div class="boot-recents-list">
+                  <div class="boot-recent">
+                    <div class="boot-recent-chips">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-title">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-text">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-chips">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-text">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                  </div>
+                  <div class="boot-recent">
+                    <div class="boot-recent-chips">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-title">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-text">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-chips">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                    <div class="boot-recent-text">
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                      <span class="ui-skeleton boot-line"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="boot-view boot-chat">
+              <div class="boot-thread">
+                <div class="boot-bubble">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <div class="boot-reply">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <div class="boot-reply">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <div class="boot-bubble">
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+              </div>
+              <div class="boot-composer">
+                <span class="ui-skeleton boot-line"></span>
+                <div class="boot-composer-tools">
+                  <span class="ui-skeleton boot-icon"></span>
+                  <span class="ui-skeleton boot-icon"></span>
+                  <span class="ui-skeleton boot-icon"></span>
+                </div>
+              </div>
+            </div>
+            <div class="boot-view boot-report">
+              <div class="boot-report-titlebar">
+                <span class="ui-skeleton boot-icon"></span>
+                <span class="ui-skeleton boot-line"></span>
+              </div>
+              <div class="boot-article">
+                <span class="ui-skeleton boot-line boot-heading"></span>
+                <div class="boot-paragraph">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <span class="ui-skeleton boot-line boot-subheading"></span>
+                <div class="boot-paragraph">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+              </div>
+            </div>
+            <div class="boot-view boot-document">
+              <div class="boot-article">
+                <span class="ui-skeleton boot-line boot-heading"></span>
+                <div class="boot-paragraph">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <span class="ui-skeleton boot-line boot-subheading"></span>
+                <div class="boot-paragraph">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+                <span class="ui-skeleton boot-line boot-subheading"></span>
+                <div class="boot-paragraph">
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                  <span class="ui-skeleton boot-line"></span>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="sk" style="width:100%;aspect-ratio:4/3;border-radius:12px"></div>
         </div>
-      </main>
-    </div></div>
+      </div>
+    </div>
     <noscript>
       <main>
         <h1>Create a multi-agent research session.</h1>

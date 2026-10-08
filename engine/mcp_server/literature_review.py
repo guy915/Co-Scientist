@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from Bio import Entrez
 
@@ -16,6 +16,9 @@ from mcp_server.pubmed_storage import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Marks a book record, which has no journal metadata but is not a failure.
+_BOOK: Literal["book"] = "book"
 
 
 def _validate_pmc_id(metadata: dict[str, Any]) -> None:
@@ -39,7 +42,7 @@ class PubmedSource(_EntrezClient):
         shared_dir: Path,
         run_dir: Path | None,
         semaphore: asyncio.Semaphore,
-    ) -> tuple[str, dict[str, Any] | None]:
+    ) -> tuple[str, dict[str, Any] | None | Literal["book"]]:
         validate_cache_identifier(paper_id, label="PubMed ID", numeric=True)
         metadata_file = confined_path(shared_dir.parent, "shared", f"{paper_id}.metadata.json")
         if metadata_file.exists():
@@ -53,6 +56,8 @@ class PubmedSource(_EntrezClient):
                 # Entrez's blocking HTTP calls and rate limiter must run off
                 # the event loop.
                 metadata = await asyncio.to_thread(self._fetch_paper_details, paper_id)
+                if metadata is None:
+                    return paper_id, _BOOK
                 _validate_pmc_id(metadata)
                 write_metadata_cache_file(metadata_file, metadata)
                 return paper_id, metadata
@@ -66,7 +71,7 @@ class PubmedSource(_EntrezClient):
         shared_dir: Path,
         run_dir: Path | None,
         semaphore: asyncio.Semaphore,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], int]:
         results = await asyncio.gather(
             *(
                 self._fetch_one_paper_metadata(paper_id, shared_dir, run_dir, semaphore)
@@ -74,7 +79,10 @@ class PubmedSource(_EntrezClient):
             )
         )
         # gather preserves search order, independent of completion order.
-        return {paper_id: metadata for paper_id, metadata in results if metadata is not None}
+        details = {
+            paper_id: metadata for paper_id, metadata in results if isinstance(metadata, dict)
+        }
+        return details, sum(metadata == _BOOK for _, metadata in results)
 
     def _download_pmc_fulltext(self, pmc_id: str) -> str:
         """PMC can truncate documents across efetch responses, requiring
@@ -173,8 +181,10 @@ class PubmedSource(_EntrezClient):
             recency_years=recency_years,
         )
         paper_ids = [paper_id for paper_id in paper_ids if _is_valid_pubmed_id(paper_id)]
-        all_details = await self._gather_paper_metadata(paper_ids, shared_dir, run_dir, semaphore)
-        if paper_ids and len(all_details) != len(paper_ids):
+        all_details, books = await self._gather_paper_metadata(
+            paper_ids, shared_dir, run_dir, semaphore
+        )
+        if paper_ids and len(all_details) + books != len(paper_ids):
             raise RuntimeError("PubMed metadata unavailable")
         papers_to_use = [
             paper_id

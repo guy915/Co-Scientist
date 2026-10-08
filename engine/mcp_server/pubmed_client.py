@@ -8,7 +8,7 @@ from typing import Any
 from Bio import Entrez
 
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
-from mcp_server.pubmed_records import parse_pubmed_record
+from mcp_server.pubmed_records import journal_article, parse_pubmed_record
 
 logger = logging.getLogger(__name__)
 
@@ -141,13 +141,15 @@ class _EntrezClient:
             logger.debug("fulltext not available in pmc")
             return None
 
-    def _fetch_paper_details(self, paper_id: str) -> dict[str, Any]:
+    def _fetch_paper_details(self, paper_id: str) -> dict[str, Any] | None:
         """Blocking Entrez requests and XML parsing must run off the event
         loop.
         """
         # Even single-ID efetch returns a PubmedArticleSet list.
         results = self.entrez_read(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-        pubmed_article = results["PubmedArticle"][0]
+        pubmed_article = journal_article(results)
+        if pubmed_article is None:
+            return None
         record = parse_pubmed_record(pubmed_article)
         pmc_id = self._fetch_pmc_fulltext_id(paper_id, record.doi)
         return record.fulltext_metadata(pmc_id)

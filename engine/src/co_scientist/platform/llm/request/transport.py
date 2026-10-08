@@ -25,6 +25,7 @@ from co_scientist.platform.llm.admission.service import (
     settle_physical,
 )
 from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
+from co_scientist.platform.llm.profile import model_profile
 from co_scientist.platform.llm.request.anthropic import (
     API_BASE,
     AnthropicSlotUnavailableError,
@@ -39,7 +40,12 @@ from co_scientist.platform.llm.request.cache import (
     apply_prompt_cache,
 )
 from co_scientist.platform.llm.request.response import is_model_refusal
-from co_scientist.platform.llm.request.thinking import apply_provider_constraints
+from co_scientist.platform.llm.request.thinking import (
+    _apply_thinking_args,
+    apply_provider_constraints,
+)
+from co_scientist.platform.llm.roles import current_call_policy
+from co_scientist.platform.llm.routing import routed_completion, routing_scope
 from co_scientist.platform.llm.telemetry import (
     end_request_span,
     record_completion_failure,
@@ -140,7 +146,92 @@ async def _await_provider(
         ) from exc
 
 
+def _routed_args(original: dict[str, Any], model: str) -> dict[str, Any]:
+    from co_scientist.core.config import settings
+
+    args = dict(original)
+    output = args.pop(
+        "max_completion_tokens", args.get("max_tokens", settings.app_llm_max_output_tokens)
+    )
+    for key in (
+        "extra_body",
+        "api_key",
+        "api_base",
+        "thinking",
+        "output_config",
+        "allowed_openai_params",
+        "reasoning_effort",
+        "cache_control",
+        "prompt_cache_key",
+    ):
+        args.pop(key, None)
+    args["model"] = model
+    args["max_tokens"] = output
+    args["messages"] = [dict(message) for message in original.get("messages", ())]
+    fmt = args.get("response_format") or {}
+    if fmt.get("type") == "json_schema" and not model_profile(model).json_schema:
+        from co_scientist.platform.llm.request.completion import _inject_schema_into_prompt
+
+        for message in reversed(args["messages"]):
+            if message.get("role") == "user" and isinstance(message.get("content"), str):
+                message["content"] = _inject_schema_into_prompt(
+                    message["content"], fmt["json_schema"]
+                )
+                break
+        args.pop("response_format", None)
+    elif fmt and fmt.get("type") != "json_schema" and not model_profile(model).json_object:
+        args.pop("response_format", None)
+    policy = current_call_policy()
+    _apply_thinking_args(args, model, policy.enable_thinking)
+    if model in (LUNA, NANO):
+        args["reasoning_effort"] = policy.effort
+    long_roles = {"overview", "meta_review", "literature_analysis"}
+    ceiling = 600.0 if policy.role in long_roles else 180.0
+    requested_timeout = args.get("timeout")
+    args["timeout"] = (
+        min(ceiling, float(requested_timeout)) if requested_timeout is not None else ceiling
+    )
+    return args
+
+
 async def complete_request(
+    completion_args: dict[str, Any],
+    model_name: str,
+    *,
+    byok: bool,
+    timeout_seconds: float | None,
+    timeout_grace_seconds: float = 0.0,
+    before_dispatch: Callable[[], None] | None = None,
+) -> Any:
+    async def dispatch(args: dict[str, Any], model: str) -> Any:
+        requested = args.get("timeout", timeout_seconds)
+        timeout = float(requested) if requested is not None else None
+        return await _complete_physical(
+            args,
+            model,
+            byok=byok,
+            timeout_seconds=timeout,
+            timeout_grace_seconds=timeout_grace_seconds,
+            before_dispatch=before_dispatch,
+        )
+
+    if (
+        byok
+        or routing_scope() is None
+        or model_name.startswith("offline/")
+        or not getattr(active_backend(), "operator_routing", False)
+    ):
+        return await dispatch(completion_args, model_name)
+    return await routed_completion(
+        completion_args,
+        model_name,
+        dispatch=dispatch,
+        prepare=_routed_args,
+        refused=is_model_refusal,
+    )
+
+
+async def _complete_physical(
     completion_args: dict[str, Any],
     model_name: str,
     *,
