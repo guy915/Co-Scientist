@@ -50,3 +50,15 @@ async def test_sdk_patch_seam_is_shared_with_the_request_backend(
     assert llm.litellm is sys.modules["litellm"]
     assert llm.litellm.suppress_debug_info is True
     fake.assert_awaited_once_with(model="mock", messages=[], num_retries=0, max_retries=0)
+
+
+def test_direct_backend_import_suppresses_the_provider_debug_banner() -> None:
+    code = """
+import socket
+socket.socket.connect = lambda *a, **k: (_ for _ in ()).throw(AssertionError("network"))
+from co_scientist.platform.llm.request import backend
+import litellm
+assert litellm.suppress_debug_info is True
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=60)
+    assert result.returncode == 0, result.stderr.decode()
