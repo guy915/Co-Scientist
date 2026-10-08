@@ -8,6 +8,28 @@ from scripts.ci.container_smoke import smoke, wait_ready
 
 
 class ContainerSmokeTests(unittest.TestCase):
+    def test_completed_variants_release_their_layer_before_the_next_start(self):
+        active = set()
+
+        def docker(*args, **kwargs):
+            if args[0] == "run":
+                if active:
+                    raise subprocess.CalledProcessError(
+                        125, ["docker", *args], stderr="container layer budget exceeded"
+                    )
+                active.add(args[args.index("--name") + 1])
+            elif args[:2] == ("rm", "-f"):
+                active.discard(args[2])
+            return ""
+
+        with (
+            patch("scripts.ci.container_smoke.docker", side_effect=docker),
+            patch("scripts.ci.container_smoke.wait_ready") as ready,
+        ):
+            smoke("api-image", "mcp-image")
+        self.assertEqual(ready.call_count, 3)
+        self.assertFalse(active)
+
     def test_launch_failure_reports_cli_error_logs_and_cleans_resources(self):
         def docker(*args, **kwargs):
             if args[0] == "run":
