@@ -324,6 +324,7 @@ export function useConversationLayout(
     session.startedSession,
     session.isAwaitingAgent,
     session.interview?.id,
+    session.error,
   );
 
   // The overlaid composer needs matching timeline bottom padding as it grows.
@@ -709,11 +710,19 @@ function syncStartedSessionScroll(
   return () => window.clearTimeout(timeout);
 }
 
+function syncErrorScroll(refs: TimelineScrollRefs, error: string | null) {
+  const scroller = refs.scroller.current;
+  if (!error || !scroller) return;
+  const timeout = window.setTimeout(() => scrollToBottom(refs, scroller), 0);
+  return () => window.clearTimeout(timeout);
+}
+
 export function useChatTimelineScroll(
   timelineItems: TimelineItem[],
   startedSession: StartedSession | null,
   isAwaitingAgent = false,
   conversationId?: string,
+  error: string | null = null,
 ) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const previousTimelineSignature = useRef('');
@@ -743,6 +752,8 @@ export function useChatTimelineScroll(
   useEffect(() => followContentGrowth(refs), [conversationId, hasContent]);
 
   useEffect(() => syncSentTurnScroll(refs, isAwaitingAgent), [isAwaitingAgent]);
+
+  useEffect(() => syncErrorScroll(refs, error), [error]);
 
   // Key this forced scroll by session id; announcement fragments must not
   // repeatedly override a reader's position.
