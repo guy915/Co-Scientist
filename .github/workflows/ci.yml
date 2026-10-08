@@ -426,17 +426,21 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       COSCI_E2E_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
+      COSCI_E2E_BROWSER_SHARD: ${{ matrix.browser_shard }}
     strategy:
       # Keep every shard's results visible when one fails.
       fail-fast: false
       matrix:
         # Each job launches its own isolated stack, so they share nothing.
-        # Playwright shards whole files; the first shard holds the slowest.
+        # Duration weights keep stateful files together on one worker.
         include:
-          - {name: shard 1/3, suite: e2e, args: --shard=1/3}
-          - {name: shard 2/3, suite: e2e, args: --shard=2/3}
-          - {name: shard 3/3, suite: e2e, args: --shard=3/3}
-          - {name: production, suite: e2e-production, args: ''}
+          - {name: shard 1/6, suite: e2e, args: '', browser_shard: 1/6}
+          - {name: shard 2/6, suite: e2e, args: '', browser_shard: 2/6}
+          - {name: shard 3/6, suite: e2e, args: '', browser_shard: 3/6}
+          - {name: shard 4/6, suite: e2e, args: '', browser_shard: 4/6}
+          - {name: shard 5/6, suite: e2e, args: '', browser_shard: 5/6}
+          - {name: shard 6/6, suite: e2e, args: '', browser_shard: 6/6}
+          - {name: production, suite: e2e-production, args: '', browser_shard: ''}
     # Setup plus the isolated stack share the job timeout.
     timeout-minutes: 25
     steps:

@@ -7,7 +7,7 @@ throwaway store, so it never touches `coscientist.db` or a running
 ```bash
 make setup                # once: backend venv and frontend dependencies
 make e2e                  # development server suite (tests/)
-make e2e E2E_ARGS="--shard=1/3" # one development shard, as in CI
+COSCI_E2E_BROWSER_SHARD=1/6 make e2e # one weighted development shard, as in CI
 make e2e-production       # built assets under vite preview (production/)
 make e2e E2E_ARGS="tests/03_run_lifecycle.spec.ts --headed"
 ```
@@ -21,8 +21,9 @@ harness and installs Playwright's Chromium before running.
   the development ports. Override with `COSCI_E2E_API_PORT` and
   `COSCI_E2E_UI_PORT`; run suites one at a time on the same ports.
 - **Fresh state.** Each invocation creates one temporary directory
-  (`COSCI_E2E_STATE_DIR`) for the SQLite store and build output; global
-  teardown removes it.
+  for the SQLite store and build output. `run.mjs` waits for Playwright
+  and its managed servers to stop before removing that directory; an inherited
+  `COSCI_E2E_STATE_DIR` is never reused or removed.
 - **Offline.** The API runs with `COSCIENTIST_FORCE_OFFLINE=1`,
   `EVIDENCE_RESOLVER=offline`, dotenv loading disabled and an unreachable MCP
   URL, so leaked credentials cannot reach a provider.
@@ -41,6 +42,18 @@ downloads are unavailable; its revision can differ from CI's.
 - `tests/` — development-server specs: home, run lifecycle, acceptance,
   mobile interview, example chats, landing and feedback.
 - `production/` — built-asset specs.
-- `support/paths.ts` — ports, paths, state directory and teardown.
+- `run.mjs` — isolated state, test invocation and cleanup after server shutdown.
+- `support/paths.ts` — ports, paths and the raw-CLI state fallback.
+- `support/shards.ts` — deterministic whole-file duration-weighted assignment.
 - `support/fixtures.ts` — the API fixture, viewports and helpers such as
   `createCompletedRun`.
+
+Development CI uses six weighted shards from `support/shard_weights.json`.
+Weights are the case-duration sums from successful run 37770026920; an
+unlisted new spec receives 20 seconds and remains included. The planner discovers
+all development specs, so no manifest can omit a new test. Every shard keeps
+one worker and whole stateful files. Production runs all production specs.
+
+Use `make e2e` or `BUN=bun node e2e/run.mjs` for cleanup after server shutdown.
+Raw `bun x playwright test` creates an isolated fallback directory but leaves it
+for manual cleanup. Use the wrapper when supplying a separate Playwright config.
