@@ -84,7 +84,7 @@ function settledReplyProps(args: BuildTimelineItemsArgs) {
       : started
         ? started.announcing
           ? ''
-          : (started.intro ?? '')
+          : `Research started. ${started.intro ?? ''}`.trim()
         : (stage?.intro ?? assistant?.content ?? '');
   const revision =
     assistant && assistant.turnId === undefined
