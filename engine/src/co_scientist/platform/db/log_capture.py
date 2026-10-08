@@ -10,7 +10,11 @@ import threading
 from co_scientist.platform.db import logs as store
 from co_scientist.platform.db.logs import NewLogRecord
 from co_scientist.platform.telemetry.capture_queue import CaptureListener, CaptureQueue
-from co_scientist.platform.telemetry.logging_setup import RunIdFilter, _byok_redaction_filter
+from co_scientist.platform.telemetry.logging_setup import (
+    RunIdFilter,
+    _byok_redaction_filter,
+    is_orphaned_litellm_worker,
+)
 
 _PRUNE_EVERY = 500
 DEFAULT_LOG_MAX_ROWS = 20_000
@@ -187,25 +191,11 @@ class _RepeatSuppressor:
             self._seen.clear()
 
 
-# Match both LiteLLM-worker clues so orphaned dependency tasks are filtered
-# without hiding genuine application task leaks.
-_ORPHANED_WORKER_MARKERS = (
-    "Task was destroyed but it is pending",
-    "LoggingWorker._worker_loop",
-)
-
-
 def _drop_orphaned_logging_worker_noise(record: logging.LogRecord) -> bool:
     """Orphaned library logging workers remain visible on stdout, without
     being attributed as scientific run errors.
     """
-    if record.name != "asyncio":
-        return True
-    try:
-        message = record.getMessage()
-    except Exception:
-        return True
-    return not all(marker in message for marker in _ORPHANED_WORKER_MARKERS)
+    return not is_orphaned_litellm_worker(record)
 
 
 def _drop_self_noise(record: logging.LogRecord) -> bool:
