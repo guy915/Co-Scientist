@@ -14,6 +14,7 @@ import {
   installUiInteractionLogging,
 } from '@/shared/lib/ui_logging';
 import {WorkbenchApp} from '@/app/workbench_app';
+import {BackgroundTelemetry} from '@/shared/lib/background_telemetry';
 import {
   readStorage,
   STORAGE_KEYS,
@@ -25,15 +26,6 @@ import {
 installUiErrorLogging();
 installUiInteractionLogging();
 installDiagnosticLogging();
-
-// The SDK loads as its own chunk only when a DSN is built in, so the main
-// bundle and builds without one are unchanged.
-const sentryDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
-if (sentryDsn) {
-  void import('@/shared/lib/error_tracking').then(({initErrorTracking}) =>
-    initErrorTracking(sentryDsn),
-  );
-}
 
 // A deploy deletes the old hashed chunks; reload once to fetch the new index.
 // The timestamp guard stops a reload loop if the chunk is genuinely missing.
@@ -56,6 +48,7 @@ createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
       <WorkbenchApp />
+      <BackgroundTelemetry />
     </BrowserRouter>
   </StrictMode>,
 );
