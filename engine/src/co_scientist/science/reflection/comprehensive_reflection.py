@@ -31,6 +31,7 @@ from co_scientist.science.evidence_context import (
 )
 from co_scientist.science.prompts import build_tool_instructions
 from co_scientist.science.prompts._common import _format_meta_review_context
+from co_scientist.science.prompts.context_budget import select_evidence_excerpt
 from co_scientist.science.prompts.loading import load_prompt_with_schema
 from co_scientist.science.reflection.deep_verification import (
     merge_retrieved_articles,
@@ -256,7 +257,7 @@ async def review_finalist(state: WorkflowState, hypothesis: Hypothesis) -> Revie
     )
     variables["articles_with_reasoning"] = (
         "Literature analyses, one per article, each with the literature review's own"
-        " reasoning:\n" + literature
+        " reasoning:\n" + select_evidence_excerpt(literature, hypothesis.text, 6_000)
         if literature
         else _NO_OBSERVATIONS_NOTE
     )
