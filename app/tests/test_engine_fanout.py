@@ -79,11 +79,16 @@ async def _advance_to_review_parent(
     assert lifecycle.complete_task(review_parent.id, "parent", parent_result, db_path=db_path)
 
 
+async def _fake_batch_review(hypotheses: list[Hypothesis], _context: Any) -> list[Any]:
+    return [await _fake_review(hypothesis_text=h.text) for h in hypotheses]
+
+
 async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
     first = store.claim_task("child-a", run_id=run_id, db_path=db_path)
     second = store.claim_task("child-b", run_id=run_id, db_path=db_path)
     assert first is not None and second is not None
     assert first.task_type == second.task_type == engine_tasks_support.REVIEW_ITEM_TASK
+    assert [len(t.inputs["hypothesis_ids"]) for t in (first, second)] == [4, 1]
     first_result, second_result = await asyncio.gather(
         items.execute_review_item(first, db_path=db_path),
         items.execute_review_item(second, db_path=db_path),
@@ -93,7 +98,7 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
     aggregate_result = await aggregates.execute_review_aggregate(aggregate, db_path=db_path)
-    assert aggregate_result["successful_reviews"] == 2
+    assert aggregate_result["successful_reviews"] == 5
     assert lifecycle.complete_task(aggregate.id, "aggregate", aggregate_result, db_path=db_path)
 
 
@@ -103,25 +108,28 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
 ) -> None:
     run = seed_run("Task-level science")
     state = _task_state(run.id)
-    state["hypotheses"] = [Hypothesis(text="alpha"), Hypothesis(text="beta")]
+    state["hypotheses"] = [
+        Hypothesis(text=text) for text in ("alpha", "beta", "gamma", "delta", "epsilon")
+    ]
     await _advance_to_review_parent(run.id, monkeypatch, _Generator(state), isolated_db)
 
     import co_scientist.science.reflection.review as review_module
 
     monkeypatch.setattr(review_module, "review_single_hypothesis", _fake_review)
+    monkeypatch.setattr(review_module, "review_comparative_batch", _fake_batch_review)
     await _run_review_children_and_aggregate(run.id, isolated_db)
 
     checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["seq"] == 3
     persisted = checkpoint["state"]["state"]["hypotheses"]
-    assert [hypothesis["score"] for hypothesis in persisted] == [8.0, 8.0]
+    assert [hypothesis["score"] for hypothesis in persisted] == [8.0] * 5
     review_events = _task_events(run.id, "review", db_path=isolated_db)
     assert len(review_events) == 1
     assert review_events[0]["payload"]["successor"] == "comprehensive_reflection"
     usage = restore_workflow_state(checkpoint["state"])["metrics"].model_usage
     assert (
         usage["review::fixture-model"]
-        == ModelCallStats(calls=2, prompt_tokens=40, completion_tokens=20).as_dict()
+        == ModelCallStats(calls=5, prompt_tokens=100, completion_tokens=50).as_dict()
     )
 
 
@@ -273,9 +281,9 @@ def test_aggregate_reopens_an_idea_a_deeper_review_cleared() -> None:
     hypothesis = _dispositions_blocked_hypothesis()
     hypothesis.enrichments["full"] = {"verdict": "sound"}
 
-    successful, failed, _ = _apply_review_items({hypothesis.id: hypothesis}, [], None)
+    applied = _apply_review_items({hypothesis.id: hypothesis}, [], None)
 
-    assert (successful, failed) == (0, 0)
+    assert (applied.successful, applied.failed) == (0, 0)
     assert hypothesis.is_rankable()
 
 
@@ -485,14 +493,14 @@ def test_review_aggregate_gates_on_the_run_criteria_when_it_has_any(
         },
     )
 
-    gated, failed, _usage = aggregates._apply_review_items(
+    applied = aggregates._apply_review_items(
         {hypothesis.id: hypothesis},
         ["item-review"],
         db_path=None,
         criteria=criteria,
     )
 
-    assert (gated, failed) == (1, 0)
+    assert (applied.successful, applied.failed) == (1, 0)
     assert hypothesis.review_disposition == disposition
     assert hypothesis.is_rankable() is (disposition == "viable")
 
@@ -531,3 +539,51 @@ def test_the_aggregate_carries_each_items_research_to_the_run_once(
     )
 
     assert update["research_ledgers"] == ([ledger] if ledger else [])
+
+
+def _screening_review() -> dict[str, Any]:
+    return dataclasses.asdict(
+        HypothesisReview(
+            review_summary="summary",
+            scores={"scientific_soundness": 8, "novelty": 8},
+            safety_ethical_concerns="none",
+            detailed_feedback={},
+            constructive_feedback="feedback",
+            overall_score=8.0,
+        )
+    )
+
+
+def test_a_batch_missing_one_answer_fails_only_that_idea(monkeypatch: pytest.MonkeyPatch) -> None:
+    answered, missing = Hypothesis(text="answered"), Hypothesis(text="missing")
+    _patch_items(
+        monkeypatch,
+        {
+            "batch": {
+                "reviews": [
+                    {"hypothesis_id": answered.id, "review": _screening_review()},
+                    {"hypothesis_id": missing.id, "review": None},
+                ]
+            }
+        },
+    )
+
+    applied = aggregates._apply_review_items(
+        {answered.id: answered, missing.id: missing}, ["batch"], db_path=None
+    )
+
+    assert (applied.successful, applied.failed, applied.llm_calls) == (1, 1, 1)
+    assert answered.score == 8.0
+    assert missing.review_disposition == "review_failed"
+
+
+def test_a_failed_batch_leaves_each_of_its_ideas_for_a_later_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = [Hypothesis(text=text) for text in ("a", "b", "c")]
+    _patch_items(monkeypatch, inputs={"hypothesis_ids": [h.id for h in pool]}, status="failed")
+
+    applied = aggregates._apply_review_items({h.id: h for h in pool}, ["batch"], db_path=None)
+
+    assert (applied.successful, applied.failed) == (0, 3)
+    assert {h.review_disposition for h in pool} == {"review_failed"}
