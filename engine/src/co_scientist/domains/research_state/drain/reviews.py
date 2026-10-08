@@ -484,9 +484,20 @@ def _novelty_review_lines(rv: dict[str, Any]) -> list[str]:
 def _persist_engine_review_rows(
     run_id: str, hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
+    validation = h.get("novelty_validation")
+    unknown = isinstance(validation, dict) and validation.get("decision") == "unknown"
     for rv in h.get("reviews") or []:
         if _persist_scientist_review(run_id, hyp_id, rv, conn):
             continue
+        if unknown:
+            rv = {
+                **rv,
+                "scores": {k: v for k, v in rv.get("scores", {}).items() if k != "novelty"},
+                "detailed_feedback": {
+                    k: v for k, v in rv.get("detailed_feedback", {}).items() if k != "novelty"
+                },
+                "novel_aspects": [],
+            }
         scores = rv.get("scores", {})
         critique_lines = [str(rv.get("constructive_feedback") or "")]
         novelty_lines = _novelty_review_lines(rv)
@@ -664,6 +675,20 @@ def _persist_engine_reviews(
     h: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> None:
+    validation = h.get("novelty_validation")
+    if isinstance(validation, dict) and validation.get("decision") == "unknown":
+        store.add_review(
+            NewReview(
+                run_id=run_id,
+                hypothesis_id=hyp_id,
+                reviewer_agent="novelty_validation",
+                summary="Prior-art retrieval unknown; no novelty credit",
+                critique="Failed sources: " + ", ".join(validation.get("failed_sources") or []),
+                verdict="unknown",
+                detail_json=json.dumps(validation),
+            ),
+            conn=conn,
+        )
     _persist_engine_review_rows(run_id, hyp_id, h, conn)
     _persist_deep_verification_review(run_id, hyp_id, h, conn)
     _persist_mature_review_rows(run_id, hyp_id, h, conn)

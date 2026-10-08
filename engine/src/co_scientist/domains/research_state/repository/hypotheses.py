@@ -120,6 +120,7 @@ class HypothesisStateChanges:
     win_delta: int = 0
     loss_delta: int = 0
     novelty: float | None = None
+    clear_novelty: bool = False
     cluster_id: str | None = None
     safety_status: str | None = None
     status: str | None = None
@@ -137,7 +138,11 @@ def _hypothesis_state_updates(
         (c.elo_rating is not None, "elo_rating=?", c.elo_rating),
         (bool(c.win_delta), "win_count=win_count+?", c.win_delta),
         (bool(c.loss_delta), "loss_count=loss_count+?", c.loss_delta),
-        (c.novelty is not None, "novelty_score=?", c.novelty),
+        (
+            c.novelty is not None or c.clear_novelty,
+            "novelty_score=?",
+            None if c.clear_novelty else c.novelty,
+        ),
         (c.cluster_id is not None, "cluster_id=?", c.cluster_id),
         (c.safety_status is not None, "safety_status=?", c.safety_status),
         (c.status is not None, "status=?", c.status),

@@ -26,6 +26,7 @@ from co_scientist.domains.report.markdown.overview import (
     _render_meta_review_ranking_markdown,
     research_overview_sections,
 )
+from co_scientist.domains.report.retrieval import failed_sources_in
 
 
 def _render_stratification_attributes_markdown(
@@ -348,6 +349,14 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         inputs.evidence or [],
         inputs.reviews or [],
     )
+    failures = failed_sources_in(inputs.reviews or [], inputs.retrieval_calls)
+    if failures:
+        top_hypotheses[2:2] = [
+            "_Prior-art retrieval is unknown for failed sources: "
+            + ", ".join(failures)
+            + ". These searches receive no novelty credit._",
+            "",
+        ]
     if inputs.goal_restatement:
         top_hypotheses[2:2] = [inputs.goal_restatement, ""]
     return [

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -202,15 +203,32 @@ def test_a_cached_missing_value_sentinel_is_read_as_missing() -> None:
     assert by_id["no-doi"].title == "A paper with no DOI"
 
 
-_TOOL_ERROR = "Error calling tool 'pubmed_fetch_fulltext': HTTP 503 from upstream"
+_FAILED_READ = {
+    "status": "failed",
+    "records": [],
+    "error": "HTTP 503",
+}
 
 
-def test_a_tool_error_is_not_read_as_a_papers_full_text() -> None:
-    """FastMCP returns a tool's exception as an ordinary text result, so an
-    outage used to become the content a hypothesis is scored against.
-    """
-    assert retrieval_support.parse_content_result(_TOOL_ERROR) is None
-    # Ordinary non-JSON bodies are still content.
+def test_a_failed_read_is_not_read_as_a_papers_full_text() -> None:
+    assert retrieval_support.parse_content_result(json.dumps(_FAILED_READ)) is None
+    assert retrieval_support.parse_content_result(_FAILED_READ) is None
+    # Ordinary bodies, including JSON documents, are still content.
     assert retrieval_support.parse_content_result("Plain text body") == "Plain text body"
-    assert retrieval_support.is_tool_reported_error(_TOOL_ERROR)
-    assert not retrieval_support.is_tool_reported_error("Plain text body")
+    assert retrieval_support.parse_content_result({"text": "Body"}) == "Body"
+    assert retrieval_support.reported_failure({"error": "not the contract"}) is None
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {"status": "failed", "records": [], "error": "timeout"},
+        json.dumps({"source": "STRING", "query": "WEE1", "records": []}),
+    ],
+)
+def test_a_failed_or_empty_enrichment_lookup_is_no_evidence(raw: Any) -> None:
+    from co_scientist.science.generation.literature_review.enrichment import (
+        _parse_enrichment_result,
+    )
+
+    assert _parse_enrichment_result(raw) == ("", [])

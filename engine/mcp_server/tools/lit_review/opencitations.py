@@ -10,6 +10,7 @@ import httpx
 
 from mcp_server.http_client import make_client
 from mcp_server.tools._pacing import RequestPacer
+from mcp_server.tools._results import non_raising, ok
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,7 @@ def _directional_edges(
     }
 
 
+@non_raising
 async def get_opencitations_citation_edges(doi: str) -> dict[str, Any]:
     """Return bounded incoming and outgoing citation edges for a DOI.
 
@@ -213,32 +215,36 @@ async def get_opencitations_citation_edges(doi: str) -> dict[str, Any]:
         citations,
         references,
     ) = await _fetch_citation_data(normalized_doi, urls)
-    return {
-        "source": "OpenCitations Index v2",
-        "source_url": _API_URL,
-        "accessed_at": datetime.now(timezone.utc).isoformat(),
-        "doi": normalized_doi,
-        "citation_count": citation_count,
-        "reference_count": reference_count,
-        "citations": _directional_edges(
-            "incoming",
-            citation_count,
-            citations,
-            urls["citations_count"],
-            urls["citations"],
-        ),
-        "references": _directional_edges(
-            "outgoing",
-            reference_count,
-            references,
-            urls["references_count"],
-            urls["references"],
-        ),
-        "interpretation_note": (
-            "Citation links indicate bibliographic relationships only; they "
-            "do not establish whether a work supports or contradicts a claim."
-        ),
-    }
+    return ok(
+        [
+            {
+                "source": "OpenCitations Index v2",
+                "source_url": _API_URL,
+                "accessed_at": datetime.now(timezone.utc).isoformat(),
+                "doi": normalized_doi,
+                "citation_count": citation_count,
+                "reference_count": reference_count,
+                "citations": _directional_edges(
+                    "incoming",
+                    citation_count,
+                    citations,
+                    urls["citations_count"],
+                    urls["citations"],
+                ),
+                "references": _directional_edges(
+                    "outgoing",
+                    reference_count,
+                    references,
+                    urls["references_count"],
+                    urls["references"],
+                ),
+                "interpretation_note": (
+                    "Citation links indicate bibliographic relationships only; they "
+                    "do not establish whether a work supports or contradicts a claim."
+                ),
+            }
+        ]
+    )
 
 
 def _fetch_status(count: int, edges: list[dict[str, Any]]) -> str:
