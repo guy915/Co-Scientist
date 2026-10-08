@@ -1,13 +1,13 @@
 # Azure implementation plan
 
-Azure is the paid fallback after free OpenRouter routes. BYOK comes first.
+Azure is the paid fallback after free OpenRouter routes and direct subscriber
+API credit. BYOK comes first.
 Operator funding covers Express only. Standard and higher tiers require BYOK.
 Mistral is dropped. If no route can serve, return "No model is available right now".
 
-W4-1 carries roles, bounded effort and exact USD prices. W4-2 adds a native
-Responses adapter, without selecting it in production. It uses resource
-`/openai/v1/responses`, two deployment names and no SDK retries. Existing
-gateway attempts own retries. JSON, streams, function results and encrypted
+W4-1 and W4-2 are merged: roles, bounded effort, exact USD prices and a native
+Responses adapter. W4-4 selects it for operator calls. It uses resource
+`/openai/v1/responses`, two deployment names and no SDK retries. Unknown paid outcomes are terminal; a failed Azure call ends the chain. JSON, streams, function results and encrypted
 reasoning items retain the existing completion contract. Usage stays unknown
 when the provider omits it. Hosted paid tools are refused.
 
@@ -30,13 +30,13 @@ tokens only; other subscription charges still reduce the owner's credit.
 Because the portal omits the expiry time and zone, stop at 00:00 UTC on the
 configured expiry date. This avoids using the unconfirmed final day.
 
-W4-4 compares run estimates with remaining total. If the estimate does not fit,
+W4-4 implementation compares run estimates with remaining total. If the estimate does not fit,
 do not offer Azure. There is no daily/monthly money cap, spread or carry-forward.
 Keep existing per-user/free-run limits. Read `LLM_ENABLED` and
 `LLM_AZURE_ENABLED` for every request. Record provider changes in provenance.
 
-W4-5 removes automatic offline success from product paths. The deterministic
-backend stays an explicit test double. W4-6 adds token-protected spend metrics
+W4-5 implementation removes automatic offline success from product paths. The deterministic
+backend stays an explicit test double. W4-6 implementation adds token-protected spend metrics
 and the setup guide. New funding needs one total-variable change, not code.
 The admin view has no email or alert.
 
@@ -48,3 +48,16 @@ short/long price boundary are unknown. Nano cached input is $0.01/M.
 Each deployment has 1,000 TPM / 1 RPM. This cannot fit the existing 18k
 reasoning allowance; usable quota remains an owner setup step. No quota is
 changed by this implementation. There is no live model quality receipt.
+
+## Validation status
+
+Merged foundations and routing: #455, #468, #522, #533, #577, #592, #607 and #620.
+W4-5 is #626, awaiting review and CI. W4-6 passed its local source checks;
+the local Docker gate stopped at dependency certificate verification. Stock
+CI images and exact-head review must pass before merge.
+Hermetic receipts are on the campaign board. A live receipt is still required:
+9 October allocation 50 requests, $5 subscriber API / €5 Azure, using the local
+owner prompt. Default Express uses about 52 completions before Claude count
+requests; one full run per provider cannot fit that allocation. Full-run proof
+needs a concrete additional allocation before launch. This is not a claim
+that deployment, quota or live quality is done.

@@ -24,7 +24,7 @@ harness and installs Playwright's Chromium before running.
   for the SQLite store and build output. `run.mjs` waits for Playwright
   and its managed servers to stop before removing that directory; an inherited
   `COSCI_E2E_STATE_DIR` is never reused or removed.
-- **Offline.** The API runs with `COSCIENTIST_FORCE_OFFLINE=1`,
+- **Offline.** The API runs with `COSCIENTIST_TEST_DOUBLE=deterministic`,
   `EVIDENCE_RESOLVER=offline`, dotenv loading disabled and an unreachable MCP
   URL, so leaked credentials cannot reach a provider.
 - **Serial.** One worker, because every spec shares the same servers and

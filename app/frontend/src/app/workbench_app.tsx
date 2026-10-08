@@ -32,6 +32,12 @@ const LaunchOperations = lazy(() =>
   })),
 );
 
+const SpendView = lazy(() =>
+  import('@/features/diagnostics/spend_view').then(module => ({
+    default: module.SpendView,
+  })),
+);
+
 function PageLoading() {
   return <DocumentSkeleton label="Loading page…" />;
 }
@@ -51,6 +57,10 @@ function WorkbenchRoutes() {
       <Route
         path="/operations"
         element={page('Launch operations', <LaunchOperations />)}
+      />
+      <Route
+        path="/operations/spend"
+        element={page('Model spend', <SpendView />)}
       />
       <Route path="/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/terms" element={<LegalPage kind="terms" />} />

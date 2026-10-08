@@ -28,6 +28,7 @@ from co_scientist.api.launch_control_api import router as launch_control_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
+from co_scientist.api.spend_api import router as spend_router
 from co_scientist.api.tracing import TracingMiddleware
 from co_scientist.api.version import API_VERSION
 from co_scientist.core.async_bridge import off_loop
@@ -66,10 +67,12 @@ def _reclaim_disk_space() -> None:
 
 
 def _startup_engine_setup() -> None:
-    """The offline router is a harmless passthrough for real models."""
-    from co_scientist.platform.llm.offline.llm import install_offline_router
+    from co_scientist.platform.llm.process_mode import offline_mode
 
-    install_offline_router()
+    if offline_mode():
+        from co_scientist.platform.llm.offline.llm import install_offline_router
+
+        install_offline_router()
     logger.info("Model: %s", settings.model_name)
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
@@ -362,6 +365,7 @@ app.include_router(documents_router)
 app.include_router(free_usage_router)
 app.include_router(byok_models_router)
 app.include_router(logs_router)
+app.include_router(spend_router)
 app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
 app.include_router(launch_control_router)

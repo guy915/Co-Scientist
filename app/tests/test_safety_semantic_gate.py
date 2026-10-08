@@ -29,9 +29,9 @@ def _screen_configured(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _env(monkeypatch: pytest.MonkeyPatch, *keys: str, offline: bool = False) -> None:
     if offline:
-        monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+        monkeypatch.setenv("COSCIENTIST_TEST_DOUBLE", "deterministic")
     else:
-        monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+        monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
     for key in keys:
         monkeypatch.setenv(key, "sk-test")
 
@@ -59,7 +59,7 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> _Provider:
     ("offline", "keys", "enabled", "expected", "calls"),
     [
         (True, (_MODEL_PROVIDER_KEY,), True, ("allow", "deterministic"), 0),
-        (False, (), True, ("allow", "deterministic"), 0),
+        (False, (), True, ("hold", ":no_credential"), 0),
         (False, (_OTHER_PROVIDER_KEY,), True, ("hold", ":no_credential"), 0),
         (False, (_OTHER_PROVIDER_KEY,), False, ("allow", "deterministic"), 0),
         (
@@ -72,7 +72,7 @@ def provider(monkeypatch: pytest.MonkeyPatch) -> _Provider:
     ],
     ids=[
         "forced_offline",
-        "keyless_process_is_pinned_offline",
+        "keyless_production_refuses",
         "partial_deployment_refuses",
         "disabled_screen_is_configuration",
         "the_models_own_credential",

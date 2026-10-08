@@ -222,7 +222,7 @@ async def test_unscoped_flag_cannot_bypass_offline_guard(
     from co_scientist.platform.llm.offline_guard import OfflineModeError
 
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+    monkeypatch.setenv("COSCIENTIST_TEST_DOUBLE", "deterministic")
     with pytest.raises(OfflineModeError):
         await llm_request.acompletion(byok=True, model=MODEL, messages=[])
     assert captured == []

@@ -7,7 +7,7 @@ services:
     environment:
       PYTHON_DOTENV_DISABLED: "1"
       COSCIENTIST_DB_PATH: /app/data/load.db
-      COSCIENTIST_FORCE_OFFLINE: "1"
+      COSCIENTIST_TEST_DOUBLE: "deterministic"
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
       WORKER_POOL_SIZE: "1"
       LOAD_TEST: "1"
