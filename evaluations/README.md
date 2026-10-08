@@ -326,33 +326,6 @@ file. Then run the recorded-judgment command above against
 `replay/prepared/pairs.json`. No network is used unless `--download` or
 `--live-judge` is explicitly selected.
 
-After collecting the three main and three branch runs, compare their artifacts
-with one dispatch (the IDs can be in any goal order):
-
-```bash
-gh workflow run benchmark.yml --ref main -f operation=compare \
-  -f main_runs=MAIN_BIOLOGY_ID,MAIN_BATTERY_ID,MAIN_HYDROLOGY_ID \
-  -f branch_runs=BRANCH_BIOLOGY_ID,BRANCH_BATTERY_ID,BRANCH_HYDROLOGY_ID \
-  -f max_judge_calls=6 -f label=efficiency-batch
-```
-
-`benchmark_ref` applies to collection only. Comparison uses the dispatched
-harness revision, validates the six saved Express goal/source/identity and
-independent request receipts, then judges the reports through the existing
-free-route secret. It emits one table and JSON with both order judgments,
-sample size and uncertainty. Review-required results exit 2 and retain their
-artifacts; failed validation spends no judge requests. Allow for all judge
-attempts in the agreed daily share, and conservatively charge its ceiling if
-interruption prevents a final usage receipt. Download artifacts before their
-14-day expiry if they will be reused.
-
-For hermetic replay, `python -m evaluations.paired_artifacts --archives
-archives.json --output replay` prepares the same manifest from recorded ZIPs.
-The JSON maps `main` and `branch` to three ZIP paths each, relative to that
-file. Then run the recorded-judgment command above against
-`replay/prepared/pairs.json`. No network is used unless `--download` or
-`--live-judge` is explicitly selected.
-
 ## External gaps
 
 These need data, credentials, expert panels or wet labs that are not
