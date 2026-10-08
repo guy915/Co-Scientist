@@ -48,7 +48,8 @@ describe('chat workspace timeline', () => {
     fireEvent.click(screen.getByLabelText('Retry response'));
     expect(args.stageDraftSpec).toHaveBeenCalledWith(spec);
 
-    const card = items[0].node as ReactElement<Record<string, () => void>>;
+    const card = items.find(item => item.id === 'confirmed-spec')!
+      .node as ReactElement<Record<string, () => void>>;
     for (const inert of [
       'onFocusChange',
       'onTierChange',
@@ -74,6 +75,7 @@ describe('chat workspace timeline', () => {
       }),
     );
     expect(items.map(item => item.id)).toEqual([
+      'settled-reply',
       'local-message-setup',
       'local-message-start',
       'started-session-run-1',
@@ -92,6 +94,7 @@ describe('chat workspace timeline', () => {
       }),
     );
     expect(items.map(item => item.id)).toEqual([
+      'settled-reply',
       'local-message-server',
       'local-message-client',
       'agent-turn-in-flight',
@@ -162,3 +165,76 @@ export function transcriptArgs(
     ...overrides,
   });
 }
+
+it('keeps the announcer mounted when the optimistic first row gets a durable id', () => {
+  const pending = baseArgs({
+    isAwaitingAgent: true,
+    messages: [makeMessage({id: 'optimistic', role: 'user'})],
+  });
+  const before = buildTimelineItems(pending);
+  const {rerender} = render(
+    <>
+      {before.map(item => (
+        <div key={item.id}>{item.node}</div>
+      ))}
+    </>,
+  );
+  const status = screen.getByRole('status', {name: 'Research reply'});
+  expect(status).toBeEmptyDOMElement();
+  const settled = buildTimelineItems(
+    baseArgs({
+      messages: [
+        makeMessage({id: 'turn-user', role: 'user'}),
+        makeMessage({
+          id: 'turn-agent',
+          role: 'assistant',
+          turnId: 2,
+          content: 'Settled interview answer',
+        }),
+      ],
+    }),
+  );
+  rerender(
+    <>
+      {settled.map(item => (
+        <div key={item.id}>{item.node}</div>
+      ))}
+    </>,
+  );
+  expect(screen.getByRole('status', {name: 'Research reply'})).toBe(status);
+  expect(status).toHaveTextContent('Settled interview answer');
+});
+
+it('announces Q&A after the started card despite server/client clock skew', () => {
+  const pending = baseArgs({
+    isAwaitingAgent: true,
+    startedSession: {id: 'run', title: 'Goal', at: 200, intro: 'Started reply'},
+    messages: [
+      makeMessage({id: 'setup', role: 'user', turnId: 1, created_at: 100}),
+    ],
+  });
+  const region = (args: BuildTimelineItemsArgs) =>
+    buildTimelineItems(args).find(item => item.id === 'settled-reply')!.node;
+  const {rerender} = render(<>{region(pending)}</>);
+  rerender(
+    <>
+      {region({
+        ...pending,
+        isAwaitingAgent: false,
+        messages: [
+          ...pending.messages,
+          makeMessage({
+            id: 'qa',
+            role: 'assistant',
+            messageId: 3,
+            content: 'Latest Q&A reply',
+            created_at: 101,
+          }),
+        ],
+      })}
+    </>,
+  );
+  expect(
+    screen.getByRole('status', {name: 'Research reply'}),
+  ).toHaveTextContent('Latest Q&A reply');
+});

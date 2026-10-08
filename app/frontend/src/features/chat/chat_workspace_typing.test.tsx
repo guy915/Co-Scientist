@@ -82,7 +82,7 @@ it('does not re-render transcript bubbles while the composer is typed in', async
   renderWorkspace();
   fireEvent.change(composer(), {target: {value: GOAL}});
   fireEvent.click(screen.getByRole('button', {name: 'Send'}));
-  await screen.findByText(QUESTION);
+  await screen.findByText(QUESTION, {selector: '.reference-model-bubble *'});
   // Sending re-renders the transcript once more as the new chat settles.
   await act(() => new Promise(resolve => setTimeout(resolve, 50)));
 
