@@ -28,6 +28,17 @@ class PubmedRecord:
         }
 
 
+def journal_article(results: Any) -> dict[str, Any] | None:
+    """None marks a book record; any other response without an article fails."""
+    if isinstance(results, dict):
+        if articles := results.get("PubmedArticle"):
+            return dict(articles[0])
+        if results.get("PubmedBookArticle"):
+            # Book records (StatPearls, GeneReviews) carry no journal metadata.
+            return None
+    raise ValueError("PubMed returned no article record")
+
+
 def parse_pubmed_record(raw: dict[str, Any]) -> PubmedRecord:
     citation = raw["MedlineCitation"]
     article = citation["Article"]
