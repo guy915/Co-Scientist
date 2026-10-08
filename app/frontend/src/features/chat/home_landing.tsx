@@ -3,6 +3,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -290,6 +291,8 @@ const MIN_HEADER_ROOM = 320;
 function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const copyRef = useRef<HTMLDivElement | null>(null);
+  const focusedSectionRef = useRef<string | null>(null);
+  const headerVisibleRef = useRef(false);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [joined, setJoined] = useState(false);
   const [sticky, setSticky] = useState(false);
@@ -302,13 +305,24 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
     const update = () => {
       const fit = headerRoom(header, target);
       const narrow = fit < MIN_HEADER_ROOM;
+      const a = anchor.getBoundingClientRect();
+      const nextInHeader = !narrow && a.top < pane.getBoundingClientRect().top;
+      if (nextInHeader !== headerVisibleRef.current) {
+        const focused = document.activeElement;
+        if (
+          focused instanceof HTMLAnchorElement &&
+          (anchor.contains(focused) || copyRef.current?.contains(focused))
+        ) {
+          focusedSectionRef.current = focused.dataset.section ?? null;
+        }
+        headerVisibleRef.current = nextInHeader;
+      }
       setSticky(narrow);
       setSlot(narrow ? null : target);
       if (narrow) {
         anchor.style.removeProperty('--rail-room');
         return;
       }
-      const a = anchor.getBoundingClientRect();
       const h = header.getBoundingClientRect();
       anchor.style.setProperty('--rail-room', `${fit}px`);
       target.style.setProperty('--rail-room', `${fit}px`);
@@ -320,7 +334,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
         const y = devicePixel(Math.max(rest, a.top - h.top));
         copy.style.transform = `translateY(${y}px)`;
       }
-      setJoined(a.top < pane.getBoundingClientRect().top);
+      setJoined(nextInHeader);
     };
     update();
     const frame = requestAnimationFrame(update);
@@ -333,6 +347,23 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
     };
   }, []);
   const inHeader = joined && slot !== null;
+  useLayoutEffect(() => {
+    const section = focusedSectionRef.current;
+    if (!section) return;
+    focusedSectionRef.current = null;
+    const focused = document.activeElement;
+    if (
+      focused &&
+      focused !== document.body &&
+      !anchorRef.current?.contains(focused) &&
+      !copyRef.current?.contains(focused)
+    )
+      return;
+    const visible = inHeader ? copyRef.current : anchorRef.current;
+    visible
+      ?.querySelector<HTMLAnchorElement>(`a[data-section="${section}"]`)
+      ?.focus({preventScroll: true});
+  }, [inHeader, slot]);
   return (
     <div
       ref={anchorRef}
