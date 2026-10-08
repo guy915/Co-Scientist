@@ -325,13 +325,13 @@ def _clear_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     ("force_offline", "has_key", "expected"),
     [
         (None, True, False),
-        (None, False, True),
-        ("1", True, True),
+        (None, False, False),
+        ("deterministic", True, True),
     ],
     ids=[
         "real_when_key_present",
-        "offline_when_no_provider_key",
-        "offline_when_force_offline",
+        "real_without_provider_key",
+        "explicit_test_double",
     ],
 )
 def test_offline_mode(
@@ -340,9 +340,9 @@ def test_offline_mode(
     has_key: bool,
     expected: bool,
 ) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
     if force_offline is not None:
-        monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", force_offline)
+        monkeypatch.setenv("COSCIENTIST_TEST_DOUBLE", force_offline)
     _clear_credentials(monkeypatch)
     if has_key:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")

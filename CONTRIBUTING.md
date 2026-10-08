@@ -47,7 +47,7 @@ make start
 
 `make start` runs the API on port 8008, the UI on 5173 and MCP on 8888.
 It stops existing listeners on those ports. With no usable provider key, the
-app uses its deterministic offline backend. Set `COSCIENTIST_FORCE_OFFLINE=1`
+app returns a no-model error. Set `COSCIENTIST_TEST_DOUBLE=deterministic`
 to select it explicitly. See [local setup](docs/RUNNING-LOCALLY.md) for details.
 Keep credentials, local environment files and research outputs out of commits.
 

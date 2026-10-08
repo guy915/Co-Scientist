@@ -2,7 +2,7 @@
 
 The operator slot uses `anthropic/claude-haiku-5-5` at the direct Messages API.
 It is capacity between free OpenRouter routes and Azure. BYOK stays separate.
-The credit guard does not select a slot; routing must admit each fallback.
+Routing admits the slot and separately admits each Azure fallback.
 Operator runs stay Express; Standard and larger runs require BYOK.
 
 Set `ANTHROPIC_API_KEY` on the API service only. The owner claims the subscriber
@@ -43,11 +43,11 @@ Settlement is atomic and idempotent. A settlement failure blocks further credit
 calls rather than release unconfirmed spend. No credit row is erased with a run.
 
 A refusal is billed from any returned usage and counted by call type. Routing
-must separately admit Azure for that call, record the switch and stop after Azure.
+separately admits Azure for that call, records the switch and stops after Azure.
 There is no server-side fallback. No measured refusal rate or cache saving is
 available from hermetic tests. EQ must post paired quality results before an
-owner changes effort. Offline Message Batches may use the provider's 50% discount;
-they are disabled by default, and live runs never use them.
+owner changes effort. Message Batches are not implemented. The provider offers
+a 50% discount for offline batches; live runs never use them.
 
 Sources checked 8 October 2026:
 

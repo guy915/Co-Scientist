@@ -200,6 +200,47 @@ def test_a_stored_verdict_is_reused_only_when_its_fingerprint_matches() -> None:
     assert reusable_assessments(_gate_record([(_CLAIM, "speculative", "")])) == {}
 
 
+def _supporting_gate_record(fingerprint: str, span: dict[str, Any]) -> dict[str, Any]:
+    record = _gate_record([(_CLAIM, "speculative", fingerprint)])
+    record["claims"][0]["supporting_passages"] = [span]
+    return record
+
+
+@pytest.mark.parametrize(
+    ("span_url", "reused"),
+    [("https://example.org/kinase", True), ("https://example.org/elsewhere", False)],
+)
+def test_finalize_reuses_a_gate_verdict_with_spans_on_its_own_evidence_ids(
+    span_url: str, reused: bool
+) -> None:
+    url = "https://example.org/kinase"
+    gate_passage = EvidencePassage("pmid-1", _RELEVANT, source="pubmed", url=url)
+    store_passage = EvidencePassage("row-7f3a", _RELEVANT, source="pubmed", url=url)
+    quote = _RELEVANT[:40]
+    span = {"evidence_id": "pmid-1", "quote": quote, "start": 0, "end": 40}
+    span |= {"source": "pubmed", "url": span_url}
+    fingerprint = claim_fingerprint(ClaimRecord(_CLAIM, "speculative"), [gate_passage], "test-v1")
+    seen: list[str] = []
+
+    def assessor(claim: str, _passages: Any) -> AssessorDraft:
+        seen.append(claim)
+        return AssessorDraft(EntailmentLabel.INSUFFICIENT)
+
+    result = assess_hypothesis_claims(
+        [{"id": "h1", "statement": _CLAIM}],
+        [store_passage],
+        AssessorSpec(assessor, "test-v1"),
+        reuse={"h1": reusable_assessments(_supporting_gate_record(fingerprint, span))},
+    )
+
+    assessment = result[0][1][0][0]
+    assert seen == ([] if reused else [_CLAIM])
+    if reused:
+        assert assessment.label is EntailmentLabel.SUPPORTS
+        assert [s.evidence_id for s in assessment.supporting_passages] == ["row-7f3a"]
+        assert assessment.supporting_passages[0].quote == quote
+
+
 @pytest.mark.parametrize(
     ("method", "expected"),
     [
@@ -438,9 +479,9 @@ def test_offline_never_builds_the_assessor_that_calls_a_provider(
 ) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
     if force_offline:
-        monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+        monkeypatch.setenv("COSCIENTIST_TEST_DOUBLE", "deterministic")
     else:
-        monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+        monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
 
     _, assessor_id = build_assessor("deepseek/deepseek-chat")
 
@@ -450,7 +491,7 @@ def test_offline_never_builds_the_assessor_that_calls_a_provider(
 def test_ground_with_llm_assessor_persists_provenance(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
     run = seed_run("grounding goal")
     hyp_id = _add(run.id, "Supported", _CONTRADICTED, isolated_db)
