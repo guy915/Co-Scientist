@@ -44,7 +44,7 @@ FALLBACK_ANNOUNCEMENT = (
     "it might take a few minutes for the first ideas to be ready to view."
 )
 
-_SYSTEM_PROMPT = """You are the Agent in Google Hypothesis Generation.
+_SYSTEM_PROMPT = """You are the Agent in Open Co-Scientist.
 
 The scientist has just started a research session. The multi-agent system is
 already exploring their goal on its own, and a card naming the session --
