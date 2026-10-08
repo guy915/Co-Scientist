@@ -115,8 +115,7 @@ export function PrivacyContent() {
           seven-day expiry policy. Staged uploaded documents have a 30-day
           expiry policy. Currently, text already copied into a run, its results
           or chat remains with that work; deleting only a staged upload does not
-          remove those copies. Retention maintenance must run for time-based
-          policies to take effect.
+          remove those copies. The service checks time-based retention hourly.
         </p>
         <p>
           Standalone chats remain until deleted. Stored run credentials remain
@@ -124,7 +123,8 @@ export function PrivacyContent() {
           you remove them. Feedback is limited to 30 days, the newest 200
           submissions and 10 MiB. Local diagnostic logs have row limits rather
           than a fixed expiry time. Abuse counters may survive deletion for
-          their limited admission purpose.
+          their limited admission purpose. Hashed erasure markers stay for 24
+          hours to block late background writes from recreating deleted work.
         </p>
         <p>
           Deletion from the live service does not instantly remove older
@@ -137,6 +137,15 @@ export function PrivacyContent() {
       </section>
       <section>
         <h2>Your rights</h2>
+        <p>
+          Open Settings → Data in this browser to export your runs, chats,
+          extracted documents and settings as a JSON ZIP, or to delete all work
+          belonging to this browser identity. The export excludes provider keys
+          and original uploaded file bytes, which we do not store. Deletion
+          removes stored run credentials and documents and clears the
+          application’s browser storage. Keep the ownership ID until you finish:
+          clearing browser storage alone does not delete server data.
+        </p>
         <p>
           You may request access, correction, erasure, restriction of processing
           and, where applicable, a portable copy of your data. You may object to
@@ -166,10 +175,11 @@ export function PrivacyContent() {
           application advertising or analytics storage keys.
         </p>
         <p>
-          The current desktop trailer is an embedded YouTube video. Loading it
-          contacts Google, which applies its own privacy and storage policies.
-          The video is optional and is separate from the necessary application
-          storage listed here.
+          The trailer is a link to YouTube. We load no embedded video or Google
+          resources: YouTube receives a request only when you open that link,
+          and its own privacy and storage policies then apply. All application
+          storage serves the necessary functions listed here, so the application
+          does not need a cookie-consent banner.
         </p>
         <p>
           Local storage keys are co_scientist_client_id, cosci-theme,
