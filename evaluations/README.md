@@ -282,6 +282,17 @@ Default collection is offline; omit `--live` to exercise persistence without
 provider credentials. The offline artifact and receipt explicitly disclaim
 scientific quality, and the collector's tests deny socket connections.
 
+Artifacts contain checked databases, receipts and reports. Raw MCP logs and
+downloaded source ZIPs are excluded: console secret masking does not redact
+artifact bytes, and historical MCP refs can log credential-bearing URLs.
+Before publishing, the trusted harness checks outputs for configured provider
+credentials in literal, URL and JSON forms; unsafe files block the entire upload
+without altering scientific databases. The comparison checks prepared inputs
+before judging and outputs before publishing. A failed or missing check cannot
+authorize an upload. Keep local raw diagnostics private. If an older artifact
+exposed a key, contain that artifact and have its owner revoke/rotate the key;
+this check cannot revoke copies already obtained.
+
 The manual **Benchmark** workflow accepts `goal_id`, `benchmark_ref`, `tier`,
 `max_calls` and `label`. Dispatch one fixed goal on an exact source SHA:
 
@@ -291,9 +302,9 @@ gh workflow run benchmark.yml --ref main -f goal_id=cell-biology \
 ```
 
 Its summary includes the baseline row and descriptive claim sample/interval;
-the uploaded artifact retains the database, snapshot, receipt and logs even
-when the run step fails. Dispatch the other goals only within the agreed
-remaining daily share. The workflow never runs on pull requests.
+the uploaded artifact retains the checked database, snapshot and receipt even
+when the run step fails, provided the credential check passes. Dispatch the other
+goals only within the agreed remaining daily share. The workflow never runs on pull requests.
 Collection installs the selected research engine in an isolated clean worktree
 and uses the dispatched measurement launcher outside it. This instruments older
 research refs without editing them; receipts retain the actual research SHA and

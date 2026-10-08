@@ -72,12 +72,10 @@
   }
 }
 
-/* Content that appears (a message, a list row, a notice) fades and rises in
-   once on insertion; `ui-motion-enter-items` does so for each child of a list.
-   An animation, not a transition, so the element's hover transitions stay. */
+/* Keep entering text opaque so its contrast stays readable during motion.
+   An animation leaves each element's hover transitions independent. */
 @keyframes ui-motion-enter {
   from {
-    opacity: 0;
     translate: 0 var(--motion-shift);
   }
 }
