@@ -102,7 +102,7 @@ report this one pending owner step. No other hosted changes are authorized.
 ```text
 I am Lane W4 (models and spend) in guy915/Co-Scientist. Settlement, transport,
 cache accounting, credit guards and routing are merged through #620. The
-explicit adapter is merged as #626; private spend view #632 is in review and CI.
+explicit adapter is merged as #626; the private spend view is in #632.
 
 The remaining live acceptance gate needs an owner-local executor with existing
 environment keys and merged T boundaries. Cloud has no provider keys. Do not

@@ -161,14 +161,16 @@ Non-secret routing and storage variables on the `api` service:
 MCP_SERVER_URL=http://<mcp-private-host>:8888/mcp
 COSCIENTIST_DB_PATH=/app/data/coscientist.db
 RAILWAY_RUN_UID=0                                  # must stay set
+COSCIENTIST_TRUSTED_PROXY_CIDRS=100.64.0.0/24      # see TRUSTED-PROXY.md
 ALLOWED_ORIGINS=https://open-coscientist.com
 COSCIENTIST_RUN_RETENTION_DAYS=0
-COSCIENTIST_TRUSTED_PROXY_CIDRS=100.64.0.0/24
 ```
 
-Use that proxy CIDR only after checking the receiving deployment's actual peer
-and header overwrite behavior with two independent visitors. Admission must
-stay closed until [TRUSTED-PROXY.md](TRUSTED-PROXY.md) passes there.
+The optional paid Azure fallback needs `LLM_AZURE_ENABLED=1`,
+`LLM_TOTAL_BUDGET_EUR`, `LLM_AZURE_UNTIL`, `AZURE_OPENAI_ENDPOINT`,
+`AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_SUPERVISOR_DEPLOYMENT` and
+`AZURE_OPENAI_WORKER_DEPLOYMENT`; without all of them Azure stays off
+([Azure plan](azure-plan.md)).
 
 The zero run-retention setting disables scheduled deletion of completed runs;
 document retention remains separate (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`).
@@ -196,15 +198,6 @@ settings, distinct from the public build-time `VITE_SENTRY_DSN`.
   changed. Leave `CLAIM_VERIFIER_MODEL` unset so claim assessment inherits the
   worker model, and keep `COSCIENTIST_REQUIRE_FREE_MODELS` off so explicit
   BYOK stays available.
-- **Operator credit.** Set `ANTHROPIC_API_KEY` on the API only; the direct
-  Haiku slot uses monthly credit before Azure. Azure needs
-  `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION=v1`,
-  `AZURE_OPENAI_SUPERVISOR_DEPLOYMENT` and `AZURE_OPENAI_WORKER_DEPLOYMENT`.
-  Leave `LLM_AZURE_ENABLED=false` until the owner sets `LLM_TOTAL_BUDGET_EUR`
-  to remaining credit and confirms `LLM_AZURE_UNTIL`. The subscription can bill
-  a card beyond credit; [the hard ledger and portal steps](azure-setup.md) are
-  required. `LLM_ENABLED` disables every model dispatch. Do not set
-  `COSCIENTIST_TEST_DOUBLE` on a public service.
 - **Secrets** (values never enter this repository or document): the provider
   keys (`OPENROUTER_API_KEY`, and any other provider in use), the SMTP
   credentials, and:

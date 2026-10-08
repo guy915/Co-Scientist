@@ -43,7 +43,7 @@ Private spans export numeric input, read and write counts plus a stable numeric 
 ID and refusal flag. Cache keys and prompt text are excluded. Usage aggregates include
 write and refusal counts. The SDK maps native refusal to content_filter; refused HTTP 200
 responses are counted and rejected even when they contain text. Streams retain the verdict
-across a later usage-only chunk. Routing separately admits Azure fallback and
+across a later usage-only chunk. Routing (`platform/llm/routing.py`) separately admits Azure fallback and
 records the switch. A refusal uses Azure for that call; exhausted operator
 credit persists a cooldown until reset. Unknown stream outcomes retain their
 charge and do not replay at another provider.
