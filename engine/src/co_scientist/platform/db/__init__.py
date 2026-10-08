@@ -92,11 +92,16 @@ def connect(
 @contextlib.contextmanager
 def transaction(
     path: str | None = None,
+    *,
+    durable: bool = False,
 ) -> Generator[sqlite3.Connection, None, None]:
     """Batch related writes under one commit and fsync; never hold this
     writer lock over network I/O.
     """
     with connect(path) as conn:
+        if durable:
+            # Paid dispatch must not outrun an unsynced money reservation.
+            conn.execute("PRAGMA synchronous=FULL")
         # Acquire the writer at BEGIN to avoid a mid-transaction reader-to-
         # writer upgrade deadlock.
         conn.execute("BEGIN IMMEDIATE")

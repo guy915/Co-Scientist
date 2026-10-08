@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.science.scheduling.funnel import is_terminal_depth_pass, terminal_depth_owed
 from co_scientist.science.scheduling.models import TaskType, stacked_task_values
 
 logger = logging.getLogger(__name__)
@@ -38,12 +39,20 @@ def _companion_successor(state: WorkflowState, after: str) -> str | None:
 
 
 def route_next_task(state: WorkflowState) -> str:
-    """A missing scheduler decision falls back to terminal synthesis."""
+    """A missing scheduler decision falls back to terminal synthesis.
+    Finalists without depth get it before the terminal overview."""
     next_task = state.get("next_task") or "terminate"
     companions = stacked_task_values(state.get("supervisor_queue_actions") or [])
     node = TASK_ROUTES.get(companions[0] if companions else next_task, "research_overview")
+    if not companions and next_task == TaskType.TERMINATE.value and terminal_depth_owed(state):
+        node = "comprehensive_reflection"
     logger.info("Orchestrator routing next_task=%s -> %s", next_task, node)
     return node
+
+
+def route_after_deep_verification(state: WorkflowState) -> str:
+    """The terminal depth pass reports; every other pass ranks."""
+    return "research_overview" if is_terminal_depth_pass(state) else "ranking"
 
 
 # Standalone critique returns to the loop; EVOLVE's critique precedes evolution.
@@ -98,9 +107,8 @@ WORKFLOW_ROUTES: dict[str, Route] = {
     "reflection": "review",
     "review": "comprehensive_reflection",
     "comprehensive_reflection": "safety_screen",
-    # Probe core assumptions before ranking or breeding hypotheses.
     "safety_screen": "deep_verification",
-    "deep_verification": "ranking",
+    "deep_verification": route_after_deep_verification,
     "ranking": "orchestrator",
     "proximity": "orchestrator",
     # Meta-review's successor depends on the decision that scheduled it.

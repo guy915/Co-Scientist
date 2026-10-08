@@ -34,6 +34,8 @@ def _report_ideas(markdown: str, hypotheses: list[sqlite3.Row]) -> dict[str, lis
         if len(matches) > 1:
             raise ValueError("ambiguous report idea headings")
         if matches:
+            if sum(other["title"] == hyp["title"] for other in hypotheses) != 1:
+                raise ValueError("ambiguous delivered hypothesis identity")
             category = (
                 "screened" if "screened, not deep-verified" in matches[0].lower() else "featured"
             )

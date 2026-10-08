@@ -17,6 +17,7 @@ from co_scientist.domains.report.markdown.document import (
 from co_scientist.domains.report.markdown.hypothesis import (
     _render_hypothesis_entry,
     _render_references_section,
+    _render_screened_entry,
     group_by_hypothesis,
     references_by_hypothesis,
 )
@@ -298,6 +299,19 @@ def _render_top_hypotheses_markdown(
     return lines
 
 
+def _render_screened_hypotheses_markdown(
+    screened: list[dict[str, Any]], first_number: int
+) -> list[str]:
+    """Every idea that passed the screen stays in the report; numbering
+    continues the featured list so each idea keeps one heading."""
+    if not screened:
+        return []
+    lines: list[str] = ["## Screened ideas", ""]
+    for offset, hyp in enumerate(screened):
+        lines += _render_screened_entry(first_number + offset, hyp)
+    return lines
+
+
 def _render_citation_audit(
     citation_summary: dict[str, int] | None,
 ) -> list[str]:
@@ -315,6 +329,7 @@ class ReportMarkdownInputs:
     provider: str
     top_hypotheses: list[dict[str, Any]]
     goal_restatement: str | None = None
+    screened_hypotheses: list[dict[str, Any]] | None = None
     meta_review: dict[str, Any] | None = None
     citation_summary: dict[str, int] | None = None
     research_overview: dict[str, Any] | None = None
@@ -370,6 +385,9 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         _render_review_summary_markdown(inputs.critical_criteria),
         _render_main_research_directions_markdown(inputs.meta_review or {}),
         top_hypotheses,
+        _render_screened_hypotheses_markdown(
+            inputs.screened_hypotheses or [], len(inputs.top_hypotheses) + 1
+        ),
         _render_meta_review_ranking_markdown(inputs.meta_review or {}),
         _render_tournament_debates_markdown(inputs.matches or [], inputs.hypothesis_title_by_id),
         _render_knowledge_base_markdown(inputs.knowledge_base or []),
