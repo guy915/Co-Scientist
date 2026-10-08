@@ -14,12 +14,13 @@ from co_scientist.orchestration.engine_adapter.opts import (
     build_generator,
 )
 from co_scientist.orchestration.engine_tasks.portfolio import _enqueue_node_portfolio
-from co_scientist.orchestration.repository import events, runs, tasks
+from co_scientist.orchestration.repository import events, tasks
 from co_scientist.orchestration.repository.tasks import NewTask
 from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
 from co_scientist.platform.db import retrieval_calls as retrieval
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.checkpoints import NewCheckpoint
 from co_scientist.platform.db.models import (
     TERMINAL_STATUSES,

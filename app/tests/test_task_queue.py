@@ -7,9 +7,10 @@ import time
 
 import co_scientist.orchestration.repository.tasks as task_store
 import pytest
-from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository import tasks
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform import db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 
 from tests._engine_tasks_helpers import _enqueue, _run, _three_control_tasks

@@ -19,7 +19,8 @@ from co_scientist.orchestration.engine_tasks.gate import (
     _apply_gate_verdict,
     _GatePlan,
 )
-from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository import tasks
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.retrieval.article import Article
 

@@ -8,7 +8,7 @@ from fastapi import Request
 
 from co_scientist.core.sse import sse_frame
 from co_scientist.orchestration.repository import events as store
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import TERMINAL_STATUSES, RunRow, RunStatus
 
 # Paused runs are resumable but stop producing events; close the stream until

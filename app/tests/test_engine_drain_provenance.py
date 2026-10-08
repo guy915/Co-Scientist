@@ -11,9 +11,9 @@ from co_scientist.domains.research_state.repository import hypotheses, records
 from co_scientist.domains.research_state.repository.hypotheses import NewHypothesis
 from co_scientist.domains.research_state.repository.records import NewClaimEvidence, NewReview
 from co_scientist.orchestration.engine_tasks import inputs as engine_tasks_inputs
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.platform.db import retrieval_calls as retrieval
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.retrieval.research import (
     CallStatus,

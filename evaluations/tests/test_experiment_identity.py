@@ -31,7 +31,7 @@ def _persist(
 
 
 def _identity(run_id: str, db: str) -> dict[str, Any]:
-    from co_scientist.orchestration.repository import runs
+    from co_scientist.platform.db import runs
 
     run = runs.get_run(run_id, db_path=db)
     assert run is not None
@@ -119,7 +119,7 @@ def test_invalid_identity_stops_before_worker(
 ) -> None:
     from co_scientist.core.config import settings
     from co_scientist.orchestration import task_worker
-    from co_scientist.orchestration.repository import runs
+    from co_scientist.platform.db import runs
 
     run_id, db = _persist(tmp_path)
     run = runs.get_run(run_id, db_path=db)
@@ -149,7 +149,7 @@ def test_worker_drift_cannot_produce_an_arm_result(
 ) -> None:
     from co_scientist.core.config import settings
     from co_scientist.orchestration import task_worker
-    from co_scientist.orchestration.repository import runs
+    from co_scientist.platform.db import runs
 
     db = str(tmp_path / "arms.db")
     _run_driver.configure_environment(db, live=False)

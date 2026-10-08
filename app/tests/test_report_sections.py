@@ -7,8 +7,8 @@ from co_scientist.domains.report import build as report_build
 from co_scientist.domains.report import content as report_content
 from co_scientist.domains.report import gates as report_gates
 from co_scientist.domains.research_state.claims.gate import ClaimEdge
-from co_scientist.orchestration.repository import runs
 from co_scientist.platform.db import retrieval_calls as retrieval
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.retrieval_calls import NewRetrievalCall
 
 from tests._report_helpers import render_markdown

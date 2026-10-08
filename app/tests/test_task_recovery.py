@@ -13,18 +13,18 @@ from co_scientist.core.exceptions import LLMCallBudgetExceededError, LLMTimeoutE
 from co_scientist.domains.access import credentials
 from co_scientist.orchestration import engine_tasks, task_worker
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks as store
 from co_scientist.orchestration.repository import tasks as store_tasks
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
-from co_scientist.orchestration.repository.runs import RunCreateOptions
 from co_scientist.platform import db as store_db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import (
     UNKNOWN_PROVIDER_OUTCOME_ERROR,
     RunStatus,
     ScientificTask,
 )
+from co_scientist.platform.db.runs import RunCreateOptions
 
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run

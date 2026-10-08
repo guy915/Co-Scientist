@@ -13,8 +13,9 @@ from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
 from co_scientist.domains.safety.gate import POLICY_VERSION, SafetyDecision, ScreenSubject
 from co_scientist.orchestration import task_worker
-from co_scientist.orchestration.repository import runs, tasks
+from co_scientist.orchestration.repository import tasks
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from fastapi.testclient import TestClient
 

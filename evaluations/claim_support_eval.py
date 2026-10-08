@@ -89,8 +89,8 @@ def _rate(part: int, total: int) -> float | None:
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     from co_scientist.domains.research_state.repository import hypotheses as store
     from co_scientist.domains.research_state.repository import records
-    from co_scientist.orchestration.repository import runs
     from co_scientist.platform.db import retrieval_calls as retrieval
+    from co_scientist.platform.db import runs
 
     from evaluations._usage_evidence import summarize_usage
 

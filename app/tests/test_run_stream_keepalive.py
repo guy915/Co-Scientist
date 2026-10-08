@@ -5,7 +5,7 @@ from threading import Timer
 
 import pytest
 from co_scientist.api.runs import events as run_events
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client

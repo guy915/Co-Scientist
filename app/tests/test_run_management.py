@@ -6,8 +6,7 @@ import pytest
 from co_scientist.core import run_modes
 from co_scientist.domains.chat import seed
 from co_scientist.orchestration.engine_adapter.opts import _generator_kwargs
-from co_scientist.orchestration.repository import runs, runs_views
-from co_scientist.platform.db import logs
+from co_scientist.platform.db import logs, runs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from co_scientist.science.scheduling import (
     Budget,
@@ -201,7 +200,7 @@ def test_rename_and_delete_refuse_foreign_demo_and_unknown_runs(isolated_db: str
     run_id = _draft_run(client)
     stranger = {"X-Client-ID": "someone-else"}
     asyncio.run(seed.seed_demo_runs(isolated_db))
-    demo = runs_views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)[0]
+    demo = runs.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)[0]
 
     def refused(method: str, run: str, headers: dict[str, str]) -> int:
         return client.request(

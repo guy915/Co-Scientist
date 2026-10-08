@@ -20,7 +20,7 @@ from co_scientist.domains.safety.semantic import (
 )
 from co_scientist.domains.safety.types import SafetyDecision, redact_matched_spans
 from co_scientist.domains.safety.types import redact_payload_text as redact_payload_text
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 
 logger = logging.getLogger(__name__)
 

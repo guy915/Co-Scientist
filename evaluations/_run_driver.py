@@ -46,8 +46,8 @@ def persist_arm_run(
     goal: str, tier: str, overrides: dict[str, Any], invocation: ArmInvocation
 ) -> str:
     from co_scientist.core.run_modes import resolved_run_config, setup_config
-    from co_scientist.orchestration.repository import runs
-    from co_scientist.orchestration.repository.runs import RunCreateOptions
+    from co_scientist.platform.db import runs
+    from co_scientist.platform.db.runs import RunCreateOptions
 
     config = resolved_run_config(
         {
@@ -152,7 +152,7 @@ def run_completion_status(run: Any) -> tuple[bool, bool]:
     """Queue drain proves neither completion nor a real backend; inspect both
     persisted facts.
     """
-    from co_scientist.orchestration.repository import runs as store
+    from co_scientist.platform.db import runs as store
     from co_scientist.platform.db.models import RunStatus
 
     if run is None:
@@ -189,8 +189,8 @@ def run_arm(
 ) -> dict[str, Any]:
     from co_scientist.domains.research_state.repository import hypotheses as store
     from co_scientist.domains.research_state.repository import records
-    from co_scientist.orchestration.repository import runs as store_runs
     from co_scientist.orchestration.repository import tasks
+    from co_scientist.platform.db import runs as store_runs
 
     db_path = invocation.db_path
     run_id = persist_arm_run(goal, tier, overrides, invocation)

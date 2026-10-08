@@ -5,8 +5,7 @@ from typing import Any, cast
 import pytest
 from co_scientist.api.operator_access import is_operator
 from co_scientist.core.config import settings
-from co_scientist.orchestration.repository import runs
-from co_scientist.orchestration.repository import runs_views as views
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunStatus
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
@@ -126,7 +125,7 @@ def test_headerless_caller_is_refused_and_creates_nothing(
 
     assert response.status_code == 400
     assert "X-Client-ID" in response.json()["detail"]
-    assert views.list_runs(client_id="") == []
+    assert runs.list_runs(client_id="") == []
 
 
 @pytest.mark.parametrize("host", ["example.com/#", "example.com/?"])

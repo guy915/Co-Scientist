@@ -16,11 +16,10 @@ from co_scientist.orchestration.engine_tasks.fanout import _GenerationPlan, _Str
 from co_scientist.orchestration.engine_tasks.fanout_aggregates import _AggregateSpec
 from co_scientist.orchestration.engine_tasks.support import ExactSuccessor, TaskCommit
 from co_scientist.orchestration.repository import events as store_events
-from co_scientist.orchestration.repository import runs
 from co_scientist.orchestration.repository import tasks as store
 from co_scientist.orchestration.repository import tasks_lifecycle as lifecycle
 from co_scientist.platform import db
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 from co_scientist.platform.db.models import RunStatus as StoreRunStatus
 from co_scientist.platform.llm import ModelCallStats, record_call
 

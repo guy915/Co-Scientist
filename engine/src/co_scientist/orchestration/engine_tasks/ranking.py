@@ -20,10 +20,10 @@ from co_scientist.orchestration.engine_tasks.support import (
     leased_state,
     merge_usage_snapshots,
 )
-from co_scientist.orchestration.repository import events, runs
-from co_scientist.orchestration.repository.runs_views import _ACTIVE_RUN_STATUSES
+from co_scientist.orchestration.repository import events
 from co_scientist.platform import db
-from co_scientist.platform.db.models import ScientificTask
+from co_scientist.platform.db import runs
+from co_scientist.platform.db.models import _ACTIVE_RUN_STATUSES, ScientificTask
 from co_scientist.platform.llm import scoped_telemetry
 from co_scientist.science.ranking import RankingJudgement, RankingJudgingContext
 

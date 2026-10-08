@@ -25,12 +25,13 @@ from co_scientist.orchestration.engine_tasks.support import (
     assert_task_commit_allowed,
     restore_checkpoint_state,
 )
-from co_scientist.orchestration.repository import events, runs
+from co_scientist.orchestration.repository import events
 from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.run_events import make_emitter
 from co_scientist.orchestration.safety_gate import apply_safety_gate
 from co_scientist.platform import db
 from co_scientist.platform.db import retrieval_calls as retrieval
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
 
 

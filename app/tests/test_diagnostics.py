@@ -11,13 +11,11 @@ from co_scientist.api.diagnostics import (
     HealthCheck,
 )
 from co_scientist.core.config import settings
-from co_scientist.orchestration.repository import runs
-from co_scientist.orchestration.repository import runs_views as views
 from co_scientist.orchestration.repository import tasks as store
 from co_scientist.orchestration.repository.tasks import queue_health_snapshot
 from co_scientist.orchestration.repository.tasks_lifecycle import QueueHealthSnapshot
 from co_scientist.platform import db
-from co_scientist.platform.db import checkpoints
+from co_scientist.platform.db import checkpoints, runs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
@@ -120,7 +118,7 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
     assert reconciled.status == RunStatus.FAILED.value
     assert reconciled.error and "restart" in reconciled.error
 
-    demo_runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    demo_runs = runs.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(demo_runs) == 3
 
 

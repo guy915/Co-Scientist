@@ -7,14 +7,14 @@ from co_scientist.domains.chat import seed
 from co_scientist.domains.chat.repository import examples, interviews
 from co_scientist.domains.report import repository as reports
 from co_scientist.domains.research_state.repository import hypotheses, records
-from co_scientist.orchestration.repository import runs_views
 from co_scientist.platform import db
+from co_scientist.platform.db import runs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
 
 
 def _example(db_path: str) -> str:
     asyncio.run(seed.seed_demo_runs(db_path))
-    return runs_views.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)[0].id
+    return runs.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)[0].id
 
 
 def test_private_copy_preserves_lineage_reviews_evidence_report_and_no_tasks(

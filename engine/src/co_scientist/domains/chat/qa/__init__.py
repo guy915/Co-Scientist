@@ -22,7 +22,7 @@ from co_scientist.domains.chat.qa.manifest import build_evidence_manifest as bui
 from co_scientist.domains.chat.qa.manifest import build_system_prompt as build_system_prompt
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
-from co_scientist.orchestration.repository import runs
+from co_scientist.platform.db import runs
 from co_scientist.platform.llm.attempts.retry import is_credential_rejected
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
 from co_scientist.platform.llm.request.thinking import (
