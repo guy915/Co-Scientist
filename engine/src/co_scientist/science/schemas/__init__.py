@@ -1,5 +1,6 @@
 from typing import Any
 
+from co_scientist.science.schemas.finalist_review import FINALIST_REVIEW_SCHEMA
 from co_scientist.science.schemas.generation import (
     ASSUMPTION_SUB_SCHEMA,
     ASSUMPTION_TREE_SCHEMA,
@@ -18,6 +19,7 @@ from co_scientist.science.schemas.literature import (
     RESEARCH_QUESTIONS_SCHEMA,
     RESEARCH_STANCES_SCHEMA,
 )
+from co_scientist.science.schemas.literature_batch import LITERATURE_PAPER_ANALYSIS_BATCH_SCHEMA
 from co_scientist.science.schemas.planning import (
     META_REVIEW_SCHEMA,
     SUPERVISOR_SCHEMA,
@@ -61,6 +63,7 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "review_batch": REVIEW_BATCH_SCHEMA,
     "full_review": FULL_REVIEW_SCHEMA,
     "simulation_review": SIMULATION_REVIEW_SCHEMA,
+    "finalist_review": FINALIST_REVIEW_SCHEMA,
     "evolution": EVOLUTION_SCHEMA,
     "evolution_feasibility": EVOLUTION_SCHEMA,
     "evolution_out_of_box": EVOLUTION_SCHEMA,
@@ -81,6 +84,7 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "research_overview_revise": RESEARCH_OVERVIEW_SCHEMA,
     "supervisor": SUPERVISOR_SCHEMA,
     "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
+    "literature_review_paper_analysis_batch": LITERATURE_PAPER_ANALYSIS_BATCH_SCHEMA,
     "literature_review_relevance_batch": LITERATURE_RELEVANCE_BATCH_SCHEMA,
     "hypothesis_novelty_analysis": HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
     "hypothesis_validation_synthesis_with_tools": (HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA),

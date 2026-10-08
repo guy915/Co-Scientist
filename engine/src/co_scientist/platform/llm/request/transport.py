@@ -19,6 +19,8 @@ from co_scientist.platform.llm.admission.service import reserve_physical, settle
 from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
 from co_scientist.platform.llm.request.azure import LUNA, NANO
 from co_scientist.platform.llm.request.backend import active_backend
+from co_scientist.platform.llm.request.cache import apply_dispatch_cache_key, apply_prompt_cache
+from co_scientist.platform.llm.request.response import is_model_refusal
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
     end_request_span,
@@ -50,6 +52,7 @@ class _CompletionStream:
         self._last = response
         self._done = False
         self._receipt = receipt
+        self._refused = False
 
     def __aiter__(self) -> "_CompletionStream":
         return self
@@ -63,6 +66,7 @@ class _CompletionStream:
         except BaseException as error:
             self._finish(error)
             raise
+        self._refused = self._refused or is_model_refusal(chunk)
         if getattr(chunk, "usage", None) is not None:
             self._last = chunk
         return chunk
@@ -76,13 +80,23 @@ class _CompletionStream:
             try:
                 settle_physical(self._receipt, self._last)
             except BaseException as settlement_error:
-                self._context.run(record_completion_failure, self._model, settlement_error, latency)
-                end_request_span(self._span, self._last, settlement_error)
+                self._context.run(
+                    record_completion_failure,
+                    self._model,
+                    settlement_error,
+                    latency,
+                    refused=self._refused,
+                )
+                end_request_span(self._span, self._last, settlement_error, refused=self._refused)
                 raise
-            self._context.run(record_completion_response, self._model, self._last, latency)
+            self._context.run(
+                record_completion_response, self._model, self._last, latency, refused=self._refused
+            )
         else:
-            self._context.run(record_completion_failure, self._model, error, latency)
-        end_request_span(self._span, self._last, error)
+            self._context.run(
+                record_completion_failure, self._model, error, latency, refused=self._refused
+            )
+        end_request_span(self._span, self._last, error, refused=self._refused)
 
     async def aclose(self) -> None:
         self._finish(asyncio.CancelledError())
@@ -126,6 +140,7 @@ async def complete_request(
         # establish caller funding for this route.
         raise ProviderAdmissionError("No model is available right now")
     apply_provider_constraints(completion_args, model_name)
+    apply_prompt_cache(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
     receipt = None
@@ -140,6 +155,7 @@ async def complete_request(
     require_enabled()
     if receipt is not None and receipt.paid:
         paid_dispatch_config(receipt.db_path)
+    apply_dispatch_cache_key(completion_args, model_name)
     span = start_request_span(model_name, completion_args)
     start = time.monotonic()
     try:

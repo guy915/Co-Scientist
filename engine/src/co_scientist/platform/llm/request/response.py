@@ -23,6 +23,7 @@ class TokenUsage:
     completion_tokens: int = 0
     reasoning_tokens: int = 0
     cached_prompt_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 def extract_token_usage(response: Any) -> TokenUsage:
@@ -36,11 +37,15 @@ def extract_token_usage(response: Any) -> TokenUsage:
     reasoning_tokens = getattr(details, "reasoning_tokens", None) or 0
     prompt_details = getattr(usage, "prompt_tokens_details", None)
     cached = getattr(prompt_details, "cached_tokens", None) or 0
+    written = getattr(prompt_details, "cache_write_tokens", None)
+    if written is None:
+        written = getattr(prompt_details, "cache_creation_tokens", None) or 0
     return TokenUsage(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         reasoning_tokens=reasoning_tokens,
         cached_prompt_tokens=min(cached, prompt_tokens),
+        cache_write_tokens=written,
     )
 
 
@@ -76,6 +81,14 @@ def _finish_reason(response: Any) -> str | None:
     return None
 
 
+def is_model_refusal(response: Any) -> bool:
+    # The pinned SDK maps Anthropic's native refusal to content_filter.
+    return getattr(response, "stop_reason", None) == "refusal" or _finish_reason(response) in (
+        "refusal",
+        "content_filter",
+    )
+
+
 def _served_model(response: Any) -> str | None:
     served = getattr(response, "model", None)
     if not isinstance(served, str) or not served.strip():
@@ -106,14 +119,24 @@ def _log_fallback_answer(response: Any, model_name: str) -> None:
 
 def _extract_completion_content(response: Any, model_name: str) -> str:
     _log_fallback_answer(response, model_name)
+    if is_model_refusal(response):
+        raise LLMContentFilteredError("The provider refused the response.")
     content = response.choices[0].message.content
+    if isinstance(content, list):
+        texts = []
+        for block in content:
+            kind = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+            text = block.get("text") if isinstance(block, dict) else getattr(block, "text", None)
+            if kind == "text" and isinstance(text, str):
+                texts.append(text)
+        content = "".join(texts)
 
-    if content is None or not content.strip():
+    if not isinstance(content, str) or not content.strip():
         # The attempt boundary logs once with retry context; logging extraction
         # failures here duplicates it.
         raise _empty_content_error(response, model_name, _empty_content_diagnosis(response))
 
-    return cast(str, content)
+    return content
 
 
 def _empty_content_error(response: Any, model_name: str, diagnosis: str) -> ValueError:

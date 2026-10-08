@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
@@ -88,6 +90,46 @@ def _judged_pairs(state: dict[str, Any]) -> set[frozenset[str]]:
     return judged
 
 
+def judge_inputs_key(pair: tuple[Any, Any], state: dict[str, Any]) -> str:
+    """Everything a judge reads for one pair: both texts, the run's guidance
+    and criteria, and the model. A rematch on the same key would only repeat
+    a verdict the Elo already counts."""
+    guidance = {
+        key: state.get(key)
+        for key in (
+            "supervisor_guidance",
+            "meta_review",
+            "run_setup_guidance",
+            "run_focus_guidance",
+            "criteria",
+            "model_name",
+        )
+    }
+    payload = json.dumps(
+        {"texts": sorted(h.text for h in pair), "guidance": guidance},
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _unchanged_rematches(state: dict[str, Any], eligible: list[Any]) -> set[frozenset[str]]:
+    """Cross-cycle rematches stay open while either idea or the guidance
+    changed; an unchanged pair keeps its earlier verdict instead."""
+    by_id = {hypothesis.id: hypothesis for hypothesis in eligible}
+    unchanged: set[frozenset[str]] = set()
+    for detail in state.get("tournament_matchups") or []:
+        first = by_id.get(detail.get("hypothesis_a_id"))
+        second = by_id.get(detail.get("hypothesis_b_id"))
+        if (
+            first is not None
+            and second is not None
+            and detail.get("input_fingerprint") == judge_inputs_key((first, second), state)
+        ):
+            unchanged.add(frozenset({first.id, second.id}))
+    return unchanged
+
+
 def _ranking_wave(
     candidates: list[Any],
     previous_pair: frozenset[str],
@@ -130,7 +172,7 @@ def _prepare_ranking_wave(
         min(wave_size + 1, rounds),
         state["research_goal"],
         int(state.get("current_iteration", 0)) * 10_000 + index,
-        judged=_judged_pairs(state),
+        judged=_judged_pairs(state) | _unchanged_rematches(state, eligible),
     )
     previous_pair = frozenset(str(item) for item in task.inputs["previous_pair"])
     return _WavePlan(
@@ -220,7 +262,7 @@ def _apply_wave_elo(
         result = apply_ranking_matchup(
             pair, judgement, k_factor=k_factor, current_iteration=iteration
         )
-        details.append(result.detail)
+        details.append({**result.detail, "input_fingerprint": judge_inputs_key(pair, state)})
         total_calls += result.llm_calls
         last_pair = [pair[0].id, pair[1].id]
     return details, total_calls, last_pair

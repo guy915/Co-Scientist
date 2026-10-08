@@ -13,6 +13,8 @@ import {IconButton, Menu, MenuItem, TextArea} from '@/shared/ui';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {Connector, SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
+import {useLaunchStatus} from '@/shared/hooks/launch_status_context';
+import {LAUNCH_NOTICE_ID} from '@/shared/ui/launch_status_banner';
 
 export interface ComposerProps {
   input: string;
@@ -55,7 +57,9 @@ export function Composer({
     useComposerAttachments();
   const {connectorsOpen, setConnectorsOpen, sourceControlsRef} =
     useConnectorsMenu();
-  const submitDisabled = !input.trim() || busy;
+  const {status} = useLaunchStatus();
+  const paused = status?.paused ?? false;
+  const submitDisabled = !input.trim() || busy || paused;
   const placeholder = inConversation
     ? 'Ask Co-Scientist'
     : 'Start a new research goal to begin';
@@ -83,6 +87,10 @@ export function Composer({
   return (
     <form
       onSubmit={event => {
+        if (paused) {
+          event.preventDefault();
+          return;
+        }
         onSubmit(
           event,
           attachments.map(attachment => attachment.file),
@@ -137,7 +145,14 @@ export function Composer({
           type={stoppable ? 'button' : 'submit'}
           icon={stoppable ? 'stop' : 'send'}
           label={stoppable ? 'Stop' : 'Send'}
-          tooltip={stoppable ? 'Stop' : 'Submit'}
+          tooltip={
+            stoppable
+              ? 'Stop'
+              : paused
+                ? (status?.message ?? 'Research is paused.')
+                : 'Submit'
+          }
+          aria-describedby={!stoppable && paused ? LAUNCH_NOTICE_ID : undefined}
           layoutClassName="pointer-events-auto"
           disabled={!stoppable && submitDisabled}
           onClick={stoppable ? onStop : undefined}
