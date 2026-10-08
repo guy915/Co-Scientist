@@ -122,8 +122,10 @@ frontend host; everything there is compiled into public assets.
 - Headers: `/assets/*` is cached for a year and immutable; every path sends
   `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`,
-  `X-Frame-Options: DENY`, and a `Permissions-Policy` that denies camera,
-  microphone, geolocation and payment.
+  `X-Frame-Options: DENY`, a `Permissions-Policy` that denies camera,
+  microphone, geolocation and payment, and a Content-Security-Policy. `/` and
+  `*.html` are `no-cache`. The policy's `connect-src` names the API origin:
+  a new API domain needs a `_headers` change as well as `VITE_API_BASE_URL`.
 
 ## Database replication (optional)
 
@@ -183,14 +185,16 @@ settings, distinct from the public build-time `VITE_SENTRY_DSN`.
   - `BYOK_ENCRYPTION_KEY`, which encrypts bring-your-own-key credentials for
     the run lifetime; BYOK is unavailable without it.
   - `LOGS_ADMIN_TOKEN`, the operator token for the app-wide persisted-log
-    view, sent as `X-Logs-Token`. Without it, only loopback callers get that
-    view.
+    view, sent as `X-Logs-Token`. Without it, no caller gets that view;
+    loopback callers get no operator access.
 - **MCP shared secret.** `COSCIENTIST_MCP_SHARED_SECRET` must be identical on
   both services. When set, every MCP call except the plain `/` status route
   must carry it in `X-MCP-Shared-Secret` or receive 401
   (`engine/mcp_server/auth_middleware.py`); the engine client adds the header
-  (`platform/retrieval/mcp_client/__init__.py`). Unset on both, the check is
-  a no-op. Read back its presence on both services without exposing it. MCP
+  (`platform/retrieval/mcp_client/__init__.py`). When it is unset, MCP refuses
+  every call except `/`. Only local development can opt out, with
+  `COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1` and a loopback peer. Read
+  back its presence on both services without exposing it. MCP
   is server-to-server only and allows no browser origin.
 - **MCP service variables:** `COSCIENTIST_MCP_PORT=8888`, the search keys
   (`WEB_SEARCH_PROVIDER` with `BRAVE_API_KEY` or `TAVILY_API_KEY`),

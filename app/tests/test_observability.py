@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import json
 import logging
+import logging.handlers
+import queue
 from types import SimpleNamespace
 from typing import Any
 
@@ -49,6 +51,62 @@ def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
     assert key not in payload["exc_info"]
     assert "[REDACTED]" in payload["exc_info"]
     assert diagnostic in payload["exc_info"]
+
+
+def test_uvicorn_lifecycle_and_access_lines_are_json_on_stdout_not_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import logging.config
+
+    from uvicorn.config import LOGGING_CONFIG
+
+    root = logging.getLogger()
+    root_handlers = list(root.handlers)
+    logging.config.dictConfig(LOGGING_CONFIG)
+    try:
+        handler = configure_logging()
+        stream = io.StringIO()
+        handler.stream = stream  # type: ignore[attr-defined]
+
+        logging.getLogger("uvicorn.error").info("Application startup complete.")
+        logging.getLogger("uvicorn.access").info(
+            '%s - "%s %s HTTP/%s" %d', "127.0.0.1:1", "GET", "/health", "1.1", 200
+        )
+        try:
+            raise RuntimeError("handler exploded")
+        except RuntimeError:
+            logging.getLogger("uvicorn.error").exception("Exception in ASGI application")
+    finally:
+        for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+            logging.getLogger(name).handlers.clear()
+        root.handlers[:] = root_handlers
+        _restore_default_logging()
+
+    assert capsys.readouterr().err == ""
+    records = [json.loads(line) for line in stream.getvalue().splitlines()]
+    assert [(r["logger"], r["level"]) for r in records] == [
+        ("uvicorn.error", "INFO"),
+        ("uvicorn.access", "INFO"),
+        ("uvicorn.error", "ERROR"),
+    ]
+    assert records[1]["message"] == '127.0.0.1:1 - "GET /health HTTP/1.1" 200'
+    assert "handler exploded" in records[2]["exc_info"]
+
+
+def test_reconfigured_logging_keeps_the_capture_handler_on_uvicorn() -> None:
+    capture = logging.handlers.QueueHandler(queue.SimpleQueue())
+    access = logging.getLogger("uvicorn.access")
+    access.addHandler(capture)
+    try:
+        configure_logging()
+        configure_logging()
+        handlers = list(access.handlers)
+    finally:
+        access.removeHandler(capture)
+        _restore_default_logging()
+
+    assert capture in handlers
+    assert sum(isinstance(h, logging.StreamHandler) for h in handlers) == 1
 
 
 def _logs_endpoint_seed(
