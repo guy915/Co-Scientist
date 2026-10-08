@@ -642,9 +642,8 @@ export function EvidenceSection() {
         </svg>
         <div>
           <p className={LEDE_CLASSES}>
-            Each hypothesis is split into atomic claims. Passages from the
-            literature are matched to every claim and judged before the idea may
-            enter the tournament.
+            Each idea the report features is split into atomic claims. Passages
+            from the literature are matched to every claim and judged.
           </p>
           <div className="mt-7 grid gap-3">
             {LANDING_VERDICTS.map(v => (
