@@ -202,25 +202,50 @@ def test_corrupt_status_cannot_break_operator_reads(
     assert backups.read_status(database) in (None, {"status": "failed"})
 
 
+@pytest.mark.parametrize("api_startup_delay", [0.0, 0.5])
 def test_api_keeps_serving_while_only_the_replication_daemon_is_replaced(
     fixture_replica: tuple[str, str, Path, dict[str, str]],
     monkeypatch: pytest.MonkeyPatch,
+    api_startup_delay: float,
 ) -> None:
     binary, config, database, environment = fixture_replica
     # The fake daemon/forced snapshot asserts no overlap. A real independent
-    # child writes serving progress through two shortened daily deadlines.
+    # child writes serving progress while the supervisor's clock advances
+    # through two deadlines without racing the child's fixed lifetime.
     progress = database.parent / "api-progress"
     api = database.parent / "api.py"
     api.write_text(
         "import time\nfrom pathlib import Path\n"
+        f"time.sleep({api_startup_delay})\n"
         f"p=Path({str(progress)!r})\n"
-        "for n in range(150):\n p.write_text(str(n))\n time.sleep(.01)\n"
+        "q=p.with_suffix('.next')\n"
+        "for n in range(150):\n q.write_text(str(n)); q.replace(p)\n time.sleep(.01)\n"
     )
     monkeypatch.setattr(backups, "INTERVAL_SECONDS", 0.01)
     observed: list[int] = []
     actual_refresh = backups.refresh
 
+    class SupervisorClock:
+        now = 0.0
+
+        def monotonic(self) -> float:
+            return self.now
+
+        def time(self) -> float:
+            return time.time()
+
+        def sleep(self, seconds: float) -> None:
+            if len(observed) < 2:
+                self.now += seconds
+            time.sleep(0.01)
+
+    monkeypatch.setattr(backups, "time", SupervisorClock())
+
     def refresh(binary: str, configuration: str, database: Path) -> dict[str, object]:
+        deadline = time.monotonic() + 1.5
+        while not progress.exists() or (observed and int(progress.read_text()) <= observed[-1]):
+            assert time.monotonic() < deadline, "API child did not make progress"
+            time.sleep(0.01)
         result = actual_refresh(binary, configuration, database, environment=environment)
         observed.append(int(progress.read_text()))
         return result
