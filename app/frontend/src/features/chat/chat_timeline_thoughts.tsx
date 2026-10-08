@@ -48,7 +48,7 @@ function ThoughtsSummary({
 }) {
   return (
     <Button
-      variant="text"
+      variant="disclosure"
       size="lg"
       layoutClassName="-ml-3 text-left"
       aria-expanded={open}
@@ -111,7 +111,9 @@ export function ThoughtsDisclosure({
   return (
     // Use a button and panel because native details hides content without an
     // animatable transition.
-    <div className="ucs-thoughts mt-1 mb-4">
+    // mb-3 matches the turn's gap-3 to its action row, so the space above
+    // and below the reply reads as one rhythm.
+    <div className="ucs-thoughts mb-3">
       <ThoughtsSummary
         live={live}
         open={open}

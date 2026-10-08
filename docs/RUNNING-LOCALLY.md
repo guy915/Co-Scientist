@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Python 3.12 for the complete application and MCP service. The internal
-  engine package supports Python 3.10+.
+  engine package requires Python 3.12+.
 - Node.js 22.13+ for frontend tooling and Bun 1.3.14 for the committed locks.
   Install Bun from [the official instructions](https://bun.sh/docs/installation)
   and select `bun upgrade --version 1.3.14` if necessary.

@@ -152,7 +152,7 @@ function LearningSectionToggle({
 }) {
   return (
     <Button
-      variant="text"
+      variant="disclosure"
       size="sm"
       trailingIcon={expanded ? 'expand_less' : 'expand_more'}
       layoutClassName="mt-4 -ml-2 pointer-coarse:min-h-11"

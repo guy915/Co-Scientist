@@ -1,4 +1,5 @@
-import {lazy, type ReactElement, Suspense} from 'react';
+import {subscribeDataErasure} from '@/shared/lib/data_erasure_sync';
+import {lazy, type ReactElement, Suspense, useEffect} from 'react';
 import {Navigate, Route, Routes} from 'react-router-dom';
 import {ErrorBoundary} from '@/shared/ui/error_boundary';
 import {NoIndex} from './not_found_page';
@@ -18,6 +19,12 @@ const RunDetail = lazy(() =>
   })),
 );
 
+const LegalPage = lazy(() =>
+  import('@/features/legal/legal_page').then(module => ({
+    default: module.LegalPage,
+  })),
+);
+
 function PageLoading() {
   return <PageStatus>Loading page…</PageStatus>;
 }
@@ -34,6 +41,8 @@ function page(title: string, element: ReactElement) {
 function WorkbenchRoutes() {
   return (
     <Routes>
+      <Route path="/privacy" element={<LegalPage kind="privacy" />} />
+      <Route path="/terms" element={<LegalPage kind="terms" />} />
       <Route path="/" element={page('Workspace', <ChatWorkspace />)} />
       <Route path="/chats/:id" element={page('Workspace', <ChatWorkspace />)} />
       <Route
@@ -54,6 +63,7 @@ function WorkbenchRoutes() {
 }
 
 export function WorkbenchApp() {
+  useEffect(() => subscribeDataErasure(() => window.location.assign('/')), []);
   // Keep the boundary outside theme/layout so their crashes are caught while
   // the shell persists across route changes.
   return (
