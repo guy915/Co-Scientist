@@ -174,7 +174,7 @@ _NUMERIC_ATTRIBUTES = frozenset(
 _ID_ATTRIBUTES = frozenset({"co_scientist.run_id", "co_scientist.task.id"})
 _METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 _SPAN_NAMES = frozenset(
-    {"task.execute", "llm.call_llm", "llm.call_llm_json", "llm.call_llm_stream", "llm.attempt"}
+    {"task.execute", "llm.call_llm", "llm.call_llm_json", "llm.call_llm_with_tools", "llm.attempt"}
 )
 
 

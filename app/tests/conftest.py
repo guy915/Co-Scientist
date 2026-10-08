@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import pathlib
 from collections.abc import Iterator
 
@@ -8,6 +9,10 @@ from co_scientist.core.config import PROVIDER_CREDENTIAL_ENV
 from co_scientist.platform.llm import process_mode
 
 from ._process_mode_helpers import FakeProcessMode
+
+# LiteLLM fetches this config from GitHub on its first Anthropic request in a
+# process, so a test recording outbound requests saw it depending on order.
+os.environ.setdefault("LITELLM_LOCAL_ANTHROPIC_BETA_HEADERS", "True")
 
 # Scrub credentials from the shared provider map so newly supported keys cannot
 # leak into paid calls.
