@@ -14,6 +14,11 @@ CREATE TABLE IF NOT EXISTS provider_admissions (
     calls INTEGER NOT NULL, tokens INTEGER NOT NULL,
     PRIMARY KEY(day, scope, subject)
 );
+CREATE TABLE IF NOT EXISTS provider_token_reservations (
+    id TEXT PRIMARY KEY, day INTEGER NOT NULL, client_id TEXT NOT NULL,
+    host TEXT NOT NULL, tokens INTEGER NOT NULL, app INTEGER NOT NULL,
+    used_tokens INTEGER
+);
 CREATE TABLE IF NOT EXISTS run_call_admissions (
     run_id TEXT PRIMARY KEY, calls INTEGER NOT NULL, ceiling INTEGER NOT NULL
 );

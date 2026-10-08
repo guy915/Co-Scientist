@@ -3,11 +3,19 @@
 import hashlib
 import ipaddress
 import sqlite3
+import uuid
+from dataclasses import dataclass
 
 from co_scientist.core.exceptions import ProviderAdmissionError
-from co_scientist.platform.db import connect, current_time, transaction
+from co_scientist.platform.db import connect, current_time, default_db_path, transaction
 
 UNKNOWN_HOST = "unknown"
+
+
+@dataclass(frozen=True)
+class ProviderReservation:
+    id: str
+    db_path: str
 
 
 def connecting_host(host: str | None) -> str:
@@ -119,12 +127,17 @@ def _reserve_app(conn: sqlite3.Connection, owner: str, day: int, tokens: int) ->
     )
 
 
-def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: str | None) -> None:
+def reserve_provider(
+    owner: str, host: str, tokens: int, *, app: bool, db_path: str | None
+) -> ProviderReservation:
     from co_scientist.core.config import settings
 
     # A future EUR reservation belongs before this commit, alongside these
     # ceilings. The provider dispatch must remain outside the transaction.
     day = int(current_time() // 86400)
+    receipt = ProviderReservation(
+        uuid.uuid4().hex, db_path or default_db_path() or "./coscientist.db"
+    )
     ceilings = (
         (
             "global",
@@ -140,7 +153,7 @@ def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: 
         ),
         ("host", host, settings.provider_host_calls_per_day, settings.provider_host_tokens_per_day),
     )
-    with transaction(db_path) as conn:
+    with transaction(receipt.db_path) as conn:
         claim_session(conn, owner, host, day)
         for scope, subject, call_limit, token_limit in ceilings:
             row = conn.execute(
@@ -161,6 +174,38 @@ def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: 
                 "SET calls=calls+1,tokens=tokens+excluded.tokens",
                 (day, scope, subject, tokens),
             )
+        conn.execute(
+            "INSERT INTO provider_token_reservations VALUES (?,?,?,?,?,?,NULL)",
+            (receipt.id, day, owner, host, tokens, int(app)),
+        )
+    return receipt
+
+
+def settle_provider(receipt: ProviderReservation, used_tokens: int) -> None:
+    with transaction(receipt.db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM provider_token_reservations WHERE id=? AND used_tokens IS NULL",
+            (receipt.id,),
+        ).fetchone()
+        if row is None:
+            return
+        used = min(row["tokens"], max(0, used_tokens))
+        refund = row["tokens"] - used
+        for scope, subject in (("global", ""), ("client", row["client_id"]), ("host", row["host"])):
+            conn.execute(
+                "UPDATE provider_admissions SET tokens=MAX(0,tokens-?) "
+                "WHERE day=? AND scope=? AND subject=?",
+                (refund, row["day"], scope, subject),
+            )
+        if row["app"]:
+            conn.execute(
+                "UPDATE app_llm_usage SET tokens=MAX(0,tokens-?) WHERE day=? AND client_id=?",
+                (refund, row["day"], row["client_id"]),
+            )
+        conn.execute(
+            "UPDATE provider_token_reservations SET used_tokens=? WHERE id=?",
+            (used, receipt.id),
+        )
 
 
 def claim_continuation(
