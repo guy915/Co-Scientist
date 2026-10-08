@@ -97,6 +97,9 @@ def smoke(api_image: str, mcp_image: str) -> None:
                     "COSCIENTIST_TEST_DOUBLE=deterministic",
                     "--env",
                     "PORT=8008",
+                    # Readiness has no visitor header even from a trusted peer.
+                    "--env",
+                    "COSCIENTIST_TRUSTED_PROXY_CIDRS=127.0.0.1/32",
                 ]
                 if index == 0:
                     # volume-nocopy preserves the root-owned empty mount Railway supplies.
