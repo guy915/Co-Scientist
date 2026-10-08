@@ -151,6 +151,23 @@ export function LaunchOperations() {
           <Button type="submit" disabled={busy || !message.trim()}>
             Apply control
           </Button>
+          {control.backup && (
+            <p className="m-0">
+              Backups:{' '}
+              {control.backup.enabled
+                ? (control.backup.verification?.status ?? 'not yet verified')
+                : 'not configured'}
+              . Last verified:{' '}
+              {control.backup.verification?.verified_at === undefined
+                ? 'unknown'
+                : new Date(
+                    control.backup.verification.verified_at * 1000,
+                  ).toLocaleString()}
+              .{' '}
+              {control.backup.verification?.status === 'failed' &&
+                'Verify recovery before resuming new work.'}
+            </p>
+          )}
           {control.credit?.enabled && (
             <p className="m-0">
               Azure: {control.credit.available ? 'available' : 'unavailable'}.
