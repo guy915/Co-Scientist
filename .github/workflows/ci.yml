@@ -346,11 +346,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
-      # Keep both interpreter results visible when one fails.
+      # Keep test results visible when a matrix entry fails.
       fail-fast: false
       matrix:
-        # Python 3.10 is the engine support floor; 3.12 is the primary runtime.
-        python-version: ['3.10', '3.12']
+        # Match the supported package floor and production runtime.
+        python-version: ['3.12']
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -49,6 +49,9 @@
   --color-button-outlined-border: var(--button-outlined-border);
   --color-button-outlined-fg: var(--button-outlined-fg);
   --color-button-outlined-hover: var(--button-outlined-hover);
+  --color-button-accent-border: var(--button-accent-border);
+  --color-button-accent-fg: var(--button-accent-fg);
+  --color-button-accent-hover: var(--button-accent-hover);
   --color-button-tonal-bg: var(--button-tonal-bg);
   --color-button-tonal-fg: var(--button-tonal-fg);
   --color-button-tonal-hover: var(--button-tonal-hover);

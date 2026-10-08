@@ -137,7 +137,7 @@ class SystemStatusResponse(BaseModel):
 
 @router.get("/", tags=["root"])
 async def root() -> dict[str, str]:
-    return {"message": "Co-Scientist API", "version": API_VERSION}
+    return {"message": "Open Co-Scientist API", "version": API_VERSION}
 
 
 def _redact_health_check(check: HealthCheckResult, operator: bool) -> HealthCheckResult:
