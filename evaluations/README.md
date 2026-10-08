@@ -270,6 +270,19 @@ Default collection is offline; omit `--live` to exercise persistence without
 provider credentials. The offline artifact and receipt explicitly disclaim
 scientific quality, and the collector's tests deny socket connections.
 
+The manual **Benchmark** workflow accepts `goal_id`, `benchmark_ref`, `tier`,
+`max_calls` and `label`. Dispatch one fixed goal on an exact source SHA:
+
+```bash
+gh workflow run benchmark.yml --ref main -f goal_id=cell-biology \
+  -f benchmark_ref=SOURCE_SHA -f tier=express -f max_calls=150 -f label=biology-main
+```
+
+Its summary includes the baseline row and descriptive claim sample/interval;
+the uploaded artifact retains the database, snapshot, receipt and logs even
+when the run step fails. Dispatch the other goals only within the agreed
+remaining daily share. The workflow never runs on pull requests.
+
 ## External gaps
 
 These need data, credentials, expert panels or wet labs that are not
