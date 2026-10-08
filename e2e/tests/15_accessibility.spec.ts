@@ -12,6 +12,17 @@ function blockingViolations(results: AxeResults) {
   );
 }
 
+async function scanAccessibility(page: Page, info: TestInfo) {
+  const results = await new AxeBuilder({ page }).analyze();
+  const path = info.outputPath("accessibility-results.json");
+  await writeFile(path, JSON.stringify(results, null, 2));
+  await info.attach("accessibility-results", {
+    path,
+    contentType: "application/json",
+  });
+  expect(blockingViolations(results)).toEqual([]);
+}
+
 async function checkAccessibility(page: Page, info: TestInfo) {
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -25,14 +36,7 @@ async function checkAccessibility(page: Page, info: TestInfo) {
         .map((animation) => animation.finished.catch(() => undefined)),
     );
   });
-  const results = await new AxeBuilder({ page }).analyze();
-  const path = info.outputPath("accessibility-results.json");
-  await writeFile(path, JSON.stringify(results, null, 2));
-  await info.attach("accessibility-results", {
-    path,
-    contentType: "application/json",
-  });
-  expect(blockingViolations(results)).toEqual([]);
+  await scanAccessibility(page, info);
 }
 
 for (const theme of ["light", "dark"]) {
@@ -55,7 +59,24 @@ for (const theme of ["light", "dark"]) {
       await page.goto("/");
       await expect(page.getByRole("textbox")).toBeVisible();
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await expect(page.locator(".ucs-system-status")).toHaveText("Offline mode");
+      await expect(page.locator(".ucs-system-status")).toBeVisible();
       await checkAccessibility(page, info);
+    });
+
+    test("status label during entry animation", async ({ page }, info) => {
+      await page.goto("/");
+      await page.addStyleTag({
+        content:
+          ".ucs-system-status { animation-duration: 10s !important; " +
+          "animation-delay: -2s !important; animation-play-state: paused !important; }",
+      });
+      await expect(page.locator(".ucs-system-status")).toHaveText("Offline mode");
+      await expect(page.locator(".ucs-system-status")).toBeVisible();
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+      });
+      await scanAccessibility(page, info);
     });
 
     test("landing", async ({ page }, info) => {
