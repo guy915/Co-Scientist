@@ -25,7 +25,7 @@ for (const theme of ["light", "dark"]) {
         await expect(page.getByText("Updated · 8 October 2026")).toBeVisible();
         await expect(
           page.getByText(
-            "This text is not legal advice; the owner reviews it before launch.",
+            "This text is not legal advice.",
           ),
         ).toBeVisible();
         await expect(
