@@ -1,4 +1,8 @@
-import {getClientId, resolveByokRoutes} from '@/shared/lib/client_id';
+import {
+  getClientId,
+  getStoredModel,
+  resolveByokRoutes,
+} from '@/shared/lib/client_id';
 import type {RunFocus, RunStatus, RunTier} from './wire_common';
 import type {ChatSummary, Interview} from './wire_interviews';
 import type {Report} from './wire_reports';
@@ -498,6 +502,11 @@ export function byokHeaders(): Record<string, string> {
   const routes = resolveByokRoutes();
   if (!routes) return {};
   const {worker, supervisor} = routes;
+  for (const tier of ['worker', 'supervisor'] as const) {
+    if (getStoredModel(tier)?.custom && !routes[tier].model?.trim()) {
+      throw new Error('Enter and check your custom model ID in Settings');
+    }
+  }
   return {
     'X-LLM-API-Key': worker.apiKey,
     'X-LLM-Provider': worker.provider,

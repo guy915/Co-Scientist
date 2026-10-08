@@ -4,7 +4,17 @@ import contextlib
 import logging
 from collections.abc import Iterator
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class CustomModelCapabilities:
+    context_length: int | None = None
+    tool_calling: bool = True
+    json_schema: bool = False
+    json_object: bool = False
+    reasoning: bool = False
+    reasoning_can_disable: bool = False
 
 
 @dataclass(frozen=True)
@@ -20,6 +30,7 @@ class ByokCredential:
     # None means the supervisor shares the worker's provider and key.
     supervisor_provider: str | None = None
     supervisor_api_key: str | None = None
+    custom_models: dict[str, CustomModelCapabilities] = field(default_factory=dict)
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -87,10 +98,10 @@ def byok_model_and_key(model: str) -> tuple[str, str | None]:
 def _redact_log_details(record: logging.LogRecord) -> None:
     if record.exc_info:
         record.exc_text = logging.Formatter().formatException(record.exc_info)
-    for field in ("exc_text", "stack_info"):
-        value = getattr(record, field)
+    for attribute in ("exc_text", "stack_info"):
+        value = getattr(record, attribute)
         if value:
-            setattr(record, field, redact_byok_text(value))
+            setattr(record, attribute, redact_byok_text(value))
 
 
 class ByokRedactionFilter(logging.Filter):
