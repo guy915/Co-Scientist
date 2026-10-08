@@ -315,7 +315,9 @@ class MCPToolClient:
             server_names,
         )
 
-        client = MultiServerMCPClient(cast(dict[str, Connection], self._server_configs))
+        client = MultiServerMCPClient(
+            cast(dict[str, Connection], self._server_configs), handle_tool_errors=False
+        )
         # Publish only after every server has yielded complete tool indexes.
         tools = await client.get_tools()
         self._client = client

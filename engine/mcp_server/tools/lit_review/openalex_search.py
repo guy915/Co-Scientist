@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.tools._results import failed, keyed_records, non_raising
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ def _reconstruct_abstract(inverted_index: Any) -> str:
 def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
     results = data.get("results") if isinstance(data, dict) else None
     if not isinstance(results, list):
-        return {}
+        raise ValueError("invalid OpenAlex results")
     normalized: dict[str, Any] = {}
     for work in results[: max(max_papers, 0)]:
         if not isinstance(work, dict):
@@ -166,6 +167,7 @@ async def _collect_openalex_works(
     return collected
 
 
+@non_raising
 async def search_openalex(
     query: str,
     max_papers: int = 10,
@@ -193,8 +195,8 @@ async def search_openalex(
     """
     params, per_page = _build_search_params(query, max_papers, recency_years)
     try:
-        return await _collect_openalex_works(params, per_page, max_papers)
+        return keyed_records(await _collect_openalex_works(params, per_page, max_papers))
     except (httpx.HTTPError, ValueError) as exc:
         reason = _unavailable_reason(exc)
         logger.warning("OpenAlex search failed for %r: %s", query, reason)
-        raise OpenAlexUnavailableError(f"OpenAlex could not be searched: {reason}") from exc
+        return failed(exc)

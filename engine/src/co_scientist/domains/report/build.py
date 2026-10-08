@@ -17,6 +17,7 @@ from co_scientist.domains.report.gates import (
     exclude_unsafe_hypotheses,
 )
 from co_scientist.domains.report.markdown import ReportMarkdownInputs, render_report_markdown
+from co_scientist.domains.report.retrieval import failed_sources_in
 from co_scientist.domains.research_state.claims.gate import ClaimEdge
 from co_scientist.domains.research_state.elo import live_leaderboard, rank_for_publication
 from co_scientist.domains.research_state.repository import hypotheses
@@ -172,6 +173,7 @@ def _assemble_report_payload(
         "claim_evidence": data.released_claim_edges,
         "degraded_sections": list(req.degraded_sections or []),
         "retrieval_degradation": req.retrieval_degradation,
+        "failed_sources": failed_sources_in(data.reviews, data.retrieval_calls),
         "skills_used": dict(req.skills_used or {}),
         "reviews": list(data.reviews),
     }

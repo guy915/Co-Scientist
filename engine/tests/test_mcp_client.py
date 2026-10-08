@@ -97,3 +97,15 @@ async def test_the_shared_secret_reaches_the_connection_as_a_header(
     assert client._client is not None
     assert client._client.connections["s1"].get("headers") == expected
     assert config.get("headers") == explicit
+
+
+async def test_a_tool_execution_error_raises_instead_of_reading_as_a_result(
+    _patch_mcp_seam: type[FakeMultiServerMCPClient],
+) -> None:
+    _patch_mcp_seam.tools = [string_tool("t1", "ok")]
+    client = MCPToolClient(server_configs={"s1": {"transport": "streamable_http", "url": "x"}})
+
+    await client.initialize()
+
+    assert isinstance(client._client, FakeMultiServerMCPClient)
+    assert client._client.handle_tool_errors is False

@@ -206,7 +206,7 @@ class Hypothesis:
     explanation: str | None = None
     literature_grounding: str | None = None
     experiment: str | None = None
-    novelty_validation: str | None = None
+    novelty_validation: str | dict[str, Any] | None = None
     enrichments: dict[str, Any] = field(default_factory=dict)
     citation_map: dict[str, dict[str, Any]] = field(default_factory=dict)
     score: float = 0.0

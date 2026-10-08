@@ -177,6 +177,11 @@ def normalize_search_response(
     result_data: Any,
     tool_config: ToolConfig | None,
 ) -> dict[str, dict[str, Any]]:
+    if isinstance(result_data, dict) and result_data.get("status") == "ok":
+        return {
+            str(record.get("source_id") or record.get("id") or record.get("url") or index): record
+            for index, record in enumerate(result_data["records"])
+        }
     if not isinstance(result_data, (dict, list)):
         return {}
 

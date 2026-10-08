@@ -240,6 +240,8 @@ class PubmedSource(_EntrezClient):
         )
         paper_ids = [paper_id for paper_id in paper_ids if _is_valid_pubmed_id(paper_id)]
         all_details = await self._gather_paper_metadata(paper_ids, shared_dir, run_dir, semaphore)
+        if paper_ids and len(all_details) != len(paper_ids):
+            raise RuntimeError("PubMed metadata unavailable")
         papers_to_use = [
             paper_id
             for paper_id, metadata in all_details.items()
