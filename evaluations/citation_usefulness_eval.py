@@ -44,6 +44,7 @@ if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
 from co_scientist.core.text_matching import coverage, tokenize  # noqa: E402
+
 from evaluations._artifacts import write_dated_artifact  # noqa: E402
 
 _DATASET = pathlib.Path(__file__).parent / "datasets" / "citation_usefulness_v1.json"

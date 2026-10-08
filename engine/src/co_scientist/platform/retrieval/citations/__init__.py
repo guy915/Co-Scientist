@@ -5,7 +5,6 @@ import datetime as dt
 import enum
 import functools
 import logging
-import re
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
