@@ -1,5 +1,6 @@
 import {
   getClientId,
+  getStoredApiKey,
   getStoredModel,
   resolveByokRoutes,
 } from '@/shared/lib/client_id';
@@ -499,6 +500,12 @@ export function clientHeaders(): Record<string, string> {
 // BYOK credentials and model choices travel only in request headers. The
 // supervisor's provider and key are sent only when it is not the worker's.
 export function byokHeaders(): Record<string, string> {
+  for (const tier of ['worker', 'supervisor'] as const) {
+    const choice = getStoredModel(tier);
+    if (choice?.custom && !getStoredApiKey(choice.provider)) {
+      throw new Error('Custom models require your own API key in Settings');
+    }
+  }
   const routes = resolveByokRoutes();
   if (!routes) return {};
   const {worker, supervisor} = routes;
