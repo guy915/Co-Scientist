@@ -4,7 +4,8 @@ import {joinClasses} from './cx';
 import {SwapIcon} from './swap_icon';
 import {tooltipClassNames, type TooltipPlacement} from './tooltip';
 
-export type ButtonVariant = 'filled' | 'outlined' | 'tonal' | 'text' | 'link';
+export type ButtonVariant =
+  'filled' | 'outlined' | 'accent' | 'tonal' | 'text' | 'disclosure' | 'link';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 // Shape, focus ring and state colours live here so no call site restyles a
@@ -26,6 +27,10 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   outlined:
     'border-button-outlined-border bg-transparent text-button-outlined-fg ' +
     `enabled:hover:bg-button-outlined-hover ${DISABLED_CLASSES}`,
+  // Suggested next steps: outlined, tinted with the link accent.
+  accent:
+    'border-button-accent-border bg-transparent text-button-accent-fg ' +
+    `enabled:hover:bg-button-accent-hover ${DISABLED_CLASSES}`,
   tonal:
     'border-transparent bg-button-tonal-bg text-button-tonal-fg ' +
     'enabled:hover:bg-button-tonal-hover aria-expanded:bg-button-tonal-hover ' +
@@ -34,6 +39,10 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'border-transparent bg-transparent text-button-text-fg ' +
     'enabled:hover:bg-button-text-hover-bg enabled:hover:text-button-text-hover-fg ' +
     'disabled:text-button-disabled-fg',
+  // Show/hide toggles: quiet text and a chevron, never a filled shape.
+  disclosure:
+    'border-transparent bg-transparent text-button-text-fg ' +
+    'enabled:hover:text-button-text-hover-fg disabled:text-button-disabled-fg',
   link:
     'border-transparent bg-transparent text-button-link-fg underline-offset-2 ' +
     'enabled:hover:underline disabled:text-button-disabled-fg',
@@ -46,8 +55,10 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   lg: 'min-h-12 gap-2 whitespace-nowrap px-6 text-base font-medium',
 };
 
-// Text and link buttons sit among text, so they stay compact; `md` keeps the
-// surrounding font size.
+// Text, disclosure and link buttons sit among text, so they stay compact;
+// `md` keeps the surrounding font size.
+const COMPACT_VARIANTS = new Set<ButtonVariant>(['text', 'disclosure', 'link']);
+
 const COMPACT_SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: 'gap-1 px-2 py-1 text-[0.875rem] font-medium',
   md: 'gap-1 px-2 py-1 font-medium',
@@ -73,7 +84,7 @@ export function buttonClasses({
   return joinClasses(
     BASE_CLASSES,
     VARIANT_CLASSES[variant],
-    variant === 'text' || variant === 'link'
+    COMPACT_VARIANTS.has(variant)
       ? COMPACT_SIZE_CLASSES[size]
       : SIZE_CLASSES[size],
   );
