@@ -42,7 +42,7 @@ export interface SegmentOption<T extends string> {
 export type SegmentedSize = 'md' | 'lg';
 
 const SEGMENT_TRACK_CLASSES: Record<SegmentedSize, string> = {
-  md: 'grid auto-cols-fr grid-flow-col gap-[0.3rem] border border-segmented-border p-[0.18rem]',
+  md: 'grid auto-cols-fr grid-flow-col gap-1 border border-segmented-border p-0.5',
   // Landing tiers size to their labels and scroll on narrow screens.
   lg: 'inline-flex max-w-full gap-1 overflow-x-auto p-1 [scrollbar-width:none]',
 };
@@ -53,7 +53,7 @@ const SEGMENT_THUMB_CLASSES: Record<SegmentedSize, string> = {
 };
 
 const SEGMENT_ITEM_CLASSES: Record<SegmentedSize, string> = {
-  md: 'min-h-[2.6rem] px-[0.44rem] text-[0.875rem] font-semibold',
+  md: 'min-h-[2.6rem] px-2 text-[0.875rem] font-semibold',
   lg: 'h-10 flex-none px-5 text-[0.9375rem] font-medium max-[900px]:px-3.5',
 };
 
@@ -102,7 +102,7 @@ export function SegmentedControl<T extends string>({
           onClick={() => onChange(option.value)}
           className={joinClasses(
             'relative z-1 inline-flex min-w-0 cursor-pointer items-center',
-            'justify-center gap-[0.45rem] rounded-full border-0 bg-transparent',
+            'justify-center gap-2 rounded-full border-0 bg-transparent',
             'font-[inherit] text-segmented-fg',
             'aria-[pressed=false]:hover:bg-segmented-hover',
             'aria-pressed:text-segmented-selected-fg focus-visible:outline-2',
@@ -137,7 +137,7 @@ export function SectionNav<T extends string>({
     <nav
       // Auto margins collapse on overflow; flex-end would spill sections
       // beyond the unreachable left edge on narrow phones.
-      className="grid gap-[0.35rem] [align-content:start] phone:flex phone:overflow-x-auto phone:pb-[0.15rem] phone:[scrollbar-width:none] phone:[&>:first-child]:ml-auto"
+      className="grid gap-1.5 [align-content:start] phone:flex phone:overflow-x-auto phone:pb-0.5 phone:[scrollbar-width:none] phone:[&>:first-child]:ml-auto"
       aria-label={label}
     >
       {items.map(item => (
@@ -147,13 +147,13 @@ export function SectionNav<T extends string>({
           aria-current={item.value === value ? 'true' : undefined}
           onClick={() => onChange(item.value)}
           className={joinClasses(
-            'flex min-h-11 cursor-pointer items-center gap-[0.72rem] rounded-full border-0',
+            'flex min-h-11 cursor-pointer items-center gap-3 rounded-full border-0',
             'bg-transparent px-4 text-left font-[inherit] text-[0.875rem] font-medium',
             'text-cosci-fg hover:bg-cosci-menu-row-hover',
             'aria-[current=true]:bg-segmented-thumb aria-[current=true]:text-segmented-selected-fg',
             'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-th-ring',
-            'phone:min-h-10 phone:flex-none phone:gap-[0.4rem]',
-            'phone:px-[0.7rem] phone:text-[0.82rem] max-[360px]:!px-3',
+            'phone:min-h-10 phone:flex-none phone:gap-1.5',
+            'phone:px-3 phone:text-[0.82rem] max-[360px]:!px-3',
           )}
         >
           {item.icon && (
@@ -185,11 +185,11 @@ const THUMB_CLASSES: Record<TabNavVariant, string> = {
 const LINK_CLASSES: Record<TabNavVariant, string> = {
   underline:
     'relative grid min-w-0 cursor-pointer content-center justify-items-center ' +
-    'gap-[0.35rem] py-2 text-sm no-underline text-cosci-muted ' +
+    'gap-1.5 py-2 text-sm no-underline text-cosci-muted ' +
     'hover:text-cosci-fg aria-[current=page]:text-cosci-blue',
   pill:
     'relative z-1 flex h-full min-w-0 items-center justify-center ' +
-    'gap-[0.45rem] rounded-full px-[0.72rem] no-underline text-tab-pill-fg ' +
+    'gap-2 rounded-full px-3 no-underline text-tab-pill-fg ' +
     'aria-[current=page]:text-tab-pill-selected-fg ' +
     'not-aria-[current=page]:hover:bg-tab-pill-hover',
 };
@@ -228,7 +228,7 @@ export function TabNav({
     >
       <SlidingThumb box={box} className={THUMB_CLASSES[variant]}>
         {variant === 'underline' && (
-          <span className="mx-[1.1rem] block h-full rounded-t-full bg-cosci-blue-strong" />
+          <span className="mx-4 block h-full rounded-t-full bg-cosci-blue-strong" />
         )}
       </SlidingThumb>
       {children}

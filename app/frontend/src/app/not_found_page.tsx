@@ -17,7 +17,7 @@ export function NotFoundPage() {
         </p>
         <div className="mt-8 flex flex-wrap gap-3 max-sm:grid max-sm:grid-cols-1">
           <Link
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-transparent bg-th-primary px-[1.35rem] py-[0.72rem] text-sm font-semibold leading-none text-th-primary-fg no-underline hover:opacity-90 max-sm:w-full focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-th-primary"
+            className="inline-flex min-h-12 items-center justify-center rounded-full border border-transparent bg-th-primary px-5 py-3 text-sm font-semibold leading-none text-th-primary-fg no-underline hover:opacity-90 max-sm:w-full focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-th-primary"
             to="/"
           >
             Return home

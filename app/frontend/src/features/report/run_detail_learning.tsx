@@ -338,9 +338,9 @@ function learningTitle(title: string, index: number): string {
 
 const REFERENCE_LIST_ITEM_CLASSES =
   'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center ' +
-  'gap-[0.8rem] border-b border-cosci-border py-[0.7rem] text-[0.86rem] ' +
-  'phone:grid-cols-[2rem_minmax(0,1fr)] phone:gap-y-[0.55rem] ' +
-  'phone:py-[0.9rem]';
+  'gap-3 border-b border-cosci-border py-3 text-[0.86rem] ' +
+  'phone:grid-cols-[2rem_minmax(0,1fr)] phone:gap-y-2 ' +
+  'phone:py-3.5';
 
 const REFERENCE_UNAVAILABLE_TEXT = 'Unavailable';
 
@@ -405,7 +405,7 @@ function ReferenceSearchBox({
   onQueryChange: (value: string) => void;
 }) {
   return (
-    <label className="cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-[0.86rem] text-cosci-muted">
+    <label className="cosci-reference-search mb-6 flex w-[min(100%,44rem)] items-center gap-3 border-b border-cosci-border px-0 py-2 text-[0.86rem] text-cosci-muted">
       <Icon className="text-base" name="search" />
       <TextField
         variant="bare"

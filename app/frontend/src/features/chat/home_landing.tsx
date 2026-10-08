@@ -81,13 +81,13 @@ const SR_ONLY_CLASSES =
   'absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)]';
 
 const RAIL_CLASSES =
-  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-[16px] py-[10px] phone:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
+  'ucs-landing-rail flex justify-center border-b border-b-(--l-line) bg-(--l-bg) px-4 py-2.5 phone:justify-start [.ucs-landing-header-tabs_&]:border-transparent [.ucs-landing-header-tabs_&]:bg-transparent';
 
 const RAIL_NAV_CLASSES =
-  'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-[4px] overflow-x-auto rounded-full bg-(--l-surface) p-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
+  'relative flex max-w-[min(100%,var(--rail-room,100%))] min-w-0 gap-1 overflow-x-auto rounded-full bg-(--l-surface) p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [.ucs-landing-header-tabs:not([inert])_&]:pointer-events-auto';
 
 const RAIL_TAB_CLASSES =
-  'relative z-1 grid h-[38px] flex-none place-items-center rounded-full px-[16px] text-[14px] font-medium no-underline';
+  'relative z-1 grid h-[38px] flex-none place-items-center rounded-full px-4 text-[14px] font-medium no-underline';
 
 const SLIDER_CLASSES =
   'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-full bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
@@ -96,14 +96,14 @@ const CARD_H3_CLASSES = 'm-0 font-(family-name:--l-display) font-normal';
 
 const FEATURE_P_CLASSES = 'leading-[1.5] text-(--l-muted)';
 
-const OV_ITEM_CLASSES = 'bg-(--l-surface) px-[18px] py-[14px]';
+const OV_ITEM_CLASSES = 'bg-(--l-surface) px-5 py-3.5';
 
 const OV_PANEL_CLASSES =
-  'm-0 flex list-none flex-col gap-[6px] rounded-3xl bg-(--l-bg) p-[12px]';
+  'm-0 flex list-none flex-col gap-1.5 rounded-3xl bg-(--l-bg) p-3';
 
 const SEC_CLASSES = 'scroll-mt-[72px] py-[clamp(44px,5.5vw,76px)]';
 
-const CHIPS_CLASSES = 'flex flex-wrap items-center gap-[8px]';
+const CHIPS_CLASSES = 'flex flex-wrap items-center gap-2';
 
 export function scrollToLandingSection(id: string, reduceMotion: boolean) {
   smoothScrollToSection(
@@ -143,7 +143,7 @@ function LandingHero({
   const cookie = shapePath('cookie12');
   return (
     <section
-      className={`${LANDING_WIDTH} border-t border-t-(--l-line) pt-[72px] pb-[40px]`}
+      className={`${LANDING_WIDTH} border-t border-t-(--l-line) pt-18 pb-10`}
       aria-labelledby="ucs-landing-word"
     >
       <h2
@@ -152,12 +152,12 @@ function LandingHero({
       >
         Co-Scientist
       </h2>
-      <div className="mt-[32px] grid grid-cols-[6fr_5fr] [align-items:start] gap-[32px] [@media(max-width:900px)]:mt-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
-        <div className="grid gap-[28px] pt-[8px]">
+      <div className="mt-8 grid grid-cols-[6fr_5fr] [align-items:start] gap-8 [@media(max-width:900px)]:mt-4 [@media(max-width:900px)]:grid-cols-[1fr]">
+        <div className="grid gap-7 pt-2">
           <p className="m-0 font-(family-name:--l-display) text-[clamp(1.4rem,2.2vw,2rem)] leading-[1.25] tracking-[-0.01em]">
             A multi-agent partner for scientific discovery.
           </p>
-          <div className="flex flex-wrap gap-[12px]">
+          <div className="flex flex-wrap gap-3">
             <Button size="lg" onClick={onStart}>
               Start a research goal
             </Button>
@@ -500,7 +500,7 @@ function AgentCard({
   return (
     <article
       className={joinClasses(
-        'grid grid-cols-[104px_1fr] items-center gap-[24px] rounded-4xl bg-(--l-surface) p-[28px] outline-offset-[3px]',
+        'grid grid-cols-[104px_1fr] items-center gap-6 rounded-4xl bg-(--l-surface) p-7 outline-offset-[3px]',
         wide && '[grid-column:span_3] [@media(max-width:900px)]:col-auto',
       )}
       tabIndex={0}
@@ -533,7 +533,7 @@ export function HowSection({reduceMotion}: MotionProps) {
         lede="A Supervisor plans the run and hands work to six specialist agents. The loop repeats until the rankings settle, then you get a research overview back."
       />
       <LandingDiagram />
-      <div className="mt-[16px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="mt-4 grid grid-cols-[repeat(3,1fr)] gap-4 [@media(max-width:900px)]:grid-cols-[1fr]">
         {LANDING_AGENTS.map((agent, i) => (
           <AgentCard
             key={agent.name}
@@ -555,9 +555,9 @@ export function TournamentSection({reduceMotion}: MotionProps) {
         lede="Ideas meet in pairwise debates. Every win and loss moves their Elo rating, so the ranking reflects many arguments, not one score."
       />
       <LandingBracket reduceMotion={reduceMotion} />
-      <div className="mt-[16px] grid grid-cols-[7fr_5fr] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="mt-4 grid grid-cols-[7fr_5fr] gap-4 [@media(max-width:900px)]:grid-cols-[1fr]">
         <LandingEloChart reduceMotion={reduceMotion} />
-        <div className="relative grid [align-content:space-between] gap-[16px] overflow-hidden rounded-4xl bg-(--l-c-blue) p-[32px] text-(--l-o-blue)">
+        <div className="relative grid [align-content:space-between] gap-4 overflow-hidden rounded-4xl bg-(--l-c-blue) p-8 text-(--l-o-blue)">
           <div>
             <h3 className={`${CARD_H3_CLASSES} text-[28px]`}>Ranked ideas</h3>
             <p className="m-[8px_0_0] max-w-[26rem] leading-[1.5] opacity-80">
@@ -583,13 +583,13 @@ export function TournamentSection({reduceMotion}: MotionProps) {
 function SourcesMarquee() {
   const items = [...LANDING_SOURCES, ...LANDING_SOURCES];
   return (
-    <div className="mt-[64px]">
+    <div className="mt-16">
       <p className={LABEL_CLASSES}>Built on the literature</p>
       <div
-        className="ucs-landing-marquee-window mt-[16px] overflow-hidden border-y border-y-(--l-line) py-[22px] [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
+        className="ucs-landing-marquee-window mt-4 overflow-hidden border-y border-y-(--l-line) py-6 [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]"
         aria-hidden="true"
       >
-        <div className="flex w-max gap-[56px] motion-safe:[animation:ucs-landing-slide_40s_linear_infinite] motion-safe:[.ucs-landing-marquee-window:hover_&]:[animation-play-state:paused]">
+        <div className="flex w-max gap-14 motion-safe:[animation:ucs-landing-slide_40s_linear_infinite] motion-safe:[.ucs-landing-marquee-window:hover_&]:[animation-play-state:paused]">
           {items.map((source, i) => (
             <span
               key={i}
@@ -609,7 +609,7 @@ export function EvidenceSection() {
   return (
     <section className={SEC_CLASSES} id="landing-evidence">
       <SectionHeading title="Evidence" />
-      <div className="mt-[40px] grid grid-cols-[4fr_7fr] items-center gap-[48px] [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="mt-10 grid grid-cols-[4fr_7fr] items-center gap-12 [@media(max-width:900px)]:grid-cols-[1fr]">
         <svg
           className="tone-green block h-auto w-full overflow-visible [&>path]:fill-(--tone-c)"
           viewBox="0 0 100 100"
@@ -638,11 +638,11 @@ export function EvidenceSection() {
             literature are matched to every claim and judged before the idea may
             enter the tournament.
           </p>
-          <div className="mt-[28px] grid gap-[12px]">
+          <div className="mt-7 grid gap-3">
             {LANDING_VERDICTS.map(v => (
               <div
                 key={v.label}
-                className={`tone-${v.tone} grid grid-cols-[120px_1fr] items-center gap-[16px] rounded-3xl bg-(--tone-c) px-[22px] py-[18px] text-[15px] leading-[1.45] text-(--tone-o) [@media(max-width:900px)]:grid-cols-[1fr] [@media(max-width:900px)]:gap-[4px]`}
+                className={`tone-${v.tone} grid grid-cols-[120px_1fr] items-center gap-4 rounded-3xl bg-(--tone-c) px-6 py-5 text-[15px] leading-[1.45] text-(--tone-o) [@media(max-width:900px)]:grid-cols-[1fr] [@media(max-width:900px)]:gap-1`}
               >
                 <b className="font-medium">{v.label}</b>
                 <span>{v.body}</span>
@@ -666,7 +666,7 @@ function SafetyCard({
   const morph = useShapeMorph(layer.shape, reduceMotion);
   return (
     <article
-      className="grid [align-content:start] gap-[12px] rounded-4xl border border-(--l-line) p-[28px]"
+      className="grid [align-content:start] gap-3 rounded-4xl border border-(--l-line) p-7"
       tabIndex={0}
       onPointerEnter={morph.toCircle}
       onPointerLeave={morph.toRest}
@@ -690,7 +690,7 @@ export function SafetySection({reduceMotion}: MotionProps) {
   return (
     <section className={SEC_CLASSES} id="landing-safety">
       <SectionHeading title="Safety" />
-      <div className="mt-[48px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="mt-12 grid grid-cols-[repeat(3,1fr)] gap-4 [@media(max-width:900px)]:grid-cols-[1fr]">
         {LANDING_SAFETY.map(layer => (
           <SafetyCard
             key={layer.title}
@@ -719,13 +719,13 @@ export function FaqSection() {
   return (
     <section className={SEC_CLASSES} id="faq">
       <SectionHeading title="Questions" />
-      <div className="mt-[32px] grid">
+      <div className="mt-8 grid">
         {FAQ.map(entry => (
           <details
             key={entry.question}
             className="border-b border-b-(--l-line)"
           >
-            <summary className="flex cursor-pointer items-center justify-between gap-[16px] py-[22px] text-[19px] [list-style:none] [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer items-center justify-between gap-4 py-6 text-[19px] [list-style:none] [&::-webkit-details-marker]:hidden">
               <span>{entry.question}</span>
               <Icon
                 name="expand_more"
@@ -745,7 +745,7 @@ export function FaqSection() {
 export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
   return (
     <section className="scroll-mt-[72px] pt-0 pb-[clamp(44px,5.5vw,76px)]">
-      <div className="grid grid-cols-[1fr_340px] items-center gap-[32px] rounded-5xl bg-(--l-c-teal) p-[clamp(28px,5vw,72px)] text-(--l-o-teal) [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="grid grid-cols-[1fr_340px] items-center gap-8 rounded-5xl bg-(--l-c-teal) p-[clamp(28px,5vw,72px)] text-(--l-o-teal) [@media(max-width:900px)]:grid-cols-[1fr]">
         <div>
           <h2 className={H2_CLASSES}>Start with a question.</h2>
           <p className="m-[16px_0_28px] max-w-[30rem] text-[1.15rem] leading-[1.55] opacity-80">
@@ -804,7 +804,7 @@ function OverviewCard({
   children: ReactNode;
 }) {
   return (
-    <div className="ucs-landing-ov-card grid [grid-row:span_3] grid-rows-subgrid gap-[8px] rounded-4xl bg-(--l-surface) p-[28px]">
+    <div className="ucs-landing-ov-card grid [grid-row:span_3] grid-rows-subgrid gap-2 rounded-4xl bg-(--l-surface) p-7">
       <h3 className={`${CARD_H3_CLASSES} text-[26px]`}>{title}</h3>
       <p className="m-[0_0_12px] text-[15px] leading-[1.5] text-(--l-muted)">
         {sub}
@@ -817,7 +817,7 @@ function OverviewCard({
 function Chip({tone, children}: {tone: LandingTone; children: string}) {
   return (
     <span
-      className={`tone-${tone} rounded-full bg-(--tone-c) px-[12px] py-[4px] text-[13px] font-medium text-(--tone-o)`}
+      className={`tone-${tone} rounded-full bg-(--tone-c) px-3 py-1 text-[13px] font-medium text-(--tone-o)`}
     >
       {children}
     </span>
@@ -832,7 +832,7 @@ function InputCard() {
     >
       <div className={OV_PANEL_CLASSES}>
         <div className={`${OV_ITEM_CLASSES} flex-1 rounded-tile`}>
-          <b className="mb-[8px] block font-(family-name:--l-display) text-[18px] leading-[1.35] font-normal">
+          <b className="mb-2 block font-(family-name:--l-display) text-[18px] leading-[1.35] font-normal">
             {GOAL_TITLE}
           </b>
           <p className="m-0 text-[15px] leading-[1.55] text-(--l-muted)">
@@ -859,7 +859,7 @@ function RunCard() {
         {STAGES.map(stage => (
           <li
             key={stage.label}
-            className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-[12px] rounded-full text-[14px] leading-[1.35]`}
+            className={`${OV_ITEM_CLASSES} flex flex-1 items-center gap-3 rounded-full text-[14px] leading-[1.35]`}
           >
             <Icon
               name={stage.icon}
@@ -884,7 +884,7 @@ function OutputCard() {
           <li
             key={idea.title}
             className={`${OV_ITEM_CLASSES} flex flex-col justify-center rounded-tile ${
-              i === 0 ? 'gap-[10px] [flex:1.7_1_0%]' : 'flex-1 gap-[6px]'
+              i === 0 ? 'gap-2.5 [flex:1.7_1_0%]' : 'flex-1 gap-1.5'
             }`}
           >
             <span className="text-[13px] text-(--l-muted) tabular-nums">
@@ -920,7 +920,7 @@ export function OverviewSection() {
         One run, end to end. The example uses the first suggestion on the home
         screen; the output shown is illustrative.
       </p>
-      <div className="mt-[40px] grid grid-cols-[repeat(3,1fr)] gap-[16px] [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="mt-10 grid grid-cols-[repeat(3,1fr)] gap-4 [@media(max-width:900px)]:grid-cols-[1fr]">
         <InputCard />
         <RunCard />
         <OutputCard />
@@ -959,7 +959,7 @@ function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
   return (
     <div>
       <div
-        className="grid grid-cols-[repeat(24,1fr)] gap-[8px] [@media(max-width:900px)]:grid-cols-[repeat(12,1fr)]"
+        className="grid grid-cols-[repeat(24,1fr)] gap-2 [@media(max-width:900px)]:grid-cols-[repeat(12,1fr)]"
         aria-hidden="true"
       >
         {Array.from({length: MAX_POOL}, (_, i) => {
@@ -978,11 +978,11 @@ function TierField({tier, reduceMotion}: {tier: LandingTier} & MotionProps) {
           );
         })}
       </div>
-      <div className="mt-[18px] flex flex-wrap gap-[14px] text-[13px] text-(--l-muted)">
+      <div className="mt-5 flex flex-wrap gap-3.5 text-[13px] text-(--l-muted)">
         {GENERATIONS.filter(g => g.generation <= tier.cycles).map(g => (
           <span
             key={g.label}
-            className={`${DOT_CLASSES[g.generation]} before:mr-[6px] before:inline-block before:size-[10px] before:rounded-full before:bg-(--dot) before:[vertical-align:-1px] before:content-['']`}
+            className={`${DOT_CLASSES[g.generation]} before:mr-1.5 before:inline-block before:size-[10px] before:rounded-full before:bg-(--dot) before:[vertical-align:-1px] before:content-['']`}
           >
             {g.label}
           </span>
@@ -1006,7 +1006,7 @@ function TierStat({value, label}: {value: number; label: string}) {
 function TierStats({tier}: {tier: LandingTier}) {
   return (
     <div
-      className="grid gap-[18px] [@media(max-width:900px)]:grid-cols-[repeat(3,1fr)]"
+      className="grid gap-5 [@media(max-width:900px)]:grid-cols-[repeat(3,1fr)]"
       aria-live="polite"
     >
       <TierStat value={tier.maxIdeas} label="ideas at most" />
@@ -1030,9 +1030,9 @@ export function LandingTiers({reduceMotion}: MotionProps) {
         value={name}
         onChange={setName}
         options={LANDING_TIERS.map(t => ({value: t.name, label: t.name}))}
-        layoutClassName="mt-[32px]"
+        layoutClassName="mt-8"
       />
-      <div className="mt-[20px] grid grid-cols-[1fr_260px] items-center gap-[32px] rounded-4xl bg-(--l-surface) p-[clamp(20px,3vw,40px)] [@media(max-width:900px)]:grid-cols-[1fr]">
+      <div className="mt-5 grid grid-cols-[1fr_260px] items-center gap-8 rounded-4xl bg-(--l-surface) p-[clamp(20px,3vw,40px)] [@media(max-width:900px)]:grid-cols-[1fr]">
         <TierField tier={tier} reduceMotion={reduceMotion} />
         <TierStats tier={tier} />
       </div>

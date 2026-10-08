@@ -35,7 +35,7 @@ export interface HomeStageProps {
 // Phone and tablet bounds are exact media queries: Tailwind's max-* variants
 // exclude their bound. The landing sheet owns the stage height when mounted.
 const HOME_STAGE_CLASSES =
-  'reference-home-stage grid h-full min-h-0 grid-cols-[minmax(40rem,50.75rem)_minmax(17rem,21rem)] justify-center gap-[clamp(2.5rem,7vw,7.5rem)] overflow-hidden px-6 pt-[1.15rem] pb-[clamp(1.6rem,4vh,2.6rem)] ' +
+  'reference-home-stage grid h-full min-h-0 grid-cols-[minmax(40rem,50.75rem)_minmax(17rem,21rem)] justify-center gap-[clamp(2.5rem,7vw,7.5rem)] overflow-hidden px-6 pt-5 pb-[clamp(1.6rem,4vh,2.6rem)] ' +
   'tablet:h-auto tablet:min-h-full tablet:grid-cols-[minmax(0,1fr)] tablet:justify-items-center tablet:gap-[clamp(1.5rem,3.5vw,2.5rem)] tablet:overflow-visible tablet:px-[clamp(1.5rem,4vw,2.25rem)] tablet:py-0 ' +
   'desktop:[--home-recents-width:clamp(19rem,18vw,20.5rem)] desktop:[align-items:start] desktop:grid-cols-[minmax(0,1fr)_minmax(19rem,var(--home-recents-width))] desktop:justify-stretch desktop:gap-[clamp(2.25rem,3.1vw,3.35rem)] desktop:py-0 desktop:pr-[clamp(0.7rem,1.2vw,1.3rem)] desktop:pl-[clamp(2rem,3vw,4rem)] ' +
   'phone:flex phone:flex-1 phone:flex-col phone:gap-0 phone:px-[clamp(0.9rem,4vw,1.25rem)] phone:pt-3 phone:pb-[clamp(0.8rem,2.2vh,1.15rem)]';
@@ -58,13 +58,13 @@ const HOME_LOGO_CLASSES =
   'm-[auto_auto_1rem] block h-auto w-[2.5rem] self-center text-cosci-accent [&_path]:fill-current [&_path]:stroke-current';
 
 const STEP_TIMELINE_CLASSES =
-  "relative m-[clamp(3.7rem,8.5vh,5.2rem)_0_0] grid list-none grid-cols-3 gap-[3.9rem] p-0 before:absolute before:top-4 before:right-4 before:left-4 before:h-px before:bg-cosci-step-line before:content-[''] " +
+  "relative m-[clamp(3.7rem,8.5vh,5.2rem)_0_0] grid list-none grid-cols-3 gap-16 p-0 before:absolute before:top-4 before:right-4 before:left-4 before:h-px before:bg-cosci-step-line before:content-[''] " +
   'above-phone:row-3 desktop:row-4 desktop:mt-0 desktop:gap-x-0 ' +
   'tablet:mt-[clamp(2.75rem,6vh,4rem)] tablet:gap-0 ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:mt-[clamp(2.35rem,5.8vh,3.2rem)]';
 
 const STEP_ITEM_CLASSES =
-  'relative z-1 grid gap-4 desktop:w-[min(100%,15.8rem)] tablet:w-[min(100%,14rem)] tablet:grid-cols-[1fr] tablet:gap-[0.85rem]';
+  'relative z-1 grid gap-4 desktop:w-[min(100%,15.8rem)] tablet:w-[min(100%,14rem)] tablet:grid-cols-[1fr] tablet:gap-3.5';
 
 const STEP_NUMBER_CLASSES =
   'grid size-[1.875rem] place-items-center rounded-full bg-cosci-accent text-[1rem] font-normal text-cosci-accent-fg [transition:background-color_0.3s_ease-in-out]';
@@ -73,12 +73,12 @@ const STEP_BODY_CLASSES =
   'mt-1 max-w-[16rem] text-[0.875rem] leading-[1.43] text-cosci-fg [@media(min-width:1181px)_and_(max-height:760px)]:text-[0.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:leading-[1.28]';
 
 const SUGGESTION_ROW_CLASSES =
-  'mt-[clamp(3.2rem,7vh,4.35rem)] grid grid-cols-3 gap-[0.85rem] above-phone:row-5 above-phone:mt-0 desktop:row-6 desktop:[align-self:end] phone:mt-auto phone:grid-cols-[minmax(0,1fr)] phone:gap-[0.15rem]';
+  'mt-[clamp(3.2rem,7vh,4.35rem)] grid grid-cols-3 gap-3.5 above-phone:row-5 above-phone:mt-0 desktop:row-6 desktop:[align-self:end] phone:mt-auto phone:grid-cols-[minmax(0,1fr)] phone:gap-0.5';
 
 const SUGGESTION_BUTTON_LAYOUT_CLASSES =
   'flex h-[4.4rem] max-h-[4.4rem] min-h-[4.4rem] w-full items-center overflow-hidden p-3 leading-[1.35] ' +
   '[@media(min-width:1181px)_and_(max-height:760px)]:max-h-[3.9rem] [@media(min-width:1181px)_and_(max-height:760px)]:min-h-[3.9rem] ' +
-  'phone:h-auto phone:max-h-none phone:min-h-0 phone:gap-[0.85rem] phone:px-[0.85rem] phone:py-[0.6rem]';
+  'phone:h-auto phone:max-h-none phone:min-h-0 phone:gap-3.5 phone:px-3.5 phone:py-2.5';
 
 // TruncatedLabel clips only at whole words; CSS text-overflow would cut
 // letters.
@@ -427,20 +427,20 @@ export const SESSION_STEPS: readonly {
 // than a desktop-style scroller; 1181px+ fills the stage column. Mobile never
 // renders the panel.
 const RECENTS_PANEL_CLASSES =
-  'reference-recents-panel grid min-h-0 [align-content:start] gap-[1.3rem] overflow-hidden pt-1 ui-motion-enter ' +
+  'reference-recents-panel grid min-h-0 [align-content:start] gap-5 overflow-hidden pt-1 ui-motion-enter ' +
   'above-phone:mt-4 above-phone:min-h-auto above-phone:w-[min(100%,43rem)] above-phone:grid-rows-[auto_auto] above-phone:overflow-visible ' +
-  'desktop:mt-0 desktop:h-full desktop:min-h-0 desktop:w-full desktop:max-h-[calc(100vh-4.5rem)] desktop:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] desktop:grid-rows-[auto_minmax(0,1fr)] desktop:[justify-self:end] desktop:gap-[1.55rem] desktop:pt-[clamp(0.35rem,1vh,0.75rem)] desktop:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
+  'desktop:mt-0 desktop:h-full desktop:min-h-0 desktop:w-full desktop:max-h-[calc(100vh-4.5rem)] desktop:supports-[height:100dvh]:max-h-[calc(100dvh-4.5rem)] desktop:grid-rows-[auto_minmax(0,1fr)] desktop:[justify-self:end] desktop:gap-6 desktop:pt-[clamp(0.35rem,1vh,0.75rem)] desktop:pb-[clamp(1.35rem,3.2vh,2.25rem)]';
 
 const RECENTS_PANEL_EMPTY_CLASSES = 'grid-rows-[auto_1fr] self-stretch pb-8';
 
 const RECENTS_LIST_CLASSES =
-  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-[2.6rem] desktop:scroll-p-[0.55rem_0.55rem_2.15rem] desktop:gap-[2.65rem]';
+  'ui-motion-enter-items m-0 grid min-h-0 list-none gap-10 desktop:scroll-p-[0.55rem_0.55rem_2.15rem] desktop:gap-11';
 
 // Background-independent masks soften the scroll edge in both themes without
 // matching surface colors; symmetric 1181px+ insets leave scrollbar slack so
 // narrowed cards cannot overflow horizontally.
 const RECENTS_LIST_SCROLL_CLASSES =
-  'overflow-y-auto p-0 pr-[0.6rem] [mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] [-webkit-mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] ' +
+  'overflow-y-auto p-0 pr-2.5 [mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] [-webkit-mask-image:linear-gradient(to_bottom,#000_calc(100%-2.25rem),transparent)] ' +
   'max-h-[calc(100vh-12rem)] supports-[height:100dvh]:max-h-[calc(100dvh-12rem)] above-phone:max-h-none above-phone:overflow-visible desktop:overflow-y-auto desktop:p-[0.55rem_0.55rem_2.15rem]';
 
 // The empty state is not a scroller; a mask would dim the card itself.
@@ -449,7 +449,7 @@ const RECENTS_LIST_EMPTY_CLASSES = 'h-full overflow-hidden p-0';
 // Its transition stays in home_surface.css: the global unlayered `a` rule
 // would beat a utility.
 const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-[0.7rem] rounded-xl border border-cosci-suggestion-bg bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card hover:bg-cosci-recent-card-hover-bg focus-visible:bg-cosci-recent-card-hover-bg desktop:min-h-0 desktop:border-transparent';
+  'reference-recent-card grid min-h-[15.75rem] w-full cursor-pointer [align-content:start] gap-3 rounded-xl border border-cosci-suggestion-bg bg-cosci-composer-bg p-4 text-left text-cosci-fg no-underline shadow-card hover:bg-cosci-recent-card-hover-bg focus-visible:bg-cosci-recent-card-hover-bg desktop:min-h-0 desktop:border-transparent';
 
 interface HomeRecentsPanelProps {
   runs: Run[];
@@ -523,7 +523,7 @@ export function HomeRecentsPanel({
 function RecentCardMeta({run}: {run: Run}) {
   const nowSeconds = useNowTick(1000, isActiveStatus(run.status));
   return (
-    <span className="flex flex-wrap gap-[0.35rem]">
+    <span className="flex flex-wrap gap-1.5">
       <Chip size="xs">{formatDate(run.updated_at)}</Chip>
       <Chip size="xs">{formatHomeRunTimeChip(run, nowSeconds)}</Chip>
     </span>
@@ -585,7 +585,7 @@ function RecentRunResults({run}: {run: Run}) {
   const topScore = run.top_elo ?? null;
   return (
     <>
-      <span className="flex flex-nowrap items-center gap-[0.35rem]">
+      <span className="flex flex-nowrap items-center gap-1.5">
         <Chip size="xs" tone="success" icon="emoji_events">
           Winning ideas
         </Chip>
@@ -596,11 +596,11 @@ function RecentRunResults({run}: {run: Run}) {
         )}
       </span>
       {topIdeas.length > 0 && (
-        <ol className="m-0 mt-[0.15rem] grid list-none gap-[0.65rem] p-0 text-[0.75rem] leading-[1.33] tracking-[0.1px] text-cosci-fg desktop:gap-2">
+        <ol className="m-0 mt-0.5 grid list-none gap-2.5 p-0 text-[0.75rem] leading-[1.33] tracking-[0.1px] text-cosci-fg desktop:gap-2">
           {topIdeas.map((idea, index) => (
             <li
               key={idea}
-              className="grid grid-cols-[1.4rem_minmax(0,1fr)] gap-[0.2rem]"
+              className="grid grid-cols-[1.4rem_minmax(0,1fr)] gap-1"
             >
               <span>{index + 1}.</span>
               <TruncatedLabel
@@ -687,7 +687,7 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
 ];
 
 const RUN_STEP_CLASSES =
-  'flex items-center gap-[0.6rem] text-[0.85rem] leading-[1.2] font-medium text-cosci-fg';
+  'flex items-center gap-2.5 text-[0.85rem] leading-[1.2] font-medium text-cosci-fg';
 
 const RUN_STEP_DELIMITER_CLASSES =
   'm-[0.2rem_0_0.2rem_0.625rem] h-3 border-s border-s-cosci-border';
@@ -706,7 +706,7 @@ export function RunStepFlow({run}: {run: Run}) {
   const revealed = RUN_STEPS.slice(0, currentPhase);
 
   return (
-    <div className="mt-[0.1rem] grid gap-[0.7rem]">
+    <div className="mt-0.5 grid gap-3">
       <div className="ui-motion-enter-items grid">
         <div className={RUN_STEP_CLASSES}>
           <span

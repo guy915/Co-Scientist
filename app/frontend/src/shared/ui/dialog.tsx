@@ -33,7 +33,7 @@ const SIZE_CLASSES: Record<DialogSize, string> = {
   lg:
     'h-[min(34rem,calc(100dvh-3rem))] w-[min(52rem,calc(100vw-2rem))] px-7 py-6 ' +
     'phone:h-[calc(100dvh-1.5rem)] phone:w-[calc(100vw-1.5rem)] ' +
-    'phone:px-4 phone:py-[1.1rem]',
+    'phone:px-4 phone:py-4',
 };
 
 export const DIALOG_TITLE_CLASSES =

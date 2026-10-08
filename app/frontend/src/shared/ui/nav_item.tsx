@@ -10,12 +10,12 @@ const ITEM_CLASSES =
   'ucs-nav-item grid size-[2.5rem] min-h-[2.5rem] min-w-[2.5rem] cursor-pointer place-items-center [border:0] rounded-full bg-transparent p-0 text-cosci-shell-icon no-underline ' +
   'hover:bg-cosci-shell-hover-bg hover:text-cosci-fg focus-visible:bg-cosci-shell-hover-bg focus-visible:text-cosci-fg ' +
   'phone:h-[2.75rem] phone:min-h-[2.75rem] phone:w-full ' +
-  'phone:grid-cols-[1.5rem_minmax(0,1fr)] phone:[justify-items:start] phone:gap-x-[0.72rem] ' +
+  'phone:grid-cols-[1.5rem_minmax(0,1fr)] phone:[justify-items:start] phone:gap-x-3 ' +
   'phone:px-3 phone:text-left';
 
 const ITEM_OPEN_CLASSES =
   'above-phone:h-[2.45rem] above-phone:min-h-[2.45rem] above-phone:w-full above-phone:grid-cols-[1.5rem_minmax(0,1fr)] ' +
-  'above-phone:[justify-content:stretch] above-phone:[justify-items:start] above-phone:gap-x-[0.72rem] above-phone:px-3 ' +
+  'above-phone:[justify-content:stretch] above-phone:[justify-items:start] above-phone:gap-x-3 above-phone:px-3 ' +
   'above-phone:text-left above-phone:leading-none';
 
 const ITEM_COLLAPSED_CLASSES =

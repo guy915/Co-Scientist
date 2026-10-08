@@ -29,11 +29,11 @@ import {
 } from './ideas_detail_data';
 
 const IDEA_DETAIL_PANE_CLASSES =
-  'idea-detail-pane grid min-h-0 min-w-0 flex-1 content-start gap-[1.35rem] ' +
+  'idea-detail-pane grid min-h-0 min-w-0 flex-1 content-start gap-5 ' +
   'overflow-x-hidden overflow-y-auto border-r-0 bg-transparent px-7 ' +
   // Stack below the three-column fit threshold so detail can grow; the separate
   // phone breakpoint controls interaction and gutters.
-  'pt-[1.45rem] pb-14 max-[1023px]:flex-none ' +
+  'pt-6 pb-14 max-[1023px]:flex-none ' +
   'max-[1023px]:overflow-y-visible phone:px-4';
 
 const IDEA_DETAIL_EMPTY_CLASSES =
@@ -573,7 +573,7 @@ function DetailSection({
 }) {
   return (
     <section
-      className="idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 [&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] [&_h2]:leading-10 [&_h2]:font-normal phone:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] phone:[&_h2]:leading-[1.2] [&_h2]:text-cosci-idea-title-text [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case [&_h3]:text-cosci-idea-title-text [&_p]:m-0 [&_p]:[overflow-wrap:anywhere] [&_p]:text-base [&_p]:leading-6 [&_p]:text-cosci-idea-detail-text"
+      className="idea-detail-section grid gap-2 border-t-0 pt-0 [&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] [&_h2]:leading-10 [&_h2]:font-normal phone:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] phone:[&_h2]:leading-[1.2] [&_h2]:text-cosci-idea-title-text [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case [&_h3]:text-cosci-idea-title-text [&_p]:m-0 [&_p]:[overflow-wrap:anywhere] [&_p]:text-base [&_p]:leading-6 [&_p]:text-cosci-idea-detail-text"
       id={sectionSlug(title)}
     >
       <h2>{title}</h2>

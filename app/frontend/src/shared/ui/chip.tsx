@@ -28,7 +28,7 @@ const OUTLINED_CLASSES: Record<ChipTone, string> = {
 
 const SIZE_CLASSES: Record<ChipSize, string> = {
   xs: 'min-h-[1.45rem] gap-1 px-2 text-[0.6875rem] font-medium',
-  sm: 'h-[1.7rem] gap-[0.3rem] px-[0.62rem] text-[0.72rem] font-semibold',
+  sm: 'h-[1.7rem] gap-1 px-2.5 text-[0.72rem] font-semibold',
   md: 'h-7 gap-1 px-3 text-[0.8rem] font-medium',
 };
 
