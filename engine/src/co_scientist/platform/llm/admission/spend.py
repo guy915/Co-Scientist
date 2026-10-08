@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import os
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
@@ -17,6 +20,20 @@ from co_scientist.platform.llm.roles import current_call_policy
 _blocked: set[str] = set()
 _lock = threading.Lock()
 _MAX_INTEGER = 2**63 - 1
+_run_id: ContextVar[str | None] = ContextVar("spend_run_id", default=None)
+
+
+@contextmanager
+def scoped_run_spending(run_id: str | None) -> Iterator[None]:
+    token = _run_id.set(run_id)
+    try:
+        yield
+    finally:
+        _run_id.reset(token)
+
+
+def current_spending_run_id() -> str | None:
+    return _run_id.get()
 
 
 def _enabled(name: str, default: bool) -> bool:
@@ -132,6 +149,7 @@ def prepare_spend(request: dict[str, Any], tokens: int, db_path: str) -> SpendRe
         inputs,
         output,
         json.dumps(rates),
+        _run_id.get(),
     )
 
 

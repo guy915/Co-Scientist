@@ -11,7 +11,10 @@ function assets() {
       const status = ['/index.html', '/assets/app.js', '/robots.txt'].includes(path)
         ? 200
         : 404;
-      return new Response(request.method === 'HEAD' ? null : body, {status});
+      const headers = path.startsWith('/assets/')
+        ? {'Cache-Control': 'public, max-age=31536000, immutable'}
+        : {};
+      return new Response(request.method === 'HEAD' ? null : body, {status, headers});
     },
   };
 }
@@ -45,4 +48,17 @@ test('the worker is served only on its custom domain', () => {
   const config = JSON.parse(readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8'));
   assert.equal(config.workers_dev, false);
   assert.equal(config.preview_urls, false);
+});
+
+test('a missing bundle is never cached while present bundles stay immutable', async () => {
+  const env = {ASSETS: assets()};
+
+  const missing = await worker.fetch(
+    new Request('https://open-coscientist.com/assets/missing.js'), env,
+  );
+  const present = await worker.fetch(new Request('https://open-coscientist.com/assets/app.js'), env);
+
+  assert.equal(missing.status, 404);
+  assert.equal(missing.headers.get('Cache-Control'), 'no-store');
+  assert.equal(present.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
 });

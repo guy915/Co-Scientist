@@ -36,7 +36,13 @@ from co_scientist.platform.db.launch_control import (
 from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.llm.admission.spend import azure_config
 from co_scientist.platform.llm.execution_policy import deployment_routes_are_free
-from co_scientist.platform.llm.process_mode import credential_available, offline_mode
+from co_scientist.platform.llm.process_mode import (
+    credential_available,
+    offline_mode,
+    production_routing_enabled,
+)
+from co_scientist.platform.llm.request.backend import active_backend
+from co_scientist.platform.llm.routing import available_slots
 
 router = APIRouter(tags=["launch-operations"])
 
@@ -85,9 +91,12 @@ def _credit_snapshot(conn: Connection) -> dict[str, Any]:
             "total_microeur": None,
         }
     held = conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone() is not None
+    forecasts = int(
+        conn.execute("SELECT COALESCE(SUM(forecast_microeur),0) FROM llm_routes").fetchone()[0]
+    )
     return {
         "enabled": True,
-        "available": charged < config.total and not held,
+        "available": charged + forecasts < config.total and not held,
         "charged_and_reserved_microeur": charged,
         "total_microeur": config.total,
     }
@@ -202,6 +211,18 @@ def launch_status(request: Request, response: Response) -> dict[str, Any]:
         reason, message, resumes_at = "paused", control.message, control.resumes_at
     elif message is not None:
         reason, resumes_at = "free_capacity", reset
+    elif (
+        production_routing_enabled()
+        and not offline_mode()
+        and getattr(active_backend(), "operator_routing", False)
+    ):
+        try:
+            slots = available_slots(path).slots
+        except ProviderAdmissionError:
+            slots = ()
+        free_allowed = any(slot != "azure" or credit["available"] for slot in slots)
+        if not free_allowed:
+            reason, message = "credit_exhausted", "No model is available right now"
     elif not offline_mode() and credit["enabled"] and not credit["available"]:
         reason = "credit_exhausted"
         free_allowed = deployment_routes_are_free() and all(
