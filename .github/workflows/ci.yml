@@ -1,11 +1,10 @@
-# CI is hermetic: no external network, model keys, or retry masking.
+# Tests are hermetic: no external service traffic, model keys, or retries.
 # Main retains comprehensive results for every commit; PR jobs are filtered.
 name: CI
 
 on:
   pull_request:
-  merge_group:
-    types: [checks_requested]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
   push:
     branches: [main]
   workflow_call:
@@ -44,9 +43,14 @@ jobs:
       docker: ${{ steps.select.outputs.docker }}
       root_config: ${{ steps.select.outputs.root_config }}
       python_lint: ${{ steps.select.outputs.python_lint }}
+      workflows: ${{ steps.select.outputs.workflows }}
+      sandbox: ${{ steps.select.outputs.sandbox }}
+      cross_browser: ${{ steps.select.outputs.cross_browser }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Select affected targets from shared rules
         id: select
         env:
@@ -65,6 +69,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -132,8 +138,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up backend
-        uses: ./.github/actions/setup-backend
+        # The local action executes this checked-out commit.
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
       - name: Cache mypy incremental data
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -196,6 +205,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -224,8 +235,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up backend
-        uses: ./.github/actions/setup-backend
+        # The local action executes this checked-out commit.
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
       - name: Run viewer backend test suite
         working-directory: app
         # Tests isolate their stores, so shards and xdist workers share nothing; four
@@ -245,8 +259,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up backend
-        uses: ./.github/actions/setup-backend
+        # The local action executes this checked-out commit.
+        uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
       - name: Evaluation harness tests
         run: python -m pytest evaluations/tests -q
       - name: Offline evaluation smoke suite
@@ -264,6 +281,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -317,6 +336,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -356,6 +377,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build api image
@@ -384,6 +407,8 @@ jobs:
       - name: Report image sizes
         # Image size is an optimization metric; record it on every build.
         run: docker image ls --format '{{.Repository}} {{.Size}}' 'coscientist-*-ci'
+      - name: Start production images with offline isolated probes
+        run: python scripts/ci/container_smoke.py --api-image coscientist-api-ci --mcp-image coscientist-mcp-ci
       - name: Derive app/.env from the committed example
         # Compose env_file must exist; --env-file only supplies interpolation.
         # Use the committed secret-free example in clean checkouts.
@@ -394,6 +419,116 @@ jobs:
         # offline.
         working-directory: app
         run: docker compose config --quiet
+
+  launch-checks:
+    name: Launch metadata, links and secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout complete PR history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned checker dependencies
+        run: python -m pip install markdown-it-py==4.2.0 ruff==0.15.21
+      - name: Offline checker tests and style
+        run: |
+          python -m unittest discover -s scripts/ci/tests -v
+          ruff format --check scripts/ci
+          ruff check scripts/ci
+      - name: Validate tracked Markdown links and anchors
+        run: python scripts/ci/markdown_links.py
+      - name: Check PR title, body and commit messages
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python scripts/ci/git_hygiene.py
+      - name: Install checksum-verified secret detector
+        if: github.event_name == 'pull_request'
+        run: python scripts/ci/install_tools.py gitleaks "$RUNNER_TEMP/ci-tools"
+      - name: Scan added PR lines for secrets
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GITLEAKS_BIN: ${{ runner.temp }}/ci-tools/gitleaks
+        run: python scripts/ci/secret_scan.py
+
+  workflow-lint:
+    name: Workflow lint and detector failure proofs
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install verified actionlint and gitleaks
+        run: |
+          python scripts/ci/install_tools.py actionlint "$RUNNER_TEMP/ci-tools"
+          python scripts/ci/install_tools.py gitleaks "$RUNNER_TEMP/ci-tools"
+          python -m pip install zizmor==1.30.1
+      - name: Lint all workflows offline
+        env:
+          ACTIONLINT_BIN: ${{ runner.temp }}/ci-tools/actionlint
+        run: python scripts/ci/workflow_lint.py
+      - name: Prove the actual detectors reject unsafe fixtures
+        env:
+          ACTIONLINT_BIN: ${{ runner.temp }}/ci-tools/actionlint
+          GITLEAKS_BIN: ${{ runner.temp }}/ci-tools/gitleaks
+          ZIZMOR_BIN: zizmor
+        run: python -m scripts.ci.tool_tests
+
+  dependency-review:
+    name: Reject high and critical dependency advisories
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Review changed dependencies
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime, development, unknown
+          license-check: false
+          show-openssf-scorecard: false
+          retry-on-snapshot-warnings: false
+          comment-summary-in-pr: never
+
+  sandbox-macos:
+    name: macOS seatbelt confinement
+    needs: changes
+    if: github.event_name != 'push' && needs.changes.outputs.sandbox == 'true'
+    # Local call uses this commit; actionlint rejects the newer $/ syntax.
+    uses: ./.github/workflows/sandbox-macos.yml # zizmor: ignore[self-repository]
+
+  cross-browser:
+    name: Cross-browser accessibility and keyboard guards
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.cross_browser == 'true'
+    # Local call uses this commit; actionlint rejects the newer $/ syntax.
+    uses: ./.github/workflows/cross-browser.yml # zizmor: ignore[self-repository]
+
+  cross-browser-full:
+    name: Comprehensive native keyboard guards
+    # Every non-PR event selects all targets; start before the selector finishes.
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/cross-browser.yml # zizmor: ignore[self-repository]
+
 
   required-checks:
     name: Required checks
@@ -408,45 +543,20 @@ jobs:
       - frontend
       - e2e
       - docker-build
+      - launch-checks
+      - workflow-lint
+      - dependency-review
+      - sandbox-macos
+      - cross-browser
+      - cross-browser-full
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Reject failed or cancelled jobs
+      - name: Checkout aggregate validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every selected and always-on check
         env:
           RESULTS: ${{ toJSON(needs) }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          jobs = json.loads(os.environ["RESULTS"])
-          failed = [name for name, job in jobs.items()
-                    if job["result"] not in {"success", "skipped"}]
-          changes = jobs["changes"]
-          outputs = changes.get("outputs", {})
-          selections = {
-              "format-lint": ("python_lint", "mcp_server"),
-              "typecheck": ("engine", "app", "evaluations", "root_config"),
-              "test-engine": ("engine",),
-              "test-app": ("app",),
-              "evaluations": ("evaluations",),
-              "frontend": ("frontend",),
-              "e2e": ("e2e",),
-              "docker-build": ("docker",),
-          }
-          if changes["result"] != "success":
-              failed.append("changes")
-          for name, targets in selections.items():
-              values = [outputs.get(target) for target in targets]
-              if any(value not in {"true", "false"} for value in values):
-                  failed.append("changes")
-                  continue
-              expected = "success" if "true" in values else "skipped"
-              if jobs.get(name, {}).get("result") != expected:
-                  failed.append(name)
-          if failed:
-              print("Required checks failed: " + ", ".join(sorted(set(failed))))
-              sys.exit(1)
-          print("All selected checks passed.")
-          PY
+        run: python scripts/ci/required_checks.py

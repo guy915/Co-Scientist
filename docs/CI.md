@@ -1,155 +1,164 @@
 # CI
 
-CI is GitHub Actions, patterned on the publicly documented presubmit and
-postsubmit practices in
-[Software Engineering at Google, ch. 23](https://abseil.io/resources/swe-book/html/ch23.html)
-and [Test Sizes](https://testing.googleblog.com/2010/12/test-sizes.html), scaled
-down to a small project. Where this repository departs from that model, the
-section below says so.
+GitHub Actions runs affected checks before merge and comprehensive checks on
+`main`, nightly and manual runs. `Required checks` is the single aggregate
+status. Superseded PR runs are cancelled; every other run has its own group.
+Blocking tests never call live models, fetch external links or retry assertions.
 
 ## Workflows
 
 | Workflow | Trigger | Purpose |
 |---|---|---|
-| `ci.yml` | `pull_request`, `merge_group`, `push` to `main`, `workflow_call`, `workflow_dispatch` | The gate. Presubmit on pull requests: path-filtered, superseded runs cancelled. Postsubmit on `main`: every job runs, nothing is cancelled |
-| `nightly.yml` | Cron (daily), manual | Calls `ci.yml` in full, catching breakage that arrives without a commit (dependency drift, runner image changes) |
-| `codeql.yml` | Pull request, merge group, push, weekly cron, manual | CodeQL static analysis |
-| `dependency-audit.yml` | Weekly cron, manual | `make audit-deps` against the hash-pinned runtime locks and the Bun locks; online, so not a gate |
-| `benchmark.yml` | Manual | Live quality benchmark using the `OPENROUTER_API_KEY` repository secret; never gates a change. See [Quality benchmark](../evaluations/README.md#quality-benchmark) |
-| `prune-branches.yml` | Manual | Deletes branches with no open pull request and no recent commit (`min_age_hours`, default 24; `dry_run` available); `main` is never touched |
+| `ci.yml` | PR, including title/body edits; main push; reusable/manual | Blocking checks and aggregation |
+| `nightly.yml` | Daily cron, manual | Full CI, including native browsers and macOS confinement |
+| `codeql.yml` | PR, push, weekly cron, manual | Python/TypeScript static analysis |
+| `sandbox-macos.yml` | Reusable/manual | Native Darwin seatbelt tests |
+| `cross-browser.yml` | Reusable/manual | Production WebKit, iPhone WebKit and Firefox guards |
+| `dependency-audit.yml` | Weekly cron, manual | Online runtime/Bun advisory scan; separate from the gate |
+| `benchmark.yml` | Manual | Opt-in live measurements; see [Quality benchmark](../evaluations/README.md#quality-benchmark) |
+| `prune-branches.yml` | Manual | Dry-run-capable cleanup; preserves main and open PR branches |
 
-## `ci.yml` jobs
+Merge queues require an organization-owned repository. These user-owned
+repositories have no queue or `merge_group` trigger.
 
-| Job | Runs | Timeout (min) |
+## Blocking jobs
+
+| Job | Checks | Timeout (min) |
 |---|---|---|
-| `changes` ("Affected targets") | Path filters and target selection; builds the legacy-context matrix | 5 |
-| `format-lint` | `ruff format --check` and `ruff check` over `engine`, `app/tests` and `evaluations`; when `engine/mcp_server` changed, also the MCP server tests and its strict `mypy` | 20 |
-| `typecheck` | `make typecheck` (strict mypy over `app`, `engine`, `evaluations`) and `make arch` (import contracts). When root config changed: `vercel.json` and `wrangler.jsonc` syntax checks, the Cloudflare worker test (`node --test app/frontend/worker.test.mjs`), `make setup`, `make lint` | 30 |
-| `test-engine` | Engine pytest on Python 3.12, matching the supported floor | 15 |
-| `test-app` | App pytest in 3 shards | 25 |
-| `evaluations` | `evaluations/tests` and the offline `evaluations.smoke` suite | 15 |
-| `frontend` | `bun run lint` (gts), `bun run test` (Vitest), `bun run build` | 15 |
-| `e2e` | Playwright through `make e2e` (2 file shards) and `make e2e-production` (built assets, deep links, report reloads, anonymous ownership isolation) | 25 |
-| `docker-build` | Builds `Dockerfile.api`, `Dockerfile.mcp` and the frontend dev image, then `docker compose config`; never pushes or runs them | 30 |
-| `protected-contexts` | Legacy status names kept until only `Required checks` is required | 5 |
-| `required-checks` | Aggregate gate (see Branch protection) | 5 |
+| `changes` | Shared rules; unknown/incomplete diffs select everything | 5 |
+| `launch-checks` | Offline checker tests/style, Markdown; PR metadata/history and diff secrets | 5 |
+| `format-lint` | Ruff; selected MCP pytest and strict mypy | 20 |
+| `typecheck` | Strict mypy, import contracts; selected root setup/lint/routing, including `vercel.json` | 30 |
+| `test-engine` | Engine pytest on Python 3.12 | 15 |
+| `test-app` | Four independent shards, four workers each | 25 |
+| `evaluations` | Evaluation tests, licence inventory and offline smoke | 15 |
+| `frontend` | gts, Vitest, production build and bundle budgets | 15 |
+| `e2e` | Eight weighted development bins and two whole-file production shards | 25 |
+| `docker-build` | Three images, real API/MCP starts and Compose validation | 30 |
+| `workflow-lint` | Verified actionlint, offline zizmor and detector failure controls | 5 |
+| `dependency-review` | PR changes; rejects high/critical advisories in runtime/development/unknown scopes | 5 |
+| `sandbox-macos` | Native sandbox tests; selected PRs, nightly and manual runs | Leaf: 15 |
+| `cross-browser` / `cross-browser-full` | Six production native guard jobs, selected PRs / immediate comprehensive non-PR runs | Leaf: 10 |
+| `required-checks` | Rejects failed, cancelled, omitted and incorrectly skipped dependencies | 5 |
 
-Python 3.12 is the primary version everywhere, as in the production images.
-The engine and MCP server require Python 3.12 or newer.
+Python 3.12 is the engine/MCP floor and production version. The Python 3.10
+worker and compatibility classifiers are removed.
 
-## Selection
+## Launch guards
 
-Filtering is by job, not `on.paths`: a skipped job reports `skipped`, which
-the required check accepts, whereas workflow-level `paths:` would leave a
-required check pending forever. The `changes` job declares the dependency
-edges by hand as path globs (the app depends on the engine; `evaluations`
-runs on any source or documentation change). Every path in the repository
-falls under at least one filter, including the Dockerfiles and compose files
-(`docker`) and `Makefile`, `vercel.json` and the `.env.example` templates
-(`root_config`).
+PR titles are imperative summaries without a Conventional Commit prefix.
+Non-merge subjects follow `<type>(<scope>): <subject>`. Tool attribution and
+generated/session/coauthor trailers fail in titles, bodies and branch commit
+messages; merge commits are exempt only from subject formatting. Event title
+and body reach the checker through environment variables, never shell
+interpolation. Squash explicitly with a scoped subject and empty body:
+GitHub's default copying can otherwise reintroduce forbidden history.
+Historical main commits are outside the new PR range.
 
-A pull request that touches only `docs/` or `*.md` skips the test targets
-(engine, app, frontend, evaluations, MCP server, e2e); `docker` and
-`root_config` still follow their own filters. Pushes to `main`, nightly and
-manual runs select every target.
+The added-line secret scan uses checksum-verified gitleaks 8.30.1. Only exact
+synthetic test placeholders are allowlisted. Inline suppression and repository
+ignore fingerprints cannot silence it; a fresh scratch directory prevents
+implicit ignore loading, and findings are redacted.
 
-## Hermetic rules
+The Markdown checker reads every tracked `.md` file, relative target, heading
+anchor and HTML image/source link; directory fragments use the tracked README.
+It never requests external URLs. Three exact upstream vendor links have
+owner-approved exceptions; changed lines/targets are checked normally and
+vendor source remains untouched.
 
-No blocking job uses the network for test traffic, model keys or retries.
+Workflow lint runs for `.github/**` and checker changes. actionlint 1.7.12 is
+checksum-verified; zizmor 1.30.1 checks workflows/local actions offline. Narrow
+self-repository annotations are justified: local calls execute this checked-out
+commit, and actionlint does not support the newer self-repository syntax.
+Checkout credentials are never persisted. Real unsafe workflow/secret fixtures
+prove the installed detectors fail.
 
-- Engine tests mock LLM calls. App tests force the deterministic offline
-  backend (`COSCIENTIST_FORCE_OFFLINE=1`), and no provider key exists in CI.
-  MCP tests use fake `httpx` clients.
-- Browser tests get a fresh temporary store, disabled dotenv loading and
-  offline evidence checks. CI uses the Chrome executable shipped by the
-  `ubuntu-24.04` runner image through `COSCI_E2E_CHROMIUM_EXECUTABLE` and
-  prints its version. Browser setup does not run apt or download a browser;
-  `make e2e` still installs bundled Playwright Chromium locally by default.
-- `evaluations.smoke` is the offline, no-LLM subset; provider-backed suites
-  stay opt-in.
-- Fetching the repository, actions, registries (PyPI, npm) and Docker base
-  images is infrastructure, not test traffic.
-  Lockfiles are frozen and tool versions pinned (`ruff==0.15.21`, Bun
-  `1.3.14`, Node `24.19.0`, uv `0.11.32` in CI and `0.12.19` for lock
-  regeneration and the dependency audit), but the registry fetch itself is
-  trusted. `ubuntu-latest` floats; the nightly run is the canary for image
-  drift.
-- Actions are pinned by SHA with the version in a trailing comment;
-  Dependabot proposes updates weekly (`.github/dependabot.yml`). The
-  `setup-backend` composite action installs the engine and the CI-only
-  `pytest-xdist` so backend jobs share one recipe.
+Axe checks landing, home, a completed report and interview in light/dark,
+failing serious/critical violations. Native guards add real keyboard menus,
+progress, announcements, headings and contrast. The driver must exactly match
+the digest-pinned Playwright image. Each project has two whole-file bins
+computed from selected cases; new tagged cases/files participate automatically.
+An isolated-runner `--list` control proves assignments without starting servers.
 
-## Sharding
+API starts as root with a fresh empty `/app/data` volume and as the image user
+without a volume, with `COSCIENTIST_FORCE_OFFLINE=1`. MCP uses a synthetic
+shared secret. Every variant uses network isolation, its real entrypoint and
+a 60-second readiness deadline. Failures print logs; successful API containers
+are removed before the next variant. Final cleanup removes task containers and
+the scratch volume. CI never pushes or deploys these images.
 
-`test-app` runs three shards (`.github/ci_shard.py`: round-robin over sorted
-node IDs, identical in every xdist worker, which xdist requires), each on
-four `pytest-xdist` workers; every test owns its store, so shards share
-nothing. `make e2e E2E_ARGS=--shard=1/2` reproduces one browser shard
-locally.
+macOS tests require Darwin and the seatbelt executable/backend before running,
+so missing confinement cannot silently skip. Sandbox source/test or workflow
+changes select the native PR job; every nightly runs it. Main pushes skip it.
 
-## Flake policy
+## Selection and local checks
 
-Never retry: no `retry` wrappers, `--reruns` or marketplace retry actions. A
-flaky test is tracked in an issue, quarantined with a skip marker that names
-the issue, then fixed or deleted. Silent retries turn a real signal into
-noise. `fail-fast: false` on the matrices keeps every interpreter and shard
-result visible.
+`.github/ci_paths.json` is shared by Actions and `make presubmit`, which uses
+`git diff origin/main...HEAD`. Renames select both paths. PR file lists are
+paginated; incomplete lists and unknown paths require comprehensive checks.
+Job filtering keeps the aggregate present.
 
-## Style and types
+Documentation-only changes skip ordinary test targets but retain launch guards
+and affected lint/workflow checks. Sandbox documentation retains its native
+selection. Requirement locks and every LICENSE/NOTICE select the evaluation
+licence guard. `vercel.json` remains a root input until the separate cutover.
 
-Tooling, not review, owns style: ruff (100 columns; rule sets in each
-`pyproject.toml`) and `gts lint` for the frontend. `mypy --strict` is blocking,
-and `make typecheck` and the CI job run the same recipe.
+Install Bun 1.3.14 and run `make setup`, then merge current main and run
+`make presubmit` before pushing. It always checks checker units/style,
+Markdown, branch history and pinned diff secrets, then explicit affected local
+recipes. PR title/body checks run in Actions; `--commits-only` is local history.
 
-## Local equivalents
-
-| Gate | Local command |
+| Check | Local command |
 |---|---|
-| Lint, format, import contracts | `make lint` |
-| Types | `make typecheck` |
-| Tests | `make test-engine`, `make test-app`, `make test-mcp`, `make test-frontend`, `make test-evaluations`, `make test-all` |
-| Offline evaluation smoke | `make eval-smoke` |
-| Browser | `make e2e`, `make e2e-production` |
-| Production images | `make docker-build` |
+| Affected gates | `make presubmit` (`PRESUBMIT_ARGS=--dry-run` lists selection) |
+| Checker/history/link/secret guards | `make ci-guards` |
+| Workflow lint and actual failure controls | `make lint-workflows` |
+| Lint/contracts/types | `make lint`, `make arch`, `make typecheck` |
+| Full suites and offline smoke | `make test-all`, `make eval-smoke` |
+| Chromium development/production | `make e2e`, `make e2e-production` |
+| Enabled-error-SDK bundle budgets | `make build-checked` |
+| Production image builds | `make docker-build` |
+| Linux confinement | `make test-sandbox-linux` |
 | Everything offline | `make check` |
 
-The test and lint jobs spell out their commands rather than calling `make`,
-so a Makefile edit cannot silently change those gates. `typecheck` (and the
-`root_config` steps) call `make` on purpose: a broken target must fail CI. A
-populated legacy-schema database migration is covered by an ordinary
-`test-app` test (`app/tests/test_persistence_records.py`), not a dedicated
-job.
+Native jobs additionally require their actual Actions platform; local recipes
+retain production browser/engine tests on the developer's platform. Inspect a
+native assignment with
+`python scripts/ci/native_browser_shards.py --project webkit --shard 1 --list`.
+
+## Isolation and sharding
+
+API tests own their stores. App shard IDs are deterministic in every xdist
+worker. Browser invocations own temporary stores, disable dotenv and force
+offline evidence; production tests serve built assets. Offline exact-union
+controls exercise weighted development assignment. Production/native bins
+preserve whole files and one worker.
+
+Setup may fetch pinned actions, packages, tools and base images; test traffic
+is hermetic. CI uses Python 3.12, Bun 1.3.14, Node 24.19.0, uv 0.11.32 and
+Ruff 0.15.21. Runtime Python closures are hash-pinned; see
+[the lock procedure](../requirements/README.md). Dependabot covers actions,
+Bun and Docker digests; Bun upgrades stay held at 1.3.14 while same-tag digest
+refreshes remain eligible.
+
+No coverage threshold, external-link gate or Windows runner is configured.
+Flakes need an issue and explicit quarantine, then a fix. Silent retries are
+forbidden; matrix fail-fast is disabled to retain every result.
 
 ## Branch protection
 
-`.github/rulesets/main.json` is the ruleset for `main`; GitHub does not apply
-it automatically, so import it in the repository settings. It requires:
+Import `.github/rulesets/main.json`: PR, squash-only merge, resolved threads,
+zero approvals and the single Required status, without delete/force-push/bypass.
+`strict_required_status_checks_policy` is false; reviewers must integrate
+current main and verify the actual head. Launch-lane merges also review CodeQL.
 
-- a pull request, squash merge only, zero approving reviews, stale reviews
-  dismissed on push, review threads resolved;
-- the single status check `Required checks`, with
-  `strict_required_status_checks_policy: false` (the branch need not be up to
-  date);
-- no deletion and no force-push, with no bypass actors.
+The aggregate runs with `always()`. Changes must succeed; selected jobs must
+succeed and unselected jobs must report exactly skipped. Launch guards are
+always required, dependency review runs on PRs, and macOS is required on its
+selected events. Missing flags/results, cancellation and unknown failed
+jobs fail closed. Offline controls include corrupt input to the actual CLI.
+The event-appropriate native call must succeed and its companion must skip;
+starting comprehensive native work early never waives successful selection.
 
-`Required checks` runs with `always()`. It fails on any failed or cancelled
-dependency and accepts a path-filtered skip only when `changes` succeeded,
-so one stable status covers the matrix and the conditional jobs.
-
-Presubmit tests the pull-request merge ref, which approximates but does not
-guarantee current `main`. GitHub's merge queue is not available to
-personal-account repositories and the ruleset configures none; the
-`merge_group` triggers only keep the workflows ready for one. Enable private
-security reporting before public launch; see [LAUNCH.md](LAUNCH.md).
-
-## Not replicated
-
-Google's TAP, Bazel affected-target selection, submit queue, green-head sync
-and flake-bot automation have no GitHub equivalent at this scale. Path
-filters, per-commit postsubmit, `Required checks` and the manual quarantine
-procedure stand in for them. A genuinely slow suite (for example
-provider-backed evaluations) belongs in `nightly.yml`, not presubmit.
-
-Production Python runtime closures are hash-pinned under `requirements/`;
-regenerate them with runtime metadata changes per
-[the lock procedure](../requirements/README.md).
+There is no submit queue or automated flake bot. Provider-backed evaluation
+remains explicitly opt-in.
