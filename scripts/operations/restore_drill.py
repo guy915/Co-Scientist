@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from co_scientist.platform.db.backup_service import refresh
+
 
 def isolated_environment(scratch: Path, database: Path) -> dict[str, str]:
     # An allowlist excludes provider/SMTP/telemetry credentials and dotenv files.
@@ -48,7 +50,7 @@ def verify(database: Path) -> None:
         ).fetchall() == [("synthetic-only",)]
 
 
-def run(litestream: Path, scratch: Path) -> dict[str, str | float]:
+def run(litestream: Path, scratch: Path) -> dict[str, str | float | bool]:
     source = scratch / "source.db"
     restored = scratch / "restored.db"
     replica = scratch / "replica"
@@ -75,19 +77,32 @@ def run(litestream: Path, scratch: Path) -> dict[str, str | float]:
         f"      path: {json.dumps(str(replica))}\n",
         encoding="utf-8",
     )
+    first = refresh(
+        str(litestream), str(configuration), source, environment=environment
+    )
+    # Simulate an idle restore base old enough for the owner's 30-day R2 rule,
+    # exclusively on a synthetic local file replica. No source DB write.
+    snapshots = list((replica / "ltx" / "9").glob("*.ltx"))
+    assert len(snapshots) == 1, "Expected one complete synthetic snapshot"
+    old = time.time() - 31 * 86400
+    os.utime(snapshots[0], (old, old))
+    second = refresh(
+        str(litestream), str(configuration), source, environment=environment
+    )
+    assert first["txid"] == second["txid"], "Idle source position changed"
+    assert snapshots[0].stat().st_mtime > old + 30 * 86400
     with (scratch / "litestream.log").open("wb") as log:
-        subprocess.run(
-            [str(litestream), "replicate", "-config", str(configuration), "-once"],
-            cwd=scratch,
-            env=environment,
-            stdout=log,
-            stderr=log,
-            check=True,
-            timeout=60,
-        )
         started = time.monotonic()
         subprocess.run(
-            [str(litestream), "restore", "-o", str(restored), replica.as_uri()],
+            [
+                str(litestream),
+                "restore",
+                "-txid",
+                second["txid"],
+                "-o",
+                str(restored),
+                replica.as_uri(),
+            ],
             cwd=scratch,
             env=environment,
             stdout=log,
@@ -154,6 +169,9 @@ def run(litestream: Path, scratch: Path) -> dict[str, str | float]:
         "health": "healthy",
         "integrity": "ok",
         "data": "synthetic-only",
+        "idle_refresh_verified": True,
+        "idle_refresh_seconds": second["seconds"],
+        "snapshot_txid": second["txid"],
     }
 
 
