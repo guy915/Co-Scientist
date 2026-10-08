@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -99,3 +100,69 @@ def test_a_book_record_has_no_paper_details(
     install_entrez(monkeypatch, efetch=lambda **_kwargs: CannedEntrezHandle(_BOOK_RECORD))
 
     assert _EntrezClient(tmp_path)._fetch_paper_details("222") is None
+
+
+_UNKNOWN_RESPONSES: list[Any] = [
+    {},
+    {"PubmedArticle": []},
+    {"PubmedArticle": [], "PubmedBookArticle": []},
+    {"ERROR": "upstream detail"},
+]
+
+
+def _install_mixed_search(monkeypatch: pytest.MonkeyPatch, second: Any) -> None:
+    install_entrez(
+        monkeypatch,
+        esearch=lambda **_kwargs: CannedEntrezHandle({"IdList": ["111", "222"]}),
+        efetch=lambda **kwargs: CannedEntrezHandle(
+            second if kwargs["id"] == "222" else _journal_record("Kept paper")
+        ),
+        elink=lambda **_kwargs: CannedEntrezHandle([{"LinkSetDb": []}]),
+    )
+
+
+@pytest.mark.parametrize("response", _UNKNOWN_RESPONSES)
+def test_a_response_without_an_article_or_book_fails_the_pubmed_search(
+    monkeypatch: pytest.MonkeyPatch, response: Any
+) -> None:
+    _install_mixed_search(monkeypatch, response)
+
+    result = search_pubmed.search_pubmed("query", max_papers=2)
+
+    assert result["status"] == "failed"
+    assert "upstream detail" not in str(result)
+
+
+@pytest.mark.parametrize("response", _UNKNOWN_RESPONSES)
+def test_a_response_without_an_article_or_book_has_no_paper_details(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, response: Any
+) -> None:
+    install_entrez(monkeypatch, efetch=lambda **_kwargs: CannedEntrezHandle(response))
+
+    with pytest.raises(ValueError, match="no article record"):
+        _EntrezClient(tmp_path)._fetch_paper_details("222")
+
+
+def test_a_book_record_does_not_fail_the_fulltext_search(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(tmp_path))
+    _install_mixed_search(monkeypatch, _BOOK_RECORD)
+
+    result = asyncio.run(search_pubmed.pubmed_search_with_fulltext("query", "topic", max_papers=2))
+
+    assert result["status"] == "ok"
+    assert {path.name for path in tmp_path.rglob("*.metadata.json")} == {"111.metadata.json"}
+
+
+@pytest.mark.parametrize("response", _UNKNOWN_RESPONSES)
+def test_a_response_without_an_article_or_book_fails_the_fulltext_search(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, response: Any
+) -> None:
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(tmp_path))
+    _install_mixed_search(monkeypatch, response)
+
+    result = asyncio.run(search_pubmed.pubmed_search_with_fulltext("query", "topic", max_papers=2))
+
+    assert result["status"] == "failed"
+    assert "upstream detail" not in str(result)

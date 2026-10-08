@@ -3,7 +3,7 @@ Credentials remain task-local.
 """
 
 import functools
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Protocol
@@ -84,10 +84,26 @@ def _registry_supports_json_schema(model_name: str) -> bool:
 
 
 class LitellmBackend:
+    operator_routing = True
+
     async def complete(self, **completion_args: Any) -> Any:
         """Read the live LiteLLM attribute so existing patch paths still
         steer built requests.
         """
+        model = str(completion_args.get("model", "")).replace("azure/responses/", "azure/")
+        from co_scientist.platform.llm.request.azure import LUNA, NANO, AzureResponsesBackend
+
+        if model in (LUNA, NANO):
+            backend = AzureResponsesBackend.from_environment()
+            try:
+                response = await backend.complete(**completion_args)
+            except BaseException:
+                backend.close()
+                raise
+            if completion_args.get("stream"):
+                return _OwnedStream(response, backend.close)
+            backend.close()
+            return response
         # SDK retries would send requests that admission has not reserved.
         completion_args.update(num_retries=0, max_retries=0)
         token = _gateway_request.set(True)
@@ -104,6 +120,32 @@ class LitellmBackend:
 
     def supports_json_schema(self, model_name: str) -> bool:
         return litellm_supports_json_schema(model_name)
+
+
+class _OwnedStream:
+    def __init__(self, response: Any, close_client: Callable[[], None]) -> None:
+        self._response = response
+        self._iterator = response.__aiter__()
+        self._close_client = close_client
+        self._closed = False
+
+    def __aiter__(self) -> "_OwnedStream":
+        return self
+
+    async def __anext__(self) -> Any:
+        try:
+            return await self._iterator.__anext__()
+        except BaseException:
+            await self.aclose()
+            raise
+
+    async def aclose(self) -> None:
+        if not self._closed:
+            self._closed = True
+            try:
+                await self._response.aclose()
+            finally:
+                self._close_client()
 
 
 _LITELLM = LitellmBackend()

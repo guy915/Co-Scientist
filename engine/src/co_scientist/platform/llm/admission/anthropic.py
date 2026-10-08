@@ -13,6 +13,7 @@ from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, transaction
 from co_scientist.platform.db.anthropic_credit import (
     UNAVAILABLE,
+    AnthropicCreditUnavailableError,
     CreditRecord,
     CreditReservation,
     disable_credit,
@@ -61,7 +62,7 @@ def credit_config() -> CreditConfig:
         day = int(os.getenv("ANTHROPIC_BILLING_RESET_DAY", "7"))
         start, end = cycle_bounds(current_time(), day)
     except (InvalidOperation, ValueError) as error:
-        raise ProviderAdmissionError(UNAVAILABLE) from error
+        raise AnthropicCreditUnavailableError(UNAVAILABLE) from error
     return CreditConfig(int(credit * 1_000_000), limit, start, end)
 
 
@@ -69,7 +70,7 @@ def require_credit_available(path: str, *, dispatch: bool = False) -> CreditConf
     config = credit_config()
     with _lock:
         if path in _blocked:
-            raise ProviderAdmissionError(UNAVAILABLE)
+            raise AnthropicCreditUnavailableError(UNAVAILABLE)
     with connect(path) as conn:
         state = conn.execute(
             "SELECT disabled_until FROM anthropic_credit_state WHERE slot='operator'"
@@ -84,7 +85,7 @@ def require_credit_available(path: str, *, dispatch: bool = False) -> CreditConf
         or charged > config.limit
         or (charged == config.limit and not dispatch)
     ):
-        raise ProviderAdmissionError(UNAVAILABLE)
+        raise AnthropicCreditUnavailableError(UNAVAILABLE)
     return config
 
 

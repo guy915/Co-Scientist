@@ -8,7 +8,7 @@ from typing import Any
 from Bio import Entrez
 
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
-from mcp_server.pubmed_records import parse_pubmed_record
+from mcp_server.pubmed_records import journal_article, parse_pubmed_record
 
 logger = logging.getLogger(__name__)
 
@@ -147,11 +147,9 @@ class _EntrezClient:
         """
         # Even single-ID efetch returns a PubmedArticleSet list.
         results = self.entrez_read(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-        pubmed_articles = results.get("PubmedArticle") or []
-        if not pubmed_articles:
-            # Book records (StatPearls, GeneReviews) carry no journal metadata.
+        pubmed_article = journal_article(results)
+        if pubmed_article is None:
             return None
-        pubmed_article = pubmed_articles[0]
         record = parse_pubmed_record(pubmed_article)
         pmc_id = self._fetch_pmc_fulltext_id(paper_id, record.doi)
         return record.fulltext_metadata(pmc_id)

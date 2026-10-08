@@ -207,6 +207,7 @@ _LAYERS = (
     "admission",
     "structured",
     "telemetry",
+    "routing",
     "request",
     "precall",
     "attempts",

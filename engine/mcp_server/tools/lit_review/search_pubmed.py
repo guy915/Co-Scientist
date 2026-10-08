@@ -10,8 +10,9 @@ from Bio import Entrez
 from mcp_server.cache_privacy import PUBLIC_PAPERS
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.literature_review import PubmedSource
+from mcp_server.log_privacy import failure_summary
 from mcp_server.pubmed_client import search_with_relaxation
-from mcp_server.pubmed_records import parse_pubmed_record
+from mcp_server.pubmed_records import journal_article, parse_pubmed_record
 from mcp_server.pubmed_storage import confined_path, validate_cache_identifier
 from mcp_server.text_extraction import extract_text_from_pmc_html
 from mcp_server.tools._results import failed, keyed_records, non_raising, ok
@@ -25,8 +26,8 @@ def check_pubmed_available() -> str:
     try:
         results = read_entrez(entrez_call(Entrez.esearch, db="pubmed", term="cancer", retmax=1))
         return "true" if results.get("IdList") else "false"
-    except Exception:
-        logger.warning("PubMed availability query failed")
+    except Exception as exc:
+        logger.warning("PubMed availability query failed (%s)", failure_summary(exc))
         return "false"
 
 
@@ -56,13 +57,13 @@ def search_pubmed(query: str, max_papers: int = 10) -> dict[str, Any]:
                 article = _fetch_pubmed_article(paper_id)
                 if article is not None:
                     articles.append(article.to_dict())
-            except Exception:
+            except Exception as exc:
                 # A malformed paper must not discard successful siblings.
-                logger.warning("PubMed metadata fetch failed")
+                logger.warning("PubMed metadata fetch failed (%s)", failure_summary(exc))
                 metadata_failed = True
         return failed("PubMed metadata unavailable") if metadata_failed else ok(articles)
     except Exception as exc:
-        logger.error("PubMed search failed")
+        logger.error("PubMed search failed (%s)", failure_summary(exc))
         return failed(exc)
 
 
@@ -95,12 +96,9 @@ def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
 
 def _fetch_pubmed_article(paper_id: str) -> Article | None:
     paper_results = read_entrez(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-    pubmed_articles = paper_results.get("PubmedArticle") or []
-    if not pubmed_articles:
-        # Book records (StatPearls, GeneReviews) arrive only as
-        # PubmedBookArticle and carry no journal metadata.
+    pubmed_article = journal_article(paper_results)
+    if pubmed_article is None:
         return None
-    pubmed_article = pubmed_articles[0]
     record = parse_pubmed_record(pubmed_article)
     return Article(
         title=record.title,
@@ -131,8 +129,8 @@ async def _extract_fulltext(
         # Full-article parsing is CPU-heavy; keep it off the event loop.
         metadata["fulltext"] = await asyncio.to_thread(_read_and_extract_fulltext, html_file)
         return True
-    except Exception:
-        logger.error("PMC fulltext extraction failed")
+    except Exception as exc:
+        logger.error("PMC fulltext extraction failed (%s)", failure_summary(exc))
         return False
 
 
