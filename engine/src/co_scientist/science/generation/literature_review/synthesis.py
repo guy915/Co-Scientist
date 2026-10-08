@@ -27,6 +27,8 @@ from co_scientist.science.prompts import (
     get_literature_review_paper_analysis_prompt,
     get_literature_review_synthesis_prompt,
 )
+from co_scientist.science.prompts.loading import load_prompt_with_schema
+from co_scientist.science.prompts.untrusted import untrusted_evidence
 from co_scientist.science.schemas import LITERATURE_PAPER_ANALYSIS_SCHEMA
 
 logger = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ async def _run_paper_analysis_llm(
     analysis = await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="literature_analysis",
             model_name=model_name,
             max_tokens=DEFAULT_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,
@@ -100,6 +103,16 @@ def _log_sample_analysis(analyses: list[dict[str, Any]]) -> None:
     )
 
 
+# Express's evidence budget: a corpus this small fits one analysis call
+# without crowding out any paper.
+_BATCHED_ANALYSIS_MAX_EVIDENCE = 4
+
+
+def _analyzes_in_one_call(state: WorkflowState, paper_count: int) -> bool:
+    budget = int(state.get("literature_review_papers_count") or 0)
+    return paper_count > 1 and 0 < budget <= _BATCHED_ANALYSIS_MAX_EVIDENCE
+
+
 async def _phase3_analyze_papers(
     all_paper_metadata: dict[str, dict[str, Any]],
     state: WorkflowState,
@@ -112,20 +125,34 @@ async def _phase3_analyze_papers(
         logger.error("No papers have content for analysis")
         return []
 
-    logger.info("Phase 3: analyzing %s papers (parallel)", len(papers_with_content))
+    batched: dict[str, dict[str, Any]] = {}
+    if _analyzes_in_one_call(state, len(papers_with_content)):
+        batched = await _analyze_papers_in_one_call(papers_with_content, state)
 
-    tasks = [
-        _analyze_single_paper(
-            paper_id,
-            metadata,
-            state["research_goal"],
-            state["model_name"],
-        )
-        for paper_id, metadata in papers_with_content.items()
+    pending = {key: value for key, value in papers_with_content.items() if key not in batched}
+    logger.info(
+        "Phase 3: analyzing %s papers (%s in one call, %s individually)",
+        len(papers_with_content),
+        len(batched),
+        len(pending),
+    )
+    results = await asyncio.gather(
+        *[
+            _analyze_single_paper(
+                paper_id,
+                metadata,
+                state["research_goal"],
+                state["model_name"],
+            )
+            for paper_id, metadata in pending.items()
+        ]
+    )
+    individually = {r["paper_id"]: r for r in results if r is not None}
+    analyses = [
+        batched.get(paper_id) or individually[paper_id]
+        for paper_id in papers_with_content
+        if paper_id in batched or paper_id in individually
     ]
-    results = await asyncio.gather(*tasks)
-
-    analyses = [r for r in results if r is not None]
     logger.info(
         "Completed %s/%s paper analyses",
         len(analyses),
@@ -135,6 +162,70 @@ async def _phase3_analyze_papers(
     _log_sample_analysis(analyses)
 
     return analyses
+
+
+async def _analyze_papers_in_one_call(
+    papers: dict[str, dict[str, Any]], state: WorkflowState
+) -> dict[str, dict[str, Any]]:
+    """A paper the answer omits or garbles is analyzed on its own afterwards,
+    so the batch never costs a paper its analysis."""
+    ordered = list(papers.items())
+    prompt, schema = load_prompt_with_schema(
+        "literature_review_paper_analysis_batch",
+        {
+            "research_goal": state["research_goal"],
+            "papers": "\n\n".join(
+                f"### Paper {number}\n{_paper_evidence(metadata)}"
+                for number, (_paper_id, metadata) in enumerate(ordered, start=1)
+            ),
+        },
+    )
+    try:
+        response = await call_llm_json(
+            prompt=prompt,
+            spec=CompletionSpec(
+                model_name=state["model_name"],
+                max_tokens=min(DEFAULT_MAX_TOKENS * len(ordered), 2 * EXTENDED_MAX_TOKENS),
+                temperature=HIGH_TEMPERATURE,
+                json_schema=schema,
+            ),
+            options=LLMCallOptions(
+                run_id=state.get("run_id"),
+                prompt_name="literature_review_paper_analysis_batch",
+            ),
+        )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
+    except Exception as exc:
+        logger.error("Batched paper analysis failed; analyzing papers individually: %s", exc)
+        return {}
+    analyses: dict[str, dict[str, Any]] = {}
+    for entry in response.get("analyses") or []:
+        if not isinstance(entry, dict):
+            continue
+        number = entry.get("paper_index")
+        if not isinstance(number, int) or isinstance(number, bool):
+            continue
+        if not 1 <= number <= len(ordered):
+            continue
+        paper_id, metadata = ordered[number - 1]
+        analysis = {key: value for key, value in entry.items() if key != "paper_index"}
+        if paper_id in analyses or not str(analysis.get("key_findings") or "").strip():
+            continue
+        analyses[paper_id] = {"paper_id": paper_id, "metadata": metadata, "analysis": analysis}
+    return analyses
+
+
+def _paper_evidence(metadata: dict[str, Any]) -> str:
+    return untrusted_evidence(
+        "retrieved paper",
+        {
+            "title": metadata.get("title", "Unknown"),
+            "authors": metadata.get("authors", []),
+            "year": parse_year_from_metadata(metadata),
+            "fulltext": get_paper_content_for_analysis(metadata),
+        },
+    )
 
 
 def _build_synthesis_prompt(
@@ -167,6 +258,7 @@ async def _run_synthesis_llm(
     synthesis = await call_llm(
         prompt=prompt,
         spec=CompletionSpec(
+            role="literature_synthesis",
             model_name=state["model_name"],
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,

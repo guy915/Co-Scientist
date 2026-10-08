@@ -7,6 +7,7 @@ import {
 import {setStoredApiKey, setStoredModel} from '@/shared/lib/client_id';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
+  byokHeaders,
   cancelRun,
   createRun,
   getEvidence,
@@ -40,6 +41,29 @@ afterEach(() => {
 });
 
 describe('runs api', () => {
+  it.each(['worker', 'supervisor'] as const)(
+    'requires the selected provider key for a custom %s model',
+    tier => {
+      setStoredModel(tier, {
+        provider: 'openrouter',
+        model: 'openrouter/vendor/new-model',
+        custom: true,
+      });
+      expect(() => byokHeaders()).toThrow(
+        'Custom models require your own API key',
+      );
+      setStoredApiKey('another-provider-key', 'anthropic');
+      expect(() => byokHeaders()).toThrow(
+        'Custom models require your own API key',
+      );
+      expect(fetchMock()).not.toHaveBeenCalled();
+      setStoredApiKey('synthetic-key', 'openrouter');
+      const header =
+        tier === 'worker' ? 'X-LLM-API-Key' : 'X-LLM-Supervisor-API-Key';
+      expect(byokHeaders()[header]).toBe('synthetic-key');
+    },
+  );
+
   it('creates a run with a JSON body, the client id and an optional idempotency key', async () => {
     fetchMock().mockImplementation(async () => jsonResponse({id: 'r1'}));
     const payload = {

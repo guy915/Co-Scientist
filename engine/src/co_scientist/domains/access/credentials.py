@@ -7,9 +7,15 @@ import json
 import logging
 import sqlite3
 from collections.abc import Mapping
+from dataclasses import asdict
 from typing import TYPE_CHECKING, Any
 
-from co_scientist.core.byok_scope import ByokCredential, redact_credential, scoped_byok
+from co_scientist.core.byok_scope import (
+    ByokCredential,
+    CustomModelCapabilities,
+    redact_credential,
+    scoped_byok,
+)
 from co_scientist.core.config import byok_default_model, settings
 from co_scientist.domains.access import byok_models
 from co_scientist.platform.llm.llm_scope import budgeted
@@ -152,6 +158,11 @@ def credential_from_headers(
 ) -> ByokCredential | None:
     api_key = (headers.get(API_KEY_HEADER) or "").strip()
     if not api_key:
+        offered = {model for models in byok_models.model_catalog().values() for model in models}
+        for header in (byok_models.WORKER_MODEL_HEADER, byok_models.SUPERVISOR_MODEL_HEADER):
+            requested = (headers.get(header) or "").strip()
+            if requested and requested not in offered:
+                raise ByokRequestError("Custom models require your own API key")
         return None
     provider = (headers.get(PROVIDER_HEADER) or "").strip().lower()
     if not provider:
@@ -161,13 +172,25 @@ def credential_from_headers(
     supervisor_route, sup_provider, sup_key = _supervisor_route(headers, provider, api_key)
     try:
         model = byok_models.resolve_model_choice(
-            provider, headers.get(byok_models.WORKER_MODEL_HEADER)
+            provider, headers.get(byok_models.WORKER_MODEL_HEADER), api_key=api_key
         )
         supervisor = byok_models.resolve_model_choice(
-            supervisor_route, headers.get(byok_models.SUPERVISOR_MODEL_HEADER)
+            supervisor_route,
+            headers.get(byok_models.SUPERVISOR_MODEL_HEADER),
+            api_key=sup_key or api_key,
         )
     except byok_models.ByokModelError as exc:
         raise ByokRequestError(str(exc)) from exc
+    from co_scientist.domains.access.custom_models import cached_validation
+
+    metadata = {}
+    for name, route, key in (
+        (model, provider, api_key),
+        (supervisor, supervisor_route, sup_key or api_key),
+    ):
+        validated = cached_validation(route, name, key)
+        if validated is not None and validated.supported and validated.capabilities is not None:
+            metadata[name] = validated.capabilities
     return ByokCredential(
         provider=provider,
         api_key=api_key,
@@ -175,6 +198,7 @@ def credential_from_headers(
         supervisor_model=supervisor,
         supervisor_provider=sup_provider,
         supervisor_api_key=sup_key,
+        custom_models=metadata,
     )
 
 
@@ -192,15 +216,16 @@ def store_run_credential(
         active.execute(
             "INSERT INTO run_credentials (run_id, client_id, provider, "
             "model, supervisor_model, encrypted_key, created_at, "
-            "supervisor_provider, encrypted_supervisor_key) "
-            "VALUES (?,?,?,?,?,?,?,?,?) "
+            "supervisor_provider, encrypted_supervisor_key, custom_models_json) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(run_id) DO UPDATE SET client_id=excluded."
             "client_id, provider=excluded.provider, "
             "model=excluded.model, "
             "supervisor_model=excluded.supervisor_model, "
             "encrypted_key=excluded.encrypted_key, "
             "supervisor_provider=excluded.supervisor_provider, "
-            "encrypted_supervisor_key=excluded.encrypted_supervisor_key",
+            "encrypted_supervisor_key=excluded.encrypted_supervisor_key, "
+            "custom_models_json=excluded.custom_models_json",
             (
                 run_id,
                 client_id,
@@ -213,6 +238,9 @@ def store_run_credential(
                 encrypt_api_key(credential.supervisor_api_key)
                 if credential.supervisor_api_key
                 else None,
+                json.dumps(
+                    {model: asdict(caps) for model, caps in credential.custom_models.items()}
+                ),
             ),
         )
 
@@ -223,7 +251,7 @@ def get_run_credential(run_id: str, db_path: str | None = None) -> ByokCredentia
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT provider, model, supervisor_model, encrypted_key, "
-            "supervisor_provider, encrypted_supervisor_key "
+            "supervisor_provider, encrypted_supervisor_key, custom_models_json "
             "FROM run_credentials "
             "WHERE run_id=?",
             (run_id,),
@@ -239,6 +267,10 @@ def get_run_credential(run_id: str, db_path: str | None = None) -> ByokCredentia
         supervisor_api_key=decrypt_api_key(row["encrypted_supervisor_key"])
         if row["encrypted_supervisor_key"]
         else None,
+        custom_models={
+            model: CustomModelCapabilities(**caps)
+            for model, caps in json.loads(row["custom_models_json"] or "{}").items()
+        },
     )
 
 
@@ -248,7 +280,7 @@ async def _acompletion(**kwargs: Any) -> object:
     """
     from co_scientist.platform.llm import llm_request
 
-    return await llm_request.acompletion(**kwargs)
+    return await llm_request.acompletion(call_role="credential_probe", **kwargs)
 
 
 @budgeted("credential_probe")
@@ -261,6 +293,8 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
     try:
         with scoped_byok(credential):
             for model, api_key in credential.keys_by_model().items():
+                if model in credential.custom_models:
+                    continue
                 await _acompletion(
                     model=model,
                     api_key=api_key,

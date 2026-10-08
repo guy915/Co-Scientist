@@ -11,12 +11,34 @@ from typing import Any
 from litellm.exceptions import Timeout as LiteLLMTimeout
 from opentelemetry.trace import Span
 
-from co_scientist.core.exceptions import LLMTimeoutError
+from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
 from co_scientist.platform.db.admission import ProviderReservation
+from co_scientist.platform.llm.admission.anthropic import (
+    mark_credit_exhausted,
+    require_credit_available,
+)
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.free_policy import enforce_free_request
-from co_scientist.platform.llm.admission.service import reserve_physical, settle_physical
+from co_scientist.platform.llm.admission.service import (
+    current_db_path,
+    reserve_physical,
+    settle_physical,
+)
+from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
+from co_scientist.platform.llm.request.anthropic import (
+    API_BASE,
+    AnthropicSlotUnavailableError,
+    is_credit_error,
+    require_prompt_fits,
+)
+from co_scientist.platform.llm.request.azure import LUNA, NANO
 from co_scientist.platform.llm.request.backend import active_backend
+from co_scientist.platform.llm.request.cache import (
+    HAIKU,
+    apply_dispatch_cache_key,
+    apply_prompt_cache,
+)
+from co_scientist.platform.llm.request.response import is_model_refusal
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
     end_request_span,
@@ -48,6 +70,7 @@ class _CompletionStream:
         self._last = response
         self._done = False
         self._receipt = receipt
+        self._refused = False
 
     def __aiter__(self) -> "_CompletionStream":
         return self
@@ -60,7 +83,11 @@ class _CompletionStream:
             raise
         except BaseException as error:
             self._finish(error)
+            if self._receipt is not None and self._receipt.credit and is_credit_error(error):
+                mark_credit_exhausted(self._receipt.db_path)
+                raise AnthropicSlotUnavailableError("No model is available right now") from error
             raise
+        self._refused = self._refused or is_model_refusal(chunk)
         if getattr(chunk, "usage", None) is not None:
             self._last = chunk
         return chunk
@@ -71,11 +98,26 @@ class _CompletionStream:
         self._done = True
         latency = time.monotonic() - self._start
         if error is None:
-            settle_physical(self._receipt, self._last)
-            self._context.run(record_completion_response, self._model, self._last, latency)
+            try:
+                settle_physical(self._receipt, self._last)
+            except BaseException as settlement_error:
+                self._context.run(
+                    record_completion_failure,
+                    self._model,
+                    settlement_error,
+                    latency,
+                    refused=self._refused,
+                )
+                end_request_span(self._span, self._last, settlement_error, refused=self._refused)
+                raise
+            self._context.run(
+                record_completion_response, self._model, self._last, latency, refused=self._refused
+            )
         else:
-            self._context.run(record_completion_failure, self._model, error, latency)
-        end_request_span(self._span, self._last, error)
+            self._context.run(
+                record_completion_failure, self._model, error, latency, refused=self._refused
+            )
+        end_request_span(self._span, self._last, error, refused=self._refused)
 
     async def aclose(self) -> None:
         self._finish(asyncio.CancelledError())
@@ -112,8 +154,27 @@ async def complete_request(
     """
     from co_scientist.core.config import settings
 
+    require_enabled()
+    native_model = str(completion_args.get("model", "")).replace("azure/responses/", "azure/")
+    if byok and native_model in (LUNA, NANO):
+        # The native deployment client owns its key; a caller key cannot
+        # establish caller funding for this route.
+        raise ProviderAdmissionError("No model is available right now")
     apply_provider_constraints(completion_args, model_name)
+    apply_prompt_cache(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
+    input_tokens_bound = None
+    if not byok and model_name == HAIKU:
+        try:
+            input_tokens_bound = await require_prompt_fits(completion_args, current_db_path())
+        except BaseException as preflight_error:
+            if is_credit_error(preflight_error):
+                mark_credit_exhausted(current_db_path())
+                raise AnthropicSlotUnavailableError(
+                    "No model is available right now"
+                ) from preflight_error
+            raise
+        completion_args["api_base"] = API_BASE
     record_provider_request()
     receipt = None
     if not byok:
@@ -121,9 +182,15 @@ async def complete_request(
         # to the SDK. Admission covers every scientific and app retry here.
         if "max_completion_tokens" not in completion_args:
             completion_args.setdefault("max_tokens", settings.app_llm_max_output_tokens)
-        receipt = reserve_physical(completion_args)
+        receipt = reserve_physical(completion_args, input_tokens_bound=input_tokens_bound)
     if before_dispatch is not None:
         before_dispatch()
+    require_enabled()
+    if receipt is not None and receipt.paid:
+        paid_dispatch_config(receipt.db_path)
+    if receipt is not None and receipt.credit:
+        require_credit_available(receipt.db_path, dispatch=True)
+    apply_dispatch_cache_key(completion_args, model_name)
     span = start_request_span(model_name, completion_args)
     start = time.monotonic()
     try:
@@ -142,10 +209,18 @@ async def complete_request(
     except BaseException as exc:
         record_completion_failure(model_name, exc, time.monotonic() - start)
         end_request_span(span, None, exc)
+        if receipt is not None and receipt.credit and is_credit_error(exc):
+            mark_credit_exhausted(receipt.db_path)
+            raise AnthropicSlotUnavailableError("No model is available right now") from exc
         raise
     if completion_args.get("stream"):
         return _CompletionStream(response, model_name, start, span, receipt)
-    settle_physical(receipt, response)
+    try:
+        settle_physical(receipt, response)
+    except BaseException as settlement_error:
+        record_completion_failure(model_name, settlement_error, time.monotonic() - start)
+        end_request_span(span, response, settlement_error)
+        raise
     record_completion_response(model_name, response, time.monotonic() - start)
     end_request_span(span, response, None)
     return response

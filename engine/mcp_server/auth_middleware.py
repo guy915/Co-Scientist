@@ -1,8 +1,7 @@
-"""Shared secrets add a control beyond network placement; unset preserves
-unauthenticated deployments.
-"""
+"""Tool access requires a secret; local opt-in never authorizes remote peers."""
 
 import hmac
+import ipaddress
 import os
 
 from starlette.middleware.base import (
@@ -14,17 +13,24 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
 MCP_SHARED_SECRET_ENV = "COSCIENTIST_MCP_SHARED_SECRET"
+MCP_LOCAL_AUTH_ENV = "COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL"
 
 MCP_AUTH_HEADER = "X-MCP-Shared-Secret"
-
-# Keep GET / public for platform health probes.
-_EXEMPT_PATHS = frozenset({"/"})
 
 
 class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, secret: str | None) -> None:
         super().__init__(app)
-        self._secret = secret or None
+        self._secret = secret if secret and secret.strip() else None
+        self._allow_local = os.environ.get(MCP_LOCAL_AUTH_ENV) == "1"
+
+    def _local_development(self, request: Request) -> bool:
+        if not self._allow_local or request.client is None:
+            return False
+        try:
+            return ipaddress.ip_address(request.client.host).is_loopback
+        except ValueError:
+            return False
 
     def _secret_matches(self, request: Request) -> bool:
         """Compare presented credentials without a prefix-dependent check."""
@@ -36,8 +42,12 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Authorize the ASGI path the router receives. URL reconstruction
         # includes the caller's Host header and is not an auth boundary.
-        requires_check = self._secret and request.scope["path"] not in _EXEMPT_PATHS
-        if requires_check and not self._secret_matches(request):
+        if request.method == "GET" and request.scope["path"] == "/":
+            return await call_next(request)
+        authorized = (
+            self._secret_matches(request) if self._secret else self._local_development(request)
+        )
+        if not authorized:
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         return await call_next(request)
 

@@ -14,9 +14,15 @@ from tests._llm_fake import mock_call_llm_json
 from tests._state import (
     make_article,
     make_hypothesis,
+    make_review,
     make_state,
     make_verification_response,
 )
+
+
+def _finalist(text: str, **overrides: object) -> Hypothesis:
+    """A reviewed idea alone in its pool is a finalist: depth goes only there."""
+    return make_hypothesis(text=text, reviews=[make_review()], **overrides)
 
 
 def _state() -> WorkflowState:
@@ -30,7 +36,7 @@ async def test_a_resumed_run_does_not_re_verify(
     restart."""
     fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
-    h = make_hypothesis(text="verified before the restart")
+    h = _finalist("verified before the restart")
     await dv.deep_verification_node(make_state(hypotheses=[h]))
     assert fake.await_count == 1
 
@@ -54,7 +60,7 @@ async def test_a_failed_verification_spends_the_one_attempt(
 
     monkeypatch.setattr(leaf, "call_llm_json", _boom)
 
-    h = make_hypothesis(text="leader", elo_rating=2000)
+    h = _finalist("leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
     await dv.deep_verification_node(state)
     await dv.deep_verification_node(state)
@@ -97,7 +103,7 @@ async def test_verification_grounds_probes_in_corpus_when_mcp_down(
     monkeypatch.setattr(leaf, "call_llm_json", call)
 
     state = make_state(
-        hypotheses=[make_hypothesis(text="leader", elo_rating=2000)],
+        hypotheses=[_finalist("leader", elo_rating=2000)],
         articles=[
             make_article(
                 "Sertraline membrane study",

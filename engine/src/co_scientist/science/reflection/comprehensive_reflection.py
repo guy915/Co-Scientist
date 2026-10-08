@@ -35,26 +35,27 @@ from co_scientist.science.prompts.loading import load_prompt_with_schema
 from co_scientist.science.reflection.deep_verification import (
     merge_retrieved_articles,
 )
-from co_scientist.science.reflection.reflection import (
-    apply_observation_result,
-    observe_hypothesis,
-)
+from co_scientist.science.reflection.reflection import apply_observation_result
 from co_scientist.science.reflection.review_evidence import (
     _review_evidence_for,
     _ReviewEvidence,
+    finalist_review_evidence,
 )
 from co_scientist.science.reflection.review_gate import (
     RECHECK_REVIEW_TYPE,
+    VERIFICATION_QUERIES_KEY,
     ReviewType,
+    finalist_review_needed,
     mark_recheck_issued,
     prompt_name_for,
     recheck_targets,
-    reviews_needed,
     store_mature_review_result,
 )
 from co_scientist.science.reflection.simulation_execution import (
     simulation_observations,
 )
+from co_scientist.science.scheduling.funnel import finalists, has_depth, is_terminal_depth_pass
+from co_scientist.science.schemas.finalist_review import FINALIST_REVIEW_MAX_QUERIES
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,13 @@ _MAX_REVIEW_PRIVATE_SOURCES = 4
 _NO_EXECUTION_NOTE = (
     "No simulation was executed for this review. Step through the mechanism yourself."
 )
+
+_NO_OBSERVATIONS_NOTE = (
+    "No literature analyses are available for this run. Omit `observation` entirely."
+)
+
+# Three reviews' answers share one completion.
+_FINALIST_REVIEW_MAX_TOKENS = 2 * EXTENDED_MAX_TOKENS
 
 
 def _prompt_variables(
@@ -164,6 +172,7 @@ async def review_hypothesis(
         result = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="review",
                 model_name=state["model_name"],
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,
@@ -236,45 +245,107 @@ def _build_review_prompt(
     return prompt, schema
 
 
-def _apply_review_results(
-    hypothesis: Hypothesis,
-    iteration: int,
-    results: list[ReviewRun],
-) -> int:
-    """Use the durable write path so fatal findings reconcile identically."""
-    successful = 0
-    for run in results:
-        if run.result is None:
-            continue
-        store_mature_review_result(hypothesis, run.review_type, run.result, iteration)
-        successful += 1
-    return successful
+async def review_finalist(state: WorkflowState, hypothesis: Hypothesis) -> ReviewRun:
+    """Observation, full and simulation reviews in one call; a bad answer
+    fails all three together, as one recorded unreviewed finding."""
+    evidence = await finalist_review_evidence(state, hypothesis)
+    observations = await _observations_for(state, hypothesis, ReviewType.SIMULATION)
+    literature = state.get("articles_with_reasoning")
+    variables = _prompt_variables(
+        state, hypothesis, ReviewType.FULL, evidence.articles, observations
+    )
+    variables["articles_with_reasoning"] = (
+        "Literature analyses, one per article, each with the literature review's own"
+        " reasoning:\n" + literature
+        if literature
+        else _NO_OBSERVATIONS_NOTE
+    )
+    variables["domain_reflection_guidance"] = ""
+    prompt, schema = load_prompt_with_schema(prompt_name_for(ReviewType.FINALIST), variables)
+    try:
+        result = await call_llm_json(
+            prompt=prompt,
+            spec=CompletionSpec(
+                model_name=state["model_name"],
+                max_tokens=_FINALIST_REVIEW_MAX_TOKENS,
+                temperature=LOW_TEMPERATURE,
+                json_schema=schema,
+            ),
+            options=LLMCallOptions(
+                run_id=state.get("run_id"),
+                prompt_name=f"reflection_finalist_{hypothesis.id}",
+            ),
+        )
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
+    except Exception as exc:
+        logger.error("Finalist review failed for %s: %s", hypothesis.id, exc)
+        return ReviewRun(ReviewType.FINALIST, None, evidence.ledger)
+    if not literature:
+        # Without analyzed literature an observation verdict has no basis.
+        result.pop("observation", None)
+    _record_review_provenance(
+        result, evidence, evidence.articles, ReviewType.SIMULATION, observations
+    )
+    return ReviewRun(ReviewType.FINALIST, result, evidence.ledger)
 
 
-async def _review_hypothesis(
+def store_finalist_review(hypothesis: Hypothesis, result: dict[str, Any], iteration: int) -> None:
+    """Each part goes through its standalone write path, so gates, ranking
+    and the report read the same keys and shapes as separate reviews."""
+    observation = result.get("observation")
+    if isinstance(observation, dict) and not hypothesis.reflection_notes:
+        apply_observation_result(hypothesis, observation)
+    provenance = {
+        key: result[key]
+        for key in ("retrieval_queries", "retrieval_errors", "retrieved_articles")
+        if key in result
+    }
+    full = _part(result, "full_review")
+    simulation = _part(result, "simulation")
+    for key in ("executed", "execution_observations"):
+        if key in result:
+            simulation[key] = result[key]
+    store_mature_review_result(hypothesis, ReviewType.FULL, {**full, **provenance}, iteration)
+    store_mature_review_result(hypothesis, ReviewType.SIMULATION, simulation, iteration)
+    queries = [
+        " ".join(str(query).split())
+        for query in result.get(VERIFICATION_QUERIES_KEY) or []
+        if str(query).strip()
+    ]
+    hypothesis.enrichments[VERIFICATION_QUERIES_KEY] = queries[:FINALIST_REVIEW_MAX_QUERIES]
+
+
+def _part(result: dict[str, Any], key: str) -> dict[str, Any]:
+    """A malformed part is unreviewed, not a pass: the verdict gates read
+    must never be invented."""
+    part = result.get(key)
+    if isinstance(part, dict):
+        return dict(part)
+    return {"verdict": "unreviewed", "justification": f"The review returned no {key}."}
+
+
+def store_failed_finalist_review(hypothesis: Hypothesis, error: str | None, iteration: int) -> None:
+    for review_type in (ReviewType.FULL, ReviewType.SIMULATION):
+        store_mature_review_result(
+            hypothesis,
+            review_type,
+            {"verdict": "unreviewed", "justification": error},
+            iteration,
+        )
+
+
+async def _review_finalist(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> tuple[int, list[dict[str, Any]]]:
     iteration = int(state.get("current_iteration", 0))
-    reviews = reviews_needed(hypothesis, iteration)
-    if not reviews:
-        return 0, []
-    results = await asyncio.gather(
-        *[review_hypothesis(state, hypothesis, review_type) for review_type in reviews]
-    )
-    successful = _apply_review_results(hypothesis, iteration, results)
-    state["articles"] = merge_retrieved_articles(
-        state.get("articles"), [run.result for run in results]
-    )
-    ledgers = [run.ledger for run in results if run.ledger is not None]
-    return successful, _distinct(ledgers)
-
-
-def _distinct(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    unique: list[dict[str, Any]] = []
-    for ledger in ledgers:
-        if ledger not in unique:
-            unique.append(ledger)
-    return unique
+    run = await review_finalist(state, hypothesis)
+    if run.result is None:
+        store_failed_finalist_review(hypothesis, "The finalist review failed.", iteration)
+    else:
+        store_finalist_review(hypothesis, run.result, iteration)
+        state["articles"] = merge_retrieved_articles(state.get("articles"), [run.result])
+    return 1, [run.ledger] if run.ledger is not None else []
 
 
 _ReviewRun = ReviewRun
@@ -308,54 +379,32 @@ async def _run_blocked_rechecks(state: WorkflowState, hypotheses: list[Hypothesi
     return sum(results)
 
 
-async def _run_missing_observation_reviews(
-    state: WorkflowState, hypotheses: list[Hypothesis]
-) -> int:
-    literature = state.get("articles_with_reasoning")
-    if not literature:
-        return 0
-    pending = [h for h in hypotheses if not h.reflection_notes]
-    if not pending:
-        return 0
-    results = await asyncio.gather(
-        *[
-            observe_hypothesis(
-                state,
-                hypothesis,
-                hypothesis_index=index + 1,
-                total_count=len(pending),
-            )
-            for index, hypothesis in enumerate(pending)
-        ]
-    )
-    successful = 0
-    for hypothesis, result in zip(pending, results, strict=True):
-        if result is None:
-            continue
-        apply_observation_result(hypothesis, result)
-        successful += 1
-    return successful
-
-
 async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
     """Blocked ideas need their own recheck arm: the viable-only cascade
-    cannot reach them to produce a deeper verdict."""
+    cannot reach them to produce a deeper verdict. Each viable finalist gets
+    one in-depth review; the terminal pass reviews no blocked idea."""
     hypotheses = state["hypotheses"]
-    viable = [hypothesis for hypothesis in hypotheses if hypothesis.review_disposition == "viable"]
+    terminal = is_terminal_depth_pass(state)
+    pending = [
+        hypothesis
+        for hypothesis in finalists(state)
+        if hypothesis.review_disposition == "viable"
+        and finalist_review_needed(hypothesis)
+        and not (terminal and has_depth(hypothesis))
+    ]
     # These review arms have no data dependency; overlap their model latency.
-    observation_calls, reviewed, recheck_calls = await asyncio.gather(
-        _run_missing_observation_reviews(state, viable),
-        asyncio.gather(*[_review_hypothesis(state, h) for h in viable]),
-        _run_blocked_rechecks(state, hypotheses),
+    reviewed, recheck_calls = await asyncio.gather(
+        asyncio.gather(*[_review_finalist(state, h) for h in pending]),
+        _run_blocked_rechecks(state, [] if terminal else hypotheses),
     )
-    calls = observation_calls + sum(count for count, _ in reviewed) + recheck_calls
+    calls = sum(count for count, _ in reviewed) + recheck_calls
     return {
         "hypotheses": hypotheses,
         "articles": state.get("articles") or [],
-        "research_ledgers": [ledger for _, ledgers in reviewed for ledger in ledgers],
+        "research_ledgers": [ledger for _, found in reviewed for ledger in found],
         "metrics": create_metrics_update(deltas=MetricDeltas(llm_calls=calls)),
         "messages": phase_message(
             "reflection",
-            f"Completed {calls} full, simulation, or recurrent reviews",
+            f"Completed {calls} finalist or recheck reviews",
         ),
     }

@@ -2,15 +2,40 @@ import {defineConfig} from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
+import {readFileSync} from 'node:fs';
+import {thirdPartyLicenses} from './scripts/third_party_licenses.mjs';
+
+// Preview must exercise the same policy as Cloudflare, including on deep links.
+const previewHeaders = Object.fromEntries(
+  readFileSync(path.resolve(__dirname, 'public/_headers'), 'utf8')
+    .split('\n/*\n')[1]
+    .trim()
+    .split('\n')
+    .map(line => {
+      const separator = line.indexOf(':');
+      return [
+        line.slice(0, separator).trim(),
+        line.slice(separator + 1).trim(),
+      ];
+    }),
+);
+const previewApi = process.env.VITE_API_BASE_URL;
+if (previewApi && /^http:\/\/127\.0\.0\.1:\d+$/.test(previewApi)) {
+  previewHeaders['Content-Security-Policy'] = previewHeaders[
+    'Content-Security-Policy'
+  ].replace('connect-src', `connect-src ${previewApi}`);
+}
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  preview: {headers: previewHeaders},
+  plugins: [react(), tailwindcss(), thirdPartyLicenses({root: __dirname})],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
   build: {
+    manifest: true,
     outDir: process.env.COSCI_FRONTEND_DIST || 'dist',
     rollupOptions: {
       output: {

@@ -11,6 +11,8 @@ from co_scientist.core.constants import (
 )
 from co_scientist.core.env_vars import parse_list_env
 from co_scientist.platform.llm.profile import ModelProfile, Thinking, model_profile
+from co_scientist.platform.llm.request.anthropic import output_limit
+from co_scientist.platform.llm.roles import current_call_policy
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +177,8 @@ def effective_max_tokens(model_name: str, max_tokens: int, enable_thinking: bool
     """Funding and failure records must share the wire budget, including
     forced reasoning.
     """
+    if model_name == "anthropic/claude-haiku-5-5":
+        return min(max_tokens, output_limit())
     if not (effective_thinking_enabled(model_name, enable_thinking) and model_reasons(model_name)):
         return max_tokens
     return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
@@ -186,6 +190,18 @@ def _apply_thinking_args(
     """Centralize the reasoning floor so new callers cannot send answer-sized
     budgets.
     """
+    profile = model_profile(model_name)
+    if profile.supported_efforts is not None:
+        policy = current_call_policy()
+        effort = (
+            policy.effort if enable_thinking else ("low" if policy.tier == "worker" else "none")
+        )
+        completion_args["reasoning_effort"] = effort
+        if effort != "none":
+            completion_args["max_tokens"] = max(
+                completion_args["max_tokens"], THINKING_FLOOR_MAX_TOKENS
+            )
+        return
     thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
     if thinking:
         completion_args["extra_body"] = thinking
@@ -201,6 +217,29 @@ def apply_provider_constraints(completion_args: dict[str, Any], model_name: str)
     provider's wire rules.
     """
     profile = model_profile(model_name)
+    if model_name == "anthropic/claude-haiku-5-5":
+        # A thinking-off recovery would invalidate the shared cached prefix.
+        completion_args.pop("reasoning_effort", None)
+        extra = dict(completion_args.get("extra_body") or {})
+        extra.pop("thinking", None)
+        extra.pop("output_config", None)
+        for field in ("temperature", "top_p", "top_k"):
+            extra.pop(field, None)
+            completion_args.pop(field, None)
+        if extra:
+            completion_args["extra_body"] = extra
+        else:
+            completion_args.pop("extra_body", None)
+        # Bundled SDK metadata can lag a verified provider capability.
+        completion_args["allowed_openai_params"] = list(
+            dict.fromkeys([*completion_args.get("allowed_openai_params", []), "thinking"])
+        )
+        completion_args["thinking"] = {"type": "adaptive"}
+        completion_args["output_config"] = {"effort": "low"}
+        completion_args["max_tokens"] = min(
+            completion_args.pop("max_completion_tokens", completion_args.get("max_tokens", 0)),
+            output_limit(),
+        )
     if profile.fixed_sampling:
         completion_args.pop("temperature", None)
         completion_args.pop("top_p", None)

@@ -9,15 +9,15 @@ import {
   UI_URL,
   VENV_PYTHON,
 } from './support/paths';
+import {browserShardFiles} from './support/shards';
 
-// Resolve one state directory so servers and teardown share the same isolated
-// store.
+// Resolve the same isolated store in the servers and test processes.
 const STATE_DIR = runStateDir();
 const PRODUCTION = process.env.COSCI_E2E_PRODUCTION === '1';
 
 const backendServer = {
   command:
-    `${VENV_PYTHON} -m uvicorn co_scientist.main:app ` +
+    `${VENV_PYTHON} -m uvicorn byok_app:app --app-dir ../e2e/support ` +
     `--host 127.0.0.1 --port ${API_PORT}`,
   cwd: APP_DIR,
   url: `${API_URL}/health`,
@@ -31,6 +31,7 @@ const backendServer = {
     // harness.
     COSCIENTIST_FORCE_OFFLINE: '1',
     PYTHON_DOTENV_DISABLED: '1',
+    COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL: '1',
     EVIDENCE_RESOLVER: 'offline',
     // A shared fake-provider store spans the whole browser suite. Exhaustion
     // and restart accounting are covered by the isolated admission tests.
@@ -41,9 +42,12 @@ const backendServer = {
     PROVIDER_CLIENT_CALLS_PER_DAY: '8192',
     PROVIDER_CLIENT_TOKENS_PER_DAY: '256000000',
     ANONYMOUS_SESSIONS_PER_HOST_PER_DAY: '256',
+    ANONYMOUS_WRITE_CLIENT_REQUESTS_PER_DAY: '8192',
+    ANONYMOUS_WRITE_HOST_REQUESTS_PER_DAY: '8192',
     RUNS_PER_HOST_PER_DAY: '500',
     RUNS_PER_DAY: '500',
     SMTP_HOST: '',
+    BYOK_ENCRYPTION_KEY: 'synthetic-browser-test-encryption',
     // Fresh per-invocation stores must never touch developer data or inherit
     // earlier runs.
     COSCIENTIST_DB_PATH: `${STATE_DIR}/coscientist.db`,
@@ -78,6 +82,9 @@ const frontendServer = {
 
 export default defineConfig({
   testDir: PRODUCTION ? './production' : './tests',
+  testMatch: PRODUCTION
+    ? undefined
+    : browserShardFiles(process.env.COSCI_E2E_BROWSER_SHARD),
   // Stateful shared servers run serially so mutation flows cannot contaminate
   // home assertions.
   fullyParallel: false,
@@ -85,7 +92,6 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: process.env.CI ? [['list'], ['html', {open: 'never'}]] : 'list',
-  globalTeardown: './support/paths.ts',
   timeout: 60_000,
   expect: {timeout: 15_000},
   use: {

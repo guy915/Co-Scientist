@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core.citations import citation_keys_in
 from co_scientist.domains.research_state.claims.assessor import SENTENCE_SPLIT
 from co_scientist.domains.research_state.repository import records as store
 from co_scientist.domains.research_state.repository.records import (
@@ -14,8 +14,6 @@ from co_scientist.domains.research_state.repository.records import (
     NewReview,
 )
 from co_scientist.platform.retrieval.citations import CitationRecord, classify_citation
-
-_BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
 
 
 def format_deep_verification_critique(
@@ -75,18 +73,10 @@ def _claim_cited_by(grounding: str, cite_key: str) -> str:
     """A source supports its cited sentences, not every claim in a multi-
     source paragraph; whole-paragraph overlap dilutes genuine support.
     """
-    marker = f"[{cite_key}]"
     cited = [
         sentence
         for sentence in SENTENCE_SPLIT.split(grounding)
-        # Citation keys can share one bracket group rather than appearing as
-        # lone markers.
-        if marker in sentence
-        or any(
-            cite_key == part.strip()
-            for group in _BRACKET_GROUP.findall(sentence)
-            for part in group.split(",")
-        )
+        if cite_key in citation_keys_in(sentence, allowed_keys={cite_key})
     ]
     return " ".join(cited).strip() or grounding
 
@@ -484,9 +474,20 @@ def _novelty_review_lines(rv: dict[str, Any]) -> list[str]:
 def _persist_engine_review_rows(
     run_id: str, hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
+    validation = h.get("novelty_validation")
+    unknown = isinstance(validation, dict) and validation.get("decision") == "unknown"
     for rv in h.get("reviews") or []:
         if _persist_scientist_review(run_id, hyp_id, rv, conn):
             continue
+        if unknown:
+            rv = {
+                **rv,
+                "scores": {k: v for k, v in rv.get("scores", {}).items() if k != "novelty"},
+                "detailed_feedback": {
+                    k: v for k, v in rv.get("detailed_feedback", {}).items() if k != "novelty"
+                },
+                "novel_aspects": [],
+            }
         scores = rv.get("scores", {})
         critique_lines = [str(rv.get("constructive_feedback") or "")]
         novelty_lines = _novelty_review_lines(rv)
@@ -664,6 +665,20 @@ def _persist_engine_reviews(
     h: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> None:
+    validation = h.get("novelty_validation")
+    if isinstance(validation, dict) and validation.get("decision") == "unknown":
+        store.add_review(
+            NewReview(
+                run_id=run_id,
+                hypothesis_id=hyp_id,
+                reviewer_agent="novelty_validation",
+                summary="Prior-art retrieval unknown; no novelty credit",
+                critique="Failed sources: " + ", ".join(validation.get("failed_sources") or []),
+                verdict="unknown",
+                detail_json=json.dumps(validation),
+            ),
+            conn=conn,
+        )
     _persist_engine_review_rows(run_id, hyp_id, h, conn)
     _persist_deep_verification_review(run_id, hyp_id, h, conn)
     _persist_mature_review_rows(run_id, hyp_id, h, conn)

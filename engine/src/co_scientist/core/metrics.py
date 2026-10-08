@@ -12,7 +12,6 @@ class ModelCallStats:
 
     deterministic_fallbacks: dict[str, int] = field(default_factory=dict)
     calls: int = 0
-    decision_calls: int = 0
     observed_model_calls: int = 0
     reported_usage_calls: int = 0
     priced_usage_calls: int = 0
@@ -21,6 +20,8 @@ class ModelCallStats:
     completion_tokens: int = 0
     reasoning_tokens: int = 0
     cached_prompt_tokens: int = 0
+    cache_write_tokens: int = 0
+    refusals: int = 0
     cost_usd: float = 0.0
     latency_seconds: float = 0.0
     retries: int = 0

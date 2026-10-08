@@ -713,6 +713,27 @@ def _render_hypothesis_review_surface(
     return lines
 
 
+# The paired benchmark (`evaluations/_paired_db.py`) counts entries carrying
+# this exact phrase as screened rather than featured.
+SCREENED_NOTE = (
+    "_Screened, not deep-verified: this idea passed the safety screen and a"
+    " screening review but was not among the finalists, so it had no full"
+    " review, simulation, deep verification or claim check._"
+)
+
+
+def _render_screened_entry(i: int, hyp: dict[str, Any]) -> list[str]:
+    title = hypothesis_title(hyp)
+    lines = [
+        f"### {i}. **{_SYSTEM_NAME} - {title}**  _Elo: {hyp.get('elo_rating', '')}_",
+        SCREENED_NOTE,
+        "",
+    ]
+    if statement := hypothesis_statement(hyp):
+        lines += [f"**Proposed hypothesis:** {statement}", ""]
+    return lines + _render_hypothesis_mechanism(hyp)
+
+
 def _render_hypothesis_entry(
     i: int,
     hyp: dict[str, Any],

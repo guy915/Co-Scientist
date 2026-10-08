@@ -16,6 +16,9 @@ from co_scientist.core.metrics import (
 )
 from co_scientist.core.metrics import merge_metrics as merge_metrics
 from co_scientist.core.metrics import phase_message as phase_message
+from co_scientist.domains.research_state.publication import (
+    rank_for_publication as rank_for_publication,
+)
 
 # Default agent authorship keeps pre-field checkpoints eligible as peer reviews.
 AGENT_REVIEWER = "agent"
@@ -206,7 +209,7 @@ class Hypothesis:
     explanation: str | None = None
     literature_grounding: str | None = None
     experiment: str | None = None
-    novelty_validation: str | None = None
+    novelty_validation: str | dict[str, Any] | None = None
     enrichments: dict[str, Any] = field(default_factory=dict)
     citation_map: dict[str, dict[str, Any]] = field(default_factory=dict)
     score: float = 0.0
@@ -321,15 +324,4 @@ def rank_by_elo(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
         hypotheses,
         key=lambda h: (h.elo_rating, h.score, h.text),
         reverse=True,
-    )
-
-
-def rank_for_publication(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
-    """One order for every reader-facing surface, matching the app's: an
-    unplayed baseline rating is not evidence, and verification can undermine
-    the highest-Elo idea after matches. Pair selection keeps raw Elo.
-    """
-    return sorted(
-        rank_by_elo(hypotheses),
-        key=lambda h: (h.is_undermined(), not h.total_matches),
     )

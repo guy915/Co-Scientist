@@ -15,6 +15,8 @@ from co_scientist.domains.chat.interviews.model import (
 )
 from fastapi.testclient import TestClient
 
+from ._llm_fake_backend import install_completion_backend
+
 
 @dataclasses.dataclass(frozen=True)
 class InterviewFields:
@@ -73,6 +75,11 @@ def _send_turn(client: TestClient, headers: dict[str, str], interview_id: str, c
 
 
 def _patch_model_sequence(monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]) -> None:
+    async def auxiliary_failure(**_kwargs: Any) -> Any:
+        raise RuntimeError("unmodeled auxiliary call in interview fixture")
+
+    install_completion_backend(monkeypatch, auxiliary_failure)
+
     # The fake accepts the prose-sink argument so it cannot fabricate a provider
     # failure.
     replies = iter(responses)

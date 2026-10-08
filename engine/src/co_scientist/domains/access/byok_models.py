@@ -42,14 +42,20 @@ def model_catalog() -> dict[str, list[str]]:
     return {provider: list(provider_models(provider)) for provider in BYOK_PROVIDER_DEFAULT_MODELS}
 
 
-def resolve_model_choice(provider: str, requested: str | None) -> str:
-    """The closed provider catalog bounds model headers; an omitted choice
-    keeps the provider's default.
-    """
+def resolve_model_choice(
+    provider: str, requested: str | None, *, api_key: str | None = None
+) -> str:
     offered = provider_models(provider)
     choice = (requested or "").strip()
     if not choice:
         return offered[0]
     if choice not in offered:
-        raise ByokModelError(f"model {choice!r} is not offered for provider {provider}")
+        from co_scientist.domains.access.custom_models import validate_custom_model
+
+        if not api_key:
+            raise ByokModelError("Custom models require your own API key")
+        validated = validate_custom_model(provider, choice, api_key)
+        if not validated.supported:
+            raise ByokModelError(validated.error or "This model is unsupported")
+        return validated.model
     return choice

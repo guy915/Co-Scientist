@@ -11,6 +11,7 @@ import defusedxml.ElementTree as ElementTree
 import httpx
 
 from mcp_server.http_client import make_client
+from mcp_server.tools._results import failed, non_raising, ok
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +54,13 @@ def _entry_year(entry: Element) -> int | None:
     return int(published[:4]) if published[:4].isdigit() else None
 
 
-def _entry_record(entry: Element) -> dict[str, Any] | None:
+def _entry_record(entry: Element) -> dict[str, Any]:
     """arXiv errors may be entries without IDs; do not surface them as
     synthetic papers.
     """
     raw_id = entry.findtext(_atom("id"))
-    if not raw_id:
-        return None
+    if not raw_id or "/api/errors" in raw_id:
+        raise ValueError("arXiv returned a query error")
     return {
         "source_id": _short_id(raw_id),
         "title": _clean_text(entry.findtext(_atom("title"))),
@@ -76,14 +77,12 @@ def _entry_record(entry: Element) -> dict[str, Any] | None:
 
 def _parse_feed(xml_text: str) -> list[dict[str, Any]]:
     root = ElementTree.fromstring(xml_text)
-    records = []
-    for entry in root.findall(_atom("entry")):
-        record = _entry_record(entry)
-        if record is not None:
-            records.append(record)
-    return records
+    if root.tag != _atom("feed"):
+        raise ValueError("arXiv returned an invalid feed")
+    return [_entry_record(entry) for entry in root.findall(_atom("entry"))]
 
 
+@non_raising
 async def search_arxiv(query: str, max_results: int = 10) -> dict[str, Any]:
     """Search arXiv for preprints matching a free-text query.
 
@@ -108,6 +107,6 @@ async def search_arxiv(query: str, max_results: int = 10) -> dict[str, Any]:
             response.raise_for_status()
         records = _parse_feed(response.text)[:limit]
     except (httpx.HTTPError, ParseError) as exc:
-        logger.warning("arXiv search failed for %r: %s", query, exc)
-        records = []
-    return {"source": "arXiv", "query": query, "records": records}
+        logger.warning("arXiv search failed")
+        return failed(exc)
+    return ok(records)

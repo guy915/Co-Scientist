@@ -31,7 +31,7 @@ const HEADER_TITLE_CLASSES =
 // after leaving a run.
 const HEADER_ACTIONS_CLASSES =
   'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max items-center gap-2 [transform:translateY(-50%)] ' +
-  'phone:[&>:not(.ucs-session-switch)]:hidden';
+  'phone:static phone:flex-none phone:[transform:none] phone:[&>:not(.ucs-session-switch):not(.ucs-feedback-control)]:hidden';
 
 function HamburgerButton({
   navOpen,
@@ -76,7 +76,7 @@ function ProductLockup({
         ),
         placement: 'right',
       })}
-      aria-label="Go to Co-Scientist home"
+      aria-label="Go to Open Co-Scientist home"
       data-tooltip="Home"
       onClick={event => {
         if (!isModifiedClick(event)) onNewChat();
@@ -86,7 +86,7 @@ function ProductLockup({
         aria-hidden="true"
         className="size-[1.32rem] flex-[0_0_1.32rem] text-cosci-accent phone:hidden"
       />
-      <span>Co-Scientist</span>
+      <span>Open Co-Scientist</span>
     </Link>
   );
 }
@@ -183,7 +183,7 @@ export function SystemStatusIndicator() {
       icon={chip.icon}
       tooltip={chip.detail}
       tooltipPlacement="bottom"
-      layoutClassName="ucs-system-status ui-motion-enter"
+      layoutClassName="ucs-system-status"
     >
       <span>{chip.label}</span>
     </Chip>

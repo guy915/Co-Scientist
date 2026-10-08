@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import os
 from dataclasses import asdict, dataclass, field
@@ -8,11 +7,14 @@ from typing import Any
 
 from Bio import Entrez
 
+from mcp_server.cache_privacy import PUBLIC_PAPERS
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import search_with_relaxation
+from mcp_server.pubmed_records import parse_pubmed_record
 from mcp_server.pubmed_storage import confined_path, validate_cache_identifier
-from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
+from mcp_server.text_extraction import extract_text_from_pmc_html
+from mcp_server.tools._results import failed, keyed_records, non_raising, ok
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +25,8 @@ def check_pubmed_available() -> str:
     try:
         results = read_entrez(entrez_call(Entrez.esearch, db="pubmed", term="cancer", retmax=1))
         return "true" if results.get("IdList") else "false"
-    except Exception as exc:
-        logger.warning("PubMed availability query failed: %s", exc)
-        logger.debug("PubMed availability query failed", exc_info=True)
+    except Exception:
+        logger.warning("PubMed availability query failed")
         return "false"
 
 
@@ -39,26 +40,28 @@ def _esearch_pubmed_ids(query: str, max_papers: int) -> list[str]:
     return search_with_relaxation(query, max_papers, 0, search)
 
 
-def search_pubmed(query: str, max_papers: int = 10) -> str:
+def search_pubmed(query: str, max_papers: int = 10) -> dict[str, Any]:
     """Search PubMed and return article metadata as a JSON result envelope.
 
     Args:
         query: Search query for PubMed.
         max_papers: Maximum number of papers to retrieve.
     """
-    initialize_entrez()
     try:
+        initialize_entrez()
         articles = []
+        metadata_failed = False
         for paper_id in _esearch_pubmed_ids(query, max_papers):
             try:
                 articles.append(_fetch_pubmed_article(paper_id).to_dict())
-            except Exception as exc:
+            except Exception:
                 # A malformed paper must not discard successful siblings.
-                logger.warning("Failed to fetch metadata for paper %s: %s", paper_id, exc)
-        return json.dumps({"results": articles, "count": len(articles)})
+                logger.warning("PubMed metadata fetch failed")
+                metadata_failed = True
+        return failed("PubMed metadata unavailable") if metadata_failed else ok(articles)
     except Exception as exc:
-        logger.error("Error searching PubMed: %s", exc)
-        return json.dumps({"error": str(exc), "results": [], "count": 0})
+        logger.error("PubMed search failed")
+        return failed(exc)
 
 
 @dataclass
@@ -92,93 +95,17 @@ def _fetch_pubmed_article(paper_id: str) -> Article:
     paper_results = read_entrez(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
 
     pubmed_article = paper_results["PubmedArticle"][0]
-    medline = pubmed_article["MedlineCitation"]
-    article_data = medline["Article"]
-
-    # Remove metadata formatting so quoted titles remain plain citation text.
-    title = clean_markup(article_data.get("ArticleTitle")) or "Unknown"
-    abstract = _parse_pubmed_abstract(article_data)
-    authors = _parse_pubmed_authors(article_data)
-    doi = _parse_pubmed_doi(pubmed_article)
-    venue, year = _parse_pubmed_venue_year(article_data)
-    url = _pubmed_article_url(doi, paper_id)
-
+    record = parse_pubmed_record(pubmed_article)
     return Article(
-        title=title,
-        url=url,
-        authors=authors,
-        year=year,
-        venue=venue,
-        abstract=abstract,
+        title=record.title,
+        url=_pubmed_article_url(record.doi, paper_id),
+        authors=record.authors,
+        year=record.year,
+        venue=record.publication,
+        abstract=record.abstract,
         source_id=paper_id,
         source="pubmed",
     )
-
-
-def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
-    """PubMed may split abstracts into labeled sections; preserve all parts."""
-    try:
-        abstract_parts = article_data.get("Abstract", {}).get("AbstractText", [])
-        if not abstract_parts:
-            return None
-        # An absent abstract stays None rather than becoming "": ranking
-        # reads the empty string as evidence it has already seen.
-        return clean_markup(" ".join(str(part) for part in abstract_parts))
-    except (KeyError, TypeError):
-        return None
-
-
-def _author_full_name(author: Any) -> str | None:
-    if not isinstance(author, dict):
-        return None
-    first_name = author.get("ForeName", "")
-    last_name = author.get("LastName", "")
-    return f"{first_name} {last_name}" if first_name and last_name else None
-
-
-def _parse_pubmed_authors(article_data: dict[str, Any]) -> list[str]:
-    authors = []
-    try:
-        author_list = article_data.get("AuthorList", [])
-        for author in author_list:
-            name = _author_full_name(author)
-            if name:
-                authors.append(name)
-    except (KeyError, TypeError):
-        pass
-    return authors
-
-
-def _parse_pubmed_doi(pubmed_article: dict[str, Any]) -> str | None:
-    doi = None
-    try:
-        # ArticleIdList mixes typed identifiers; select DOI entries.
-        article_ids = pubmed_article.get("PubmedData", {}).get("ArticleIdList", [])
-        for article_id in article_ids:
-            if hasattr(article_id, "attributes") and article_id.attributes.get("IdType") == "doi":
-                doi = str(article_id)
-                break
-    except (KeyError, TypeError, AttributeError):
-        pass
-    return doi
-
-
-def _parse_pubmed_venue_year(
-    article_data: dict[str, Any],
-) -> tuple[str | None, int | None]:
-    venue = None
-    year = None
-    try:
-        journal_info = article_data.get("Journal", {})
-        venue = journal_info.get("Title")
-
-        pub_date = journal_info.get("JournalIssue", {}).get("PubDate", {})
-        year_str = pub_date.get("Year")
-        if year_str:
-            year = int(year_str)
-    except (KeyError, TypeError, ValueError):
-        pass
-    return venue, year
 
 
 def _read_and_extract_fulltext(html_file: Path) -> str:
@@ -193,13 +120,13 @@ async def _extract_fulltext(
         relative_run_dir = run_dir.relative_to(cache_root)
         html_file = confined_path(cache_root, *relative_run_dir.parts, f"{pmc_id}.fulltext.html")
         if not html_file.exists():
-            logger.warning("Fulltext file not found for %s at %s", pmc_id, html_file)
+            logger.warning("PMC fulltext cache file not found")
             return False
         # Full-article parsing is CPU-heavy; keep it off the event loop.
         metadata["fulltext"] = await asyncio.to_thread(_read_and_extract_fulltext, html_file)
         return True
-    except Exception as exc:
-        logger.error("Failed to extract text from %s: %s", pmc_id, exc)
+    except Exception:
+        logger.error("PMC fulltext extraction failed")
         return False
 
 
@@ -209,6 +136,7 @@ def _pubmed_cache_dir() -> Path:
     return cache_dir.resolve()
 
 
+@non_raising
 async def pubmed_search_with_fulltext(
     query: str,
     slug: str,
@@ -222,10 +150,10 @@ async def pubmed_search_with_fulltext(
 
     Args:
         query: PubMed boolean query (AND/OR/NOT operators).
-        slug: Identifier for organizing results (research goal hash).
+        slug: Validated compatibility argument; never persisted.
         max_papers: Maximum papers to retrieve.
         recency_years: Filter to papers from last N years (0 = no filter).
-        run_id: Unique run identifier for per-run tracking.
+        run_id: Validated compatibility argument; never persisted.
         include_fulltext: Skip downloads and extraction when false, retaining
             PMC-linked selection and metadata provenance.
 
@@ -246,8 +174,7 @@ async def pubmed_search_with_fulltext(
         include_fulltext=include_fulltext,
     )
     if include_fulltext:
-        base_dir = confined_path(lit_review_dir, "pubmed", slug)
-        run_dir = confined_path(base_dir, "runs", run_id) if run_id else base_dir
+        run_dir = confined_path(lit_review_dir, "pubmed", PUBLIC_PAPERS, "shared")
         extracted = sum(
             await asyncio.gather(
                 *(
@@ -258,4 +185,4 @@ async def pubmed_search_with_fulltext(
             )
         )
         logger.info("Extracted fulltext for %s/%s papers", extracted, len(results))
-    return results
+    return keyed_records(results)

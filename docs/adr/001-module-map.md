@@ -12,9 +12,10 @@ the code that used it, and nothing stated which module may import which.
 ## Decision
 
 **One package, `co_scientist`, with its source at `engine/src/co_scientist/`.**
-The composition root is `co_scientist.main` (`Dockerfile.api` starts
-`co_scientist.main:app`). Keeping the engine's import name keeps logger names
-(`co_scientist.*`), the sandbox launcher string and test patch targets stable.
+The composition root is `co_scientist.main` (`Dockerfile.api` runs
+`scripts/api-entrypoint.sh`, which starts `co_scientist.main:app`). Keeping the
+engine's import name keeps logger names (`co_scientist.*`), the sandbox
+launcher string and test patch targets stable.
 
 **Layers**, top to bottom. A layer imports only layers below it.
 
@@ -43,7 +44,8 @@ The composition root is `co_scientist.main` (`Dockerfile.api` starts
 only in `platform/db`, the domains and `orchestration`; `litellm` only in
 `platform/llm`; `httpx` only in `platform/llm` and `platform/retrieval`;
 `langgraph`/`langchain_*` only in `platform/retrieval`,
-`domains/research_state` (state reducers) and `orchestration` (checkpoints).
+`domains/research_state` (state reducers) and `orchestration` (checkpoints);
+this last rule is a convention, not an import-linter contract.
 
 **Names.** `.dockerignore` and `.gitignore` drop directories named `cache`,
 `reports`, `build` or `dist` while `COPY` still succeeds, so a module with
@@ -56,6 +58,6 @@ report domain is therefore `domains/report`, and there is no `platform/cache`.
   third-party rules; ADR-002 describes how they are enforced. A layer-crossing
   import fails `make arch` instead of waiting for review.
 - `app/` holds only the frontend, its tests and development tooling.
-- The engine's Python 3.10 floor is kept.
+- The engine's Python floor is 3.12, matching the production runtime.
 - A package's `__init__.py` is its preferred interface, but no contract
   forbids importing its submodules.

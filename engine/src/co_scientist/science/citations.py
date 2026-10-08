@@ -1,7 +1,7 @@
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.core.citations import citation_keys_in as citation_keys_in
 from co_scientist.core.constants import INITIAL_ELO_RATING, truncate
 from co_scientist.domains.research_state.models import GenerationMethod, Hypothesis
 from co_scientist.science.schemas.generation import (
@@ -144,23 +144,6 @@ def build_reference_index(
     sources.update(enrichment_sources)
 
     return ReferenceIndex(text="\n".join(paper_lines + enrichment_lines), sources=sources)
-
-
-_BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
-_CITATION_KEY = re.compile(r"\AC\d+\Z")
-
-
-def citation_keys_in(text: str) -> list[str]:
-    """The prompt asks for one key per bracket, but models group them
-    ("[C1, C2]"), and a grouped key reaching no citation row leaves the
-    source unpersisted.
-    """
-    return [
-        key
-        for group in _BRACKET_GROUP.findall(text)
-        for part in group.split(",")
-        if _CITATION_KEY.match(key := part.strip())
-    ]
 
 
 def _record_citation_key(

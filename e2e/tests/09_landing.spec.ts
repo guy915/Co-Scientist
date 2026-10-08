@@ -10,22 +10,28 @@ for (const theme of ['light', 'dark']) {
         mode => localStorage.setItem('cosci-theme', mode),
         theme,
       );
-      // Verify the privacy-preserving embed without relying on YouTube availability.
-      await page.route('https://www.youtube-nocookie.com/**', route =>
-        route.fulfill({
-          body: '<html><body>Trailer</body></html>',
-          contentType: 'text/html',
-        }),
-      );
+      const landingRequests: string[] = [];
+      page.on('request', request => {
+        if (/\/home_landing[^/]*\.(?:tsx?|js)(?:\?|$)/.test(request.url())) {
+          landingRequests.push(request.url());
+        }
+      });
       await page.goto('/');
-      const trailer = page.locator('iframe[title="Co-Scientist trailer"]');
-      await expect(trailer).toHaveAttribute('loading', 'lazy');
+      await expect(page.getByRole('textbox')).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      const trailer = page.getByRole('link', {name: 'Watch the trailer on YouTube'});
+      expect(landingRequests).toEqual([]);
+      await expect(trailer).toHaveCount(0);
+      await page
+        .getByRole('button', {name: 'Scroll to see how Open Co-Scientist works'})
+        .click();
       await expect(trailer).toHaveAttribute(
-        'src',
-        'https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0',
+        'href',
+        'https://www.youtube.com/watch?v=Wnhe8a8kKc0',
       );
+      await expect(page.locator('iframe')).toHaveCount(0);
       await trailer.scrollIntoViewIfNeeded();
-      const box = await trailer.boundingBox();
+      const box = await trailer.locator('..').boundingBox();
       expect(box!.width / box!.height).toBeCloseTo(16 / 9, 1);
       await captureViewport(page, {
         width,
@@ -49,7 +55,9 @@ for (const theme of ['light', 'dark']) {
       if (width > 1000) {
         // Wide headers take the tabs into their own row.
         expect(tabBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
-        expect(tabBox!.y + tabBox!.height).toBeLessThanOrEqual(headerBottom + 1);
+        expect(tabBox!.y + tabBox!.height).toBeLessThanOrEqual(
+          headerBottom + 1,
+        );
       } else {
         // Narrow headers have no room, so the tabs stick right below them.
         expect(tabBox!.y).toBeGreaterThanOrEqual(headerBottom - 1);
@@ -95,7 +103,7 @@ for (const theme of ['light', 'dark']) {
   }
 }
 
-test('phones get the composer alone, without landing or header actions', async ({
+test('phones get the composer and compact feedback without landing', async ({
   page,
 }) => {
   await page.setViewportSize({width: 375, height: 812});
@@ -103,7 +111,7 @@ test('phones get the composer alone, without landing or header actions', async (
   await expect(page.getByRole('textbox')).toBeInViewport();
   await expect(page.locator('.ucs-landing')).toHaveCount(0);
   await expect(
-    page.getByRole('button', {name: 'Scroll to see how Co-Scientist works'}),
+    page.getByRole('button', {name: 'Scroll to see how Open Co-Scientist works'}),
   ).toHaveCount(0);
   await expect(
     page.getByRole('navigation', {name: 'Example chats'}),
@@ -111,6 +119,6 @@ test('phones get the composer alone, without landing or header actions', async (
   const header = page.locator('.ucs-header-action-bar');
   await expect(
     header.getByRole('button', {name: 'Feedback', exact: true}),
-  ).toBeHidden();
-  await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
+  ).toBeInViewport();
+  await expect(header.getByText('Open Co-Scientist', {exact: true})).toBeVisible();
 });

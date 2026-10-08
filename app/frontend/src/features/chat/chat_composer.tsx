@@ -8,16 +8,19 @@ import {
   useState,
   type RefObject,
 } from 'react';
-import {Icon, type IconName} from '@/shared/ui/icon';
+import {type IconName} from '@/shared/ui/icon';
 import {IconButton, Menu, MenuItem, TextArea} from '@/shared/ui';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import type {Connector, SystemStatus} from '@/shared/api/system';
 import {useSystemStatus} from '@/shared/hooks/system_status_context';
+import {useLaunchStatus} from '@/shared/hooks/launch_status_context';
+import {LAUNCH_NOTICE_ID} from '@/shared/ui/launch_status_banner';
 
 export interface ComposerProps {
   input: string;
   setInput: (value: string) => void;
-  setupDraftMode?: boolean;
+  // Once a conversation has a message, the composer asks for the next one.
+  inConversation?: boolean;
   busy: boolean;
   large?: boolean;
   autoFocus?: boolean;
@@ -25,7 +28,6 @@ export interface ComposerProps {
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
   stoppable?: boolean;
   onStop?: () => void;
-  placeholderOverride?: string;
   aboveInput?: ReactNode;
 }
 
@@ -40,14 +42,13 @@ export function Composer({
   input,
   setInput,
   busy,
-  setupDraftMode = false,
+  inConversation = false,
   large = false,
   autoFocus = false,
   connectors = DEFAULT_CONNECTORS,
   onSubmit,
   stoppable = false,
   onStop,
-  placeholderOverride,
   aboveInput,
 }: ComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,12 +57,12 @@ export function Composer({
     useComposerAttachments();
   const {connectorsOpen, setConnectorsOpen, sourceControlsRef} =
     useConnectorsMenu();
-  const submitDisabled = !input.trim() || busy;
-  const referenceLabel =
-    placeholderOverride ||
-    (setupDraftMode
-      ? 'Type to edit session details'
-      : 'Start a new research goal to begin');
+  const {status} = useLaunchStatus();
+  const paused = status?.paused ?? false;
+  const submitDisabled = !input.trim() || busy || paused;
+  const placeholder = inConversation
+    ? 'Ask Co-Scientist'
+    : 'Start a new research goal to begin';
 
   // Measure programmatic fills as well as typing. The height eases from the
   // last measured size; a scrollbar appears only once content passes the cap.
@@ -86,6 +87,10 @@ export function Composer({
   return (
     <form
       onSubmit={event => {
+        if (paused) {
+          event.preventDefault();
+          return;
+        }
         onSubmit(
           event,
           attachments.map(attachment => attachment.file),
@@ -102,20 +107,15 @@ export function Composer({
     >
       {aboveInput}
       <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
-      <label className="relative block min-h-[3.6rem] pb-12">
-        <span
-          className={joinClasses(
-            'absolute top-0 left-[0.4rem] z-1 flex h-6 items-center gap-2 pointer-events-none text-base text-cosci-composer-label',
-            input.trim() && 'hidden',
-          )}
-        >
-          <Icon className="text-[1.15rem]" name="encrypted" />
-          {referenceLabel}
-        </span>
+      {/* A native placeholder starts exactly where the caret and typed text
+          do. */}
+      <div className="relative block min-h-[3.6rem] pb-12">
         <TextArea
           ref={textareaRef}
           rows={1}
           value={input}
+          placeholder={placeholder}
+          aria-label={placeholder}
           autoFocus={autoFocus}
           variant="bare"
           layoutClassName={joinClasses(
@@ -131,7 +131,7 @@ export function Composer({
             if (!submitDisabled) event.currentTarget.form?.requestSubmit();
           }}
         />
-      </label>
+      </div>
       <div className="reference-composer-actions pointer-events-none absolute right-5 bottom-3 left-5 flex items-end justify-between gap-3">
         <SourceControls
           connectorsOpen={connectorsOpen}
@@ -145,7 +145,14 @@ export function Composer({
           type={stoppable ? 'button' : 'submit'}
           icon={stoppable ? 'stop' : 'send'}
           label={stoppable ? 'Stop' : 'Send'}
-          tooltip={stoppable ? 'Stop' : 'Submit'}
+          tooltip={
+            stoppable
+              ? 'Stop'
+              : paused
+                ? (status?.message ?? 'Research is paused.')
+                : 'Submit'
+          }
+          aria-describedby={!stoppable && paused ? LAUNCH_NOTICE_ID : undefined}
           layoutClassName="pointer-events-auto"
           disabled={!stoppable && submitDisabled}
           onClick={stoppable ? onStop : undefined}

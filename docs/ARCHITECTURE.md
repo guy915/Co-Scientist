@@ -58,10 +58,11 @@ co_scientist/
   api/            runs/ (lifecycle, read, chat, SSE), interviews/, contracts/,
                   tracing (HTTP spans),
                   documents, uploads, free_usage, byok_models, feedback_api,
-                  logs_api, diagnostics, auth, operator_access, request_limits
+                  logs_api, diagnostics, auth, operator_access, request_limits,
+                  launch_admission, launch_control_api
   orchestration/  engine_tasks/ (durable node, fan-out and match executor,
                   report_finalize), task_worker/ (leased cohorts),
-                  repository/ (scientific_tasks, run_events, receipts, views),
+                  repository/ (tasks, tasks_lifecycle, events, receipts, runs_views),
                   engine_adapter/, generator/, registry, workflow_topology,
                   checkpoint, drain, safety_gate, task_runtime
   science/        generation/ reflection/ ranking/ evolution/ proximity/
@@ -83,12 +84,11 @@ co_scientist/
                   mcp_client/, citations/, tools/, connectors, article
     llm/          request/ (wire policy, thinking), profile/ (ModelProfile),
                   structured/, tools/, admission/, attempts/, offline/,
-                  decisions/ (typed decision client), provider_usage,
-                  llm_request, scoped_loop, tool_effects
+                  provider_usage, llm_request, scoped_loop, tool_effects
     sandbox/      confinement (landlock, seccomp, cgroups, seatbelt), runner,
                   workspace/, skills/, patch/
     db/           schema, models, runs, checkpoints, supervisor_plan,
-                  admission, call_admission, storage_admission, decision_usage,
+                  admission, call_admission, storage_admission,
                   logs, log_capture, retrieval_calls
     telemetry/    logging_setup, error_tracking, tracing, progress,
                   diagnostic_events
@@ -190,7 +190,7 @@ owning module; other modules go through it.
 | `run_credentials`, `free_run_usage` | `domains/access/` | encrypted BYOK keys and the free-generation allowance |
 | `feedback`, `feedback_admissions` | `domains/feedback/repository.py` | newest 200 within 10 MiB for 30 days; rolling-minute budgets |
 | `*_admissions`, `app_llm_usage` | `platform/db/admission.py`, `call_admission.py`, `storage_admission.py` | durable admission and spend ceilings |
-| `decision_usage` | `platform/db/decision_usage.py` | daily decision-client call and token quotas |
+| `launch_control` | `platform/db/launch_control.py` | one operator pause and visitor notice row |
 | `retrieval_calls`, `app_logs` | `platform/db/retrieval_calls.py`, `logs.py` | per-run retrieval provenance and captured logs |
 
 `hypothesis_state` is the critical decoupling: it holds the values that must
@@ -241,7 +241,7 @@ scope. The numbered evidence manifest is the sole citation namespace.
 
 React 19, Vite 7, Tailwind v4 and Bun. `app/frontend/src/` is split into
 `app/` (shell, routes in `workbench_app.tsx`), `features/` (`chat`, `report`,
-`runs`, `access`, `diagnostics`) and `shared/` (`api`, `hooks`, `lib`, `ui`).
+`runs`, `access`, `diagnostics`, `legal`) and `shared/` (`api`, `hooks`, `lib`, `ui`).
 Wire types are generated from the backend contracts
 (`app/tests/test_architecture.py` checks they match).
 

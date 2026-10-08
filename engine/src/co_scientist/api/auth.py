@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from fastapi import HTTPException, Request
 
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
+from co_scientist.platform.db.privacy import is_erased_owner
 
 
 @dataclass(frozen=True)
@@ -35,5 +36,9 @@ def require_client_scope(request: Request) -> str:
         raise HTTPException(
             status_code=400,
             detail="an X-Client-ID header is required to create this",
+        )
+    if is_erased_owner(subject):
+        raise HTTPException(
+            status_code=410, detail="This browser identity was deleted; reload to start fresh"
         )
     return subject

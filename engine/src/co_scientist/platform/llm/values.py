@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core.constants import DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE
+from co_scientist.platform.llm.roles import CallRole, ReasoningEffort
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,8 @@ class CompletionSpec:
     json_schema: dict[str, Any] | None = None
     force_json: bool = False
     api_key: str | None = None
+    role: CallRole = "worker"
+    effort: ReasoningEffort | None = None
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,8 @@ class LLMCallOptions:
     run_id: str | None = None
     prompt_name: str | None = None
     enable_thinking: bool = True
+    role: CallRole | None = None
+    effort: ReasoningEffort | None = None
 
 
 @dataclass(frozen=True)

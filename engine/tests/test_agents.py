@@ -202,11 +202,11 @@ _ALLOWED_UPWARD = {("telemetry", "request.response")}
 _LAYERS = (
     "scoped_loop",
     "profile",
+    "roles",
     "values",
     "admission",
     "structured",
     "telemetry",
-    "decisions",
     "request",
     "precall",
     "attempts",

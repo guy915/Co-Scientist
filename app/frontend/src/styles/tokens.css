@@ -21,7 +21,7 @@
 
   /* Share the brand accent independently of timeline-dot styling; its palette
      switches to mint in dark. */
-  --cosci-accent: #238a84;
+  --cosci-accent: #1a6b6b;
   --cosci-accent-fg: #f2f2f2;
 
   --cosci-step-line: color-mix(in srgb, var(--cosci-accent) 38%, #c4c7c5);
@@ -294,6 +294,9 @@ body {
   --button-outlined-border: var(--cosci-btn-secondary-border);
   --button-outlined-fg: var(--cosci-source-button-hover);
   --button-outlined-hover: var(--cosci-icon-button-hover-bg);
+  --button-accent-border: var(--cosci-option-marker);
+  --button-accent-fg: var(--cosci-blue);
+  --button-accent-hover: var(--cosci-btn-outline-hover-bg);
   --button-tonal-bg: var(--cosci-accent);
   --button-tonal-fg: var(--cosci-accent-fg);
   --button-tonal-hover: var(--cosci-logs-accent-hover);

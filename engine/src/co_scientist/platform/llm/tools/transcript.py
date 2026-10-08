@@ -9,6 +9,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from litellm.litellm_core_utils.streaming_chunk_builder_utils import ChunkProcessor
+
 from co_scientist.platform.sandbox.workspace.tool_schemas import WRITE_FILE
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,26 @@ def object_arguments(raw: Any) -> str | None:
     return raw if isinstance(parsed, dict) else None
 
 
+class ThinkingTranscript:
+    def __init__(self) -> None:
+        self._chunks: list[dict[str, Any]] = []
+
+    def observe(self, delta: Any) -> None:
+        blocks = getattr(delta, "thinking_blocks", None)
+        if blocks:
+            self._chunks.append({"choices": [{"delta": {"thinking_blocks": blocks}}]})
+
+    def blocks(self) -> list[dict[str, Any]]:
+        if not self._chunks:
+            return []
+        # The pinned SDK joins signed/redacted fragments without rebuilding
+        # signatures or retaining unrelated streamed content.
+        processor = ChunkProcessor(self._chunks)
+        return [
+            dict(block) for block in processor.get_combined_thinking_content(self._chunks) or []
+        ]
+
+
 def _message_to_history_dict(message: Any) -> dict[str, Any]:
     """LiteLLM messages are Pydantic models; history entries need plain
     dictionaries.
@@ -61,6 +83,15 @@ def _message_to_history_dict(message: Any) -> dict[str, Any]:
     reasoning = getattr(message, "reasoning_content", None)
     if reasoning:
         message_dict["reasoning_content"] = reasoning
+
+    # Adaptive-thinking tool turns require the original signed blocks.
+    thinking_blocks = getattr(message, "thinking_blocks", None)
+    if thinking_blocks:
+        message_dict["thinking_blocks"] = thinking_blocks
+
+    items = getattr(message, "responses_items", None)
+    if items:
+        message_dict["responses_items"] = items
 
     if hasattr(message, "tool_calls") and message.tool_calls:
         message_dict["tool_calls"] = [

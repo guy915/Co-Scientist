@@ -1,11 +1,39 @@
 // Persist browser failures so diagnostics survive reloads.
 import {postAppLogs, type ClientLogRecord} from '@/shared/api/logs';
 import {DIAGNOSTIC_EVENT, type DiagnosticDetail} from './diagnostic_events';
+import {httpStatus} from './errors';
+import {STORAGE_KEYS} from './safe_storage';
+
+// Match the ingestion endpoint's one-minute window. Keep the deadline across
+// same-tab reloads so navigation cannot restart a rejected submission burst.
+const RATE_LIMIT_PAUSE_MS = 60_000;
+const RATE_LIMIT_PAUSE_KEY = STORAGE_KEYS.logsPauseUntil;
+let logPauseUntil = 0;
+
+function pausedUntil(): number {
+  try {
+    const stored = Number(window.sessionStorage.getItem(RATE_LIMIT_PAUSE_KEY));
+    return Math.max(logPauseUntil, Number.isFinite(stored) ? stored : 0);
+  } catch {
+    return logPauseUntil;
+  }
+}
+
+function pauseLogging(): void {
+  logPauseUntil = Date.now() + RATE_LIMIT_PAUSE_MS;
+  try {
+    window.sessionStorage.setItem(RATE_LIMIT_PAUSE_KEY, String(logPauseUntil));
+  } catch {
+    // A denied storage write must never interrupt the page being diagnosed.
+  }
+}
 
 // Logging is best-effort: reporting an unavailable API must never break the
 // page being diagnosed.
 function postBestEffort(records: ClientLogRecord[]): void {
-  void postAppLogs(records).catch(() => {
+  if (Date.now() < pausedUntil()) return;
+  void postAppLogs(records).catch(error => {
+    if (httpStatus(error) === 429) pauseLogging();
     // Reporting API failure must not itself break the page.
   });
 }

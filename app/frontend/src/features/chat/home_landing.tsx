@@ -3,15 +3,16 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
   type Ref,
 } from 'react';
-import {useLocation} from 'react-router-dom';
+import {Link, useLocation} from 'react-router-dom';
 import {createPortal} from 'react-dom';
 import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
-import {Button, SegmentedControl} from '@/shared/ui';
+import {Button, ExternalLink, SegmentedControl} from '@/shared/ui';
 import helixArt from '@/assets/landing/helix.webp';
 import {joinClasses} from '@/shared/ui/classes';
 import {
@@ -35,10 +36,6 @@ import {
   useShapeMorph,
 } from './home_landing_hooks';
 import {Icon, type IconName} from '@/shared/ui/icon';
-import {
-  SlidingPill,
-  useSlidingIndicator,
-} from '@/shared/hooks/use_sliding_indicator';
 import moleculeArt from '@/assets/landing/molecule.webp';
 import podiumArt from '@/assets/landing/podium.webp';
 import flaskArt from '@/assets/landing/flask.webp';
@@ -88,9 +85,6 @@ const RAIL_NAV_CLASSES =
 
 const RAIL_TAB_CLASSES =
   'relative z-1 grid h-[38px] flex-none place-items-center rounded-full px-4 text-[14px] font-medium no-underline';
-
-const SLIDER_CLASSES =
-  'pointer-events-none absolute top-[4px] bottom-[4px] left-0 rounded-full bg-(--l-ink) [&.is-animated]:[transition:transform_0.4s_var(--l-ease),width_0.4s_var(--l-ease)] motion-reduce:[&.is-animated]:[transition:none]';
 
 const CARD_H3_CLASSES = 'm-0 font-(family-name:--l-display) font-normal';
 
@@ -148,9 +142,9 @@ function LandingHero({
     >
       <h2
         id="ucs-landing-word"
-        className="relative z-1 m-0 font-(family-name:--l-display) text-[clamp(3.4rem,11.6vw,11.25rem)] leading-[0.95] font-normal tracking-[-0.015em] whitespace-nowrap"
+        className="relative z-1 m-0 font-(family-name:--l-display) text-[clamp(3rem,7.5vw,8rem)] leading-[0.95] font-normal tracking-[-0.015em] text-balance"
       >
-        Co-Scientist
+        Open Co-Scientist
       </h2>
       <div className="mt-8 grid grid-cols-[6fr_5fr] [align-items:start] gap-8 [@media(max-width:900px)]:mt-4 [@media(max-width:900px)]:grid-cols-[1fr]">
         <div className="grid gap-7 pt-2">
@@ -171,15 +165,17 @@ function LandingHero({
               See how it works
             </Button>
           </div>
-          <iframe
-            className="block aspect-[16/9] w-full rounded-xl [border:0] bg-(--l-surface)"
-            title="Co-Scientist trailer"
-            src="https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0"
-            loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
+          <div className="grid aspect-[16/9] w-full place-content-center gap-3 rounded-xl bg-(--l-surface) p-6 text-center">
+            <ExternalLink
+              className="text-[1.15rem] underline underline-offset-4"
+              href="https://www.youtube.com/watch?v=Wnhe8a8kKc0"
+            >
+              Watch the trailer on YouTube
+            </ExternalLink>
+            <p className="m-0 text-sm text-(--l-muted)">
+              Opens another site. YouTube’s privacy policy applies there.
+            </p>
+          </div>
         </div>
         <svg
           className="tone-teal w-[min(100%,440px)] [align-self:center] [justify-self:end] overflow-visible [&>path]:fill-(--tone-c) [@media(max-width:900px)]:justify-self-center"
@@ -295,6 +291,8 @@ const MIN_HEADER_ROOM = 320;
 function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const copyRef = useRef<HTMLDivElement | null>(null);
+  const focusedSectionRef = useRef<string | null>(null);
+  const headerVisibleRef = useRef(false);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [joined, setJoined] = useState(false);
   const [sticky, setSticky] = useState(false);
@@ -307,13 +305,24 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
     const update = () => {
       const fit = headerRoom(header, target);
       const narrow = fit < MIN_HEADER_ROOM;
+      const a = anchor.getBoundingClientRect();
+      const nextInHeader = !narrow && a.top < pane.getBoundingClientRect().top;
+      if (nextInHeader !== headerVisibleRef.current) {
+        const focused = document.activeElement;
+        if (
+          focused instanceof HTMLAnchorElement &&
+          (anchor.contains(focused) || copyRef.current?.contains(focused))
+        ) {
+          focusedSectionRef.current = focused.dataset.section ?? null;
+        }
+        headerVisibleRef.current = nextInHeader;
+      }
       setSticky(narrow);
       setSlot(narrow ? null : target);
       if (narrow) {
         anchor.style.removeProperty('--rail-room');
         return;
       }
-      const a = anchor.getBoundingClientRect();
       const h = header.getBoundingClientRect();
       anchor.style.setProperty('--rail-room', `${fit}px`);
       target.style.setProperty('--rail-room', `${fit}px`);
@@ -325,7 +334,7 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
         const y = devicePixel(Math.max(rest, a.top - h.top));
         copy.style.transform = `translateY(${y}px)`;
       }
-      setJoined(a.top < pane.getBoundingClientRect().top);
+      setJoined(nextInHeader);
     };
     update();
     const frame = requestAnimationFrame(update);
@@ -338,6 +347,23 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
     };
   }, []);
   const inHeader = joined && slot !== null;
+  useLayoutEffect(() => {
+    const section = focusedSectionRef.current;
+    if (!section) return;
+    focusedSectionRef.current = null;
+    const focused = document.activeElement;
+    if (
+      focused &&
+      focused !== document.body &&
+      !anchorRef.current?.contains(focused) &&
+      !copyRef.current?.contains(focused)
+    )
+      return;
+    const visible = inHeader ? copyRef.current : anchorRef.current;
+    visible
+      ?.querySelector<HTMLAnchorElement>(`a[data-section="${section}"]`)
+      ?.focus({preventScroll: true});
+  }, [inHeader, slot]);
   return (
     <div
       ref={anchorRef}
@@ -366,7 +392,6 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
   const active = useActiveSection();
   const navRef = useRef<HTMLElement | null>(null);
   const more = useRailScroll(navRef, active, reduceMotion);
-  const pill = useSlidingIndicator(navRef, '.is-active', active);
   const go = (e: MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
     scrollToLandingSection(id, reduceMotion);
@@ -382,7 +407,6 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
             'phone:[mask-image:linear-gradient(90deg,#000_85%,transparent)]',
         )}
       >
-        <SlidingPill box={pill} className={SLIDER_CLASSES} />
         {LANDING_SECTIONS.map(({id, label}) => (
           <a
             key={id}
@@ -390,7 +414,9 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
             data-section={id}
             className={joinClasses(
               RAIL_TAB_CLASSES,
-              active === id ? 'is-active text-(--l-bg)' : 'text-(--l-muted)',
+              active === id
+                ? 'is-active bg-(--l-ink) text-(--l-bg)'
+                : 'text-(--l-muted)',
             )}
             aria-current={active === id ? 'true' : undefined}
             onClick={e => go(e, id)}
@@ -434,6 +460,12 @@ export default function HomeLanding() {
         <TiersSection reduceMotion={reduceMotion} />
         <ClosingSection onStart={onStart} />
         <FaqSection />
+        <footer className="border-t border-t-(--l-line) py-6 text-(--l-muted)">
+          <nav aria-label="Legal information" className="flex flex-wrap gap-6">
+            <Link to="/privacy">Privacy notice</Link>
+            <Link to="/terms">Terms of use</Link>
+          </nav>
+        </footer>
       </div>
     </div>
   );
@@ -634,9 +666,8 @@ export function EvidenceSection() {
         </svg>
         <div>
           <p className={LEDE_CLASSES}>
-            Each hypothesis is split into atomic claims. Passages from the
-            literature are matched to every claim and judged before the idea may
-            enter the tournament.
+            Each idea the report features is split into atomic claims. Passages
+            from the literature are matched to every claim and judged.
           </p>
           <div className="mt-7 grid gap-3">
             {LANDING_VERDICTS.map(v => (
@@ -750,8 +781,8 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
           <h2 className={H2_CLASSES}>Start with a question.</h2>
           <p className="m-[16px_0_28px] max-w-[30rem] text-[1.15rem] leading-[1.55] opacity-80">
             Describe what you want to find out.{' '}
-            <span className="whitespace-nowrap">Co-Scientist</span> asks what a
-            strong answer needs, then sends its agents to work.
+            <span className="whitespace-nowrap">Open Co-Scientist</span> asks
+            what a strong answer needs, then sends its agents to work.
           </p>
           <Button variant="tonal" size="lg" onClick={onStart}>
             Start a research goal

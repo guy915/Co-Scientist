@@ -7,16 +7,15 @@ import {
   type Dispatch,
   type SetStateAction,
   type RefObject,
+  lazy,
+  Suspense,
 } from 'react';
 import {useLocation} from 'react-router-dom';
 import type {RunStatus} from '@/shared/api/runs';
 import {presenceProps, usePresence} from '@/shared/ui';
 import {joinClasses} from '@/shared/ui/classes';
 import {useRunHistoryContext} from '@/shared/hooks/history_context';
-import {
-  SettingsDialog,
-  type SettingsSection,
-} from '@/features/access/settings_dialog';
+import type {SettingsSection} from '@/features/access/settings_sections';
 import {NEW_CHAT_EVENT, HEADER_TITLE_EVENT} from '@/shared/lib/dom_events';
 import {
   closeDrawerIfMobile,
@@ -34,11 +33,19 @@ import {
 } from '@/features/runs/session_switch';
 import {useChatHistoryContext} from '@/shared/hooks/history_context';
 import {routeIds} from '@/shared/lib/routes';
+import {useLaunchStatus} from '@/shared/hooks/launch_status_context';
+import {LaunchStatusBanner} from '@/shared/ui/launch_status_banner';
 
 type LayoutChrome = ReturnType<typeof useLayoutChrome>;
 
+const SettingsDialog = lazy(() =>
+  import('@/features/access/settings_dialog').then(module => ({
+    default: module.SettingsDialog,
+  })),
+);
+
 const WORKSPACE_CLASSES =
-  'ucs-workspace relative z-1 grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-l-workspace bg-cosci-bg ' +
+  'ucs-workspace relative z-1 grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-clip rounded-l-workspace bg-cosci-bg ' +
   'phone:rounded-none';
 
 const REPORT_WORKSPACE_CLASSES =
@@ -151,12 +158,20 @@ interface ShellOverlaysProps {
 
 function ShellOverlays({chrome}: ShellOverlaysProps) {
   const {settingsSection, setSettingsSection} = chrome;
+  const [requested, setRequested] = useState(Boolean(settingsSection));
+  useEffect(() => {
+    if (settingsSection) setRequested(true);
+  }, [settingsSection]);
+  // Keep the loaded dialog mounted so closing still completes its exit motion.
+  if (!requested && !settingsSection) return null;
   return (
-    <SettingsDialog
-      section={settingsSection}
-      onSectionChange={setSettingsSection}
-      onClose={() => setSettingsSection(null)}
-    />
+    <Suspense fallback={null}>
+      <SettingsDialog
+        section={settingsSection}
+        onSectionChange={setSettingsSection}
+        onClose={() => setSettingsSection(null)}
+      />
+    </Suspense>
   );
 }
 
@@ -216,6 +231,7 @@ interface ShellWorkspaceProps {
   chrome: LayoutChrome;
   startNewChat: () => void;
   headerTitle: string;
+  conversationHeading?: string;
   session: SessionSwitchData | null;
   runStatus: RunStatus | undefined;
   workspaceClasses: string;
@@ -227,24 +243,41 @@ function ShellWorkspace({
   chrome,
   startNewChat,
   headerTitle,
+  conversationHeading,
   session,
   runStatus,
   workspaceClasses,
   pageClasses,
   children,
 }: ShellWorkspaceProps) {
+  const {status} = useLaunchStatus();
+  const notice = Boolean(status?.message);
   return (
-    <section className={workspaceClasses}>
-      <ShellHeader
-        navOpen={chrome.navOpen}
-        toggleNav={chrome.toggleNav}
-        startNewChat={startNewChat}
-        headerTitle={headerTitle}
-        session={session}
-        runStatus={runStatus}
-        headerActionsRef={chrome.headerActionsRef}
-      />
-      <main className={pageClasses}>{children}</main>
+    <section
+      className={workspaceClasses}
+      style={notice ? {height: '100dvh'} : undefined}
+    >
+      <div role="banner" aria-label="Workspace header" className="min-w-0">
+        <ShellHeader
+          navOpen={chrome.navOpen}
+          toggleNav={chrome.toggleNav}
+          startNewChat={startNewChat}
+          headerTitle={headerTitle}
+          session={session}
+          runStatus={runStatus}
+          headerActionsRef={chrome.headerActionsRef}
+        />
+        <LaunchStatusBanner />
+      </div>
+      <main
+        className={pageClasses}
+        style={notice ? {height: 'auto', minHeight: 0} : undefined}
+      >
+        {conversationHeading && (
+          <h1 className="sr-only">{conversationHeading}</h1>
+        )}
+        {children}
+      </main>
     </section>
   );
 }
@@ -282,6 +315,9 @@ function useLayoutState() {
       onToggleShowAllChats: toggleShowAllChats,
     },
     headerTitle,
+    conversationHeading: activeChatId
+      ? headerTitle || 'Research conversation'
+      : undefined,
     session,
     runStatus,
     workspaceClasses,
@@ -303,6 +339,7 @@ export function Layout({children}: {children: ReactNode}) {
         chrome={state.chrome}
         startNewChat={state.startNewChat}
         headerTitle={state.headerTitle}
+        conversationHeading={state.conversationHeading}
         session={state.session}
         runStatus={state.runStatus}
         workspaceClasses={state.workspaceClasses}

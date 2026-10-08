@@ -13,6 +13,7 @@ from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     settings,
 )
+from co_scientist.domains.chat.titles import title_case
 from co_scientist.domains.documents import repository as store
 from co_scientist.platform.llm import coerce_json_list
 from co_scientist.platform.llm.llm_scope import budgeted, stream_chunks
@@ -21,6 +22,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 
 logger = logging.getLogger(__name__)
 
@@ -164,12 +166,10 @@ ideas be built around?", "multi_select": false, "options": [{"label":
   nothing, so there is nothing to offer.
 """
 
-# Adapted from Gemini Enterprise conversation and Idea Generation prompts;
-# contextual
-# safety remains a separate boundary.
+# Contextual safety remains a separate boundary.
 _GUIDE = r"""# Role
 
-You are the Agent conducting Google Hypothesis Generation's research-goal
+You are the Agent conducting Open Co-Scientist's research-goal
 interview. You work with one scientist to scope exactly one scientific
 research goal, which a multi-agent system then explores on its own. Derive
 only information the scientist supplied; never invent laboratory
@@ -257,7 +257,7 @@ Maintain exactly five structured fields.
    capabilities. Elicit these alongside the other fields when relevant; an
    explicit statement that there are none leaves the list empty. Never
    infer lab capabilities the scientist has not stated.
-5. Title: an optional concise title.
+5. Title: an optional concise title in Title Case.
 
 # Deriving good field values
 
@@ -372,7 +372,7 @@ def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
         "focus_area": _clean_list(response.get("focus_area")),
         "preferences": _clean_list(response.get("preferences")),
         "lab_constraints": _clean_list(response.get("lab_constraints")),
-        "title": str(title).strip() if title else None,
+        "title": title_case(str(title).strip()) if title else None,
     }
 
 
@@ -465,16 +465,19 @@ async def _stream_interview_content(
     offline_guard.require_remote_chat("the interview")
     model, messages = _interview_request(interview)
     model, api_key = byok_scope.byok_model_and_key(model)
-    prose, fields, reasoned = await _run_interview_completion(
-        model, messages, api_key, sinks, thinking_enabled=True
-    )
-    if prose.strip() or not reasoned:
-        return prose, fields
-    logger.warning("Interview turn reasoned and wrote no answer; retrying once with thinking off")
-    await _emit(sinks.on_reasoning, _THINKING_ONLY_RETRY_NOTE)
-    prose, fields, _ = await _run_interview_completion(
-        model, messages, api_key, sinks, thinking_enabled=False
-    )
+    retry = ReasoningRetry()
+    prose = ""
+    fields: dict[str, Any] | None = None
+    for thinking_enabled in retry.attempts():
+        if not thinking_enabled:
+            logger.warning(
+                "Interview turn reasoned and wrote no answer; retrying once with thinking off"
+            )
+            await _emit(sinks.on_reasoning, _THINKING_ONLY_RETRY_NOTE)
+        prose, fields, reasoned = await _run_interview_completion(
+            model, messages, api_key, sinks, thinking_enabled=thinking_enabled
+        )
+        retry.observe(prose=prose, reasoned=reasoned)
     return prose, fields
 
 
@@ -494,6 +497,7 @@ async def _run_interview_completion(
         else thinking_off_kwargs(model)
     )
     response = await llm_request.acompletion(
+        call_role="interview",
         model=model,
         messages=messages,
         temperature=0.3,
@@ -518,13 +522,14 @@ async def _relay_chunk(chunk: Any, splitter: TurnSplitter, sinks: TurnSinks) -> 
     """Trailing state blocks are withheld; clients must never render and
     retract them.
     """
+    check_text_response(chunk)
     if not chunk.choices:
         return False
     delta = chunk.choices[0].delta
     reasoning = getattr(delta, "reasoning_content", "") or ""
     await _emit(sinks.on_reasoning, reasoning)
     await _emit(sinks.on_prose, splitter.feed(delta.content or ""))
-    return bool(reasoning)
+    return bool(reasoning.strip())
 
 
 async def _collect_stream_content(

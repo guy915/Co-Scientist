@@ -3,7 +3,7 @@ import dataclasses
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 
 from co_scientist.core.constants import (
     DEEP_HYPOTHESIS_MAX_TOKENS,
@@ -31,6 +31,7 @@ from co_scientist.platform.llm import (
     parse_tool_loop_json,
 )
 from co_scientist.platform.retrieval.evidence.search_query import call_search_tool
+from co_scientist.platform.retrieval.evidence.search_support import normalize_search_response
 from co_scientist.platform.retrieval.tools.provider import MCPToolProvider
 from co_scientist.platform.retrieval.tools.response_parser import ResponseParser, parse_mcp_result
 from co_scientist.science.citations import (
@@ -155,7 +156,7 @@ async def _search_papers_legacy_fallback(
         },
     )
 
-    return cast(dict[str, dict[str, Any]], parse_mcp_result(result))
+    return normalize_search_response(parse_mcp_result(result), None)
 
 
 def _skip_search_no_tool_configured() -> dict[str, dict[str, Any]]:
@@ -229,7 +230,7 @@ async def _search_papers_for_draft(
     hypothesis_text: str,
     idx: int,
     search_ctx: _NoveltySearchContext,
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, dict[str, Any]] | None:
     try:
         papers = await _search_papers_for_hypothesis(
             hypothesis_text,
@@ -242,7 +243,7 @@ async def _search_papers_for_draft(
         raise
     except Exception as e:
         logger.error("Failed to search papers for hypothesis %s: %s", idx, e)
-        return {}
+        return None
 
 
 async def _gather_hypothesis_novelty_analyses(
@@ -257,11 +258,20 @@ async def _gather_hypothesis_novelty_analyses(
     hypothesis_text = draft.get("hypothesis") or draft.get("text", "")
     logger.info("Analyzing hypothesis %s/%s: %s...", idx, total, hypothesis_text[:80])
     papers = await _search_papers_for_draft(hypothesis_text, idx, search_ctx)
+    if papers is None:
+        _, tool = _find_search_tool(search_ctx.tool_registry)
+        source = tool.mcp_tool_name if tool else "pubmed_search_with_fulltext"
+        return {
+            "draft": draft,
+            "novelty_analyses": [],
+            "search_status": "unknown",
+            "failed_sources": [source],
+        }
     novelty_analyses = await _run_parallel_novelty_analyses(
         hypothesis_text, idx, papers, model_name, analyze_paper
     )
 
-    return {"draft": draft, "novelty_analyses": novelty_analyses}
+    return {"draft": draft, "novelty_analyses": novelty_analyses, "search_status": "ok"}
 
 
 async def _run_novelty_analysis_stage(
@@ -362,6 +372,14 @@ def _build_synthesis_call_inputs(
         )
     )
 
+    if any(item.get("search_status") == "unknown" for item in batch):
+        sources = sorted({s for item in batch for s in item.get("failed_sources", [])})
+        synthesis_prompt += (
+            "\nPrior-art search failed for "
+            + ", ".join(sources)
+            + ". Novelty is unknown; award no novelty credit and do not infer originality "
+            "from the absence of papers. Do not retry failed sources."
+        )
     synthesis_max_tokens = _compute_synthesis_max_tokens(batch, batch_label)
 
     return _SynthesisCallInputs(synthesis_prompt, synthesis_max_tokens)
@@ -422,6 +440,21 @@ def _partition_synthesis_results(
     return all_validated_hypotheses, failed_batches
 
 
+def _withhold_failed_search_credit(
+    batch: list[dict[str, Any]], results: list[dict[str, Any]]
+) -> None:
+    # Synthesis may refine or reorder drafts within a batch, so an outage
+    # prevents credit throughout that batch, without affecting sibling batches.
+    sources = sorted({source for item in batch for source in item.get("failed_sources", [])})
+    if sources:
+        for hypothesis in results:
+            hypothesis["novelty_validation"] = {
+                "decision": "unknown",
+                "novelty_score": 0,
+                "failed_sources": sources,
+            }
+
+
 async def _run_synthesis_batches(
     batches: list[list[dict[str, Any]]],
     call_synthesis: _SynthesisCaller,
@@ -433,6 +466,9 @@ async def _run_synthesis_batches(
         return_exceptions=True,
     )
 
+    for batch, result in zip(batches, raw_results, strict=True):
+        if isinstance(result, list):
+            _withhold_failed_search_credit(batch, result)
     all_validated_hypotheses, failed_batches = _partition_synthesis_results(batches, raw_results)
     logger.info(
         "%s/%s batches succeeded, %s need individual retry",
@@ -481,6 +517,7 @@ async def _retry_one_hypothesis(
         )
         return
 
+    _withhold_failed_search_credit([hyp_data], single_result)
     _accumulate_retry_result(
         single_result,
         all_validated_hypotheses,
@@ -632,6 +669,7 @@ async def _analyze_paper_novelty(
         analysis = await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="novelty",
                 model_name=model_name,
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=HIGH_TEMPERATURE,
@@ -667,6 +705,7 @@ async def _invoke_synthesis_llm(
     final_response, _ = await call_llm_with_tools(
         prompt=call_inputs.prompt,
         spec=CompletionSpec(
+            role="novelty",
             model_name=ctx.state["model_name"],
             max_tokens=call_inputs.max_tokens,
             temperature=HIGH_TEMPERATURE,

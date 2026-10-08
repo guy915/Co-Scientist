@@ -17,8 +17,8 @@ import {TruncatedLabel} from '@/shared/ui/truncated_label';
 import {Link} from 'react-router-dom';
 import {firstSentenceClause, capitalizeTerm} from '@/shared/lib/text';
 import {useNowTick} from '@/shared/hooks/timers';
-import {preferredSessionSide} from '@/shared/hooks/session_side';
-import {chatPath, examplePath, runPath} from '@/shared/lib/routes';
+import {sessionEntryPath} from '@/shared/hooks/session_side';
+import {examplePath} from '@/shared/lib/routes';
 import {displayTitle} from '@/shared/lib/titles';
 import {formatDate, formatDurationPhrase} from '@/shared/lib/time';
 
@@ -110,7 +110,7 @@ function HomeScrollHint() {
       layoutClassName="reference-home-scroll-hint"
       onClick={onClick}
     >
-      Scroll to see how Co-Scientist works
+      Scroll to see how Open Co-Scientist works
     </Button>
   );
 }
@@ -411,7 +411,7 @@ export const SESSION_STEPS: readonly {
     n: 2,
     title: 'Generate hypotheses',
     body:
-      'Co-Scientist explores mechanisms, evidence, and candidate ' +
+      'Open Co-Scientist explores mechanisms, evidence, and candidate ' +
       'explanations for the topic.',
   },
   {
@@ -506,7 +506,7 @@ export function HomeRecentsPanel({
         {runs.length > 4 && (
           <li className="flex justify-center pt-1 pb-2">
             <Button
-              variant="link"
+              variant="disclosure"
               size="sm"
               trailingIcon={showAll ? 'expand_less' : 'expand_more'}
               onClick={onToggleShowAll}
@@ -524,8 +524,12 @@ function RecentCardMeta({run}: {run: Run}) {
   const nowSeconds = useNowTick(1000, isActiveStatus(run.status));
   return (
     <span className="flex flex-wrap gap-1.5">
-      <Chip size="xs">{formatDate(run.updated_at)}</Chip>
-      <Chip size="xs">{formatHomeRunTimeChip(run, nowSeconds)}</Chip>
+      <Chip size="xs" shape="tag">
+        {formatDate(run.updated_at)}
+      </Chip>
+      <Chip size="xs" shape="tag">
+        {formatHomeRunTimeChip(run, nowSeconds)}
+      </Chip>
     </span>
   );
 }
@@ -537,20 +541,13 @@ function RecentRunCard({
   run: Run;
   chats: readonly ChatSummary[];
 }) {
-  const chat =
-    preferredSessionSide(run.id) === 'chat'
-      ? chats.find(entry => entry.run_id === run.id)
-      : undefined;
+  const chat = chats.find(entry => entry.run_id === run.id);
   const active = isActiveStatus(run.status);
   return (
     <li>
       <Link
         to={
-          run.is_demo
-            ? examplePath(run.id)
-            : chat
-              ? chatPath(chat.id)
-              : runPath(run.id, 'details')
+          run.is_demo ? examplePath(run.id) : sessionEntryPath(run.id, chat?.id)
         }
         className={joinClasses(RECENT_CARD_CLASSES, active && 'is-active-run')}
         // The labels below are cut to fit; assistive tech still gets the goal.
@@ -559,10 +556,7 @@ function RecentRunCard({
         <RecentCardMeta run={run} />
         <TruncatedLabel
           className="line-clamp-2 text-[1rem] leading-[1.5] font-medium"
-          text={
-            displayTitle(run.title, run.research_goal, firstSentenceClause) ||
-            'Untitled session'
-          }
+          text={displayTitle(run.title, run.research_goal, firstSentenceClause)}
           lines={2}
         />
         <TruncatedLabel
@@ -586,11 +580,11 @@ function RecentRunResults({run}: {run: Run}) {
   return (
     <>
       <span className="flex flex-nowrap items-center gap-1.5">
-        <Chip size="xs" tone="success" icon="emoji_events">
+        <Chip size="xs" shape="tag" tone="success" icon="emoji_events">
           Winning ideas
         </Chip>
         {topScore !== null && (
-          <Chip size="xs" tone="success" icon="stars">
+          <Chip size="xs" shape="tag" tone="success" icon="stars">
             Top score: {topScore}
           </Chip>
         )}

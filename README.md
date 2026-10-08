@@ -13,7 +13,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/chat.png" alt="The Open Co-Scientist workbench: a research chat beside a run's progress" width="820"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero-dark.png">
+    <img src="docs/assets/hero-light.png" alt="A finished Express run in the Open Co-Scientist workbench: ranked hypotheses with Elo ratings beside the selected idea's overview, description and lineage" width="820"/>
+  </picture>
 </p>
 
 Describe what you want to understand, such as a mechanism, a drug-repurposing
@@ -27,6 +30,12 @@ it works.
 It is an open, independent implementation of the agent design in Google's
 [AI co-scientist](https://arxiv.org/abs/2502.18864). It is not affiliated with
 or endorsed by Google.
+
+<p align="center">
+  <img src="docs/assets/express-run.gif" alt="An Express run from a typed goal through the setup questions to the ranked ideas, at double speed" width="720"/>
+  <br/>
+  <sub>An Express run at double speed on the offline backend, which writes placeholder text instead of calling a model.</sub>
+</p>
 
 ## How a run works
 
@@ -58,8 +67,9 @@ so a run survives restarts and resumes where it stopped.
   ranking, evolution, proximity and meta-review, following the published
   design.
 - **Evidence you can check.** Hypotheses cite retrieved sources with `[C*]`
-  keys, each claim is checked against its passages for support or
-  contradiction, and retracted papers are flagged.
+  keys, and retracted papers are flagged. For the ranked finalists the report
+  features, each claim is checked against its passages for support or
+  contradiction.
 - **Literature and database tools** through a bundled MCP server: PubMed and
   PMC full text, OpenAlex, Europe PMC, arXiv and preprints, ChEMBL, UniProt,
   STRING, Reactome, Open Targets, Ensembl, gnomAD, the GWAS Catalog,
@@ -89,6 +99,9 @@ so a run survives restarts and resumes where it stopped.
   that its hypotheses are right. Treat every output as a starting point for
   expert review and experiment. The [evaluations](evaluations/README.md) say
   what has and has not been measured.
+- **Free routes and your data.** Free model routes may keep the prompts they
+  receive. Do not submit confidential or unpublished work without your own key
+  and a provider whose terms you accept.
 - **Private by obscurity.** Runs belong to a per-browser ID, not a verified
   account.
 

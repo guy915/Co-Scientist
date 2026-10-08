@@ -1,6 +1,12 @@
+from __future__ import annotations
+
 import enum
 from dataclasses import dataclass
 from typing import Any, Final, TypedDict
+
+from co_scientist.core.byok_scope import CustomModelCapabilities, current_byok
+
+HAIKU: Final = "anthropic/claude-haiku-5-5"
 
 
 @dataclass(frozen=True)
@@ -12,6 +18,8 @@ class ModelPrice:
     prompt_usd_per_million: float = 0.0
     completion_usd_per_million: float = 0.0
     cached_prompt_usd_per_million: float = 0.0
+    cache_write_usd_per_million: float = 0.0
+    long_context: ModelPrice | None = None
 
 
 class Thinking(enum.Enum):
@@ -52,6 +60,10 @@ class ModelProfile:
     responses_api: bool = False
     min_temperature: float | None = None
     price: ModelPrice | None = None
+    version: str | None = None
+    supported_efforts: tuple[str, ...] | None = None
+    context_length: int | None = None
+    tool_calling: bool | None = None
 
 
 class Facts(TypedDict, total=False):
@@ -69,6 +81,8 @@ class Facts(TypedDict, total=False):
     responses_api: bool
     min_temperature: float | None
     price: ModelPrice | None
+    version: str | None
+    supported_efforts: tuple[str, ...] | None
 
 
 @dataclass(frozen=True)
@@ -110,6 +124,24 @@ def _gateway(
 # Fallbacks must be cheaper, never paid under a free primary, and within the
 # gateway array cap.
 ROUTES: Final[dict[str, Facts]] = {
+    "azure/gpt-6-luna-2026-09-22": {
+        "reasons": True,
+        "responses_api": True,
+        "json_schema": True,
+        "fixed_sampling": True,
+        "version": "2026-09-22",
+        "supported_efforts": ("none", "low", "medium"),
+        "price": ModelPrice(0.10, 0.50, 0.01, 0.125, ModelPrice(0.20, 0.75, 0.02, 0.25)),
+    },
+    "azure/gpt-5-nano-2025-08-07": {
+        "reasons": True,
+        "responses_api": True,
+        "json_schema": True,
+        "fixed_sampling": True,
+        "version": "2025-08-07",
+        "supported_efforts": ("low", "medium"),
+        "price": ModelPrice(0.05, 0.40, 0.01),
+    },
     # Retained explicit route: both Nex variants reason and need bounded-minimal
     # reasoning.
     "openrouter/nex-agi/nex-n2.5-pro:free": _gateway(_FREE),
@@ -211,6 +243,13 @@ ROUTES: Final[dict[str, Facts]] = {
     "anthropic/claude-sonnet-5-5": {"price": ModelPrice(2.00, 10.00)},
     "anthropic/claude-opus-5-5": {"price": ModelPrice(4.00, 20.00)},
     "anthropic/claude-fable-5-1": {"price": ModelPrice(10.00, 50.00)},
+    "anthropic/claude-haiku-5-5": {
+        "price": ModelPrice(0.10, 0.50, 0.01, 0.125, ModelPrice(0.50, 2.50, 0.05, 0.625)),
+        "reasons": True,
+        "fixed_sampling": True,
+        "json_schema": False,
+        "pinned_effort": "low",
+    },
     "anthropic/claude-haiku-4-5": {"price": ModelPrice(1.00, 5.00)},
 }
 
@@ -263,12 +302,31 @@ def model_profile(model_name: str) -> ModelProfile:
     state.
     """
     lowered = model_name.lower()
+    credential = current_byok()
+    if lowered not in ROUTES and credential is not None:
+        for name, metadata in credential.custom_models.items():
+            if name.lower() == lowered and name in credential.keys_by_model():
+                return generic_model_profile(name, metadata)
     facts: dict[str, Any] = {}
     for family in FAMILIES:
         if family.matches(lowered):
             facts.update(family.facts)
     facts.update(ROUTES.get(lowered, {}))
     return ModelProfile(**facts)
+
+
+def generic_model_profile(model_name: str, metadata: CustomModelCapabilities) -> ModelProfile:
+    gateway = model_name.startswith("openrouter/")
+    return ModelProfile(
+        context_length=metadata.context_length or 32768,
+        tool_calling=metadata.tool_calling,
+        json_schema=metadata.json_schema,
+        json_object=metadata.json_object,
+        reasons=metadata.reasoning,
+        thinking=Thinking.GATEWAY if gateway and metadata.reasoning else Thinking.NONE,
+        gateway=gateway,
+        reasoning_can_disable=metadata.reasoning_can_disable,
+    )
 
 
 def is_free_route(model_name: str) -> bool:
@@ -305,6 +363,7 @@ def estimate_cost_usd(
     prompt_tokens: int,
     completion_tokens: int,
     cached_prompt_tokens: int = 0,
+    cache_write_tokens: int = 0,
 ) -> float:
     """Unknown exact routes remain untracked; measured cache-read rates price
     provider cache hits.
@@ -312,11 +371,20 @@ def estimate_cost_usd(
     price = MODEL_PRICING.get(model_name)
     if price is None:
         return 0.0
+    if model_name == "anthropic/claude-haiku-5-5" and prompt_tokens > 100_000:
+        price = price.long_context or price
     cached = 0
     if price.cached_prompt_usd_per_million:
         cached = max(0, min(cached_prompt_tokens, prompt_tokens))
+    written = max(0, cache_write_tokens) if price.cache_write_usd_per_million else 0
+    # Claude's normalized prompt includes writes. Azure reports writes as a
+    # separate charge; its conservative credit ledger keeps that distinction.
+    uncached = max(0, prompt_tokens - cached)
+    if model_name.startswith("anthropic/") and written:
+        uncached = max(0, uncached - written)
     return (
-        (prompt_tokens - cached) / 1_000_000 * price.prompt_usd_per_million
+        uncached / 1_000_000 * price.prompt_usd_per_million
         + cached / 1_000_000 * price.cached_prompt_usd_per_million
         + completion_tokens / 1_000_000 * price.completion_usd_per_million
+        + written / 1_000_000 * price.cache_write_usd_per_million
     )

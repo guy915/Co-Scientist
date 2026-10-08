@@ -6,20 +6,33 @@ the code hooks in.
 
 ## Uptime
 
-Use a free external monitor (UptimeRobot, Better Stack or similar) with a
-five-minute interval and email alerts.
+Use UptimeRobot with a five-minute interval and web/app notifications only.
+Remove email contacts/actions and disable personal email subscriptions.
+Preserve only the existing €150 Azure budget email alert. Railway's deploy
+healthcheck does not replace these recurring monitors.
 
 | Monitor | URL | Alert when |
 |---|---|---|
-| API up | `https://api.open-coscientist.com/health` | status is not 200 |
-| API healthy | same URL, keyword check | `"status":"healthy"` is absent |
-| Site up | `https://open-coscientist.com` | status is not 200 |
+| Launch API up | `https://api.open-coscientist.com/health` | status is not 200 |
+| Launch API healthy | same URL, keyword check | `"status":"healthy"` is absent |
+| Launch site up | `https://open-coscientist.com/` | status is not 200 |
 
 `/health` returns 503 only when the store is unreachable. A stuck run, a
 terminally failed task or low disk report `"status":"degraded"` with 200, so
 the keyword monitor is what catches them. The public response hides check
 detail, so it is safe to poll. Do not monitor the MCP service: it is private
 to Railway's network.
+
+For all three monitors: interval **300 seconds**, timeout **30 seconds**,
+notification threshold **0 minutes**, recurrence **0**, and recovery
+notifications enabled. HTTP monitors expect **200**. The healthy keyword
+monitor alerts when the exact keyword `"status":"healthy"` is absent;
+inspect the actual launch API body at cutover before enabling that assertion.
+Use only the owner's configured app/push/web contact. Free-plan threshold and
+recurrence are fixed at zero ([UptimeRobot API](https://uptimerobot.com/api/v2/));
+API alert-contact encoding is `<contact-id>_0_0`. Immediate notification means
+after UptimeRobot confirms the failure, not seconds-level detection on a
+five-minute polling plan.
 
 ## Error tracking
 
@@ -65,20 +78,85 @@ with a free tier (Grafana Cloud Traces, Honeycomb or similar).
 | Railway, api | `OTEL_EXPORTER_OTLP_ENDPOINT` | the backend's OTLP/HTTP endpoint |
 | Railway, api | `OTEL_EXPORTER_OTLP_HEADERS` | its auth header, e.g. `Authorization=Basic ...` |
 | Railway, api | `OTEL_SERVICE_NAME` | `co-scientist-api` |
-| Railway, api (optional) | `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_traceidratio`, `0.25` |
+| Railway, api (optional) | `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_traceidratio`, `1.0` for launch count/token triggers |
 
-A trace reads request or durable task → logical LLM call → attempt →
-provider request:
+The privacy projection at the exporter accepts only fixed classifications,
+UUID task/run references and numeric usage. The exported fields below are the
+alert contract; do not filter on internal fields that the exporter drops.
 
-| Span | Attributes |
+| Exported span | Useful exported fields |
 |---|---|
-| `GET /api/runs/{run_id}` (route template) | method, route, status |
-| `task.execute` | run, task id and type, node, attempt, outcome (`committed`, `retried`, `parked`, `superseded`, `failed`, `lease_lost`) |
-| `llm.call_llm`, `llm.call_llm_json`, `llm.call_llm_with_tools` | requested model, surface, prompt name |
-| `llm.attempt` | attempt number, budget rung, retry reason |
-| `chat <model>` | GenAI request and response model, max tokens, input/output tokens; reasoning and cached prompt tokens; route |
+| `HTTP GET`, `HTTP POST`, etc. | `http.request.method`, `http.response.status_code` |
+| `task.execute` | `co_scientist.run_id`, `co_scientist.task.id`, `co_scientist.task.attempt`, `co_scientist.task.outcome` |
+| `llm.call_llm`, `llm.call_llm_json`, `llm.call_llm_stream` | fixed span name; no prompt/model identifier |
+| `llm.attempt` | `co_scientist.llm.attempt`, `co_scientist.llm.retry_reason` |
+| `llm.request` | `gen_ai.request.max_tokens`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `co_scientist.llm.reasoning_tokens`, `co_scientist.llm.cached_prompt_tokens` |
 
-Spans carry no prompt, completion, tool argument, goal, query string, header
-or body, and a failure records its exception type only. Stdout log lines carry
-`trace_id` while a span is active; persisted logs are unchanged. Span names
-and attributes are an operator contract, renamed only deliberately.
+All exported resources use `service.name = co-scientist-api`. Failure spans
+carry an allowlisted `error.type` or `Exception`; status text, events, prompt
+names, custom/served model IDs, routes, node/task types and arbitrary resource
+fields are removed. No prompt, completion, tool argument, goal, query string,
+header or body is exported. Stdout has trace IDs while spans are active;
+persisted logs remain local.
+
+## Launch alert settings
+
+These are operator configuration instructions; repository changes do not
+create dashboards or alert recipients. Use the owner's configured webhook/app
+integration for every action, remove email actions/contacts and disable
+personal issue-email subscriptions. Only the existing €150 Azure budget
+email stays enabled.
+
+### Honeycomb
+
+Select the production `co-scientist-api` dataset. Each trigger uses a
+**5-minute** query window, evaluates every **5 minutes**, and uses alert type
+**on_change**: notify on entering triggered and resolved states, with no
+repeated notifications while unchanged. Filter all queries on
+`service.name = co-scientist-api`.
+
+| Trigger | Additional filters | Calculation and threshold |
+|---|---|---|
+| API 5xx | `http.response.status_code >= 500` | `COUNT > 5` |
+| Durable task failure | `name = task.execute`, `co_scientist.task.outcome = failed` | `COUNT > 0` |
+| Provider throttles | `name = llm.attempt`, `co_scientist.llm.retry_reason = RateLimitError` | `COUNT > 5` |
+| Provider connection failures | `name = llm.request`, `error.type = APIConnectionError` | `COUNT > 3` |
+| Provider output burn | `name = llm.request` | `SUM(gen_ai.usage.output_tokens) > 250000` |
+
+For these absolute count/token triggers, use sampling **1.0** during launch;
+sampled counts understate usage. The throttle trigger counts classified
+retries, not every upstream 429. Output burn is a spike warning to inspect
+Azure Cost Management and durable provider-usage/reservation records, not a EUR cost
+estimate or credit-exhaustion detector. Missing usage is unknown, never zero.
+UptimeRobot supplies the outage signal when the API cannot export spans.
+Do not add researcher content to telemetry to make a query possible.
+
+### Sentry
+
+Use separate API and frontend projects, filtered to environment
+**production**, with error/fatal levels only. In both projects create:
+
+- **New error:** “A new issue is created”, with the owner's app/web action.
+- **Regressed error:** “The issue changes state from resolved to unresolved”,
+  with the same action.
+
+These issue rules evaluate incoming events. Set per-issue action frequency
+**30 minutes**. In the API project add **Error burst**: “The issue is seen
+more than 10 times in 5 minutes”, with the same environment/level filters,
+app/web action and **30-minute** action frequency. This detects a per-issue
+burst; it does not require a separate aggregate metric-alert subscription.
+Remove every “Send a notification via email” action. Keep the existing
+redaction boundaries. Source maps are absent, so retain release metadata
+and reproduce browser failures offline.
+
+### Backup verification
+
+The backup supervisor emits the fixed API error “Backup verification failed;
+new research paused” through the existing Sentry privacy projection when
+configured. The new/regressed API issue rules above cover it; no additional
+email action is needed. The authenticated [operator view](LAUNCH-CONTROL.md)
+shows whether replication is configured, verification status and the last
+verified timestamp. Missing metadata is unknown, not a successful backup.
+An unexpected replication-daemon exit stops the API and reaches the uptime
+monitors. Follow the [backup recovery playbook](INCIDENTS.md#backup-verification-failed-or-stale)
+and [idle refresh drill](RESTORE-DRILL.md#daily-idle-backup-proof) before resuming.

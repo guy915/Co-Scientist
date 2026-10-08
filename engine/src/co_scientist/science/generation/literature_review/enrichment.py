@@ -5,6 +5,9 @@ from typing import TYPE_CHECKING, Any
 
 from co_scientist.domains.research_state.entity_names import extract_entity_names
 from co_scientist.domains.research_state.state import WorkflowState
+from co_scientist.platform.retrieval.evidence.retrieval_support import (
+    reported_failure,
+)
 from co_scientist.platform.retrieval.evidence.search_support import (
     SearchConfig,
 )
@@ -85,6 +88,12 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
             return _wrap_as_text_result(raw)
 
     if isinstance(data, dict):
+        # A failed or empty lookup is no evidence, not an item to cite.
+        if (error := reported_failure(data)) is not None:
+            logger.debug("context enrichment lookup failed: %s", error)
+            return "", []
+        if data.get("records") == []:
+            return "", []
         return _format_dict_result(data)
 
     if isinstance(data, list):

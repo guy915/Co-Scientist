@@ -17,11 +17,14 @@ from fastapi.responses import JSONResponse
 import co_scientist.orchestration.engine_adapter as engine_adapter
 from co_scientist.api.auth import Principal, principal_for_request
 from co_scientist.api.byok_models import router as byok_models_router
+from co_scientist.api.data_rights import router as data_rights_router
 from co_scientist.api.diagnostics_api import router as diagnostics_api_router
 from co_scientist.api.documents import router as documents_router
 from co_scientist.api.feedback_api import router as feedback_router
 from co_scientist.api.free_usage import router as free_usage_router
 from co_scientist.api.interviews import router as interviews_router
+from co_scientist.api.launch_admission import LaunchAdmissionMiddleware, paused_error_handler
+from co_scientist.api.launch_control_api import router as launch_control_router
 from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
@@ -36,6 +39,7 @@ from co_scientist.orchestration.repository import tasks
 from co_scientist.platform import db
 from co_scientist.platform.db import checkpoints as store
 from co_scientist.platform.db import runs
+from co_scientist.platform.db.launch_control import LaunchPausedError
 from co_scientist.platform.db.log_capture import configure_log_capture, shutdown_log_capture
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.telemetry.error_tracking import init_error_tracking
@@ -179,6 +183,23 @@ else:
     logger.info("mcp_server_url not set - literature review will be disabled")
 
 
+async def _privacy_retention_loop() -> None:
+    from co_scientist.domains.access.retention import sweep_all
+
+    while True:
+        work = asyncio.create_task(asyncio.to_thread(sweep_all))
+        try:
+            await asyncio.shield(work)
+        except asyncio.CancelledError:
+            # Let the short SQLite transactions finish before shutdown merges
+            # WAL; cancellation must not strand a live maintenance writer.
+            await work
+            raise
+        except Exception:
+            logger.warning("Privacy retention maintenance failed", exc_info=False)
+        await asyncio.sleep(3600)
+
+
 @asynccontextmanager
 async def lifespan(
     app: FastAPI,
@@ -197,10 +218,13 @@ async def lifespan(
     recovery, recovery_workers = _start_recovery_task(reconciled)
 
     await seed_demo_runs()
+    privacy_retention = asyncio.create_task(_privacy_retention_loop())
 
     try:
         yield
     finally:
+        privacy_retention.cancel()
+        await asyncio.gather(privacy_retention, return_exceptions=True)
         await _shutdown_recovery(recovery, recovery_workers)
         logger.info("Shutting down Co-Scientist server...")
         # Drain queued logging before the shutdown WAL merge.
@@ -210,7 +234,7 @@ async def lifespan(
 
 
 app = FastAPI(
-    title="Co-Scientist API",
+    title="Open Co-Scientist API",
     description="FastAPI server for AI hypothesis generation",
     version=API_VERSION,
     lifespan=lifespan,
@@ -312,6 +336,8 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
 # appropriate CORS headers.
 app.add_exception_handler(StorageAdmissionError, storage_error_handler)
 app.add_middleware(RequestLimitsMiddleware)
+app.add_exception_handler(LaunchPausedError, paused_error_handler)
+app.add_middleware(LaunchAdmissionMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -326,6 +352,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 app.add_middleware(TracingMiddleware)
 
 
+app.include_router(data_rights_router)
 app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(documents_router)
@@ -334,6 +361,7 @@ app.include_router(byok_models_router)
 app.include_router(logs_router)
 app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
+app.include_router(launch_control_router)
 
 
 if __name__ == "__main__":

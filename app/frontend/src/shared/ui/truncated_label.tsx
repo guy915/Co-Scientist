@@ -1,4 +1,5 @@
 import {type RefObject, useLayoutEffect, useRef} from 'react';
+import {ellipsize} from '@/shared/lib/text';
 
 // Fonts, unsettled first-frame layout and suspended background observers can
 // change metrics; re-fit on their return before relying on a measurement.
@@ -93,7 +94,7 @@ function overflows(node: HTMLSpanElement, lines: number): boolean {
 }
 
 function candidate(job: FitJob, count: number): string {
-  return `${job.words.slice(0, count).join(' ')}…`;
+  return ellipsize(job.words.slice(0, count).join(' '));
 }
 
 // Separate full-text writes from overflow reads to pay one layout flush for the

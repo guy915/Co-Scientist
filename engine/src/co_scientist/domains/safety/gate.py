@@ -9,9 +9,7 @@ from co_scientist.core.config import settings
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.safety.rules import (
     POLICY_VERSION,
-    SafetyOutcome,
     review_content_safety,
-    review_hypothesis_safety,
 )
 from co_scientist.domains.safety.semantic import (
     run_semantic_safety_model,
@@ -49,59 +47,12 @@ def _more_severe(first: SafetyDecision, second: SafetyDecision) -> SafetyDecisio
     return second if _severity(second) > _severity(first) else first
 
 
-_OUTCOME_TO_CONTENT_DECISION: dict[SafetyOutcome, tuple[str, str, str]] = {
-    SafetyOutcome.PROHIBITED: (
-        "block",
-        "prohibited",
-        "cbrn_weaponization",
-    ),
-    SafetyOutcome.ETHICAL_CONCERN: (
-        "block",
-        "ethical_concern",
-        "research_ethics",
-    ),
-    SafetyOutcome.UNCERTAIN: (
-        "hold",
-        "uncertain",
-        "obfuscated_intent",
-    ),
-}
-
-
-def _hypothesis_policy_decision(stage: str, text: str) -> SafetyDecision | None:
-    """Use the canonical hypothesis classifier here too so intake/final
-    cannot permit hazards the hypothesis gate disqualifies.
-    """
-    review = review_hypothesis_safety(text or "", detect_obfuscation=stage != "final")
-    mapped = _OUTCOME_TO_CONTENT_DECISION.get(review.outcome)
-    if mapped is None:
-        return None
-    decision, category, risk_domain = mapped
-    return SafetyDecision(
-        stage=stage,
-        decision=decision,
-        reason=f"Content {review.reason}.",
-        matches=list(review.matches),
-        category=category,
-        risk_domains=[risk_domain],
-        requires_review=decision == "hold",
-        policy_version=review.policy_version,
-    )
-
-
-def _screen_both_tiers(stage: str, text: str) -> SafetyDecision:
-    review = review_content_safety(text or "", stage)
-    baseline = _decision_from_review(stage, review)
-    parity = _hypothesis_policy_decision(stage, text)
-    return baseline if parity is None else _more_severe(baseline, parity)
-
-
 def screen_intake(goal: str) -> SafetyDecision:
-    return _screen_both_tiers("intake", goal)
+    return _decision_from_review("intake", review_content_safety(goal or "", "intake"))
 
 
 def screen_final(report_markdown: str) -> SafetyDecision:
-    return _screen_both_tiers("final", report_markdown)
+    return _decision_from_review("final", review_content_safety(report_markdown or "", "final"))
 
 
 async def screen_contextual(

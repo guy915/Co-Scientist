@@ -20,8 +20,8 @@ overview. Each hypothesis carries `text`, a lay `explanation`,
 
 ## Install and develop
 
-`make setup` at the repository root installs this package editable into
-`.venv` with the app's dependencies; `make start` runs it with the UI and MCP
+`make setup` at the repository root installs this package, which carries the
+server's runtime dependencies, editable into `.venv`; `make start` runs it with the UI and MCP
 server. To work on the package alone, from `engine/`:
 
 ```bash
@@ -31,7 +31,7 @@ ruff format . && ruff check .
 mypy .
 ```
 
-The package supports Python 3.10+; the API image and the MCP server use 3.12.
+The package requires Python 3.12+; the API image and the MCP server use 3.12.
 
 ## Models
 
