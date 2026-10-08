@@ -8,7 +8,15 @@ import re
 import subprocess
 from urllib.request import Request, urlopen
 
-TEST_TARGETS = {"engine", "app", "frontend", "evaluations", "mcp_server", "e2e"}
+TEST_TARGETS = {
+    "engine",
+    "app",
+    "frontend",
+    "evaluations",
+    "mcp_server",
+    "e2e",
+    "cross_browser",
+}
 
 
 def load_rules(root: Path) -> dict[str, list[str]]:
@@ -24,7 +32,9 @@ def load_rules(root: Path) -> dict[str, list[str]]:
         ):
             raise ValueError(f"Invalid patterns for {target}")
         rules[target] = patterns
-    missing = (TEST_TARGETS | {"docker", "root_config"}) - rules.keys()
+    missing = (
+        TEST_TARGETS | {"docker", "root_config", "workflows", "sandbox"}
+    ) - rules.keys()
     if missing:
         raise ValueError(f"Missing target rules: {sorted(missing)}")
     return rules
