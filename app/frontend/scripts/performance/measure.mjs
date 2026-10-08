@@ -1,6 +1,7 @@
 import {createRequire} from 'node:module';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {createHash, X509Certificate} from 'node:crypto';
 
 const requireTools = createRequire(
   resolve(process.env.FP_TOOLS || '/tmp/fp-tools', 'package.json'),
@@ -17,6 +18,15 @@ const {chromium} = requireTools('playwright');
 const origin = process.env.FP_ORIGIN || 'http://127.0.0.1:4173';
 if (!['localhost', '127.0.0.1'].includes(new URL(origin).hostname))
   throw new Error('Loopback preview required');
+const trustedKey = process.env.FP_TLS_CERT
+  ? createHash('sha256')
+      .update(
+        new X509Certificate(
+          await readFile(process.env.FP_TLS_CERT),
+        ).publicKey.export({type: 'spki', format: 'der'}),
+      )
+      .digest('base64')
+  : undefined;
 const output = resolve(process.argv[2] || '/tmp/fp-before');
 const routes = JSON.parse(
   await readFile(process.env.FP_ROUTES || '/tmp/fp-state/routes.json', 'utf8'),
@@ -35,6 +45,9 @@ for (const theme of ['light', 'dark']) {
       '--headless',
       '--no-sandbox',
       '--disable-dev-shm-usage',
+      ...(trustedKey
+        ? [`--ignore-certificate-errors-spki-list=${trustedKey}`]
+        : []),
       ...(theme === 'dark' ? ['--force-dark-mode'] : []),
     ],
   });

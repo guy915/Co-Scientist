@@ -24,13 +24,19 @@ From `app/frontend/`, build and seed, then leave the preview running:
 ```bash
 bun run build
 node scripts/performance/seed.mjs
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+  -keyout /tmp/fp-local.key -out /tmp/fp-local.crt \
+  -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1
+FP_TLS_CERT=/tmp/fp-local.crt FP_TLS_KEY=/tmp/fp-local.key \
 node scripts/performance/serve.mjs dist
 ```
 
 Run in another terminal from `app/frontend/`:
 
 ```bash
-FP_CHROME=/usr/bin/chromium node scripts/performance/measure.mjs /tmp/fp-before
+FP_CHROME=/usr/bin/chromium FP_TLS_CERT=/tmp/fp-local.crt \
+FP_ORIGIN=https://127.0.0.1:4173 \
+node scripts/performance/measure.mjs /tmp/fp-before
 ```
 
 `FP_TOOLS`, `FP_ROUTES`, `FP_API`, `FP_ORIGIN`, and `FP_PORT` override the
@@ -38,6 +44,16 @@ tool directory, seeded route file, loopback API, preview origin, and port.
 Use a unique state directory for each independent measurement campaign.
 Never use a developer or production store. Stop this API before running the
 full Python or browser suites; the browser gate owns port 8108.
+
+TLS serves HTTP/2, matching Cloudflare's multiplexed visitor connection.
+The runner trusts only the supplied local certificate's public key; it does
+not disable certificate checks for other origins. Gzip is used conservatively
+on both before/after assets rather than assuming a zone's Brotli/Zstandard
+compression settings. To retain the HTTP/1.1 control cohort, omit both TLS
+variables from the server and use the HTTP origin without `FP_TLS_CERT` in the
+runner. Keep transport identical between before and after and label it in
+the table. This preview models headers/transport, not edge latency or a
+hosting configuration inspection.
 
 The runner measures fresh-cache navigation with Lighthouse's default mobile
 slow-4G simulation (150 ms RTT, 1,638.4 kbit/s, 4× CPU slowdown) and desktop
@@ -67,6 +83,6 @@ Results reflect local static serving and deterministic data; they exclude
 edge latency and production report-size variation.
 
 Also measure a telemetry-enabled build using
-`VITE_SENTRY_DSN=http://public@127.0.0.1:4173/fp-sentry/1`. The preview discards
+`VITE_SENTRY_DSN=https://public@127.0.0.1:4173/fp-sentry/1`. The preview discards
 that local receiver's payloads without forwarding or storing them. No real
 monitoring DSN is needed.

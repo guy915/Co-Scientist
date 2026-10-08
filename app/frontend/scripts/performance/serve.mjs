@@ -1,4 +1,5 @@
 import {createServer, request} from 'node:http';
+import {createSecureServer} from 'node:http2';
 import {readFile, stat} from 'node:fs/promises';
 import {resolve, extname, sep} from 'node:path';
 import {gzipSync} from 'node:zlib';
@@ -39,7 +40,7 @@ const types = {
   '.woff2': 'font/woff2',
   '.json': 'application/json',
 };
-const server = createServer(async (req, res) => {
+const handle = async (req, res) => {
   try {
     const url = new URL(req.url, `http://127.0.0.1:${port}`);
     if (url.pathname.startsWith('/fp-sentry/')) {
@@ -127,7 +128,19 @@ const server = createServer(async (req, res) => {
     console.error(error.message);
     res.writeHead(500).end();
   }
-});
+};
+const tlsCert = process.env.FP_TLS_CERT;
+const tlsKey = process.env.FP_TLS_KEY;
+if (Boolean(tlsCert) !== Boolean(tlsKey))
+  throw new Error('Provide both FP_TLS_CERT and FP_TLS_KEY');
+const server = tlsCert
+  ? createSecureServer(
+      {cert: await readFile(tlsCert), key: await readFile(tlsKey)},
+      handle,
+    )
+  : createServer(handle);
 server.listen(port, '127.0.0.1', () =>
-  console.log(`Static performance preview: http://127.0.0.1:${port}`),
+  console.log(
+    `Static performance preview: ${tlsCert ? 'https' : 'http'}://127.0.0.1:${port}`,
+  ),
 );
