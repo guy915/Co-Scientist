@@ -11,7 +11,7 @@ import {
 import {Link, useLocation} from 'react-router-dom';
 import {createPortal} from 'react-dom';
 import {smoothScrollToSection} from '@/shared/lib/smooth_scroll';
-import {Button, SegmentedControl} from '@/shared/ui';
+import {Button, ExternalLink, SegmentedControl} from '@/shared/ui';
 import helixArt from '@/assets/landing/helix.webp';
 import {joinClasses} from '@/shared/ui/classes';
 import {
@@ -171,15 +171,17 @@ function LandingHero({
               See how it works
             </Button>
           </div>
-          <iframe
-            className="block aspect-[16/9] w-full rounded-xl [border:0] bg-(--l-surface)"
-            title="Co-Scientist trailer"
-            src="https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0"
-            loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
+          <div className="grid aspect-[16/9] w-full place-content-center gap-3 rounded-xl bg-(--l-surface) p-6 text-center">
+            <ExternalLink
+              className="text-[1.15rem] underline underline-offset-4"
+              href="https://www.youtube.com/watch?v=Wnhe8a8kKc0"
+            >
+              Watch the trailer on YouTube
+            </ExternalLink>
+            <p className="m-0 text-sm text-(--l-muted)">
+              Opens another site. YouTube’s privacy policy applies there.
+            </p>
+          </div>
         </div>
         <svg
           className="tone-teal w-[min(100%,440px)] [align-self:center] [justify-self:end] overflow-visible [&>path]:fill-(--tone-c) [@media(max-width:900px)]:justify-self-center"
