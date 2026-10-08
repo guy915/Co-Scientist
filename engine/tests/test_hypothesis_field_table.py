@@ -23,7 +23,7 @@ def test_engine_and_store_screen_all_four_fields_in_their_existing_order() -> No
         "experimental_context": "Experiment",
     }
     assert screened_text(engine, "engine", separator=" ") == "Claim Effect Mechanism Experiment"
-    assert _screen_text(Hypothesis(**engine)) == "Claim Effect Mechanism Experiment"
+    assert _screen_text(Hypothesis.from_dict(engine)) == "Claim Effect Mechanism Experiment"
     assert hypothesis_text(stored) == "Claim\nMechanism\nEffect\nExperiment"
     assert {name: idea_view(engine)[name] for name in stored} == stored
 
