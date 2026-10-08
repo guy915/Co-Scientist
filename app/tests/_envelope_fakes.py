@@ -63,19 +63,23 @@ def _paper(tool: str, query: str, index: int) -> dict[str, Any]:
     }
 
 
-def _search_result(tool: str, query: str, count: int, *, records: bool) -> str:
-    papers = [_paper(tool, query, index) for index in range(count)]
-    if records:
-        return json.dumps({"records": papers})
-    return json.dumps({paper.pop("source_id"): paper for paper in papers})
+_SEARCH_TOOLS = frozenset(
+    {
+        "search_pubmed",
+        "pubmed_search_with_fulltext",
+        "search_openalex",
+        "search_web",
+        "search_europepmc",
+        "search_preprints",
+        "search_arxiv",
+        "search_biorxiv",
+    }
+)
 
 
-_RECORD_TOOLS = frozenset(
-    {"search_europepmc", "search_preprints", "search_arxiv", "search_biorxiv"}
-)
-_KEYED_TOOLS = frozenset(
-    {"search_pubmed", "pubmed_search_with_fulltext", "search_openalex", "search_web"}
-)
+def _ok(records: list[dict[str, Any]]) -> str:
+    # The MCP result contract (`engine/mcp_server/tools/_results.py`).
+    return json.dumps({"status": "ok", "records": records})
 
 
 def _tool(name: str) -> StructuredTool:
@@ -84,11 +88,12 @@ def _tool(name: str) -> StructuredTool:
             return "true"
         query = str(kwargs.get("query") or kwargs.get("entity_name") or "topic")
         count = int(kwargs.get("max_papers") or kwargs.get("max_results") or 3)
-        if name in _KEYED_TOOLS or name in _RECORD_TOOLS:
-            return _search_result(name, query, min(count, 4), records=name in _RECORD_TOOLS)
+        if name in _SEARCH_TOOLS:
+            return _ok([_paper(name, query, index) for index in range(min(count, 4))])
         if name == "read_url":
-            return f"Page text about {query[:120]}."
-        return json.dumps({})
+            url = str(kwargs.get("url") or "")
+            return _ok([{"url": url, "content": f"Page text about {query[:120]}."}])
+        return _ok([])
 
     return StructuredTool.from_function(
         coroutine=_impl, name=name, description=f"offline {name}", infer_schema=False
