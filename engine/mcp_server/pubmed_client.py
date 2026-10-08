@@ -8,7 +8,7 @@ from typing import Any
 from Bio import Entrez
 
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
-from mcp_server.text_extraction import clean_markup
+from mcp_server.pubmed_records import parse_pubmed_record
 
 logger = logging.getLogger(__name__)
 
@@ -97,75 +97,6 @@ PUBMED_SEARCH_SORT = "pub_date"
 initialize_entrez()
 
 
-def _parse_authors(article: dict[str, Any]) -> list[str]:
-    names = []
-    for author in article.get("AuthorList", []):
-        name = f"{author.get('ForeName', '<invalid>')} {author.get('LastName', '<invalid>')}"
-        if "<invalid>" not in name:
-            names.append(name)
-    return names
-
-
-def _extract_doi(pubmed_article: dict[str, Any]) -> str | None:
-    # ArticleIdList mixes namespaces; select only the DOI type. An absent DOI
-    # is None: a placeholder string resolves as a URL and deduplicates
-    # distinct papers once it reaches the engine.
-    return next(
-        (
-            str(element)
-            for element in filter(
-                lambda xml_string: xml_string.attributes.get("IdType", None) == "doi",
-                pubmed_article["PubmedData"]["ArticleIdList"],
-            )
-        ),
-        None,
-    )
-
-
-def _parse_date_revised(citation: dict[str, Any]) -> str:
-    """Keep the date shape used by split/index field mappings."""
-    date_revised_raw = citation["DateRevised"]
-    return "{}/{}/{}".format(*[str(date_revised_raw[field]) for field in ["Year", "Month", "Day"]])
-
-
-def _extract_publication_types(article: dict[str, Any]) -> list[str]:
-    """Publication types expose retractions to the engine's evidence/ranking
-    detector.
-    """
-    return [str(item) for item in article.get("PublicationTypeList", [])]
-
-
-def _extract_abstract(article: dict[str, Any]) -> str | None:
-    try:
-        # Some abstracts have multiple labeled sections; absent abstracts omit
-        # the key. An empty string reads downstream as an abstract already
-        # seen, so absence stays None.
-        return " ".join(article["Abstract"]["AbstractText"])
-    except KeyError:
-        return None
-
-
-def _parse_pubmed_article(
-    pubmed_article: dict[str, Any],
-    pmc_full_text_id: str | None,
-    doi: str | None = None,
-) -> dict[str, Any]:
-    citation = pubmed_article["MedlineCitation"]
-    article = citation["Article"]
-    resolved_doi = doi if doi is not None else _extract_doi(pubmed_article)
-    abstract = _extract_abstract(article)
-    return {
-        "date_revised": _parse_date_revised(citation),
-        "title": clean_markup(article["ArticleTitle"]),
-        "abstract": clean_markup(abstract) if abstract is not None else None,
-        "doi": resolved_doi,
-        "authors": _parse_authors(article),
-        "publication": article["Journal"]["Title"],
-        "pmc_full_text_id": pmc_full_text_id,
-        "publication_types": _extract_publication_types(article),
-    }
-
-
 def _apply_recency_filter(search_params: dict[str, Any], recency_years: int) -> None:
     if recency_years <= 0:
         return
@@ -217,9 +148,9 @@ class _EntrezClient:
         # Even single-ID efetch returns a PubmedArticleSet list.
         results = self.entrez_read(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
         pubmed_article = results["PubmedArticle"][0]
-        doi = _extract_doi(pubmed_article)
-        pmc_id = self._fetch_pmc_fulltext_id(paper_id, doi)
-        return _parse_pubmed_article(pubmed_article, pmc_id, doi)
+        record = parse_pubmed_record(pubmed_article)
+        pmc_id = self._fetch_pmc_fulltext_id(paper_id, record.doi)
+        return record.fulltext_metadata(pmc_id)
 
     def _esearch_ids(self, query: str, retmax: int, recency_years: int) -> list[str]:
         search_params: dict[str, Any] = {
