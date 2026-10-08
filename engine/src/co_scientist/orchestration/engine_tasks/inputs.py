@@ -154,6 +154,9 @@ def enqueue_scientist_continuation(
             return row_to_task(existing)
         if run.status != RunStatus.COMPLETED.value:
             return None
+        from co_scientist.platform.db.launch_control import require_unpaused
+
+        require_unpaused(conn=conn)
         checkpoint = conn.execute(
             "SELECT seq FROM checkpoints WHERE run_id=? ORDER BY seq DESC LIMIT 1", (run_id,)
         ).fetchone()

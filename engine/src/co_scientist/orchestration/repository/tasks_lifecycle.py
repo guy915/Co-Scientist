@@ -40,6 +40,18 @@ def complete_task(
     return bool(changed)
 
 
+def owns_task_lease(task_id: str, worker_id: str, *, db_path: str | None = None) -> bool:
+    with use_conn(None, db_path) as conn:
+        return (
+            conn.execute(
+                "SELECT 1 FROM scientific_tasks WHERE id=? AND status='leased' "
+                "AND lease_owner=? AND lease_expires_at>?",
+                (task_id, worker_id, current_time()),
+            ).fetchone()
+            is not None
+        )
+
+
 def renew_task_lease(
     task_id: str,
     worker_id: str,
