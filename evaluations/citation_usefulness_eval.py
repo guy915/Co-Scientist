@@ -43,8 +43,6 @@ _ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
-from co_scientist.core.text_matching import coverage, tokenize  # noqa: E402
-
 from evaluations._artifacts import write_dated_artifact  # noqa: E402
 
 _DATASET = pathlib.Path(__file__).parent / "datasets" / "citation_usefulness_v1.json"
@@ -142,6 +140,8 @@ def deterministic_label(question: str, span: str) -> str:
     """Vocabulary overlap cannot establish that a passage answers the
     question.
     """
+    from co_scientist.core.text_matching import coverage
+
     wanted = _content_words(question)
     if not wanted:
         return "useless"
@@ -152,6 +152,8 @@ def deterministic_label(question: str, span: str) -> str:
 
 
 def _content_words(text: str) -> set[str]:
+    from co_scientist.core.text_matching import tokenize
+
     return set(tokenize(text, min_len=3, stopwords=_STOPWORDS))
 
 
