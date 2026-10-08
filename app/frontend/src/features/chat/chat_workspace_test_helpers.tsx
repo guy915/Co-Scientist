@@ -1,3 +1,5 @@
+import '@/shared/ui/markdown_message_renderer';
+import './home_landing';
 import {Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/shared/api/runs';
