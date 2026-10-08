@@ -7,6 +7,7 @@ from typing import Any
 
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.core.prompt_cache import CacheablePrompt
+from co_scientist.platform.llm.admission.spend import current_spending_run_id
 from co_scientist.platform.llm.roles import current_call_policy
 from co_scientist.platform.telemetry.logging_setup import current_run_id
 
@@ -74,6 +75,6 @@ def apply_prompt_cache(request: dict[str, Any], model: str) -> None:
 def apply_dispatch_cache_key(request: dict[str, Any], model: str) -> None:
     if not model.startswith("azure/"):
         return
-    run_id = current_run_id()
+    run_id = current_spending_run_id() or current_run_id()
     if run_id is not None:
         request["prompt_cache_key"] = _azure_cache_key(run_id, current_call_policy().role)
