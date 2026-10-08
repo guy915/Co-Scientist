@@ -5,6 +5,8 @@ models require a separate owner decision. `LIQUID_API_KEY` is a server-side
 secret; the owner supplies a separate production key through the launch
 runbook. Missing credentials or `DECISION_ENABLED=false` preserve the LLM path.
 No call site is enabled by the client alone.
+Scoped BYOK execution refuses the operator's decision provider before admission
+or HTTP; its existing model and credential remain the fallback path.
 
 The client accepts typed `noul`, `choice` and `score` questions, validates
 complete finite probability distributions and reserves every physical request
@@ -109,6 +111,12 @@ The manual workflow's `delay` input selects four- or thirty-second gaps. Thirty
 seconds is the default after a large free Liquid batch returned 429; it is an
 evaluation pacing choice, not a verified provider allowance. Provider errors
 still stop the panel without retry. Reports retain the selected delay.
+An explicit `continue_on_rate_limit=true` manual option instead waits at least
+60 seconds after a 429, honors numeric Retry-After values up to 300 seconds,
+and proceeds to a distinct case. Three consecutive refusals, long/unknown
+cooldowns or any other error end the panel. It never retries the refused input.
+Provider errors remain in availability and held-out batch escalation counts;
+calibration uses only served labels. Production fallback is unchanged.
 
 The manual site selector can evaluate one site without dispatching the others.
 `quota_diagnostics=true` instead selects one relevance request with Liquid only.

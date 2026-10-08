@@ -219,7 +219,8 @@ async def test_live_panel_receives_and_records_selected_pacing_without_provider_
 ) -> None:
     delays = []
 
-    async def panel(*args: Any) -> dict[str, Any]:
+    async def panel(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs["continue_on_rate_limit"] is False
         delays.append(args[4])
         return {"summary": {"completed_cases": 0}, "rows": []}
 
@@ -236,3 +237,101 @@ async def test_live_panel_receives_and_records_selected_pacing_without_provider_
     assert delays == [30]
     assert report["evaluation_pacing_seconds"] == 30
     assert json.loads(output.read_text())["evaluation_pacing_seconds"] == 30
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("statuses", "continuation", "expected_cases"),
+    [([429, 200, 429, 200], True, 4), ([429] * 5, True, 3), ([429, 200], False, 1)],
+)
+async def test_rate_limit_continuation_uses_distinct_cases_and_stops_when_bounded(
+    statuses: list[int],
+    continuation: bool,
+    expected_cases: int,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from co_scientist.platform.llm.decisions import DecisionUnavailableError
+    from co_scientist.platform.llm.decisions.types import Answer, DecisionResult
+
+    decided = []
+    sleeps = []
+
+    async def reference(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {"judgments": [{"relevance": 1.0}]}
+
+    async def decide(state: str, questions: Any) -> DecisionResult:
+        decided.append(state)
+        if statuses[len(decided) - 1] == 429:
+            raise DecisionUnavailableError(
+                "limited", status_code=429, rate_limits={"retry-after": "1"}
+            )
+        return DecisionResult("d1:free", {"relevance": Answer("score", 4, 0.99, {"4": 1})}, 10)
+
+    async def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    client = SystemOneClient(DecisionSettings())
+    monkeypatch.setattr(client, "decide", decide)
+    monkeypatch.setattr(decision_bakeoff, "call_llm_json", reference)
+    monkeypatch.setattr(decision_bakeoff.asyncio, "sleep", sleep)
+    cases = [
+        DecisionCase(
+            str(i),
+            f"distinct input {i}",
+            {},
+            {
+                "relevance": Question(
+                    "score", "Rate", ("none", "slight", "partial", "strong", "direct")
+                )
+            },
+        )
+        for i in range(len(statuses))
+    ]
+    report = await decision_bakeoff.run_panel(
+        "literature_relevance",
+        cases,
+        client,
+        "offline/deterministic",
+        4,
+        tmp_path / "report.json",
+        continue_on_rate_limit=continuation,
+    )
+    assert len(report["rows"]) == len(set(decided)) == expected_cases
+    assert report["summary"]["provider_refusals"] == sum(
+        s == 429 for s in statuses[:expected_cases]
+    )
+    assert all(seconds >= 60 for seconds in sleeps if seconds != 4)
+    assert any(seconds == 60 for seconds in sleeps) is continuation
+
+
+def test_long_or_unknown_cooldown_stops_instead_of_probing() -> None:
+    for value in ("600", "nan", "-1", "unknown"):
+        assert decision_bakeoff._rate_limit_pause({"retry-after": value}) is None
+    assert decision_bakeoff._rate_limit_pause({"retry-after": "120"}) == 120
+
+
+def test_heldout_provider_refusal_counts_as_batch_escalation() -> None:
+    rows = [
+        {
+            "id": str(i),
+            "reference": {"relevance": 1.0},
+            "decision": {"relevance": 1.0},
+            "confidence": 0.99,
+            "agrees": True,
+        }
+        for i in range(101)
+    ]
+    rows.append(
+        {
+            "id": "refused",
+            "reference": {"relevance": 1.0},
+            "error": "DecisionUnavailableError",
+            "provider_status": 429,
+        }
+    )
+    summary = decision_bakeoff.summarize("literature_relevance", rows)
+    assert summary["held_out_batches"] == 1
+    assert summary["held_out_batch_attempts"] == 2
+    assert summary["held_out_batch_escalation"] == 0.5
+    assert summary["decision_served_fraction"] == pytest.approx(101 / 102)

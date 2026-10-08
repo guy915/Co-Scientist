@@ -177,6 +177,11 @@ def summarize(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         else None,
         "errors": len(rows) - len(completed),
         "adoption_ready": False,
+        "attempted_cases": len(rows),
+        "provider_refusals": sum(row.get("provider_status") == 429 for row in rows),
+        "decision_served_fraction": len(completed) / sum("reference" in row for row in rows)
+        if any("reference" in row for row in rows)
+        else None,
     }
     if site == "literature_relevance" and completed:
         summary["paper_labels"] = len(label_rows)
@@ -189,9 +194,18 @@ def summarize(site: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
         accepted_batches = [
             row for row in batches if threshold is not None and row["confidence"] >= threshold
         ]
+        calibration_end = max(
+            (index for index, row in enumerate(rows) if row["id"] in calibration_ids), default=-1
+        )
+        attempted_holdout = (
+            [row for row in rows[calibration_end + 1 :] if "reference" in row]
+            if len(calibration) >= 100
+            else []
+        )
         summary["held_out_batches"] = len(batches)
+        summary["held_out_batch_attempts"] = len(attempted_holdout)
         summary["held_out_batch_escalation"] = (
-            1 - len(accepted_batches) / len(batches) if batches else None
+            1 - len(accepted_batches) / len(attempted_holdout) if attempted_holdout else None
         )
         summary["accepted_batch_agreement"] = (
             statistics.mean(row["agrees"] for row in accepted_batches) if accepted_batches else None
@@ -239,12 +253,16 @@ async def run_panel(
     model: str,
     delay: float,
     output: Path,
+    *,
+    continue_on_rate_limit: bool = False,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
+    rate_limit_streak = 0
     output.parent.mkdir(parents=True, exist_ok=True)
     with scoped_telemetry(f"decision_bakeoff.{site}") as telemetry:
         for case in cases:
             row: dict[str, Any] = {"id": case.identifier, "side_ids": case.side_ids}
+            rate_limit_pause = None
             try:
                 reference = await call_llm_json(
                     case.prompt, CompletionSpec(model, json_schema=case.schema), max_attempts=1
@@ -263,13 +281,16 @@ async def run_panel(
                 row["answers"] = {
                     name: dataclasses.asdict(answer) for name, answer in result.answers.items()
                 }
+                rate_limit_streak = 0
             except Exception as error:
                 row["error"] = type(error).__name__
                 if isinstance(error, DecisionUnavailableError):
                     row["provider_status"] = error.status_code
                     row["rate_limits"] = error.rate_limits
-                rows.append(row)
-                break
+                    if continue_on_rate_limit and error.status_code == 429:
+                        rate_limit_streak += 1
+                        if rate_limit_streak < 3:
+                            rate_limit_pause = _rate_limit_pause(error.rate_limits)
             rows.append(row)
             output.write_text(
                 json.dumps(
@@ -277,10 +298,23 @@ async def run_panel(
                     indent=2,
                 )
             )
-            await asyncio.sleep(delay)
+            if "error" in row and rate_limit_pause is None:
+                break
+            await asyncio.sleep(rate_limit_pause if rate_limit_pause is not None else delay)
         report = {"summary": summarize(site, rows), "rows": rows, "usage": telemetry.snapshot()}
         output.write_text(json.dumps(report, indent=2))
         return report
+
+
+def _rate_limit_pause(headers: dict[str, str]) -> float | None:
+    try:
+        seconds = float(headers.get("retry-after", "60"))
+    except ValueError:
+        return None
+    # Long/unknown cooldowns end the manual panel; no repeated quota probing.
+    if not math.isfinite(seconds) or seconds < 0 or seconds > 300:
+        return None
+    return max(60, seconds)
 
 
 async def account_limits() -> dict[str, Any]:
@@ -323,6 +357,8 @@ async def run_live(
     settings: DecisionSettings,
     output: Path,
     delay: float = 4,
+    *,
+    continue_on_rate_limit: bool = False,
 ) -> dict[str, Any]:
     client = SystemOneClient(settings)
     eligible = []
@@ -339,8 +375,17 @@ async def run_live(
         else:
             eligible.append(case)
     before = await account_limits()
-    report = await run_panel(site, eligible, client, os.environ["MODEL_NAME"], delay, output)
+    report = await run_panel(
+        site,
+        eligible,
+        client,
+        os.environ["MODEL_NAME"],
+        delay,
+        output,
+        continue_on_rate_limit=continue_on_rate_limit,
+    )
     report["evaluation_pacing_seconds"] = delay
+    report["continue_on_rate_limit"] = continue_on_rate_limit
     report["preflight_oversized_ids"] = oversized
     report["summary"]["preflight_oversized_fallbacks"] = len(oversized)
     report["openrouter_account_before"] = before
@@ -361,6 +406,7 @@ def main() -> int:
     parser.add_argument("--cases", type=int, default=5)
     parser.add_argument("--delay", type=float, choices=(4, 30), default=30)
     parser.add_argument("--quota-diagnostics", action="store_true")
+    parser.add_argument("--continue-on-rate-limit", action="store_true")
     args = parser.parse_args()
     if (
         os.getenv("GITHUB_EVENT_NAME") != "workflow_dispatch"
@@ -384,7 +430,16 @@ def main() -> int:
         report = asyncio.run(run_quota_diagnostic(cases[0], settings, args.output))
         print(json.dumps(report, indent=2))
         return 0 if report["quota_metadata"].get("status") in (200, 429) else 1
-    report = asyncio.run(run_live(args.site, cases, settings, args.output, delay=args.delay))
+    report = asyncio.run(
+        run_live(
+            args.site,
+            cases,
+            settings,
+            args.output,
+            delay=args.delay,
+            continue_on_rate_limit=args.continue_on_rate_limit,
+        )
+    )
     print(json.dumps(report["summary"], indent=2))
     return 1 if report["summary"]["errors"] else 0
 

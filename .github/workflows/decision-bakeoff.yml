@@ -23,6 +23,10 @@ on:
         description: Make one Liquid-only relevance request and export sanitized quota metadata
         type: boolean
         default: false
+      continue_on_rate_limit:
+        description: Continue to distinct cases after bounded cooldown; stop after three consecutive 429s
+        type: boolean
+        default: false
       source_runs:
         description: Completed real-backend Benchmark run IDs, comma separated
         type: string
@@ -78,10 +82,14 @@ jobs:
           CASES: ${{ inputs.cases }}
           REQUEST_DELAY: ${{ inputs.delay }}
           QUOTA_DIAGNOSTICS: ${{ inputs.quota_diagnostics }}
+          CONTINUE_ON_RATE_LIMIT: ${{ inputs.continue_on_rate_limit }}
         run: |
           extra_args=()
           if [ "$QUOTA_DIAGNOSTICS" = "true" ]; then
             extra_args+=(--quota-diagnostics)
+          fi
+          if [ "$CONTINUE_ON_RATE_LIMIT" = "true" ]; then
+            extra_args+=(--continue-on-rate-limit)
           fi
           python -m evaluations.decision_bakeoff --site "$SITE" \
             --corpus recorded-inputs --cases "$CASES" --delay "$REQUEST_DELAY" \

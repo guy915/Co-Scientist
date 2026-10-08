@@ -161,6 +161,30 @@ async def test_force_offline_refuses_real_transport(monkeypatch: pytest.MonkeyPa
         await SystemOneClient(_SETTINGS).decide("state", _QUESTIONS)
 
 
+async def test_byok_never_contacts_or_reserves_the_operator_decision_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.core.byok_scope import ByokCredential, scoped_byok
+    from co_scientist.platform.llm.decisions import client as client_module
+
+    def refused(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("BYOK must not reserve operator decision quota")
+
+    monkeypatch.setattr(client_module, "reserve_decision_physical", refused)
+    with scoped_byok(ByokCredential("openrouter", "synthetic-byok-key", "openrouter/own-model")):
+        assert (
+            await decision_or_fallback(
+                "state",
+                _QUESTIONS,
+                0.9,
+                lambda result: "decision",
+                _fallback,
+                client=_client(_binary()),
+            )
+            == "original LLM path"
+        )
+
+
 async def test_rate_limit_headers_and_http_date_cooldown_exclude_secrets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
