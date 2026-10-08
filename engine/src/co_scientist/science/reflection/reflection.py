@@ -21,6 +21,7 @@ from co_scientist.platform.llm import (
 )
 from co_scientist.platform.telemetry.progress import emit_progress
 from co_scientist.science.prompts import PromptRunContext, get_reflection_prompt
+from co_scientist.science.scheduling.funnel import finalists
 from co_scientist.science.schemas.review import (
     REFLECTION_MAX_POSITIVE_OBSERVATIONS,
 )
@@ -200,7 +201,8 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
 
     logger.info("Completed reflection analysis for %s hypotheses", len(hypotheses))
 
-    return _build_reflection_result(hypotheses)
+    # A bare list replaces the pool; return all of it, not just the observed.
+    return _build_reflection_result(state["hypotheses"], observed=len(hypotheses))
 
 
 async def _run_reflection_phase(
@@ -241,14 +243,14 @@ async def _run_reflection_analysis(
     return await asyncio.gather(*analysis_tasks)
 
 
-def _build_reflection_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
+def _build_reflection_result(hypotheses: list[Hypothesis], *, observed: int) -> dict[str, Any]:
     """These are the same mutated objects; the hypothesis reducer treats full
     text overlap as replacement rather than appending another pool."""
     return {
         "hypotheses": hypotheses,
         "messages": phase_message(
             "reflection",
-            f"completed reflection analysis for {len(hypotheses)} hypotheses",
+            f"completed reflection analysis for {observed} hypotheses",
         ),
     }
 
@@ -261,9 +263,11 @@ def _extract_reflection_inputs(
         logger.warning("No articles_with_reasoning in state, skipping reflection")
         return None
 
-    hypotheses = state.get("hypotheses", [])
+    # Observations are depth: only finalists without notes pay for them, so a
+    # first cycle, before any match, observes nothing.
+    hypotheses = [h for h in finalists(state) if not h.reflection_notes]
     if not hypotheses:
-        logger.warning("No hypotheses in state, skipping reflection")
+        logger.info("No finalist lacks observations, skipping reflection")
         return None
 
     return articles_with_reasoning, hypotheses
