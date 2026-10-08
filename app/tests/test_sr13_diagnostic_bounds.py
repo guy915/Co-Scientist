@@ -10,8 +10,8 @@ from types import SimpleNamespace
 
 import pytest
 from co_scientist.core.config import settings
-from co_scientist.platform.db import log_capture as logging_setup
 from co_scientist.platform.db import log_admission, logs
+from co_scientist.platform.db import log_capture as logging_setup
 from co_scientist.platform.db.logs import NewLogRecord
 
 from tests._client import make_client
