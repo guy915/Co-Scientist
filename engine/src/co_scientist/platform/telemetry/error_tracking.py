@@ -3,8 +3,10 @@ from __future__ import annotations
 import os
 import re
 from typing import Any
+from urllib.parse import unquote
 
 from co_scientist.core.byok_scope import redact_byok_text
+from co_scientist.platform.telemetry.tracing import OTLP_HEADER_ENV_VARS
 
 # Deployment credentials can surface in provider error text; any variable
 # named like a secret is scrubbed wherever it appears in a report.
@@ -16,11 +18,18 @@ _DROPPED_REQUEST_FIELDS = ("headers", "cookies", "data", "query_string", "env")
 
 
 def _deployment_secrets() -> tuple[str, ...]:
-    return tuple(
+    values = {
         value
         for name, value in os.environ.items()
         if _SECRET_NAME.search(name.upper()) and len(value) >= _MIN_SECRET_LENGTH
-    )
+    }
+    for name in OTLP_HEADER_ENV_VARS:
+        raw = os.environ.get(name, "")
+        values.update((raw, unquote(raw)))
+        for header in raw.split(","):
+            _, _, value = header.partition("=")
+            values.update((value.strip(), unquote(value).strip()))
+    return tuple(sorted((v for v in values if len(v) >= _MIN_SECRET_LENGTH), key=len, reverse=True))
 
 
 def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
