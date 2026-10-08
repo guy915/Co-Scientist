@@ -3,8 +3,12 @@ import {Icon, type IconName} from '@/shared/ui/icon';
 import {joinClasses, tooltipClassNames} from '@/shared/ui/classes';
 import {TabNav, TabNavLink} from '@/shared/ui';
 import {HEADER_CONTROL_ICON_CLASSES} from '@/shared/ui/layout_primitives';
-import {useRecordSessionSide} from '@/shared/hooks/session_side';
-import {chatPath, runPath} from '@/shared/lib/routes';
+import {
+  resultsPath,
+  useRecordRunTab,
+  useRecordSessionSide,
+} from '@/shared/hooks/session_side';
+import {chatPath} from '@/shared/lib/routes';
 
 export interface SessionSwitchData {
   chatId: string;
@@ -56,15 +60,17 @@ const SWITCH_SIDES: {
   },
 ];
 
-// Results use the default tab; the run page owns live-progress/report selection.
 function sessionSideHref(session: SessionSwitchData, side: string): string {
-  return side === 'chat' ? chatPath(session.chatId) : runPath(session.runId);
+  return side === 'chat'
+    ? chatPath(session.chatId)
+    : resultsPath(session.runId);
 }
 
 // Real links preserve deep/new-tab navigation; explicit names survive hidden
 // phone labels, and aria-current marks navigation rather than a pressed button.
 export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
   useRecordSessionSide(session?.runId, session?.active);
+  useRecordRunTab();
   if (!session) return null;
   return (
     // One highlight travels between the sides instead of each side's fill
