@@ -7,6 +7,9 @@ export type ChipTone =
   'neutral' | 'info' | 'success' | 'accent' | 'warning' | 'danger';
 export type ChipVariant = 'tonal' | 'outlined';
 export type ChipSize = 'xs' | 'sm' | 'md';
+// `tag` is for metadata on cards (dates, durations, scores), which reads
+// as labels rather than as pills.
+export type ChipShape = 'pill' | 'tag';
 
 const TONAL_CLASSES: Record<ChipTone, string> = {
   neutral: 'bg-chip-neutral-bg text-chip-neutral-fg',
@@ -42,19 +45,22 @@ export interface ChipStyle {
   tone?: ChipTone;
   variant?: ChipVariant;
   size?: ChipSize;
+  shape?: ChipShape;
   // A chip that is itself a link gets a hover and focus state.
   interactive?: boolean;
 }
 
-// Chips are always pills; anchors that read as chips use these classes.
+// Anchors that read as chips use these classes.
 export function chipClasses({
   tone = 'neutral',
   variant = 'tonal',
   size = 'md',
+  shape = 'pill',
   interactive = false,
 }: ChipStyle = {}): string {
   return joinClasses(
-    'inline-flex w-fit items-center rounded-full whitespace-nowrap no-underline',
+    'inline-flex w-fit items-center whitespace-nowrap no-underline',
+    shape === 'tag' ? 'rounded-md' : 'rounded-full',
     variant === 'outlined'
       ? `border bg-transparent ${OUTLINED_CLASSES[tone]}`
       : `border-0 ${TONAL_CLASSES[tone]}`,
@@ -74,6 +80,7 @@ export function Chip({
   tone,
   variant,
   size = 'md',
+  shape,
   icon,
   tooltip,
   tooltipPlacement = 'top',
@@ -89,7 +96,7 @@ export function Chip({
     children: ReactNode;
   }) {
   const className = joinClasses(
-    chipClasses({tone, variant, size}),
+    chipClasses({tone, variant, size, shape}),
     layoutClassName,
   );
   return (
