@@ -41,12 +41,13 @@ def complete_task(
 
 
 def owns_task_lease(task_id: str, worker_id: str, *, db_path: str | None = None) -> bool:
+    # A late heartbeat may renew an expired lease until another worker claims it.
+    # Match renewal's ownership fence rather than treating clock expiry as revocation.
     with use_conn(None, db_path) as conn:
         return (
             conn.execute(
-                "SELECT 1 FROM scientific_tasks WHERE id=? AND status='leased' "
-                "AND lease_owner=? AND lease_expires_at>?",
-                (task_id, worker_id, current_time()),
+                "SELECT 1 FROM scientific_tasks WHERE id=? AND status='leased' AND lease_owner=?",
+                (task_id, worker_id),
             ).fetchone()
             is not None
         )
