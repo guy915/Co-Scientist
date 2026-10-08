@@ -201,6 +201,9 @@ Compose builds `api` from `app/docker/Dockerfile.api` + `app/docker/entrypoint.s
 **Wire contracts:** edit `engine/src/co_scientist/api/contracts/` for run, artifact, report and
 interview JSON shapes, then run `../.venv/bin/python -m co_scientist.api.contracts.generate`
 from `app/` and format the generated `wire_*.ts` with the frontend linter.
+`generate.py`'s `MODEL_GROUPS` also exports endpoint Pydantic models already on
+the wire (`/status`, client log records, feedback) to `wire_system.ts`; endpoints
+that return plain dicts (logs payload, free usage) stay hand-typed.
 `tests/test_architecture.py` checks generated syntax, served OpenAPI and recursive
 JSON, including legacy reports, public projections and nonempty curated
 collections. Generated `wire_*.ts` modules

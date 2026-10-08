@@ -1,37 +1,14 @@
 import {clientHeaders, fetchField, fetchJson} from './runs';
+import type {SystemStatusResponse} from './wire_system';
 
-export interface ProbeStatus {
-  // Probe error means no availability verdict, unlike definitive up/down.
-  state: 'up' | 'down' | 'error';
-  error: string | null;
-}
+// The wire shape is generated from the backend's status model (wire_system.ts).
+export type {
+  Connector,
+  ProbeStatus,
+  SystemStatusResponse as SystemStatus,
+} from './wire_system';
 
-export interface Connector {
-  id: string;
-  display: string;
-}
-
-export interface SystemStatus {
-  mcp_available: boolean;
-  pubmed_available: boolean;
-  literature_review_available: boolean;
-  web_search_available?: boolean;
-  // Without SMTP, offering completion email would promise an operation that can
-  // only fail.
-  email_notifications_available?: boolean;
-  probes: {mcp: ProbeStatus; pubmed: ProbeStatus; web_search?: ProbeStatus};
-  mcp_server_url: string;
-  // The mock value remains compatible with older deployment responses.
-  provider: 'mock' | 'engine';
-  llm_backend: 'offline' | 'real';
-  has_provider_key: boolean;
-  engine_importable: boolean;
-  model_name: string;
-  supervisor_model_name: string;
-  connectors: Connector[];
-}
-
-export function getSystemStatus(): Promise<SystemStatus> {
+export function getSystemStatus(): Promise<SystemStatusResponse> {
   return fetchJson('/status');
 }
 
