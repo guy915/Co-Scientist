@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.main import app
 from fastapi.testclient import TestClient
 
-from app.main import app
 from tests._process_mode_helpers import FakeProcessMode
 
 _CLIENT = {"X-Client-ID": "free-usage-scientist"}

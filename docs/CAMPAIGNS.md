@@ -86,7 +86,7 @@ If day 4 slips, typed models move to after v0 instead of delaying the launch.
     and claim their files through the open PR. Frontend fetching and polling
     belong to shrink lever 9; optimization measures them after it lands.
 - **Shared files** (`AGENTS.md` files, `docs/*.md`, `.env.example` files,
-  `README.md`, `app/app/config.py`, `app/app/main.py`): anyone may make small
+  `README.md`, `engine/src/co_scientist/core/config.py`, `engine/src/co_scientist/main.py`): anyone may make small
   edits. Do not reorder or reformat them. On a conflict, merge `main` and keep
   both sides.
 

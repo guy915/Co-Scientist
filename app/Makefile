@@ -4,10 +4,10 @@ install:
 	pip install -e ".[dev]"
 
 dev:
-	python -m uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8008
+	python -m uvicorn co_scientist.main:app --reload --reload-dir ../engine/src --host 0.0.0.0 --port 8008
 
 start:
-	python -m uvicorn app.main:app --host 0.0.0.0 --port 8008
+	python -m uvicorn co_scientist.main:app --host 0.0.0.0 --port 8008
 
 test:
 	pytest

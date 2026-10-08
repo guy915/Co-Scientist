@@ -259,7 +259,7 @@ def _append_late_successor(run_id: str, writer: ScientificTask, db_path: str) ->
 
 
 def _observe_startup(monkeypatch: pytest.MonkeyPatch) -> _StartupProbe:
-    from app import main as main_module
+    from co_scientist import main as main_module
 
     probe = _StartupProbe()
     original_start = main_module._start_recovery_task

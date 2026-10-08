@@ -5,11 +5,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.main import app
 from co_scientist.platform import db
 from co_scientist.platform.db.models import RunRow
 from fastapi.testclient import TestClient
 
-from app.main import app
 from tests._client import create_run, make_client
 
 

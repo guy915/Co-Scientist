@@ -17,7 +17,7 @@ const PRODUCTION = process.env.COSCI_E2E_PRODUCTION === '1';
 
 const backendServer = {
   command:
-    `${VENV_PYTHON} -m uvicorn app.main:app ` +
+    `${VENV_PYTHON} -m uvicorn co_scientist.main:app ` +
     `--host 127.0.0.1 --port ${API_PORT}`,
   cwd: APP_DIR,
   url: `${API_URL}/health`,

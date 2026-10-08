@@ -42,9 +42,8 @@ def test_client_ids_isolate_runs_across_cors_and_event_streams(
 def _configure_allowlisted_cors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FastAPI:
+    from co_scientist.main import app
     from fastapi.middleware.cors import CORSMiddleware
-
-    from app.main import app
 
     cors = next(
         middleware
@@ -94,7 +93,7 @@ def test_allowed_origin_can_read_ownership_denial(
 
 def _headerless_client() -> TestClient:
     # Identityless clients must not acquire a default identity header.
-    from app.main import app
+    from co_scientist.main import app
 
     return TestClient(app)
 
@@ -130,7 +129,7 @@ def test_headerless_caller_is_refused_and_creates_nothing(
 
 @pytest.mark.parametrize("host", ["example.com/#", "example.com/?"])
 def test_host_cannot_hide_another_researchers_run(host: str, isolated_db: str) -> None:
-    from app.main import app
+    from co_scientist.main import app
 
     client = TestClient(app)
     created = _create_run(

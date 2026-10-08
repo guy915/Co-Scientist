@@ -45,7 +45,7 @@ backend during a run:
 
 ```bash
 cd app
-COSCIENTIST_DB_PATH=../coscientist.db ../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8008
+COSCIENTIST_DB_PATH=../coscientist.db ../.venv/bin/python -m uvicorn co_scientist.main:app --host 127.0.0.1 --port 8008
 ```
 
 Do not expose the development stack publicly. See [launch guidance](LAUNCH.md)

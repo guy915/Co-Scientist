@@ -10,6 +10,7 @@ from co_scientist.api import diagnostics
 from co_scientist.api.diagnostics import (
     HealthCheck,
 )
+from co_scientist.api.version import API_VERSION
 from co_scientist.core.config import settings
 from co_scientist.orchestration.repository import tasks as store
 from co_scientist.orchestration.repository.tasks import queue_health_snapshot
@@ -19,7 +20,6 @@ from co_scientist.platform.db import checkpoints, runs
 from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunStatus
 from fastapi.testclient import TestClient
 
-from app import API_VERSION
 from tests._client import make_client as _client
 from tests._client import make_operator_client
 from tests._client import make_operator_client as _operator_client
@@ -99,7 +99,7 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
 ) -> None:
     # TestClient only enters lifespan as a context manager; construction alone
     # does not exercise startup.
-    import app.main as main_module
+    import co_scientist.main as main_module
 
     interrupted = seed_run(
         "interrupted goal",
@@ -148,7 +148,7 @@ def test_startup_prunes_checkpoints_but_never_vacuums(
 ) -> None:
     # VACUUM waits for exclusive access while log writes continue; pruning must
     # never block serving writers.
-    import app.main as main_module
+    import co_scientist.main as main_module
 
     pruned = threading.Event()
 
@@ -170,8 +170,7 @@ def test_startup_does_not_block_on_run_recovery(
     # Run recovery after binding traffic; provider work before lifespan yield
     # causes healthcheck restart spirals.
     import co_scientist.api.runs as runs_module
-
-    import app.main as main_module
+    import co_scientist.main as main_module
 
     resumed = threading.Event()
 

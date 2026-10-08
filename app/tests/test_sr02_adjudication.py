@@ -5,9 +5,9 @@ from co_scientist.core.config import settings
 from co_scientist.domains.research_state.repository import records
 from co_scientist.domains.research_state.repository.records import NewSafetyDecision
 from co_scientist.domains.safety.gate import POLICY_VERSION
+from co_scientist.main import app
 from fastapi.testclient import TestClient
 
-from app.main import app
 from tests._store_helpers import seed_run
 
 
