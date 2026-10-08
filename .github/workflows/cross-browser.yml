@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   keyboard:
-    name: Keyboard guards (${{ matrix.project }})
+    name: Keyboard guards (${{ matrix.project }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     container:
@@ -25,6 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         project: [webkit, webkit-iphone, firefox]
+        shard: [1, 2]
     env:
       COSCI_E2E_PRODUCTION: '1'
       LITELLM_LOCAL_MODEL_COST_MAP: 'True'
@@ -89,12 +90,13 @@ jobs:
       - name: Run keyboard guards through the isolated browser runner
         env:
           KEYBOARD_PROJECT: ${{ matrix.project }}
-        run: node e2e/run.mjs --config playwright.cross-browser.config.ts --project="$KEYBOARD_PROJECT"
+          KEYBOARD_SHARD: ${{ matrix.shard }}
+        run: node e2e/run.mjs --config playwright.cross-browser.config.ts --project="$KEYBOARD_PROJECT" --shard="$KEYBOARD_SHARD/2"
       - name: Preserve browser report and failure diagnostics
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cross-browser-${{ matrix.project }}
+          name: cross-browser-${{ matrix.project }}-${{ matrix.shard }}
           path: |
             e2e/playwright-report
             e2e/test-results
