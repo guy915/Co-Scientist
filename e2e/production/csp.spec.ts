@@ -78,6 +78,7 @@ for (const theme of ["light", "dark"]) {
       "/privacy",
       "/terms",
       "/operations",
+      "/operations/spend",
       "/missing-page",
     ];
     for (const path of routes) {
@@ -119,6 +120,65 @@ for (const theme of ["light", "dark"]) {
           page.getByRole("heading", { name: "Launch operations", exact: true }),
         ).toBeVisible();
         await expect(page.getByLabel("Operator token")).toBeVisible();
+      }
+      if (path === "/operations/spend") {
+        await expect(
+          page.getByRole("heading", { name: "Model spend", exact: true }),
+        ).toBeVisible();
+        const token = "synthetic-csp-operator-token";
+        let spendRequests = 0;
+        await page.route(`${API_URL}/api/spend`, async (route) => {
+          spendRequests++;
+          expect(route.request().headers()["x-logs-token"]).toBe(token);
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            headers: { "Cache-Control": "no-store" },
+            json: {
+              azure: {
+                available: true,
+                today_eur: 1,
+                week_eur: 2,
+                total_spent_eur: 3,
+                reserved_eur: 4,
+                run_forecasts_eur: 5,
+                total_budget_eur: 100,
+                remaining_eur: 88,
+                burn_eur_per_day: 1,
+                days_at_current_rate: 88,
+              },
+              anthropic: {
+                available: true,
+                cycle_spent_usd: 0,
+                reserved_usd: 0,
+                grant_usd: 100,
+                remaining_credit_usd: 100,
+                usable_allowance_usd: 95,
+                reset_at: null,
+              },
+              cache_by_role: [],
+            },
+          });
+        });
+        const load = page.getByRole("button", { name: "Load spend" });
+        await expect(load).toBeDisabled();
+        await page.getByLabel("Operator token").fill(token);
+        expect(spendRequests).toBe(0);
+        await load.click();
+        await expect(
+          page.getByRole("heading", { name: "Azure", exact: true }),
+        ).toBeVisible();
+        expect(spendRequests).toBe(1);
+        expect(
+          await page.evaluate(() => [
+            ...Object.values(localStorage),
+            ...Object.values(sessionStorage),
+          ]),
+        ).not.toContain(token);
+        await page.getByLabel("Operator token").fill("");
+        await expect(
+          page.getByRole("heading", { name: "Azure", exact: true }),
+        ).toHaveCount(0);
       }
       if (path === "/privacy" || path === "/terms") {
         await expect(
