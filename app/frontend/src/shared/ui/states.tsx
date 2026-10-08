@@ -51,12 +51,3 @@ export function ErrorNotice({
     </Card>
   );
 }
-
-// Fills the area a lazy page or panel will occupy while it loads.
-export function PageStatus({children}: {children: ReactNode}) {
-  return (
-    <div className="ui-motion-enter grid h-full min-h-0 place-items-center p-6 text-sm text-cosci-muted">
-      <p role="status">{children}</p>
-    </div>
-  );
-}
