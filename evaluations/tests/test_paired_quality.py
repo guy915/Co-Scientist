@@ -113,6 +113,31 @@ def snapshot(tmp_path: Path, *, branch: bool = False) -> Snapshot:
     return read_snapshot(db, "r", "cell-biology", "a" * 40)
 
 
+@pytest.mark.parametrize("branch", [False, True])
+def test_duplicate_delivered_titles_refuse_to_credit_multiple_hypotheses(
+    tmp_path: Path, branch: bool
+) -> None:
+    db = tmp_path / "duplicate.db"
+    fake_database(db, "cell-biology", branch=branch)
+    with sqlite3.connect(db) as conn:
+        conn.execute("UPDATE hypotheses SET title='Idea two' WHERE id='hidden'")
+    before = hashlib.sha256(db.read_bytes()).hexdigest()
+    with pytest.raises(ValueError, match="ambiguous delivered hypothesis identity"):
+        read_snapshot(db, "r", "cell-biology", "a" * 40)
+    assert hashlib.sha256(db.read_bytes()).hexdigest() == before
+
+
+def test_duplicate_undelivered_titles_do_not_inflate_report_counts(tmp_path: Path) -> None:
+    db = tmp_path / "undelivered.db"
+    fake_database(db, "cell-biology")
+    with sqlite3.connect(db) as conn:
+        conn.execute("INSERT INTO hypotheses VALUES ('other', 'r', 'Idea hidden')")
+    facts = read_snapshot(db, "r", "cell-biology", "a" * 40).metrics
+    assert (facts["ideas_generated"], facts["ideas_delivered"]) == (4, 2)
+    assert facts["delivered_ids"] == ["h1", "h2"]
+    assert facts["delivered_supported_claims"] == 2
+
+
 def test_counts_report_entries_not_pool_mentions_and_deduplicates_claims(tmp_path: Path) -> None:
     m = snapshot(tmp_path, branch=True).metrics
     assert (m["ideas_generated"], m["ideas_delivered"]) == (3, 2)

@@ -189,10 +189,8 @@ per-hypothesis budget alone bounds nothing. Both factors are capped in
 hypotheses buy anything (`reviewed_hypothesis_limit`: the 3 or 5 best of the
 pool, ordered by the canonical `rank_by_elo` and selected from the whole pool
 so the in-process node and a per-hypothesis durable task choose identically).
-Note *which* half of that key decides: this node runs before ranking, so on the
-first cycle -- where every hypothesis gets its one full review -- every Elo is
-still the default and the tie breaks on the initial review's score, written by
-the node immediately upstream. The product of the two caps is a per-*cycle*
+Reviews now go to ranked finalists only, so the Elo half of that key decides.
+The product of the two caps is a per-*cycle*
 ceiling of 12 threads on extended and 25 on ultra -- **not per run**: comprehensive
 reflection runs once per cycle over a fresh top-3, and evolution rewriting a
 hypothesis makes it need its full review, and so its research, again. A live
@@ -225,16 +223,21 @@ either -- research is seeded from assumptions a previous cycle marked
 uncertain or likely false, and those assumptions are deep verification's own
 output, so the loop it now reads from was already being pointed by it.
 
-**And it precedes tournament entry**, mirroring `03-reflection.md`, whose
-`ReviewHypothesis` performs the deep verification and only then creates
-that hypothesis's `AddToTournament` task -- so no idea is ranked or bred
-from before its core assumptions are probed. Blanket over the pool, which
-is affordable only because it is incremental: `science/reflection/deep_verification.py`
-marks each idea with a checkpointed `deep_verification_issued` enrichment
-when its attempt is *issued*, so the initial pool is verified once and
-each cycle's new children once, never pool x cycles. Ideas the review gate
-barred are skipped -- an idea that cannot enter a tournament has nothing
-here to guard.
+**Depth goes to finalists only** (`science/scheduling/funnel.py`). Every
+idea gets the safety screen, one screening review and the tournament; the
+observation, full and simulation reviews, deep verification and claim checks
+run for the run's finalists alone -- the top `finalists` (3/5/6/8 by tier) by
+Elo among ideas that have played, which are the ideas the report features. A
+first cycle therefore spends nothing on depth, and an idea that loses never
+pays for it. Issuance stays incremental: `deep_verification_issued` is
+checkpointed when an attempt is *issued*, so each finalist is verified once.
+When the run ends with finalists still lacking depth, the orchestrator routes
+the terminal pass through `comprehensive_reflection`, `safety_screen` and
+`deep_verification` to the overview -- never after a budget, clock, task-count
+or safety stop, never past the call ceiling, and without the recurrent refresh
+or the blocked-idea recheck. The report features ideas with a verdict and keeps
+every other released idea as its own entry marked "screened, not
+deep-verified".
 
 `platform/sandbox/workspace/` and `platform/sandbox/` confine every command a node runs -- including
 ones that outlive the call that started them
