@@ -1,12 +1,15 @@
-import {createServer} from 'node:http';
+import {createServer, request} from 'node:http';
 import {readFile, stat} from 'node:fs/promises';
 import {resolve, extname, sep} from 'node:path';
 import {gzipSync} from 'node:zlib';
 
 const root = resolve(process.argv[2] || 'dist');
 const port = Number(process.env.FP_PORT || 4173);
-const api = process.env.FP_API || 'http://127.0.0.1:8108';
-if (!['localhost', '127.0.0.1'].includes(new URL(api).hostname)) {
+const api = new URL(process.env.FP_API || 'http://127.0.0.1:8108');
+if (
+  api.protocol !== 'http:' ||
+  !['localhost', '127.0.0.1'].includes(api.hostname)
+) {
   throw new Error('Performance preview requires a loopback API');
 }
 const rules = [];
@@ -45,27 +48,35 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (/^\/(api(?:\/|$)|status$|health$)/.test(url.pathname)) {
-      const upstream = await fetch(new URL(url.pathname + url.search, api), {
-        headers: {
-          'X-Client-ID': req.headers['x-client-id'] || 'fp-performance',
-        },
+      // Keep the destination fixed and do not follow upstream redirects.
+      const upstream = await new Promise((resolve, reject) => {
+        const outgoing = request(
+          {
+            hostname: '127.0.0.1',
+            port: api.port || 80,
+            path: url.pathname + url.search,
+            method: 'GET',
+            headers: {
+              'X-Client-ID': req.headers['x-client-id'] || 'fp-performance',
+              'Accept-Encoding': req.headers['accept-encoding'] || 'identity',
+            },
+          },
+          resolve,
+        );
+        outgoing.on('error', reject);
+        outgoing.end();
       });
       const headers = {
-        'content-type':
-          upstream.headers.get('content-type') || 'application/json',
+        'content-type': upstream.headers['content-type'] || 'application/json',
         vary: 'Accept-Encoding',
       };
-      let body = Buffer.from(await upstream.arrayBuffer());
-      // fetch decodes the API's gzip response; retain its wire compression.
-      if (
-        body.length >= 1024 &&
-        /\bgzip\b/.test(req.headers['accept-encoding'] || '')
-      ) {
-        body = gzipSync(body, {level: 6});
-        headers['content-encoding'] = 'gzip';
-      }
+      const chunks = [];
+      for await (const chunk of upstream) chunks.push(chunk);
+      const body = Buffer.concat(chunks);
+      if (upstream.headers['content-encoding'])
+        headers['content-encoding'] = upstream.headers['content-encoding'];
       headers['content-length'] = body.length;
-      res.writeHead(upstream.status, headers);
+      res.writeHead(upstream.statusCode, headers);
       res.end(body);
       return;
     }
