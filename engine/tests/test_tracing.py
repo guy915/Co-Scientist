@@ -182,3 +182,59 @@ def test_log_lines_carry_the_active_trace_id(spans: InMemorySpanExporter) -> Non
     with tracing.current_span("outer", {}) as span:
         line = formatted()
     assert line["trace_id"] == trace.format_trace_id(span.get_span_context().trace_id)
+
+
+def test_span_errors_exclude_research_documents_email_keys_and_arbitrary_class_names(
+    spans: InMemorySpanExporter,
+) -> None:
+    private = "PRIVATE_GOAL PRIVATE_DOCUMENT researcher@example.test sk-private-fixture"
+    error_class = type("researcher@example.test", (Exception,), {})
+    with pytest.raises(error_class), tracing.current_span("task.execute", {}):
+        raise error_class(private)
+    (finished,) = spans.get_finished_spans()
+    assert _attrs(finished)["error.type"] == "Exception"
+    assert not finished.events
+    assert finished.status.description is None
+    exported = json.dumps({"name": finished.name, "attributes": _attrs(finished)})
+    for value in private.split():
+        assert value not in exported
+
+
+def test_export_boundary_drops_custom_and_served_model_text_and_sdk_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from opentelemetry.sdk.resources import Resource
+
+    from co_scientist.platform.llm.telemetry import (
+        end_request_span,
+        logical_call_span,
+        start_request_span,
+    )
+
+    private = "PRIVATE_GOAL PRIVATE_DOCUMENT researcher@example.test sk-unrecognized-key"
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider(resource=Resource({"service.name": private, "custom": private}))
+    provider.add_span_processor(SimpleSpanProcessor(tracing.private_exporter(exporter)))
+    monkeypatch.setattr(tracing, "_provider", provider)
+    try:
+        with logical_call_span("call_llm", private, prompt_name=private):
+            span = start_request_span(private, {"model": private, "max_tokens": 100})
+            span.add_event(private, {"text": private})
+            span.set_status(trace.Status(trace.StatusCode.ERROR, private))
+            response = make_completion(make_message(private))
+            response.model = private
+            end_request_span(span, response, None)
+        finished = exporter.get_finished_spans()
+        assert {s.name for s in finished} == {"llm.request", "llm.call_llm"}
+        assert _attrs(finished[0])["gen_ai.request.max_tokens"] == 100
+        assert _attrs(finished[0])["gen_ai.usage.input_tokens"] == 0
+        assert _parent_id(finished[0]) == _span_id(finished[1])
+        for exported in finished:
+            assert not exported.events and not exported.links
+            assert exported.status.description is None
+            assert dict(exported.resource.attributes) == {"service.name": "co-scientist-api"}
+            payload = json.dumps({"name": exported.name, "attributes": _attrs(exported)})
+            for value in private.split():
+                assert value not in payload
+    finally:
+        provider.shutdown()
