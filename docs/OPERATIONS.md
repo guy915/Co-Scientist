@@ -328,8 +328,12 @@ Conversational provider admission is separate from research-run budgets. Every
 operator-funded physical completion atomically reserves one call and a
 conservative input-byte plus maximum-output token allowance in SQLite. UTC-day
 client and global quotas survive process restarts and run/chat deletion; the
-global quota also covers rotated client IDs. Failed calls and interrupted
-streams retain their reservations because billing may be uncertain. Defaults
+global quota also covers rotated client IDs. A call that returns provider usage
+settles its global, client, host and app rows down to prompt plus completion
+tokens in one short transaction after the response, never above the
+reservation, so a research run is bounded by what it used rather than by every
+call's output cap. Failed calls, missing usage, interrupted streams and
+restarts retain the whole reservation because billing may be uncertain. Defaults
 are 64 calls and 2 million reserved tokens per client, and 1,024 calls and
 32 million tokens globally. Configure `APP_LLM_CLIENT_CALLS_PER_DAY`,
 `APP_LLM_GLOBAL_CALLS_PER_DAY`, `APP_LLM_CLIENT_TOKENS_PER_DAY`, and

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core.exceptions import ProviderAdmissionError
-from co_scientist.platform.db.admission import UNKNOWN_HOST, reserve_provider
+from co_scientist.platform.db.admission import UNKNOWN_HOST, reserve_provider, settle_provider
+
+logger = logging.getLogger(__name__)
 
 _app: ContextVar[bool] = ContextVar("service_admission_app", default=False)
 
@@ -69,10 +73,58 @@ def _token_reservation(request: dict[str, Any], *, app: bool) -> int:
     return input_bytes + 1024 + output
 
 
-def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> None:
+@dataclass(frozen=True)
+class Reservation:
+    owner: str
+    host: str
+    day: int
+    tokens: int
+    app: bool
+    db_path: str | None
+
+
+def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> Reservation:
     app = _app.get() if app is None else app
     tokens = _token_reservation(request, app=app)
-    reserve_provider(_client.get(), _host.get(), tokens, app=app, db_path=_path.get())
+    owner, host, db_path = _client.get(), _host.get(), _path.get()
+    day = reserve_provider(owner, host, tokens, app=app, db_path=db_path)
+    return Reservation(owner, host, day, tokens, app, db_path)
+
+
+def _reported_tokens(response: Any) -> int | None:
+    usage = getattr(response, "usage", None)
+    counts = [getattr(usage, name, None) for name in ("prompt_tokens", "completion_tokens")]
+    if not all(type(value) is int and value >= 0 for value in counts):
+        return None
+    prompt, completion = counts
+    details = getattr(usage, "completion_tokens_details", None)
+    reasoning = getattr(details, "reasoning_tokens", None)
+    # Completion normally includes reasoning; a provider reporting more
+    # reasoning than completion counted it separately.
+    if type(reasoning) is int and reasoning > completion:
+        completion += reasoning
+    return prompt + completion
+
+
+def settle_physical(reservation: Reservation, response: Any) -> None:
+    """Without reported usage the call keeps its whole reservation, as failed
+    and interrupted calls do."""
+    used = _reported_tokens(response)
+    if used is None:
+        return
+    # W4: the EUR ledger records the settled call here.
+    try:
+        settle_provider(
+            reservation.owner,
+            reservation.host,
+            reservation.day,
+            reservation.tokens - min(used, reservation.tokens),
+            app=reservation.app,
+            db_path=reservation.db_path,
+        )
+    except Exception:
+        # The provider has already answered; failing here would only retry it.
+        logger.warning("Provider reservation not settled; keeping it", exc_info=True)
 
 
 def reserve_decision_physical(tokens: int, call_limit: int, token_limit: int) -> None:

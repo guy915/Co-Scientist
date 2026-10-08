@@ -14,7 +14,11 @@ from opentelemetry.trace import Span
 from co_scientist.core.exceptions import LLMTimeoutError
 from co_scientist.platform.llm.admission.call_budget import record_provider_request
 from co_scientist.platform.llm.admission.free_policy import enforce_free_request
-from co_scientist.platform.llm.admission.service import reserve_physical
+from co_scientist.platform.llm.admission.service import (
+    Reservation,
+    reserve_physical,
+    settle_physical,
+)
 from co_scientist.platform.llm.request.backend import active_backend
 from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 from co_scientist.platform.llm.telemetry import (
@@ -30,8 +34,16 @@ class _CompletionStream:
     initiating task.
     """
 
-    def __init__(self, response: Any, model: str, start: float, span: Span) -> None:
+    def __init__(
+        self,
+        response: Any,
+        model: str,
+        start: float,
+        span: Span,
+        reservation: Reservation | None,
+    ) -> None:
         self._response = response
+        self._reservation = reservation
         self._iterator = response.__aiter__()
         self._model = model
         self._start = start
@@ -63,6 +75,8 @@ class _CompletionStream:
         latency = time.monotonic() - self._start
         if error is None:
             self._context.run(record_completion_response, self._model, self._last, latency)
+            if self._reservation is not None:
+                settle_physical(self._reservation, self._last)
         else:
             self._context.run(record_completion_failure, self._model, error, latency)
         end_request_span(self._span, self._last, error)
@@ -105,12 +119,13 @@ async def complete_request(
     apply_provider_constraints(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
+    reservation: Reservation | None = None
     if not byok:
         # Bound requests that previously delegated an unbounded output default
         # to the SDK. Admission covers every scientific and app retry here.
         if "max_completion_tokens" not in completion_args:
             completion_args.setdefault("max_tokens", settings.app_llm_max_output_tokens)
-        reserve_physical(completion_args)
+        reservation = reserve_physical(completion_args)
     if before_dispatch is not None:
         before_dispatch()
     span = start_request_span(model_name, completion_args)
@@ -133,7 +148,9 @@ async def complete_request(
         end_request_span(span, None, exc)
         raise
     if completion_args.get("stream"):
-        return _CompletionStream(response, model_name, start, span)
+        return _CompletionStream(response, model_name, start, span, reservation)
     record_completion_response(model_name, response, time.monotonic() - start)
     end_request_span(span, response, None)
+    if reservation is not None:
+        settle_physical(reservation, response)
     return response

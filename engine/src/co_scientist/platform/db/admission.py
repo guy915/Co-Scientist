@@ -119,7 +119,7 @@ def _reserve_app(conn: sqlite3.Connection, owner: str, day: int, tokens: int) ->
     )
 
 
-def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: str | None) -> None:
+def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: str | None) -> int:
     from co_scientist.core.config import settings
 
     # A future EUR reservation belongs before this commit, alongside these
@@ -160,6 +160,28 @@ def reserve_provider(owner: str, host: str, tokens: int, *, app: bool, db_path: 
                 "ON CONFLICT(day,scope,subject) DO UPDATE "
                 "SET calls=calls+1,tokens=tokens+excluded.tokens",
                 (day, scope, subject, tokens),
+            )
+    return day
+
+
+def settle_provider(
+    owner: str, host: str, day: int, refund: int, *, app: bool, db_path: str | None
+) -> None:
+    """Call counts stay booked; a row a later day already swept has nothing to
+    return to."""
+    if refund <= 0:
+        return
+    with transaction(db_path) as conn:
+        for scope, subject in (("global", ""), ("client", owner), ("host", host)):
+            conn.execute(
+                "UPDATE provider_admissions SET tokens=MAX(tokens-?,0) "
+                "WHERE day=? AND scope=? AND subject=?",
+                (refund, day, scope, subject),
+            )
+        if app:
+            conn.execute(
+                "UPDATE app_llm_usage SET tokens=MAX(tokens-?,0) WHERE day=? AND client_id=?",
+                (refund, day, owner),
             )
 
 
