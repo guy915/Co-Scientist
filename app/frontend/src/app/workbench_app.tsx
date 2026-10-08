@@ -18,6 +18,12 @@ const RunDetail = lazy(() =>
   })),
 );
 
+const LegalPage = lazy(() =>
+  import('@/features/legal/legal_page').then(module => ({
+    default: module.LegalPage,
+  })),
+);
+
 function PageLoading() {
   return <PageStatus>Loading page…</PageStatus>;
 }
@@ -34,6 +40,8 @@ function page(title: string, element: ReactElement) {
 function WorkbenchRoutes() {
   return (
     <Routes>
+      <Route path="/privacy" element={<LegalPage kind="privacy" />} />
+      <Route path="/terms" element={<LegalPage kind="terms" />} />
       <Route path="/" element={page('Workspace', <ChatWorkspace />)} />
       <Route path="/chats/:id" element={page('Workspace', <ChatWorkspace />)} />
       <Route
