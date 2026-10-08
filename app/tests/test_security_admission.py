@@ -9,10 +9,10 @@ import pytest
 from co_scientist.api import logs_api
 from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
+from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.domains.chat.repository import messages
 from co_scientist.platform import db
 from co_scientist.platform.llm import llm_request, offline_guard, provider_usage
-from fastapi import HTTPException
 
 from tests._client import create_run, fake_litellm, make_client
 from tests._llm_fake_backend import install_completion_backend
@@ -56,8 +56,7 @@ def test_provider_budget_reservation_is_atomic_and_durable(
             try:
                 provider_usage.reserve({"max_tokens": 10, "messages": []})
                 return True
-            except HTTPException as error:
-                assert error.status_code == 429
+            except ProviderAdmissionError:
                 return False
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -73,7 +72,7 @@ def test_rotating_client_ids_cannot_reset_global_provider_budget(
     for owner in ("one", "two"):
         with provider_usage.scoped_client(owner):
             provider_usage.reserve({"max_tokens": 10})
-    with provider_usage.scoped_client("three"), pytest.raises(HTTPException):
+    with provider_usage.scoped_client("three"), pytest.raises(ProviderAdmissionError):
         provider_usage.reserve({"max_tokens": 10})
 
 
@@ -83,9 +82,9 @@ def test_token_reservations_include_input_and_do_not_refund(
     monkeypatch.setattr(settings, "app_llm_client_tokens_per_day", 1200)
     with provider_usage.scoped_client("one"):
         provider_usage.reserve({"max_tokens": 100})
-        with pytest.raises(HTTPException):
+        with pytest.raises(ProviderAdmissionError):
             provider_usage.reserve({"max_tokens": 100})
-    with provider_usage.scoped_client("two"), pytest.raises(HTTPException):
+    with provider_usage.scoped_client("two"), pytest.raises(ProviderAdmissionError):
         provider_usage.reserve({"max_tokens": 100, "messages": [{"content": "x" * 2000}]})
 
 
@@ -100,7 +99,7 @@ async def test_budget_stops_dispatch_and_byok_keeps_its_own_billing(
     fake = install_completion_backend(monkeypatch, provider)
     with provider_usage.scoped_client("one"):
         await llm_request.acompletion(model="gpt-4o-mini", max_tokens=100)
-        with pytest.raises(HTTPException):
+        with pytest.raises(ProviderAdmissionError):
             await llm_request.acompletion(model="gpt-4o-mini", max_tokens=100)
         monkeypatch.setattr(byok_scope, "current_byok", lambda: object())
         await llm_request.acompletion(model="gpt-4o-mini", max_tokens=100)

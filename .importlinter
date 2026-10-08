@@ -68,8 +68,6 @@ forbidden_modules =
     fastapi
     starlette
 allow_indirect_imports = True
-ignore_imports =
-    co_scientist.platform.llm.provider_usage -> fastapi
 
 [importlinter:contract:litellm]
 name = litellm only in the LLM gateway
