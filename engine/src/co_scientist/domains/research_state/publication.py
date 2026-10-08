@@ -25,14 +25,13 @@ def _publication_key(
     hypothesis: PublicationHypothesis | Mapping[str, Any],
 ) -> tuple[bool, bool, int]:
     if isinstance(hypothesis, Mapping):
+        rating = hypothesis.get("elo_rating")
+        if rating is None:
+            rating = INITIAL_ELO_RATING
         return (
             hypothesis.get("verification_verdict") == "undermined",
             not (int(hypothesis.get("win_count") or 0) + int(hypothesis.get("loss_count") or 0)),
-            -int(
-                hypothesis.get("elo_rating")
-                if hypothesis.get("elo_rating") is not None
-                else INITIAL_ELO_RATING
-            ),
+            -int(rating),
         )
     return (hypothesis.is_undermined(), not hypothesis.total_matches, -hypothesis.elo_rating)
 
