@@ -47,6 +47,6 @@ async def test_sdk_patch_seam_is_shared_with_the_request_backend(
     result = await backend.LitellmBackend().complete(model="mock", messages=[])
 
     assert result is answer
-    assert llm.litellm is backend.litellm
+    assert llm.litellm is sys.modules["litellm"]
     assert llm.litellm.suppress_debug_info is True
     fake.assert_awaited_once_with(model="mock", messages=[], num_retries=0, max_retries=0)
