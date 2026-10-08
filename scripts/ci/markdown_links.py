@@ -10,6 +10,26 @@ from urllib.parse import unquote, urlsplit
 from markdown_it import MarkdownIt
 
 
+# Owner decision on the launch board, comment 6056862442. No path-wide exceptions.
+PINNED_LINK_EXCEPTIONS = {
+    (
+        "vendor/science-skills/skills/opentargets_database/SKILL.md",
+        132,
+        "references/OpenTargets_GraphQL_Guide",
+    ): "pinned vendor, shipped as-is, AGENTS.md",
+    (
+        "vendor/science-skills/skills/uniprot_database/SKILL.md",
+        86,
+        "references/id_mapping_documentation.md",
+    ): "pinned vendor, shipped as-is, AGENTS.md",
+    (
+        "vendor/science-skills/skills/uniprot_database/SKILL.md",
+        286,
+        "references/id_mapping_documentation.md",
+    ): "pinned vendor, shipped as-is, AGENTS.md",
+}
+
+
 @dataclass
 class Link:
     target: str
@@ -95,6 +115,7 @@ def check_links(root: Path, tracked: list[str]) -> list[str]:
         if path.suffix.lower() == ".md"
     }
     findings = []
+    accepted_exceptions = set()
     for path, document in sorted(documents.items()):
         for link in document.links:
             target = urlsplit(link.target)
@@ -113,6 +134,14 @@ def check_links(root: Path, tracked: list[str]) -> list[str]:
                 if anchor not in documents[destination].anchors:
                     problem = "heading/HTML anchor is missing"
             if problem:
+                exception = (path.relative_to(root).as_posix(), link.line, link.target)
+                if (
+                    problem == "target is absent from tracked files"
+                    and exception in PINNED_LINK_EXCEPTIONS
+                    and exception not in accepted_exceptions
+                ):
+                    accepted_exceptions.add(exception)
+                    continue
                 findings.append(
                     f"{path.relative_to(root)}:{link.line}: {link.target}: {problem}"
                 )
@@ -130,6 +159,9 @@ def main() -> int:
         print(finding)
     print(
         f"Markdown links: {sum(name.lower().endswith('.md') for name in tracked)} files, {len(findings)} findings"
+    )
+    print(
+        f"Pinned vendor exceptions: {len(PINNED_LINK_EXCEPTIONS)} exact file/line/target keys"
     )
     return int(bool(findings))
 
