@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 import pytest
 
+from co_scientist.core.exceptions import LLMContentFilteredError
 from co_scientist.core.prompt_cache import CacheablePrompt
 from co_scientist.platform.llm.profile import estimate_cost_usd
 from co_scientist.platform.llm.request.azure import LUNA, NANO, response_request
@@ -23,7 +24,10 @@ from co_scientist.platform.llm.request.cache import (
     apply_prompt_cache,
 )
 from co_scientist.platform.llm.request.completion import _inject_schema_into_prompt
-from co_scientist.platform.llm.request.response import extract_token_usage
+from co_scientist.platform.llm.request.response import (
+    _extract_completion_content,
+    extract_token_usage,
+)
 from co_scientist.platform.llm.request.transport import complete_request
 from co_scientist.platform.llm.roles import scoped_call_policy
 from co_scientist.platform.llm.telemetry import scoped_telemetry
@@ -74,7 +78,10 @@ async def test_real_sdk_preserves_boundary_markers_thinking_and_cache_write_cost
                 "model": "claude-haiku-5-5",
                 "stop_reason": "end_turn",
                 "stop_sequence": None,
-                "content": [{"type": "text", "text": "answer"}],
+                "content": [
+                    {"type": "thinking", "thinking": "private reasoning", "signature": "signed"},
+                    {"type": "text", "text": "answer"},
+                ],
                 "usage": {
                     "input_tokens": 100,
                     "output_tokens": 50,
@@ -94,6 +101,10 @@ async def test_real_sdk_preserves_boundary_markers_thinking_and_cache_write_cost
         "messages": [{"role": "user", "content": prompt}],
         "reasoning_effort": "none",
         "thinking": {"type": "disabled"},
+        "temperature": 0.2,
+        "top_p": 0.5,
+        "top_k": 3,
+        "extra_body": {"temperature": 0.2, "top_p": 0.5, "top_k": 3},
     }
     with scoped_call_policy("claims", enable_thinking=False), scoped_telemetry("claims") as meter:
         response = await complete_request(args, HAIKU, byok=True, timeout_seconds=5)
@@ -102,6 +113,8 @@ async def test_real_sdk_preserves_boundary_markers_thinking_and_cache_write_cost
     assert "thinking" in body, body
     assert body["thinking"] == {"type": "adaptive"}
     assert body["output_config"] == {"effort": "low"}
+    assert not {"temperature", "top_p", "top_k"} & body.keys()
+    assert _extract_completion_content(response, HAIKU) == "answer"
     blocks = body["messages"][0]["content"]
     assert "".join(b["text"] for b in blocks) == prompt
     assert [b["text"] for b in blocks[:2]] == [
@@ -118,9 +131,71 @@ async def test_real_sdk_preserves_boundary_markers_thinking_and_cache_write_cost
     )
     stats = meter.snapshot()[f"claims::{HAIKU}"]
     assert stats["cache_write_tokens"] == 1100
+    assert stats["completion_tokens"] == 50
     assert stats["cost_usd"] == pytest.approx(
         (100 * 0.1 + 800 * 0.01 + 1100 * 0.125 + 50 * 0.5) / 1e6
     )
+
+
+async def test_real_sdk_refusal_is_counted_once_and_never_parsed_as_an_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent = []
+
+    async def send(
+        client: httpx.AsyncClient, request: httpx.Request, **kwargs: Any
+    ) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "id": "test-refusal",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-haiku-5-5",
+                "stop_sequence": None,
+                "stop_reason": "refusal" if len(sent) == 1 else "end_turn",
+                "content": [{"type": "text", "text": "declined" if len(sent) == 1 else "answer"}],
+                "usage": {"input_tokens": 100, "output_tokens": 50},
+            },
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", send)
+    args: dict[str, Any] = {
+        "model": HAIKU,
+        "api_key": "fake",
+        "max_tokens": 1000,
+        "messages": [{"role": "user", "content": "goal"}],
+    }
+    with scoped_call_policy("claims"), scoped_telemetry("claims") as meter:
+        refused = await complete_request(dict(args), HAIKU, byok=True, timeout_seconds=5)
+        with pytest.raises(LLMContentFilteredError):
+            _extract_completion_content(refused, HAIKU)
+        accepted = await complete_request(dict(args), HAIKU, byok=True, timeout_seconds=5)
+        assert _extract_completion_content(accepted, HAIKU) == "answer"
+    stats = meter.snapshot()[f"claims::{HAIKU}"]
+    assert len(sent) == stats["calls"] == 2
+    assert stats["refusals"] == 1
+    assert stats["completion_tokens"] == 100
+
+
+def test_content_blocks_are_read_by_type_without_thinking_text() -> None:
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason="stop",
+                message=SimpleNamespace(
+                    content=[
+                        {"type": "thinking", "thinking": "private reasoning"},
+                        {"type": "text", "text": "first"},
+                        SimpleNamespace(type="text", text=" second"),
+                    ]
+                ),
+            )
+        ]
+    )
+    assert _extract_completion_content(response, HAIKU) == "first second"
 
 
 @pytest.mark.parametrize("tools,role", [(True, "worker"), (False, "chat"), (False, "interview")])
@@ -263,6 +338,7 @@ def test_private_span_keeps_only_numeric_cache_counts() -> None:
             "gen_ai.usage.input_tokens": 2000,
             "co_scientist.llm.cached_prompt_tokens": 800,
             "co_scientist.llm.cache_write_tokens": 1100,
+            "co_scientist.llm.refusal": 1,
             "prompt_cache_key": "secret-run:claims",
             "prompt": "confidential text",
         },
@@ -273,7 +349,49 @@ def test_private_span_keeps_only_numeric_cache_counts() -> None:
         "gen_ai.usage.input_tokens": 2000,
         "co_scientist.llm.cached_prompt_tokens": 800,
         "co_scientist.llm.cache_write_tokens": 1100,
+        "co_scientist.llm.refusal": 1,
     }
+
+
+@pytest.mark.parametrize("failed", [False, True])
+async def test_stream_refusal_survives_a_later_usage_only_chunk(failed: bool) -> None:
+    from co_scientist.platform.llm.request.backend import using_backend
+
+    async def chunks() -> AsyncIterator[Any]:
+        yield SimpleNamespace(choices=[SimpleNamespace(finish_reason="content_filter")], usage=None)
+        yield SimpleNamespace(
+            choices=[], usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50)
+        )
+        if failed:
+            raise RuntimeError("stream failed")
+
+    class Fake:
+        async def complete(self, **kwargs: Any) -> Any:
+            return chunks()
+
+        def supports_json_schema(self, model_name: str) -> bool:
+            return True
+
+    with using_backend(Fake()), scoped_call_policy("chat"), scoped_telemetry("chat") as meter:
+        stream = await complete_request(
+            {"model": HAIKU, "stream": True, "messages": [], "max_tokens": 1000},
+            HAIKU,
+            byok=True,
+            timeout_seconds=5,
+        )
+
+        async def consume() -> None:
+            async for _ in stream:
+                pass
+
+        if failed:
+            with pytest.raises(RuntimeError, match="stream failed"):
+                await consume()
+        else:
+            await consume()
+    stats = meter.snapshot()[f"chat::{HAIKU}"]
+    assert stats["calls"] == stats["refusals"] == 1
+    assert (stats["prompt_tokens"], stats["completion_tokens"]) == ((0, 0) if failed else (100, 50))
 
 
 async def test_real_sdk_keeps_signed_adaptive_thinking_across_tool_turns(

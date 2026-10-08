@@ -1,7 +1,8 @@
 # Prompt caching
 
 Transport uses the existing gateway. Provider order and per-user limits do not change.
-Claude Haiku 5.5 remains a BYOK model. Azure remains off unless the operator enables it,
+The operator Haiku 5.5 slot will use the owner's Console credit; BYOK uses caller keys.
+Slot selection and durable credit cooldown belong to W4-4. Azure remains off unless the operator enables it,
 sets a positive total EUR allowance and sets an unexpired credit date.
 
 T supplies a `CacheablePrompt` from `core/prompt_cache.py`: final rendered text and two
@@ -11,6 +12,10 @@ and chat also use top-level automatic caching. A request may have at most four c
 breakpoints, including the automatic one. No delimiter from user text is interpreted.
 
 Haiku 5.5 always sends adaptive thinking and low effort, including recovery attempts.
+There is no disabled path or effort table for this slot. Only the owner changes effort
+after EQ posts paired quality results by call type. Temperature is omitted; top_p and
+top_k are removed from both request arguments and extra body. Thinking shares max_tokens
+with answer text. Read only text content blocks, including when thinking appears first.
 The verified thinking parameter is allowed explicitly when the bundled SDK catalogue lags.
 Signed thinking blocks survive engine and Q&A tool continuations. Stream fragments use
 the pinned SDK assembler and stay in scoped memory.
@@ -34,7 +39,20 @@ its 0.05/M input rate. The ledger retains conservative Luna long-context rates u
 short/long boundary is confirmed. USD usage estimates do not replace that credit guard.
 
 Private spans export numeric input, read and write counts plus a stable numeric call-type
-ID. Cache keys and prompt text are excluded. Existing usage aggregates include write counts.
+ID and refusal flag. Cache keys and prompt text are excluded. Usage aggregates include
+write and refusal counts. The SDK maps native refusal to content_filter; refused HTTP 200
+responses are counted and rejected even when they contain text. Streams retain the verdict
+across a later usage-only chunk. W4-4 must separately admit Azure fallback, record the switch,
+and persist the operator credit cooldown. Those routing changes are not implemented here.
+
+The owner's organization has $100 credit. Its first cycle is 8 October–7 November 2026;
+the reset day is 7 each month. The low-credit error marks the operator slot unavailable
+until reset and selects Azure. A caller's exhausted BYOK key must not disable the shared
+slot. The $5 Claude / EUR 5 Azure live-check ceilings and shared request allocation remain.
+No measured refusal rate is available yet. On launch day the owner creates workspace
+Open Co-Scientist in the linked organization, creates its key and sets ANTHROPIC_API_KEY
+on the API service only. The launch runbook lane carries this step; no hosting write follows
+from this guide.
 
 The cache becomes readable after the first response begins. A cold parallel wave may
 miss on every call. Reuse a byte-identical prefix, let the first response begin, then send
