@@ -24,7 +24,6 @@ def is_authentication_error(error: BaseException) -> bool:
     return isinstance(error, litellm.exceptions.AuthenticationError)
 
 
-@functools.cache
 def litellm_supports_json_schema(model_name: str) -> bool:
     """Model capability is process-static; explicit profiles override
     unreliable registry answers.
@@ -32,6 +31,11 @@ def litellm_supports_json_schema(model_name: str) -> bool:
     stated = model_profile(model_name).json_schema
     if stated is not None:
         return stated
+    return _registry_supports_json_schema(model_name)
+
+
+@functools.cache
+def _registry_supports_json_schema(model_name: str) -> bool:
     try:
         return bool(litellm.supports_response_schema(model=model_name))
     except Exception:

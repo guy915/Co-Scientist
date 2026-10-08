@@ -20,8 +20,8 @@ overview. Each hypothesis carries `text`, a lay `explanation`,
 
 ## Install and develop
 
-`make setup` at the repository root installs this package editable into
-`.venv` with the app's dependencies; `make start` runs it with the UI and MCP
+`make setup` at the repository root installs this package, which carries the
+server's runtime dependencies, editable into `.venv`; `make start` runs it with the UI and MCP
 server. To work on the package alone, from `engine/`:
 
 ```bash

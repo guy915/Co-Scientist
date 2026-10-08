@@ -21,7 +21,7 @@
 
   /* Share the brand accent independently of timeline-dot styling; its palette
      switches to mint in dark. */
-  --cosci-accent: #238a84;
+  --cosci-accent: #1a6b6b;
   --cosci-accent-fg: #f2f2f2;
 
   --cosci-step-line: color-mix(in srgb, var(--cosci-accent) 38%, #c4c7c5);

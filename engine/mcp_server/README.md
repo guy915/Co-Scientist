@@ -21,7 +21,7 @@ curl http://localhost:8888/
 python3.12 -m venv .venv-mcp
 .venv-mcp/bin/python -m pip install -e engine/mcp_server
 cd engine
-../.venv-mcp/bin/python -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
+COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1 ../.venv-mcp/bin/python -m uvicorn mcp_server.server:app --host 127.0.0.1 --port 8888
 ```
 
 Add `--reload` for development. To use the engine's Docker Compose service,
@@ -57,10 +57,12 @@ on, and `DISABLE_SSL_VERIFY=true` is rejected.
 or quota refusal falls through to the next provider; a successful empty
 answer does not. `check_web_search_available` reports observed refusals.
 
-`COSCIENTIST_MCP_SHARED_SECRET`, when set on both server and engine, requires
-an `X-MCP-Shared-Secret` header for MCP calls. Unset, every call is
-unauthenticated, so set it anywhere the server is reachable beyond localhost.
-The plain status route remains public. Deployment details live in [DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
+`COSCIENTIST_MCP_SHARED_SECRET` must match on server and engine; MCP calls
+require the `X-MCP-Shared-Secret` header. Without it, every request except
+`GET /` is refused. `make start` and `make dev-mcp` explicitly enable
+`COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1`, which permits actual loopback
+peers only when no secret is configured. Never set this flag in production.
+Deployment details live in [DEPLOYMENT.md](../../docs/DEPLOYMENT.md).
 
 The engine defaults to `http://localhost:8888/mcp`; override it with
 `MCP_SERVER_URL`. New tools also need matching declarations in the engine's

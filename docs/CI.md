@@ -16,7 +16,6 @@ section below says so.
 | `codeql.yml` | Pull request, merge group, push, weekly cron, manual | CodeQL static analysis |
 | `dependency-audit.yml` | Weekly cron, manual | `make audit-deps` against the hash-pinned runtime locks and the Bun locks; online, so not a gate |
 | `benchmark.yml` | Manual | Live quality benchmark using the `OPENROUTER_API_KEY` repository secret; never gates a change. See [Quality benchmark](../evaluations/README.md#quality-benchmark) |
-| `decision-bakeoff.yml` | Manual | Live provider evaluation of the decision sites over recorded Benchmark runs; opt-in, no gate |
 | `prune-branches.yml` | Manual | Deletes branches with no open pull request and no recent commit (`min_age_hours`, default 24; `dry_run` available); `main` is never touched |
 
 ## `ci.yml` jobs
@@ -25,7 +24,7 @@ section below says so.
 |---|---|---|
 | `changes` ("Affected targets") | Path filters and target selection; builds the legacy-context matrix | 5 |
 | `format-lint` | `ruff format --check` and `ruff check` over `engine`, `app/tests` and `evaluations`; when `engine/mcp_server` changed, also the MCP server tests and its strict `mypy` | 20 |
-| `typecheck` | `make typecheck` (strict mypy over `app`, `engine`, `evaluations`) and `make arch` (import contracts). When root config changed: `vercel.json` syntax check, `make setup`, `make lint` | 30 |
+| `typecheck` | `make typecheck` (strict mypy over `app`, `engine`, `evaluations`) and `make arch` (import contracts). When root config changed: `vercel.json` and `wrangler.jsonc` syntax checks, the Cloudflare worker test (`node --test app/frontend/worker.test.mjs`), `make setup`, `make lint` | 30 |
 | `test-engine` | Engine pytest on Python 3.10 (support floor) and 3.12, `fail-fast: false` | 15 |
 | `test-app` | App pytest in 3 shards | 25 |
 | `evaluations` | `evaluations/tests` and the offline `evaluations.smoke` suite | 15 |
@@ -62,13 +61,17 @@ No blocking job uses the network for test traffic, model keys or retries.
   backend (`COSCIENTIST_FORCE_OFFLINE=1`), and no provider key exists in CI.
   MCP tests use fake `httpx` clients.
 - Browser tests get a fresh temporary store, disabled dotenv loading and
-  offline evidence checks.
+  offline evidence checks. CI uses the Chrome executable shipped by the
+  `ubuntu-24.04` runner image through `COSCI_E2E_CHROMIUM_EXECUTABLE` and
+  prints its version. Browser setup does not run apt or download a browser;
+  `make e2e` still installs bundled Playwright Chromium locally by default.
 - `evaluations.smoke` is the offline, no-LLM subset; provider-backed suites
   stay opt-in.
-- Fetching the repository, actions, registries (PyPI, npm), the Chromium
-  download and Docker base images is infrastructure, not test traffic.
+- Fetching the repository, actions, registries (PyPI, npm) and Docker base
+  images is infrastructure, not test traffic.
   Lockfiles are frozen and tool versions pinned (`ruff==0.15.21`, Bun
-  `1.3.14`, Node `24.19.0`, uv `0.11.32`), but the registry fetch itself is
+  `1.3.14`, Node `24.19.0`, uv `0.11.32` in CI and `0.12.19` for lock
+  regeneration and the dependency audit), but the registry fetch itself is
   trusted. `ubuntu-latest` floats; the nightly run is the canary for image
   drift.
 - Actions are pinned by SHA with the version in a trailing comment;

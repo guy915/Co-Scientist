@@ -17,8 +17,21 @@ for (const theme of ['light', 'dark']) {
           contentType: 'text/html',
         }),
       );
+      const landingRequests: string[] = [];
+      page.on('request', request => {
+        if (/\/home_landing[^/]*\.(?:tsx?|js)(?:\?|$)/.test(request.url())) {
+          landingRequests.push(request.url());
+        }
+      });
       await page.goto('/');
+      await expect(page.getByRole('textbox')).toBeVisible();
+      await page.waitForLoadState('networkidle');
       const trailer = page.locator('iframe[title="Co-Scientist trailer"]');
+      expect(landingRequests).toEqual([]);
+      await expect(trailer).toHaveCount(0);
+      await page
+        .getByRole('button', {name: 'Scroll to see how Co-Scientist works'})
+        .click();
       await expect(trailer).toHaveAttribute('loading', 'lazy');
       await expect(trailer).toHaveAttribute(
         'src',
@@ -49,7 +62,9 @@ for (const theme of ['light', 'dark']) {
       if (width > 1000) {
         // Wide headers take the tabs into their own row.
         expect(tabBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
-        expect(tabBox!.y + tabBox!.height).toBeLessThanOrEqual(headerBottom + 1);
+        expect(tabBox!.y + tabBox!.height).toBeLessThanOrEqual(
+          headerBottom + 1,
+        );
       } else {
         // Narrow headers have no room, so the tabs stick right below them.
         expect(tabBox!.y).toBeGreaterThanOrEqual(headerBottom - 1);
@@ -95,7 +110,7 @@ for (const theme of ['light', 'dark']) {
   }
 }
 
-test('phones get the composer alone, without landing or header actions', async ({
+test('phones get the composer and compact feedback without landing', async ({
   page,
 }) => {
   await page.setViewportSize({width: 375, height: 812});
@@ -111,6 +126,6 @@ test('phones get the composer alone, without landing or header actions', async (
   const header = page.locator('.ucs-header-action-bar');
   await expect(
     header.getByRole('button', {name: 'Feedback', exact: true}),
-  ).toBeHidden();
+  ).toBeInViewport();
   await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
 });

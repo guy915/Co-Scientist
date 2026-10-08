@@ -43,7 +43,8 @@ The composition root is `co_scientist.main` (`Dockerfile.api` starts
 only in `platform/db`, the domains and `orchestration`; `litellm` only in
 `platform/llm`; `httpx` only in `platform/llm` and `platform/retrieval`;
 `langgraph`/`langchain_*` only in `platform/retrieval`,
-`domains/research_state` (state reducers) and `orchestration` (checkpoints).
+`domains/research_state` (state reducers) and `orchestration` (checkpoints);
+this last rule is a convention, not an import-linter contract.
 
 **Names.** `.dockerignore` and `.gitignore` drop directories named `cache`,
 `reports`, `build` or `dist` while `COPY` still succeeds, so a module with

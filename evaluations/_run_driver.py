@@ -136,7 +136,7 @@ def hypotheses_with_claim_counts(
         out.append(
             {
                 "id": hid,
-                "text": str(h.get("text") or ""),
+                "text": str(h.get("statement") or h.get("text") or ""),
                 "elo_rating": h.get("elo_rating"),
                 "creation_iteration": h.get("creation_iteration"),
                 "generation": h.get("generation"),

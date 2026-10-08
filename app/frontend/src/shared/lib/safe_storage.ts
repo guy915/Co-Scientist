@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   apiProvider: 'cosci-api-provider',
   workerModel: 'cosci-api-model',
   supervisorModel: 'cosci-api-supervisor-model',
+  customModels: 'cosci-api-custom-models',
   sessionSidePrefix: 'cosci:session-side:',
   lastSessionSide: 'cosci:session-side',
   logsBaseline: 'cosci-logs-session-baseline',

@@ -36,6 +36,7 @@ scores a real persisted run, which is the mode that means something.
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import pathlib
 import sqlite3
@@ -78,12 +79,27 @@ def score_claims(annotated: list[dict[str, Any]]) -> dict[str, Any]:
         "claims_assessed": assessed,
         "claims_supported": supported,
         "unsupported_claim_rate": _rate(assessed - supported, assessed),
+        "unsupported_claim_rate_ci95": _wilson_interval(assessed - supported, assessed),
         "unverified_idea_rate": _rate(len(unverified), len(with_claims)),
     }
 
 
 def _rate(part: int, total: int) -> float | None:
     return round(part / total, 4) if total else None
+
+
+def _wilson_interval(part: int, total: int, z: float = 1.96) -> list[float] | None:
+    """Claims cluster within ideas, so the true run-to-run spread is wider still."""
+    if not total:
+        return None
+    p = part / total
+    centre = p + z * z / (2 * total)
+    margin = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total))
+    scale = 1 + z * z / total
+    return [
+        round(max(0.0, (centre - margin) / scale), 4),
+        round(min(1.0, (centre + margin) / scale), 4),
+    ]
 
 
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
@@ -232,6 +248,7 @@ def main() -> int:
         f"claim support [{report['mode']}]: "
         f"claims={report['claims_assessed']} "
         f"unsupported_claim_rate={report['unsupported_claim_rate']} "
+        f"(n={report['claims_assessed']}, 95% CI {report['unsupported_claim_rate_ci95']}) "
         f"unverified_idea_rate={report['unverified_idea_rate']}"
     )
     print(f"wrote {out}")

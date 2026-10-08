@@ -1,6 +1,8 @@
 import {type RefObject, useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/shared/ui/icon';
 import {
+  Button,
+  StatusText,
   cardClasses,
   Dialog,
   DIALOG_TITLE_CLASSES,
@@ -20,6 +22,8 @@ import {
   getStoredApiKey,
   getStoredApiProvider,
   getStoredModel,
+  getStoredCustomModel,
+  setStoredCustomModel,
   keyedProviders,
   setStoredApiKey,
   setStoredApiProvider,
@@ -31,8 +35,11 @@ import {
   type FreeUsage,
   fetchByokModelCatalog,
   fetchFreeUsage,
+  validateCustomModel,
 } from '@/shared/api/system';
 import {joinClasses, SETTINGS_FIELD_LABEL_CLASSES} from '@/shared/ui/classes';
+import {SETTINGS_SECTIONS, type SettingsSection} from './settings_sections';
+export {SETTINGS_SECTIONS, type SettingsSection} from './settings_sections';
 
 const CARD_CLASSES = cardClasses({tone: 'raised', size: 'panel'});
 const CARD_TITLE_CLASSES = 'm-0 mb-4 font-gsans text-[1.05rem] font-medium';
@@ -145,21 +152,10 @@ function SettingsBody({
   );
 }
 
-export type SettingsSection = 'appearance' | 'model';
-
 const THEME_MODES: {mode: Mode; icon: IconName; label: string}[] = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
-];
-
-export const SETTINGS_SECTIONS: {
-  section: SettingsSection;
-  icon: IconName;
-  label: string;
-}[] = [
-  {section: 'appearance', icon: 'palette', label: 'Appearance'},
-  {section: 'model', icon: 'neurology', label: 'Model'},
 ];
 
 export function AppearanceSection({
@@ -295,6 +291,12 @@ export function modelLabel(model: string): string {
   return slash < 0 ? model : model.slice(slash + 1);
 }
 
+const OTHER_PREFIX = 'other:';
+
+function otherOption(provider: ByokProvider): string {
+  return `${OTHER_PREFIX}${provider}`;
+}
+
 function ModelSelect({
   tier,
   value,
@@ -302,6 +304,8 @@ function ModelSelect({
   groupOf,
   disabled,
   onChange,
+  custom,
+  onCustomChange,
 }: {
   tier: ModelTier;
   value: string;
@@ -309,6 +313,8 @@ function ModelSelect({
   groupOf?: (model: string) => string;
   disabled: boolean;
   onChange: (model: string) => void;
+  custom: ModelChoice | null;
+  onCustomChange: (model: string) => void;
 }) {
   const triggerId = `cosci-settings-${tier}-model`;
   const labelId = `${triggerId}-label`;
@@ -324,7 +330,9 @@ function ModelSelect({
       <Select
         value={value}
         options={options}
-        optionLabel={modelLabel}
+        optionLabel={model =>
+          model.startsWith(OTHER_PREFIX) ? 'Other' : modelLabel(model)
+        }
         groupOf={groupOf}
         truncate
         name={TIER_LABELS[tier]}
@@ -334,7 +342,123 @@ function ModelSelect({
         align={tier === 'worker' ? 'end' : 'start'}
         onChange={onChange}
       />
+      {custom && (
+        <CustomModelField
+          key={`${tier}:${custom.provider}`}
+          tier={tier}
+          choice={custom}
+          onChange={onCustomChange}
+        />
+      )}
     </div>
+  );
+}
+
+function CustomModelField({
+  tier,
+  choice,
+  onChange,
+}: {
+  tier: ModelTier;
+  choice: ModelChoice;
+  onChange: (model: string) => void;
+}) {
+  const [status, setStatus] = useState<'idle' | 'checking' | 'valid' | 'error'>(
+    'idle',
+  );
+  const [error, setError] = useState('');
+  const generation = useRef(0);
+  useEffect(
+    () => () => {
+      generation.current++;
+    },
+    [],
+  );
+  const savedKey = getStoredApiKey(choice.provider);
+  useEffect(() => {
+    generation.current++;
+    setStatus('idle');
+  }, [savedKey]);
+  async function check() {
+    const current = ++generation.current;
+    const key = getStoredApiKey(choice.provider);
+    if (!choice.model.trim() || !key) {
+      setStatus('error');
+      setError(
+        key ? 'Enter a model ID' : 'Save your API key for this provider first',
+      );
+      return;
+    }
+    setStatus('checking');
+    try {
+      const result = await validateCustomModel(
+        choice.provider,
+        choice.model,
+        key,
+      );
+      if (current !== generation.current) return;
+      if (!result.supported)
+        throw new Error(result.error ?? 'This model is unsupported');
+      onChange(result.model);
+      setStatus('valid');
+    } catch (cause) {
+      if (current !== generation.current) return;
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'The model could not be checked',
+      );
+      setStatus('error');
+    }
+  }
+  const fieldId = `cosci-settings-${tier}-custom-model`;
+  const statusId = `${fieldId}-status`;
+  return (
+    <form
+      className="ui-motion-enter mt-3 grid gap-2"
+      onSubmit={event => {
+        event.preventDefault();
+        void check();
+      }}
+    >
+      <label className={SETTINGS_FIELD_LABEL_CLASSES} htmlFor={fieldId}>
+        Custom {tier} model ID ({PROVIDER_LABELS[choice.provider]})
+      </label>
+      <TextField
+        id={fieldId}
+        value={choice.model}
+        placeholder="provider/model-name"
+        autoComplete="off"
+        spellCheck={false}
+        aria-describedby={statusId}
+        aria-invalid={status === 'error'}
+        onBlur={() => {
+          void check();
+        }}
+        onChange={event => {
+          generation.current++;
+          setStatus('idle');
+          onChange(event.target.value);
+        }}
+      />
+      <Button
+        type="submit"
+        variant="outlined"
+        size="sm"
+        disabled={status === 'checking'}
+      >
+        Check model
+      </Button>
+      <div id={statusId} aria-live="polite" role="status">
+        {status === 'checking' && <StatusText>Checking…</StatusText>}
+        {status === 'valid' && (
+          <StatusText>
+            <Icon name="check" /> Model checked
+          </StatusText>
+        )}
+        {status === 'error' && <StatusText tone="danger">{error}</StatusText>}
+      </div>
+    </form>
   );
 }
 
@@ -375,7 +499,11 @@ function storedChoices(): Record<ModelTier, ModelChoice | null> {
 function pruneRetiredChoices(catalog: ByokModelCatalog) {
   for (const tier of ['worker', 'supervisor'] as const) {
     const choice = getStoredModel(tier);
-    if (choice && !catalog[choice.provider]?.includes(choice.model)) {
+    if (
+      choice &&
+      !choice.custom &&
+      !catalog[choice.provider]?.includes(choice.model)
+    ) {
       setStoredModel(tier, null);
     }
   }
@@ -398,23 +526,38 @@ export function useModelFields(
   )
     .map(name => ({provider: name, models: catalog?.[name] ?? []}))
     .filter(group => group.models.length > 0);
-  const options = groups.flatMap(group => group.models);
+  const options = groups.flatMap(group => [
+    ...group.models,
+    otherOption(group.provider),
+  ]);
   const groupFor = (model: string) =>
-    groups.find(group => group.models.includes(model))?.provider;
+    groups.find(
+      group =>
+        group.models.includes(model) || otherOption(group.provider) === model,
+    )?.provider;
 
   // An unusable or empty choice means the provider default, not a missing
   // selection; the supervisor then follows the worker's provider.
   const usable = (choice: ModelChoice | null) =>
-    choice && groupFor(choice.model) === choice.provider ? choice : null;
+    choice &&
+    (choice.custom
+      ? groups.some(group => group.provider === choice.provider)
+      : groupFor(choice.model) === choice.provider)
+      ? choice
+      : null;
   const worker = usable(choices.worker);
   const workerProvider =
     worker?.provider ?? fallbackProvider(savedProviders, provider);
   const supervisor = usable(choices.supervisor);
   const defaultOf = (name: ByokProvider) => catalog?.[name]?.[0] ?? '';
   const shown: Record<ModelTier, string> = {
-    worker: worker?.model ?? defaultOf(workerProvider),
-    supervisor:
-      supervisor?.model ?? defaultOf(supervisor?.provider ?? workerProvider),
+    worker: worker?.custom
+      ? otherOption(worker.provider)
+      : (worker?.model ?? defaultOf(workerProvider)),
+    supervisor: supervisor?.custom
+      ? otherOption(supervisor.provider)
+      : (supervisor?.model ??
+        defaultOf(supervisor?.provider ?? workerProvider)),
   };
 
   // An unchosen tier only displays a fallback that follows the worker, so
@@ -422,7 +565,14 @@ export function useModelFields(
   function onModelChange(tier: ModelTier, model: string) {
     const owner = groupFor(model);
     if (!owner) return;
-    const next = {...choices, [tier]: {provider: owner, model}};
+    const selected: ModelChoice = model.startsWith(OTHER_PREFIX)
+      ? {
+          provider: owner,
+          model: getStoredCustomModel(tier, owner),
+          custom: true,
+        }
+      : {provider: owner, model};
+    const next = {...choices, [tier]: selected};
     for (const name of ['worker', 'supervisor'] as const) {
       const pinned = shown[name] && groupFor(shown[name]);
       if (!usable(next[name]) && pinned) {
@@ -440,6 +590,18 @@ export function useModelFields(
         ? (model: string) => PROVIDER_LABELS[groupFor(model) ?? provider]
         : undefined,
     ...shown,
+    custom: {
+      worker: worker?.custom ? worker : null,
+      supervisor: supervisor?.custom ? supervisor : null,
+    },
+    onCustomChange(tier: ModelTier, model: string) {
+      const selected = choices[tier];
+      if (!selected?.custom) return;
+      const next = {...selected, model};
+      setStoredCustomModel(tier, selected.provider, model);
+      setStoredModel(tier, next);
+      setChoices(previous => ({...previous, [tier]: next}));
+    },
     freeUsage,
     onModelChange,
   };
@@ -474,7 +636,7 @@ export function ModelSelectors({
   const disabled = fields.options.length === 0;
   return (
     <>
-      <div className="mt-3.5 grid grid-cols-2 gap-3 [@media(max-width:480px)]:grid-cols-[minmax(0,1fr)]">
+      <div className="mt-3.5 grid grid-cols-2 gap-3 phone:grid-cols-[minmax(0,1fr)]">
         {(['supervisor', 'worker'] as const).map(tier => (
           <ModelSelect
             key={tier}
@@ -484,6 +646,8 @@ export function ModelSelectors({
             groupOf={fields.groupOf}
             disabled={disabled}
             onChange={model => fields.onModelChange(tier, model)}
+            custom={fields.custom[tier]}
+            onCustomChange={model => fields.onCustomChange(tier, model)}
           />
         ))}
       </div>
