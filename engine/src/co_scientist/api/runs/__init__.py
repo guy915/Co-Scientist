@@ -27,7 +27,7 @@ from co_scientist.api.runs.support import (
 )
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.orchestration.repository import events as store
-from co_scientist.platform.db.storage_admission import current_peer
+from co_scientist.platform.db.admission import connecting_host
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -78,7 +78,7 @@ def stream_events(
     return AdmittedEventStream(
         _event_stream(run_id, request, after, run),
         client_id(request),
-        current_peer(),
+        connecting_host(request.client.host if request.client else None),
     )
 
 
