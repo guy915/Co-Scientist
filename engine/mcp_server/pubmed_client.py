@@ -130,7 +130,7 @@ class _EntrezClient:
                 entrez_call(Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id)
             )
         except Exception:
-            logger.debug("%s -- fulltext not available in pmc", doi)
+            logger.debug("fulltext not available in pmc")
             return None
         try:
             link_sets = related[0]["LinkSetDb"]
@@ -138,7 +138,7 @@ class _EntrezClient:
                 return None
             return str(link_sets[0]["Link"][0]["Id"])
         except (IndexError, KeyError, TypeError):
-            logger.debug("%s -- fulltext not available in pmc", doi)
+            logger.debug("fulltext not available in pmc")
             return None
 
     def _fetch_paper_details(self, paper_id: str) -> dict[str, Any]:
@@ -174,5 +174,5 @@ class _EntrezClient:
     ) -> list[str]:
         ids = search_with_relaxation(query, retmax, recency_years, self._esearch_ids)
         if not ids:
-            logger.warning("No results found for query: %s", query)
+            logger.warning("PubMed search returned no results")
         return ids

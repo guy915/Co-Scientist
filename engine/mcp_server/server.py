@@ -36,7 +36,12 @@ logging.basicConfig(
 # libraries stay at the INFO default set above.
 logging.getLogger("mcp_server").setLevel(log_level)
 
+from mcp_server.log_privacy import install_transport_log_privacy
+
+install_transport_log_privacy()
+
 from mcp_server.auth_middleware import (
+    MCP_LOCAL_AUTH_ENV,
     SharedSecretAuthMiddleware,
     resolve_shared_secret,
 )
@@ -170,7 +175,11 @@ _mcp_shared_secret = resolve_shared_secret()
 app.add_middleware(SharedSecretAuthMiddleware, secret=_mcp_shared_secret)
 logger.info(
     "MCP shared-secret auth: %s",
-    "enabled" if _mcp_shared_secret else "disabled (env var unset)",
+    "enabled"
+    if _mcp_shared_secret
+    else "loopback development exception"
+    if os.environ.get(MCP_LOCAL_AUTH_ENV) == "1"
+    else "requests refused (shared secret unset)",
 )
 
 
