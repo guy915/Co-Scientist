@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
 from co_scientist.api.interviews import turns
+from co_scientist.api.launch_admission import chat_response
 from co_scientist.core import byok_scope
 from co_scientist.core.sse import sse_frame
 from co_scientist.domains.chat.repository import interviews as store
@@ -92,8 +93,10 @@ def _interview_stream(
     interview_id: str,
     byok: byok_scope.ByokCredential | None = None,
 ) -> StreamingResponse:
-    return StreamingResponse(
-        _advance_stream(interview_id, byok),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    return chat_response(
+        StreamingResponse(
+            _advance_stream(interview_id, byok),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
     )
