@@ -544,6 +544,7 @@ async def _call_matchup_judge(
         return await call_llm_json(
             prompt=mp.prompt,
             spec=CompletionSpec(
+                role="ranking",
                 model_name=ctx.model_name,
                 max_tokens=THINKING_MAX_TOKENS,
                 temperature=LOW_TEMPERATURE,

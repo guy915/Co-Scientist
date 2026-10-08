@@ -174,6 +174,7 @@ async def _call_verification(
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
+            role="deep_verification",
             model_name=context.model_name,
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=LOW_TEMPERATURE,
