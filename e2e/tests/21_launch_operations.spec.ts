@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 
 test("operator applies the loaded revision and receives a conflict without storing the token", async ({
@@ -107,9 +108,11 @@ test("pause appears within a poll, blocks new replies and clears on resume", asy
   await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
 });
 
-test("free-capacity notice explains a disabled start in both themes and widths", async ({
-  page,
-}) => {
+async function checkFreeCapacityNotice(
+  page: Page,
+  width: number,
+  colorScheme: "light" | "dark",
+) {
   let exhausted = false;
   await page.route("**/api/launch-status", (route) =>
     route.fulfill({
@@ -159,32 +162,33 @@ test("free-capacity notice explains a disabled start in both themes and widths",
     "aria-describedby",
     "launch-availability-notice",
   );
-  for (const width of [390, 1440]) {
-    await page.setViewportSize({ width, height: 960 });
-    for (const colorScheme of ["light", "dark"] as const) {
-      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
-      await page.evaluate(() => localStorage.removeItem("cosci-theme"));
-      await page.reload();
-      await expect(page.locator("#launch-availability-notice")).toContainText(
-        "capacity is used up",
-      );
-      await expect(page.locator("html")).toHaveAttribute(
-        "data-theme",
-        colorScheme,
-      );
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-      ).toBe(true);
-      if (process.env.COSCI_O_SCREENSHOT_DIR) {
-        await page.screenshot({
-          path: `${process.env.COSCI_O_SCREENSHOT_DIR}/notice-${colorScheme}-${width}.png`,
-        });
-      }
-    }
+  await page.setViewportSize({ width, height: 960 });
+  await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+  await page.evaluate(() => localStorage.removeItem("cosci-theme"));
+  await page.reload();
+  await expect(page.locator("#launch-availability-notice")).toContainText(
+    "capacity is used up",
+  );
+  await expect(page.locator("html")).toHaveAttribute("data-theme", colorScheme);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+  ).toBe(true);
+  if (process.env.COSCI_O_SCREENSHOT_DIR) {
+    await page.screenshot({
+      path: `${process.env.COSCI_O_SCREENSHOT_DIR}/notice-${colorScheme}-${width}.png`,
+    });
   }
-});
+}
+
+for (const width of [390, 1440]) {
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`free-capacity notice explains a disabled start at ${width}px in ${colorScheme}`, async ({
+      page,
+    }) => {
+      await checkFreeCapacityNotice(page, width, colorScheme);
+    });
+  }
+}
 
 test("credit notice has no invented reset and the operations page rejects a visitor", async ({
   page,
