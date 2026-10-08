@@ -74,8 +74,8 @@ export function ReportTitlebar({
     isMobile && activeTab === 'ideas' ? searchParams.get('idea') : null;
   const back = reportBackTarget(id, selectedIdeaId);
   return (
-    <header className="cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 phone:gap-[0.35rem] phone:px-[0.7rem]">
-      <div className="cosci-report-title-left flex min-w-0 items-center gap-4 phone:gap-[0.45rem]">
+    <header className="cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 phone:gap-1.5 phone:px-3">
+      <div className="cosci-report-title-left flex min-w-0 items-center gap-4 phone:gap-2">
         <Link
           to={back.to}
           className="cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-cosci-muted no-underline hover:bg-cosci-hover"
@@ -120,7 +120,7 @@ export function ReportTabNav({
           to={tabPath(id ?? '', tabName)}
           current={tabName === activeTab}
           // Keeps the hover and focus state layer (index.css).
-          className="reference-report-tab phone:gap-[0.2rem] phone:text-[0.68rem]"
+          className="reference-report-tab phone:gap-1 phone:text-[0.68rem]"
           aria-label={TAB_META[tabName].label}
           onClick={() => onTabChange(tabName)}
         >
@@ -243,7 +243,7 @@ const NOTICE_LAYOUT_CLASSES =
 export function ReportUngroundedNotice() {
   return (
     <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
-      <Icon name="warning" className="mt-[0.1rem] shrink-0 text-[1.25rem]" />
+      <Icon name="warning" className="mt-0.5 shrink-0 text-[1.25rem]" />
       <p className="m-0">
         No literature was retrieved for this run. The content below is not
         grounded in retrieved sources.
@@ -259,7 +259,7 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
   const decisions = count === 1 ? 'decision' : 'decisions';
   return (
     <Card role="note" tone="warning" layoutClassName={NOTICE_LAYOUT_CLASSES}>
-      <Icon name="warning" className="mt-[0.1rem] shrink-0 text-[1.25rem]" />
+      <Icon name="warning" className="mt-0.5 shrink-0 text-[1.25rem]" />
       <p className="m-0">
         This run is paused, waiting on {count} safety {decisions} to be
         reviewed. Resolve {count === 1 ? 'it' : 'them'} on the Goal Details tab
@@ -293,12 +293,12 @@ export const REPORT_H2_CLASSES =
   'phone:text-[clamp(1.5rem,6.8vw,2rem)] phone:leading-[1.2]';
 
 export const REPORT_H3_CLASSES =
-  'font-gsans mt-[1.4rem] mb-3 text-[1.75rem] leading-9 font-normal ' +
+  'font-gsans mt-6 mb-3 text-[1.75rem] leading-9 font-normal ' +
   'phone:text-[clamp(1.35rem,6.5vw,1.75rem)] phone:leading-[1.2]';
 
-export const REPORT_H4_CLASSES = 'mt-4 mb-[0.35rem] text-base font-medium';
+export const REPORT_H4_CLASSES = 'mt-4 mb-1.5 text-base font-medium';
 
-export const REPORT_LIST_CLASSES = 'mt-[0.45rem] mb-0 pl-[1.35rem]';
+export const REPORT_LIST_CLASSES = 'mt-2 mb-0 pl-5';
 
 export const REPORT_SECTION_CLASSES = 'cosci-overview-section mt-8';
 

@@ -1,80 +1,69 @@
-# ADR-004: LLM gateway interface
+# ADR-004: LLM gateway
 
-**Status:** accepted, 7 October 2026. Re-architecture phase 1.
+**Status:** Accepted.
 
 ## Context
 
-Model calls take two paths today:
-
-- **Science calls** go through the engine's `co_scientist.llm`:
-  `call_llm`, `call_llm_json` and `call_llm_with_tools` run the attempt
-  ladder (retry, budget escalation, JSON repair) over `complete_request`,
-  the one physical-call seam, which applies provider constraints and
-  zero-price admission.
-- **Surface calls** (chat, interviews, Q&A, start announcement, goal text,
-  BYOK validation) go through the app's `llm_request.acompletion`, which adds
-  the BYOK check, the offline guard, the surface output cap and the daily
-  usage reservation (`provider_usage.reserve`) before the same
-  `complete_request`.
-
-Policy that decides whether and how a call is sent is spread over the app's
-`llm_request`, `llm_scope` (surface call budget and telemetry),
-`execution_policy` (zero-cost admission for a run), `process_mode` and
-`offline_guard` (offline decision), `provider_usage` (daily budget,
-raising `HTTPException`), `config` (thinking and DeepSeek delegates) and
-`credentials` (BYOK validation through `litellm`). `litellm` is imported in
-three app modules. `co_scientist.llm/__init__.py` resolves 33 exports from
-dotted strings at first access to avoid import cycles.
+Model calls take two paths, and the policy that decides whether and how a call
+is sent (BYOK, offline decision, zero-price admission, output caps, daily
+usage, thinking and routing arguments) must apply to both.
 
 ## Decision
 
 **`co_scientist.platform.llm` is the gateway.** Every model call in the
-product goes through it, and nothing outside it imports `litellm` or a
-provider SDK.
+product goes through it, and `litellm` is imported only inside it (the
+`litellm` contract in `.importlinter`).
 
-**Interface** (the package `__init__.py`, explicit imports, no string-based
-lazy loader once its cycles are gone):
+**Science calls** use `call_llm`, `call_llm_json` and `call_llm_with_tools`
+(`call.py`, `tools/loop.py`). They run the attempt ladder (`attempts/`: retry,
+budget escalation, JSON repair) over `complete_request`
+(`request/transport.py`), the single physical-call seam: it applies provider
+constraints, zero-price admission and the physical-call reservation, and
+opens the request span.
 
-| Entry point | For |
-|---|---|
-| `call_llm(prompt, spec, options)` | One text answer with the attempt ladder |
-| `call_llm_json(prompt, spec, options)` | One structured answer validated against `spec`'s schema |
-| `call_llm_with_tools(prompt, spec, loop, options)` | A bounded tool loop |
-| `complete_surface(surface, **completion_args)` | A surface call (streaming or not): BYOK, offline guard, output cap, daily reservation, surface budget |
-| `CompletionSpec`, `LLMCallOptions`, `ToolLoop` | Typed inputs |
-| `scoped_zero_cost_admission(...)`, `scoped_completion_budget(...)`, `scoped_api_key(...)`, `scoped_telemetry(...)` | Context a caller (the orchestration runtime, a surface) opens around its calls |
-| `ModelProfile`, `model_profile(name)` | Read-only model facts for callers that size prompts |
-| `ModelCallStats`, telemetry snapshot | Usage numbers for the persisted metrics |
+**Surface calls** (chat, interviews, Q&A, start announcement, goal text, BYOK
+validation) use `llm_request.acompletion`. It opens an `app_call_scope`
+(`llm_scope.py`: surface call cap and telemetry), refuses a remote call when
+the process is offline and no BYOK credential is scoped (`offline_guard.py`),
+applies the surface output cap, then calls the same `complete_request`.
+`validate_byok_credential` is in `domains/access/credentials.py` and calls
+`acompletion`.
 
-The existing three science entry points keep their signatures; phase 5 only
-moves the surface path and the app-side policy behind the same package:
-`llm_request.acompletion` becomes `complete_surface`; `llm_scope`,
-`execution_policy`, `process_mode`, `offline_guard`, the DeepSeek and thinking
-delegates in `config.py`, `credentials.validate_byok_credential` and the
-`litellm` logging-worker stop in `async_bridge.py` move inside it.
-`provider_usage` keeps its SQL in a repository and raises a gateway error that
-`api/` maps to the same HTTP response as today.
+**Context a caller opens around its calls**, exported from the package
+`__init__`: `scoped_zero_cost_admission`, `scoped_api_key`,
+`scoped_completion_budget`, `scoped_llm_call_budget` and `scoped_telemetry`
+(plus `scoped_telemetry_phase`). `execution_policy.py` and `process_mode.py`
+decide zero-cost admission and offline mode. The inputs are `CompletionSpec`
+and `LLMCallOptions` (`values.py`) and `ToolLoop`.
+
+**Model facts and routing.** Each model is one `ModelProfile` in
+`platform/llm/profile/` (capabilities, routing pin and fallbacks, price);
+`model_profile(name)` reads it. `request/thinking.py` holds the policy applied
+to a profile: reasoning and thinking arguments, `effective_max_tokens`,
+provider pins and constraints.
+
+**Export mechanics.** The package `__init__` resolves its exports lazily
+through `__getattr__` and a `_EXPORTS` table, because eager imports re-enter
+foundation modules while they are half-initialized.
 
 **What stays outside:** who may run what (free allowance, ownership, BYOK
 storage) is `domains/access`; the gateway receives the decision as context
-(`scoped_api_key`, zero-cost admission) and never reads those tables itself.
-Prompts and schemas belong to the science agents; the gateway sees only the
+(`scoped_api_key`, zero-cost admission) and does not read those tables.
+Prompts and schemas belong to the science agents; the gateway sees the
 rendered prompt and the schema.
 
-**Invariants it owns** (unchanged, from `docs/OPERATIONS.md`): bounded
-provider calls, token and reasoning budget escalation within the profile's
-ceiling, spend caps, zero-price admission for free runs, free routes without
-paid fallbacks, one physical-call seam with no retry of its own, failure logs
-at the retry boundary only, and offline isolation.
+**Invariants it owns** (from `docs/OPERATIONS.md`): bounded provider calls,
+token and reasoning budget escalation within the profile's ceiling, spend
+caps, zero-price admission for free runs, free routes without paid fallbacks,
+one physical-call seam with no retry of its own, failure logs at the retry
+boundary only, and offline isolation.
 
 ## Consequences
 
-- One place to add tracing (ADR-005): the attempt ladder and
-  `complete_request`.
-- App code calls one function per kind of call and never sees provider
-  details; the three `litellm` imports in the app go away.
-- `engine/tests/test_agents.py`'s internal ordering of the gateway's
-  subpackages (`profile`, `values`, `admission`, ...) remains the gateway's own
-  layering rule.
-- Behavior does not change: same requests, same budgets, same retries, same
-  telemetry fields. Each phase 5 gateway PR runs one Express benchmark.
+- Tracing (ADR-005) attaches in one place: the logical call, the attempt
+  ladder and `complete_request`.
+- Callers outside the gateway never see provider details or import `litellm`.
+- `engine/tests/test_agents.py` orders the gateway's modules and subpackages
+  (`profile`, `values`, `admission`, ..., `llm_request`) as its own layering
+  rule.
+- The lazy export table must be updated with each new public name.

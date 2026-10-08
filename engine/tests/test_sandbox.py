@@ -88,6 +88,22 @@ def test_default_read_roots_exclude_host_root_and_workspace() -> None:
     assert all(root.relative_to(checkout).parts[:1] == (".venv",) for root in checkout_roots)
 
 
+def test_a_venv_interpreter_can_read_its_own_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from co_scientist.platform.sandbox.policy import runtime_read_roots
+
+    venv = tmp_path / "venv"
+    venv.mkdir()
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    monkeypatch.setattr(sys, "prefix", str(venv))
+
+    roots = runtime_read_roots()
+
+    assert (venv / "pyvenv.cfg").resolve() in roots
+    assert venv.resolve() not in roots
+
+
 def test_network_is_denied_unless_a_workspace_policy_opts_in(
     tmp_path: Path,
 ) -> None:

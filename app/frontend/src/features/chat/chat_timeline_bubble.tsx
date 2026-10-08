@@ -24,7 +24,7 @@ import {ThoughtsDisclosure} from './chat_timeline_thoughts';
 import {prefersReducedMotion} from '@/shared/lib/reduced_motion';
 
 const CHAT_BUBBLE_USER_ROW_CLASSES =
-  'reference-bubble-row user group/user relative flex flex-col items-end justify-end gap-[0.35rem]';
+  'reference-bubble-row user group/user relative flex flex-col items-end justify-end gap-1.5';
 
 export interface ChatEntry {
   id: string;
@@ -58,7 +58,7 @@ export function FallbackTurnNotice() {
 
 export function MessageAttachment({children}: {children: ReactNode}) {
   return (
-    <div className="reference-message-attachment mt-[0.7rem] grid gap-[1.15rem]">
+    <div className="reference-message-attachment mt-3 grid gap-5">
       {children}
     </div>
   );
@@ -102,7 +102,7 @@ export function AssistantMessage({
   const Row: 'section' | 'div' = ariaLabel ? 'section' : 'div';
   return (
     <Row
-      className="reference-bubble-row relative flex flex-col items-start justify-start gap-[0.7rem]"
+      className="reference-bubble-row relative flex flex-col items-start justify-start gap-3"
       aria-label={ariaLabel}
       {...{[TIMELINE_ANCHOR_ATTRIBUTE]: anchorId}}
     >
@@ -156,7 +156,7 @@ function UserBubble({
         <div className="min-w-0">
           <ThoughtsDisclosure reasoning={message.reasoning} />
           <BubbleText
-            bubbleClassName="reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-bubble rounded-tr-sm bg-cosci-user-bubble-bg py-3 pr-[0.9rem] pl-4 text-base leading-[1.45] text-cosci-fg"
+            bubbleClassName="reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-bubble rounded-tr-sm bg-cosci-user-bubble-bg py-3 pr-3.5 pl-4 text-base leading-[1.45] text-cosci-fg"
             content={message.content}
             {...bubbleText}
           />

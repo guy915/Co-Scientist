@@ -1,9 +1,7 @@
 # Decision model evaluation and admission
 
-Liquid's text-only `d1:free` API is the sole approved decision provider. Paid
-models require a separate owner decision. `LIQUID_API_KEY` is a server-side
-secret; the owner supplies a separate production key through the launch
-runbook. Missing credentials or `DECISION_ENABLED=false` preserve the LLM path.
+Liquid's text-only `d1:free` API is the only supported decision provider; paid
+models are refused. `LIQUID_API_KEY` is a server-side secret. Missing credentials or `DECISION_ENABLED=false` preserve the LLM path.
 No call site is enabled by the client alone.
 Scoped BYOK execution refuses the operator's decision provider before admission
 or HTTP; its existing model and credential remain the fallback path.
@@ -42,14 +40,12 @@ timeout, low confidence and decision-only exhaustion invoke the original LLM
 callback. Cancellation and shared run/provider budget control signals propagate.
 The existing LLM path still applies its own bounds and failure behavior.
 
-Decision usage retains reservations on errors and survives client/process
-recreation. The decision-specific quota and unchanged shared SR-01 admission
-currently commit separately: both must succeed before I/O, and refusal of the
-second conservatively retains the first. The writer transaction ends before
-HTTP. W4 can combine reservations with its prospective EUR ledger once its
-shared admission interface is available. No shared call/token limit is raised.
-`LLM_ENABLED=false`, when supplied by W4, also disables decision configuration;
-W4 remains responsible for the persistent/global kill-switch policy.
+Decision usage retains reservations on errors and survives client and process
+restarts. The decision-specific quota and the shared provider admission commit
+separately: both must succeed before I/O, and refusal of the second
+conservatively retains the first. The writer transaction ends before HTTP. No
+shared call or token limit is raised. `LLM_ENABLED=false` also disables
+decisions.
 
 Physical telemetry includes decision requests in `calls`, distinguished by the
 additive `decision_calls` field and `liquid/d1:free` model key. Reported input
@@ -68,7 +64,7 @@ applies. Liquid answers the same prompt inputs; ranking also receives reversed
 presentation. Model secrets are exposed only to the live evaluation step.
 Presubmit tests use fake clients and no network.
 
-Start with five cases per site, after announcing the dispatch on #332. The full
+Start with five cases per site. The full
 panel is limited to 150 unique cases per site, uses the first 100 for threshold
 selection and the remainder for held-out validation. Requests are paced with
 four-second gaps; errors stop that site's panel and preserve a partial report.
@@ -82,8 +78,8 @@ agreement tolerance. Fewer than 100 labels yield no threshold. Thresholds are
 finite values in `(0, 1]`, selected from local observations: score distributions
 can span adjacent rubric levels without a probability above 0.5. Zero-confidence
 swapped disagreements always escalate. No threshold is supplied by default.
-Thresholds are not adoption approval: ranking requires owner spot checks and mature-review
+Thresholds are not adoption approval: ranking requires maintainer spot checks and mature-review
 inputs; relevance also requires score/order agreement; proximity requires
 full-pool equivalence and false-deduplication validation; safety needs risk-domain
-coverage and class-specific false-allow checks. The initial report marks all
-sites unadopted. The docs lane publishes the accepted training-use disclosure.
+coverage and class-specific false-allow checks. No call site is
+adopted yet.

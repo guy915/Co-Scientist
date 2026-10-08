@@ -58,7 +58,7 @@ _REQUEST_TIMEOUT = 30
 _MAX_REDIRECTS = 5
 _MAX_BYTES = 10 * 1024 * 1024
 
-_USER_AGENT = "co-scientist-mcp/0.1 (research agent; +https://ai-co-scientist.com)"
+_USER_AGENT = "co-scientist-mcp/0.1 (research agent; +https://open-coscientist.com)"
 
 
 _CHROME_TAGS = (

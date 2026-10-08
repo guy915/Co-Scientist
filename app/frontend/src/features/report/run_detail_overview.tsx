@@ -272,7 +272,7 @@ function WinningIdeasSection({
       <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
       <ol className={REPORT_LIST_CLASSES}>
         {items.map(item => (
-          <li className="my-[0.6rem] grid gap-[0.15rem]" key={item.id}>
+          <li className="my-2.5 grid gap-0.5" key={item.id}>
             <strong>{item.title}</strong>
             <span className="text-[0.88rem] text-cosci-muted">
               Elo rating: {item.elo}

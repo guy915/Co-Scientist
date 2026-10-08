@@ -7,7 +7,12 @@ from contextvars import ContextVar
 from typing import Any
 
 from co_scientist.core.exceptions import ProviderAdmissionError
-from co_scientist.platform.db.admission import UNKNOWN_HOST, reserve_provider
+from co_scientist.platform.db.admission import (
+    UNKNOWN_HOST,
+    ProviderReservation,
+    reserve_provider,
+    settle_provider,
+)
 
 _app: ContextVar[bool] = ContextVar("service_admission_app", default=False)
 
@@ -69,10 +74,25 @@ def _token_reservation(request: dict[str, Any], *, app: bool) -> int:
     return input_bytes + 1024 + output
 
 
-def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> None:
+def reserve_physical(request: dict[str, Any], *, app: bool | None = None) -> ProviderReservation:
     app = _app.get() if app is None else app
     tokens = _token_reservation(request, app=app)
-    reserve_provider(_client.get(), _host.get(), tokens, app=app, db_path=_path.get())
+    return reserve_provider(_client.get(), _host.get(), tokens, app=app, db_path=_path.get())
+
+
+def settle_physical(receipt: ProviderReservation | None, response: Any) -> None:
+    if receipt is None:
+        return
+    usage = (
+        response.get("usage") if isinstance(response, dict) else getattr(response, "usage", None)
+    )
+    total = 0
+    for name in ("prompt_tokens", "completion_tokens"):
+        value = usage.get(name) if isinstance(usage, dict) else getattr(usage, name, None)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return
+        total += value
+    settle_provider(receipt, total)
 
 
 def reserve_decision_physical(tokens: int, call_limit: int, token_limit: int) -> None:
