@@ -17,6 +17,7 @@ from co_scientist.orchestration.engine_tasks import ranking as engine_tasks_rank
 from co_scientist.orchestration.engine_tasks import support as engine_tasks_support
 from co_scientist.orchestration.engine_tasks.gate import (
     _apply_gate_verdict,
+    _GateAssessments,
     _GatePlan,
 )
 from co_scientist.orchestration.repository import tasks
@@ -151,6 +152,87 @@ async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
 
 
 @pytest.mark.asyncio
+async def test_pre_ranking_gate_reassesses_only_claims_whose_evidence_changed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _tasks_gate_install_counting_assessor(monkeypatch)
+    state = _tasks_gate_multi_claim_state()
+    hypothesis = state["hypotheses"][0]
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+    before = {c["claim"]: c["fingerprint"] for c in hypothesis.enrichments["claim_gate"]["claims"]}
+    first_pass = calls["n"]
+
+    state["articles"].append(
+        Article(title="Glycolysis timing", abstract="Glycolytic flux rises before ATP rebounds.")
+    )
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    after = {c["claim"]: c["fingerprint"] for c in hypothesis.enrichments["claim_gate"]["claims"]}
+    changed = [claim for claim in after if after[claim] != before.get(claim)]
+    assert 0 < len(changed) < len(after)
+    assert calls["n"] - first_pass == len(changed)
+    assert first_pass == len(after)
+
+
+def _gated_idea(text: str, grounding: str) -> Hypothesis:
+    hypothesis = Hypothesis(text=text, literature_grounding=grounding, win_count=1)
+    hypothesis.review_disposition = "viable"
+    _add_fixture_review(hypothesis)
+    return hypothesis
+
+
+_SHARED_GROUNDING = "Astrocyte lactate accelerates synaptic ATP recovery."
+
+
+def _claim_sources(hypothesis: Hypothesis) -> dict[str, str | None]:
+    return {
+        claim["claim"]: claim.get("reused_from")
+        for claim in hypothesis.enrichments["claim_gate"]["claims"]
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_child_restating_its_parent_s_claim_reuses_the_parent_s_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _tasks_gate_install_counting_assessor(monkeypatch)
+    parent = _gated_idea("Lactate shuttling drives recovery.", _SHARED_GROUNDING)
+    state: dict[str, Any] = {
+        "hypotheses": [parent],
+        "articles": [Article(title="Astrocyte energetics", abstract=_SHARED_GROUNDING)],
+    }
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+    parent_calls = calls["n"]
+
+    child = _gated_idea("Blocking lactate export slows recovery.", _SHARED_GROUNDING)
+    state["hypotheses"].append(child)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert calls["n"] - parent_calls == len(_claim_sources(child)) - 1
+    assert _claim_sources(child)[_SHARED_GROUNDING] == parent.id
+    assert _claim_sources(parent)[_SHARED_GROUNDING] is None
+
+
+@pytest.mark.asyncio
+async def test_ideas_sharing_a_claim_in_one_wave_check_it_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _tasks_gate_install_counting_assessor(monkeypatch)
+    first = _gated_idea("Lactate shuttling drives recovery.", _SHARED_GROUNDING)
+    second = _gated_idea("Blocking lactate export slows recovery.", _SHARED_GROUNDING)
+    state: dict[str, Any] = {
+        "hypotheses": [first, second],
+        "articles": [Article(title="Astrocyte energetics", abstract=_SHARED_GROUNDING)],
+    }
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    distinct = set(_claim_sources(first)) | set(_claim_sources(second))
+    assert calls["n"] == len(distinct)
+    assert _claim_sources(second)[_SHARED_GROUNDING] == first.id
+
+
+@pytest.mark.asyncio
 async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
     # Pilot-plan Go/No-Go thresholds are speculative and cannot gate publication
     # even when contradicted.
@@ -220,7 +302,7 @@ def test_gate_verdict_blocks_only_a_categorical_contradiction(role: str, disposi
         prior_disposition="viable",
     )
 
-    _apply_gate_verdict(plan, [assessment], "test")
+    _apply_gate_verdict(plan, _GateAssessments([assessment], {}), "test")
 
     assert hypothesis.review_disposition == disposition
 
@@ -403,3 +485,33 @@ def _owned_running_run(db_path: str) -> tuple[Any, str]:
     run_id = str(created.json()["id"])
     runs.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     return client, run_id
+
+
+def _played_pair_state() -> tuple[dict[str, Any], list[Hypothesis]]:
+    pair = [Hypothesis(id="a", text="idea a"), Hypothesis(id="b", text="idea b")]
+    state: dict[str, Any] = {"meta_review": {"critique": "first"}, "model_name": "m"}
+    state["tournament_matchups"] = [
+        {
+            "hypothesis_a_id": "a",
+            "hypothesis_b_id": "b",
+            "input_fingerprint": engine_tasks_ranking.judge_inputs_key((pair[0], pair[1]), state),
+        }
+    ]
+    return state, pair
+
+
+def test_an_unchanged_rematch_keeps_its_earlier_verdict() -> None:
+    state, pair = _played_pair_state()
+
+    assert engine_tasks_ranking._unchanged_rematches(state, pair) == {frozenset({"a", "b"})}
+
+
+@pytest.mark.parametrize("change", ["guidance", "text"])
+def test_a_rematch_reopens_once_its_inputs_change(change: str) -> None:
+    state, pair = _played_pair_state()
+    if change == "guidance":
+        state["meta_review"] = {"critique": "second"}
+    else:
+        pair[0].text = "idea a, revised"
+
+    assert engine_tasks_ranking._unchanged_rematches(state, pair) == set()

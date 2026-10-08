@@ -4,12 +4,14 @@ interface LaunchNoticeProps {
   message: string;
   resumesAt?: number | null;
   layoutClassName?: string;
+  announce?: boolean;
 }
 
 export function LaunchNotice({
   message,
   resumesAt,
   layoutClassName,
+  announce = true,
 }: LaunchNoticeProps) {
   const date =
     resumesAt === null || resumesAt === undefined
@@ -22,9 +24,9 @@ export function LaunchNotice({
   return (
     <Card
       tone="warning"
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
+      role={announce ? 'status' : undefined}
+      aria-live={announce ? 'polite' : undefined}
+      aria-atomic={announce ? 'true' : undefined}
       layoutClassName={layoutClassName}
     >
       <p className="m-0 break-words">{message}</p>

@@ -11,6 +11,7 @@ from co_scientist.api.auth import require_client_scope
 from co_scientist.api.contracts import MessagesResponse
 from co_scientist.api.contracts.interviews import Interview
 from co_scientist.api.contracts.runs import RunMessage
+from co_scientist.api.launch_admission import chat_response
 from co_scientist.api.runs.models import (
     AskRequest,
     QaRevisionRequest,
@@ -211,8 +212,8 @@ def ask_question(run_id: str, req: AskRequest, request: Request) -> StreamingRes
 
     context = _gather_qa_context(run)
     if offline_mode() and byok is None:
-        return _offline_qa_response(run_id, question_msg, context)
-    return _live_qa_response(req, run, question_msg, context, byok)
+        return chat_response(_offline_qa_response(run_id, question_msg, context))
+    return chat_response(_live_qa_response(req, run, question_msg, context, byok))
 
 
 @router.post("/{run_id}/messages/{message_id}/revise")
@@ -231,13 +232,15 @@ def revise_question(
     log_chat_turn("user", question_msg.content, run_id=run_id)
     context = _gather_qa_context(run)
     if offline_mode() and byok is None:
-        return _offline_qa_response(run_id, question_msg, context)
-    return _live_qa_response(
-        AskRequest(question=question_msg.content),
-        run,
-        question_msg,
-        context,
-        byok,
+        return chat_response(_offline_qa_response(run_id, question_msg, context))
+    return chat_response(
+        _live_qa_response(
+            AskRequest(question=question_msg.content),
+            run,
+            question_msg,
+            context,
+            byok,
+        )
     )
 
 
@@ -260,16 +263,20 @@ def announce_start(
     byok = _resolve_qa_byok(run, request)
     prompt_msg, fresh = store.claim_start_prompt(run_id, req.prompt)
     if not fresh:
-        return StreamingResponse(
-            run_start_announcement.replay_announcement(run_id, prompt_msg.id),
-            media_type="text/event-stream",
+        return chat_response(
+            StreamingResponse(
+                run_start_announcement.replay_announcement(run_id, prompt_msg.id),
+                media_type="text/event-stream",
+            )
         )
     from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 
     log_chat_turn("user", req.prompt, run_id=run_id)
-    return StreamingResponse(
-        run_start_announcement.stream_announcement(run, prompt_msg.id, byok),
-        media_type="text/event-stream",
+    return chat_response(
+        StreamingResponse(
+            run_start_announcement.stream_announcement(run, prompt_msg.id, byok),
+            media_type="text/event-stream",
+        )
     )
 
 

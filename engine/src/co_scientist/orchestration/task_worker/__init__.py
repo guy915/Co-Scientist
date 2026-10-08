@@ -321,6 +321,9 @@ async def _heartbeat_lease(
             await asyncio.wait_for(signals.stop.wait(), timeout=interval)
             return
         except TimeoutError:
+            if not store.owns_task_lease(task.id, worker_id, db_path=db_path):
+                signals.lease_lost.set()
+                return
             if time.monotonic() < due:
                 continue
             due = time.monotonic() + renew_every

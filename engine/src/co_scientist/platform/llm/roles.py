@@ -139,3 +139,46 @@ def scoped_call_policy(
         yield
     finally:
         _policy.reset(token)
+
+
+# Persisted numeric call-type IDs must keep their meaning across releases.
+_CALL_TYPES = (
+    "worker",
+    "supervisor",
+    "orchestrator",
+    "meta_review",
+    "overview",
+    "overview_review",
+    "overview_outline",
+    "overview_directions",
+    "generation",
+    "literature_queries",
+    "literature_analysis",
+    "literature_synthesis",
+    "drafting",
+    "novelty",
+    "reflection",
+    "review",
+    "deep_verification",
+    "evidence_queries",
+    "simulation",
+    "ranking",
+    "evolution",
+    "grounding_queries",
+    "proximity",
+    "relevance",
+    "research",
+    "research_extract",
+    "claims",
+    "safety",
+    "question_repair",
+    "interview",
+    "chat",
+    "goal_text",
+    "announcement",
+    "credential_probe",
+)
+
+
+def current_call_type_id() -> int:
+    return _CALL_TYPES.index(current_call_policy().role) + 1
