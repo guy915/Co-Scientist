@@ -156,3 +156,54 @@ def test_the_price_table_is_the_profile_prices() -> None:
     assert priced_routes() == MODEL_PRICING
     for name, price in MODEL_PRICING.items():
         assert model_profile(name).price == price, name
+
+
+def test_generic_profile_is_scoped_to_the_exact_byok_model() -> None:
+    from co_scientist.core.byok_scope import ByokCredential, CustomModelCapabilities, scoped_byok
+
+    name = "openrouter/vendor/new-model"
+    caps = CustomModelCapabilities(context_length=131072, reasoning=True)
+    credential = ByokCredential("openrouter", "synthetic-key", name, custom_models={name: caps})
+    before = model_profile(name)
+    with scoped_byok(credential):
+        profile = model_profile(name)
+        assert profile.context_length == 131072
+        assert profile.tool_calling is True
+        assert profile.gateway is True
+        assert profile.reasons is True
+        assert profile.json_schema is False
+        assert profile.fallbacks == ()
+        assert profile.price is None
+    assert model_profile(name) == before
+
+
+def test_generic_profile_preserves_curated_facts_and_defaults_conservatively() -> None:
+    from co_scientist.core.byok_scope import ByokCredential, CustomModelCapabilities, scoped_byok
+    from co_scientist.platform.llm.profile import generic_model_profile
+
+    name = "deepseek/deepseek-flash"
+    before = model_profile(name)
+    caps = CustomModelCapabilities()
+    with scoped_byok(ByokCredential("deepseek", "synthetic-key", name, custom_models={name: caps})):
+        assert model_profile(name) == before
+    fallback = generic_model_profile("openai/unknown", caps)
+    assert fallback.context_length == 32768
+    assert fallback.json_schema is False
+    assert fallback.json_object is False
+    assert fallback.reasoning_can_disable is False
+
+
+def test_schema_capability_does_not_leak_between_custom_byok_scopes() -> None:
+    from co_scientist.core.byok_scope import ByokCredential, CustomModelCapabilities, scoped_byok
+    from co_scientist.platform.llm.request.backend import litellm_supports_json_schema
+
+    model = "openrouter/vendor/scoped-model"
+    for supported in (True, False, True):
+        credential = ByokCredential(
+            "openrouter",
+            "synthetic-key",
+            model,
+            custom_models={model: CustomModelCapabilities(json_schema=supported)},
+        )
+        with scoped_byok(credential):
+            assert litellm_supports_json_schema(model) is supported

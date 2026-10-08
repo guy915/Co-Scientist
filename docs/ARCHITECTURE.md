@@ -61,7 +61,7 @@ co_scientist/
                   logs_api, diagnostics, auth, operator_access, request_limits
   orchestration/  engine_tasks/ (durable node, fan-out and match executor,
                   report_finalize), task_worker/ (leased cohorts),
-                  repository/ (scientific_tasks, run_events, receipts, views),
+                  repository/ (tasks, tasks_lifecycle, events, receipts, runs_views),
                   engine_adapter/, generator/, registry, workflow_topology,
                   checkpoint, drain, safety_gate, task_runtime
   science/        generation/ reflection/ ranking/ evolution/ proximity/

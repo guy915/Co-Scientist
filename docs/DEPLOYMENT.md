@@ -13,16 +13,14 @@ any value below.
 
 | Layer | Platform | URL |
 |---|---|---|
-| Frontend (Vite/React) | Static site | https://open-coscientist.com |
+| Frontend (Vite/React) | Cloudflare Worker `open-coscientist` with static assets (Vercel until launch) | https://open-coscientist.com |
 | API (FastAPI) | Railway service `api` | https://api.open-coscientist.com |
 | MCP server | Railway service `mcp` | private network only, port 8888 |
 
-The repository configures the frontend for Vercel (`vercel.json`, below).
-Launch moves the frontend and DNS to Cloudflare; the repository has no
-Cloudflare configuration, so that host must reproduce the build command,
-single-page rewrite and headers in `vercel.json`. The API and MCP run in one
-Railway project with exactly one API replica. Production starts with an empty
-database.
+The repository carries both frontend configurations until launch:
+Cloudflare (`wrangler.jsonc`, below) and Vercel (`vercel.json`), which the
+launch removes. The API and MCP run in one Railway project with exactly one
+API replica. Production starts with an empty database.
 
 The worker runs embedded in the API process; there is no separate worker
 service. The single-writer SQLite store bounds worker width
@@ -37,10 +35,12 @@ local source without dependency resolution, and pin the base image by digest.
 Build contexts exclude local secrets, databases, session notes and generated
 artifacts; keep those exclusions when adding an image or context.
 
-- **API.** Honors Railway's injected `PORT` (default 8008). The CMD passes
-  `--timeout-graceful-shutdown 20` so open SSE streams cannot hold shutdown
-  until the platform kills the process; keep the Railway draining window at
-  least that long. The image has a `HEALTHCHECK` on `/health`, installs
+- **API.** The entrypoint (`scripts/api-entrypoint.sh`) honors Railway's
+  injected `PORT` (default 8008) and passes `--timeout-graceful-shutdown 20`
+  so open SSE streams cannot hold shutdown until the platform kills the
+  process; keep the Railway draining window at least that long. With the four
+  `LITESTREAM_R2_*` credentials set it runs the API under Litestream (below);
+  without them it serves directly. The image has a `HEALTHCHECK` on `/health`, installs
   `tesseract-ocr` (image and PDF-figure OCR; uploads fail without it, and the
   test suite fakes the dependency), and defaults `COSCIENTIST_DB_PATH` to
   `/app/data/coscientist.db`, the persistent volume mount.
@@ -72,23 +72,43 @@ writes that WAL locking does not make safe across volume backends. Growing
 past one replica is a store migration (Postgres or similar), not a tuning
 knob. See [OPERATIONS.md](OPERATIONS.md).
 
-## Frontend (`vercel.json`)
+## Frontend
 
-- Build: `cd app/frontend && bun run build` (`tsc`, `vite build`,
-  prerender), output `app/frontend/dist`, install with
-  `bun install --frozen-lockfile`. An `ignoreCommand` skips the build when
-  neither `app/frontend` nor `vercel.json` changed since the previous
-  deployed commit.
-- Rewrite: every path except `/assets/...` serves `/index.html` (SPA deep
-  links).
+Both hosts serve the same build: `cd app/frontend && bun run build` (`tsc`,
+`vite build`, prerender) into `app/frontend/dist`, installed with
+`bun install --frozen-lockfile`. Build-time variables (read at build, not
+runtime): `VITE_API_BASE_URL=https://api.open-coscientist.com`, and
+`VITE_SENTRY_DSN` when error tracking is on (see
+[MONITORING.md](MONITORING.md)). Only `VITE_` variables belong on the
+frontend host; everything there is compiled into public assets.
+
+- **Cloudflare** (`wrangler.jsonc`): a Worker (`app/frontend/worker.mjs`)
+  serves the `dist` assets and answers any missing path outside `/assets/`
+  with `/index.html`, so deep links load the app while a missing hashed asset
+  stays a 404 instead of returning HTML. `app/frontend/public/_headers` sets
+  the headers below. CI checks the config and runs `worker.test.mjs`.
+- **Vercel** (`vercel.json`): the same rewrite and headers, plus an
+  `ignoreCommand` that skips the build when neither `app/frontend` nor
+  `vercel.json` changed.
 - Headers: `/assets/*` is cached for a year and immutable; every path sends
   `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin`,
   `X-Frame-Options: DENY`, and a `Permissions-Policy` that denies camera,
   microphone, geolocation and payment.
-- Build-time variables (read at build, not runtime):
-  `VITE_API_BASE_URL=https://api.open-coscientist.com`, and `VITE_SENTRY_DSN`
-  when error tracking is on (see [MONITORING.md](MONITORING.md)).
+
+## Database replication (optional)
+
+Setting `LITESTREAM_R2_BUCKET`, `LITESTREAM_R2_ENDPOINT`,
+`LITESTREAM_R2_ACCESS_KEY_ID` and `LITESTREAM_R2_SECRET_ACCESS_KEY` on the
+API (optionally `LITESTREAM_R2_PATH`, default `api/coscientist`) turns on
+continuous replication of the SQLite file to Cloudflare R2 (`litestream.yml`).
+On start the entrypoint restores the database from the replica only when the
+volume has none, and fails closed on a network or corrupt-backup error rather
+than starting empty. While Litestream runs, the API disables SQLite's
+automatic and shutdown checkpoints and the config keeps the WAL high-water
+mark (`truncate-page-n: 0`), because Litestream owns checkpointing and a
+truncating checkpoint can stall serving writers. Replication does not replace
+tested restores ([backup and restore](LAUNCH.md#backup-and-restore)).
 
 ## API configuration
 
@@ -103,7 +123,8 @@ ALLOWED_ORIGINS=https://open-coscientist.com
 
 - **CORS.** `ALLOWED_ORIGINS` is a comma-separated allowlist and enables
   credentialed CORS. When unset, `main.py` uses `DEFAULT_ALLOWED_ORIGINS`
-  (the local dev origins and the public site). Set it explicitly to an empty
+  (the local dev origins and, until launch, the new and old public sites).
+  Set it explicitly to an empty
   value and the API falls back to `Access-Control-Allow-Origin: *` without
   credentials, so any origin can call it from a browser.
 - **Models.** The defaults are declared in

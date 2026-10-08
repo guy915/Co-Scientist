@@ -33,6 +33,36 @@ export function fetchByokModelCatalog(): Promise<ByokModelCatalog> {
   });
 }
 
+export interface CustomModelValidation {
+  model: string;
+  exists: boolean;
+  supported: boolean;
+  error: string | null;
+  capabilities: {
+    context_length: number | null;
+    tool_calling: boolean;
+    json_schema: boolean;
+    reasoning: boolean;
+  } | null;
+}
+
+export function validateCustomModel(
+  provider: string,
+  model: string,
+  apiKey: string,
+): Promise<CustomModelValidation> {
+  return fetchJson('/api/byok-models/validate', {
+    method: 'POST',
+    headers: {
+      ...clientHeaders(),
+      'Content-Type': 'application/json',
+      'X-LLM-Provider': provider,
+      'X-LLM-API-Key': apiKey,
+    },
+    body: JSON.stringify({provider, model}),
+  });
+}
+
 export function fetchFreeUsage(): Promise<FreeUsage> {
   return fetchJson('/api/free-usage', {headers: clientHeaders()});
 }
