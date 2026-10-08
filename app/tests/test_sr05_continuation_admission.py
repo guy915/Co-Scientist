@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from co_scientist.core.config import settings
 from co_scientist.domains.chat.repository.messages import NewMessage, append_message
+from co_scientist.main import app
 from co_scientist.orchestration.engine_tasks.inputs import (
     enqueue_scientist_continuation,
     reopen_for_pending_scientist_input,
@@ -15,7 +16,6 @@ from co_scientist.platform.db.checkpoints import NewCheckpoint, save_checkpoint
 from co_scientist.platform.db.models import RunStatus
 from fastapi.testclient import TestClient
 
-from app.main import app
 from tests._client import create_run, make_client
 
 

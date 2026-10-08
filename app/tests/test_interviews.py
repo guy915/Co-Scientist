@@ -9,9 +9,9 @@ from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT, settings
 from co_scientist.domains.chat.interviews import model as interviews_model
 from co_scientist.domains.chat.repository import interviews as store
 from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
+from co_scientist.main import app
 from fastapi.testclient import TestClient
 
-from app.main import app
 from tests._client import create_run as _create_run
 from tests._llm_fake_backend import install_completion_backend
 

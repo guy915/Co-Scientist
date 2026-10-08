@@ -2,8 +2,7 @@
 // evaluations, mcp_server) and ruff; nothing in CI reads this file. It exists
 // because an editor's Pyright, rooted at the repo, resolves neither the
 // interpreter nor the import roots: it has no venv to read third-party
-// packages from, and "app" resolves to this directory rather than to the
-// app/app package, so every "from app import ..." in a file that is perfectly
+// packages from, so every third-party import in a file that is perfectly
 // type-clean under mypy reads as an unknown symbol.
 //
 // One venv per config is all Pyright supports, so this points at the root
@@ -49,7 +48,7 @@
   "executionEnvironments": [
     {
       "root": "app",
-      "extraPaths": ["app"]
+      "extraPaths": ["engine/src"]
     },
     {
       "root": "engine/mcp_server",

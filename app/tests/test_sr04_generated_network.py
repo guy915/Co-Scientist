@@ -4,11 +4,10 @@ from pathlib import Path
 
 import pytest
 from co_scientist.core.config import settings
+from co_scientist.main import app
 from co_scientist.platform.db.logs import NewLogRecord, append_log
 from co_scientist.platform.sandbox.workspace.run_workspace import open_draft_workspace
 from fastapi.testclient import TestClient
-
-from app.main import app
 
 
 def test_generated_draft_programs_have_no_network(

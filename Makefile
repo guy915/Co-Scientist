@@ -124,7 +124,7 @@ open-when-ready:
 
 stop:
 	@echo ">> Stopping Co-Scientist dev servers (ports 8008/5173/8888)"
-	@pkill -f "uvicorn app.main:app" 2>/dev/null || true
+	@pkill -f "uvicorn co_scientist.main:app" 2>/dev/null || true
 	@pkill -f "uvicorn mcp_server.server:app" 2>/dev/null || true
 	@# Catch-all: kill whatever still listens on the dev ports. uvicorn --reload
 	@# and vite run under a supervising parent that respawns the listener, so
@@ -149,7 +149,7 @@ stop:
 
 dev-api:
 	@echo ">> Starting FastAPI on $(API_URL)"
-	@cd "$(APP)" && COSCIENTIST_DB_PATH="$(ROOT)/coscientist.db" "$(PY)" -m uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8008
+	@cd "$(APP)" && COSCIENTIST_DB_PATH="$(ROOT)/coscientist.db" "$(PY)" -m uvicorn co_scientist.main:app --reload --reload-dir "$(ENGINE)/src" --host 0.0.0.0 --port 8008
 
 dev-ui: check-tools
 	@echo ">> Starting Vite UI on $(UI_URL)"
@@ -252,7 +252,7 @@ lint: check-tools
 	@cd "$(ENGINE)" && "$(PY)" -m ruff format --check .
 	@cd "$(APP)" && "$(PY)" -m ruff format --check .
 	@cd "$(ROOT)" && "$(PY)" -m ruff format --check evaluations
-	@cd "$(APP)" && "$(PY)" -m ruff check app tests
+	@cd "$(APP)" && "$(PY)" -m ruff check tests
 	@cd "$(ENGINE)" && "$(PY)" -m ruff check .
 	@cd "$(ROOT)" && "$(PY)" -m ruff check evaluations
 	@test -d "$(FRONTEND)/node_modules" || { echo ">> Frontend deps missing — run 'make setup' first"; exit 1; }
@@ -260,7 +260,6 @@ lint: check-tools
 	@cd "$(FRONTEND)" && "$(BUN)" run lint
 	@$(MAKE) arch
 
-# From app/, `app` imports as the package rather than the app/ directory.
 arch:
 	@cd "$(APP)" && "$(PY)" -c "import sys; from importlinter.cli import lint_imports_command; sys.exit(lint_imports_command())" --config ../.importlinter --no-cache
 

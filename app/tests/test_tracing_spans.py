@@ -132,6 +132,6 @@ def test_a_failing_request_records_the_error_type_only(spans: InMemorySpanExport
 
 
 def test_the_api_wraps_every_middleware_in_the_request_span() -> None:
-    from app.main import app
+    from co_scientist.main import app
 
     assert cast(object, app.user_middleware[0].cls) is TracingMiddleware

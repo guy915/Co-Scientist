@@ -28,7 +28,7 @@ def drain(gen: AsyncIterator[_T]) -> list[_T]:
 
 
 def make_client() -> TestClient:
-    from app.main import app
+    from co_scientist.main import app
 
     return TestClient(app, headers=_DEFAULT_HEADERS)
 
@@ -45,8 +45,7 @@ def create_run(
 
 def make_operator_client() -> TestClient:
     from co_scientist.core.config import settings
-
-    from app.main import app
+    from co_scientist.main import app
 
     return TestClient(
         app,

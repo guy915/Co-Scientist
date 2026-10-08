@@ -34,9 +34,6 @@ COPY engine/pyproject.toml engine/README.md engine/LICENSE engine/NOTICE /worksp
 RUN mkdir -p /workspace/co-scientist-engine/src \
     && pip install --no-cache-dir --no-deps -e /workspace/co-scientist-engine
 
-COPY app/pyproject.toml app/LICENSE app/NOTICE ./
-RUN pip install --no-cache-dir --no-deps -e .
-
 # Only the SQLite store belongs on the persistent volume.
 ENV COSCIENTIST_DB_PATH=/app/data/coscientist.db
 # Railway overlays /app/data with a root-owned volume at runtime; image chown cannot reach it.
@@ -47,7 +44,6 @@ RUN mkdir -p /app/data \
 # Source arrives owned by the runtime user, so no recursive chown follows it.
 COPY --chown=coscientist:coscientist engine/src/ /workspace/co-scientist-engine/src/
 
-COPY --chown=coscientist:coscientist app/app/ ./app/
 COPY LICENSE NOTICE /usr/share/doc/co-scientist/
 
 # Confined skill scripts execute in the API process, so this image needs the vendored bundle.
@@ -66,7 +62,7 @@ USER coscientist
 # Discard the import-created smoke database.
 RUN COSCIENTIST_FORCE_OFFLINE=1 PYTHON_DOTENV_DISABLED=1 \
     COSCIENTIST_DB_PATH=/tmp/coscientist-image-smoke.db \
-    python -c "import app.main, co_scientist.core.constants, co_scientist.science.generation; \
+    python -c "import co_scientist.main, co_scientist.core.constants, co_scientist.science.generation; \
 import importlib, pkgutil, co_scientist; \
 [importlib.import_module(m.name) for m in pkgutil.walk_packages(co_scientist.__path__, 'co_scientist.')]" \
     && rm -f /tmp/coscientist-image-smoke.db*
@@ -77,4 +73,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${PORT:-8008}/health', timeout=5)" || exit 1
 
 # Open SSE streams would otherwise hold shutdown until the platform kills the process.
-CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8008} --timeout-graceful-shutdown 20"]
+CMD ["sh", "-c", "python -m uvicorn co_scientist.main:app --host 0.0.0.0 --port ${PORT:-8008} --timeout-graceful-shutdown 20"]

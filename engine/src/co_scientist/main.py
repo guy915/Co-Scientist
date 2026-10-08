@@ -7,8 +7,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any, cast
 
-import co_scientist.orchestration.engine_adapter as engine_adapter
 import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+
+import co_scientist.orchestration.engine_adapter as engine_adapter
 from co_scientist.api.auth import Principal, principal_for_request
 from co_scientist.api.byok_models import router as byok_models_router
 from co_scientist.api.diagnostics_api import router as diagnostics_api_router
@@ -20,6 +26,7 @@ from co_scientist.api.logs_api import router as logs_router
 from co_scientist.api.request_limits import RequestLimitsMiddleware, storage_error_handler
 from co_scientist.api.runs import router as runs_router
 from co_scientist.api.tracing import TracingMiddleware
+from co_scientist.api.version import API_VERSION
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.config import settings
 from co_scientist.core.exceptions import StorageAdmissionError
@@ -34,13 +41,6 @@ from co_scientist.platform.db.models import DEMO_CLIENT_ID, RunRow
 from co_scientist.platform.telemetry.error_tracking import init_error_tracking
 from co_scientist.platform.telemetry.logging_setup import configure_logging, level_to_number
 from co_scientist.platform.telemetry.tracing import configure_tracing, shutdown_tracing
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
-
-from app import API_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +333,7 @@ app.include_router(diagnostics_api_router)
 
 if __name__ == "__main__":
     uvicorn.run(
-        "app.main:app",
+        "co_scientist.main:app",
         host=settings.host,
         port=settings.port,
         reload=False,

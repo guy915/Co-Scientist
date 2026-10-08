@@ -8,11 +8,11 @@ import pytest
 from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.domains.access import credentials
+from co_scientist.main import app
 from co_scientist.orchestration import engine_tasks
 from co_scientist.platform.db import checkpoints, runs
 from fastapi.testclient import TestClient
 
-from app.main import app
 from tests._client import create_run as _create_run
 from tests._client import make_operator_client
 from tests._llm_fake_backend import (

@@ -9,19 +9,19 @@ FastAPI app with settings in `engine/src/co_scientist/core/config.py` (pydantic-
 **Commands** (run from `app/`):
 ```bash
 make install         # pip install -e ".[dev]"   (also: pixi install)
-make dev             # uvicorn app.main:app --reload --reload-dir app, port 8008
+make dev             # uvicorn co_scientist.main:app --reload --reload-dir ../engine/src, port 8008
 make start           # same, without --reload
 make test            # pytest (asyncio_mode = "auto", testpaths = ["tests"])
 make format / lint / typecheck   # ruff format / ruff check / mypy
 ```
 
-Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `app/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation. Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
+Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `engine/src/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation. Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
 
-**Source modules** (`engine/src/co_scientist/`, plus `app/app/main.py`) — the ones worth knowing; the package combines flat modules with the `platform/db/`, `orchestration/engine_adapter/`, `orchestration/engine_tasks/`, `domains/report/`, `api/runs/`, `domains/research_state/claims/`, `platform/retrieval/citations/`, `api/interviews/` and `domains/chat/interviews/`, `domains/chat/qa/`, `domains/safety/`, `domains/safety/hypothesis/`, `domains/chat/seed/`, `orchestration/task_worker/` and `core/run_modes/`, `api/contracts/` subpackages (except `platform/db/`, a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
+**Source modules** (`engine/src/co_scientist/`) — the ones worth knowing; the package combines flat modules with the `platform/db/`, `orchestration/engine_adapter/`, `orchestration/engine_tasks/`, `domains/report/`, `api/runs/`, `domains/research_state/claims/`, `platform/retrieval/citations/`, `api/interviews/` and `domains/chat/interviews/`, `domains/chat/qa/`, `domains/safety/`, `domains/safety/hypothesis/`, `domains/chat/seed/`, `orchestration/task_worker/` and `core/run_modes/`, `api/contracts/` subpackages (except `platform/db/`, a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
 
 | Module | Purpose |
 |---|---|
-| `main.py` | App setup, lifespan, ownership middleware; the diagnostics endpoints (`/health`, `/status`) live in `api/diagnostics_api.py` and are mounted by `app.main` |
+| `main.py` | App setup, lifespan, ownership middleware; the diagnostics endpoints (`/health`, `/status`) live in `api/diagnostics_api.py` and are mounted by `co_scientist.main` |
 | `api/feedback_api.py` / `domains/feedback/repository.py` | Owner-scoped feedback; durable admission budgets and row/byte/age retention |
 | `platform/telemetry/diagnostic_events.py` | Chat role/character-count/response-duration metadata; never transcript text |
 | `core/config.py` | Pydantic settings (model names, API keys, Elo tuning, worker/concurrency caps, auth). The DB path is *not* here — `COSCIENTIST_DB_PATH` is read directly in `platform/db/__init__.py` |

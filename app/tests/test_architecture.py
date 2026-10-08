@@ -28,8 +28,8 @@ def _layering_imports(path: Path) -> list[str]:
             modules.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
-            if module == "app":
-                modules.extend(f"app.{alias.name}" for alias in node.names)
+            if module == "co_scientist":
+                modules.extend(f"co_scientist.{alias.name}" for alias in node.names)
             else:
                 modules.append(module)
     return modules
@@ -46,7 +46,7 @@ def _layering_imports(path: Path) -> list[str]:
 )
 def test_shared_services_do_not_import_endpoint_owners(source: Path) -> None:
     forbidden = {
-        "app.main",
+        "co_scientist.main",
         "co_scientist.api.documents",
         "co_scientist.api.logs_api",
         "co_scientist.api.diagnostics_api",
@@ -86,17 +86,17 @@ def _is_private_engine_import(module: str, names: list[str]) -> bool:
     return engine and private
 
 
-def _engine_private_imports(source_dir: Path) -> list[str]:
+def _engine_private_imports(paths: list[Path]) -> list[str]:
     return [
         f"{path}:{line}: {module}: {', '.join(names)}"
-        for path in sorted(source_dir.rglob("*.py"))
+        for path in paths
         for line, module, names in _boundaries_imports(path)
         if _is_private_engine_import(module, names)
     ]
 
 
-def test_app_consumes_public_engine_operations() -> None:
-    violations = _engine_private_imports(_ROOT / "app" / "app")
+def test_composition_root_consumes_public_engine_operations() -> None:
+    violations = _engine_private_imports([_ENGINE_DIR / "main.py"])
     assert not violations, "Private engine imports:\n" + "\n".join(violations)
 
 

@@ -188,7 +188,7 @@ def test_evolution_creates_new_rows_with_parent_lineage(
 
 def _asgi_app() -> FastAPI:
     # Import settings only after isolated_db establishes its environment.
-    from app.main import app
+    from co_scientist.main import app
 
     return app
 

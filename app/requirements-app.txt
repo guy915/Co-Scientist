@@ -27,7 +27,7 @@ pydantic>=2.0.0
 pydantic-settings>=2.0.0
 # Citation reachability imports httpx directly.
 httpx>=0.25.0
-# Required by FastAPI for the multipart UploadFile route in app/app/runs/.
+# Required by FastAPI for the multipart UploadFile route in co_scientist.api.runs.
 python-multipart>=0.0.9
 # PDF text extraction for uploaded documents.
 pypdf>=5.0.0,<7.0.0
