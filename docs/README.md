@@ -12,8 +12,7 @@
 | [Operations](OPERATIONS.md) | Persistence, provider and scientific safeguards |
 | [Monitoring](MONITORING.md) | Uptime checks, error tracking and tracing |
 | [Launch](LAUNCH.md) | Release validation, backups and repository settings |
-| [Evaluations](../evaluations/README.md) | Offline harness, live benchmark and decision bake-off |
-| [Decision model](decision-model.md) | Optional decision-model client, quotas and bake-off method |
+| [Evaluations](../evaluations/README.md) | Offline harness and live benchmark |
 | [Dependencies](../requirements/README.md) | Hash-pinned runtime locks and audits |
 | [Engine package](../engine/README.md) | Engine install and development |
 | [MCP server](../engine/mcp_server/README.md) | Reference literature and database tools |
