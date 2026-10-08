@@ -1,196 +1,181 @@
 # Evaluations
 
-Reproducible evaluation harness for research experiments. Everything here runs **offline** (no LLM, no network) unless a runner
-explicitly says otherwise; machine-readable results are written under
-`results/`. Historical receipts are retained in the
-[pinned results tree](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results);
-the offline baseline remains local.
+Reproducible evaluation harness. Everything runs **offline** (no model, no
+network) unless a runner says otherwise. Runners write dated JSON artifacts to
+`evaluations/results/`, which is created on demand and not tracked.
 
 ## Layout
 
-- `_artifacts.py` — shared result-artifact writer. Every artifact any runner
-  writes through it is stamped with a `provenance` block (source git
-  commit/branch/dirty, python/platform environment, a digest over the
-  engine's prompt templates, and whatever the runner knows about the model,
-  seed, and cost of its own measurement) automatically, so a result found
-  later carries what produced it rather than depending on memory.
-- `citation_eval.py` — claim/entailment metrics over
-  `datasets/citation_entailment_v1.json` (precision/recall per label,
-  contradiction recall, abstention). `--challenge` scores the larger
-  adversarial `datasets/citation_entailment_challenge_v1.json` panel and
-  enforces the documented production gates (contradiction recall ≥ 0.80,
-  accuracy ≥ 0.75). Run the semantic path with `--llm`; the offline
-  deterministic (lexical) assessor is expected to fail the challenge gates
-  and is retained only as a fallback baseline. See "Citation evaluation
-  panels" below.
-- `safety_eval.py` — per-hypothesis safety false-positive / false-negative
-  rates for the deterministic-regex reviewer layer
-  (`co_scientist.safety.review_hypothesis_safety`; never the optional
-  semantic/LLM escalation), over two datasets:
-  `datasets/hypothesis_safety_adversarial_v1.json` (must-block items; every
-  item's `should_block` is `true`) and
-  `datasets/hypothesis_safety_controls_v1.json` (must-allow items; every
-  item's `should_block` is `false`, including a broad domain-diverse sample,
-  not just adversarial near-misses). Each item also carries a `difficulty`:
-  `easy` is the literal-trigger regression floor the classifier was written
-  against (gated at 0 false negatives by `smoke.py`); `hard` is
-  genuinely adversarial -- paraphrase/synonym evasion, character-gap
-  padding past the regex's window, a word-boundary spacing trick, and
-  vocabulary the classifier has no pattern for at all (nuclear, explosive),
-  plus legitimate research that happens to use a literal trigger phrase
-  ("mass casualty" disaster response, "nerve agent" detection assays,
-  "bioweapon" treaty-compliance history). The `hard` split is measured and
-  reported, never gated to pass -- see the eval's own module docstring.
+- `_artifacts.py` — result writer. It stamps every artifact with a
+  `provenance` block: source commit, branch and dirty state, Python and
+  platform, a digest of the engine's prompt templates, and whatever the
+  runner knows about the model, seed and cost. A result found later then
+  carries what produced it.
+- `citation_eval.py` — claim-entailment metrics (precision and recall per
+  label, contradiction recall, abstention) over
+  `datasets/citation_entailment_v1.json`. `--challenge` scores the
+  adversarial `datasets/citation_entailment_challenge_v1.json` panel; with
+  `--llm` it exits non-zero below the production gates (contradiction recall
+  ≥ 0.80, accuracy ≥ 0.75). See [Citation panels](#citation-panels).
+- `safety_eval.py` — per-hypothesis false-negative and false-positive rates
+  for the deterministic reviewer (`co_scientist.domains.safety.rules.review_hypothesis_safety`),
+  never the semantic escalation. See [Safety splits](#safety-splits).
 - `claim_support_eval.py` — unsupported-claim rate over the verdicts a run
-  already recorded, never re-judged here (a second lexical opinion inside
-  an eval is how a metric comes to disagree with the product; see the
-  Jaccard entry in the root AGENTS.md). Reports two rates: over claims,
-  and over ideas with nothing behind them, since a retrieval change can
-  move one without the other. **Offline by default proves the wiring, not
-  quality** -- the deterministic backend answers every assessment the same
-  canned way whatever was retrieved, and offline artifacts say so in an
-  `offline_disclaimer`. `--run <id>` scores a persisted run; `--live`
-  drives one against a real provider, at the size `--tier` names
-  (default `express`). The manual `Benchmark` workflow runs it live for
-  the optimization campaign's quality benchmark.
-- `citation_usefulness_eval.py` — does a retrieved span answer *the
-  question the search was serving*? Distinct from `citation_eval.py`,
-  which asks whether a span entails a claim: the two come apart exactly
-  where a research loop earns its cost, on a span that is squarely
-  on-topic and answers a different question. Scores
-  `datasets/citation_usefulness_v1.json`; the default deterministic judge
-  is lexical coverage and is kept as a floor (it scores ~0.38 on the
-  panel, by construction), `--llm` scores a real model. Note there is no
-  production assessor to score here -- the system does not yet judge its
-  own retrievals this way, so this eval's judge is its own.
-- `_run_driver.py` — shared plumbing `claim_support_eval.py --live`
-  uses to persist a research goal through the real durable path
-  (`store.create_run` -> `task_worker` -> `engine_tasks` -> engine -> drain
-  -> report) and read back the resulting artifacts. Not a runner itself.
-- `_identity.py` — shared run and panel controls, policy snapshots and
-  provenance checks. Hashing and validation load without app or engine
-  dependencies; execution snapshots import those packages only when needed.
-- `smoke.py` — the offline smoke suite with documented regression tolerances.
-- `datasets/` — versioned, synthetic, legally shareable labeled sets.
-- `results/` — dated machine-readable result artifacts.
-- `tests/` — unit tests for the runners, architecture and source-size checks that
-  `make test-evaluations` runs.
+  already recorded. It never re-judges them: a second lexical opinion inside
+  an eval is how a metric comes to disagree with the product (the Jaccard
+  entry in [operations](../docs/OPERATIONS.md)). It reports the rate over
+  claims and over ideas with nothing behind them, since a retrieval change
+  can move one without the other. Offline, the deterministic backend answers
+  every assessment the same way, so offline artifacts carry an
+  `offline_disclaimer`: they prove the wiring, not quality.
+- `citation_usefulness_eval.py` — does a retrieved span answer the question
+  the search was serving? Unlike entailment, this separates a span that is on
+  topic from one that answers the question. It scores
+  `datasets/citation_usefulness_v1.json`. The default lexical judge is a floor
+  (about 0.38 by construction); `--llm` scores a real model. The product does
+  not judge its own retrievals this way, so the judge here is the eval's own.
+- `decision_bakeoff.py`, `decision_cases.py` — the manual decision-model
+  comparison; see [Decision bake-off](#decision-bake-off).
+- `_run_driver.py` — plumbing for `claim_support_eval.py --live`. It creates a
+  run through `co_scientist.platform.db.runs`, enqueues it with
+  `orchestration.task_worker`, drains the worker pool and reads back the
+  artifacts.
+- `_live_config.py` — sets the environment for live runs before any app
+  import: an explicit `openrouter/` model for every role, free models
+  required, dotenv off, and every other `*_API_KEY` removed.
+- `_usage_evidence.py` — summarizes per-call model, token and price evidence.
+  Missing telemetry proves neither free execution nor absent inference.
+- `_identity.py` — run and panel controls, policy snapshots and provenance
+  checks.
+- `smoke.py` — the offline smoke suite with its regression tolerances.
+- `datasets/` — synthetic, legally shareable labeled sets.
+- `tests/` — unit tests for the runners plus the import-contract ratchet.
 
 ## Commands
 
-```bash
-# From the repo root, using the shared venv python:
-python -m evaluations.smoke                 # offline smoke (safety + citation)
-python -m evaluations.citation_eval         # writes results/citation-entailment-deterministic-<date>.json
-python -m evaluations.citation_eval --challenge --llm  # adversarial panel, semantic assessor, enforces gates
-python -m evaluations.safety_eval           # writes results/hypothesis-safety-<date>.json
-python -m pytest evaluations/tests -q       # harness unit tests
+From the repository root, after `make setup`:
 
-# Or via make:
-make test-evaluations # harness tests
-make eval-smoke    # offline smoke suite
+```bash
+make test-evaluations                                   # harness tests
+make eval-smoke                                         # offline smoke suite
+
+.venv/bin/python -m evaluations.citation_eval                     # v1 panel, lexical assessor
+.venv/bin/python -m evaluations.citation_eval --challenge --llm   # challenge panel, gated
+.venv/bin/python -m evaluations.safety_eval                       # both safety arms
+.venv/bin/python -m evaluations.claim_support_eval                # offline wiring check
+.venv/bin/python -m evaluations.claim_support_eval --run <id>     # score a stored run
+.venv/bin/python -m evaluations.citation_usefulness_eval [--llm --model openrouter/...]
 ```
 
-## Citation evaluation panels
+Live panels (`--llm`, `--live`) configure the environment before importing
+model code, so run each in a fresh process. Set an explicit OpenRouter
+`MODEL_NAME` (or `--model` for citation usefulness) and `OPENROUTER_API_KEY`.
+Every role is pinned to that model and transport admission checks that its
+current price is zero; no paid or default model is chosen implicitly. A panel
+score alone is not evidence of scientific quality.
 
-Two panels exercise the claim-entailment assessor:
+## Citation panels
 
 - **`citation_entailment_v1`** (20 items) — the offline regression panel. The
-  deterministic (lexical) assessor handles it, so it gates the CI smoke suite
-  (`smoke.py`) at contradiction recall ≥ 0.80.
-- **`citation_entailment_challenge_v1`** (30 items) — an adversarial panel
-  whose passages share the claim's vocabulary but must be rejected or inverted
-  by a semantic reader: negation-free numeric/direction conflicts,
-  species/model mismatches, temporal mismatches, topic-mention-only passages,
-  retracted sources, and low-overlap paraphrase support/contradiction. It is
-  the production-gate panel.
+  lexical assessor handles it, and `smoke.py` gates it at contradiction
+  recall ≥ 0.80.
+- **`citation_entailment_challenge_v1`** (30 items) — the production-gate
+  panel. Passages share the claim's vocabulary but must be rejected or
+  inverted by a semantic reader: numeric and direction conflicts without
+  negation, species and model mismatches, temporal mismatches, passages that
+  only mention the topic, retracted sources, and low-overlap paraphrase.
 
-Recorded results from 2026-07-14 ([archived receipts](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results)):
-
-| Assessor | Panel | n | accuracy | contradiction recall | gates |
+| Assessor | Panel | n | Accuracy | Contradiction recall | Gates |
 |---|---|---|---|---|---|
-| deterministic (lexical) | v1 | 20 | 1.00 | 1.00 | pass |
-| deterministic (lexical) | challenge | 30 | 0.17 | 0.00 | **fail (expected)** |
-| `llm:deepseek/deepseek-chat` | challenge | 30 | 0.90 | 1.00 | pass |
+| lexical | v1 | 20 | 1.00 | 1.00 | pass |
+| lexical | challenge | 30 | 0.17 | 0.00 | fail, as intended |
 
-The lexical assessor collapsing to 0.00 contradiction recall on the challenge
-panel is the point: token overlap is a retrieval feature, not proof, so it is
-retained only as an offline fallback. The semantic assessor clears the gates.
-Its two conservative misses (abstaining on genuine paraphrase support) are
-safe; its one retracted-passage miss is scored in isolation here — the full
-pipeline quarantines retracted sources upstream, before grounding.
+The lexical assessor's collapse on the challenge panel is the point: token
+overlap is a retrieval feature, not proof, so it is only an offline fallback.
+Re-run the semantic path with `--challenge --llm` on the current free route
+before quoting a live number. The gates are this project's own; Google's
+production thresholds are not published, and the panel is synthetic, so a
+human-audited sample and calibrated thresholds remain open.
 
-DeepSeek is a **compatibility-mode** provider. These numbers are not a claim of
-current Google-model (Gemini) parity, and the thresholds are the replica's own
-reconstructed gates, not Google's undisclosed production thresholds. The panel
-is synthetic and legally shareable; a human-audited representative sample and
-calibrated thresholds remain an external gap.
+## Safety splits
 
-## Safety evaluation splits
+Each safety item carries a `difficulty`. `easy` is the literal-trigger floor
+the classifier was written against; `smoke.py` gates it at zero false
+negatives. `hard` is adversarial: paraphrase and synonym evasion, padding past
+the regex window, a word-boundary spacing trick, vocabulary the classifier has
+no pattern for (nuclear, explosive), and legitimate research that uses a
+trigger phrase ("mass casualty" disaster response, "nerve agent" detection
+assays). The hard split is measured, never gated.
 
-`safety_eval.py` scores the hypothesis-safety layer over `easy` (the
-literal-trigger regression floor) and `hard` (genuinely adversarial
-paraphrase/synonym/padding/spacing evasion, vocabulary the classifier has no
-pattern for, and legitimate near-boundary research that happens to use a
-trigger phrase) items, combined from the adversarial and controls datasets.
+The runner reports two arms, because the shipped layer is two layers:
 
-It reports **two arms**, because the shipped layer is two layers and neither
-number alone describes it:
+- **Floor** — the regex alone. This is also what ships whenever the
+  contextual assessor cannot give a clean allow: disabled, offline,
+  uncredentialed or erroring. A held verdict then stays held.
+- **Permissive ceiling** — the same measurement with an assessor that clears
+  every hold put to it, whether weak, captured or persuaded by the text. The
+  eligibility gate is the real one, so this arm clears only what the shipped
+  code would ask an assessor about.
 
-- **Floor** — the deterministic regex alone. This is also exactly what ships
-  whenever the contextual assessor cannot run: disabled, offline-pinned,
-  uncredentialed, erroring, or answering anything but a clean allow. Every one
-  of those leaves a held verdict held.
-- **Permissive-assessor ceiling** — the same measurement assuming an assessor
-  that clears *every* hold put to it, whether because it is weak, captured, or
-  talked into it by the text it is reading. The eligibility gate is the real
-  one, so this arm can only clear what the shipped code would actually put to
-  an assessor.
-
-Latest recorded results (2026-08-07, `results/hypothesis-safety-2026-08-07.json`):
-
-| Arm | Split | n | false-negative rate | false-positive rate |
+| Arm | Split | n | False-negative rate | False-positive rate |
 |---|---|---|---|---|
 | floor | easy | 31 | 0.00 | 0.00 |
 | floor | hard | 18 | 0.333 | 0.833 |
 | ceiling | easy | 31 | 0.143 | 0.00 |
 | ceiling | hard | 18 | 0.333 | 0.00 |
 
-Read them together. The false-positive problem is entirely a hold problem: at
-the floor the layer wrongly withholds 5 of 6 legitimate near-boundary research
-items, and an assessor resolving those holds takes that to zero. What it costs
-in the worst case is the gap in the other column — one easy adversarial item
-whose danger is a genuine context call ("test the compound on patients without
-informed consent"). Constructions whose danger is *not* a context call —
-acquisition, yield improvement, a synthesis procedure named against a weapon
-class — are deterministic blocks no assessor can reach, which is why the
-ceiling's hard-split false-negative rate does not move at all.
+Read the arms together. At the floor the layer withholds 5 of 6 legitimate
+near-boundary items; an assessor resolving holds takes that to zero. The worst
+case costs one easy adversarial item whose danger is a genuine context call
+("test the compound on patients without informed consent"). Acquisition,
+yield improvement or a synthesis procedure named against a weapon class are
+deterministic blocks no assessor can reach, so the ceiling's hard-split
+false-negative rate does not move. The remaining hard misses are paraphrases
+with no trigger token, which neither layer closes. Neither arm measures a real
+assessor's judgment; together they bound it in each direction.
 
-Neither arm measures a real assessor's judgment. That needs a provider and is
-not something this offline harness claims. What it does claim is a bound in
-each direction, which is what a reader needs to judge the trade.
+## Quality benchmark
 
-The remaining hard-split false negatives are genuine paraphrase with no
-literal trigger token, which neither layer closes today.
+The manual `Benchmark` workflow (`.github/workflows/benchmark.yml`) runs
+`claim_support_eval.py --live --tier express|standard` on a fixed goal with
+the free default route. It reports the unsupported-claim rate, the
+unverified-idea rate, requests and wall time, and keeps the run database as an
+artifact. It needs the `OPENROUTER_API_KEY` repository secret; its MCP server
+also needs `OPENALEX_API_KEY` and `TAVILY_API_KEY`, without which there is no
+web search and literature retrieval is keyless.
 
-## External gaps (not reproducible here)
+- **Noise floor.** Two Express runs on the same code ranged from 0.64 to 0.76
+  unsupported-claim rate. Revert a change whose score falls beyond that,
+  unless it is a large speed gain with a small, stated loss.
+- **Ration live runs.** OpenRouter's free models allow 20 requests a minute
+  and 1,000 a day for the whole account. Do not benchmark changes that cannot
+  alter model output (caching, backend, frontend, CI); measure those offline.
+  Batch prompt, reasoning-budget and retry changes and check each batch with
+  one Express run.
+- **Standard runs need a higher ceiling.** Admission reserves the full output
+  cap per call, roughly four times what a run uses, so a Standard run stops at
+  the default `PROVIDER_CLIENT_TOKENS_PER_DAY` (16M).
+- Extended and Ultra get no live runs; check their call envelopes offline.
 
-These need unavailable data / credentials / expert panels / wet
-labs and are recorded honestly rather than fabricated:
+## Decision bake-off
 
-- **Google's private 1,200-goal safety benchmark** and **203-goal scaling
-  corpus** are request-only and not reproduced.
-- **Wet-lab validation** (AML / fibrosis / AMR) is out of scope.
+The manual `Decision bake-off` workflow compares Liquid `d1:free` with the
+current free LLM at four call sites (`literature_relevance`,
+`ranking_pairwise`, `proximity`, `semantic_safety`) on inputs recorded by
+earlier `Benchmark` runs. Pass their run IDs as `source_runs`. It needs the
+`LIQUID_API_KEY` and `OPENROUTER_API_KEY` secrets, and `decision_bakeoff.py`
+refuses to run outside a manual Actions dispatch. Method and adoption rules:
+[decision model](../docs/decision-model.md).
 
-Each runner records its own `external_gap` in its result artifact.
+## External gaps
 
-### Live panels
+These need data, credentials, expert panels or wet labs that are not
+available here:
 
-Live citation entailment and citation usefulness panels use free-model
-configuration before importing model code. Set an explicit OpenRouter `MODEL_NAME`
-and `OPENROUTER_API_KEY`; citation usefulness also accepts `--model` explicitly.
-Every model role is pinned and transport admission checks current zero prices.
-No paid/default model is selected implicitly. Run each live panel in a fresh
-process. Offline modes require neither setting. Served-model, cost and fallback
-evidence is still being completed under M1-03d3b; a panel score alone is not
-qualified live scientific evidence. Historical results above remain historical.
+- Google's private 1,200-goal safety benchmark and 203-goal scaling corpus are
+  request-only.
+- Wet-lab validation (AML, liver fibrosis, antimicrobial resistance) is out of
+  scope.
+
+`citation_eval.py` and `safety_eval.py` record their gap in each artifact's
+`external_gap` field.
