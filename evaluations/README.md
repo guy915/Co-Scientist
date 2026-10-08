@@ -136,15 +136,19 @@ assessor's judgment; together they bound it in each direction.
 
 The manual `Benchmark` workflow (`.github/workflows/benchmark.yml`) runs
 `claim_support_eval.py --live --tier express|standard` on a fixed goal with
-the free default route. It reports the unsupported-claim rate, the
-unverified-idea rate, requests and wall time, and keeps the run database as an
-artifact. It needs the `OPENROUTER_API_KEY` repository secret; its MCP server
+the free default route. It reports the unsupported-claim rate with its claim
+count and a 95% Wilson interval, the unverified-idea rate, requests and wall
+time, and keeps the run database as an artifact. The run stops after 120
+minutes (Express) or 240 (Standard), and the job fails when no rate was
+written. It needs the `OPENROUTER_API_KEY` repository secret; its MCP server
 also needs `OPENALEX_API_KEY` and `TAVILY_API_KEY`, without which there is no
 web search and literature retrieval is keyless.
 
-- **Noise floor.** Two Express runs on the same code ranged from 0.64 to 0.76
-  unsupported-claim rate. Revert a change whose score falls beyond that,
-  unless it is a large speed gain with a small, stated loss.
+- **Noise floor.** Express runs on unchanged code have ranged from 0.65 to 1.0
+  unsupported-claim rate at about 25 claims. Claims cluster within ideas, so
+  the run-to-run spread is wider than the interval. Read a change only when
+  its rate falls outside both runs' intervals. Revert such a change unless it
+  is a large speed gain with a small, stated loss.
 - **Ration live runs.** OpenRouter's free models allow 20 requests a minute
   and 1,000 a day for the whole account. Do not benchmark changes that cannot
   alter model output (caching, backend, frontend, CI); measure those offline.

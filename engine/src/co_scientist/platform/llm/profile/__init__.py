@@ -2,6 +2,8 @@ import enum
 from dataclasses import dataclass
 from typing import Any, Final, TypedDict
 
+from co_scientist.core.byok_scope import CustomModelCapabilities, current_byok
+
 
 @dataclass(frozen=True)
 class ModelPrice:
@@ -52,6 +54,8 @@ class ModelProfile:
     responses_api: bool = False
     min_temperature: float | None = None
     price: ModelPrice | None = None
+    context_length: int | None = None
+    tool_calling: bool | None = None
 
 
 class Facts(TypedDict, total=False):
@@ -263,12 +267,31 @@ def model_profile(model_name: str) -> ModelProfile:
     state.
     """
     lowered = model_name.lower()
+    credential = current_byok()
+    if lowered not in ROUTES and credential is not None:
+        for name, metadata in credential.custom_models.items():
+            if name.lower() == lowered and name in credential.keys_by_model():
+                return generic_model_profile(name, metadata)
     facts: dict[str, Any] = {}
     for family in FAMILIES:
         if family.matches(lowered):
             facts.update(family.facts)
     facts.update(ROUTES.get(lowered, {}))
     return ModelProfile(**facts)
+
+
+def generic_model_profile(model_name: str, metadata: CustomModelCapabilities) -> ModelProfile:
+    gateway = model_name.startswith("openrouter/")
+    return ModelProfile(
+        context_length=metadata.context_length or 32768,
+        tool_calling=metadata.tool_calling,
+        json_schema=metadata.json_schema,
+        json_object=metadata.json_object,
+        reasons=metadata.reasoning,
+        thinking=Thinking.GATEWAY if gateway and metadata.reasoning else Thinking.NONE,
+        gateway=gateway,
+        reasoning_can_disable=metadata.reasoning_can_disable,
+    )
 
 
 def is_free_route(model_name: str) -> bool:
