@@ -13,6 +13,7 @@ from co_scientist.core.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     settings,
 )
+from co_scientist.domains.chat.titles import title_case
 from co_scientist.domains.documents import repository as store
 from co_scientist.platform.llm import coerce_json_list
 from co_scientist.platform.llm.llm_scope import budgeted, stream_chunks
@@ -258,7 +259,7 @@ Maintain exactly five structured fields.
    capabilities. Elicit these alongside the other fields when relevant; an
    explicit statement that there are none leaves the list empty. Never
    infer lab capabilities the scientist has not stated.
-5. Title: an optional concise title.
+5. Title: an optional concise title in Title Case.
 
 # Deriving good field values
 
@@ -373,7 +374,7 @@ def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
         "focus_area": _clean_list(response.get("focus_area")),
         "preferences": _clean_list(response.get("preferences")),
         "lab_constraints": _clean_list(response.get("lab_constraints")),
-        "title": str(title).strip() if title else None,
+        "title": title_case(str(title).strip()) if title else None,
     }
 
 
