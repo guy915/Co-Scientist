@@ -46,8 +46,9 @@ class ClaimRecord:
 
 
 def _passage_identity(passage: Any) -> dict[str, str]:
+    """The gate names a passage by its article and finalize by its store row,
+    so a verdict is keyed by what was read; `_rebased` re-points its spans."""
     return {
-        "evidence_id": str(passage.evidence_id),
         "text": str(passage.text),
         "source": str(passage.source),
         "url": str(passage.url),
@@ -335,13 +336,41 @@ def _plan_claim_group(
         for claim, role in records:
             fingerprint = claim_fingerprint(ClaimRecord(claim, role), candidates, assessor_id)
             match = available.get(fingerprint)
-            if match is not None:
-                reused[claim] = match
+            rebased = _rebased(match, candidates) if match is not None else None
+            if rebased is not None:
+                reused[claim] = rebased
     return _ClaimGroupPlan(
         hypothesis_id=hypothesis_id,
         records=records,
         reused=reused,
         to_assess=[claim for claim, _role in records if claim not in reused],
+    )
+
+
+def _rebased(
+    assessment: ClaimAssessment, passages: Sequence[EvidencePassage]
+) -> ClaimAssessment | None:
+    """A span that matches no current passage cannot be cited, so its claim
+    is checked again."""
+
+    def rebase(span: SupportSpan) -> SupportSpan | None:
+        for passage in passages:
+            if (
+                passage.source == span.source
+                and passage.url == span.url
+                and passage.text[span.start : span.end] == span.quote
+            ):
+                return dataclasses.replace(span, evidence_id=str(passage.evidence_id))
+        return None
+
+    supporting = [rebase(span) for span in assessment.supporting_passages]
+    contradicting = [rebase(span) for span in assessment.contradicting_passages]
+    if None in supporting or None in contradicting:
+        return None
+    return dataclasses.replace(
+        assessment,
+        supporting_passages=tuple(span for span in supporting if span is not None),
+        contradicting_passages=tuple(span for span in contradicting if span is not None),
     )
 
 
