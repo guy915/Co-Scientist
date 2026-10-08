@@ -248,7 +248,7 @@ async def _acompletion(**kwargs: Any) -> object:
     """
     from co_scientist.platform.llm import llm_request
 
-    return await llm_request.acompletion(**kwargs)
+    return await llm_request.acompletion(call_role="credential_probe", **kwargs)
 
 
 @budgeted("credential_probe")

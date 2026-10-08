@@ -48,6 +48,7 @@ async def _ask(
         return await call_llm_json(
             prompt=prompt,
             spec=CompletionSpec(
+                role="overview_outline",
                 model_name=state["supervisor_model_name"],
                 max_tokens=max_tokens,
                 temperature=MEDIUM_TEMPERATURE,

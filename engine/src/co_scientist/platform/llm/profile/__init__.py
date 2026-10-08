@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 from dataclasses import dataclass
 from typing import Any, Final, TypedDict
@@ -12,6 +14,8 @@ class ModelPrice:
     prompt_usd_per_million: float = 0.0
     completion_usd_per_million: float = 0.0
     cached_prompt_usd_per_million: float = 0.0
+    cache_write_usd_per_million: float = 0.0
+    long_context: ModelPrice | None = None
 
 
 class Thinking(enum.Enum):
@@ -52,6 +56,8 @@ class ModelProfile:
     responses_api: bool = False
     min_temperature: float | None = None
     price: ModelPrice | None = None
+    version: str | None = None
+    supported_efforts: tuple[str, ...] | None = None
 
 
 class Facts(TypedDict, total=False):
@@ -69,6 +75,8 @@ class Facts(TypedDict, total=False):
     responses_api: bool
     min_temperature: float | None
     price: ModelPrice | None
+    version: str | None
+    supported_efforts: tuple[str, ...] | None
 
 
 @dataclass(frozen=True)
@@ -110,6 +118,24 @@ def _gateway(
 # Fallbacks must be cheaper, never paid under a free primary, and within the
 # gateway array cap.
 ROUTES: Final[dict[str, Facts]] = {
+    "azure/gpt-6-luna-2026-09-22": {
+        "reasons": True,
+        "responses_api": True,
+        "json_schema": True,
+        "fixed_sampling": True,
+        "version": "2026-09-22",
+        "supported_efforts": ("none", "low", "medium"),
+        "price": ModelPrice(0.10, 0.50, 0.01, 0.125, ModelPrice(0.20, 0.75, 0.02, 0.25)),
+    },
+    "azure/gpt-5-nano-2025-08-07": {
+        "reasons": True,
+        "responses_api": True,
+        "json_schema": True,
+        "fixed_sampling": True,
+        "version": "2025-08-07",
+        "supported_efforts": ("low", "medium"),
+        "price": ModelPrice(0.05, 0.40, 0.005),
+    },
     # Retained explicit route: both Nex variants reason and need bounded-minimal
     # reasoning.
     "openrouter/nex-agi/nex-n2.5-pro:free": _gateway(_FREE),
