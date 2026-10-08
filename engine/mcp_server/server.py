@@ -1,5 +1,8 @@
+import asyncio
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -37,6 +40,7 @@ from mcp_server.auth_middleware import (
     SharedSecretAuthMiddleware,
     resolve_shared_secret,
 )
+from mcp_server.cache_privacy import migrate_literature_cache
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools.biomedical_databases import (
     search_chembl,
@@ -140,7 +144,16 @@ logger.info(
 # and cleanup.
 # Stateless HTTP avoids restart/replica session affinity.
 mcp_http_app = mcp.http_app(stateless_http=True)
-app = FastAPI(lifespan=mcp_http_app.lifespan)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await asyncio.to_thread(migrate_literature_cache)
+    async with mcp_http_app.lifespan(app):
+        yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Only server callers use MCP; browsers need no trusted origin or credentialed
 # CORS.

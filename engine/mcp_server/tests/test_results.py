@@ -192,7 +192,7 @@ def _refuse(target: str) -> None:
     [
         (
             {"status": "failed", "records": [], "error": "timeout"},
-            "failed (timeout)",
+            "failed",
         ),
         ({"source": "S", "query": "q", "records": []}, "empty"),
         ({"source": "S", "query": "q", "records": [{}, {}]}, "2 items"),
