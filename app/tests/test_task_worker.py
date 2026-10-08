@@ -254,24 +254,47 @@ async def test_worker_heartbeats_long_workflow_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run = seed_run("long worker goal")
-    enqueue_task(run.id, "engine.test.long", "long-engine-task", db_path=isolated_db)
+    task = enqueue_task(run.id, "engine.test.long", "long-engine-task", db_path=isolated_db)
     release = asyncio.Event()
+    renewed = asyncio.Event()
+    initial_time = time.time()
+    clock = {"now": initial_time}
+    monkeypatch.setattr(tasks, "current_time", lambda: clock["now"])
+    monkeypatch.setattr(lifecycle, "current_time", lambda: clock["now"])
+    real_renew = lifecycle.renew_task_lease
+
+    def _renew(
+        task_id: str, worker_id: str, lease_seconds: float, *, db_path: str | None = None
+    ) -> bool:
+        changed = real_renew(task_id, worker_id, lease_seconds, db_path=db_path)
+        if changed:
+            renewed.set()
+        return changed
 
     async def _execute(_task: ScientificTask, *, db_path: str | None = None) -> dict[str, bool]:
+        clock["now"] = initial_time + 0.1
         await release.wait()
         runs.update_run_status(run.id, RunStatus.COMPLETED)
         return {"completed": True}
 
+    monkeypatch.setattr(lifecycle, "renew_task_lease", _renew)
     monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
     running = asyncio.create_task(
         task_worker.run_once("worker-a", db_path=isolated_db, lease_seconds=0.15)
     )
-    # Past the first lease, so only a renewal keeps it; renewals have a 0.05s
-    # floor, which a 0.06s lease left 10ms of scheduling margin around.
-    await asyncio.sleep(0.2)
-    assert tasks.claim_task("worker-b", db_path=isolated_db) is None
-    release.set()
-    assert await running
+    try:
+        await asyncio.wait_for(renewed.wait(), timeout=5)
+        saved = tasks.get_task(task.id, db_path=isolated_db)
+        assert saved is not None
+        assert saved.lease_owner == "worker-a"
+        assert saved.lease_expires_at == pytest.approx(initial_time + 0.25, rel=0, abs=1e-6)
+        # Beyond the initial deadline, but inside the actual renewed lease.
+        clock["now"] = initial_time + 0.2
+        assert not running.done()
+        assert tasks.claim_task("worker-b", db_path=isolated_db) is None
+    finally:
+        release.set()
+        assert await asyncio.wait_for(running, timeout=5)
 
 
 @pytest.mark.asyncio
