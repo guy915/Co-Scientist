@@ -36,6 +36,19 @@ def main() -> None:
         "system and Cryptex libraries read only",
         seatbelt.wrap_argv(command, read_only(library, cryptex)),
     )
+    root = '(allow file-read* (literal "/"))'
+    sysctls = (
+        '(allow sysctl-read (sysctl-name "security.mac.lockdown_mode_state") '
+        '(sysctl-name "kern.bootargs"))'
+    )
+    for label, addition in (
+        ("root directory only", root),
+        ("startup sysctls only", sysctls),
+        ("root directory and startup sysctls", root + "\n" + sysctls),
+    ):
+        wrapped = seatbelt.wrap_argv(command, read_only())
+        wrapped[wrapped.index("-p") + 1] += "\n" + addition
+        probe(label, wrapped)
     logs = subprocess.run(
         [
             "/usr/bin/log",
