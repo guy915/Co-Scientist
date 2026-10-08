@@ -59,6 +59,10 @@ def _apply_one_reflection_item(
     review: dict[str, Any],
     current_iteration: int,
 ) -> None:
+    from co_scientist.science.reflection.comprehensive_reflection import (
+        store_failed_finalist_review,
+        store_finalist_review,
+    )
     from co_scientist.science.reflection.reflection import (
         apply_observation_result,
     )
@@ -67,6 +71,12 @@ def _apply_one_reflection_item(
         store_mature_review_result,
     )
 
+    if mode is ReviewType.FINALIST:
+        if review.get("verdict") == "unreviewed":
+            store_failed_finalist_review(hypothesis, review.get("justification"), current_iteration)
+        else:
+            store_finalist_review(hypothesis, review, current_iteration)
+        return
     if mode is ReviewType.OBSERVATION:
         # Shared engine application carries confirmed strengths into notes on
         # both execution paths.

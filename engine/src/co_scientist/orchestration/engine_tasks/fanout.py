@@ -101,7 +101,11 @@ async def execute_mature_reflection_item(
     mode = ReviewType(str(task.inputs["review_mode"]))
     with scoped_telemetry("comprehensive_reflection") as telemetry:
         ledger: dict[str, Any] | None = None
-        if mode is ReviewType.OBSERVATION:
+        if mode is ReviewType.FINALIST:
+            from co_scientist.science.reflection.comprehensive_reflection import review_finalist
+
+            _, result, ledger = await review_finalist(cast("WorkflowState", state), hypothesis)
+        elif mode is ReviewType.OBSERVATION:
             from co_scientist.science.reflection import observe_hypothesis
 
             if not state.get("articles_with_reasoning"):
@@ -532,33 +536,10 @@ def _enqueue_verification_fanout(
     }
 
 
-def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
-    """The engine owns maturity scheduling so durable and internal paths
-    cannot disagree or repay completed reviews.
-    """
-    from co_scientist.science.reflection.review_gate import reviews_needed
-
-    return [(hypothesis.id, review.value) for review in reviews_needed(hypothesis, iteration)]
-
-
 class _ReflectionSpec(NamedTuple):
     hypothesis_id: str
     review_mode: str
     recheck: bool = False
-
-
-def _viable_specs(
-    hypothesis: Any, iteration: int, literature: Any, *, terminal: bool = False
-) -> list[_ReflectionSpec]:
-    specs: list[_ReflectionSpec] = []
-    if literature and not hypothesis.reflection_notes:
-        specs.append(_ReflectionSpec(hypothesis.id, "observation"))
-    return specs + [
-        _ReflectionSpec(hypothesis_id, review_mode)
-        for hypothesis_id, review_mode in _maturity_specs(hypothesis, iteration)
-        # The terminal pass fills missing depth; a refresh would repay it.
-        if not (terminal and review_mode == "recurrent")
-    ]
 
 
 def _recheck_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
@@ -577,8 +558,10 @@ def _recheck_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
 
 
 def _mature_reflection_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
-    """Depth goes to viable finalists; blocked ideas keep their one recheck
-    except in the terminal pass, which nothing ranks afterwards."""
+    """Each viable finalist gets one in-depth review; blocked ideas keep
+    their one recheck except in the terminal pass, which nothing ranks
+    afterwards."""
+    from co_scientist.science.reflection.review_gate import ReviewType, finalist_review_needed
     from co_scientist.science.scheduling.funnel import (
         finalists,
         has_depth,
@@ -586,14 +569,14 @@ def _mature_reflection_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
     )
 
     workflow = cast("WorkflowState", state)
-    iteration = int(state.get("current_iteration", 0))
-    literature = state.get("articles_with_reasoning")
     terminal = is_terminal_depth_pass(workflow)
-    specs: list[_ReflectionSpec] = []
-    for hypothesis in finalists(workflow):
-        if hypothesis.review_disposition != "viable" or (terminal and has_depth(hypothesis)):
-            continue
-        specs += _viable_specs(hypothesis, iteration, literature, terminal=terminal)
+    specs = [
+        _ReflectionSpec(hypothesis.id, ReviewType.FINALIST.value)
+        for hypothesis in finalists(workflow)
+        if hypothesis.review_disposition == "viable"
+        and finalist_review_needed(hypothesis)
+        and not (terminal and has_depth(hypothesis))
+    ]
     return specs if terminal else specs + _recheck_specs(state)
 
 

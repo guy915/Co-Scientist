@@ -25,6 +25,7 @@ class ReviewType(str, enum.Enum):
     OBSERVATION = "observation"
     SIMULATION = "simulation"
     RECURRENT = "recurrent"
+    FINALIST = "finalist"
 
 
 _PROMPT_BY_TYPE: dict[ReviewType, str] = {
@@ -34,6 +35,7 @@ _PROMPT_BY_TYPE: dict[ReviewType, str] = {
     ReviewType.OBSERVATION: "reflection_observations",
     ReviewType.SIMULATION: "simulation_review",
     ReviewType.RECURRENT: "full_review",
+    ReviewType.FINALIST: "finalist_review",
 }
 
 
@@ -101,19 +103,14 @@ def apply_mature_review_disposition(
         hypothesis.review_disposition = disposition
 
 
-def reviews_needed(hypothesis: Hypothesis, iteration: int) -> list[ReviewType]:
-    """Full and simulation fail independently: keep successful siblings.
-    Recurrent review owns refreshed context."""
-    if ReviewType.FULL.value not in hypothesis.enrichments:
-        return [
-            review
-            for review in (ReviewType.FULL, ReviewType.SIMULATION)
-            if review.value not in hypothesis.enrichments
-        ]
-    recorded = int(hypothesis.enrichments.get("recurrent_review_iteration", -1))
-    if iteration > recorded:
-        return [ReviewType.RECURRENT]
-    return []
+# Verification searches with the finalist review's queries before its call.
+VERIFICATION_QUERIES_KEY = "verification_queries"
+
+
+def finalist_review_needed(hypothesis: Hypothesis) -> bool:
+    """A finalist is reviewed in depth once; a failed review is recorded as
+    unreviewed and not repaid."""
+    return ReviewType.FULL.value not in hypothesis.enrichments
 
 
 def store_mature_review_result(
