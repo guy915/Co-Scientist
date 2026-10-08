@@ -26,6 +26,7 @@ from co_scientist.domains.chat.repository import interviews as store
 from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
 from co_scientist.domains.documents import repository as documents
 from co_scientist.platform.llm.llm_scope import budgeted
+from co_scientist.platform.llm.process_mode import offline_mode
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,9 @@ async def _run_interview_turn(
     try:
         response = await model._call_interview_model(interview, on_reasoning, on_prose)
         return response, False
-    except model.InterviewModelUnavailableError:
+    except model.InterviewModelUnavailableError as error:
+        if not offline_mode():
+            raise HTTPException(503, "No model is available right now") from error
         return model._fallback_interview_response(interview), True
 
 

@@ -105,6 +105,10 @@ class ContainerSmokeTests(unittest.TestCase):
             self.assertIn("0", starts[0])
             self.assertTrue(any("volume-nocopy" in arg for arg in starts[0]))
             self.assertNotIn("--user", starts[1])
+            self.assertNotIn("--mount", starts[1])
+            for args in starts[:2]:
+                self.assertIn("COSCIENTIST_TEST_DOUBLE=deterministic", args)
+                self.assertIn("COSCIENTIST_FORCE_OFFLINE=1", args)
             for args in starts:
                 self.assertIn("none", args)
                 self.assertNotIn("--entrypoint", args)

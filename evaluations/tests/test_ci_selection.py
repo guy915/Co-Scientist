@@ -49,6 +49,12 @@ def test_licence_and_lock_changes_run_the_inventory_guard(path: str) -> None:
     assert "test-evaluations" in commands_for(selected)
 
 
+def test_container_probe_changes_execute_real_image_start_checks() -> None:
+    selected = selector.select(["scripts/ci/container_smoke.py"], selector.load_rules(ROOT))
+    assert selected["docker"]
+    assert "docker-build" in commands_for(selected)
+
+
 def test_native_and_workflow_changes_have_explicit_local_equivalents() -> None:
     rules = selector.load_rules(ROOT)
     sandbox = selector.select(["engine/src/co_scientist/platform/sandbox/seatbelt.py"], rules)

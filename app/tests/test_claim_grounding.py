@@ -438,9 +438,9 @@ def test_offline_never_builds_the_assessor_that_calls_a_provider(
 ) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
     if force_offline:
-        monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
+        monkeypatch.setenv("COSCIENTIST_TEST_DOUBLE", "deterministic")
     else:
-        monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+        monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
 
     _, assessor_id = build_assessor("deepseek/deepseek-chat")
 
@@ -450,7 +450,7 @@ def test_offline_never_builds_the_assessor_that_calls_a_provider(
 def test_ground_with_llm_assessor_persists_provenance(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
     run = seed_run("grounding goal")
     hyp_id = _add(run.id, "Supported", _CONTRADICTED, isolated_db)

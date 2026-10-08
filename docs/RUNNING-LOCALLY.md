@@ -8,8 +8,8 @@
   Install Bun from [the official instructions](https://bun.sh/docs/installation).
   To install that exact version, run
   `curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`.
-- Optional provider credentials for real model responses. No key is needed
-  to exercise the deterministic offline pipeline.
+- Provider credentials for real model responses. Missing keys return a
+  no-model error. The browser harness uses an explicit deterministic test double.
 - Optional Tesseract for image OCR and scanned-document extraction.
   The production API image includes it.
 
@@ -54,16 +54,17 @@ and [DEPLOYMENT.md](DEPLOYMENT.md) for authenticated hosting.
 
 ## Model and retrieval configuration
 
-The default system model is `openrouter/inclusionai/ling-3.1-flash` and needs
-`OPENROUTER_API_KEY`. Setting only another provider's key does not select its
-model: set the appropriate `MODEL_NAME` and role overrides too.
-Inspect `/status` for the selected backend and retrieval availability.
+The default free route is `openrouter/inclusionai/ling-3.1-flash` with
+`OPENROUTER_API_KEY`. Operator Express calls use free OpenRouter, then the direct
+subscriber API credit, then Azure. Standard and higher tiers require BYOK.
+See [credit setup](azure-plan.md). Inspect `/status` for retrieval availability.
 
-`COSCIENTIST_FORCE_OFFLINE=1` withholds deployment-funded model calls.
-An explicit BYOK request can still use the scientist's own credential.
-Offline mode applies to model calls; MCP retrieval may still contact public
-scientific services. The test harnesses isolate their state and mock or
-withhold external calls.
+Missing keys never enable synthetic product answers. The retired
+`COSCIENTIST_FORCE_OFFLINE` flag has no effect. For a private test only, set
+`COSCIENTIST_TEST_DOUBLE=deterministic` before starting the process. Never set it
+on a public service. `make e2e`, container smoke and the restore drill select it
+explicitly. MCP retrieval is independent; the browser harness also selects
+an offline evidence resolver and intercepts its sources.
 
 MCP configuration is documented in
 [`engine/mcp_server/.env.example`](../engine/mcp_server/.env.example).
