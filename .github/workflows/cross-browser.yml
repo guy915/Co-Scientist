@@ -91,7 +91,7 @@ jobs:
         env:
           KEYBOARD_PROJECT: ${{ matrix.project }}
           KEYBOARD_SHARD: ${{ matrix.shard }}
-        run: node e2e/run.mjs --config playwright.cross-browser.config.ts --project="$KEYBOARD_PROJECT" --shard="$KEYBOARD_SHARD/2"
+        run: python scripts/ci/native_browser_shards.py --project "$KEYBOARD_PROJECT" --shard "$KEYBOARD_SHARD"
       - name: Preserve browser report and failure diagnostics
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
