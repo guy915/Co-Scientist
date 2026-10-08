@@ -136,9 +136,7 @@ it('checks Other on blur, stores the exact ID, and keeps it when reopened', asyn
   const section = renderSection('synthetic-key', 'deepseek');
   await screen.findAllByText('deepseek-flash');
   await user.click(trigger(/Worker model/));
-  await user.click(
-    screen.getByRole('menuitemradio', {name: /^Other$/}),
-  );
+  await user.click(screen.getByRole('menuitemradio', {name: /^Other$/}));
   const input = screen.getByLabelText(/Custom worker model ID/);
   await user.type(input, 'new-model');
   await user.tab();
@@ -180,9 +178,7 @@ it('reports an unsupported Other model on submit', async () => {
   renderSection('synthetic-key', 'deepseek');
   await screen.findAllByText('deepseek-flash');
   await user.click(trigger(/Supervisor model/));
-  await user.click(
-    screen.getByRole('menuitemradio', {name: /^Other$/}),
-  );
+  await user.click(screen.getByRole('menuitemradio', {name: /^Other$/}));
   await user.type(
     screen.getByLabelText(/Custom supervisor model ID/),
     'no-tools{Enter}',
@@ -215,9 +211,7 @@ it('does not mark edited text valid when an earlier check returns', async () => 
   renderSection('synthetic-key', 'deepseek');
   await screen.findAllByText('deepseek-flash');
   await user.click(trigger(/Worker model/));
-  await user.click(
-    screen.getByRole('menuitemradio', {name: /^Other$/}),
-  );
+  await user.click(screen.getByRole('menuitemradio', {name: /^Other$/}));
   const input = screen.getByLabelText(/Custom worker model ID/);
   await user.type(input, 'first{Enter}');
   await screen.findByText('Checking…');
