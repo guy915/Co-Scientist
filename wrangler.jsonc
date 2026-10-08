@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "open-coscientist",
+  "compatibility_date": "2026-10-08",
+  "main": "app/frontend/worker.mjs",
+  "assets": {
+    "directory": "app/frontend/dist",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  }
+}
