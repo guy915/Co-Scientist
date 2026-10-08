@@ -6,7 +6,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from co_scientist.core.admission_windows import WindowExceededError
 from co_scientist.platform import db
+from co_scientist.platform.db.admission_windows import reserve_feedback_window
+
+RateExceededError = WindowExceededError
 
 Category = Literal["Bug", "Security", "Results quality", "Feature request", "Other"]
 MAX_ROWS = 200
@@ -15,10 +19,6 @@ RETENTION_SECONDS = 30 * 24 * 60 * 60
 OWNER_PER_MINUTE = 5
 HOST_PER_MINUTE = 20
 GLOBAL_PER_MINUTE = 100
-
-
-class RateExceededError(ValueError):
-    pass
 
 
 @dataclass(frozen=True)
@@ -51,17 +51,15 @@ def submit(owner: str, host_key: str, submission: Submission) -> str:
     if size > MAX_BYTES:
         raise ValueError("feedback exceeds the storage limit")
     with db.transaction() as conn:
-        conn.execute("DELETE FROM feedback_admissions WHERE created_at<=?", (now - 60,))
-        total, owned, hosted = conn.execute(
-            "SELECT COUNT(*),COALESCE(SUM(client_id=?),0),"
-            "COALESCE(SUM(host_key=?),0) FROM feedback_admissions",
-            (owner, host_key),
-        ).fetchone()
-        if total >= GLOBAL_PER_MINUTE or owned >= OWNER_PER_MINUTE or hosted >= HOST_PER_MINUTE:
-            raise RateExceededError("Please wait a minute before sending more feedback.")
-        conn.execute(
-            "INSERT INTO feedback_admissions VALUES (?,?,?)",
-            (owner, host_key, now),
+        reserve_feedback_window(
+            conn,
+            owner,
+            host_key,
+            now=now,
+            owner_limit=OWNER_PER_MINUTE,
+            host_limit=HOST_PER_MINUTE,
+            global_limit=GLOBAL_PER_MINUTE,
+            detail="Please wait a minute before sending more feedback.",
         )
         conn.execute(
             "INSERT INTO feedback VALUES (?,?,?,?,?,?,?,?,?)",
