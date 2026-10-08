@@ -183,6 +183,8 @@ def response_request(request: dict[str, Any], deployments: dict[str, str]) -> di
         "include": ["reasoning.encrypted_content"],
         "stream": bool(request.get("stream")),
     }
+    if "prompt_cache_key" in request:
+        body["prompt_cache_key"] = request["prompt_cache_key"]
     if "timeout" in request:
         body["timeout"] = request["timeout"]
     fmt = request.get("response_format")

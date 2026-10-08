@@ -31,6 +31,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_safe_max_tokens,
 )
 from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
+from co_scientist.platform.llm.tools.transcript import ThinkingTranscript
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
 
@@ -75,6 +76,12 @@ def _completion_request(
     return request
 
 
+class _ToolCalls(dict[int, dict[str, Any]]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.thinking = ThinkingTranscript()
+
+
 async def _stream_completion(
     request: dict[str, Any],
     tool_calls: dict[int, dict[str, Any]],
@@ -91,6 +98,8 @@ async def _stream_completion(
         delta = chunk.choices[0].delta if chunk.choices else None
         if delta is None:
             continue
+        if isinstance(tool_calls, _ToolCalls):
+            tool_calls.thinking.observe(delta)
         qa_ideas.accumulate_tool_calls(tool_calls, delta)
         reasoning = getattr(delta, "reasoning_content", None) or ""
         if reasoning:
@@ -169,7 +178,7 @@ async def stream_llm_deltas(
     tools = [qa_ideas.tool_declaration()] if ideas else []
     if artifacts:
         tools.append(qa_artifacts.tool_declaration())
-    tool_calls: dict[int, dict[str, Any]] = {}
+    tool_calls = _ToolCalls()
     retry = ReasoningRetry()
     for thinking_enabled in retry.attempts():
         if not thinking_enabled:
@@ -189,8 +198,12 @@ async def stream_llm_deltas(
     calls = _resolved_calls(tool_calls)[:4]
     if retry.answered or not calls:
         return
+    assistant = qa_ideas.assistant_tool_message(calls)
+    thinking_blocks = tool_calls.thinking.blocks()
+    if thinking_blocks:
+        assistant["thinking_blocks"] = thinking_blocks
     messages += [
-        qa_ideas.assistant_tool_message(calls),
+        assistant,
         *_tool_result_messages(calls, ideas, artifacts),
     ]
     async for kind, fragment in _stream_completion(
