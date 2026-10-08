@@ -1,3 +1,4 @@
+from co_scientist.platform.retrieval.evidence.relevance import register_judgment_prompt
 from co_scientist.science.prompts._common import (
     PromptRunContext,
     format_lab_constraints_section,
@@ -59,6 +60,7 @@ from co_scientist.science.prompts.review import (
     get_review_batch_prompt,
     get_review_prompt,
 )
+from co_scientist.science.schemas import LITERATURE_RELEVANCE_BATCH_SCHEMA
 
 __all__ = [
     "DebatePromptRequest",
@@ -107,3 +109,7 @@ __all__ = [
     "load_prompt_with_schema",
     "substitute_variables",
 ]
+
+register_judgment_prompt(
+    get_literature_review_relevance_batch_prompt, LITERATURE_RELEVANCE_BATCH_SCHEMA
+)

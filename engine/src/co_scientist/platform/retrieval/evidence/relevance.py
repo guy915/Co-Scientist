@@ -5,15 +5,24 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from co_scientist.core.constants import DEFAULT_MAX_TOKENS, HIGH_TEMPERATURE
 from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.platform.llm import CompletionSpec, call_llm_json
-from co_scientist.science.prompts import get_literature_review_relevance_batch_prompt
-from co_scientist.science.schemas import LITERATURE_RELEVANCE_BATCH_SCHEMA
 
 logger = logging.getLogger(__name__)
+
+# Science registers the judgment prompt and schema at import; retrieval sits
+# below science and cannot import them.
+_judgment_prompt: Callable[..., str] | None = None
+_judgment_schema: dict[str, Any] | None = None
+
+
+def register_judgment_prompt(build: Callable[..., str], schema: dict[str, Any]) -> None:
+    global _judgment_prompt, _judgment_schema
+    _judgment_prompt, _judgment_schema = build, schema
 
 
 RETRIEVAL_METHOD = "hybrid-lexical-semantic"
@@ -130,7 +139,9 @@ async def _judge_batch(
 ) -> list[tuple[str, float, str]]:
     """A failed call degrades only its batch; sibling batches must still
     finish."""
-    prompt = get_literature_review_relevance_batch_prompt(
+    if _judgment_prompt is None or _judgment_schema is None:
+        raise RuntimeError("no relevance judgment prompt is registered")
+    prompt = _judgment_prompt(
         research_goal=research_goal,
         candidates_block=_build_candidates_block(pool_ids, ranked),
     )
@@ -141,7 +152,7 @@ async def _judge_batch(
                 model_name=model_name,
                 max_tokens=DEFAULT_MAX_TOKENS,
                 temperature=HIGH_TEMPERATURE,
-                json_schema=LITERATURE_RELEVANCE_BATCH_SCHEMA,
+                json_schema=_judgment_schema,
             ),
         )
     except TASK_CONTROL_FLOW_ERRORS:
