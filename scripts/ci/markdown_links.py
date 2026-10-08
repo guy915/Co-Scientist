@@ -114,6 +114,10 @@ def check_links(root: Path, tracked: list[str]) -> list[str]:
         for path in files
         if path.suffix.lower() == ".md"
     }
+    readmes = {}
+    for path in sorted(documents):
+        if path.name.lower() == "readme.md":
+            readmes.setdefault(path.parent, path)
     findings = []
     accepted_exceptions = set()
     for path, document in sorted(documents.items()):
@@ -129,9 +133,14 @@ def check_links(root: Path, tracked: list[str]) -> list[str]:
             problem = None
             if destination not in files and destination not in directories:
                 problem = "target is absent from tracked files"
-            elif target.fragment and destination in documents:
+            elif target.fragment and (
+                destination in documents or destination in directories
+            ):
+                anchor_destination = readmes.get(destination, destination)
                 anchor = unquote(target.fragment)
-                if anchor not in documents[destination].anchors:
+                if anchor_destination not in documents:
+                    problem = "directory anchor has no tracked Markdown README"
+                elif anchor not in documents[anchor_destination].anchors:
                     problem = "heading/HTML anchor is missing"
             if problem:
                 exception = (path.relative_to(root).as_posix(), link.line, link.target)

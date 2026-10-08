@@ -72,6 +72,41 @@ class MarkdownLinksTests(unittest.TestCase):
             (root / "README.md").write_text("[docs](docs/)")
             self.assertEqual(check_links(root, ["README.md", "docs/a.md"]), [])
 
+    def test_directory_fragments_resolve_readme_heading_and_html_anchors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs").mkdir()
+            (root / "docs/readme.md").write_text("# Guide\n<a id='manual'></a>")
+            (root / "README.md").write_text(
+                "[guide](docs/#guide) [manual](/docs#manual)"
+            )
+            with patch(
+                "urllib.request.urlopen",
+                side_effect=AssertionError("network forbidden"),
+            ):
+                self.assertEqual(check_links(root, ["README.md", "docs/readme.md"]), [])
+
+    def test_directory_fragment_with_absent_readme_heading_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs").mkdir()
+            (root / "docs/README.md").write_text("# Guide")
+            (root / "README.md").write_text("[absent](docs/#absent)")
+            findings = check_links(root, ["README.md", "docs/README.md"])
+            self.assertEqual(len(findings), 1)
+            self.assertIn("docs/#absent", findings[0])
+
+    def test_directory_fragment_cannot_resolve_an_untracked_readme(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs").mkdir()
+            (root / "docs/a.md").write_text("# Tracked")
+            (root / "docs/README.md").write_text("# Untracked")
+            (root / "README.md").write_text("[ignored](docs/#untracked)")
+            findings = check_links(root, ["README.md", "docs/a.md"])
+            self.assertEqual(len(findings), 1)
+            self.assertIn("docs/#untracked", findings[0])
+
     def test_only_the_three_approved_vendor_links_are_excepted(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
