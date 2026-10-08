@@ -134,7 +134,9 @@ it('keeps a linked draft recoverable without treating it as started', async () =
   apiMock.getRun.mockResolvedValue(draft);
   apiMock.listRuns.mockResolvedValue([draft]);
 
-  renderWorkspace('/chats/interview-1');
+  await act(async () => {
+    renderWorkspace('/chats/interview-1');
+  });
 
   expect(
     await screen.findByRole('button', {name: 'Continue research'}),
