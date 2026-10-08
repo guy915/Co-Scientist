@@ -13,8 +13,10 @@ import {joinClasses} from './cx';
 import {fieldClasses} from './text_field';
 import {presenceProps, usePresence} from './use_presence';
 
+// A plain grid track grows to an unbreakable label's width, so rows could
+// never ellipsize; a minmax(0) track holds them to the menu's width.
 const SURFACE_CLASSES =
-  'ui-motion-pop grid gap-0.5 overflow-y-auto rounded-2xl border ' +
+  'ui-motion-pop grid grid-cols-[minmax(0,1fr)] gap-0.5 overflow-y-auto rounded-2xl border ' +
   'border-cosci-border bg-cosci-menu-bg p-1.5 text-cosci-fg shadow-floating';
 
 const ITEM_SELECTOR =
