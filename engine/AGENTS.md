@@ -132,7 +132,7 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   `patch_acompletion`). The registry is a module global, not a `ContextVar`, and
   holds no asyncio primitive. Tests install a fake backend and never patch
   litellm; fakes skip operator routing, so routing tests wrap `LitellmBackend`
-  (`app/tests/test_w4_provider_order.py`).
+  (`app/tests/test_provider_order.py`).
 - **One retry loop.** `attempts/retry.py::run_attempts` serves `call_llm` (3
   attempts walking `attempts/escalation.py::BudgetEscalation`: as asked, raised
   budget, thinking off; a fourth rung answers reasoning-cap refusals),
@@ -199,7 +199,7 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
 - Every command a node runs is confined (Linux: Landlock, seccomp, cgroups;
   macOS: Seatbelt). Where no backend can confine a command, execution tools are
   withheld and the review reasons instead. Workspaces, skill scripts included,
-  have no network (`network_allowed=False`; `tests/test_sr04_generated_egress.py`),
+  have no network (`network_allowed=False`; `tests/test_generated_program_egress.py`),
   although the `read_skill` preamble still claims otherwise. Script
   execution also needs the cgroup boundary described in
   [DEPLOYMENT](../docs/DEPLOYMENT.md).
