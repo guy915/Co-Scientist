@@ -61,48 +61,8 @@ Record the commit and deployment identifiers, health/readiness results, and
 rollback revision. Validate run creation, streamed progress, completion,
 restart recovery, report retrieval, and ownership isolation in the intended
 environment. Provider-backed verification is separate from offline CI and can
-incur provider usage. A historical healthy-service receipt is not verification
-of a new release.
-
-## Launch runbook
-
-The launch moves the code to https://github.com/guy915/Open-Co-Scientist with
-a single initial commit, the frontend and DNS to Cloudflare, and the API and
-MCP server to a new Railway project. Production starts with an empty database.
-Run the steps in order; each ends with a check.
-
-1. **Freeze.** Merge or close every open pull request in this repository, run
-   `make check` and `make docker-build` on `main`, and confirm the tree has no
-   secrets, databases or run outputs.
-2. **Publish the code.** Export `main` without history (for example,
-   `git archive main` into an empty directory), create one initial commit and
-   push it to the new repository. Check that `NOTICE`, the package `NOTICE`
-   and `LICENSE` copies and `vendor/` arrived unchanged.
-3. **Configure the repository.** Enable Discussions and private vulnerability
-   reporting, apply `.github/labels.yml`, import `.github/rulesets/main.json`
-   and allow squash merges only. Add the repository secrets the manual
-   workflows need (see [CI](CI.md)). Check that CI passes on the initial
-   commit.
-4. **Start the API and MCP server.** In the new Railway project, create the
-   `api` and `mcp` services from the root Dockerfiles, with a volume at
-   `/app/data`, `RAILWAY_RUN_UID=0` and exactly one API replica
-   ([deployment](DEPLOYMENT.md)). Set matching `COSCIENTIST_MCP_SHARED_SECRET`
-   values, the model credentials, `BYOK_ENCRYPTION_KEY`, `LOGS_ADMIN_TOKEN`
-   and `ALLOWED_ORIGINS=https://open-coscientist.com`, plus the
-   `LITESTREAM_R2_*` credentials for replication to R2
-   ([deployment](DEPLOYMENT.md#database-replication-optional)). Check
-   `https://api.open-coscientist.com/health` and `/status`.
-5. **Start the frontend.** Deploy the Cloudflare Worker in `wrangler.jsonc`
-   from a build with `VITE_API_BASE_URL=https://api.open-coscientist.com`
-   and `VITE_SENTRY_DSN` ([deployment](DEPLOYMENT.md#frontend)). Point DNS at it. Check deep links, a report reload
-   and a full Express run.
-6. **Remove the pre-launch setup.** Merge the pull request that drops the old
-   origins and hosting files, then repeat the step 4 and 5 checks.
-7. **Watch.** Point uptime checks and error tracking at the new URLs
-   ([monitoring](MONITORING.md)) and take the first backup
-   ([backup and restore](#backup-and-restore)).
-8. **Retire the old repository.** Make it private only after the new
-   deployment has served real runs.
+incur provider usage. An earlier health check is not verification of a new
+release.
 
 ## Backup and restore
 
@@ -139,20 +99,18 @@ DB with WAL/SHM files from another snapshot. Restart one API process and verify
 recovery before admitting new work. Reverting code alone does not revert schema
 or persisted state; validate compatibility before restoring an older release.
 
-## Public repository prerequisites
+## Licensing and repository settings
 
 The first-party software is Apache 2.0; [NOTICE](../NOTICE) and the vendored
 license files preserve third-party terms. Review the rights for included paper
 excerpts, screenshots, protocols, and data independently of the software license.
-The favicon and app icons come from an unidentified icon set (see NOTICE):
-identify its license or replace the mark before publication.
+NOTICE records the provenance of the favicon and app icons.
 
-Before publishing, scan the tree for secrets and private researcher data and
-rotate anything found. `.gitignore` and `.dockerignore` protect future local
-artifacts only. Enable private vulnerability reporting and Discussions, apply
-`.github/labels.yml` and import `.github/rulesets/main.json` so the CI
-aggregate check is required.
+CI scans added lines for secrets; rotate anything found. `.gitignore` and
+`.dockerignore` protect local artifacts only. The repository uses private
+vulnerability reporting and Discussions, applies `.github/labels.yml` and
+imports `.github/rulesets/main.json` so the CI aggregate check is required.
 
 Offline passing checks establish implementation behavior, not external model
 quality, expert agreement, biological safety, or wet-lab effectiveness. Keep
-these limits visible in launch copy and evaluate scientific outcomes separately.
+these limits visible in public copy and evaluate scientific outcomes separately.

@@ -1,6 +1,6 @@
 # Local Litestream restore drill
 
-Run this before launch and after changing the backup format or API startup.
+Run this before relying on backups and after changing the backup format or API startup.
 It creates a synthetic application database, backs it up to a local file
 replica, restores into a separate scratch file and starts one offline API on
 loopback. It never opens an existing database or an R2 replica.
@@ -87,7 +87,7 @@ was reuploaded and selected for an integrity-checked restore. The second
 force/upload/verification took **0.092 seconds**, final restore **0.033 seconds**,
 and restore through healthy offline API **3.838 seconds**. The marker and
 integrity survived startup/shutdown. This remains synthetic local evidence,
-not a measurement or assertion about the owner's R2 account.
+not a measurement or assertion about any R2 account.
 
 When all four R2 settings are present, the entrypoint starts the backup
 supervisor. It starts the API independently of replication, then forces and
@@ -101,14 +101,14 @@ directory on the database volume and removes its copy and sidecars.
 A failure preserves the last verified timestamp, records sanitized metadata,
 pauses new work without cancelling admitted work, and retries after one hour.
 Success never unpauses an operator decision. An unexpected daemon exit stops
-the API rather than continuing without replication. The owner checks failed
+the API rather than continuing without replication. The operator checks failed
 verification via the operator view and the fixed Sentry error when configured,
 checks volume headroom and R2 availability, then explicitly resumes only after
 a fresh verified snapshot. No restored database or child diagnostic payload is
 sent to Sentry. The status file is private, atomic, and contains timestamps,
 transaction ID and duration only; supervisor polls do not write the database.
 
-The owner approved a 30-day R2 maximum-age lifecycle at cutover. The owner
-must actually configure and verify that rule and notification destinations;
-this code does not change R2 or any hosting account. Stop launch if the rule,
-fresh verified base or matching encryption-key recovery cannot be established.
+The hosted deployment uses a 30-day R2 maximum-age lifecycle. The operator
+configures and verifies that rule and the notification destinations; this code
+does not change R2 or any hosting account. Do not rely on backups until the
+rule, a fresh verified base and matching encryption-key recovery are established.

@@ -79,8 +79,8 @@ so a run survives restarts and resumes where it stopped.
 - **Safety screening** of the goal, each hypothesis and the final report.
 - **Bring your own key** for your preferred provider and larger run sizes;
   keys are encrypted at rest.
-- **Offline mode** with a deterministic backend, so you can develop and test
-  the whole pipeline without an API key.
+- **Deterministic test backend** (`COSCIENTIST_TEST_DOUBLE=deterministic`), so
+  tests and browser suites exercise the whole pipeline without an API key.
 
 ## Honest limits
 
@@ -118,9 +118,9 @@ make start    # API on :8008, workbench on :5173, MCP server on :8888
 ```
 
 `make start` opens [localhost:5173](http://localhost:5173) when it is ready,
-and stops anything already listening on those three ports. With no API key,
-every stage runs on the deterministic offline backend. To use a real model,
-set `OPENROUTER_API_KEY` in the root `.env` that `make setup` created; see
+and stops anything already listening on those three ports. A run needs a
+model credential: without one, requests fail with "No model is available right
+now". Set `OPENROUTER_API_KEY` in the root `.env` that `make setup` created; see
 [`.env.example`](.env.example) and the
 [full API configuration](app/.env.example). The MCP server reads its own
 `engine/mcp_server/.env` ([template](engine/mcp_server/.env.example)).

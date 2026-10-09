@@ -57,7 +57,7 @@ artifacts; keep those exclusions when adding an image or context.
 ### Railway source and watch paths
 
 Both services use `guy915/Open-Co-Scientist`, branch `main`, build root `/`,
-and their root Dockerfile, with no start-command override. Use the new MCP
+and their root Dockerfile, with no start-command override. Use the MCP
 service's private DNS hostname in the API's `MCP_SERVER_URL`.
 Set the API healthcheck path to `/health`, restart policy to `ON_FAILURE`
 with 10 retries, and deployment draining to 30 seconds so the entrypoint's
@@ -174,9 +174,9 @@ The optional paid Azure fallback needs `LLM_AZURE_ENABLED=1`,
 
 The zero run-retention setting disables scheduled deletion of completed runs;
 document retention remains separate (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`).
-Use a new volume and R2 prefix so restore cannot import the old deployment's
-research data. Keep `LITESTREAM_R2_*`, provider, Sentry and OTLP endpoints on
-their own services; only public application URLs move to the new domain.
+Give each deployment its own volume and R2 prefix so a restore cannot import
+another deployment's research data. Keep `LITESTREAM_R2_*`, provider, Sentry
+and OTLP settings on the services that use them.
 
 API error tracking uses `SENTRY_DSN` and `SENTRY_ENVIRONMENT`; tracing uses
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS` and
