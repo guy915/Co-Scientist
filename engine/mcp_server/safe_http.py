@@ -152,11 +152,14 @@ async def get_with_screened_redirects(
                 authority = f"[{host}]" if ":" in host else host
                 if parsed.port is not None:
                     authority = f"{authority}:{parsed.port}"
+                # The URL names the pinned IP; the source keeps the validated
+                # hostname so attribution survives (transports ignore the key).
+                source = {"source_host": host, "source_url": current}
                 request = client.build_request(
                     "GET",
                     parsed.copy_with(host=ip),
                     headers={"Host": authority, "Accept-Encoding": "identity"},
-                    extensions={"sni_hostname": host},
+                    extensions={"sni_hostname": host, **source},
                 )
                 response = await client.send(request, stream=True, follow_redirects=False)
                 try:
@@ -170,6 +173,7 @@ async def get_with_screened_redirects(
                             headers=response.headers,
                             content=b"",
                             request=request,
+                            extensions=source,
                         )
                     content_length = response.headers.get("content-length")
                     if content_length is not None:
@@ -188,6 +192,7 @@ async def get_with_screened_redirects(
                         headers=headers,
                         content=body,
                         request=request,
+                        extensions=source,
                     )
                 finally:
                     await response.aclose()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, cast
@@ -9,12 +10,13 @@ from unittest.mock import AsyncMock
 import pytest
 
 import co_scientist.platform.retrieval.evidence as evidence
+from co_scientist.core.constants import SOURCE_FANOUT
 from co_scientist.orchestration.generator.initial_state import (
     RunCapabilities,
     RunIdentity,
     _build_initial_state,
 )
-from co_scientist.platform.retrieval.config import ToolRegistry
+from co_scientist.platform.retrieval.config import SearchSourceConfig, ToolRegistry, WorkflowConfig
 from co_scientist.platform.retrieval.degradation import (
     CAPABILITIES_LOST_WITHOUT_MCP,
     FLOOR_NONE,
@@ -22,6 +24,7 @@ from co_scientist.platform.retrieval.degradation import (
     MCP_UNREACHABLE,
 )
 from co_scientist.platform.retrieval.evidence import search
+from co_scientist.platform.retrieval.mcp_client import MCPToolClient
 from co_scientist.science import evidence_context as probes
 from tests._llm_fake import install_fake_llm
 from tests._mcp import make_tool_lookup_registry
@@ -175,6 +178,57 @@ async def test_a_failing_source_keeps_its_healthy_sibling_and_diagnostics() -> N
     assert len(errors) == 1
     assert "search_europepmc" in errors[0] and "Europe PMC" in errors[0]
     assert "HTTP 503" in errors[0]
+
+
+async def test_identical_queries_are_sent_once_and_sources_fan_out_in_bounded_number() -> None:
+    sources = [f"src_{index}" for index in range(SOURCE_FANOUT + 2)]
+    registry = make_tool_lookup_registry(
+        {source: make_tool_config(mcp_tool_name=f"search_{source}") for source in sources}
+    )
+    sent: list[tuple[str, str]] = []
+    in_flight = 0
+    peak = 0
+
+    class Client:
+        async def call_tool(self, name: str, **kwargs: Any) -> Any:
+            nonlocal in_flight, peak
+            sent.append((name, kwargs["query"]))
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0.01)
+            in_flight -= 1
+            return {f"{name}-{kwargs['query']}": {"title": "A paper"}}
+
+    config = make_search_config(
+        tool_registry=cast(ToolRegistry, registry),
+        workflow=WorkflowConfig(
+            search_sources=[
+                SearchSourceConfig(tool=source, papers_per_query=1) for source in sources
+            ],
+            deduplicate_across_sources=True,
+        ),
+        is_multi_source=True,
+        search_tool_name="unused",
+        source_name="mixed",
+        papers_to_read_count=20,
+    )
+    config.semantic_relevance_enabled = False
+    state = make_state(research_goal="fibrosis", run_id="run-1")
+
+    await search.collect_papers(
+        ["fibrosis  TGF-beta", "fibrosis TGF-beta", "collagen"],
+        state,
+        config,
+        cast(MCPToolClient, Client()),
+        [],
+    )
+
+    assert sorted(sent) == sorted(
+        (f"search_{source}", query)
+        for source in sources
+        for query in ("fibrosis  TGF-beta", "collagen")
+    )
+    assert peak <= SOURCE_FANOUT * 2
 
 
 _HTTP_503 = {"kind": "http_status", "status_code": 503, "detail": "HTTP 503"}

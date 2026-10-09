@@ -27,6 +27,11 @@ from co_scientist.platform.retrieval.research.artifacts import (
 
 logger = logging.getLogger(__name__)
 
+# Sources searched at once (this package imports nothing else in the repo, so
+# it mirrors core.constants.SOURCE_FANOUT); unbounded fan-out bursts into
+# upstream rate limits.
+SOURCE_FANOUT = 3
+
 
 def bind_findings(
     extracted: Sequence[ExtractedFinding],
@@ -156,6 +161,10 @@ class _Session:
         # Semaphores belong to the request's live loop, never a module shared by
         # worker cohorts.
         self.limiter = asyncio.Semaphore(budget.concurrency)
+        self.fanout = asyncio.Semaphore(SOURCE_FANOUT)
+        # Questions that reduce to one query share its search instead of
+        # sending it again; each thread still records its own call.
+        self.searches: dict[tuple[str, str], asyncio.Task[tuple[SourceHit, ...]]] = {}
         self.threads: list[ThreadRecord] = []
         self.calls: list[SearchCall] = []
         self.findings: list[Finding] = []
@@ -324,11 +333,7 @@ class _Session:
         async def one(source: str) -> SearchCall:
             started = time.monotonic()
             try:
-                hits = await self.retrieval.search(
-                    query=query,
-                    source=source,
-                    limit=self.budget.hits_per_question,
-                )
+                hits = await self._shared_search(query, source)
             except Exception as exc:
                 logger.warning("Search failed on %s: %s", source, exc)
                 return SearchCall(
@@ -339,7 +344,7 @@ class _Session:
                     error=str(exc),
                     duration_seconds=time.monotonic() - started,
                 )
-            ordered = tuple(hits)
+            ordered = hits
             return SearchCall(
                 question=question,
                 query=query,
@@ -351,6 +356,23 @@ class _Session:
 
         gathered = await asyncio.gather(*(one(source) for source in self.budget.sources))
         return list(gathered)
+
+    async def _shared_search(self, query: str, source: str) -> tuple[SourceHit, ...]:
+        """Threads are cancelled only with their session, so a shared search
+        may be cancelled with any of its awaiters."""
+        key = (source, " ".join(query.split()))
+        if key not in self.searches:
+            self.searches[key] = asyncio.ensure_future(self._search(query, source))
+        return await self.searches[key]
+
+    async def _search(self, query: str, source: str) -> tuple[SourceHit, ...]:
+        async with self.fanout:
+            hits = await self.retrieval.search(
+                query=query,
+                source=source,
+                limit=self.budget.hits_per_question,
+            )
+        return tuple(hits)
 
     async def _read_documents(self, hits: Sequence[SourceHit]) -> list[Document]:
         """Unreadable full text remains snippet-depth evidence rather than

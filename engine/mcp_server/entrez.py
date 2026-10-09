@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from Bio import Entrez
+from Bio.Entrez import Parser
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +110,30 @@ def _claim_slot(next_slot: float) -> None:
 
 
 def entrez_call(request: Callable[..., Any], /, **kwargs: Any) -> Any:
-    """Every Entrez request must use this seam to preserve process-wide NCBI
-    pacing.
-    """
-    _await_slot()
+    """Every Entrez request must use this seam; pacing happens per send below."""
+    install_send_gate()
     return request(**kwargs)
+
+
+_unpaced_urlopen: Callable[..., Any] | None = None
+
+
+def _paced_urlopen(*args: Any, **kwargs: Any) -> Any:
+    assert _unpaced_urlopen is not None
+    _await_slot()
+    return _unpaced_urlopen(*args, **kwargs)
+
+
+def install_send_gate() -> None:
+    """Biopython retries 429s and 5xx inside `Entrez._open`, and its parser
+    fetches missing DTDs; pacing whole calls let those sends burst past NCBI's
+    per-second limit, so every physical urlopen takes a process-wide slot."""
+    global _unpaced_urlopen
+    if Entrez.urlopen is _paced_urlopen:
+        return
+    _unpaced_urlopen = Entrez.urlopen
+    Entrez.urlopen = _paced_urlopen
+    Parser.urlopen = _paced_urlopen
+
+
+install_send_gate()

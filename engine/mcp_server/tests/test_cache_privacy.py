@@ -30,7 +30,11 @@ def test_requests_cache_public_papers_without_queries_topics_or_runs(
         "pubmed_search_ids",
         lambda self, query, **kw: ["123"] if query == "PRIVATE_QUERY_ONE" else ["456"],
     )
-    monkeypatch.setattr(PubmedSource, "_fetch_paper_details", lambda self, paper: _metadata(paper))
+    monkeypatch.setattr(
+        PubmedSource,
+        "_fetch_papers_details",
+        lambda self, papers: {paper: _metadata(paper) for paper in papers},
+    )
     monkeypatch.setattr(
         PubmedSource,
         "_download_pmc_fulltext",
@@ -74,7 +78,7 @@ def test_empty_and_failed_searches_do_not_write_private_manifests(
     def fail(*args: Any) -> dict[str, Any]:
         raise RuntimeError("metadata failure")
 
-    monkeypatch.setattr(PubmedSource, "_fetch_paper_details", fail)
+    monkeypatch.setattr(PubmedSource, "_fetch_papers_details", fail)
     failed = asyncio.run(
         tool.pubmed_search_with_fulltext("PRIVATE_QUERY", "PRIVATE_TOPIC", run_id="PRIVATE_RUN")
     )

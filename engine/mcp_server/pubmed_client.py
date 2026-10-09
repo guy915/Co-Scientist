@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 from Bio import Entrez
 
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
-from mcp_server.pubmed_records import journal_article, parse_pubmed_record
+from mcp_server.log_privacy import failure_summary
+from mcp_server.pubmed_records import PubmedRecord, parse_pubmed_record, records_by_pmid
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,59 @@ def search_with_relaxation(
 
 PUBMED_SEARCH_SORT = "pub_date"
 
+# NCBI asks for at most 200 UIDs per E-utility request.
+EUTILS_BATCH_SIZE = 200
+
+
+def _batches(paper_ids: Sequence[str]) -> list[list[str]]:
+    unique = list(dict.fromkeys(paper_ids))
+    return [unique[i : i + EUTILS_BATCH_SIZE] for i in range(0, len(unique), EUTILS_BATCH_SIZE)]
+
+
+def fetch_pubmed_records(paper_ids: Sequence[str]) -> dict[str, PubmedRecord | None]:
+    """None marks a book record. An ID PubMed did not answer for, or whose
+    record failed to parse, is absent, so callers count it as failed."""
+    records: dict[str, PubmedRecord | None] = {}
+    for batch in _batches(paper_ids):
+        answered = records_by_pmid(read_entrez(entrez_call(Entrez.efetch, db="pubmed", id=batch)))
+        for paper_id in batch:
+            if paper_id not in answered:
+                continue
+            raw = answered[paper_id]
+            try:
+                records[paper_id] = None if raw is None else parse_pubmed_record(raw)
+            except Exception as exc:
+                # A malformed paper must not discard successful siblings.
+                logger.warning("PubMed metadata fetch failed (%s)", failure_summary(exc))
+    return records
+
+
+def _pmc_link(link_set: Any) -> str | None:
+    for link_db in link_set.get("LinkSetDb") or []:
+        if link_db.get("LinkName", "pubmed_pmc") == "pubmed_pmc" and link_db.get("Link"):
+            return str(link_db["Link"][0]["Id"])
+    return None
+
+
+def fetch_pmc_ids(paper_ids: Sequence[str]) -> dict[str, str | None]:
+    """A list `id` makes ELink answer one link set per PMID. `pubmed_pmc` is
+    the article's own PMC copy; unnamed PMC links include papers citing it."""
+    links: dict[str, str | None] = {}
+    for batch in _batches(paper_ids):
+        try:
+            link_sets = read_entrez(
+                entrez_call(
+                    Entrez.elink, dbfrom="pubmed", db="pmc", linkname="pubmed_pmc", id=batch
+                )
+            )
+            for link_set in link_sets:
+                source_ids = link_set.get("IdList") or []
+                if len(source_ids) == 1 and str(source_ids[0]) in batch:
+                    links[str(source_ids[0])] = _pmc_link(link_set)
+        except Exception:
+            logger.debug("fulltext not available in pmc")
+    return {paper_id: links.get(paper_id) for paper_id in dict.fromkeys(paper_ids)}
+
 
 initialize_entrez()
 
@@ -122,37 +176,17 @@ class _EntrezClient:
     def entrez_read(self, handle: Any) -> Any:
         return read_entrez(handle)
 
-    def _fetch_pmc_fulltext_id(self, paper_id: str, doi: str | None) -> str | None:
-        try:
-            # Failed PMC lookup and successful no-link are equally unreadable
-            # but distinct provenance.
-            related = self.entrez_read(
-                entrez_call(Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id)
-            )
-        except Exception:
-            logger.debug("fulltext not available in pmc")
-            return None
-        try:
-            link_sets = related[0]["LinkSetDb"]
-            if not link_sets or not link_sets[0].get("Link"):
-                return None
-            return str(link_sets[0]["Link"][0]["Id"])
-        except (IndexError, KeyError, TypeError):
-            logger.debug("fulltext not available in pmc")
-            return None
-
-    def _fetch_paper_details(self, paper_id: str) -> dict[str, Any] | None:
+    def _fetch_papers_details(self, paper_ids: Sequence[str]) -> dict[str, dict[str, Any] | None]:
         """Blocking Entrez requests and XML parsing must run off the event
-        loop.
+        loop. None marks a book record; a failed ID is absent.
         """
-        # Even single-ID efetch returns a PubmedArticleSet list.
-        results = self.entrez_read(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-        pubmed_article = journal_article(results)
-        if pubmed_article is None:
-            return None
-        record = parse_pubmed_record(pubmed_article)
-        pmc_id = self._fetch_pmc_fulltext_id(paper_id, record.doi)
-        return record.fulltext_metadata(pmc_id)
+        records = fetch_pubmed_records(paper_ids)
+        journal_ids = [paper_id for paper_id, record in records.items() if record is not None]
+        pmc_ids = fetch_pmc_ids(journal_ids) if journal_ids else {}
+        return {
+            paper_id: None if record is None else record.fulltext_metadata(pmc_ids.get(paper_id))
+            for paper_id, record in records.items()
+        }
 
     def _esearch_ids(self, query: str, retmax: int, recency_years: int) -> list[str]:
         search_params: dict[str, Any] = {

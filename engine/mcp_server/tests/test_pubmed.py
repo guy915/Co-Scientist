@@ -20,6 +20,8 @@ from mcp_server.pubmed_storage import (
 )
 from mcp_server.tests._entrez import (
     CannedEntrezHandle,
+    efetch_by_id,
+    elink_by_id,
     install_entrez,
 )
 from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
@@ -46,8 +48,8 @@ def _install_article(monkeypatch: pytest.MonkeyPatch, article: dict[str, Any]) -
     install_entrez(
         monkeypatch,
         esearch=lambda **_kwargs: CannedEntrezHandle({"IdList": ["123"]}),
-        efetch=lambda **_kwargs: CannedEntrezHandle(_canned(article)),
-        elink=lambda **_kwargs: CannedEntrezHandle([{"LinkSetDb": []}]),
+        efetch=efetch_by_id(lambda _paper_id: _canned(article)),
+        elink=elink_by_id(lambda _paper_id: None),
     )
 
 

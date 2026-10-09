@@ -61,7 +61,9 @@ def request_with_screened_redirects(
             authority = f"{authority}:{parsed.port}"
         pinned_url = parsed.copy_with(host=ip)
         headers = {"Host": authority}
-        extensions = {"sni_hostname": host}
+        # The URL names the pinned IP; the source keeps the validated hostname
+        # so attribution survives (transports ignore the key).
+        extensions = {"sni_hostname": host, "source_host": host, "source_url": current}
         for probe_method in ("HEAD", "GET") if method == "HEAD" else (method,):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
