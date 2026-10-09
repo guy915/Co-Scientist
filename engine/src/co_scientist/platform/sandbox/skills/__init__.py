@@ -256,8 +256,7 @@ def read_skill_document(
     network = (
         "the network is available for the skill's own API calls only"
         if network_allowed
-        else "this workspace has no network access, so steps that call an "
-        "external API will fail"
+        else "this workspace has no network access, so steps that call an external API will fail"
     )
     preamble = (
         f"Skill directory: {skill.directory}\n"
