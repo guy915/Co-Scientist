@@ -152,7 +152,7 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   litellm, except tests of `LitellmBackend` itself, the outbound guard and the
   SDK's global routing settings. Fakes
   skip operator routing, so routing tests wrap `LitellmBackend`
-  (`app/tests/test_w4_provider_order.py`).
+  (`app/tests/test_provider_order.py`).
 - **One retry loop.** `attempts/retry.py::run_attempts` serves `call_llm` (3
   attempts walking `attempts/escalation.py::BudgetEscalation`: as asked, raised
   budget, thinking off; a fourth, minimal-reasoning rung answers providers that
@@ -222,8 +222,8 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   macOS: Seatbelt). Where no backend can confine a command, execution tools are
   withheld and the review reasons instead. Workspaces, skill scripts included,
   have no network (`network_allowed=False`;
-  `tests/test_sr04_generated_egress.py`), and the `read_skill` preamble follows
-  the workspace policy. Script execution also needs the cgroup boundary
+  `tests/test_generated_program_egress.py`), and the `read_skill` preamble
+  follows the workspace policy. Script execution also needs the cgroup boundary
   described in [DEPLOYMENT](../docs/DEPLOYMENT.md).
 - `workspace/run_workspace.py` opens a workspace per run, per review
   (`open_review_workspace`, since reviews fan out concurrently) and per drafting
