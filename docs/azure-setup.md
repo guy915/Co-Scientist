@@ -20,8 +20,10 @@ higher tiers require BYOK. No Mistral slot remains.
    allowance. Azure has no hard cap for this offer; excess spend is billed to the
    subscription.
 4. Size TPM/RPM for the capped requests and Express concurrency within that
-   total. The current 1,000 TPM / 1 RPM per deployment is too small for the
-   existing prompts/output allowances. Confirm quota before enabling Azure.
+   total. Since 9 Oct 2026, `coscientist-supervisor-luna` has 100K TPM and
+   `coscientist-worker-nano` has 300K TPM. TPM is a rate limit, not a cost;
+   spend is bounded by the recorded allowance. Confirm quota before enabling
+   Azure.
 5. Open `/operations/spend` with the logs-admin token and test the kill switches
    and refusal path. Enable Azure only after the bounded live checks pass.
 

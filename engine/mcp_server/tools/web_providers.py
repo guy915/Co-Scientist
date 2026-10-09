@@ -3,6 +3,7 @@ import html
 import logging
 import os
 import re
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -35,9 +36,18 @@ _KEY_REJECTED_STATUSES = frozenset({401, 402, 403, 432, 433})
 _QUOTA_EXHAUSTED_CODES = frozenset({"QUOTA_LIMITED", "USAGE_LIMIT_EXCEEDED", "CREDIT_EXHAUSTED"})
 _RATE_LIMITED = "HTTP 429"
 
+# Brave's X-RateLimit-Reset lists seconds from now per window ("1, 1419704":
+# per-second, then per-month). Without a readable value, ask again a day later;
+# the cap stops a malformed value from parking the provider beyond one month.
+_QUOTA_RETRY_FALLBACK = 24 * 60 * 60
+_QUOTA_RETRY_CEILING = 31 * 24 * 60 * 60
+
 # Refusals describe process credentials, not one query, and govern subsequent
 # provider choices.
 _credential_errors: dict[str, dict[str, Any]] = {}
+# Monotonic time after which a quota refusal lets the next search ask again.
+_quota_retry_at: dict[str, float] = {}
+_clock: Callable[[], float] = time.monotonic
 
 
 def web_search_credential_error() -> dict[str, Any] | None:
@@ -67,8 +77,28 @@ def _record_credential_error(provider: str, status: int, detail: str) -> None:
 def _clear_credential_error(provider: str | None = None) -> None:
     if provider is None:
         _credential_errors.clear()
+        _quota_retry_at.clear()
     else:
         _credential_errors.pop(provider, None)
+        _quota_retry_at.pop(provider, None)
+
+
+def _refusal_lifted(provider: str) -> bool:
+    if credential_error_for(provider) is None:
+        return True
+    retry_at = _quota_retry_at.get(provider)
+    return retry_at is not None and _clock() >= retry_at
+
+
+def _quota_reset_seconds(response: httpx.Response) -> float:
+    try:
+        windows = [int(part) for part in response.headers["x-ratelimit-reset"].split(",")]
+    except (KeyError, ValueError):
+        return _QUOTA_RETRY_FALLBACK
+    # A refusal whose windows all reset now says nothing about when it ends.
+    if min(windows) < 0 or max(windows) == 0:
+        return _QUOTA_RETRY_FALLBACK
+    return min(max(windows), _QUOTA_RETRY_CEILING)
 
 
 def _error_code(response: httpx.Response) -> str | None:
@@ -95,6 +125,22 @@ def _handle_provider_error(provider: str, query: str, exc: Exception) -> dict[st
     status = _refused_status(exc)
     if status is not None:
         _record_credential_error(provider, status, str(exc))
+        if (
+            isinstance(exc, httpx.HTTPStatusError)
+            and status not in _KEY_REJECTED_STATUSES
+            and _error_code(exc.response) in _QUOTA_EXHAUSTED_CODES
+        ):
+            delay = _quota_reset_seconds(exc.response)
+            _quota_retry_at[provider] = _clock() + delay
+            logger.error(
+                "%s quota is exhausted (HTTP %s) - searches move to the next "
+                "provider, if one is configured, and ask it again in %d s",
+                provider,
+                status,
+                delay,
+            )
+            return failed(exc)
+        _quota_retry_at.pop(provider, None)
         # Logged at error, not warning: this one does not clear on its own,
         # and the search moves to another provider or returns nothing.
         logger.error(
@@ -295,7 +341,7 @@ def candidate_providers() -> list[tuple[str, SearchFn]]:
     can become observable.
     """
     configured = configured_providers()
-    healthy = [entry for entry in configured if credential_error_for(entry[0]) is None]
+    healthy = [entry for entry in configured if _refusal_lifted(entry[0])]
     return healthy or configured[:1]
 
 
@@ -373,6 +419,6 @@ async def check_web_search_available() -> bool:
 
     Returns:
         True when at least one configured provider has not been refused
-        since the last search that worked.
+        since the last search that worked, or its quota reset has passed.
     """
-    return any(credential_error_for(name) is None for name, _ in configured_providers())
+    return any(_refusal_lifted(name) for name, _ in configured_providers())
