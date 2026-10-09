@@ -1,214 +1,269 @@
-# App — FastAPI + React viewer
+# App — HTTP API, durable runtime, store and frontend
 
-Web UI and HTTP/SSE API wrapping `co-scientist-engine` for live hypothesis-generation runs. Repo-wide conventions, operational invariants, and required environment live in the [root AGENTS.md](../AGENTS.md) — read that too.
+Read the [root AGENTS.md](../AGENTS.md) first. `app/` holds the React frontend
+(`frontend/`), the backend test suite (`tests/`), local Docker Compose and
+`dev/` scripts; it has no production Python. The server it tests lives in
+`engine/src/co_scientist/` (package map in [engine/AGENTS.md](../engine/AGENTS.md)).
+This guide covers that server's HTTP API, durable task runtime and SQLite
+store. Backend paths below are relative to `engine/src/co_scientist/`.
 
-## Backend (`app/`)
+## Backend
 
-FastAPI app with settings in `engine/src/co_scientist/core/config.py` (pydantic-settings, loads `.env`). The server and its dependencies are the `co-scientist-engine` package; `app/pyproject.toml` only configures ruff, mypy and pytest for `app/tests`.
+### Run and test
 
-**Commands** (run from `app/`):
-```bash
-make install         # pip install -e "../engine[dev]"
-make dev             # uvicorn co_scientist.main:app --reload --reload-dir ../engine/src, port 8008
-make start           # same, without --reload
-make test            # pytest (asyncio_mode = "auto", testpaths = ["tests"])
-make format / lint / typecheck   # ruff format / ruff check / mypy
-```
+- From the root: `make dev-api` (`co_scientist.main:app --reload` on 8008, with
+  `coscientist.db` at the root) and `make test-app` (pytest, four workers).
+  `app/Makefile` has similar targets for an activated venv (`install`, `dev`,
+  `start`, `test`, `format`, `lint`, `typecheck`), but its server keeps the
+  database in `app/`, its `test` runs serially, and format and lint cover
+  `tests/` only. `app/pyproject.toml` configures only tooling for `tests/`.
+- Use a server without `--reload` (`app/Makefile`'s `start`) whenever a run
+  may be in flight: `--reload` restarts on any edit under `engine/src/` and
+  drops the embedded worker cohort mid-task.
+- Production serves `co_scientist.serving:create_app` through
+  `scripts/api-entrypoint.sh`; it wraps `main.app` in the trusted-proxy
+  middleware ([docs/TRUSTED-PROXY.md](../docs/TRUSTED-PROXY.md)).
+- Settings are `core/config.py` (pydantic-settings; reads `.env` from the
+  working directory unless `PYTHON_DOTENV_DISABLED=1`, and `main.py` also loads
+  the root `.env`). `COSCIENTIST_DB_PATH` (default `./coscientist.db`) is read
+  in `platform/db/__init__.py`.
+- Test harness: the autouse `isolated_db` fixture (`tests/conftest.py`) gives
+  each test a temporary database, strips provider keys, sets the test double
+  and an operator token. Use `tests/_client.py` (`make_client`,
+  `make_operator_client`), the `fake_process_mode` fixture and
+  `tests/_engine_tasks_helpers.py::FakeEngineTaskRuntime` rather than patching
+  each consumer. Offline cost envelopes per tier are in
+  `tests/test_run_envelopes.py`.
 
-Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `engine/src/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation.
+### Durable task execution
 
-**Source modules** (`engine/src/co_scientist/`) — the ones worth knowing; the package combines flat modules with the `platform/db/`, `orchestration/engine_adapter/`, `orchestration/engine_tasks/`, `domains/report/`, `api/runs/`, `domains/research_state/claims/`, `platform/retrieval/citations/`, `api/interviews/` and `domains/chat/interviews/`, `domains/chat/qa/`, `domains/safety/`, `domains/safety/hypothesis/`, `domains/chat/seed/`, `orchestration/task_worker/` and `core/run_modes/`, `api/contracts/` subpackages (except `platform/db/`, a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
+This is the real run path; nothing runs a workflow in-process.
 
-| Module | Purpose |
-|---|---|
-| `main.py` | App setup, lifespan, ownership middleware; the diagnostics endpoints (`/health`, `/status`) live in `api/diagnostics_api.py` and are mounted by `co_scientist.main` |
-| `api/feedback_api.py` / `domains/feedback/repository.py` | Owner-scoped feedback; durable admission budgets and row/byte/age retention |
-| `platform/telemetry/diagnostic_events.py` | Chat role/character-count/response-duration metadata; never transcript text |
-| `core/config.py` | Pydantic settings (model names, API keys, Elo tuning, worker/concurrency caps, auth). The DB path is *not* here — `COSCIENTIST_DB_PATH` is read directly in `platform/db/__init__.py` |
-| `api/runs/` (`__init__.py`) | Durable run-lifecycle router (`/api/runs` endpoint group); sibling routers `api/runs/lifecycle.py` (start/cancel; `api/runs/lifecycle.py` holds the safety-adjudication handler that relaunches or blocks a held run, registered from `api/runs/collections.py` to keep the served route order), `api/runs/collections.py` (read-only getters + report), `api/runs/contrib.py` (attachments), and `api/runs/support.py` (shared guards) are included into `runs.router`, the names callers use are re-exported from `co_scientist.api.runs` |
-| `api/contracts/` | Backend-owned typed JSON responses and the generator for `frontend/src/shared/api/wire_*.ts`; read endpoints validate them, with older optional report sections and extra persisted fields preserved |
-| `api/runs/models.py` / `api/runs/events.py` | Create-run request models, SSE replay/tail helpers |
-| `orchestration/engine_tasks/` (`__init__.py`) | Node-level durable executor: `__init__.py` dispatches `execute_engine_task`; `orchestration/drain.py`, `node.py`, and `finalize.py` own bootstrap, node execution, and final drain/publication; siblings `orchestration/engine_tasks/support.py` (task vocabulary + checkpoint plumbing, `restore_checkpoint_state`/`leased_state` for rebuilding a leased task's state, and the public `assert_task_commit_allowed` lease guard), `orchestration/engine_tasks/runtime.py` (the seam for the collaborators a task builds or calls outside the store -- generator for a new run, generator for restore, the safety screen, the final-state drain: a production adapter by default, one test adapter in `tests/_engine_tasks_helpers.py`; `execute_engine_task` resolves it once and binds it for the task, so tests install it instead of patching each module that looks a collaborator up), `orchestration/engine_tasks/gate.py` (pre-ranking evidence gate), `orchestration/engine_tasks/fanout.py` + `orchestration/engine_tasks/fanout_aggregates.py` (all four aggregate families share the leased checkpoint boundary in `fanout_aggregates.py`), `orchestration/engine_tasks/ranking.py`, `orchestration/engine_tasks/inputs.py` (bootstrap enqueue + scientist-input merge), and `orchestration/engine_tasks/portfolio.py` (bounded lookahead enqueue of a node commit's resolvable successor chain, keyed `{task_type}:after:{predecessor_task_id}`; durable checkpoint and idempotency keys cannot be renamed without a migration) hold the rest, with the names callers use re-exported from `co_scientist.orchestration.engine_tasks` |
-| `orchestration/task_worker/` | Lease/heartbeat worker loop, bounded per-run cohort run inside the API |
-| `platform/db/` | SQLite persistence layer (WAL mode, append-only event log); callers import defining leaf modules directly and its initializer is empty; `orchestration/repository/tasks.py` is the durable queue, `checkpoints.py` the resume points, `domains/report/repository.py` owns reports and share tokens, `retrieval_calls.py` maps and persists retrieval provenance |
-| `platform/llm/process_mode.py` | The one answer to "is this process offline, and does this model have a credential": `offline_mode()` / `credential_available(model)` dispatch to an installed adapter. `EnvProcessMode` is production; tests install `tests/_process_mode_helpers.FakeProcessMode` through the `fake_process_mode` fixture instead of patching `offline_mode` or a safety wrapper in each consumer. A leaf module (imports `config` only), so `orchestration/drain.py` and `orchestration/engine_adapter/` both import it eagerly |
-| `orchestration/engine_adapter/` | Split by concern: `__init__` (selection — always `"engine"` — plus the engine availability probe and the re-exported `offline_mode`), `events` (node → canonical event/milestone), `opts` (run config/steering → engine opts, incl. `disable_tools`), `platform/retrieval/connectors.py` (default enabled tools for `/status`), `orchestration/drain.py` with `domains/research_state/drain/` (final-state persistence subpackage: `persist_final_state` is the one entry; `DrainResult` and `FinalStateInputs` are its declared types, every other module in it is package-private), `checkpoints` (`is_engine_checkpoint`) — the legacy streaming loop (`engine_stream*`, `workflow.run_workflow`) was removed; the durable `engine_tasks` path is the only engine drive |
-| `domains/report/` | The Goal Report package; `domains/report/__init__.py` is its interface (`ReportRequest`, `build_report_content`, the release-gate predicates `exclude_unsafe_hypotheses` / `released_claim_evidence` / `unverified_hypothesis_ids`). `orchestration/engine_tasks/report_finalize.py` runs the final safety gate and the report/completed emission; `build.py` gathers a run's data into the payload and markdown; `content.py` derives the leaderboard, idea buckets, topics and persisted knowledge-fact rows; `gates.py` is the release gate; `build.py` shapes the JSON directly; `orchestration/notifications.py` schedules and delivers completion email; `domains/report/markdown/__init__.py` assembles the document from its section modules |
-| `orchestration/run_events.py` | Run-event emission for the durable engine tasks and `engine_adapter.events`: `make_emitter` and the JSON-safe event stubs. Kept outside `report/` because it is run-event code, not report code |
-| `api/auth.py` | Anonymous per-browser identity: `Principal` from `X-Client-ID`, `require_client_scope` |
-| `api/operator_access.py` | Shared operator policy for logs, diagnostics, metrics and API docs: configured `X-Logs-Token` or a direct loopback client address; forwarded headers never establish operator access |
-| `api/interviews/` (`__init__.py`) | `/api/interviews` — durable, model-driven research-goal interview. The router delegates turn advancement/persistence to `api/interviews/turns.py`, shared ownership/BYOK guards to `api/interviews/turns.py`, and SSE/revision transport to their sibling modules; those modules import their defining collaborators rather than reaching back into the router facade. Tests patch model, question-repair and turn collaborators where they are defined. `turns.advance_turn` scopes the whole turn with `budgeted("interview")`, so the streamed model response and any missing-question repair share the same app completion budget. A turn may also offer the scientist clickable answers: they ride in the same trailing `<run_spec>` block the five fields use, are validated by `domains/chat/interviews/questions.py` and persisted per turn (`interview_turns.questions_json`), and are answered by an ordinary scientist turn, so the model needs no new plumbing. A non-completing turn that lands with no usable options costs one extra model call: `domains/chat/interviews/questions.py` reads the question back out of the prose the turn already wrote, and never invents one where the turn asked nothing. The turn's model call (`domains/chat/interviews/model.py`) streams at a conversational reasoning tier and, if a turn spends its whole reply reasoning and writes no answer at all, retries once with thinking off before it can ever surface as "Interview Agent returned no message" |
-| `domains/chat/qa/` (`__init__.py`) | Grounded Q&A: offline answer + SSE streaming; evidence manifest and prompt assembly live in `domains/chat/qa/manifest.py`, read-only checkpoint science in `domains/chat/qa/snapshot.py`, paged retrieval in `domains/chat/qa/artifacts.py`, re-exported from `co_scientist.domains.chat.qa` (`api/runs/` owns HTTP) |
-| `domains/chat/run_start_announcement.py` | The Agent's streamed reply to "Start research", persisted with the prompt as the run's two `start`-kind message rows; falls back to fixed copy rather than erroring, since the run has already started |
-| `domains/research_state/claims/` (`__init__.py` re-exports the claim-gate interface), `domains/research_state/claims/grounding.py`, `domains/research_state/claims/verifier.py`, `domains/research_state/claims/grounding.py`, `domains/research_state/claims/chunking.py` | Atomic-claim extraction, per-claim entailment, publication gate → `claim_evidence`. Evidence is chunked to passage size (`domains/research_state/claims/chunking.py`, ~1.2k chars, small overlap) before per-claim retrieval, never assessed as whole articles; `domains.research_state.claims.verifier` routes entailment calls through the engine's `call_llm_json` seam (`core/async_bridge.py` bridges the synchronous `Assessor` protocol onto it) and renders evidence before the claim so recurring passages form a cacheable prompt prefix |
-| `domains/research_state/claims/gate.py` | The one owner of what a persisted `claim_evidence` edge's `label` and `claim_role` mean: `ClaimEdge.from_row` is the only place legacy rows are parsed, and its `is_supporting` (`partial` counts), `is_contradicting` (any role) vs `is_categorical_contradiction` (what withholds an idea), `is_excused` and `status` answer for them (`partial` is not a fact). Report gates/content/markdown and the store (`list_claim_edges`) ask it instead of comparing label/role strings; the label rule itself is `EntailmentLabel.is_supporting` in `domains.research_state.claims.gate`. Legacy edges missing a label or role degrade, never raise; `test_claim_verification.py` pins every reader across the label x role matrix |
-| `domains/safety/hypothesis/safety.py`, `domains/safety/hypothesis/__init__.py` | Pre-tournament per-hypothesis screening writing `safety_status` |
-| `domains/documents/ingest.py`, `platform/retrieval/run_corpus.py` | Attachment extraction + per-run keyword (BM25-style) retrieval |
-| `api/documents.py`, `domains/documents/staged.py` | The router serves `/api/documents`; shared ownership resolution and document metadata summaries live in `domains/documents/staged.py`, which run creation and interviews import directly. `/api/documents` — pre-run document staging, owned by client id. An attachment made in the composer is uploaded here *before* any run exists, so the goal interview quotes it and `POST /api/runs` copies it into the new run's corpus as part of creating it |
-| `orchestration/notifications.py` | Durable completion-email scheduling and SMTP delivery as the `notification.email` task |
-| `api/diagnostics.py` | `/health` checks and the cached MCP/PubMed/web-search probes behind `/status` |
-| `domains/research_state/elo.py`, `platform/retrieval/citations/`, `domains/safety/`, `core/run_modes/`, `domains/chat/seed/` | Elo utilities; citation classification; intake/final screening; run tier/focus normalization; demo loader (inserts the exported example runs from `domains/chat/data/demo_runs.json.gz`, owner copies in `domains/chat/repository/examples.py`) |
-| `domains/documents/pdf.py` | PDF heading recovery for uploaded documents, combining bookmark, numbering and font-style signals; imported lazily by `domains/documents/ingest.py` |
-| `platform/telemetry/logging_setup.py`, `api/logs_api.py` | Persistent log capture (root logger → `app_logs`) and the `GET`/`POST /api/logs` payload logic |
+- `POST /api/runs/{id}/start` (`api/runs/lifecycle.py`) enqueues
+  `engine.bootstrap` into `scientific_tasks` and starts the run's worker cohort
+  inside the API process. Resume and safety-hold release re-enter the same
+  queue from the last checkpoint (`task_worker.enqueue_run_workflow`).
+- Each node (`engine.node.<key>`), fan-out item and aggregate
+  (`engine.fanout.{review,verification,reflection}.{item,aggregate}`,
+  `engine.fanout.generation.{strategy,aggregate}`), tournament step
+  (`engine.ranking.match`, `engine.ranking.finalize`) and `engine.finalize` is
+  its own leased, idempotent task. Items restore the planning checkpoint and
+  stop as superseded if it moved; the other tasks write checkpoints through
+  `platform/db/checkpoints.py`. The vocabulary is in
+  `orchestration/engine_tasks/support.py` and dispatch in its `__init__.py`.
+  Lookahead and resume tasks key on `{task_type}:after:{predecessor_task_id}`.
+- `orchestration/repository/tasks.py` is the queue: leases with heartbeat
+  renewal, `idempotency_key` dedup, retry budgets, park, resume and cancel.
+  Outcomes (`orchestration/task_worker/outcomes.py`): `LeaseLostError` writes
+  nothing, `SupersededTaskError` completes as superseded, safety holds and
+  `LLMRateLimitParkError` park, `UnsupportedTaskError` and
+  `LLMCallBudgetExceededError` fail permanently, an `LLMTimeoutError` without
+  zero-cost admission (an unknown provider outcome) fails the task and stops the
+  run, and anything else retries within its budget. Nothing automatic revives a
+  failed task.
+- Each task builds its own `HypothesisGenerator`
+  (`orchestration/engine_adapter/opts.py::build_generator`); none is held across
+  requests. `orchestration/engine_tasks/runtime.py` is the seam for what a task
+  calls outside the store, and tests install `FakeEngineTaskRuntime` there.
+- `main.py`'s lifespan installs log capture and tracing, prunes superseded
+  checkpoints (`_reclaim_disk_space`, never VACUUM), reconciles interrupted runs,
+  starts recovery off the startup path and seeds the three example runs from
+  `domains/chat/data/demo_runs.json.gz`. Shutdown releases leases and
+  checkpoints the WAL unless Litestream is active.
+- Final state goes through `orchestration/drain.py::persist_final_state`;
+  `orchestration/engine_tasks/report_finalize.py` runs the final safety gate and
+  emits the report.
 
-**Durable task execution — this is the real run path.** `POST /api/runs/{id}/start` does **not** run a workflow in-process. It enqueues `engine.bootstrap` (`task_worker.enqueue_run_workflow` → `engine_tasks.enqueue_bootstrap`) into the `scientific_tasks` table, and a worker cohort drains it; safety-hold release and startup recovery re-enter the same queue keyed on the last checkpoint. In `orchestration/engine_tasks/node.py` each graph node (`engine.node.<name>`), fan-out item (`engine.fanout.review.item`, `.verification.item`, `.generation.strategy`, `.reflection.item`, plus their `.aggregate` partners) and tournament match (`engine.ranking.match`) is its own leased, idempotent task checkpointing through `platform/db/checkpoints.py`. `orchestration/repository/tasks.py` is the queue: leases with heartbeat renewal, `idempotency_key` dedup, retry budget, park/resume/cancel by row. Losing a lease mid-task (`LeaseLostError`) or being superseded by a newer checkpoint (`SupersededTaskError`) are normal outcomes that keep the retry budget. The cohort runs inside the API process. The legacy `run.workflow` task type and its in-process handler were removed. The three curated examples are rows loaded at startup from the `domains/chat/data/demo_runs.json.gz` snapshot; opening one copies those records atomically without executing a run.
+### Store (`platform/db/`)
 
-**No generator is held across requests.** The `lifespan` hook installs log capture and the offline LLM router, prunes superseded checkpoints (`_reclaim_disk_space` — never VACUUMs, see `docs/OPERATIONS.md`), reconciles runs left non-terminal by a previous process, and launches resume/recovery cohorts *off* the startup critical path. Each durable task builds its own `HypothesisGenerator` via `engine_adapter.opts.build_generator`. Bootstrap inputs, checkpointed node execution, and final drain/publication live in `orchestration/engine_tasks/inputs.py`, `node.py`, and `finalize.py`.
+- One SQLite writer: WAL, `synchronous=NORMAL`, `BEGIN IMMEDIATE` transactions
+  (`platform/db/__init__.py`). Callers import the defining leaf modules. A
+  column added to a deployed table must also be listed in
+  `schema.ADDED_COLUMNS`. Run events are append-only.
+- `worker_pool_size` (default 8) bounds how many tasks one run executes at
+  once. The limit is the single SQLite writer, not the provider; at 12 across
+  several runs the write lock saturated. The load-tested production width is 1
+  (OPERATIONS "If traffic spikes").
 
-**Scientific operations stay engine-owned.** Durable ranking, reflection and
-outcome tasks consume public exports from their engine agent packages. The app
-retains peer-review admission, bounded waves, sibling failure isolation,
-telemetry, leases and checkpoint commits. Preserve graph/durable differences
-in candidate ordering, preferences, verification metering and marker timing;
-see `docs/ARCHITECTURE.md`. `tests/test_architecture.py` guards
-private engine imports.
-Layering is enforced by `make arch` (`.importlinter`, docs/adr/002-layering-enforcement.md).
+### Requests, ownership and admission
 
-**Run size comes from the tier, not the request body.** `core.run_modes.RUN_TIER_DEFAULTS` defines express/standard/extended/ultra, each scaling `initial_hypotheses_count`, `max_iterations`, `evolution_max_count`, `tournament_pairs`, `evidence_count`, and `max_llm_calls` (a runaway backstop, not a work allowance) together. Numeric overrides in the request body may only **raise** a tier baseline, never lower it. `focus` (`prefer_evidence`/`balance`/`prefer_novelty`/`breakthrough`) contributes prompt guidance instead, threaded through as `run_focus_guidance`.
+- Identity is the anonymous per-browser `X-Client-ID` (`api/auth.py`; no
+  accounts, `Authorization` ignored). `main.enforce_run_ownership` answers
+  **404, not 403**, for another client's run, so a "missing" run is usually an
+  ownership mismatch: send a consistent `X-Client-ID` before concluding data
+  is gone. Example runs are readable; mutating one returns 403 except
+  `POST .../example-chat`, which copies it.
+- Operators send `X-Logs-Token` equal to `LOGS_ADMIN_TOKEN`
+  (`api/operator_access.py`); a loopback address grants nothing. Operator-only:
+  the app-wide log view, health and status detail, `/api/spend`,
+  `/api/launch-control` and safety adjudication. API docs are not served.
+- Refusals that look like bugs: 503 `launch_paused` (`api/launch_admission.py`)
+  while an operator has paused launch; 413 and 429 from `api/request_limits.py`
+  (256 KB JSON, 26 MB uploads, daily write budgets); 410 for an erased identity;
+  409 on start when active runs reach `max_concurrent_runs` (10, per client and
+  across the instance) or `concurrent_runs_per_host` (10).
+- Run size comes from the tier: `core/run_modes/__init__.py::RUN_TIER_DEFAULTS`
+  (express, standard, extended, ultra) scales hypotheses, iterations,
+  evolution, matches, evidence, finalists and `max_llm_calls`. Numeric
+  overrides may only raise a baseline; `focus` adds prompt guidance.
+- A run without a BYOK key must be Express and takes a `free_run_usage` slot
+  (`domains/access/free_usage.py`: 3 per client per UTC day, with host and
+  global caps); deleting the run does not return it. BYOK headers
+  (`X-LLM-API-Key`, `X-LLM-Provider`, optional model and supervisor headers)
+  need `BYOK_ENCRYPTION_KEY`; off-catalog models are validated with the user's
+  key (`domains/access/byok_models.py`).
+- App model calls (interview, Q&A, titles, run-start announcement, credential
+  probes) go through `platform/llm/llm_request.py` with their own budget
+  (`platform/llm/llm_scope.py`, `APP_LLM_MAX_CALLS`, default 4). Streams bound
+  silence and total duration separately (`llm_scope.stream_chunks`).
+- Safety: deterministic hard blocks run first. The optional semantic assessor
+  may only resolve a Tier B "needs context" hold, and any assessor failure
+  leaves the hold standing (`domains/safety/hypothesis/safety.py`).
+- Completion email is disabled: the enqueue and delivery hooks in
+  `orchestration/notifications.py` are no-ops, and nothing calls the SMTP
+  sender that remains there.
 
-**Auth and ownership.** `main.enforce_run_ownership` is an HTTP middleware over every `/api/*` path. The principal is the `X-Client-ID` header (there are no accounts or tokens; an `Authorization` header is ignored). A `/api/runs/{id}` request whose principal subject differs from the run's `client_id` gets **404, not 403** (demo-owned reads and the example-chat copy endpoint exempt; other demo mutations return 403) — so a "missing" run is usually an ownership mismatch, not deleted data. Send a consistent `X-Client-ID` before concluding anything is gone.
+### Routers
 
-**App model calls** go through `platform/llm/llm_request.py` and the engine's public
-`complete_request` transport. `platform/llm/llm_scope.py` gives an interview, Q&A exchange,
-title, goal restatement, announcement or credential probe its own physical-call
-budget (`APP_LLM_MAX_CALLS`, default 4), including its existing retry/tool rounds.
-App operations replace the active research counter and telemetry accumulator
-for their duration, then restore them. One usage summary is logged per operation,
-with missing provider usage kept unknown. Stream context lives on one producer
-task with acknowledgement-based backpressure; it never leaks across a yield to
-the consumer. The provider is closed on cancellation/deadline. Streaming still
-uses silence/total limits; establishment uses the caller's timeout. Tests install
-the same completion backend for app and engine calls. Reasoning token floors
-come from the engine; the conversational effort override stays app policy.
+`main.py` mounts `api/runs/` (`/api/runs`: `crud.py`, `lifecycle.py`,
+`collections.py`, `chat.py`, `contrib.py`), `api/interviews/`,
+`api/documents.py`, `data_rights`, `free_usage`, `byok_models`, `logs_api`,
+`spend_api`, `feedback_api`, `diagnostics_api` (`/`, `/health`, `/status`),
+`launch_control_api` and `sentry_alerts`. Read the router for its routes.
+`GET /api/runs/{id}/events` streams events over SSE with replay;
+`POST /api/runs` honours an `Idempotency-Key`; a run's research goal cannot be
+edited; documents staged at `/api/documents` before a run exists are copied
+into it on create. The `/status` web-search probe asks the MCP server's
+`check_web_search_available` rather than whether `search_web` is listed (older
+servers without that tool fall back to presence).
 
-**Notable settings** beyond the obvious: `worker_pool_size` (default 8) bounds how many durable tasks one run executes concurrently — the ceiling is SQLite's single writer, not the provider (24 concurrent completions return in the same wall clock as 4), and at 12 across several runs the write lock saturated and ordinary API writes failed. `max_concurrent_runs` (default 10) caps in-flight runs *per client*, counted across every tier together; over it, start returns 409. (Counting each tier separately let one client hold a full allowance per tier, i.e. four times the advertised ceiling.) The entailment assessor is the LLM one unless `offline_mode()`, which selects the deterministic one. `semantic_safety_enabled`/`semantic_safety_model` add a contextual model assessment on top of the deterministic hard blocks — those run first and a `block` short-circuits. `domains.safety.semantic._call_semantic_safety_model` routes through the same `call_llm_json` seam as `domains.research_state.claims.verifier`, not a direct `litellm.acompletion` call, so a json_object-mode model wrapping its answer in a Markdown fence is parsed rather than holding the run (2026-09-05 incident, run bdc73bf3). Note the one place that assessment may lower a verdict rather than only raise it: the per-hypothesis policy's Tier B "needs context" hold, which means *the rules cannot tell what the sentence asks for* rather than asserting risk, and which `engine/src/co_scientist/domains/safety/hypothesis/safety.py` resolves in either direction. Only a Tier B hold is eligible; anything whose danger is not a judgment call belongs in Tier A, where no assessor can reach it. Every failure of the assessor leaves the hold standing. `free_runs_per_day` (default 3) caps free usage: a real-backed run with no BYOK key must be express (no numeric overrides) and takes one slot in the `free_run_usage` ledger inside its create transaction, per client identity per UTC day (`domains/access/free_usage.py`; `GET /api/free-usage` reports the count). The ledger has no FK to `runs` on purpose, so deleting a run does not return its slot. A BYOK key may carry a worker and a supervisor model (`X-LLM-Model` / `X-LLM-Supervisor-Model`), closed to the catalog in `domains/access/byok_models.py` (`GET /api/byok-models`). The supervisor may sit on another provider (`X-LLM-Supervisor-Provider` + `X-LLM-Supervisor-API-Key`); the engine bills each model to its own key through a model-to-key map scoped beside `scoped_api_key`. Columns added to a deployed table must also be listed in `platform/db/schema.ADDED_COLUMNS`, which `_init_schema` applies idempotently. `smtp_*` plus `public_app_url` back the `notification.email` task. `status_probe_timeout_seconds`/`status_probe_cache_ttl_seconds` bound and cache the `/status` probes.
+### Logs
 
-**Key endpoints**
+`app_logs` is one durable, app-wide log (`platform/db/log_capture.py`,
+`platform/telemetry/capture_queue.py`, `api/logs_api.py`). Records below
+WARNING from per-call loggers (`UNPERSISTED_LOGGERS`) are dropped, because
+each row is a write on the single writer; verbatim repeats are suppressed for
+10 minutes per logger, level, run and message. Fix a new flood by repetition,
+never by deny-listing its logger. `GET /api/logs` is scoped: operators see
+everything, other callers only what they submitted or what belongs to their
+runs, so the frontend sends `clientHeaders()` on every read and write.
 
-Diagnostics (in `main.py`): `GET /health`, `/status` — `/status` reports MCP/PubMed/web-search availability. The web-search probe calls the MCP server's `check_web_search_available`, **not** `search_web`'s presence in the tool list: the server registers that tool whenever a provider key was set at boot, so presence survives the provider refusing the key, and a refused search returns an empty result set that looks like a quiet week on the web. An older mcp image without the check tool falls back to presence, since api and mcp deploy separately.
+### Wire contracts
 
-Run lifecycle (in `api/runs/`, mounted at `/api/runs`) — **primary API used by the frontend**:
-- `POST /api/runs` — create a draft run; `GET /api/runs` — list runs; `GET /api/runs/demo`.
-- `GET /api/runs/{id}` — details; `PATCH /api/runs/{id}` — rename (title only; the research goal is deliberately not editable, and shared example mutations are 403); `POST /{id}/start`, `/cancel`.
-- `GET /api/runs/{id}/events` — SSE stream (live + replay).
-- `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
-- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/claim-evidence`.
-- `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown).
-- `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list. `POST /{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name`). `POST /{id}/messages/{message_id}/revise` edits a user Q&A question or retries an answer; it atomically rewinds only subsequent Q&A and preserves consumed setup and steering.
-- `POST /api/runs/{id}/messages/started` — the Agent's spoken confirmation that the run has started, streamed (`reasoning`/`chunk`/`done`, no error frame). The chat's session card renders it as its lead-in, the way the plan card renders the completing interview turn.
-- `POST /api/runs/{id}/attachments`, `/attachments/upload` — per-run private corpus (for a run that already exists; setup-time attachments go through `/api/documents` and ride in on `document_ids` at create).
-- `POST /api/runs/{id}/safety/{decision_id}/adjudicate` — human adjudication of a safety decision.
-
-Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create).
-
-Additional routers mounted in `main.py`: `interviews`, `documents`, `auth`, and `logs` (see each module for its endpoint group).
-
-**Persisted logs** (`api/logs_api.py` + `platform/telemetry/logging_setup.py` + `platform/db/logs.py`) — one app-wide, durable log in the SQLite `app_logs` table:
-
-- **Run stages**: every `run_events` row is mirrored into the log as a compact `app.run_stage` record (`orchestration/repository/events.py`), so a run's stage narrative — `lifecycle`, `safety.intake`, `supervisor.plan`, `literature_review`, `generate`, `reflection`, `proximity`, `ranking`, `evolve`, `meta_review`, `deep_verification`, `citation_audit`, `research_overview`, `report`, `status` — is readable from the copied logs rather than only over SSE. Payloads are summarized to `key=value` scalars and capped at 200 chars: ~21 stage records per run instead of full event bodies. Mirroring happens in the inner `_append_event`, so every event writer is covered, and it is best-effort — it can never fail an event write.
-- **What is captured**: every record reaching the Python root logger (app modules, `co_scientist` engine, store/database) *except* the per-call dependency chatter that `platform.db.log_capture.UNPERSISTED_LOGGERS` refuses to persist below WARNING, *plus* uvicorn's non-propagating `uvicorn`/`uvicorn.access` loggers, *plus* frontend records POSTed by the UI (namespaced `ui.*`: session diagnostics, route navigation, uncaught JS errors, unhandled rejections, React render errors, and interactions as `ui.interaction` — via `lib/ui_logging.ts`). Access records for `/api/logs` itself are filtered out so the indicator's refreshes cannot grow the log.
-- **Never persisted below WARNING**: the *capture* path (`UNPERSISTED_LOGGERS` in `platform/db/log_capture.py`: `httpx`, `httpcore`, `urllib3`, `litellm`, `openai`, `mcp.client`, `co_scientist.platform.retrieval.mcp_client`) **drops** sub-WARNING records before any row is written, so per-LLM-call and per-HTTP-call lines are only on stdout. WARNING+ always persists. The drop exists because each row is an open-write-close against the single SQLite writer; LiteLLM alone was 9,928 of 20,021 production rows, and that stream starved ordinary API writes until run creation failed with "database is locked".
-
-- **Repeat suppression**: capture persists the first of a record and drops verbatim repeats for `REPEAT_SUPPRESS_SECONDS` (10 min), keyed by exact `(logger, level, run id, message)` — so a different message from the same logger, or the same line from another run, still lands. This exists because the level filters exempt WARNING+, so any steady-state condition wrote a row per poll forever: the MCP availability probe warned twice per `/status` refresh, and inside a single run the tool registry logged two identical "initialized" lines per agent call (229 copies of each in one run). Those repeats were ~77% of the readable stream and, since the copied export holds a fixed newest-100 window, they crowded out the run narrative entirely and the log read as empty. Suppression is by *repetition*, not by logger name — do not fix a new flood by adding its logger to a deny-list.
-- **Endpoints**: `GET /api/logs` (`after_id`/`limit`/`min_level`; returns `logs`, a `last_id` high-water mark, `total` for the whole scope and `session_total` for rows after `after_id`) and `POST /api/logs` (client ingestion; batch ≤50, messages truncated to 2000 chars). There is no clear, report or run-scoped endpoint.
-- **Access control**: the log carries other tenants' research goals and server internals, so reads are scoped. Operators -- loopback callers (local operators) or holders of `LOGS_ADMIN_TOKEN` via the `X-Logs-Token` header -- get the app-wide view. Every other caller sees only records it submitted plus records for runs it owns. Un-owned server records are operator-only. Ingestion stays open because browsers must report their own errors, but records are stamped with the caller's client id, control characters are collapsed (a newline would otherwise forge lines in diagnostic exports), and it is rate-limited per client (`LOGS_INGEST_PER_MINUTE`, 429 over the ceiling). Because scoping keys off caller identity, `src/shared/api/logs.ts` must send `clientHeaders()` on every read *and* write: an unidentified caller matches nothing, so omitting them leaves the export permanently empty wherever the browser does not reach the API over loopback (i.e. any real deployment) and stores submitted records ownerless.
-- **Consumers**: feedback is the only reader. Submitting it attaches `sessionDiagnosticExport()` (`features/diagnostics/diagnostics.tsx`; newest 100 session records as a self-describing Markdown export ending in a `## Logs (JSON)` block). The session baseline id lives in `sessionStorage` (`cosci-logs-session-baseline`) and is anchored when the shell mounts: a reload keeps the session, closing the tab starts clean. `SessionDiagnostics` keeps the anchor and `useNavigationLog` mounted for the shell lifetime. Session diagnostics go through `emitDiagnostic` (`shared/lib/diagnostic_events.ts`), and `main.tsx` installs their listener with the error and interaction capture (`shared/lib/ui_logging.ts`) before the app mounts.
-
-Every run executes on the real engine (`engine_adapter.select_provider()` always returns `"engine"`; the engine is a hard runtime dependency) — see "No generator is held across requests" above; there is no cached, reused `HypothesisGenerator`. Keyless runs and runs with `COSCIENTIST_FORCE_OFFLINE=1` set are pinned instead to the engine's deterministic offline LLM backend (`co_scientist.platform.llm.offline.llm`), which intercepts `litellm.acompletion` for `offline/`-prefixed models rather than calling a real provider.
+Edit `api/contracts/` for run, artifact, report and interview JSON shapes; the
+status, feedback and client-log models in `api/diagnostics_api.py`,
+`api/feedback_api.py` and `api/logs_api.py` are also exported
+(`generate.py::MODEL_GROUPS`). From the repository root run
+`.venv/bin/python -m co_scientist.api.contracts.generate`, then format the
+generated `frontend/src/shared/api/wire_*.ts` with the frontend linter.
+`tests/test_architecture.py` fails when generated files drift or a contract
+name is declared by hand. Plain-dict payloads (log reads, free usage) stay
+hand-typed.
 
 ## Frontend (`frontend/`)
 
-React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter/formatter is **gts** (Google TypeScript Style: ESLint + Prettier).
+React 19, Vite 8, TypeScript, Tailwind v4, Vitest; Bun; gts (ESLint and
+Prettier). From `app/frontend/`: `bun install`, `bun run dev` (5173, proxies
+`/api`, `/status` and `/health` to 8008), `bun run build` (`tsc`, `vite build`,
+prerender), `bun run lint`, `bun run fix`, `bun run test`. Tests are colocated
+`*.test.ts(x)` (setup `src/test_setup.ts`, config in `vite.config.ts`).
 
-**Design invariants:**
+- `VITE_API_BASE_URL` sets the API origin; unset, the client uses same-origin
+  paths. Only `VITE_*` values reach the build; never put a backend secret there.
+- `src/app/` is the composition root (`workbench_app.tsx` routes, layout,
+  header, rail). Features are `src/features/{access,chat,diagnostics,legal,report,runs}/`;
+  shared code is `src/shared/{api,hooks,lib,testing,ui}/`. Lint
+  (`eslint.config.cjs`) stops access, chat, diagnostics, report and runs from
+  importing `@/app`, each other or `../`, and `shared` from importing app or
+  features; `legal` is not covered. Tailwind scans only the `@source` folders
+  in `index.css` (not `shared/lib`), so a new top-level folder must be listed
+  there or its classes vanish.
+- Routes: `/` (chat home, with the landing below it on wider screens),
+  `/chats/:id`, `/examples/:id`, `/runs/:id/:tab` (bare `/runs/:id` goes to
+  `details`; tabs and legacy aliases resolve through
+  `shared/lib/run_tabs.ts::normalizeTab`), `/operations`, `/operations/spend`,
+  `/privacy`, `/terms`, and `*` (404). `shared/lib/routes.ts` builds paths.
+- HTTP lives in `shared/api/`: `runs.ts` holds the fetch primitives, SSE,
+  `clientHeaders()` (`X-Client-ID`) and BYOK headers, and `fetchWithSession` is
+  the only raw `fetch`. Generated `wire_*.ts` own the contract types and
+  `runs.ts` re-exports them. `shared/ui/icon.tsx` is generated by
+  `scripts/generate_icons.mjs`.
+- Run detail (`features/report/`): `run_detail.tsx` routes the four tabs,
+  `run_detail_active.tsx` replaces them while a run is in flight, data comes
+  from `run_detail_data.ts`, and shell and document primitives are in
+  `run_detail_shell.tsx`. Model prose renders through
+  `shared/ui/markdown_message.tsx`; its lazy renderer owns Markdown parsing and
+  the raw-HTML policy, so keep heavy imports behind it.
+- Chat (`features/chat/`): `use_chat_session.ts` is the session state machine
+  (draft, confirmed, started run spec) and delegates to `chat_session_*.ts`.
+  Clickable answers (`chat_questions.tsx`) are an affordance, never a gate.
 
-- Material Design 3 roles derive from seed `#1A6B6B` in `shared/hooks/theme_context.tsx`; never hardcode `--md-sys-color-*` values. `index.css` bridges data/status roles as `--color-th-*` and shell/home roles as `--color-cosci-*`; use named utilities instead of arbitrary token references.
-- Preserve `main.tsx`'s sheet order: `index.css` → `tokens.css` → `shell_surface.css` → `home_surface.css` → `home_landing.css` → `tooltips.css` → `shared/ui/motion.css`, so token definitions precede consumers.
-- Add paired light/dark tokens in `tokens.css`, never inline hardcoded `dark:[#hex]` overrides. Theme swaps must update both palettes; respect reduced-motion preferences and suppress transitions during swaps.
-- Use `rounded-md` (6px) for data blocks, `rounded-xl` (12px) for interactive containers, and `rounded-full` for pills/buttons/chips. Existing bare `rounded` utilities are 8px.
-- Cards and inputs use tonal layers rather than box shadows; reserve elevation for overlays.
-- Breakpoints are the variants in `index.css`: `phone:` (≤700px, equal to `MOBILE_MEDIA_QUERY` in `shared/hooks/dom.ts`, which a test checks), `above-phone:`, `tablet:` (701–1180px) and `desktop:` (≥1181px). Lint rejects a hand-written phone breakpoint.
-- Hover styles use `hover:`, which Tailwind applies only where the pointer can hover; `[&:hover]:` stays lit after a tap on touch screens, and lint rejects it.
-- Padding, margin and gap come from the spacing scale (0.25rem steps, plus `px`, `0.5`, `1.5`, `2.5`, `3.5`); lint rejects an arbitrary value.
-- Page-level stacking uses the named layers in `index.css` (`z-header` < `z-drawer-scrim` < `z-rail` < `z-dialog-scrim` < `z-dialog` < `z-toast`, then tooltips); a small integer (`z-1`) orders children inside one component only.
-- Keyboard focus: `index.css` gives every focused control except text entry a 2px `th-ring` outline at zero specificity. A component may restyle its ring but must not remove it; fields show focus through their border.
-- Goal Report Markdown relies on browser-default paragraph/list spacing. Global margin resets or Tailwind preflight collapse that spacing and remove list markers; reset individual styled components instead.
+### Design invariants
 
-**UI building blocks** (`src/shared/ui/`, imported from `@/shared/ui`). New UI composes these. Shape, radius, colour, focus ring and motion live in the component; a call site passes only layout (`layoutClassName`: margins, width, grid placement, position).
+- Material 3 roles derive from `MD3_SEED` `#1A6B6B` in
+  `shared/ui/md3_scheme.ts`, whose test fails until the precomputed schemes are
+  regenerated from the seed; never hardcode `--md-sys-color-*`. `index.css`
+  bridges those roles as `--color-th-*` and the `--cosci-*` tokens as
+  `--color-cosci-*`; use the named utilities.
+- `main.tsx` imports sheets in order: `index.css`, `styles/tokens.css`,
+  `shell_surface.css`, `home_surface.css`, `home_landing.css`, `tooltips.css`,
+  `boot_skeleton.css`, `shared/ui/motion.css`, so tokens precede consumers.
+- Add paired light and dark tokens in `tokens.css`, never an inline dark hex.
+  Theme swaps update both palettes; verify shared UI in both themes.
+- `rounded-md` (6px) for data blocks, `rounded-xl` (12px) for interactive
+  containers, `rounded-full` for pills; a bare `rounded` is 8px. Cards and
+  inputs use tonal layers, not shadows; elevation is for overlays.
+- Breakpoints are the `index.css` variants `phone:` (≤700px, equal to
+  `MOBILE_MEDIA_QUERY` in `shared/hooks/dom.ts`), `above-phone:`, `tablet:`
+  (701–1180px) and `desktop:` (≥1181px). CSS files are not linted, so keep
+  their media queries in step by hand.
+- Page stacking uses the named layers (`z-header` < `z-drawer-scrim` < `z-rail`
+  < `z-dialog-scrim` < `z-dialog` < `z-toast` < tooltips); a small integer
+  orders children inside one component only.
+- `index.css` gives every focused control except text entry a 2px `th-ring`
+  outline; a component may restyle it but never remove it.
+- There is no Tailwind preflight; report Markdown relies on browser-default
+  spacing, so reset individual components, never globally.
+- Motion durations and curves are tokens. Overlays enter with
+  `@starting-style` and leave through `usePresence` (`EXIT_MS`). Never delay
+  input, focus or content; keep everything but progress under 300 ms and honour
+  reduced motion. Tests wait for an overlay's role or removal, never sleep.
+
+### UI building blocks
+
+New UI composes `src/shared/ui/` (import from `@/shared/ui`). Shape, radius,
+colour, focus ring and motion live in the component; a call site passes only
+layout (`layoutClassName`). Outside `src/shared/ui/` and tests, lint rejects a
+raw `<button>`, hex, `rgb()` or `hsl()` colours, arbitrary radii, `z-[…]`,
+`[&:hover]:`, arbitrary spacing, hand-written phone breakpoints and native
+`title`. Colours come from component tokens in `styles/tokens.css`, which a
+surface with its own palette re-points in its own scope.
 
 | Need | Use |
 |---|---|
-| Action | `Button`: `filled` for the one primary action, `outlined` for its alternatives (Cancel), `tonal` for header and toolbar pills, `text` for low-emphasis actions, `link` for inline text actions. Sizes: `sm` (header, inline editors), `md` (default), `lg` (landing). `buttonClasses()` styles a router `Link` the same way. |
-| Icon-only action | `IconButton`, always round: `ghost`, or `elevated` for a control floating over content. Sizes `xs` (24px, inside code blocks), `sm` (32px), `md` (40px). `label` is required and becomes the tooltip unless `tooltip` overrides it (`null` when a visible label already names it). |
-| Modal | `Dialog` (`md` for a form, `lg` for Settings). It portals, traps focus, makes the background inert, closes on Escape and the scrim, and restores focus. |
-| Popup list | `Menu` + `MenuItem` (`item`, `radio`, `checkbox`). Outside press and Escape dismiss it; arrow keys, Home and End move focus. |
-| Choose from a list | `Select`: a field-styled trigger over `Menu` that anchors to the trigger, flips above it when there is more room, and groups options under headings. |
-| One value in place | `SegmentedControl` (pressed buttons with a sliding thumb; `md` in the shell, `lg` on the landing). `SectionNav` switches the sections of one surface (Settings). |
-| Route sections | `TabNav` + `TabNavLink` (`underline` for report sections, `pill` for the session switch): real links with `aria-current="page"`. |
-| Hint | `tooltip` on `Button` / `IconButton`; `Tooltip` for non-interactive content. Never native `title`. |
-| Label or status | `Chip`: `tonal` or `outlined`, tone `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs`, `sm`, `md`, and `lg` (a small `Button`'s height and type, for status beside header actions). |
-| Text input | `TextField` / `TextArea`: `outlined`, or `bare` inside a surface that already draws the box (composer, bubble editor). |
-| Grouping surface | `Card`: `block` (notices, `rounded-md`), `tile` (stats and summaries) or `panel` (control groups and side rails, `rounded-2xl`). Tones `neutral`, `raised`, `warning`, `danger`; `outlined` adds the hairline. `CardButton` is a card that is one action as a whole (home suggestions). |
-| Link off the app | `ExternalLink`: opens in a new tab with `rel="noopener noreferrer"`, and renders its `fallback` instead when the URL is not `http(s)` or `mailto` (model-written URLs reach it). |
-| Status, error, loading | `StatusText` for an inline line (`muted`, or `danger`, which is announced as an alert); `ErrorNotice` for a failure that blocks a surface, with an optional `action`; `DocumentSkeleton` for a page or report body that is still loading, or `Skeleton` shapes inside a `SkeletonRegion` for any other layout. Reds come from `cosci-danger-*` only. The first paint before the bundle runs is the boot skeleton in `index.html` (`styles/boot_skeleton.css`), which mirrors the shell and home, chat and report layouts; its inline theme script's hash is in the CSP in `public/_headers`. |
-| Rail destination | `NavItemButton` / `NavItemLink`: a round icon on the collapsed rail, an icon and label row when the rail is open and in the phone drawer. |
+| Action | `Button`: `filled` for the one primary action, `outlined` for its alternatives, `tonal` for header and toolbar pills, `text` for low emphasis, `link` inline; also `accent` and `disclosure`. Sizes `sm`, `md`, `lg`. `buttonClasses()` styles a router `Link`. |
+| Icon-only action | `IconButton`, round, `ghost` or `elevated`; sizes `xs`, `sm`, `md`. `label` is required and becomes the tooltip. |
+| Modal | `Dialog` (`md` form, `lg` Settings): portals, traps focus, inerts the background, closes on Escape and scrim, restores focus. |
+| Popup list | `Menu` + `MenuItem` (`item`, `radio`, `checkbox`). |
+| Choose from a list | `Select`: a field-styled trigger over `Menu` that flips above when there is more room and groups options. |
+| One value in place | `SegmentedControl` (`md` shell, `lg` landing); `SectionNav` for the sections of one surface. |
+| Route sections | `TabNav` + `TabNavLink` (`underline` for report sections, `pill` for the session switch), real links with `aria-current`. |
+| Hint | `tooltip` on `Button`/`IconButton`, `Tooltip` for other content; never native `title`. |
+| Label or status | `Chip`: `tonal` or `outlined`; tones `neutral`, `info`, `success`, `accent`, `warning`, `danger`; sizes `xs` to `lg`. |
+| Text input | `TextField` / `TextArea`, `outlined` or `bare` inside a surface that draws the box. |
+| Grouping surface | `Card`: `block`, `tile` or `panel`; tones `neutral`, `raised`, `warning`, `danger`. `CardButton` is a card that is one action. |
+| Link off the app | `ExternalLink`: new tab, `rel="noopener noreferrer"`, and its `fallback` for anything but `http(s)` or `mailto` (model-written URLs reach it). |
+| Status, error, loading | `StatusText` (`muted`, or `danger` as an alert), `ErrorNotice` for a blocking failure, `DocumentSkeleton` or `Skeleton` shapes in a `SkeletonRegion`. Reds come from `cosci-danger-*`. The boot skeleton in `index.html` has its inline script's hash in the CSP in `public/_headers`. |
+| Rail destination | `NavItemButton` / `NavItemLink`. |
 
-**Enforced:** `bun run lint` (and `make lint`) rejects a raw `<button>`, a hex, `rgb()` or `hsl()` colour, and an arbitrary radius (`rounded-[…]`, `border-radius:`, inline `borderRadius`) anywhere outside `src/shared/ui/`, tests and `md3_scheme.ts`. Radii come from the Tailwind scale or a named radius in `index.css` (`rounded-bubble`, `rounded-workspace`, `rounded-tile`, `rounded-5xl`); colours come from tokens.
+## Docker Compose
 
-Colours come from component tokens in `styles/tokens.css` (`--button-*`, `--icon-button-*`, `--chip-*`, `--segmented-*`, `--tab-pill-*`, `--field-*`). These tokens default to the shell palette. A surface with its own palette re-points them in its own scope, as the landing page does, instead of styling call sites.
-
-**Motion:** durations and curves are tokens (`--motion-duration-short|medium|long|exit`, `--motion-ease-standard|enter|exit`; utilities `duration-short|medium|long`, `ease-standard|enter|exit`). Overlays enter through `@starting-style` and leave through `usePresence`, which keeps a closing element mounted, inert and `aria-hidden` for `EXIT_MS` while focus and the background are released at once. Never delay input, focus or content, and keep everything except progress indicators under 300 ms. Under `prefers-reduced-motion: reduce`, the tokens shorten fades and remove every scale and travel. Tests that close an overlay assert on the role (closing elements are hidden from it) or wait for removal, never sleep.
-
-**Commands** (run from `app/frontend/`):
-```bash
-bun install
-bun run dev          # vite dev server on :5173
-bun run build        # tsc && vite build && node scripts/prerender.mjs
-bun run lint         # gts lint
-bun run fix          # gts fix (format + autofix)
-bun run test         # vitest run (jsdom + React Testing Library)
-```
-
-Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test_setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
-
-Vite reads `VITE_API_BASE_URL`; when it is unset the api client falls back to **same-origin relative paths** (`src/shared/api/runs.ts`), and `vite.config.ts` proxies `/api`, `/status`, and `/health` to `http://localhost:8008` in dev — so localhost only works via that proxy, and a production build with the var unset calls its own origin. `src/main.tsx` mounts `BrowserRouter` + `src/app/workbench_app.tsx`. Theme state is in `src/shared/hooks/theme_context.tsx` — no Redux/Zustand.
-
-**Layout** (phase 7): `src/app/` is the composition root (router, shell layout, header, rail, not-found page) and may import anything. `src/features/{chat,runs,report,access,diagnostics}/` each import only `src/shared/` and their own files; `src/shared/{api,ui,hooks,lib}/` import no feature or the app. `make lint` enforces this (`no-restricted-imports`; cross-folder imports use the `@/` alias, never `../`). `chat` is the workspace, home and landing; `report` is everything under `/runs/:id`, including the live view; `runs` holds the session switch and the stop control; `access` is Settings (keys, models, appearance); `diagnostics` is the feedback dialog and session log capture. Tailwind scans only the `@source` folders in `index.css`, so a new top-level folder must be listed there or its utilities silently disappear. Styling: `src/index.css` (Tailwind layers, fonts, `--color-th-*` token bridge) plus the surface sheets under `src/styles/`, imported in order by `src/main.tsx`.
-
-**Routing** (`app/workbench_app.tsx`): `/` (chat workspace — session home), `/chats/:id` (owned conversation), `/examples/:id` (open a private copy of a curated example), `/runs/:id/:tab` (run detail; bare `/runs/:id` redirects to `details`, so switching tabs is a param change rather than a remount), `*` (404). `/runs` and `/runs/new` redirect to `/`. Providers nest `ErrorBoundary > ThemeProvider > SystemStatusProvider > RunHistoryProvider > Layout > Routes`. Canonical run tabs and their legacy aliases live in `src/shared/lib/run_tabs.ts`; `normalizeTab()` is the single resolver. The old public surface (`/about` landing page, `/demos/:slug` public demos, `/runs` dashboard) was deliberately removed; the 404 page is `src/app/not_found_page.tsx`. The one landing surface now is the page *under* the chat home at `/` (`features/chat/home_landing*.tsx`, lazy-loaded below the home stage and reached by scrolling past the composer); the home still opens on the chat. It also carries the product FAQ (`/#faq`); Settings has no Help section.
-
-**Run detail** (`src/features/report/`): `run_detail.tsx` is a thin router — `run_detail_specifications.tsx` (details), `run_detail_learning.tsx`, `run_detail_overview.tsx`, and `ideas_tab.tsx` (+ `ideas_detail_pane.tsx` / `ideas_detail_data.ts`) render the four tabs, and `run_detail_active.tsx` replaces them while a run is in flight. Data fetching is `useRunDetailData` (`run_detail_data.ts`); titlebar, tab nav, skeleton, and toast live in `run_detail_shell.tsx`; the static views share document primitives from `run_detail_document.tsx`. The earlier `overview_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `run_specifications_tab.tsx`, and `chat_tab.tsx` were retired (removed in the `references/ui-ux/` deletion; recoverable from git history).
-
-The run-detail page loads through a route-level
-dynamic import. Its pending state keeps the layout mounted. Model prose uses
-`src/shared/ui/markdown_message.tsx` as a lightweight public wrapper; its lazy
-`markdown_message_renderer.tsx` owns Markdown parsing, highlighting, block
-memoization and code-copy controls. Pending prose is escaped plain text. Keep
-heavy renderer imports behind that boundary and preserve the raw-HTML policy.
-
-**Chat session** (`src/features/chat/`): `use_chat_session.ts` is the chat workspace's session state machine — composer input, message log, and the draft → confirmed → started run-spec lifecycle. It delegates turns to `chat_session_handlers.ts`, run start to `chat_session_start_run.ts`, and transcript recovery to `chat_session_transcript.ts` and `use_chat_rehydrate.ts`; view concerns (history reload, composer focus, toasts) are injected so the hook stays testable headless. `chat_questions.tsx` composes a clicked answer into the scientist's next turn, decides which turn is still awaiting one, and renders the chooser inside the composer's own form (`Composer`'s `aboveInput` slot), so it reads as the input box expanding upward and the composer stays usable — the questions are an affordance, never a gate. Shared hooks (`src/shared/hooks/`): `history_context.tsx` (separate run and chat providers sharing one list lifecycle, fetched once for the shell sidebar and home recents), `system_status_context.tsx` (shared `/status` polling), `timers.ts` (`useToast` and transient-state timers), and `dom.ts` (mobile/overflow measurements and dialog behavior). The landing-page FAQ advertises no keyboard shortcuts. Keep focus, inert-background and dismissal handlers scoped to open dialogs or drawers; `app/layout.test.tsx` pins the absence of an always-on document shortcut handler.
-
-**HTTP clients** live under `src/shared/api/`: `runs.ts` (run lifecycle, SSE, steering, interview calls, collection and report getters, and the fetch primitives), `system.ts` (`/status`, incl. the composer's connector list), and `logs.ts`. SSE/streaming also runs through `src/shared/hooks/use_run_stream.ts`. `src/shared/lib/client_id.ts` holds the localStorage client id; `clientHeaders()` sends it as `X-Client-ID`, and an `Authorization` header is never sent or read.
-
-All HTTP response paths use `runs.fetchWithSession`, including downloads
-and SSE; it only logs failures. Keep JSON parsing and stream framing separate.
-
-## Docker workflow
-
-`app/docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling engine checkout mounted at `/workspace/co-scientist-engine`; if absent, the entrypoint clones from `COSCIENTIST_ENGINE_REPO` at ref `COSCIENTIST_ENGINE_REF` — that ref is deliberately floating (`main`) for this opt-in clone-a-fork workflow; pin a commit SHA there for a reproducible build. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere. The api service also mounts `./data:/app/data` and sets `COSCIENTIST_DB_PATH=/app/data/coscientist.db`, so the SQLite store survives `docker compose up --build` instead of living in the container's discarded writable layer. Both the api entrypoint (`app/docker/entrypoint.sh`) and the mcp service run with `--reload`, a deliberate dev-only trade-off that mirrors `make dev-api`'s own `--reload` and carries the same risk documented in `docs/OPERATIONS.md` (a mid-run edit can drop the embedded worker cohort or an in-flight literature-review call) — never carried into either production Dockerfile.
-
-Compose builds `api` from `app/docker/Dockerfile.api` + `app/docker/entrypoint.sh` — **a different file** from the repo-root `Dockerfile.api` that Railway builds, and the two diverge (compose installs the engine at startup from the mount; Railway bakes it into the image), so container changes usually need applying to both.
-
-**Wire contracts:** edit `engine/src/co_scientist/api/contracts/` for run, artifact, report and
-interview JSON shapes, then run `../.venv/bin/python -m co_scientist.api.contracts.generate`
-from `app/` and format the generated `wire_*.ts` with the frontend linter.
-`generate.py`'s `MODEL_GROUPS` also exports endpoint Pydantic models already on
-the wire (`/status`, client log records, feedback) to `wire_system.ts`; endpoints
-that return plain dicts (logs payload, free usage) stay hand-typed.
-`tests/test_architecture.py` checks generated syntax, served OpenAPI and recursive
-JSON, including legacy reports, public projections and nonempty curated
-collections. Generated `wire_*.ts` modules
-own the frontend types; `src/shared/api/runs.ts` re-exports them. `TypedDict` response
-models retain omission
-separately from null and allow existing extra persisted fields; reports
-still pass through their explicit release gates and field projection first.
+`app/docker-compose.yml` runs `api`, `ui` and `mcp` for local work and needs
+`app/.env`. Its api image is `app/docker/Dockerfile.api` with
+`app/docker/entrypoint.sh`, which installs the engine mounted at
+`/workspace/co-scientist-engine` (the repo's `engine/` by default; otherwise it
+clones `COSCIENTIST_ENGINE_REPO` at `COSCIENTIST_ENGINE_REF`). That is a
+different file from the root `Dockerfile.api` that production bakes, so
+container changes usually need both. The SQLite store persists in `./data`.
+api and mcp run with `--reload`, a dev-only trade-off never carried into the
+production images. `make docker-build` validates the Compose config.
