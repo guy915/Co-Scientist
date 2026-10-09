@@ -554,7 +554,7 @@ async def test_goal_text_on_claude_leaves_room_for_adaptive_thinking(
         bodies.append(body)
         response = _message(refused=False)
         # max_tokens bounds thinking and answer together; a budget under one
-        # thought is spent before any text, as W4 observed.
+        # thought is spent before any text.
         if body["max_tokens"] < 1024:
             response["stop_reason"] = "max_tokens"
             response["content"] = [{"type": "thinking", "thinking": "", "signature": "s"}]
