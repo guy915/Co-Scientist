@@ -1,0 +1,121 @@
+name: CI speed measurements
+
+on:
+  push:
+    branches: [test/ci-speed-measure]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Run serial full CI measurements
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_MEASURE_THEME: native-before
+          CI_MEASURE_REF: test/ci-native-before
+          CI_MEASURE_SHA: cd1bcc315cf703179e215fcfa542ed0a553692cf
+          CI_MEASURE_COUNT: '5'
+          CI_MEASURE_NOT_BEFORE: '2026-10-09T00:05:05.243384Z'
+        run: |
+          python - <<'PY'
+          import datetime
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import time
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+          
+          repository = os.environ['GITHUB_REPOSITORY']
+          ref = os.environ['CI_MEASURE_REF']
+          expected = os.environ['CI_MEASURE_SHA']
+          theme = os.environ['CI_MEASURE_THEME']
+          count = int(os.environ['CI_MEASURE_COUNT'])
+          assert re.fullmatch(r'[a-z0-9-]+', theme)
+          assert re.fullmatch(r'[a-f0-9]{40}', expected)
+          assert 1 <= count <= 20
+          output = Path('ci-speed-results')
+          output.mkdir()
+          
+          def api(path, body=None):
+              request = Request(
+                  'https://api.github.com/repos/' + repository + '/' + path,
+                  data=json.dumps(body).encode() if body is not None else None,
+                  headers={
+                      'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                      'Accept': 'application/vnd.github+json',
+                      'Content-Type': 'application/json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  },
+              )
+              with urlopen(request, timeout=60) as response:
+                  data = response.read()
+              return json.loads(data) if data else None
+          
+          def candidates():
+              query = urlencode({'branch': ref, 'event': 'workflow_dispatch', 'per_page': 30})
+              return api('actions/workflows/ci.yml/runs?' + query)['workflow_runs']
+          
+          def timestamp(value):
+              return datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
+          
+          external = [run for run in candidates()
+                      if run['head_sha'] == expected
+                      and timestamp(run['created_at']) >= timestamp(os.environ['CI_MEASURE_NOT_BEFORE'])]
+          if external:
+              (output / 'external-handoff.json').write_text(json.dumps(external, indent=2))
+              print('Existing measurement dispatch found; preserving handoff without another dispatch', flush=True)
+              raise SystemExit(0)
+
+          results = []
+          for index in range(count):
+              previous = {run['id'] for run in candidates()}
+              api('actions/workflows/ci.yml/dispatches', {'ref': ref})
+              deadline = time.monotonic() + 300
+              while True:
+                  available = [run for run in candidates() if run['id'] not in previous]
+                  if available:
+                      assert len(available) == 1, 'Concurrent dispatch on the measurement ref'
+                      run = available[0]
+                      assert run['head_sha'] == expected, 'Measurement ref changed'
+                      break
+                  assert time.monotonic() < deadline, 'Dispatched workflow was not discovered'
+                  time.sleep(5)
+              run_id = run['id']
+              print(f'{theme} {index + 1}/{count}: {run_id}', flush=True)
+              deadline = time.monotonic() + 1800
+              while run['status'] != 'completed':
+                  assert time.monotonic() < deadline, 'Workflow exceeded measurement time bound'
+                  time.sleep(10)
+                  run = api(f'actions/runs/{run_id}')
+              jobs = []
+              page = 1
+              while True:
+                  batch = api(f'actions/runs/{run_id}/jobs?per_page=100&page={page}')['jobs']
+                  jobs.extend(batch)
+                  if len(batch) < 100:
+                      break
+                  page += 1
+              (output / f'{theme}-jobs-{run_id}.json').write_text(json.dumps(jobs, indent=2))
+              (output / f'{theme}-run-{run_id}.json').write_text(json.dumps(run, indent=2))
+              seconds = (timestamp(run['updated_at']) - timestamp(run['run_started_at'])).total_seconds()
+              result = dict(id=run_id, sha=run['head_sha'], url=run['html_url'], conclusion=run['conclusion'], seconds=seconds)
+              results.append(result)
+              (output / f'{theme}-runs.json').write_text(json.dumps(results, indent=2))
+              print(json.dumps(result), flush=True)
+              assert run['conclusion'] == 'success', 'First failure retained; no retries'
+          PY
+      - name: Retain timing evidence including failures
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-speed-native-before
+          path: ci-speed-results
+          if-no-files-found: error
+          retention-days: 7
