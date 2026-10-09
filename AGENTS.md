@@ -69,7 +69,8 @@ deployment's environment back.
 
 `make help` lists the common targets. Before pushing, merge current `main`,
 commit, and run `make presubmit`; it ignores uncommitted changes. Code changes also need `make check`; docs-only changes need `make lint`
-and `make test-evaluations`; launch-wide changes also need `make docker-build`.
+and `make test-evaluations`; repository-wide code or configuration changes also
+need `make docker-build`.
 Record each gate's real exit status in the pull request
 ([CONTRIBUTING.md](CONTRIBUTING.md)).
 
