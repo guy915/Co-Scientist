@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, transaction
@@ -30,6 +32,74 @@ class SpendRecord:
     settled: bool
 
 
+@dataclass(frozen=True)
+class AzureAllowance:
+    version: int
+    allowance: int
+    expires_at: float
+    cutoff_at: float
+    rates: str
+    basis: str
+
+
+def active_allowance(conn: sqlite3.Connection) -> AzureAllowance | None:
+    row = conn.execute("SELECT * FROM llm_azure_allowance ORDER BY version DESC LIMIT 1").fetchone()
+    if row is None:
+        return None
+    return AzureAllowance(
+        row["version"],
+        row["allowance_microeur"],
+        row["expires_at"],
+        row["cutoff_at"],
+        row["rates"],
+        row["basis"],
+    )
+
+
+def record_allowance(
+    conn: sqlite3.Connection,
+    *,
+    allowance: int,
+    expires_at: float,
+    cutoff_at: float,
+    rates: str,
+    basis: str,
+) -> int:
+    cursor = conn.execute(
+        "INSERT INTO llm_azure_allowance "
+        "(created_at,allowance_microeur,expires_at,cutoff_at,rates,basis) VALUES (?,?,?,?,?,?)",
+        (current_time(), allowance, expires_at, cutoff_at, rates, basis),
+    )
+    return int(cursor.lastrowid or 0)
+
+
+def ledger_total(conn: sqlite3.Connection) -> int:
+    return int(
+        conn.execute("SELECT COALESCE(SUM(charged_microeur),0) FROM llm_spend").fetchone()[0]
+    )
+
+
+def anchored_total(conn: sqlite3.Connection, total: int | None) -> int | None:
+    allowance = active_allowance(conn)
+    if total is None or allowance is None or current_time() >= allowance.cutoff_at:
+        return None
+    return min(total, allowance.allowance)
+
+
+def _covers_verified_rates(allowance: AzureAllowance, model: str, rates: str) -> bool:
+    # A price or exchange rate below what the operator verified would let the
+    # ledger undercount; a higher one is merely more conservative.
+    try:
+        verified = json.loads(allowance.rates)
+        current = json.loads(rates)
+        model_rates = verified["models"][model]
+        return Decimal(current["fx"]) >= Decimal(verified["fx"]) and all(
+            Decimal(current[name]) >= Decimal(value) for name, value in model_rates.items()
+        )
+    except (KeyError, TypeError, ValueError, InvalidOperation):
+        return False
+
+
 def spend_record(receipt: str, path: str) -> SpendRecord | None:
     with connect(path) as conn:
         row = conn.execute("SELECT * FROM llm_spend WHERE id=?", (receipt,)).fetchone()
@@ -45,9 +115,14 @@ def hold_spending(receipt: str, path: str) -> None:
         conn.execute("INSERT OR IGNORE INTO llm_spend_holds VALUES (?)", (receipt,))
 
 
-def reserve_spend(conn: sqlite3.Connection, receipt: str, spend: SpendReservation) -> None:
+def reserve_spend(conn: sqlite3.Connection, receipt: str, spend: SpendReservation) -> float:
     now = current_time()
-    spent = conn.execute("SELECT COALESCE(SUM(charged_microeur),0) FROM llm_spend").fetchone()[0]
+    allowance = active_allowance(conn)
+    if allowance is None or not _covers_verified_rates(allowance, spend.model, spend.rates):
+        raise ProviderAdmissionError(UNAVAILABLE)
+    total = min(spend.total, allowance.allowance)
+    cutoff = min(spend.cutoff, allowance.cutoff_at)
+    spent = ledger_total(conn)
     forecasts = conn.execute(
         "SELECT COALESCE(SUM(forecast_microeur),0) FROM llm_routes"
     ).fetchone()[0]
@@ -58,10 +133,10 @@ def reserve_spend(conn: sqlite3.Connection, receipt: str, spend: SpendReservatio
             raise ProviderAdmissionError(UNAVAILABLE)
         converted = min(spend.amount, route["forecast_microeur"])
     if (
-        now >= spend.cutoff
+        now >= cutoff
         or spend.amount < 0
-        or spend.total <= 0
-        or spent + forecasts + spend.amount - converted > spend.total
+        or total <= 0
+        or spent + forecasts + spend.amount - converted > total
         or conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone()
     ):
         raise ProviderAdmissionError(UNAVAILABLE)
@@ -91,6 +166,7 @@ def reserve_spend(conn: sqlite3.Connection, receipt: str, spend: SpendReservatio
             spend.rates,
         ),
     )
+    return cutoff
 
 
 def settle_spend(

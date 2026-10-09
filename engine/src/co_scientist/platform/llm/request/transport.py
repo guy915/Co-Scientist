@@ -26,7 +26,11 @@ from co_scientist.platform.llm.admission.service import (
     reserve_physical,
     settle_physical,
 )
-from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
+from co_scientist.platform.llm.admission.spend import (
+    azure_dispatch_permit,
+    paid_dispatch_config,
+    require_enabled,
+)
 from co_scientist.platform.llm.profile import model_profile
 from co_scientist.platform.llm.request.anthropic import (
     API_BASE,
@@ -34,8 +38,8 @@ from co_scientist.platform.llm.request.anthropic import (
     is_credit_error,
     require_prompt_fits,
 )
-from co_scientist.platform.llm.request.azure import LUNA, NANO
-from co_scientist.platform.llm.request.backend import active_backend
+from co_scientist.platform.llm.request.azure import LUNA, NANO, request_input_bound
+from co_scientist.platform.llm.request.backend import active_backend, is_azure_model
 from co_scientist.platform.llm.request.cache import (
     HAIKU,
     apply_dispatch_cache_key,
@@ -243,6 +247,31 @@ async def complete_request(
     )
 
 
+async def _input_tokens_bound(
+    completion_args: dict[str, Any], model_name: str, *, byok: bool, azure: bool
+) -> int | None:
+    from co_scientist.core.config import settings
+
+    if azure:
+        if "max_completion_tokens" not in completion_args:
+            completion_args.setdefault("max_tokens", settings.app_llm_max_output_tokens)
+        # Validates the request shape and bounds what the provider will bill.
+        return request_input_bound(completion_args)
+    if byok or model_name != HAIKU:
+        return None
+    try:
+        bound = await require_prompt_fits(completion_args, current_db_path())
+    except BaseException as preflight_error:
+        if is_credit_error(preflight_error):
+            mark_credit_exhausted(current_db_path())
+            raise AnthropicSlotUnavailableError(
+                "No model is available right now"
+            ) from preflight_error
+        raise
+    completion_args["api_base"] = API_BASE
+    return bound
+
+
 async def _complete_physical(
     completion_args: dict[str, Any],
     model_name: str,
@@ -259,25 +288,17 @@ async def _complete_physical(
 
     require_enabled()
     native_model = str(completion_args.get("model", "")).replace("azure/responses/", "azure/")
-    if byok and native_model in (LUNA, NANO):
+    azure = is_azure_model(native_model) or is_azure_model(model_name)
+    if azure and (byok or native_model not in (LUNA, NANO)):
         # The native deployment client owns its key; a caller key cannot
-        # establish caller funding for this route.
+        # establish caller funding, and other Azure routes have no permit.
         raise ProviderAdmissionError("No model is available right now")
     apply_provider_constraints(completion_args, model_name)
     apply_prompt_cache(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
-    input_tokens_bound = None
-    if not byok and model_name == HAIKU:
-        try:
-            input_tokens_bound = await require_prompt_fits(completion_args, current_db_path())
-        except BaseException as preflight_error:
-            if is_credit_error(preflight_error):
-                mark_credit_exhausted(current_db_path())
-                raise AnthropicSlotUnavailableError(
-                    "No model is available right now"
-                ) from preflight_error
-            raise
-        completion_args["api_base"] = API_BASE
+    input_tokens_bound = await _input_tokens_bound(
+        completion_args, model_name, byok=byok, azure=azure
+    )
     record_provider_request()
     receipt = None
     if not byok:
@@ -298,9 +319,10 @@ async def _complete_physical(
     start = time.monotonic()
     call = await inflight.begin_provider_call()
     try:
-        response = await _await_provider(
-            completion_args, model_name, timeout_seconds, timeout_grace_seconds
-        )
+        with azure_dispatch_permit(receipt):
+            response = await _await_provider(
+                completion_args, model_name, timeout_seconds, timeout_grace_seconds
+            )
     except (LLMTimeoutError, LiteLLMTimeout) as exc:
         error = LLMTimeoutError(
             f"LLM call to {model_name} timed out without a response; "

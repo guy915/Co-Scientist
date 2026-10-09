@@ -116,6 +116,10 @@ def test_owned_spend_export_and_erasure_preserve_shared_funding_and_late_settlem
     from co_scientist.platform.db.admission import reserve_provider, settle_provider
     from co_scientist.platform.db.spend import SpendReservation
 
+    from tests._azure_ledger import record_azure_allowance
+
+    record_azure_allowance(isolated_db)
+    rates = json.dumps({"input": "9", "output": "9", "cached": "9", "write": "9", "fx": "9"})
     receipts = [
         reserve_provider(
             owner,
@@ -124,7 +128,14 @@ def test_owned_spend_export_and_erasure_preserve_shared_funding_and_late_settlem
             app=False,
             db_path=isolated_db,
             spend=SpendReservation(
-                "azure/test", "worker", 100, 1000, current_time() + 600, 100, 100, "{}"
+                "azure/gpt-5-nano-2025-08-07",
+                "worker",
+                100,
+                1000,
+                current_time() + 600,
+                100,
+                100,
+                rates,
             ),
         )
         for owner in ("owner-a", "owner-b")

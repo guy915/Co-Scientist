@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -12,7 +13,11 @@ import openai
 from openai.types.responses import Response, ResponseStreamEvent
 
 from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
-from co_scientist.platform.llm.admission.spend import paid_dispatch_config, require_enabled
+from co_scientist.platform.llm.admission.spend import (
+    claim_azure_dispatch,
+    paid_dispatch_config,
+    require_enabled,
+)
 from co_scientist.platform.llm.profile import model_profile
 from co_scientist.platform.llm.roles import current_call_policy
 
@@ -100,6 +105,17 @@ def normalize_usage(value: Any) -> Usage | None:
     )
 
 
+# Items the provider returned earlier that are replayed as input. Anything else
+# (images, files, hosted tool calls) has billing the byte bound does not cover.
+_REPLAYED_ITEMS = frozenset({"message", "reasoning", "function_call"})
+
+
+def _text(content: Any) -> Any:
+    if content is not None and not isinstance(content, str):
+        raise ProviderAdmissionError("Only text content is allowed on Azure")
+    return content
+
+
 def response_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for message in messages:
@@ -107,6 +123,8 @@ def response_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if role == "assistant" and message.get("responses_items"):
             calls = {call["id"]: call["function"] for call in message.get("tool_calls") or ()}
             for item in message["responses_items"]:
+                if item.get("type") not in _REPLAYED_ITEMS:
+                    raise ProviderAdmissionError("Unsupported Responses item on Azure")
                 if item.get("type") == "function_call":
                     function = calls.get(item["call_id"])
                     if function is not None:
@@ -119,13 +137,13 @@ def response_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 {
                     "type": "function_call_output",
                     "call_id": message["tool_call_id"],
-                    "output": message.get("content") or "",
+                    "output": _text(message.get("content")) or "",
                 }
             )
             continue
         if role not in ("user", "system", "developer", "assistant"):
             raise ProviderAdmissionError("Unsupported Responses message role")
-        content = message.get("content")
+        content = _text(message.get("content"))
         if content:
             items.append({"role": role, "content": content})
         for call in message.get("tool_calls") or ():
@@ -206,6 +224,23 @@ def response_request(request: dict[str, Any], deployments: dict[str, str]) -> di
                 else choice
             )
     return body
+
+
+def input_bound(body: dict[str, Any]) -> int:
+    # Every o200k token spans at least one UTF-8 byte, and ASCII-escaped JSON
+    # only adds bytes; the allowances cover role framing and tool rendering.
+    billed = {key: body[key] for key in ("input", "tools", "text") if key in body}
+    return (
+        len(json.dumps(billed).encode("utf-8"))
+        + 32 * len(body.get("input", ()))
+        + 256 * len(body.get("tools", ()))
+        + 1024
+    )
+
+
+def request_input_bound(request: dict[str, Any]) -> int:
+    # Deployment names do not reach the prompt, so the logical name stands in.
+    return input_bound(response_request(request, {LUNA: LUNA, NANO: NANO}))
 
 
 def normalize_response(response: Any, model: str) -> Completion:
@@ -393,30 +428,33 @@ class AzureResponsesBackend:
         stream = request.pop("stream")
         try:
             if stream:
-                events = await asyncio.to_thread(self._stream_request, request)
+                events = await asyncio.to_thread(self._stream_request, request, model)
                 return ResponsesStream(events, model)
-            response = await asyncio.to_thread(self._response_request, request)
+            response = await asyncio.to_thread(self._response_request, request, model)
         except (openai.APIConnectionError, openai.APITimeoutError) as error:
             raise LLMTimeoutError(
                 "Azure transport failed; provider outcome may be unknown"
             ) from error
         return normalize_response(response, model)
 
-    def _dispatch_guard(self) -> None:
+    def _dispatch_guard(self, request: dict[str, Any], model: str) -> None:
         # A thread can become runnable after the gateway's policy check.
         require_enabled()
         if self._operator_funded:
             from co_scientist.platform.llm.admission.service import current_db_path
 
             paid_dispatch_config(current_db_path())
+        claim_azure_dispatch(model, input_bound(request), request["max_output_tokens"])
 
-    def _stream_request(self, request: dict[str, Any]) -> openai.Stream[ResponseStreamEvent]:
-        self._dispatch_guard()
+    def _stream_request(
+        self, request: dict[str, Any], model: str
+    ) -> openai.Stream[ResponseStreamEvent]:
+        self._dispatch_guard(request, model)
         return cast(
             openai.Stream[ResponseStreamEvent],
             self._client.responses.create(stream=True, **request),
         )
 
-    def _response_request(self, request: dict[str, Any]) -> Response:
-        self._dispatch_guard()
+    def _response_request(self, request: dict[str, Any], model: str) -> Response:
+        self._dispatch_guard(request, model)
         return cast(Response, self._client.responses.create(stream=False, **request))

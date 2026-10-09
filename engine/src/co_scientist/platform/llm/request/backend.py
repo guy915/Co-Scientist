@@ -12,7 +12,7 @@ import litellm
 import openai
 from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 
-from co_scientist.core.exceptions import LLMTimeoutError
+from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
 from co_scientist.platform.llm.profile import model_profile
 
 litellm.suppress_debug_info = True
@@ -63,6 +63,10 @@ class CompletionBackend(Protocol):
     def supports_json_schema(self, model_name: str) -> bool: ...
 
 
+def is_azure_model(model: str) -> bool:
+    return model.lower().startswith(("azure/", "azure_ai/"))
+
+
 def is_authentication_error(error: BaseException) -> bool:
     return isinstance(error, (litellm.exceptions.AuthenticationError, openai.AuthenticationError))
 
@@ -106,6 +110,10 @@ class LitellmBackend:
                 return _OwnedStream(response, backend.close)
             backend.close()
             return response
+        if is_azure_model(model):
+            # LiteLLM would read the operator's Azure key from the environment
+            # without the native client's funding permit.
+            raise ProviderAdmissionError("No model is available right now")
         # SDK retries would send requests that admission has not reserved.
         completion_args.update(num_retries=0, max_retries=0)
         token = _gateway_request.set(True)
