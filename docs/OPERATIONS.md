@@ -203,6 +203,10 @@ Unknown outcomes on coordinator tasks still stop the run. Lost leases may retry
 only under persisted zero-price admission, without caller keys: the
 `zero_cost_admission` stamp a free run on all-free routes gets at creation,
 which binds its engine tasks to zero-price-only requests. Unstamped runs fail closed.
+A restart does not wait out the 300 s lease: graceful shutdown releases the
+process's own leases, and startup recovery expires every live lease on an
+unpaused run whose owner lacks the new process tag (`expire_earlier_process_leases`,
+sound only at one api replica), so the rules above decide it within seconds.
 
 Verification issuance markers survive failed attempts and checkpoint restore;
 otherwise recovery funds the same evidence pass again. Periodic companion nodes
@@ -574,7 +578,7 @@ copy already received by an outside service.
 | Uploaded title/filename, MIME type, size, hash, extraction metadata and extracted text | SQLite `staged_documents`; text copied into evidence/tasks/science outputs | Staged documents 30 days; copied text with its run/chat until deletion | Railway extraction; model providers; derived query words to research APIs |
 | Original uploaded file bytes and extraction intermediates | Request memory and temporary parser/OCR files | Processing lifetime; original uploads are not retained | Railway; local parsers/OCR, not an external conversion service |
 | Hypotheses, reviews, comparisons, citations, retrieval queries/results, full text, claims, plans, reports, errors | SQLite science tables, tasks, events and checkpoints | Run lifetime; may echo supplied text | Selected model provider, Railway, R2 |
-| Prompt-cache text, run/role cache identifier and request partition | Request memory; Azure partition tracker limited to 4,096 run/role keys; external provider cache | Anthropic requests five-minute ephemeral caching; other provider retention follows its policy. Local tracker entries last until eviction/restart; rolling 60-second call cleanup is not key expiry | Anthropic and Azure; Azure receives the run ID/role/optional partition in its cache key |
+| Prompt-cache text, run/role cache identifier and request partition | Request memory; up to 512 evidence baselines of at most 16,000 characters each in process RAM; Azure partition tracker limited to 4,096 run/role keys; external provider cache | Anthropic requests five-minute ephemeral caching; other provider retention follows its policy. Evidence baselines clear after committed run/data deletion or LRU eviction/restart. Up to 512 hashed erased-run markers block late memoization; filling that bound purges all baselines and disables memoization until restart. Local tracker entries last until eviction/restart; rolling 60-second call cleanup is not key expiry | Anthropic and Azure; Azure receives the run ID/role/optional partition in its cache key |
 | BYOK worker/supervisor credentials, provider/model/custom-model choices | Browser key vault; encrypted SQLite `run_credentials`; request and brief validation memory | Browser until removed; stored credentials with their run; all removed by browser-identity deletion | Railway API; selected provider for catalog/probe/completion; R2 holds encrypted rows |
 | Appearance, models, session view and pending creation/reload recovery | Browser local/session storage, listed below | Local until cleared; session until completion/removal/tab closes | Preferences used in requested API calls; no advertising recipient |
 | Optional email in legacy data/configuration | SQLite legacy run configuration/tasks | With the run | Public completion email is disabled; any separately configured legacy delivery has its own mail processor |

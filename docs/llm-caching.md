@@ -8,6 +8,12 @@ allowance and sets an unexpired credit date.
 
 T supplies a `CacheablePrompt` from `core/prompt_cache.py`: final rendered text and two
 character offsets, `run_end` and `item_end`. Appending a schema preserves these offsets.
+Templates and handwritten chat, supervisor, safety and claim builders place fixed
+instructions first, shared run evidence next, then current item data and the question.
+Changing evidence remains visible in the current item. Shared evidence baselines are
+bounded to 512 entries of at most 16,000 characters each; committed run/data deletion
+purges them. Hashed erased-run markers block late memoization; filling their 512-entry bound
+purges all baselines and disables memoization until restart.
 The gateway sends five-minute breakpoints at both boundaries on Haiku 5.5. Tool loops
 and chat also use top-level automatic caching. A request may have at most four cache
 breakpoints, including the automatic one. No delimiter from user text is interpreted.
@@ -61,8 +67,9 @@ The cache becomes readable after the first response begins. A cold parallel wave
 miss on every call. Reuse a byte-identical prefix, let the first response begin, then send
 the remaining calls without an extra warm-up request. T owns layout and E owns call reuse.
 
-Completion needs T's boundary integration, E0's per-call-type meter and one budgeted live
-Express run per provider. Hermetic SDK tests prove payload and accounting behavior; they
+Boundary integration and the hermetic per-call-type input/prefix meter are implemented.
+Completion still needs one budgeted live Express run per provider. Hermetic SDK tests prove
+payload and accounting behavior; they
 do not measure a real cache hit or claim live savings. No live measurement is recorded yet.
 
 Sources checked 8 October 2026:

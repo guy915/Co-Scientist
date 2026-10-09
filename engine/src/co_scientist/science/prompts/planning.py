@@ -11,6 +11,11 @@ from co_scientist.science.prompts._common import (
     _format_meta_review_context,
     _run_guidance_section,
 )
+from co_scientist.science.prompts.context_budget import (
+    select_evidence_excerpt,
+    summarize_feedback,
+    summarize_hypotheses,
+)
 from co_scientist.science.prompts.generation_draft import format_preferences
 from co_scientist.science.prompts.loading import _build_prompt
 
@@ -28,8 +33,8 @@ def get_knowledge_base_outline_prompt(
         "research_overview_knowledge_base_outline",
         {
             "research_goal": research_goal,
-            "hypotheses_summary": hypotheses_summary,
-            "evidence_corpus": evidence_corpus,
+            "hypotheses_summary": summarize_hypotheses(hypotheses_summary),
+            "evidence_corpus": select_evidence_excerpt(evidence_corpus, research_goal),
         },
         sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
         tool_registry=ctx.tool_registry,
@@ -61,7 +66,7 @@ def get_knowledge_base_theme_prompt(
             "theme_title": material.title,
             "theme_sections": material.sections,
             "outline": material.outline,
-            "evidence_corpus": evidence_corpus,
+            "evidence_corpus": select_evidence_excerpt(evidence_corpus, research_goal),
         },
         sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
         tool_registry=ctx.tool_registry,
@@ -97,8 +102,8 @@ def get_research_overview_direction_prompt(
             "direction_title": material.title,
             "direction_rationale": material.rationale,
             "all_directions": material.all_directions,
-            "hypotheses_summary": hypotheses_summary,
-            "evidence_corpus": evidence_corpus,
+            "hypotheses_summary": summarize_hypotheses(hypotheses_summary),
+            "evidence_corpus": select_evidence_excerpt(evidence_corpus, research_goal),
         },
         sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
         tool_registry=ctx.tool_registry,
@@ -122,7 +127,7 @@ def get_meta_review_prompt(
         "meta_review",
         {
             "research_goal": research_goal,
-            "all_reviews": all_reviews,
+            "all_reviews": summarize_feedback(all_reviews),
             "instructions": instructions or _NO_META_REVIEW_INSTRUCTIONS,
             "preferences": format_preferences(preferences),
         },
@@ -148,9 +153,9 @@ def get_research_overview_prompt(
         "research_overview",
         {
             "research_goal": research_goal,
-            "hypotheses_summary": hypotheses_summary,
+            "hypotheses_summary": summarize_hypotheses(hypotheses_summary),
             "contact_candidates": contact_candidates,
-            "evidence_corpus": evidence_corpus,
+            "evidence_corpus": select_evidence_excerpt(evidence_corpus, research_goal),
         },
         sections=PromptSections(
             meta_review_context=_format_meta_review_context(ctx.meta_review),
@@ -173,8 +178,8 @@ def get_research_overview_interim_prompt(
         "research_overview_interim",
         {
             "research_goal": research_goal,
-            "hypotheses_summary": hypotheses_summary,
-            "evidence_corpus": evidence_corpus,
+            "hypotheses_summary": summarize_hypotheses(hypotheses_summary),
+            "evidence_corpus": select_evidence_excerpt(evidence_corpus, research_goal),
         },
         sections=PromptSections(
             meta_review_context=_format_meta_review_context(ctx.meta_review),
@@ -199,8 +204,10 @@ def get_research_overview_review_prompt(
         "research_overview_review",
         {
             "research_goal": material.research_goal,
-            "hypotheses_summary": material.hypotheses_summary,
-            "evidence_corpus": material.evidence_corpus,
+            "hypotheses_summary": summarize_hypotheses(material.hypotheses_summary),
+            "evidence_corpus": select_evidence_excerpt(
+                material.evidence_corpus, material.research_goal
+            ),
             "drafted_overview": drafted_overview,
         },
         include_domain=False,
@@ -223,9 +230,11 @@ def get_research_overview_revise_prompt(
         "research_overview_revise",
         {
             "research_goal": material.research_goal,
-            "hypotheses_summary": material.hypotheses_summary,
+            "hypotheses_summary": summarize_hypotheses(material.hypotheses_summary),
             "contact_candidates": request.contact_candidates,
-            "evidence_corpus": material.evidence_corpus,
+            "evidence_corpus": select_evidence_excerpt(
+                material.evidence_corpus, material.research_goal
+            ),
             "drafted_overview": request.drafted_overview,
             "review_notes": request.review_notes,
         },

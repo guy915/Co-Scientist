@@ -8,6 +8,7 @@ from typing import Any
 
 from co_scientist.core import byok_scope
 from co_scientist.core.config import THINKING_FLOOR_TIMEOUT_SECONDS, settings
+from co_scientist.core.prompt_cache import CacheablePrompt
 from co_scientist.core.sse import sse_frame
 from co_scientist.domains.chat.repository import messages as store
 from co_scientist.domains.chat.repository.messages import NewMessage
@@ -71,10 +72,11 @@ def _announcement_prompt(run: RunRow) -> str:
     """Omit plan fields already shown on the card so the model confirms the
     start rather than reciting setup.
     """
-    context: dict[str, Any] = {"research_goal": run.research_goal}
-    if run.title:
-        context["session_title"] = run.title
-    return json.dumps(context, ensure_ascii=False)
+    prefix = '{"research_goal": ' + json.dumps(run.research_goal, ensure_ascii=False)
+    item = (
+        ', "session_title": ' + json.dumps(run.title, ensure_ascii=False) if run.title else ""
+    ) + "}"
+    return CacheablePrompt(prefix + item, run_end=len(prefix), item_end=len(prefix + item))
 
 
 def _delta_text(chunk: Any) -> tuple[str, str]:

@@ -15,6 +15,8 @@ from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 from co_scientist.core.exceptions import LLMTimeoutError
 from co_scientist.platform.llm.profile import model_profile
 
+litellm.suppress_debug_info = True
+
 
 class _TransportReplayRefusedError(Exception):
     pass

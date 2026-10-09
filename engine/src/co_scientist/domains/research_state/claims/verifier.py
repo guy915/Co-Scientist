@@ -13,6 +13,7 @@ from co_scientist.core.exceptions import (
     LLMRateLimitParkError,
 )
 from co_scientist.core.json_schema import obj
+from co_scientist.core.prompt_layout import render_cacheable_prompt
 from co_scientist.domains.research_state.claims import (
     Assessor,
     BatchAssessor,
@@ -407,7 +408,12 @@ def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
     """Shared evidence precedes variable claim text for provider prefix
     caching.
     """
-    return f"{_SYSTEM_PROMPT}\n\nEVIDENCE:\n{_render_passages(passages)}\n\nCLAIM:\n{claim}"
+    return render_cacheable_prompt(
+        _SYSTEM_PROMPT,
+        f"EVIDENCE:\n{_render_passages(passages)}",
+        f"CLAIM:\n{claim}",
+        "Assess this claim using only the supplied passages.",
+    )
 
 
 def make_llm_assessor(model: str) -> tuple[Assessor, str]:
@@ -504,10 +510,11 @@ def _render_claims(claims: Sequence[str]) -> str:
 
 def _batch_entailment_prompt(claims: Sequence[str], passages: Sequence[EvidencePassage]) -> str:
     """Shared evidence precedes variable claims for provider prefix caching."""
-    return (
-        f"{_BATCH_SYSTEM_PROMPT}\n\n"
-        f"EVIDENCE:\n{_render_passages(passages)}\n\n"
-        f"CLAIMS:\n{_render_claims(claims)}"
+    return render_cacheable_prompt(
+        _BATCH_SYSTEM_PROMPT,
+        f"EVIDENCE:\n{_render_passages(passages)}",
+        f"CLAIMS:\n{_render_claims(claims)}",
+        "Assess every indexed claim using only the supplied passages.",
     )
 
 

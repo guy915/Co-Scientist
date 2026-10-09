@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from co_scientist.core.json_schema import obj
+from co_scientist.core.prompt_layout import render_cacheable_prompt
 from co_scientist.domains.safety.types import SafetyDecision
 from co_scientist.platform.llm import (
     CompletionSpec,
@@ -22,7 +23,7 @@ __all__ = [
 
 
 def _semantic_prompt(text: str, stage: str) -> str:
-    return (
+    instructions = (
         "Classify the scientific content under a research safety policy. "
         "Return JSON only with category, reason, risk_domains, "
         "operational_detail, offensive_score, "
@@ -43,8 +44,13 @@ def _semantic_prompt(text: str, stage: str) -> str:
         "for, or gives, a course of action for one named person's own health "
         "or money -- their diagnosis, their treatment, their portfolio. "
         "Research about a disease, a drug, a market or a cohort is false, "
-        "including when the person writing has the condition themselves.\n"
-        f"Stage: {stage}\nContent:\n{text[:16000]}"
+        "including when the person writing has the condition themselves."
+    )
+    return render_cacheable_prompt(
+        instructions,
+        "",
+        f"Stage: {stage}\nContent:\n{text[:16000]}",
+        "Classify this content under the policy above.",
     )
 
 

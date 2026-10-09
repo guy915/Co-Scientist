@@ -20,8 +20,10 @@ for work the maintainer has opened to contributors. Filter by area:
 `area: evaluations`, `area: e2e`, `area: ci` or `area: docs`.
 Types include `type: bug`, `type: feature`, `type: docs`, `type: maintenance`
 and `type: question`. Priority labels range from `priority: critical` to
-`priority: low`. An issue marked `needs triage` still needs its scope,
-reproduction, ownership or priority reviewed.
+`priority: low`. Size labels estimate effort, from `size: XS` (under an
+hour) to `size: XL` (split into sub-issues first). An issue marked
+`needs triage` still needs its scope, reproduction, ownership or priority
+reviewed.
 
 Choose a small issue that matches your interests. Comment with your proposed
 approach before starting. If the scope

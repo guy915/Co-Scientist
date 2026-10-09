@@ -1,3 +1,4 @@
+import '@/shared/ui/markdown_message_renderer';
 import {fireEvent, screen, render} from '@testing-library/react';
 import {afterEach, expect, test, vi, beforeEach, describe} from 'vitest';
 import {

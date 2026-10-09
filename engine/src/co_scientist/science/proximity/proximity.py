@@ -9,6 +9,7 @@ from co_scientist.core.constants import (
     PROGRESS_PROXIMITY_COMPLETE,
     PROGRESS_PROXIMITY_START,
 )
+from co_scientist.core.prompt_layout import append_item_context
 from co_scientist.domains.research_state.models import (
     Hypothesis,
     MetricDeltas,
@@ -70,7 +71,7 @@ async def _fetch_similarity_clusters(
     prompt, schema = get_proximity_prompt(
         hypotheses_for_analysis, supervisor_guidance=supervisor_guidance
     )
-    prompt += _meta_review_section(state)
+    prompt = append_item_context(prompt, _meta_review_section(state))
 
     response = await call_llm_json(
         prompt=prompt,

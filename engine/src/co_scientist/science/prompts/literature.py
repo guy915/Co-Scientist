@@ -6,6 +6,7 @@ from co_scientist.science.prompts._common import (
     _format_csv_list,
     _format_meta_review_context,
 )
+from co_scientist.science.prompts.context_budget import select_evidence_excerpt
 from co_scientist.science.prompts.generation_draft import (
     _build_citation_reference_section,
     build_tool_instructions,
@@ -73,7 +74,12 @@ def get_literature_review_paper_analysis_prompt(
             "research_goal": research_goal,
             "paper_evidence": untrusted_evidence(
                 "retrieved paper",
-                {"title": title, "authors": authors, "year": year, "fulltext": fulltext},
+                {
+                    "title": title,
+                    "authors": authors,
+                    "year": year,
+                    "fulltext": select_evidence_excerpt(fulltext, research_goal, 16_000),
+                },
             ),
         },
     )

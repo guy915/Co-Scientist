@@ -203,23 +203,35 @@ def test_corrupt_status_cannot_break_operator_reads(
 
 
 @pytest.mark.parametrize("api_startup_delay", [0.0, 0.5])
+@pytest.mark.parametrize("snapshot_delay", [0.0, 2.0])
 def test_api_keeps_serving_while_only_the_replication_daemon_is_replaced(
     fixture_replica: tuple[str, str, Path, dict[str, str]],
     monkeypatch: pytest.MonkeyPatch,
     api_startup_delay: float,
+    snapshot_delay: float,
 ) -> None:
     binary, config, database, environment = fixture_replica
     # The fake daemon/forced snapshot asserts no overlap. A real independent
-    # child writes serving progress while the supervisor's clock advances
-    # through two deadlines without racing the child's fixed lifetime.
+    # child stays alive through two real snapshots, whose subprocess startup
+    # can outlast the child's otherwise fixed amount of serving work.
     progress = database.parent / "api-progress"
+    completed = database.parent / "refresh-completed"
     api = database.parent / "api.py"
     api.write_text(
         "import time\nfrom pathlib import Path\n"
         f"time.sleep({api_startup_delay})\n"
         f"p=Path({str(progress)!r})\n"
+        f"completed=Path({str(completed)!r})\n"
         "q=p.with_suffix('.next')\n"
-        "for n in range(150):\n q.write_text(str(n)); q.replace(p)\n time.sleep(.01)\n"
+        "def wait_for_refresh(count):\n"
+        f" deadline=time.monotonic()+{backups.COMMAND_TIMEOUT_SECONDS}\n"
+        " while not completed.exists() or int(completed.read_text())<count:\n"
+        "  assert time.monotonic()<deadline, 'Snapshot acknowledgement missing'\n"
+        "  time.sleep(.01)\n"
+        "for n in range(150):\n"
+        " if n==149: wait_for_refresh(1)\n"
+        " q.write_text(str(n)); q.replace(p)\n time.sleep(.01)\n"
+        "wait_for_refresh(2)\n"
     )
     monkeypatch.setattr(backups, "INTERVAL_SECONDS", 0.01)
     observed: list[int] = []
@@ -246,8 +258,13 @@ def test_api_keeps_serving_while_only_the_replication_daemon_is_replaced(
         while not progress.exists() or (observed and int(progress.read_text()) <= observed[-1]):
             assert time.monotonic() < deadline, "API child did not make progress"
             time.sleep(0.01)
+        if not observed:
+            time.sleep(snapshot_delay)
         result = actual_refresh(binary, configuration, database, environment=environment)
         observed.append(int(progress.read_text()))
+        acknowledgement = completed.with_suffix(".next")
+        acknowledgement.write_text(str(len(observed)))
+        acknowledgement.replace(completed)
         return result
 
     monkeypatch.setattr(backups, "refresh", refresh)

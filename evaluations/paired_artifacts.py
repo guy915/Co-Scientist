@@ -40,7 +40,9 @@ def _extract(archive: Path, output: Path) -> dict[str, Any]:
     return receipt
 
 
-def _validate_receipt(receipt: dict[str, Any], db: Path) -> dict[str, str]:
+def _validate_receipt(
+    receipt: dict[str, Any], db: Path, *, provider: str = "free"
+) -> dict[str, str]:
     goal_id = receipt["goal_id"]
     if receipt["goal_version"] != GOAL_VERSION or receipt["goal"] != GOALS[goal_id]:
         raise ValueError("benchmark goal/version differs from the fixed cohort")
@@ -62,8 +64,31 @@ def _validate_receipt(receipt: dict[str, Any], db: Path) -> dict[str, str]:
         raise ValueError("paired dispatch requires live Express artifacts")
     if receipt["offline_disclaimer"] is not None:
         raise ValueError("offline artifacts are wiring evidence only")
-    if snapshot.identity["execution_environment"].get("COSCIENTIST_REQUIRE_FREE_MODELS") != "1":
-        raise ValueError("benchmark did not require free models")
+    environment = snapshot.identity["execution_environment"]
+    if provider == "free":
+        if environment.get("COSCIENTIST_REQUIRE_FREE_MODELS") != "1":
+            raise ValueError("benchmark did not require free models")
+    elif provider in {"anthropic", "azure"}:
+        if (
+            environment.get("COSCIENTIST_REQUIRE_FREE_MODELS") != "0"
+            or environment.get("COSCIENTIST_BENCHMARK_PROVIDER") != provider
+            or not all(
+                re.fullmatch(r"[a-f0-9]{64}", environment.get(name) or "")
+                for name in (
+                    "COSCIENTIST_BENCHMARK_POLICY_SHA256",
+                    "COSCIENTIST_BENCHMARK_ENDPOINT_SHA256",
+                )
+            )
+            or not all(
+                isinstance(model, str) and model.startswith(provider + "/")
+                for model in snapshot.identity["configured_models"].values()
+            )
+            or set(snapshot.identity["configured_models"])
+            != {"worker", "supervisor", "chat", "safety", "claim_verifier"}
+        ):
+            raise ValueError("benchmark paid provider controls are missing or inconsistent")
+    else:
+        raise ValueError("unknown benchmark provider policy")
     recorded_source = receipt["provenance"]["source"]
     if recorded_source["git_commit"] != source or recorded_source["git_dirty"] is not False:
         raise ValueError("benchmark source provenance is inconsistent")
@@ -78,7 +103,7 @@ def _validate_receipt(receipt: dict[str, Any], db: Path) -> dict[str, str]:
     return {"goal_id": goal_id, "db": str(db), "run_id": run_id, "source_commit": source}
 
 
-def prepare(archives: dict[str, list[Path]], output: Path) -> Path:
+def prepare(archives: dict[str, list[Path]], output: Path, *, provider: str = "free") -> Path:
     if output.exists():
         raise ValueError("paired preparation requires a new output directory")
     if set(archives) != {"main", "branch"} or any(len(v) != 3 for v in archives.values()):
@@ -93,7 +118,7 @@ def prepare(archives: dict[str, list[Path]], output: Path) -> Path:
             directory = output / f"{arm}-{index}"
             directory.mkdir()
             receipt = _extract(archive, directory)
-            ref = _validate_receipt(receipt, directory / "snapshot.db")
+            ref = _validate_receipt(receipt, directory / "snapshot.db", provider=provider)
             goal_id = ref.pop("goal_id")
             if goal_id in arms[arm]:
                 raise ValueError("duplicate goal in benchmark arm")
@@ -117,6 +142,20 @@ def prepare(archives: dict[str, list[Path]], output: Path) -> Path:
     pairs = load_pairs(manifest)
     if len({s.metrics["request_counter_sha256"] for pair in pairs for s in pair}) != 1:
         raise ValueError("benchmark HTTP instrumentation differs; rerun both arms")
+    if provider != "free":
+        controls = {
+            json.dumps(
+                {
+                    name: s.identity[name]
+                    for name in ("configured_models", "tools", "execution_environment")
+                },
+                sort_keys=True,
+            )
+            for pair in pairs
+            for s in pair
+        }
+        if len(controls) != 1:
+            raise ValueError("paid provider controls differ across the six-run cohort")
     return manifest
 
 
@@ -189,6 +228,7 @@ def main() -> int:
     parser.add_argument("--main-runs")
     parser.add_argument("--branch-runs")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--provider", choices=("free", "anthropic", "azure"), default="free")
     args = parser.parse_args()
     if args.download:
         if not args.main_runs or not args.branch_runs:
@@ -204,7 +244,7 @@ def main() -> int:
     else:
         data = json.loads(args.archives.read_text())
         archives = {arm: [args.archives.parent / p for p in paths] for arm, paths in data.items()}
-    print(prepare(archives, args.output / "prepared"))
+    print(prepare(archives, args.output / "prepared", provider=args.provider))
     return 0
 
 
