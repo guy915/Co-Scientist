@@ -223,8 +223,8 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   withheld and the review reasons instead. Workspaces, skill scripts included,
   have no network (`network_allowed=False`;
   `tests/test_generated_program_egress.py`), and the `read_skill` preamble
-  says so. Script execution also needs the cgroup boundary described in
-  [DEPLOYMENT](../docs/DEPLOYMENT.md).
+  follows the workspace policy. Script execution also needs the cgroup boundary
+  described in [DEPLOYMENT](../docs/DEPLOYMENT.md).
 - `workspace/run_workspace.py` opens a workspace per run, per review
   (`open_review_workspace`, since reviews fan out concurrently) and per drafting
   pass. Long commands hand back a session id to poll (`workspace/tools.py`).
