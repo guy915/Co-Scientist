@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import urllib.error
 from collections.abc import Awaitable, Callable
@@ -110,16 +109,11 @@ async def test_metadata_fulltext_and_availability_errors_do_not_emit_exception_t
 ) -> None:
     source = PubmedSource(tmp_path)
     directory, _ = source._prepare_run_directories("PRIVATE_TOPIC", "PRIVATE_RUN")
-    monkeypatch.setattr(source, "_fetch_paper_details", Mock(side_effect=RuntimeError(_PRIVATE)))
+    monkeypatch.setattr(source, "_fetch_papers_details", Mock(side_effect=RuntimeError(_PRIVATE)))
     monkeypatch.setattr(source, "_download_pmc_fulltext", Mock(side_effect=RuntimeError(_PRIVATE)))
     monkeypatch.setattr(search_pubmed, "entrez_call", Mock(side_effect=RuntimeError(_PRIVATE)))
     with caplog.at_level(logging.DEBUG, logger="mcp_server"):
-        assert await source._fetch_one_paper_metadata(
-            "123", directory, None, asyncio.Semaphore(1)
-        ) == (
-            "123",
-            None,
-        )
+        assert await source._gather_paper_metadata(["123"], directory) == ({}, 0)
         assert source.get_pubmed_fulltext("123", "PRIVATE_TOPIC", "PRIVATE_RUN") is None
         assert search_pubmed.check_pubmed_available() == "false"
     _assert_private_absent(caplog)
@@ -256,7 +250,7 @@ def test_a_pubmed_book_or_index_failure_is_named_in_the_log(
     monkeypatch.setattr(search_pubmed, "initialize_entrez", lambda: None)
     monkeypatch.setattr(search_pubmed, "_esearch_pubmed_ids", lambda query, limit: ["1"])
     monkeypatch.setattr(
-        search_pubmed, "_fetch_pubmed_article", Mock(side_effect=IndexError(_PRIVATE))
+        search_pubmed, "fetch_pubmed_records", Mock(side_effect=IndexError(_PRIVATE))
     )
     with caplog.at_level(logging.DEBUG, logger="mcp_server"):
         search_pubmed.search_pubmed(_PRIVATE, 1)

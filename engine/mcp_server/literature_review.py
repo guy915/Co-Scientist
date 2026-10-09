@@ -37,53 +37,72 @@ def _is_valid_pubmed_id(value: str) -> bool:
 
 
 class PubmedSource(_EntrezClient):
-    async def _fetch_one_paper_metadata(
-        self,
-        paper_id: str,
-        shared_dir: Path,
-        run_dir: Path | None,
-        semaphore: asyncio.Semaphore,
-    ) -> tuple[str, dict[str, Any] | None | Literal["book"]]:
+    def _cached_metadata(self, paper_id: str, shared_dir: Path) -> dict[str, Any] | None:
         validate_cache_identifier(paper_id, label="PubMed ID", numeric=True)
         metadata_file = confined_path(shared_dir.parent, "shared", f"{paper_id}.metadata.json")
-        if metadata_file.exists():
-            with metadata_file.open(encoding="utf-8") as stream:
-                metadata = json.load(stream)
-            _validate_pmc_id(metadata)
-            return paper_id, metadata
+        if not metadata_file.exists():
+            return None
+        with metadata_file.open(encoding="utf-8") as stream:
+            metadata = json.load(stream)
+        _validate_pmc_id(metadata)
+        return cast(dict[str, Any], metadata)
 
-        async with semaphore:
+    def _fetch_uncached_metadata(
+        self, paper_ids: list[str], shared_dir: Path
+    ) -> dict[str, dict[str, Any] | None | Literal["book"]]:
+        try:
+            fetched = self._fetch_papers_details(paper_ids)
+        except Exception as exc:
+            logger.warning("PubMed metadata fetch failed (%s)", failure_summary(exc))
+            return dict.fromkeys(paper_ids)
+        results: dict[str, dict[str, Any] | None | Literal["book"]] = {}
+        for paper_id in paper_ids:
+            if paper_id not in fetched:
+                results[paper_id] = None
+                continue
+            metadata = fetched[paper_id]
+            if metadata is None:
+                results[paper_id] = _BOOK
+                continue
             try:
-                # Entrez's blocking HTTP calls and rate limiter must run off
-                # the event loop.
-                metadata = await asyncio.to_thread(self._fetch_paper_details, paper_id)
-                if metadata is None:
-                    return paper_id, _BOOK
                 _validate_pmc_id(metadata)
+                metadata_file = confined_path(
+                    shared_dir.parent, "shared", f"{paper_id}.metadata.json"
+                )
                 write_metadata_cache_file(metadata_file, metadata)
-                return paper_id, metadata
+                results[paper_id] = metadata
             except Exception as exc:
                 logger.warning("PubMed metadata fetch failed (%s)", failure_summary(exc))
-                return paper_id, None
+                results[paper_id] = None
+        return results
 
     async def _gather_paper_metadata(
         self,
         paper_ids: list[str],
         shared_dir: Path,
-        run_dir: Path | None,
-        semaphore: asyncio.Semaphore,
     ) -> tuple[dict[str, Any], int]:
-        results = await asyncio.gather(
-            *(
-                self._fetch_one_paper_metadata(paper_id, shared_dir, run_dir, semaphore)
-                for paper_id in paper_ids
+        """Uncached papers share one efetch and one ELink per batch instead of
+        two requests each."""
+        unique_ids = list(dict.fromkeys(paper_ids))
+        results: dict[str, dict[str, Any] | None | Literal["book"]] = {}
+        uncached: list[str] = []
+        for paper_id in unique_ids:
+            if (cached := self._cached_metadata(paper_id, shared_dir)) is not None:
+                results[paper_id] = cached
+            else:
+                uncached.append(paper_id)
+        if uncached:
+            # Entrez's blocking HTTP calls and send gate must run off the
+            # event loop.
+            results.update(
+                await asyncio.to_thread(self._fetch_uncached_metadata, uncached, shared_dir)
             )
-        )
-        # gather preserves search order, independent of completion order.
         details = {
-            paper_id: metadata for paper_id, metadata in results if isinstance(metadata, dict)
+            paper_id: metadata
+            for paper_id in unique_ids
+            if isinstance(metadata := results[paper_id], dict)
         }
-        return details, sum(metadata == _BOOK for _, metadata in results)
+        return details, sum(results[paper_id] == _BOOK for paper_id in unique_ids)
 
     def _download_pmc_fulltext(self, pmc_id: str) -> str:
         """PMC can truncate documents across efetch responses, requiring
@@ -174,17 +193,17 @@ class PubmedSource(_EntrezClient):
         """Search extra candidates to cover missing full text; disabling
         downloads must not change selection.
         """
-        shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
+        shared_dir, _run_dir = self._prepare_run_directories(slug, run_id)
         semaphore = asyncio.Semaphore(3)
         paper_ids = self.pubmed_search_ids(
             query,
             retmax=max_papers * 3,
             recency_years=recency_years,
         )
-        paper_ids = [paper_id for paper_id in paper_ids if _is_valid_pubmed_id(paper_id)]
-        all_details, books = await self._gather_paper_metadata(
-            paper_ids, shared_dir, run_dir, semaphore
+        paper_ids = list(
+            dict.fromkeys(paper_id for paper_id in paper_ids if _is_valid_pubmed_id(paper_id))
         )
+        all_details, books = await self._gather_paper_metadata(paper_ids, shared_dir)
         if paper_ids and len(all_details) + books != len(paper_ids):
             raise RuntimeError("PubMed metadata unavailable")
         papers_to_use = [

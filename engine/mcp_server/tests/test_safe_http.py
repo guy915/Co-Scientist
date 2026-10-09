@@ -53,6 +53,32 @@ async def test_pinned_transport_dials_ip_and_preserves_tls_name_and_host(
     assert request.extensions["sni_hostname"] == "example.org"
 
 
+@pytest.mark.parametrize("final_status", [200, 403])
+async def test_a_pinned_fetch_is_attributed_to_each_validated_hostname(
+    monkeypatch: pytest.MonkeyPatch, final_status: int
+) -> None:
+    monkeypatch.setattr(socket, "getaddrinfo", _dns)
+    sources: list[tuple[str, str]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        sources.append((request.extensions["source_host"], request.extensions["source_url"]))
+        if request.headers["host"] == "doi.org":
+            location = "https://publisher.example/article"
+            return httpx.Response(302, headers={"location": location}, request=request)
+        return httpx.Response(final_status, stream=_Chunks(b"ok"), request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        response = await safe_http.get_with_screened_redirects(client, "https://doi.org/10.1/x")
+
+    assert sources == [
+        ("doi.org", "https://doi.org/10.1/x"),
+        ("publisher.example", "https://publisher.example/article"),
+    ]
+    assert response.url.host == "93.184.216.34"
+    assert response.extensions["source_host"] == "publisher.example"
+    assert response.extensions["source_url"] == "https://publisher.example/article"
+
+
 async def test_each_redirect_target_is_screened_and_private_hops_are_blocked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

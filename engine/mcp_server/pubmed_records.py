@@ -28,14 +28,21 @@ class PubmedRecord:
         }
 
 
-def journal_article(results: Any) -> dict[str, Any] | None:
-    """None marks a book record; any other response without an article fails."""
-    if isinstance(results, dict):
-        if articles := results.get("PubmedArticle"):
-            return dict(articles[0])
-        if results.get("PubmedBookArticle"):
-            # Book records (StatPearls, GeneReviews) carry no journal metadata.
-            return None
+def records_by_pmid(results: Any) -> dict[str, dict[str, Any] | None]:
+    """None marks a book record; a response with neither kind fails. A record
+    without a PMID cannot be matched to its request, so it is left out."""
+    if isinstance(results, dict) and (
+        results.get("PubmedArticle") or results.get("PubmedBookArticle")
+    ):
+        records: dict[str, dict[str, Any] | None] = {}
+        # Book records (StatPearls, GeneReviews) carry no journal metadata.
+        for book in results.get("PubmedBookArticle") or []:
+            if pmid := (book.get("BookDocument") or {}).get("PMID"):
+                records[str(pmid)] = None
+        for article in results.get("PubmedArticle") or []:
+            if pmid := (article.get("MedlineCitation") or {}).get("PMID"):
+                records[str(pmid)] = dict(article)
+        return records
     raise ValueError("PubMed returned no article record")
 
 

@@ -1,4 +1,4 @@
-.PHONY: presubmit lint-python lint-frontend root-config build-checked arch help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
+.PHONY: presubmit lint-python lint-frontend root-config build-checked arch help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools attempt-envelope docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
 
 ROOT := $(CURDIR)
 ENGINE := $(ROOT)/engine
@@ -37,6 +37,7 @@ help:
 	@echo "  make e2e-production Test built frontend assets and anonymous ownership"
 	@echo "  make test-evaluations Run evaluation harness tests"
 	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
+	@echo "  make attempt-envelope Count one offline Express run's HTTP attempts per arm"
 	@echo "  make lint         Lint backend (ruff) + frontend (gts) + import contracts"
 	@echo "  make arch         Check the import contracts in .importlinter"
 	@echo "  make typecheck    Typecheck backend (mypy: app, engine, evaluations)"
@@ -170,7 +171,7 @@ dev-mcp:
 	echo ">> Starting reference MCP server on http://localhost:8888"; \
 	cd "$(ENGINE)" && COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1 "$(MCP_VENV)/bin/python" -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 
-test-all test-engine test-app test-mcp test-evaluations eval-smoke arch e2e: export LITELLM_LOCAL_MODEL_COST_MAP := True
+test-all test-engine test-app test-mcp test-evaluations eval-smoke attempt-envelope arch e2e: export LITELLM_LOCAL_MODEL_COST_MAP := True
 
 test:
 	@$(MAKE) test-app
@@ -240,6 +241,13 @@ e2e-production:
 
 test-evaluations:
 	@cd "$(ROOT)" && "$(PY)" -m pytest evaluations/tests -q
+
+# Offline: real API, worker, gateway and MCP server, with every upstream faked
+# below its HTTP client and counted. ENGINE_DIR measures another checkout.
+attempt-envelope:
+	@test -x "$(PY)" || { echo ">> Backend venv missing — run 'make setup' first"; exit 1; }
+	@test -x "$(MCP_VENV)/bin/python" || { echo ">> MCP venv missing — run 'make test-mcp' first"; exit 1; }
+	@cd "$(ROOT)" && "$(PY)" -m evaluations.attempt_envelope --engine-dir="$(or $(ENGINE_DIR),$(ENGINE))"
 
 # Provider-backed evaluations stay opt-in; the default smoke is offline.
 eval-smoke:

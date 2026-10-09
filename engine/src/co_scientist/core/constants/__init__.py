@@ -1,4 +1,5 @@
 import hashlib
+from collections.abc import Iterable
 from typing import Final
 
 from co_scientist.core.citations import strip_citation_markers as strip_citation_markers
@@ -202,6 +203,21 @@ LITERATURE_REVIEW_PAPERS_COUNT: Final = 10
 LITERATURE_REVIEW_PAPERS_COUNT_DEV: Final = 4
 
 LITERATURE_REVIEW_RECENCY_YEARS: Final = 7
+
+# Sources searched at once by one fan-out. Each source multiplies into several
+# upstream requests (PubMed esearch, efetch, elink), so an unbounded fan-out
+# bursts into upstream rate limits and leaves cancelled requests behind.
+SOURCE_FANOUT: Final = 3
+
+
+def distinct_queries(queries: Iterable[str]) -> list[str]:
+    """Identical queries return identical results; spacing differences are not
+    a different search."""
+    seen: dict[str, str] = {}
+    for query in queries:
+        seen.setdefault(" ".join(query.split()), query)
+    return list(seen.values())
+
 
 LITERATURE_REVIEW_MAX_QUERIES: Final = 3
 # Literature-node and per-hypothesis reflection query fan-outs share this
