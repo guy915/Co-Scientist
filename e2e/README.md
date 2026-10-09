@@ -49,9 +49,8 @@ downloads are unavailable; its revision can differ from CI's.
   `createCompletedRun`.
 
 Development CI uses eight weighted shards from `support/shard_weights.json`.
-Weights are median case-duration sums from five successful runs on fixed
-head `73637c6f`. An
-unlisted new spec receives 20 seconds and remains included. The planner discovers
+Weights are median case-duration sums from five successful comprehensive
+runs. An unlisted new spec receives 20 seconds and remains included. The planner discovers
 all development specs, so no manifest can omit a new test. Every shard keeps
 one worker and whole stateful files. Production uses two whole-file shards;
 their union contains every production case exactly once.

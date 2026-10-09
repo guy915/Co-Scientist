@@ -23,7 +23,7 @@ for (const theme of ['light', 'dark']) {
       expect(landingRequests).toEqual([]);
       await expect(trailer).toHaveCount(0);
       await page
-        .getByRole('button', {name: 'Scroll to see how Open Co-Scientist works'})
+        .getByRole('button', {name: 'Scroll to see how Co-Scientist works'})
         .click();
       await expect(trailer).toHaveAttribute(
         'href',
@@ -111,7 +111,7 @@ test('phones get the composer and compact feedback without landing', async ({
   await expect(page.getByRole('textbox')).toBeInViewport();
   await expect(page.locator('.ucs-landing')).toHaveCount(0);
   await expect(
-    page.getByRole('button', {name: 'Scroll to see how Open Co-Scientist works'}),
+    page.getByRole('button', {name: 'Scroll to see how Co-Scientist works'}),
   ).toHaveCount(0);
   await expect(
     page.getByRole('navigation', {name: 'Example chats'}),
@@ -120,5 +120,5 @@ test('phones get the composer and compact feedback without landing', async ({
   await expect(
     header.getByRole('button', {name: 'Feedback', exact: true}),
   ).toBeInViewport();
-  await expect(header.getByText('Open Co-Scientist', {exact: true})).toBeVisible();
+  await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
 });

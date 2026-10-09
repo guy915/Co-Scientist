@@ -550,7 +550,7 @@ export interface StartedSession {
 }
 
 export const STARTED_SESSION_STANDBY_COPY =
-  'Your session has been started and Open Co-Scientist has started research!' +
+  'Your session has been started and Co-Scientist has started research!' +
   '\n\n' +
   'You can view and interact with your session at any time, but note that ' +
   'it might take a few minutes for the first ideas to be ready to view.';

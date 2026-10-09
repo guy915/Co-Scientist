@@ -237,7 +237,9 @@ def _read_text(target: pathlib.Path | None) -> str | None:
         return None
 
 
-def read_skill_document(name: str, path: str | None = None) -> str | None:
+def read_skill_document(
+    name: str, path: str | None = None, *, network_allowed: bool = False
+) -> str | None:
     """Expose nested references; the preamble overrides upstream uv and
     human-confirmation instructions without changing the pinned skill
     documents.
@@ -251,13 +253,17 @@ def read_skill_document(name: str, path: str | None = None) -> str | None:
         return None
     if path is not None:
         return text[:MAX_SKILL_DOCUMENT_CHARS]
+    network = (
+        "the network is available for the skill's own API calls only"
+        if network_allowed
+        else "this workspace has no network access, so steps that call an external API will fail"
+    )
     preamble = (
         f"Skill directory: {skill.directory}\n"
         f"Run this skill's scripts with `{skills_python()} "
         f"{skill.directory}/scripts/<script>.py`, from the workspace, via "
         "run_command. Ignore any instruction below to use `uv run` or to "
-        "install packages: dependencies are already installed and the "
-        "network is available for the skill's own API calls only.\n"
+        f"install packages: dependencies are already installed and {network}.\n"
         "Where this document points at a file under `references/`, read "
         "it by calling read_skill again with that path -- the exact "
         "command syntax usually lives there, not here.\n"
