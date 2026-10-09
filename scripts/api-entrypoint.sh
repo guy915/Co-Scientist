@@ -20,6 +20,12 @@ export LITESTREAM_R2_PATH="${LITESTREAM_R2_PATH:-api/coscientist}"
 export COSCIENTIST_DB_PATH="${COSCIENTIST_DB_PATH:-/app/data/coscientist.db}"
 config="${LITESTREAM_CONFIG:-/etc/litestream.yml}"
 
+had_database=0
+if [ -e "$COSCIENTIST_DB_PATH" ]; then had_database=1; fi
 # Missing replicas are a fresh install; network or corrupt-backup errors must fail closed.
 litestream restore -config "$config" -if-db-not-exists -if-replica-exists "$COSCIENTIST_DB_PATH"
+if [ "$had_database" = 0 ] && [ -e "$COSCIENTIST_DB_PATH" ]; then
+    # A replica can trail the Azure ledger; hold paid spend until re-recorded.
+    python -m co_scientist.platform.db.spend "$COSCIENTIST_DB_PATH"
+fi
 exec python -m co_scientist.platform.db.backup_service --config "$config" -- "$0" --serve

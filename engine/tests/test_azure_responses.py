@@ -10,6 +10,9 @@ import pytest
 
 from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
 from co_scientist.platform.db import connect, transaction
+from co_scientist.platform.db.admission import ProviderReservation
+from co_scientist.platform.db.spend import SpendReservation
+from co_scientist.platform.llm.admission.spend import azure_dispatch_permit
 from co_scientist.platform.llm.request.azure import (
     LUNA,
     NANO,
@@ -25,6 +28,7 @@ from co_scientist.platform.llm.request.backend import LitellmBackend, using_back
 from co_scientist.platform.llm.request.transport import complete_request
 from co_scientist.platform.llm.roles import scoped_call_policy
 from co_scientist.platform.llm.tools.transcript import _message_to_history_dict
+from tests._azure_ledger import record_azure_allowance
 
 DEPLOYMENTS = {LUNA: "supervisor-deployment", NANO: "worker-deployment"}
 
@@ -62,6 +66,12 @@ def _request(**changes: Any) -> dict[str, Any]:
     }
 
 
+def _permit(model: str = NANO) -> Any:
+    # Wire-format tests call the backend directly, outside the funded gateway.
+    money = SpendReservation(model, "worker", 0, 1, float("inf"), 10**9, 10**9, "{}")
+    return azure_dispatch_permit(ProviderReservation("direct", "unused", True, money=money))
+
+
 def _backend(handler: Any) -> AzureResponsesBackend:
     client = openai.OpenAI(
         api_key="fake",
@@ -81,7 +91,7 @@ async def test_responses_wire_and_usage_keep_chat_contract_without_sdk_retries()
 
     backend = _backend(respond)
     try:
-        with scoped_call_policy("overview_outline"):
+        with scoped_call_policy("overview_outline"), _permit(LUNA):
             answer = await backend.complete(
                 **_request(
                     model=LUNA,
@@ -119,7 +129,7 @@ async def test_provider_429_is_one_http_request_even_if_sdk_was_configured_to_re
 
     backend = _backend(refuse)
     try:
-        with pytest.raises(openai.RateLimitError):
+        with pytest.raises(openai.RateLimitError), _permit():
             await backend.complete(**_request())
         assert len(requests) == 1
     finally:
@@ -132,7 +142,9 @@ async def test_gateway_settles_normalized_usage_without_holding_writer_over_http
     monkeypatch.setenv("LLM_ENABLED", "true")
     monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
-    monkeypatch.setenv("LLM_AZURE_UNTIL", "2099-01-04")
+    monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2099-01-04T00:00:00+00:00")
+    monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
+    record_azure_allowance()
 
     def respond(_: httpx.Request) -> httpx.Response:
         with transaction() as conn:
@@ -156,7 +168,7 @@ async def test_gateway_settles_normalized_usage_without_holding_writer_over_http
     [
         ("LLM_ENABLED", "false"),
         ("LLM_AZURE_ENABLED", "false"),
-        ("LLM_AZURE_UNTIL", "2020-01-04"),
+        ("LLM_AZURE_EXPIRES_AT", "2020-01-04T00:00:00+00:00"),
         ("financial_hold", "on"),
     ],
 )
@@ -167,7 +179,8 @@ async def test_native_dispatch_rechecks_policy_after_thread_wait(
         "LLM_ENABLED": "true",
         "LLM_AZURE_ENABLED": "true",
         "LLM_TOTAL_BUDGET_EUR": "1",
-        "LLM_AZURE_UNTIL": "2099-01-04",
+        "LLM_AZURE_EXPIRES_AT": "2099-01-04T00:00:00+00:00",
+        "LLM_USD_TO_EUR": "0.88",
         "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
         "AZURE_OPENAI_API_KEY": "fake",
         "AZURE_OPENAI_API_VERSION": "v1",
@@ -175,6 +188,7 @@ async def test_native_dispatch_rechecks_policy_after_thread_wait(
         "AZURE_OPENAI_WORKER_DEPLOYMENT": DEPLOYMENTS[NANO],
     }.items():
         monkeypatch.setenv(key, setting)
+    record_azure_allowance()
     captured = []
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -222,7 +236,10 @@ async def test_byok_flag_cannot_exempt_native_deployment_from_funding(
 ) -> None:
     monkeypatch.setenv("LLM_AZURE_ENABLED", "false" if policy == "disabled" else "true")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "" if policy == "unset" else "0.000001")
-    monkeypatch.setenv("LLM_AZURE_UNTIL", "2020-01-04" if policy == "expired" else "2099-01-04")
+    monkeypatch.setenv(
+        "LLM_AZURE_EXPIRES_AT",
+        "2020-01-04T00:00:00+00:00" if policy == "expired" else "2099-01-04T00:00:00+00:00",
+    )
     captured = []
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -352,7 +369,8 @@ async def test_stream_normalizes_text_tool_fragments_reasoning_items_and_final_u
         lambda _: httpx.Response(200, headers={"content-type": "text/event-stream"}, text=wire)
     )
     try:
-        stream = await backend.complete(**_request(stream=True))
+        with _permit():
+            stream = await backend.complete(**_request(stream=True))
         assert isinstance(stream, ResponsesStream)
         chunks = [chunk async for chunk in stream]
         assert chunks[0].choices[0].delta.content == "hello"
@@ -377,7 +395,8 @@ async def test_stream_without_terminal_event_does_not_claim_success() -> None:
         )
     )
     try:
-        stream = await backend.complete(**_request(stream=True))
+        with _permit():
+            stream = await backend.complete(**_request(stream=True))
         assert isinstance(stream, ResponsesStream)
         assert (await stream.__anext__()).choices[0].delta.content == "partial"
         with pytest.raises(LLMTimeoutError):
@@ -484,6 +503,7 @@ async def test_real_responses_sdk_sends_partitioned_cache_key(model: str) -> Non
 
     backend = _backend(respond)
     request = _request(model=model, prompt_cache_key="run:claims:1")
-    await backend.complete(**request)
+    with _permit(model):
+        await backend.complete(**request)
     assert sent[0]["prompt_cache_key"] == "run:claims:1"
     assert "prompt_cache_options" not in sent[0]

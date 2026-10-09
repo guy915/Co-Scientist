@@ -19,11 +19,14 @@ from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.db.runs import RunCreateOptions
 from co_scientist.platform.db.spend import SpendReservation, reserve_spend, settle_spend
 
+from tests._azure_ledger import record_azure_allowance
+
 
 @pytest.fixture
 def path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     path = str(tmp_path / "routes.db")
     monkeypatch.setenv("COSCIENTIST_DB_PATH", path)
+    record_azure_allowance(path)
     return path
 
 
@@ -37,9 +40,12 @@ def _run(path: str, tier: str = "express") -> str:
     ).id
 
 
+_RATES = '{"input": "9", "output": "9", "cached": "9", "write": "9", "fx": "9"}'
+
+
 def _quote(run_id: str, amount: int = 60) -> SpendReservation:
     return SpendReservation(
-        "azure/model", "worker", amount, 100, float("inf"), 100, 100, "{}", run_id
+        "azure/gpt-5-nano-2025-08-07", "worker", amount, 100, float("inf"), 100, 100, _RATES, run_id
     )
 
 
@@ -141,7 +147,8 @@ def providers(path: str, monkeypatch: pytest.MonkeyPatch) -> str:
         "LLM_ENABLED": "true",
         "LLM_AZURE_ENABLED": "true",
         "LLM_TOTAL_BUDGET_EUR": "1",
-        "LLM_AZURE_UNTIL": "2099-01-04",
+        "LLM_AZURE_EXPIRES_AT": "2099-01-04T00:00:00+00:00",
+        "LLM_USD_TO_EUR": "0.88",
         "OPENROUTER_API_KEY": "fake-router",
         "ANTHROPIC_API_KEY": "fake-subscriber",
         "AZURE_OPENAI_API_KEY": "fake-azure",
@@ -150,6 +157,7 @@ def providers(path: str, monkeypatch: pytest.MonkeyPatch) -> str:
         "AZURE_OPENAI_WORKER_DEPLOYMENT": "worker-deployment",
     }.items():
         monkeypatch.setenv(name, value)
+    record_azure_allowance(path)
     run_id = _run(path)
     with transaction(path) as conn:
         admit_route(
@@ -455,7 +463,7 @@ async def test_azure_terminal_guard_never_calls_a_later_provider(
     if cause in ("kill", "azure_kill"):
         monkeypatch.setenv("LLM_ENABLED" if cause == "kill" else "LLM_AZURE_ENABLED", "false")
     elif cause == "expired":
-        monkeypatch.setenv("LLM_AZURE_UNTIL", "2020-01-04")
+        monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2020-01-04T00:00:00+00:00")
     elif cause == "total_spent":
         monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.000001")
     sent: list[str] = []

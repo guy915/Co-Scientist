@@ -14,6 +14,7 @@ from co_scientist.platform.llm import (
 )
 from co_scientist.platform.llm.profile import model_profile
 from co_scientist.platform.llm.roles import CallRole, current_call_policy, scoped_call_policy
+from tests._azure_ledger import record_azure_allowance
 from tests._llm_fake import (
     SEARCH_TOOL,
     echo_executor,
@@ -68,8 +69,9 @@ def funded_fake_azure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM_ENABLED", "true")
     monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
-    monkeypatch.setenv("LLM_AZURE_UNTIL", "2099-01-04")
+    monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2099-01-04T00:00:00+00:00")
     monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
+    record_azure_allowance()
 
 
 async def test_options_role_and_effort_survive_json_retry(monkeypatch: pytest.MonkeyPatch) -> None:

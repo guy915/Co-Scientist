@@ -339,7 +339,7 @@ file. Then run the recorded-judgment command above against
 `replay/prepared/pairs.json`. No network is used unless `--download` or
 `--live-judge` is explicitly selected.
 
-### Native Anthropic or Azure cohort
+### Native Anthropic cohort
 
 The shared monetary budget must cover the run: the HTTP ceiling
 alone does not enforce a shared money ledger. Resolve
@@ -347,22 +347,21 @@ the money reservation and billing controls before provider-backed collection.
 The `operation=preflight` workflow checks native configuration with sockets
 denied and makes no provider request; it is not authentication or science.
 
-An explicitly authorized paid cohort can use `model=anthropic/MODEL_ID` or
-`model=azure/DEPLOYMENT_ID` on the same workflow. The default remains the free
+An explicitly authorized paid cohort can use `model=anthropic/MODEL_ID` on the
+same workflow. Azure is refused: its credit is admitted only by the production
+API's recorded allowance ([Azure setup](../docs/azure-setup.md)), and a runner's
+empty ledger would bypass it. The default remains the free
 OpenRouter route. Select one provider/model for all six research runs; switching
 providers after an incomplete run does not make an incompatible pair valid.
 The comparison requires the same provider policy, endpoint digest and configured
 model roles across all six archives. Paid results are a separate cohort, not a
 free-route quality certification.
 
-Claude requires `ANTHROPIC_API_KEY`. Azure requires `AZURE_API_KEY` or
-`AZURE_OPENAI_API_KEY`, `AZURE_API_BASE` (an HTTPS Azure resource root) and
-`AZURE_API_VERSION`. Set these in the execution environment or existing repository
-secrets, never in workflow inputs or committed files. The paid path uses the
-credential owner's explicit key scope; operator-only Azure deployments retain their existing
-restriction and are not converted into BYOK routes. Missing configuration refuses
+Claude requires `ANTHROPIC_API_KEY`. Set it in the execution environment or an
+existing repository secret, never in workflow inputs or committed files. The paid
+path uses the credential owner's explicit key scope. Missing configuration refuses
 execution before provider calls. Other provider credentials and dotenv loading
-are disabled. Claude/Azure keys join the artifact credential guard.
+are disabled. Azure key names stay in the artifact credential guard.
 
 ```bash
 gh workflow run benchmark.yml --ref main -f operation=collect -f tier=express \
