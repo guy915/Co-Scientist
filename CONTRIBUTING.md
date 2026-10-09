@@ -83,7 +83,7 @@ both browser suites. CI tests must not need network access or provider keys.
 For documentation changes, run `make lint` and
 `.venv/bin/python -m pytest evaluations/tests -q` explicitly. Record each
 command's exit status in the pull request. State any checks you could not run.
-For launch-wide code or configuration changes, also run `make docker-build`.
+For repository-wide code or configuration changes, also run `make docker-build`.
 Changes to model behavior should include benchmark scores before and after;
 see the [quality benchmark](evaluations/README.md#quality-benchmark).
 
