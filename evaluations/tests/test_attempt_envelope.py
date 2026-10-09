@@ -97,7 +97,7 @@ def test_fake_eutils_answers_each_requested_pmid_once_per_request() -> None:
     base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
     search = _eutils(handler, f"{base}/esearch.fcgi?db=pubmed&term=crowding&retmax=3")
-    ids = [node.text for node in search.iter("Id")]
+    ids = [node.text or "" for node in search.iter("Id")]
     articles = _eutils(handler, f"{base}/efetch.fcgi", f"db=pubmed&id={','.join(ids)}".encode())
     links = _eutils(handler, f"{base}/elink.fcgi?dbfrom=pubmed&db=pmc&id={ids[0]}&id={ids[1]}")
 
