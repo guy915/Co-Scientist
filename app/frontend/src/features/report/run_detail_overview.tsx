@@ -254,7 +254,7 @@ function OverviewSummary({
   if (degraded) return <DegradedSectionNotice />;
   return (
     <p>
-      The research overview appears after Open Co-Scientist finishes the final
+      The research overview appears after Co-Scientist finishes the final
       synthesis step.
     </p>
   );

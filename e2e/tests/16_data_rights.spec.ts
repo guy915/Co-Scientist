@@ -87,7 +87,7 @@ for (const theme of ["light", "dark"] as const) {
         const downloadPromise = page.waitForEvent("download");
         await dialog.getByRole("button", { name: "Export my data" }).click();
         const download = await downloadPromise;
-        expect(download.suggestedFilename()).toBe("open-coscientist-data.zip");
+        expect(download.suggestedFilename()).toBe("co-scientist-data.zip");
         const zipPath = info.outputPath("private-export.zip");
         await download.saveAs(zipPath);
         const exported = JSON.parse(

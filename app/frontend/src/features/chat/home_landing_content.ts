@@ -179,7 +179,7 @@ export interface FaqEntry {
 
 export const FAQ: readonly FaqEntry[] = [
   {
-    question: 'What is Open Co-Scientist?',
+    question: 'What is Co-Scientist?',
     answer:
       'A research workspace that generates, reviews, and ranks hypotheses ' +
       'for your goal. Specialized agents propose ideas, review them, and ' +
@@ -189,7 +189,7 @@ export const FAQ: readonly FaqEntry[] = [
     question: 'How do I start a run?',
     answer:
       'From the home screen, describe your research goal in the message box and ' +
-      'send it. Open Co-Scientist confirms the setup, then the agents generate ' +
+      'send it. Co-Scientist confirms the setup, then the agents generate ' +
       'and evaluate ideas. Follow progress and results in the run view.',
   },
   {
@@ -210,7 +210,7 @@ export const FAQ: readonly FaqEntry[] = [
   {
     question: 'Are the results true?',
     answer:
-      'They are hypotheses, not findings. Open Co-Scientist ranks ideas by ' +
+      'They are hypotheses, not findings. Co-Scientist ranks ideas by ' +
       'argument and evidence so you can decide which ones deserve an ' +
       'experiment.',
   },

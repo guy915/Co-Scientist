@@ -285,7 +285,7 @@ async def lifespan(
 
 
 app = FastAPI(
-    title="Open Co-Scientist API",
+    title="Co-Scientist API",
     description="FastAPI server for AI hypothesis generation",
     version=API_VERSION,
     lifespan=lifespan,

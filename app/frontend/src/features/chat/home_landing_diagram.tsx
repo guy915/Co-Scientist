@@ -164,7 +164,7 @@ function DiagramFrame() {
         y="508"
         textAnchor="middle"
       >
-        Open Co-Scientist specialized agents
+        Co-Scientist specialized agents
       </text>
       <text className="ucs-landing-wire-label" x="660" y="160" textAnchor="end">
         assigns agents to workers

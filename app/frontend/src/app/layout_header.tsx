@@ -76,7 +76,7 @@ function ProductLockup({
         ),
         placement: 'right',
       })}
-      aria-label="Go to Open Co-Scientist home"
+      aria-label="Go to Co-Scientist home"
       data-tooltip="Home"
       onClick={event => {
         if (!isModifiedClick(event)) onNewChat();
@@ -86,7 +86,7 @@ function ProductLockup({
         aria-hidden="true"
         className="size-[1.32rem] flex-[0_0_1.32rem] text-cosci-accent phone:hidden"
       />
-      <span>Open Co-Scientist</span>
+      <span>Co-Scientist</span>
     </Link>
   );
 }
