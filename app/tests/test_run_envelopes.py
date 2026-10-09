@@ -46,8 +46,8 @@ class Envelope:
     max_tokens: int
 
 
-# Lane E targets on live runs: Express <= 50 calls and <= 500k tokens, Standard
-# <= 2M tokens, Ultra <= 15M tokens. These offline ceilings fall as the work lands.
+# Live-run targets: Express <= 50 calls and <= 500k tokens, Standard <= 2M
+# tokens, Ultra <= 15M tokens. These offline ceilings are lowered toward them.
 CEILINGS: dict[str, Envelope] = {
     "express": Envelope(calls=55, max_tokens=700_000),
     "standard": Envelope(calls=135, max_tokens=1_700_000),
