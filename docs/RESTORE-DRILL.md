@@ -5,6 +5,10 @@ It creates a synthetic application database, backs it up to a local file
 replica, restores into a separate scratch file and starts one offline API on
 loopback. It never opens an existing database or an R2 replica.
 
+A production restore records an Azure spend hold, because a replica can trail
+the money ledger; see [Azure setup](azure-setup.md#spending-cutoff) before
+acknowledging it.
+
 ## Procedure
 
 Run `make setup` with Bun 1.3.14 first. Obtain Litestream **0.5.17**, the

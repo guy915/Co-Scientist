@@ -230,10 +230,14 @@ def input_bound(body: dict[str, Any]) -> int:
     # Every o200k token spans at least one UTF-8 byte, and ASCII-escaped JSON
     # only adds bytes; the allowances cover role framing and tool rendering.
     billed = {key: body[key] for key in ("input", "tools", "text") if key in body}
+    # Replayed encrypted reasoning bills its decrypted tokens, which its bytes
+    # do not bound; the producing turn's output cap does in a uniform loop.
+    reasoning = sum(1 for item in body.get("input", ()) if item.get("type") == "reasoning")
     return (
         len(json.dumps(billed).encode("utf-8"))
         + 32 * len(body.get("input", ()))
         + 256 * len(body.get("tools", ()))
+        + reasoning * int(body.get("max_output_tokens") or 0)
         + 1024
     )
 

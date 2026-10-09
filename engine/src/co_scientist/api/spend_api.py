@@ -13,7 +13,12 @@ from co_scientist.api.operator_access import is_operator
 from co_scientist.core.async_bridge import off_loop
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, default_db_path
-from co_scientist.platform.db.spend import AzureAllowance, active_allowance, ledger_total
+from co_scientist.platform.db.spend import (
+    AzureAllowance,
+    active_allowance,
+    ledger_total,
+    spending_held,
+)
 from co_scientist.platform.db.spend_view import spend_snapshot
 from co_scientist.platform.llm.admission.anthropic import cycle_bounds, require_credit_available
 from co_scientist.platform.llm.admission.spend import (
@@ -68,7 +73,7 @@ def get_spend(request: Request, response: Response) -> dict[str, Any]:
             cycle_end=end,
         )
         path = str(conn.execute("PRAGMA database_list").fetchone()[2])
-        azure_held = conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone() is not None
+        azure_held = spending_held(conn)
     try:
         slots = available_slots(path).slots
     except ProviderAdmissionError:
@@ -104,6 +109,7 @@ def _allowance_view(allowance: AzureAllowance) -> dict[str, Any]:
         "cutoff_at": _instant(allowance.cutoff_at),
         "rates": json.loads(allowance.rates),
         "basis": json.loads(allowance.basis),
+        "holds_through": allowance.holds_through,
     }
 
 
@@ -113,6 +119,9 @@ class AllowanceRecord(BaseModel):
     buffer_eur: Decimal
     expires_at: str = Field(max_length=64)
     cutoff_hours: Decimal = Decimal(48)
+    usd_to_eur: Decimal
+    supersedes_version: int | None = None
+    acknowledge_holds: bool = False
     note: str = Field(default="", max_length=500)
 
 
@@ -155,6 +164,9 @@ def post_azure_allowance(
             buffer_eur=body.buffer_eur,
             expires_at=expires_at,
             cutoff_hours=body.cutoff_hours,
+            usd_to_eur=body.usd_to_eur,
+            supersedes_version=body.supersedes_version,
+            acknowledge_holds=body.acknowledge_holds,
             note=body.note,
         )
     except (ValueError, ProviderAdmissionError) as error:

@@ -34,7 +34,7 @@ higher tiers require BYOK. No Mistral slot remains.
 | `LLM_TOTAL_BUDGET_EUR` | unset = Azure off; never above the recorded allowance |
 | `LLM_AZURE_EXPIRES_AT` | credit lot expiry as an ISO 8601 instant with offset |
 | `LLM_AZURE_CUTOFF_HOURS` | `48`; stop this long before expiry, at least 1 |
-| `LLM_USD_TO_EUR` | `0.88`; never below the rate recorded with the allowance |
+| `LLM_USD_TO_EUR` | required, no default; never below the rate recorded with the allowance |
 | `AZURE_OPENAI_API_KEY` | secret, API service only |
 | `AZURE_OPENAI_ENDPOINT` | resource HTTPS origin ending `.openai.azure.com` or `.services.ai.azure.com` |
 | `AZURE_OPENAI_API_VERSION` | `v1` |
@@ -47,8 +47,10 @@ higher tiers require BYOK. No Mistral slot remains.
 
 There is no daily/monthly EUR budget, even spread or carry-forward. New funding
 needs a new allowance version and a matching `LLM_TOTAL_BUDGET_EUR`; no code
-change. Expiry still applies. `LLM_AZURE_UNTIL` is retired and ignored. Both kill switches are read at each dispatch. Never raise per-user,
-host, global, app or concurrency limits to make a model run finish.
+change. Expiry still applies. `LLM_AZURE_UNTIL` is retired and ignored.
+
+Both kill switches are read at each dispatch. Never raise per-user, host,
+global, app or concurrency limits to make a model run finish.
 
 The shared physical-call default is 1024/day; the free-route default is
 1000/day. After 1000 free calls, only 24 shared calls remain for credit slots.
@@ -86,35 +88,49 @@ setting.
   after Azure has been idle for at least 48 hours. The buffer absorbs ledger
   error, Cost Management lag and charges for anything else on the subscription
   until expiry. Every ledger row counts, including rows from before the record,
-  so a later version can only be stricter about past spend.
+  so a later version can only be stricter about past spend. For a later
+  version, enter as prior usage only cost the ledger does not already hold
+  (Cost Management total minus `ledger_charged_and_reserved_eur`, if positive).
 - **Effective limits.** The smaller of the setting and the recorded allowance,
-  and the earlier of the two cutoffs. Lowering either setting takes effect at the
-  next request; raising the allowance or extending expiry needs both a new record
-  and the setting, so neither change alone reopens spend.
+  and the earlier of the two cutoffs. Lowering either takes effect at the next
+  request. A version that raises the allowance, extends expiry or clears holds
+  must name the active version in `supersedes_version`, and raising also needs
+  the setting, so no single change reopens spend.
 - **A store without a record refuses Azure.** A lost volume without a Litestream
   replica, a benchmark runner, or a laptop holding production keys starts with an
-  empty ledger and no allowance, so it cannot spend. After a restore from a
-  replica, the last seconds of reservations may be missing; the buffer covers
-  them.
-- **Pricing.** The record stores the rates and exchange rate the operator
-  verified. A request whose code price or `LLM_USD_TO_EUR` is lower than the
-  recorded value is refused. Microsoft bills this credit in euros from its own
+  empty ledger and no allowance, so it cannot spend.
+- **Restores hold Azure.** A replica or backup can trail the ledger while
+  keeping the allowance. The entrypoint records a hold whenever Litestream
+  restores a database; after a manual restore, insert one yourself
+  (`python -m co_scientist.platform.db.spend <db path>`). Re-baseline from Cost
+  Management before acknowledging it.
+- **Pricing.** The record stores the code's rates and the exchange rate the
+  operator supplies as `usd_to_eur`; check the returned rates against the Azure
+  price page. A request whose code price or `LLM_USD_TO_EUR` is lower than the
+  recorded value is refused, and a record older than 183 days admits nothing
+  until prices are rechecked and a new version is recorded. Microsoft bills this credit in euros from its own
   price list, which is not the USD price times the credit's displayed exchange
   rate; set `LLM_USD_TO_EUR` from the euro price sheet for these meters, or `1.00`
   if unverified.
 - **Per request.** Each physical request, including every retry, reserves its
   upper cost before dispatch: input bytes of the actual Responses body plus
   framing allowances, the full output allowance (reasoning is within it), and the
-  cache-write allowance, at long-context rates. Only text content, local function
+  cache-write allowance, at long-context rates. Each replayed reasoning item adds
+  the request's output cap, since its encrypted bytes do not bound the tokens
+  it bills. Only text content, local function
   tools and replayed message, reasoning and function-call items are accepted. The
   native client sends only under a one-use permit for a stored reservation that
   covers that exact body and has not passed its cutoff; LiteLLM never reaches an
   Azure route.
 - **Settlement.** Complete usage settles once. Usage outside the reserved bounds,
   or reasoning above output, keeps the charge and sets a durable hold that stops
-  all Azure calls. Missing usage, timeouts, interrupted streams and crashes keep
-  the full reservation. The ledger, holds and allowance history reject deletes,
-  and a settled row cannot change.
+  all Azure calls. Missing usage, timeouts, interrupted streams, provider
+  rejections and crashes keep the full reservation. The ledger, holds and
+  allowance history reject deletes, and a settled row cannot change.
+- **Clearing a hold.** Holds are never deleted. Find the cause in the logs,
+  read actual cost from Cost Management, then record a version with fresh prior
+  usage, `"acknowledge_holds": true` and `supersedes_version`. Later holds stop
+  Azure again.
 
 ### Recording the allowance
 
@@ -127,7 +143,7 @@ curl -sS -X POST "https://$API_HOST/api/spend/azure-allowance" \
   -H "X-Logs-Token: $LOGS_ADMIN_TOKEN" -H "Content-Type: application/json" \
   -d '{"grant_eur":"175.99","prior_usage_eur":"<from Cost Management>",
        "buffer_eur":"25","expires_at":"<lot expiry, e.g. 2027-01-04T00:00:00Z>",
-       "cutoff_hours":"48","note":"sponsorship lot"}'
+       "cutoff_hours":"48","usd_to_eur":"1.00","note":"sponsorship lot"}'
 ```
 
 Read the lot's expiry instant from the billing API (read-only); the portal shows

@@ -148,6 +148,7 @@ def providers(path: str, monkeypatch: pytest.MonkeyPatch) -> str:
         "LLM_AZURE_ENABLED": "true",
         "LLM_TOTAL_BUDGET_EUR": "1",
         "LLM_AZURE_EXPIRES_AT": "2099-01-04T00:00:00+00:00",
+        "LLM_USD_TO_EUR": "0.88",
         "OPENROUTER_API_KEY": "fake-router",
         "ANTHROPIC_API_KEY": "fake-subscriber",
         "AZURE_OPENAI_API_KEY": "fake-azure",

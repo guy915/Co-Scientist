@@ -60,6 +60,7 @@ def _anchor(path: str, allowance: str, *, expires: str = EXPIRES, hours: str = "
         buffer_eur=Decimal("0.25"),
         expires_at=datetime.fromisoformat(expires),
         cutoff_hours=Decimal(hours),
+        usd_to_eur=Decimal("0.88"),
     )
 
 
@@ -471,6 +472,8 @@ def test_cutoff_precedes_the_exact_expiry_by_the_configured_margin(
 ) -> None:
     _set_clock(monkeypatch, datetime.fromisoformat(EXPIRES) + offset)
     if allowed:
+        # A record is only trusted for a bounded time, so record it "then".
+        _anchor(ledger, "1")
         reserve_physical(_request())
     else:
         with pytest.raises(ProviderAdmissionError):
@@ -727,6 +730,7 @@ def test_allowance_record_requires_the_operator_token(ledger: str) -> None:
         "buffer_eur": "25",
         "expires_at": "2099-01-03T10:00:00Z",
         "cutoff_hours": "48",
+        "usd_to_eur": "1.00",
     }
     client = make_client()
     assert client.get("/api/spend/azure-allowance").status_code == 404
@@ -735,14 +739,28 @@ def test_allowance_record_requires_the_operator_token(ledger: str) -> None:
 
 def test_allowance_record_subtracts_prior_usage_and_buffer(ledger: str) -> None:
     client = make_operator_client()
-    answer = client.post(
+    active = client.get("/api/spend/azure-allowance").json()["active"]["version"]
+    refused = client.post(
         "/api/spend/azure-allowance",
         json={
             "grant_eur": "175.99",
             "prior_usage_eur": "3.50",
             "buffer_eur": "25",
             "expires_at": "2099-01-03T10:00:00Z",
+            "usd_to_eur": "1.00",
+        },
+    )
+    assert refused.status_code == 422 and "supersedes_version" in refused.text
+    answer = client.post(
+        "/api/spend/azure-allowance",
+        json={
+            "supersedes_version": active,
+            "grant_eur": "175.99",
+            "prior_usage_eur": "3.50",
+            "buffer_eur": "25",
+            "expires_at": "2099-01-03T10:00:00Z",
             "cutoff_hours": "48",
+            "usd_to_eur": "1.00",
             "note": "sponsorship lot",
         },
     )
@@ -775,6 +793,7 @@ def test_allowance_record_refuses_unsafe_inputs(ledger: str, changes: dict[str, 
         "buffer_eur": "25",
         "expires_at": "2099-01-03T10:00:00Z",
         "cutoff_hours": "48",
+        "usd_to_eur": "1.00",
         **changes,
     }
     with connect(ledger) as conn:
@@ -816,3 +835,131 @@ def test_store_applies_the_record_even_if_policy_admitted_a_larger_total(ledger:
             conn, "b", SpendReservation(NANO, "worker", 500_001, 10**12, far, 1, 1, rates)
         )
     assert _spent(ledger) == 500_000
+
+
+def _record(path: str, allowance: str, **changes: Any) -> None:
+    establish_allowance(
+        path,
+        **{
+            "grant_eur": Decimal(allowance) + 1,
+            "prior_usage_eur": Decimal(0),
+            "buffer_eur": Decimal(1),
+            "expires_at": datetime.fromisoformat(EXPIRES),
+            "cutoff_hours": Decimal(48),
+            "usd_to_eur": Decimal("0.88"),
+            **changes,
+        },
+    )
+
+
+def _version(path: str) -> int:
+    with connect(path) as conn:
+        allowance = active_allowance(conn)
+    assert allowance is not None
+    return allowance.version
+
+
+def test_exchange_rate_has_no_default(ledger: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LLM_USD_TO_EUR")
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request())
+
+
+def test_loosening_a_limit_must_name_the_version_it_replaces(ledger: str) -> None:
+    active = _version(ledger)
+    later = datetime.fromisoformat(EXPIRES) + timedelta(days=1)
+    for changes in ({}, {"expires_at": later}, {"cutoff_hours": Decimal(24)}):
+        with pytest.raises(ValueError, match="supersedes_version"):
+            _record(ledger, "1" if changes else "2", **changes)
+    with pytest.raises(ValueError, match="supersedes_version"):
+        _record(ledger, "2", supersedes_version=active - 1)
+    assert _version(ledger) == active
+    _record(ledger, "0.5")
+    _record(ledger, "2", supersedes_version=active + 1)
+    assert _version(ledger) == active + 2
+
+
+def test_hold_survives_until_a_new_record_acknowledges_it(ledger: str) -> None:
+    receipt = reserve_physical(_request())
+    with pytest.raises(ProviderAdmissionError):
+        settle_physical(receipt, _usage(prompt_tokens=10**9))
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request())
+    _record(ledger, "0.5")
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request())
+    with pytest.raises(ValueError, match="supersedes_version"):
+        _record(ledger, "0.5", acknowledge_holds=True)
+    _record(ledger, "0.5", acknowledge_holds=True, supersedes_version=_version(ledger))
+    reserve_physical(_request())
+    with transaction(ledger) as conn:
+        conn.execute("INSERT INTO llm_spend_holds VALUES ('later')")
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request())
+
+
+def test_restore_marker_holds_azure_in_a_restored_store(ledger: str) -> None:
+    env = {key: os.environ[key] for key in ("PATH", "PYTHONPATH") if key in os.environ}
+    env["PYTHON_DOTENV_DISABLED"] = "1"
+    subprocess.run(
+        [sys.executable, "-m", "co_scientist.platform.db.spend", ledger],
+        env=env,
+        check=True,
+        timeout=60,
+    )
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request())
+
+
+def test_allowance_older_than_the_price_check_window_refuses(
+    ledger: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from co_scientist.platform.db.spend import ALLOWANCE_MAX_AGE_SECONDS
+
+    with connect(ledger) as conn:
+        allowance = active_allowance(conn)
+    assert allowance is not None
+    stale = allowance.created_at + ALLOWANCE_MAX_AGE_SECONDS + 1
+    _set_clock(monkeypatch, datetime.fromtimestamp(stale, timezone.utc))
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request())
+
+
+@pytest.mark.parametrize("hours", ["1e12", "9000", "inf"])
+def test_out_of_range_cutoff_refuses_azure_without_breaking_routing(
+    ledger: str, monkeypatch: pytest.MonkeyPatch, hours: str
+) -> None:
+    from co_scientist.platform.llm.routing import available_slots
+
+    monkeypatch.setenv("LLM_AZURE_CUTOFF_HOURS", hours)
+    for name in (
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT",
+        "AZURE_OPENAI_WORKER_DEPLOYMENT",
+    ):
+        monkeypatch.setenv(name, "configured")
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "false")
+    assert "azure" not in available_slots(ledger).slots
+    with pytest.raises(ProviderAdmissionError):
+        reserve_physical(_request())
+
+
+async def test_replayed_reasoning_reserves_its_producing_output_cap(ledger: str) -> None:
+    replay = {
+        "role": "assistant",
+        "content": None,
+        "responses_items": [
+            {"type": "reasoning", "id": "r", "summary": [], "encrypted_content": "x"}
+        ],
+    }
+    with using_backend(_Fake()):
+        await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+        await complete_request(
+            _request(messages=[{"role": "user", "content": "answer"}, replay]),
+            NANO,
+            byok=False,
+            timeout_seconds=5,
+        )
+    plain, replayed = _rows(ledger)
+    assert replayed["input_bound"] >= plain["input_bound"] + 1000

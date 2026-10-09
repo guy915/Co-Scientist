@@ -415,6 +415,7 @@ def test_capacity_and_credit_notices_use_real_ledgers_and_never_invent_an_azure_
     monkeypatch.setenv("LLM_AZURE_ENABLED", "1")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
     monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2100-01-01T00:00:00+00:00")
+    monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
     record_azure_allowance()
     with db.transaction() as conn:
         conn.execute(

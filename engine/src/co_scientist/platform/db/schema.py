@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS llm_azure_allowance (
     version INTEGER PRIMARY KEY AUTOINCREMENT, created_at REAL NOT NULL,
     allowance_microeur INTEGER NOT NULL CHECK(allowance_microeur > 0),
     expires_at REAL NOT NULL, cutoff_at REAL NOT NULL CHECK(cutoff_at < expires_at),
-    rates TEXT NOT NULL, basis TEXT NOT NULL
+    rates TEXT NOT NULL, basis TEXT NOT NULL,
+    holds_through INTEGER NOT NULL DEFAULT 0 CHECK(holds_through >= 0)
 );
 CREATE TRIGGER IF NOT EXISTS llm_azure_allowance_append_only
     BEFORE UPDATE ON llm_azure_allowance

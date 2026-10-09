@@ -64,7 +64,7 @@ class CompletionBackend(Protocol):
 
 
 def is_azure_model(model: str) -> bool:
-    return model.lower().startswith(("azure/", "azure_ai/"))
+    return model.lower().startswith(("azure/", "azure_ai/", "azure_text/"))
 
 
 def is_authentication_error(error: BaseException) -> bool:

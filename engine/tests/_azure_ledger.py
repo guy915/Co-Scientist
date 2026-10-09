@@ -18,4 +18,5 @@ def record_azure_allowance(path: str | None = None, allowance: str = "1000000") 
         buffer_eur=Decimal(1),
         expires_at=datetime.fromisoformat(EXPIRES_AT),
         cutoff_hours=Decimal(48),
+        usd_to_eur=Decimal("0.88"),
     )

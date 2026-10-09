@@ -8,7 +8,12 @@ from typing import Literal, cast
 from co_scientist.core.admission_windows import utc_day, utc_day_bounds
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, transaction
-from co_scientist.platform.db.spend import UNAVAILABLE, anchored_total, ledger_total
+from co_scientist.platform.db.spend import (
+    UNAVAILABLE,
+    anchored_total,
+    ledger_total,
+    spending_held,
+)
 
 Slot = Literal["openrouter", "anthropic", "azure"]
 
@@ -50,7 +55,7 @@ def admit_route(
         "azure" in slots
         and total is not None
         and 0 < estimate <= remaining_total(conn, total)
-        and not conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone()
+        and not spending_held(conn)
     )
     choices = tuple(slot for slot in slots if slot != "azure" or allowed)
     if not choices:
@@ -83,7 +88,7 @@ def reacquire_forecast(
     row = conn.execute("SELECT * FROM llm_routes WHERE run_id=?", (run_id,)).fetchone()
     if row is None:
         return
-    if total is None or conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone():
+    if total is None or spending_held(conn):
         allowed = False
     else:
         allowed = 0 < estimate <= remaining_total(conn, total) + row["forecast_microeur"]

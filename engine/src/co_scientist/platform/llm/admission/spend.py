@@ -12,7 +12,7 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 from typing import Any
 
 from co_scientist.core.exceptions import ProviderAdmissionError
-from co_scientist.platform.db import connect, current_time, transaction
+from co_scientist.platform.db import Connection, connect, current_time, transaction
 from co_scientist.platform.db.admission import ProviderReservation
 from co_scientist.platform.db.spend import (
     UNAVAILABLE,
@@ -20,6 +20,7 @@ from co_scientist.platform.db.spend import (
     SpendRecord,
     SpendReservation,
     active_allowance,
+    latest_hold,
     ledger_total,
     record_allowance,
 )
@@ -100,9 +101,12 @@ def parse_expiry(raw: str) -> datetime:
 def cutoff_before(expiry: datetime, hours: Decimal) -> float:
     # The margin covers clock skew, requests still in flight and provider
     # usage rated after the instant it was incurred.
-    if not hours.is_finite() or hours < 1:
+    if not hours.is_finite() or not 1 <= hours <= 24 * 366:
         raise ProviderAdmissionError(UNAVAILABLE)
-    return (expiry - timedelta(hours=float(hours))).timestamp()
+    try:
+        return (expiry - timedelta(hours=float(hours))).timestamp()
+    except (OverflowError, ValueError) as error:
+        raise ProviderAdmissionError(UNAVAILABLE) from error
 
 
 def azure_config() -> SpendConfig:
@@ -110,7 +114,8 @@ def azure_config() -> SpendConfig:
     if not _enabled("LLM_AZURE_ENABLED", False):
         raise ProviderAdmissionError(UNAVAILABLE)
     total = _decimal(os.getenv("LLM_TOTAL_BUDGET_EUR"))
-    fx = _decimal(os.getenv("LLM_USD_TO_EUR", "0.88"))
+    # Euro meters follow Microsoft's own price sheet, so there is no safe default.
+    fx = _decimal(os.getenv("LLM_USD_TO_EUR"))
     expiry = parse_expiry(os.getenv("LLM_AZURE_EXPIRES_AT", ""))
     try:
         hours = Decimal(os.getenv("LLM_AZURE_CUTOFF_HOURS", "48"))
@@ -126,14 +131,14 @@ def azure_config() -> SpendConfig:
 
 
 def _anchored(config: SpendConfig, allowance: AzureAllowance | None) -> SpendConfig:
-    if allowance is None or current_time() >= allowance.cutoff_at:
+    if allowance is None or not allowance.admits(current_time()):
         raise ProviderAdmissionError(UNAVAILABLE)
     return SpendConfig(
         min(config.total, allowance.allowance), config.fx, min(config.cutoff, allowance.cutoff_at)
     )
 
 
-def effective_azure_config(conn: Any) -> SpendConfig:
+def effective_azure_config(conn: Connection) -> SpendConfig:
     return _anchored(azure_config(), active_allowance(conn))
 
 
@@ -177,6 +182,9 @@ def establish_allowance(
     buffer_eur: Decimal,
     expires_at: datetime,
     cutoff_hours: Decimal,
+    usd_to_eur: Decimal,
+    supersedes_version: int | None = None,
+    acknowledge_holds: bool = False,
     note: str = "",
 ) -> AzureAllowance:
     # Round the grant down and every deduction up.
@@ -194,9 +202,25 @@ def establish_allowance(
         raise ValueError("cutoff_hours must be at least 1") from error
     if cutoff <= current_time():
         raise ValueError("the cutoff has already passed")
-    fx = _decimal(os.getenv("LLM_USD_TO_EUR", "0.88"))
-    rates = verified_rates(fx)
+    if not usd_to_eur.is_finite() or usd_to_eur <= 0:
+        raise ValueError("usd_to_eur must be a finite positive rate")
+    rates = verified_rates(usd_to_eur)
     with transaction(db_path, durable=True) as conn:
+        active = active_allowance(conn)
+        holds = latest_hold(conn) if acknowledge_holds else (active.holds_through if active else 0)
+        loosens = active is not None and (
+            allowance > active.allowance
+            or expires_at.timestamp() > active.expires_at
+            or cutoff > active.cutoff_at
+            or holds > active.holds_through
+        )
+        # One token must not silently reopen spend: loosening any limit names
+        # the version it replaces.
+        if loosens and (active is None or supersedes_version != active.version):
+            raise ValueError(
+                "raising the allowance, extending expiry or clearing holds "
+                "requires supersedes_version set to the active version"
+            )
         basis = {
             "grant_eur": str(grant_eur),
             "prior_usage_eur": str(prior_usage_eur),
@@ -212,8 +236,14 @@ def establish_allowance(
             cutoff_at=cutoff,
             rates=json.dumps(rates, sort_keys=True),
             basis=json.dumps(basis, sort_keys=True),
+            holds_through=holds,
         )
         recorded = active_allowance(conn)
+    if acknowledge_holds:
+        # The record re-baselines from provider figures, which also covers a
+        # hold this process could not make durable.
+        with _lock:
+            _blocked.discard(db_path)
     if recorded is None:
         raise ProviderAdmissionError(UNAVAILABLE)
     return recorded

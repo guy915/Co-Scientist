@@ -143,6 +143,7 @@ async def test_gateway_settles_normalized_usage_without_holding_writer_over_http
     monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
     monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2099-01-04T00:00:00+00:00")
+    monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
     record_azure_allowance()
 
     def respond(_: httpx.Request) -> httpx.Response:
@@ -179,6 +180,7 @@ async def test_native_dispatch_rechecks_policy_after_thread_wait(
         "LLM_AZURE_ENABLED": "true",
         "LLM_TOTAL_BUDGET_EUR": "1",
         "LLM_AZURE_EXPIRES_AT": "2099-01-04T00:00:00+00:00",
+        "LLM_USD_TO_EUR": "0.88",
         "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
         "AZURE_OPENAI_API_KEY": "fake",
         "AZURE_OPENAI_API_VERSION": "v1",

@@ -139,6 +139,7 @@ def test_available_azure_needs_both_deployments_and_no_durable_hold(
         ("LLM_AZURE_ENABLED", "true"),
         ("LLM_TOTAL_BUDGET_EUR", "1"),
         ("LLM_AZURE_EXPIRES_AT", "2099-01-04T00:00:00+00:00"),
+        ("LLM_USD_TO_EUR", "0.88"),
         ("COSCIENTIST_REQUIRE_FREE_MODELS", "false"),
         ("AZURE_OPENAI_API_KEY", "synthetic"),
         ("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com"),
