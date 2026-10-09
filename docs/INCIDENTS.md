@@ -17,8 +17,8 @@ Pause new runs, continuations and chat replies first when an incident threatens 
 
 ## Azure spend faster than planned / credit exhausted
 
-- **Signal:** Existing €150 Azure budget alert, Azure Cost Management and the durable spend/reservation view; Honeycomb output-burn warning is a usage signal, not a currency quote.
-- **First action:** Pause admission. Drain cooperatively if continued Azure dispatch would exceed the agreed budget. Inspect committed plus reserved/unknown spend, price version and expiry. Keep the existing €150 email only; all other notifications use web/app.
+- **Signal:** The Azure budget alert, Azure Cost Management and the durable spend/reservation view; Honeycomb output-burn warning is a usage signal, not a currency quote.
+- **First action:** Pause admission. Drain cooperatively if continued Azure dispatch would exceed the agreed budget. Inspect committed plus reserved/unknown spend, price version and expiry. Keep the Azure budget email as the only email alert; all other notifications use web/app.
 - **Rollback and recovery:** Return to an approved available free-only configuration or the last reviewed budget policy; never increase the budget to clear an incident. Preserve the ledger and unknown outcomes. Resume only with an approved remaining allowance; publish no refill time unless Owner confirms it.
 - **Who:** Owner.
 
@@ -66,7 +66,7 @@ Pause new runs, continuations and chat replies first when an incident threatens 
 
 ## Alert settings and recovery evidence
 
-Use the exact web/app-only [launch alert settings](MONITORING.md#launch-alert-settings). No additional email alerts; preserve the existing €150 Azure alert. The local Litestream 0.5.17 [restore drill](RESTORE-DRILL.md) exited 0 on 8 October 2026: 0.033 s restore, 3.008 s restore-to-healthy API. The expanded idle-backup proof verified a freshly uploaded complete base in 0.092 s after aging only its synthetic local replica by 31 days. This synthetic fixture does not establish production RTO/RPO or actual R2 backup freshness.
+Use the exact web/app-only [alert settings](MONITORING.md#alert-settings). No additional email alerts; keep the Azure budget alert. The local Litestream 0.5.17 [restore drill](RESTORE-DRILL.md) exited 0 on 8 October 2026: 0.033 s restore, 3.008 s restore-to-healthy API. The expanded idle-backup proof verified a freshly uploaded complete base in 0.092 s after aging only its synthetic local replica by 31 days. This synthetic fixture does not establish production RTO/RPO or actual R2 backup freshness.
 
 ## Backup verification failed or stale
 

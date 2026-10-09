@@ -79,7 +79,7 @@ async def export_browser_data(request: Request, settings: BrowserSettings) -> Fi
         data,
         media_type="application/zip",
         headers={
-            "Content-Disposition": 'attachment; filename="open-coscientist-data.zip"',
+            "Content-Disposition": 'attachment; filename="co-scientist-data.zip"',
             "Cache-Control": "no-store",
             "X-Content-Type-Options": "nosniff",
         },

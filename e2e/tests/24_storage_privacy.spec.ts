@@ -24,7 +24,7 @@ for (const theme of ["light", "dark"]) {
     await page.goto("/");
     await page
       .getByRole("button", {
-        name: "Scroll to see how Open Co-Scientist works",
+        name: "Scroll to see how Co-Scientist works",
       })
       .click();
     const link = page.getByRole("link", {

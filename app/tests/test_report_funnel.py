@@ -27,9 +27,9 @@ def test_a_screened_idea_keeps_its_own_numbered_entry_after_the_finalists() -> N
     markdown = render_markdown(top_hypotheses=[_FINALIST], screened_hypotheses=[_SCREENED])
 
     featured, screened = markdown.split("### 2. ", 1)
-    assert "### 1. **Open Co-Scientist - Finalist idea**" in featured
+    assert "### 1. **Co-Scientist - Finalist idea**" in featured
     assert "screened, not deep-verified" not in featured.lower()
-    assert screened.startswith("**Open Co-Scientist - Screened idea**")
+    assert screened.startswith("**Co-Scientist - Screened idea**")
     assert "screened, not deep-verified" in screened.lower()
     assert "Glycogen release sets the pace" in screened
 

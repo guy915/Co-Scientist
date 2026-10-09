@@ -4,7 +4,7 @@ Order: BYOK → free OpenRouter → direct Haiku subscriber credit → Azure →
 "No model is available right now". Operator runs are Express only; Standard and
 higher tiers require BYOK. No Mistral slot remains.
 
-## Owner portal steps
+## Portal steps
 
 1. Claim the subscriber credit on claude.ai and link Console organization
    **Open Co-Scientist**. Confirm the organization before linking; self-service
@@ -15,10 +15,10 @@ higher tiers require BYOK. No Mistral slot remains.
    `coscientist-supervisor-luna`, gpt-6-luna `2026-09-22`, and
    `coscientist-worker-nano`, gpt-5-nano `2025-08-07`. Use the resource HTTPS
    endpoint, not a deployment URL. Set the five variables below on the API only.
-3. Read current remaining credit and expiry in the portal. The historical
-   €175.99 is not a fresh balance. Set `LLM_TOTAL_BUDGET_EUR` to the remaining
-   amount after allowing for other subscription charges, and confirm the date.
-   Azure has no hard subscription cap; excess spend bills the owner's card.
+3. Read current remaining credit and expiry in the portal. Set
+   `LLM_TOTAL_BUDGET_EUR` to the remaining amount after allowing for other
+   subscription charges, and confirm the date.
+   Azure has no hard subscription cap; excess spend is billed to the subscription.
 4. Size TPM/RPM for the capped requests and Express concurrency within that
    total. The current 1,000 TPM / 1 RPM per deployment is too small for the
    existing prompts/output allowances. Confirm quota before enabling Azure.
@@ -30,7 +30,7 @@ higher tiers require BYOK. No Mistral slot remains.
 | Setting | Value or default |
 |---|---|
 | `LLM_ENABLED` | `true`; false stops all model dispatch |
-| `LLM_AZURE_ENABLED` | `false` until the owner enables it |
+| `LLM_AZURE_ENABLED` | `false` until the operator enables it |
 | `LLM_TOTAL_BUDGET_EUR` | unset = Azure off; set fresh remaining credit |
 | `LLM_AZURE_UNTIL` | ISO date; stop at its UTC start, even after new funding |
 | `LLM_USD_TO_EUR` | `0.88` |
@@ -51,9 +51,8 @@ host, global, app or concurrency limits to make a model run finish.
 
 The shared physical-call default is 1024/day; the free-route default is
 1000/day. After 1000 free calls, only 24 shared calls remain for credit slots.
-The Express forecast allows 57 calls before fallbacks. Before launch, the owner
-must choose a lower `LLM_OPENROUTER_CALLS_PER_DAY` if credit slots need more
-headroom. Keep the shared ceiling and per-user limits unchanged.
+The Express forecast allows 57 calls before fallbacks. Choose a lower
+`LLM_OPENROUTER_CALLS_PER_DAY` if credit slots need more headroom. Keep the shared ceiling and per-user limits unchanged.
 
 A run estimate must fit the remaining total before Azure is offered. The
 forecast is held, converted into actual call reservations, and released when
