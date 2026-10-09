@@ -37,10 +37,32 @@ CREATE TABLE IF NOT EXISTS llm_spend (
         CHECK(charged_microeur >= 0 AND charged_microeur <= reserved_microeur),
     input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL, rates TEXT NOT NULL,
     settled INTEGER NOT NULL DEFAULT 0, prompt_tokens INTEGER, output_tokens INTEGER,
-    cached_tokens INTEGER, cache_write_tokens INTEGER
+    cached_tokens INTEGER, cache_write_tokens INTEGER, refused INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_llm_spend_created_at ON llm_spend(created_at);
 CREATE TABLE IF NOT EXISTS llm_spend_holds (reason TEXT PRIMARY KEY);
+-- Only an operator creates a version; a store without one refuses Azure, so a
+-- lost volume or a second process never starts again from a full allowance.
+CREATE TABLE IF NOT EXISTS llm_azure_allowance (
+    version INTEGER PRIMARY KEY AUTOINCREMENT, created_at REAL NOT NULL,
+    allowance_microeur INTEGER NOT NULL CHECK(allowance_microeur > 0),
+    expires_at REAL NOT NULL, cutoff_at REAL NOT NULL CHECK(cutoff_at < expires_at),
+    rates TEXT NOT NULL, basis TEXT NOT NULL,
+    holds_through INTEGER NOT NULL DEFAULT 0 CHECK(holds_through >= 0)
+);
+CREATE TRIGGER IF NOT EXISTS llm_azure_allowance_append_only
+    BEFORE UPDATE ON llm_azure_allowance
+    BEGIN SELECT RAISE(ABORT, 'Azure allowance history is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS llm_azure_allowance_no_delete
+    BEFORE DELETE ON llm_azure_allowance
+    BEGIN SELECT RAISE(ABORT, 'Azure allowance history is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS llm_spend_no_delete BEFORE DELETE ON llm_spend
+    BEGIN SELECT RAISE(ABORT, 'Spend ledger is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS llm_spend_settles_once BEFORE UPDATE ON llm_spend
+    WHEN OLD.settled != 0 OR NEW.settled != 1 OR NEW.reserved_microeur != OLD.reserved_microeur
+    BEGIN SELECT RAISE(ABORT, 'Spend reservations settle once'); END;
+CREATE TRIGGER IF NOT EXISTS llm_spend_holds_no_delete BEFORE DELETE ON llm_spend_holds
+    BEGIN SELECT RAISE(ABORT, 'Spend holds need manual store repair'); END;
 CREATE TABLE IF NOT EXISTS anthropic_credit_cycles (
     start REAL PRIMARY KEY, end REAL NOT NULL
 );
@@ -54,7 +76,8 @@ CREATE TABLE IF NOT EXISTS anthropic_credit (
         CHECK(charged_microusd >= 0 AND charged_microusd <= reserved_microusd),
     settled INTEGER NOT NULL DEFAULT 0, input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL,
     rates TEXT NOT NULL,
-    prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, cache_write_tokens INTEGER
+    prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, cache_write_tokens INTEGER,
+    refused INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_anthropic_credit_cycle ON anthropic_credit(cycle_start);
 CREATE TABLE IF NOT EXISTS llm_routes (
@@ -842,4 +865,7 @@ ADDED_COLUMNS = (
     ("run_credentials", "supervisor_provider", "TEXT"),
     ("run_credentials", "encrypted_supervisor_key", "TEXT"),
     ("run_credentials", "custom_models_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # NULL means not measured: unsettled, or settled before this column existed.
+    ("llm_spend", "refused", "INTEGER"),
+    ("anthropic_credit", "refused", "INTEGER"),
 )

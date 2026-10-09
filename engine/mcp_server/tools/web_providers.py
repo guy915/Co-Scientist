@@ -28,9 +28,12 @@ def clean_snippet(raw: Any) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
 
 
-# 401/402/403 and Tavily 432/433 require changed credentials/quota; 429 self-
-# heals.
+# 401/402/403 and Tavily 432/433 require changed credentials/quota. Brave
+# answers an exhausted month or credit with 429 and one of these codes; its
+# per-second RATE_LIMITED 429 self-heals and moves only the current query.
 _KEY_REJECTED_STATUSES = frozenset({401, 402, 403, 432, 433})
+_QUOTA_EXHAUSTED_CODES = frozenset({"QUOTA_LIMITED", "USAGE_LIMIT_EXCEEDED", "CREDIT_EXHAUSTED"})
+_RATE_LIMITED = "HTTP 429"
 
 # Refusals describe process credentials, not one query, and govern subsequent
 # provider choices.
@@ -68,9 +71,29 @@ def _clear_credential_error(provider: str | None = None) -> None:
         _credential_errors.pop(provider, None)
 
 
+def _error_code(response: httpx.Response) -> str | None:
+    try:
+        error = response.json().get("error")
+    except (ValueError, AttributeError):
+        return None
+    code = error.get("code") if isinstance(error, dict) else None
+    return code if isinstance(code, str) else None
+
+
+def _refused_status(exc: Exception) -> int | None:
+    if not isinstance(exc, httpx.HTTPStatusError):
+        return None
+    status = exc.response.status_code
+    code = _error_code(exc.response)
+    refused = status in _KEY_REJECTED_STATUSES or (
+        code is not None and code in _QUOTA_EXHAUSTED_CODES
+    )
+    return status if refused else None
+
+
 def _handle_provider_error(provider: str, query: str, exc: Exception) -> dict[str, Any]:
-    status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
-    if status is not None and status in _KEY_REJECTED_STATUSES:
+    status = _refused_status(exc)
+    if status is not None:
         _record_credential_error(provider, status, str(exc))
         # Logged at error, not warning: this one does not clear on its own,
         # and the search moves to another provider or returns nothing.
@@ -314,6 +337,7 @@ async def search_web(
         return failed("no web provider configured")
 
     capped = min(max(max_results, 1), _MAX_RESULTS_CEILING)
+    throttled = None
     for name, search_fn in candidates:
         results = await search_fn(query, capped, max(recency_days, 0))
         if results.get("status") == "ok":
@@ -323,13 +347,17 @@ async def search_web(
                 len(results["records"]),
             )
             return results
-        # Empty success is an answer; do not spend another allowance to hear it
-        # twice.
-        if credential_error_for(name) is None:
+        if credential_error_for(name) is not None:
+            logger.warning("%s refused the search; trying the next provider", name)
+        elif results.get("error") == _RATE_LIMITED:
+            throttled = results
+            logger.warning("%s is rate limited; trying the next provider for this query", name)
+        else:
+            # Empty success is an answer; do not spend another allowance to
+            # hear it twice.
             logger.debug("web search via %s returned no results", name)
             return results
-        logger.warning("%s refused the search; trying the next provider", name)
-    return failed("all web providers refused the search")
+    return throttled or failed("all web providers refused the search")
 
 
 async def check_web_search_available() -> bool:

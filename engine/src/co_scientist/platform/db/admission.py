@@ -4,7 +4,7 @@ import hashlib
 import ipaddress
 import sqlite3
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from co_scientist.core.admission_windows import UTC_DAY_SECONDS, utc_day
 from co_scientist.core.exceptions import ProviderAdmissionError
@@ -26,6 +26,8 @@ class ProviderReservation:
     db_path: str
     paid: bool = False
     credit: bool = False
+    # Carries the effective cutoff the store admitted, for the dispatch permit.
+    money: SpendReservation | None = None
 
 
 def connecting_host(host: str | None) -> str:
@@ -174,7 +176,8 @@ def reserve_provider(
     )
     with transaction(receipt.db_path, durable=spend is not None or credit is not None) as conn:
         if spend is not None:
-            reserve_spend(conn, receipt.id, spend)
+            cutoff = reserve_spend(conn, receipt.id, spend)
+            receipt = replace(receipt, money=replace(spend, cutoff=cutoff))
         if credit is not None:
             reserve_credit(conn, receipt.id, credit, current_time())
         if free_daily_ceiling is not None:
@@ -211,10 +214,12 @@ def settle_provider(
     used_tokens: int,
     money: tuple[int, int, int, int | None, int | None] | None = None,
     credit_money: tuple[int, int, int, int, int] | None = None,
+    *,
+    refused: bool | None = None,
 ) -> None:
     with transaction(receipt.db_path, durable=receipt.paid or receipt.credit) as conn:
         if money is not None:
-            settle_spend(conn, receipt.id, *money)
+            settle_spend(conn, receipt.id, *money, refused=refused)
         if credit_money is not None:
             charged, prompt, output, cached, written = credit_money
             settle_credit_amount(
@@ -225,6 +230,7 @@ def settle_provider(
                 output=output,
                 cached=cached,
                 written=written,
+                refused=refused,
             )
         row = conn.execute(
             "SELECT * FROM provider_token_reservations WHERE id=? AND used_tokens IS NULL",

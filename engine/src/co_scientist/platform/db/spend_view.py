@@ -54,10 +54,13 @@ def spend_snapshot(
                 "cache_read_tokens": row[3],
                 "cache_write_tokens": row[4],
                 "cost": row[5] / 1_000_000,
+                "refusal_measured_calls": row[6],
+                "refusals": row[7],
             }
             for row in conn.execute(
                 f"SELECT role,COUNT(*),SUM(prompt_tokens),SUM(COALESCE(cached_tokens,0)),"
-                f"SUM(COALESCE(cache_write_tokens,0)),SUM({column}) "
+                f"SUM(COALESCE(cache_write_tokens,0)),SUM({column}),COUNT(refused),"
+                f"COALESCE(SUM(refused),0) "
                 f"FROM {table} WHERE settled=1 GROUP BY role ORDER BY role"
             )
         )

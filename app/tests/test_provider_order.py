@@ -19,11 +19,14 @@ from co_scientist.platform.db.models import RunStatus
 from co_scientist.platform.db.runs import RunCreateOptions
 from co_scientist.platform.db.spend import SpendReservation, reserve_spend, settle_spend
 
+from tests._azure_ledger import record_azure_allowance
+
 
 @pytest.fixture
 def path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     path = str(tmp_path / "routes.db")
     monkeypatch.setenv("COSCIENTIST_DB_PATH", path)
+    record_azure_allowance(path)
     return path
 
 
@@ -37,9 +40,12 @@ def _run(path: str, tier: str = "express") -> str:
     ).id
 
 
+_RATES = '{"input": "9", "output": "9", "cached": "9", "write": "9", "fx": "9"}'
+
+
 def _quote(run_id: str, amount: int = 60) -> SpendReservation:
     return SpendReservation(
-        "azure/model", "worker", amount, 100, float("inf"), 100, 100, "{}", run_id
+        "azure/gpt-5-nano-2025-08-07", "worker", amount, 100, float("inf"), 100, 100, _RATES, run_id
     )
 
 
@@ -141,7 +147,8 @@ def providers(path: str, monkeypatch: pytest.MonkeyPatch) -> str:
         "LLM_ENABLED": "true",
         "LLM_AZURE_ENABLED": "true",
         "LLM_TOTAL_BUDGET_EUR": "1",
-        "LLM_AZURE_UNTIL": "2099-01-04",
+        "LLM_AZURE_EXPIRES_AT": "2099-01-04T00:00:00+00:00",
+        "LLM_USD_TO_EUR": "0.88",
         "OPENROUTER_API_KEY": "fake-router",
         "ANTHROPIC_API_KEY": "fake-subscriber",
         "AZURE_OPENAI_API_KEY": "fake-azure",
@@ -150,6 +157,7 @@ def providers(path: str, monkeypatch: pytest.MonkeyPatch) -> str:
         "AZURE_OPENAI_WORKER_DEPLOYMENT": "worker-deployment",
     }.items():
         monkeypatch.setenv(name, value)
+    record_azure_allowance(path)
     run_id = _run(path)
     with transaction(path) as conn:
         admit_route(
@@ -288,6 +296,11 @@ async def test_real_sdk_order_and_refusal_falls_back_for_only_that_call(
         assert conn.execute("SELECT slot FROM llm_routes").fetchone()[0] == "anthropic"
         assert conn.execute("SELECT SUM(charged_microusd) FROM anthropic_credit").fetchone()[0] == 4
         assert conn.execute("SELECT SUM(charged_microeur) FROM llm_spend").fetchone()[0] == 2
+        assert [
+            row[0]
+            for row in conn.execute("SELECT refused FROM anthropic_credit ORDER BY created_at")
+        ] == [1, 0]
+        assert conn.execute("SELECT refused FROM llm_spend").fetchone()[0] == 0
         history = [
             json.loads(row[0])
             for row in conn.execute(
@@ -450,7 +463,7 @@ async def test_azure_terminal_guard_never_calls_a_later_provider(
     if cause in ("kill", "azure_kill"):
         monkeypatch.setenv("LLM_ENABLED" if cause == "kill" else "LLM_AZURE_ENABLED", "false")
     elif cause == "expired":
-        monkeypatch.setenv("LLM_AZURE_UNTIL", "2020-01-04")
+        monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2020-01-04T00:00:00+00:00")
     elif cause == "total_spent":
         monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.000001")
     sent: list[str] = []
@@ -514,3 +527,62 @@ def test_native_credit_preflight_works_without_openrouter_and_notice_keeps_usabl
                 assert notice["free_runs_allowed"]
     finally:
         process_mode.install(previous)
+
+
+async def test_goal_text_on_claude_leaves_room_for_adaptive_thinking(
+    path: str, providers: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from co_scientist.core.config import settings
+    from co_scientist.domains.chat.goal_text import generate_goal_restatement, generate_run_title
+    from co_scientist.platform.llm.admission.service import scoped_client
+    from co_scientist.platform.llm.request.backend import LitellmBackend, using_backend
+    from co_scientist.platform.llm.routing import scoped_operator_routing
+
+    monkeypatch.delenv("OPENROUTER_API_KEY")
+    monkeypatch.delenv("COSCIENTIST_TEST_DOUBLE", raising=False)
+    monkeypatch.setattr(settings, "chat_model_name", "anthropic/claude-haiku-5-5")
+    with connect(path) as conn:
+        conn.execute("UPDATE llm_routes SET slot='anthropic'")
+    bodies: list[dict[str, Any]] = []
+
+    async def send(
+        client: httpx.AsyncClient, request: httpx.Request, **kwargs: Any
+    ) -> httpx.Response:
+        if request.url.path.endswith("count_tokens"):
+            return httpx.Response(200, request=request, json={"input_tokens": 60})
+        body = json.loads(request.content)
+        bodies.append(body)
+        response = _message(refused=False)
+        # max_tokens bounds thinking and answer together; a budget under one
+        # thought is spent before any text.
+        if body["max_tokens"] < 1024:
+            response["stop_reason"] = "max_tokens"
+            response["content"] = [{"type": "thinking", "thinking": "", "signature": "s"}]
+            response["usage"]["output_tokens"] = body["max_tokens"]
+        else:
+            text = "A restatement." if len(bodies) > 1 else "Ferroptosis Targets"
+            response["content"] = [{"type": "text", "text": text}]
+        return httpx.Response(200, request=request, json=response)
+
+    def azure(client: httpx.Client, request: httpx.Request, **kwargs: Any) -> httpx.Response:
+        raise AssertionError("goal text fell back to Azure")
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", send)
+    monkeypatch.setattr(httpx.Client, "send", azure)
+    goal = "Propose experiments testing whether ferroptosis regulators can be targeted."
+    with (
+        using_backend(LitellmBackend()),
+        scoped_client("owner", db_path=path),
+        scoped_operator_routing(providers),
+    ):
+        title = await generate_run_title(goal)
+        restatement = await generate_goal_restatement(goal)
+    assert (title, restatement) == ("Ferroptosis Targets", "A restatement.")
+    assert [body["max_tokens"] for body in bodies] == [8192, 8192]
+    assert all(body["thinking"] == {"type": "adaptive"} for body in bodies)
+    assert all(body["output_config"] == {"effort": "low"} for body in bodies)
+    with connect(path) as conn:
+        rows = conn.execute(
+            "SELECT role,COUNT(refused),SUM(refused) FROM anthropic_credit GROUP BY role"
+        ).fetchall()
+        assert [tuple(row) for row in rows] == [("goal_text", 2, 0)]

@@ -11,7 +11,7 @@ on:
         options: [collect, compare, preflight, launch-report]
         default: collect
       model:
-        description: Explicit model; OpenRouter free default or authorized anthropic/azure route
+        description: Explicit model; OpenRouter free default or authorized anthropic route
         type: string
         default: openrouter/inclusionai/ling-3.1-flash
       main_runs:
@@ -67,10 +67,6 @@ jobs:
         env:
           MODEL_NAME: ${{ inputs.model }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
-          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: |
           python - <<'PYCODE'
           import json, os, socket
@@ -137,10 +133,6 @@ jobs:
         timeout-minutes: 1
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
-          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: |
           python - <<'PYCODE'
           import os
@@ -183,10 +175,6 @@ jobs:
         working-directory: ${{ env.BENCHMARK_SOURCE }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
-          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: |
           script="$GITHUB_WORKSPACE/evaluations/benchmark_transport.py"
           args=()
@@ -204,10 +192,6 @@ jobs:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
-          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: python -m evaluations.benchmark_artifact_safety benchmark-artifacts
       - name: Check the metric was written
         # Claims cluster within ideas, so treat the interval as a lower bound on the spread.
@@ -296,10 +280,6 @@ jobs:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
-          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: python -m evaluations.benchmark_artifact_safety paired-artifacts/prepared
       - name: Judge both blind report orders
         # Six orders can each reach the 600-second completion deadline.
@@ -309,10 +289,6 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           MAX_JUDGE_CALLS: ${{ inputs.max_judge_calls }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
-          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: |
           module=evaluations.benchmark_transport
           args=()
@@ -331,10 +307,6 @@ jobs:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
-          AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
         run: >-
           python -m evaluations.benchmark_artifact_safety paired-artifacts/prepared
           paired-artifacts/paired.md paired-artifacts/paired.json
@@ -386,8 +358,6 @@ jobs:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           if [[ "$MODEL_NAME" != openrouter/* || "$MAX_JUDGE_CALLS" != 4 ]]; then
             echo 'Two-goal report requires the configured free model and a four-attempt judge reservation.'
@@ -404,8 +374,6 @@ jobs:
           OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           test -f launch-artifacts/quality.md
           test -f launch-artifacts/quality.json

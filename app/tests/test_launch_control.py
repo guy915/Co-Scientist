@@ -23,6 +23,7 @@ from co_scientist.platform.db.launch_control import LaunchPausedError, read_cont
 from co_scientist.platform.db.models import RunRow, RunStatus, ScientificTask
 from fastapi.responses import StreamingResponse
 
+from tests._azure_ledger import record_azure_allowance
 from tests._client import DEFAULT_TEST_CLIENT_ID, create_run, make_client, make_operator_client
 from tests._process_mode_helpers import FakeProcessMode
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
@@ -413,7 +414,9 @@ def test_capacity_and_credit_notices_use_real_ledgers_and_never_invent_an_azure_
     monkeypatch.setattr(settings, "free_runs_globally_per_day", 20)
     monkeypatch.setenv("LLM_AZURE_ENABLED", "1")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
-    monkeypatch.setenv("LLM_AZURE_UNTIL", "2100-01-01")
+    monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2100-01-01T00:00:00+00:00")
+    monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
+    record_azure_allowance()
     with db.transaction() as conn:
         conn.execute(
             "INSERT INTO llm_spend (id,created_at,model,role,reserved_microeur,charged_microeur,"

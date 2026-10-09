@@ -23,6 +23,8 @@ from co_scientist.platform.llm.request.azure import LUNA, NANO
 from co_scientist.platform.llm.request.backend import using_backend
 from co_scientist.platform.llm.request.transport import complete_request
 
+from tests._azure_ledger import record_azure_allowance
+
 
 @pytest.fixture
 def budget(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> str:
@@ -30,9 +32,10 @@ def budget(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> str:
     monkeypatch.setenv("COSCIENTIST_DB_PATH", path)
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1")
     monkeypatch.setenv("LLM_AZURE_ENABLED", "true")
-    monkeypatch.setenv("LLM_AZURE_UNTIL", "2099-01-04")
+    monkeypatch.setenv("LLM_AZURE_EXPIRES_AT", "2099-01-04T00:00:00+00:00")
     monkeypatch.setenv("LLM_ENABLED", "true")
     monkeypatch.setenv("LLM_USD_TO_EUR", "0.88")
+    record_azure_allowance(path)
     return path
 
 
@@ -130,7 +133,7 @@ def test_failed_settlement_rolls_back_token_refund_and_stops_new_paid_calls(
         reserve_physical(_request())
 
 
-def test_total_can_increase_with_one_variable_without_resetting_history(
+def test_total_can_increase_within_the_recorded_allowance_without_resetting_history(
     budget: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     receipt = reserve_physical(_request())
@@ -224,7 +227,7 @@ async def test_kill_switch_rechecked_before_dispatch_keeps_reservation_without_h
     [
         ("LLM_TOTAL_BUDGET_EUR", ""),
         ("LLM_TOTAL_BUDGET_EUR", "nan"),
-        ("LLM_AZURE_UNTIL", "2020-01-04"),
+        ("LLM_AZURE_EXPIRES_AT", "2020-01-04T00:00:00+00:00"),
         ("LLM_AZURE_ENABLED", "false"),
         ("LLM_ENABLED", "false"),
     ],
@@ -273,7 +276,7 @@ def test_paid_reservation_is_synced_and_survives_abrupt_process_exit(
             "COSCIENTIST_DB_PATH": budget,
             "LLM_TOTAL_BUDGET_EUR": "1",
             "LLM_AZURE_ENABLED": "true",
-            "LLM_AZURE_UNTIL": "2099-01-04",
+            "LLM_AZURE_EXPIRES_AT": "2099-01-04T00:00:00+00:00",
             "LLM_ENABLED": "true",
             "LLM_USD_TO_EUR": "0.88",
             "LITELLM_LOCAL_MODEL_COST_MAP": "True",

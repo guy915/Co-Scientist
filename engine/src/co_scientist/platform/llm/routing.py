@@ -34,7 +34,7 @@ from co_scientist.platform.llm.admission.service import (
 )
 from co_scientist.platform.llm.admission.spend import (
     SpendConfig,
-    azure_config,
+    paid_dispatch_config,
     require_enabled,
     scoped_run_spending,
 )
@@ -141,7 +141,7 @@ def available_slots(path: str) -> RoutingAdmission:
             )
         ):
             try:
-                azure = azure_config()
+                azure = paid_dispatch_config(path)
                 slots.append("azure")
             except ProviderAdmissionError:
                 pass
