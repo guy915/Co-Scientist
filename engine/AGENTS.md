@@ -109,10 +109,12 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
 - Depth goes to finalists (`science/scheduling/funnel.py`). Every idea gets the
   safety screen, one screening review and the tournament. Full, observation
   and simulation reviews, deep verification and claim checks run once each for
-  the top 3, 5, 6 or 8 ideas by Elo (express, standard, extended, ultra). A
-  blocked idea gets one bounded recheck review, and the claim gate also
-  reassesses evidence-blocked ideas. Terminal depth never follows a budget, clock, task-count or safety
-  stop, or passes the call ceiling (`tests/test_funnel.py`).
+  the top 3, 5, 6 or 8 ideas by Elo (express, standard, extended, ultra). An
+  idea blocked on accuracy or novelty gets one recheck review (at most 24 per
+  run, none in the terminal pass), and the claim gate also reassesses
+  evidence-blocked ideas. Terminal depth never follows a budget, clock,
+  task-count or safety stop, or passes the call ceiling
+  (`tests/test_funnel.py`).
 - Per-hypothesis work multiplies by pool size and iterations. Review research is
   capped per hypothesis (`platform/retrieval/research_adapter`:
   `review_budget_for_tier`, 4 threads on extended and 5 on ultra) and per cycle
@@ -147,7 +149,8 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   the test double, or a test fake (`tests/_llm_fake.py`: `install_fake_llm`,
   `patch_acompletion`). The registry is a module global, not a `ContextVar`, and
   holds no asyncio primitive. Tests install a fake backend instead of patching
-  litellm, except tests of `LitellmBackend` itself and the outbound guard. Fakes
+  litellm, except tests of `LitellmBackend` itself, the outbound guard and the
+  SDK's global routing settings. Fakes
   skip operator routing, so routing tests wrap `LitellmBackend`
   (`app/tests/test_w4_provider_order.py`).
 - **One retry loop.** `attempts/retry.py::run_attempts` serves `call_llm` (3
@@ -234,7 +237,8 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   `platform/llm/tools/loop.py::_drop_dead_context` applies the `transcript.py`
   elisions in order: superseded writes, aged evidence, repeated papers
   (`tests/test_llm_tool_loop.py` pins ageing before dedup). Reaching a ceiling
-  buys one closing turn without tools (`loop.py::_harvest_partial_answer`).
+  buys one closing turn without tools
+  (`platform/llm/tools/loop.py::_harvest_partial_answer`).
 - Science skills: `platform/sandbox/skills/` reads `vendor/science-skills/`
   only when `COSCIENTIST_SKILLS_DIR` is set (the API image sets it) and runs
   scripts with the prebuilt `COSCIENTIST_SKILLS_PYTHON`, because uv cannot run
@@ -264,7 +268,8 @@ lookups, deployed as the `mcp` service.
   only loopback callers with `COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1`
   pass. A healthy `GET /` with every tool call refused means a missing or
   mismatched secret.
-- Adding a tool: write it in `tools/` with tests in `tests/`, register it in
+- Adding a tool: write it in `mcp_server/tools/` with tests in
+  `mcp_server/tests/`, register it in
   `_MCP_TOOLS` (`server.py`, the single source for registration and the `GET /`
   manifest), declare it in `platform/retrieval/config/tools.yaml` with a
   matching `mcp_tool_name`, list it in each workflow that should use it (the

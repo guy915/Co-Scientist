@@ -22,6 +22,7 @@ defines terms such as tier, cohort, lease, fan-out and BYOK.
 | `evaluations/` | Offline evaluation gates, the manual live quality benchmark, and repository guards in `tests/`. Not installable: run `python -m evaluations.<module>` from the root ([README](evaluations/README.md)). |
 | `e2e/` | Playwright suites: `tests/` (dev server), `production/` (built assets), `support/` ([README](e2e/README.md)). |
 | `docs/` | Live documentation, indexed by [docs/README.md](docs/README.md): start with `ARCHITECTURE.md` and `RUNNING-LOCALLY.md`; decisions in `adr/`. |
+| `scripts/` | Gate selection (`presubmit.py`, `select_targets.py`), CI guards (`ci/`), the production API entrypoint. |
 | `requirements/` | Hash-pinned Python 3.12 Linux locks for the images and the reviewed license inventory ([README](requirements/README.md)). |
 | `vendor/` | Third-party code shipped as-is at a pinned revision (`NOTICE`); never edit or reformat it. `science-skills/` is Google DeepMind's Science Skills bundle, copied into the API image. |
 
@@ -43,8 +44,9 @@ is only for `make audit-deps` and locks.
 
 A real run needs a provider credential (`OPENROUTER_API_KEY` for the default
 free route); without one, requests fail with "No model is available right now".
-The gates need no key: tests, browser suites and offline evaluations strip
-provider keys and set `COSCIENTIST_TEST_DOUBLE=deterministic` (exact value).
+The gates need no key: app tests, browser suites and offline evaluation runs
+strip provider keys and set `COSCIENTIST_TEST_DOUBLE=deterministic` (exact
+value); engine tests install a fake backend.
 `COSCIENTIST_FORCE_OFFLINE` is retired: the engine and API ignore it, though a
 few evaluation scripts still treat it as a refusal guard. Default models are
 declared in `engine/src/co_scientist/core/config.py`; environment overrides
@@ -80,10 +82,10 @@ Validation section of `.github/pull_request_template.md` and link the issue
 **CI** ([docs/CI.md](docs/CI.md)): `ci.yml` runs on pull requests (a push or a
 title or body edit starts a new run and cancels the old one) and on every push
 to `main` (all but the PR-only checks and the macOS sandbox job, never
-cancelled); `nightly.yml` runs everything daily. Jobs follow
+cancelled); `nightly.yml` runs the full suite daily. Jobs follow
 `.github/ci_paths.json`, as in presubmit. The only required status is `Required
 checks`; `.github/rulesets/main.json` allows squash merges only, requires
-resolved review threads and not an up-to-date branch, so merge `main` yourself.
+resolved review threads but not an up-to-date branch, so merge `main` yourself.
 Tests never call live models, fetch external URLs or retry. `benchmark.yml` is
 a manual live benchmark that spends money; the manual `prune-branches.yml`
 deletes stale branches unless `dry_run` is set.
@@ -136,7 +138,8 @@ live in the dashboards, not in this repository.
   whose watched paths (dashboard settings) changed.
 - With `LITESTREAM_R2_BUCKET`, `_ENDPOINT`, `_ACCESS_KEY_ID` and
   `_SECRET_ACCESS_KEY` set, the API entrypoint replicates SQLite to R2 and
-  restores it onto an empty volume; otherwise it serves directly.
+  restores it when the volume has no database and a replica exists; otherwise
+  it serves directly.
 
 Three facts are load-bearing:
 
@@ -148,7 +151,7 @@ Three facts are load-bearing:
   dies in its lifespan hook, and every deploy fails its healthcheck.
 - **Caches stay off the volume.** `/app/data` holds only the SQLite store, its
   WAL and the backup supervisor's files (`Dockerfile.api`,
-  `platform/db/backup_service.py`); a full volume is an
+  `engine/src/co_scientist/platform/db/backup_service.py`); a full volume is an
   [incident](docs/INCIDENTS.md). Never put caches or outputs there.
 
 ### Trust boundaries
@@ -160,8 +163,8 @@ Three facts are load-bearing:
   routine. Ask and wait for a yes before `railway up`, `deploy`, `redeploy`,
   `restart`, `run`, `down`, variable writes, deletions, or any Cloudflare deploy
   or DNS, Worker or R2 change, including through Railway or Cloudflare tools.
-  A restart drops live SSE streams and interrupts running tasks, which resume
-  from their checkpoints.
+  A restart drops live SSE streams; interrupted runs with a checkpoint resume,
+  and the others are marked failed.
 - Keep out of commits and shared output: `.env`, `.env.local`, `app/.env`,
   `engine/mcp_server/.env`, provider keys and other secrets
   (`COSCIENTIST_MCP_SHARED_SECRET`, `LOGS_ADMIN_TOKEN`, `BYOK_ENCRYPTION_KEY`,
@@ -175,8 +178,9 @@ Three facts are load-bearing:
   preserve third-party notices.
 - A new runtime dependency goes in its `pyproject.toml` (or
   `requirements/skills.in`); regenerate the lock with the command in
-  [requirements/README.md](requirements/README.md), add its license to
-  `requirements/licenses.json`, then run `make test-evaluations` and
+  [requirements/README.md](requirements/README.md), add
+  `requirements/licenses.json` entries for it and every new distribution the
+  lock pulls in (on the `allowed` list), then run `make test-evaluations` and
   `make docker-build`. Never edit lock hashes by hand. Read
   [advisory reachability](docs/OPERATIONS.md#advisory-reachability) before
   mounting LiteLLM proxy routes or adding FastMCP OAuth or a disk-backed store.

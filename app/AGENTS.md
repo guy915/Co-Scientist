@@ -86,8 +86,9 @@ inline.
   `platform/db/schema.py` and, for a deployed table, as a
   `(table, column, declaration)` entry in `schema.ADDED_COLUMNS`, which startup
   applies idempotently; a `NOT NULL` column needs a `DEFAULT`.
-- Run events are append-only, except the resume and replay cleanup in
-  `orchestration/repository/runs_views.py::clear_run_derived_data`.
+- Run events are append-only, except that legacy-resume cleanup
+  (`orchestration/repository/runs_views.py::clear_run_derived_data`) deletes
+  all but `scientist.outcome`, `status` and `lifecycle` events.
 
 ### Requests, ownership and admission
 
