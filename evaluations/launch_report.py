@@ -16,7 +16,6 @@ from evaluations._paired_judge import Judge, live_judge, recorded_judge
 from evaluations.benchmark_artifact_safety import check_artifacts
 
 GOALS = ("cell-biology", "battery-materials")
-OWNER_SCOPE = 6066619391
 
 
 def download_manifest(repository: str, main_runs: str, branch_runs: str, directory: Path) -> Path:
@@ -153,11 +152,10 @@ def report(snapshots: dict[str, dict[str, Snapshot]], judge: Judge) -> dict[str,
     summary["noise"] = (
         f"n={len(rows)} complete goal pairs. {measured}Swapped report "
         "orders are one paired judgment, not independent samples. No equivalence or small "
-        "quality loss is established. Completion/delivery concerns need owner review. "
-        "Hydrology was dropped by the owner; unfinished slots are not run."
+        "quality loss is established. Completion/delivery concerns require review. "
+        "Hydrology is outside this two-goal report; unfinished slots are not run."
     )
     return {
-        "owner_scope": OWNER_SCOPE,
         "requested_goals": list(GOALS),
         "dropped_goals": {"urban-hydrology": "not run"},
         "runs": {
@@ -208,7 +206,7 @@ def markdown(result: dict[str, Any]) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Owner-scoped two-goal launch report.")
+    parser = argparse.ArgumentParser(description="Two-goal paired quality report.")
     parser.add_argument("manifest", type=Path, nargs="?")
     parser.add_argument("--download", action="store_true")
     parser.add_argument("--repository", default=os.getenv("GITHUB_REPOSITORY", ""))
