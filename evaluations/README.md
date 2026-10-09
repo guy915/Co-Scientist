@@ -409,7 +409,7 @@ Answers come from the offline filler with the call meter's realism rules
 no upstream fails, throttles or times out, and none is cancelled. Treat the
 total as a floor for a live run, not a bound. Hypothesis IDs seed the answers,
 so counts move by a few percent between runs; compare ranges, not single runs.
-The table adds the rest of the owner's live W4 sequence (a cache wave of 8
+The table adds the rest of a full live check sequence (a cache wave of 8
 attempts and up to 20 for judging) and compares it with the 270-attempt
 operational limit; it reports, and never adjusts, a total above it.
 `ENGINE_DIR=<checkout>/engine` measures another checkout for a before/after

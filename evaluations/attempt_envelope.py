@@ -39,10 +39,10 @@ GOAL = (
     "Identify mechanisms by which macromolecular crowding changes the folding pathway "
     "of intrinsically disordered proteins in bacterial cytoplasm."
 )
-# The rest of the W4 sequence: a paired cache wave of eight calls and up to
+# The rest of a live check sequence: a paired cache wave of eight calls and up to
 # ten judged comparisons with one count_tokens each (20 HTTP attempts).
 CACHE_WAVE_ATTEMPTS = 8
-EQ_JUDGING_ATTEMPTS = 20
+JUDGING_ATTEMPTS = 20
 OPERATIONAL_LIMIT = 270
 
 _FAKE_KEY = "offline-envelope-not-a-key"
@@ -419,7 +419,7 @@ def _drive(arm: str, engine_dir: Path, workdir: Path, mcp_counts: Path) -> dict[
 
 def _sequence(arms: dict[str, dict[str, Any]]) -> dict[str, Any]:
     llm = sum(arm["llm_total"] for arm in arms.values()) + CACHE_WAVE_ATTEMPTS
-    llm += EQ_JUDGING_ATTEMPTS
+    llm += JUDGING_ATTEMPTS
     source = sum(arm["source_total"] for arm in arms.values())
     total = llm + source
     return {
@@ -444,9 +444,9 @@ def _table(arms: dict[str, dict[str, Any]], sequence: dict[str, Any]) -> str:
         "| final report | " + " | ".join(str(arms[a]["final_report"]) for a in names) + " |"
     )
     lines.append(
-        f"\nW4 sequence: {sequence['total']} attempts (LLM {sequence['llm_total']}, "
+        f"\nLive check sequence: {sequence['total']} attempts (LLM {sequence['llm_total']}, "
         f"sources {sequence['source_total']}, including cache wave {CACHE_WAVE_ATTEMPTS} "
-        f"and EQ judging {EQ_JUDGING_ATTEMPTS}); limit {OPERATIONAL_LIMIT}: "
+        f"and judging {JUDGING_ATTEMPTS}); limit {OPERATIONAL_LIMIT}: "
         f"{'within' if sequence['within_limit'] else 'ABOVE'}"
     )
     return "\n".join(lines)

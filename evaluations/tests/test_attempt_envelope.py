@@ -107,7 +107,7 @@ def test_fake_eutils_answers_each_requested_pmid_once_per_request() -> None:
     assert counter.counts["pubmed_ncbi"] == 3
 
 
-def test_the_w4_total_adds_the_fixed_waves_and_is_never_fitted_to_the_limit() -> None:
+def test_the_live_check_total_adds_the_fixed_waves_and_is_never_fitted_to_the_limit() -> None:
     arms = {
         name: {"llm_total": llm, "source_total": source, "final_report": True}
         for name, llm, source in (("anthropic", 100, 90), ("azure", 50, 60))
@@ -115,7 +115,7 @@ def test_the_w4_total_adds_the_fixed_waves_and_is_never_fitted_to_the_limit() ->
 
     sequence = attempt_envelope._sequence(arms)
 
-    extra = attempt_envelope.CACHE_WAVE_ATTEMPTS + attempt_envelope.EQ_JUDGING_ATTEMPTS
+    extra = attempt_envelope.CACHE_WAVE_ATTEMPTS + attempt_envelope.JUDGING_ATTEMPTS
     assert sequence["llm_total"] == 150 + extra
     assert sequence["source_total"] == 150
     assert sequence["total"] == 300 + extra
