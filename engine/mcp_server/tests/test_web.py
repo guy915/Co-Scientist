@@ -416,6 +416,122 @@ class TestWebSearchProviders:
         assert ["brave" if "brave" in url else "tavily" for url, _ in client.calls] == asked
 
 
+def _error_response(status: int, body: Any) -> httpx.Response:
+    request = httpx.Request("GET", "https://example.invalid/search")
+    if isinstance(body, str):
+        return httpx.Response(status, text=body, request=request)
+    return httpx.Response(status, json=body, request=request)
+
+
+def _brave_error(status: int, code: str) -> httpx.Response:
+    # Shape of Brave's documented APIErrorResponse.
+    return _error_response(
+        status,
+        {"type": "ErrorResponse", "error": {"id": "e", "status": status, "code": code}},
+    )
+
+
+_TAVILY_FOUND = {"results": [{"title": "found", "url": "https://e.com"}]}
+_BRAVE_FOUND = {"web": {"results": [{"title": "brave", "url": "https://b.com"}]}}
+
+
+def _asked(client: Any) -> list[str]:
+    return ["brave" if "brave" in url else "tavily" for url, _ in client.calls]
+
+
+@pytest.mark.usefixtures("_clear_credential_state")
+class TestQuotaAndRateLimits:
+    @pytest.mark.parametrize("code", ["QUOTA_LIMITED", "USAGE_LIMIT_EXCEEDED", "CREDIT_EXHAUSTED"])
+    async def test_an_exhausted_brave_allowance_is_a_refusal_that_moves_to_tavily(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any, code: str
+    ) -> None:
+        keys(brave=True, tavily=True)
+        client = stub_responses(monkeypatch, _brave_error(429, code), _TAVILY_FOUND, _TAVILY_FOUND)
+
+        assert (await search_web("first"))["records"]
+        assert (await search_web("second"))["records"]
+
+        assert _asked(client) == ["brave", "tavily", "tavily"]
+        recorded = web_search_credential_error()
+        assert recorded is not None
+        assert (recorded["provider"], recorded["status"]) == ("brave", 429)
+
+    @pytest.mark.parametrize(
+        "throttle",
+        [_brave_error(429, "RATE_LIMITED"), _error_response(429, "Too Many Requests")],
+    )
+    async def test_a_brave_rate_limit_moves_only_this_query_to_tavily(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any, throttle: httpx.Response
+    ) -> None:
+        keys(brave=True, tavily=True)
+        client = stub_responses(monkeypatch, throttle, _TAVILY_FOUND, _BRAVE_FOUND)
+
+        assert (await search_web("first"))["records"][0]["title"] == "found"
+        assert (await search_web("second"))["records"][0]["title"] == "brave"
+
+        assert _asked(client) == ["brave", "tavily", "brave"]
+        assert web_search_credential_error() is None
+
+    async def test_a_tavily_rate_limit_moves_this_query_to_brave(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any
+    ) -> None:
+        keys(brave=True, tavily=True, prefer="tavily")
+        tavily_throttle = _error_response(
+            429,
+            {"detail": {"error": "Your request has been blocked due to excessive requests."}},
+        )
+        client = stub_responses(monkeypatch, tavily_throttle, _BRAVE_FOUND)
+
+        assert (await search_web("q"))["records"][0]["title"] == "brave"
+        assert _asked(client) == ["tavily", "brave"]
+        assert web_search_credential_error() is None
+
+    @pytest.mark.parametrize("status", [432, 433])
+    async def test_an_exhausted_tavily_plan_is_a_refusal(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any, status: int
+    ) -> None:
+        keys(tavily=True)
+        stub_responses(monkeypatch, _error_response(status, {"detail": {"error": "limit"}}))
+
+        assert (await search_web("q"))["status"] == "failed"
+        recorded = web_search_credential_error()
+        assert recorded is not None
+        assert (recorded["provider"], recorded["status"]) == ("tavily", status)
+
+    async def test_when_every_provider_is_throttled_each_is_asked_once(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any
+    ) -> None:
+        keys(brave=True, tavily=True)
+        client = stub_responses(
+            monkeypatch, _brave_error(429, "RATE_LIMITED"), _error_response(429, "slow down")
+        )
+
+        results = await search_web("q")
+
+        assert (results["status"], results["error"]) == ("failed", "HTTP 429")
+        assert _asked(client) == ["brave", "tavily"]
+        assert web_search_credential_error() is None
+
+    async def test_brave_is_probed_again_once_every_provider_has_refused(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any
+    ) -> None:
+        keys(brave=True, tavily=True)
+        client = stub_responses(
+            monkeypatch,
+            _brave_error(429, "QUOTA_LIMITED"),
+            _error_response(432, {"detail": {"error": "limit"}}),
+            _BRAVE_FOUND,
+            _BRAVE_FOUND,
+        )
+
+        assert (await search_web("month ends"))["status"] == "failed"
+        assert (await search_web("month resets"))["records"]
+        assert (await search_web("next"))["records"]
+
+        assert _asked(client) == ["brave", "tavily", "brave", "brave"]
+        assert await check_web_search_available() is True
+
+
 @pytest.mark.usefixtures("_clear_credential_state")
 @pytest.mark.parametrize(
     ("requested", "recency", "count", "freshness"),
