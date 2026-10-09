@@ -794,8 +794,8 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
           <h2 className={H2_CLASSES}>Start with a question.</h2>
           <p className="m-[16px_0_28px] max-w-[30rem] text-[1.15rem] leading-[1.55] opacity-80">
             Describe what you want to find out.{' '}
-            <span className="whitespace-nowrap">Co-Scientist</span> asks
-            what a strong answer needs, then sends its agents to work.
+            <span className="whitespace-nowrap">Co-Scientist</span> asks what a
+            strong answer needs, then sends its agents to work.
           </p>
           <Button variant="tonal" size="lg" onClick={onStart}>
             Start a research goal

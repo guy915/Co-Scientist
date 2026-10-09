@@ -6,8 +6,8 @@ export function PrivacyContent() {
       <section>
         <h2>Who is responsible</h2>
         <p>
-          Co-Scientist is operated by Guy Barel, its individual owner in
-          the Netherlands, who is the controller of the personal data described
+          Co-Scientist is operated by Guy Barel, its individual owner in the
+          Netherlands, who is the controller of the personal data described
           here. Contact{' '}
           <ExternalLink href="mailto:guy.barel@open-coscientist.com">
             guy.barel@open-coscientist.com
