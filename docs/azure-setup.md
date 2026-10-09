@@ -35,7 +35,7 @@ higher tiers require BYOK. No Mistral slot remains.
 | `LLM_AZURE_UNTIL` | ISO date; stop at its UTC start, even after new funding |
 | `LLM_USD_TO_EUR` | `0.88` |
 | `AZURE_OPENAI_API_KEY` | secret, API service only |
-| `AZURE_OPENAI_ENDPOINT` | resource HTTPS origin ending `.openai.azure.com` or `.services.ai.azure.com` |
+| `AZURE_OPENAI_ENDPOINT` | resource HTTPS origin `https://<resource>` + `.openai.azure.com`, `.services.ai.azure.com` or `.cognitiveservices.azure.com`; no path, port or query |
 | `AZURE_OPENAI_API_VERSION` | `v1` |
 | `AZURE_OPENAI_SUPERVISOR_DEPLOYMENT` | `coscientist-supervisor-luna` |
 | `AZURE_OPENAI_WORKER_DEPLOYMENT` | `coscientist-worker-nano` |

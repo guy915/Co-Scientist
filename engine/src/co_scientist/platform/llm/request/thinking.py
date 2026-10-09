@@ -317,6 +317,10 @@ def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
 
 
 def thinking_safe_max_tokens(model_name: str, answer_tokens: int) -> int:
+    if model_name == "anthropic/claude-haiku-5-5":
+        # Adaptive thinking spends this budget before the answer. Dispatch
+        # clamps it to the role's output limit under the call's own policy.
+        return max(answer_tokens, THINKING_FLOOR_MAX_TOKENS)
     result: int = effective_max_tokens(model_name, answer_tokens, True)
     return result
 

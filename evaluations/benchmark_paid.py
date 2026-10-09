@@ -18,6 +18,7 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 
 import httpx
+from co_scientist.core.azure_endpoint import resource_origin
 
 if TYPE_CHECKING:
     from co_scientist.platform.llm.request.backend import CompletionBackend
@@ -54,22 +55,10 @@ def configure(provider: str, model: str) -> tuple[str, str]:
         key = os.getenv("AZURE_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY")
         if not key or not key.strip():
             raise ValueError("paid benchmark requires an Azure provider key")
-        base = os.getenv("AZURE_API_BASE", "").rstrip("/")
-        parsed = urlsplit(base)
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or not parsed.hostname.endswith(
-                (".openai.azure.com", ".services.ai.azure.com", ".cognitiveservices.azure.com")
-            )
-            or parsed.username
-            or parsed.password
-            or parsed.query
-            or parsed.fragment
-            or parsed.path
-            or parsed.port not in (None, 443)
-        ):
+        origin = resource_origin(os.getenv("AZURE_API_BASE", ""))
+        if origin is None:
             raise ValueError("paid benchmark requires an HTTPS Azure resource endpoint")
+        base = origin
         version = os.getenv("AZURE_API_VERSION", "")
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:-preview)?", version):
             raise ValueError("paid benchmark requires an explicit Azure API version")

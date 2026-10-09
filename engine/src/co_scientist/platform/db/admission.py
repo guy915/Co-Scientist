@@ -211,10 +211,12 @@ def settle_provider(
     used_tokens: int,
     money: tuple[int, int, int, int | None, int | None] | None = None,
     credit_money: tuple[int, int, int, int, int] | None = None,
+    *,
+    refused: bool | None = None,
 ) -> None:
     with transaction(receipt.db_path, durable=receipt.paid or receipt.credit) as conn:
         if money is not None:
-            settle_spend(conn, receipt.id, *money)
+            settle_spend(conn, receipt.id, *money, refused=refused)
         if credit_money is not None:
             charged, prompt, output, cached, written = credit_money
             settle_credit_amount(
@@ -225,6 +227,7 @@ def settle_provider(
                 output=output,
                 cached=cached,
                 written=written,
+                refused=refused,
             )
         row = conn.execute(
             "SELECT * FROM provider_token_reservations WHERE id=? AND used_tokens IS NULL",

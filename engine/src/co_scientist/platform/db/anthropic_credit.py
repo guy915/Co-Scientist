@@ -108,6 +108,7 @@ def settle_credit_amount(
     output: int,
     cached: int,
     written: int,
+    refused: bool | None = None,
 ) -> None:
     row = conn.execute(
         "SELECT reserved_microusd FROM anthropic_credit WHERE id=?", (receipt,)
@@ -116,6 +117,6 @@ def settle_credit_amount(
         raise ProviderAdmissionError(UNAVAILABLE)
     conn.execute(
         "UPDATE anthropic_credit SET charged_microusd=?,settled=1,prompt_tokens=?,output_tokens=?,"
-        "cached_tokens=?,cache_write_tokens=? WHERE id=? AND settled=0",
-        (charged, prompt, output, cached, written, receipt),
+        "cached_tokens=?,cache_write_tokens=?,refused=? WHERE id=? AND settled=0",
+        (charged, prompt, output, cached, written, refused, receipt),
     )
