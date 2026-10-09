@@ -50,8 +50,9 @@ The reference deployments are Sweden Central Global Standard:
 `coscientist-worker-nano` (gpt-5-nano, 2025-08-07). Remaining provider credits
 and their expiry come from the portal. Exact expiry time and Luna's
 short/long price boundary are unknown. Nano cached input is $0.01/M.
-Each deployment has 1,000 TPM / 1 RPM. This cannot fit the existing 18k
-reasoning allowance; usable quota is an operator setup step. No quota is
+Since 9 Oct 2026, `coscientist-supervisor-luna` has 100K TPM and
+`coscientist-worker-nano` has 300K TPM. TPM is a rate limit, not a cost;
+spend is bounded by the recorded allowance. No quota is
 changed by this implementation. There is no live model quality receipt.
 
 ## Validation status

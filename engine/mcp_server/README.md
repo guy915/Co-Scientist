@@ -58,7 +58,11 @@ or quota refusal falls through to the next provider; a successful empty
 answer does not. Refusal covers HTTP 401/402/403, Tavily 432/433 and Brave's
 `QUOTA_LIMITED`, `USAGE_LIMIT_EXCEEDED` or `CREDIT_EXHAUSTED` codes (sent with
 429). Any other 429 moves only that query to the next provider, without retry.
-A refused provider is asked again once every provider has refused.
+A refused provider is asked again once every provider has refused. A Brave
+quota refusal is also lifted for the first search after the longest window in
+its `X-RateLimit-Reset` header (seconds from now, e.g. `1, 1419704`), or after
+24 hours when that header is missing or unreadable; a key refusal stays until
+restart.
 `check_web_search_available` reports observed refusals.
 
 `COSCIENTIST_MCP_SHARED_SECRET` must match on server and engine; MCP calls
