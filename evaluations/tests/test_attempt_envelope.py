@@ -107,6 +107,17 @@ def test_fake_eutils_answers_each_requested_pmid_once_per_request() -> None:
     assert counter.counts["pubmed_ncbi"] == 3
 
 
+def test_fake_eutils_answers_a_pmc_batch_with_one_article_per_id() -> None:
+    counter = wire.AttemptCounter()
+    handler = wire.FakeEutils(counter)
+    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=910,920"
+
+    articles = _eutils(handler, url)
+
+    assert [node.text for node in articles.iter("article-id")] == ["PMC910", "PMC920"]
+    assert counter.counts["pubmed_ncbi"] == 1
+
+
 def test_the_live_check_total_adds_the_fixed_waves_and_is_never_fitted_to_the_limit() -> None:
     arms = {
         name: {"llm_total": llm, "source_total": source, "final_report": True}

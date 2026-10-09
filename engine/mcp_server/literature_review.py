@@ -9,6 +9,7 @@ from Bio import Entrez
 from mcp_server.cache_privacy import PUBLIC_PAPERS
 from mcp_server.entrez import entrez_call
 from mcp_server.log_privacy import failure_summary
+from mcp_server.pmc_articles import split_pmc_articles, unavailable_pmc_ids
 from mcp_server.pubmed_client import _EntrezClient
 from mcp_server.pubmed_storage import (
     confined_path,
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 # Marks a book record, which has no journal metadata but is not a failure.
 _BOOK: Literal["book"] = "book"
+
+# Full articles run to hundreds of kilobytes each; keep one response bounded.
+PMC_BATCH_SIZE = 20
 
 
 def _validate_pmc_id(metadata: dict[str, Any]) -> None:
@@ -143,24 +147,75 @@ class PubmedSource(_EntrezClient):
             logger.error("PMC fulltext download failed (%s)", failure_summary(exc))
             return None
 
+    def _download_pmc_fulltexts(self, pmc_ids: list[str]) -> dict[str, str]:
+        """One efetch per batch. An article the answer leaves out or cuts off
+        is fetched alone; one PMC reports unavailable is not. A failed batch is
+        logged and skipped, so an outage costs one request, not one per article."""
+        unique = list(dict.fromkeys(pmc_ids))
+        for pmc_id in unique:
+            validate_cache_identifier(pmc_id, label="PMC ID", numeric=True)
+        found: dict[str, str] = {}
+        for start in range(0, len(unique), PMC_BATCH_SIZE):
+            batch = unique[start : start + PMC_BATCH_SIZE]
+            try:
+                response = entrez_call(Entrez.efetch, db="pmc", id=",".join(batch), rettype="xml")
+                body = cast(bytes, response.read()).decode("utf-8")
+            except Exception as exc:
+                logger.error(
+                    "PMC fulltext batch of %s failed (%s)", len(batch), failure_summary(exc)
+                )
+                continue
+            articles = split_pmc_articles(body, batch)
+            found.update(articles)
+            unavailable = (unavailable_pmc_ids(body) & set(batch)) - articles.keys()
+            if unavailable:
+                logger.warning("PMC has no full text for %s articles", len(unavailable))
+            missing = [p for p in batch if p not in articles and p not in unavailable]
+            if missing:
+                found.update(self._download_pmc_fulltexts_alone(missing))
+        return found
+
+    def _download_pmc_fulltexts_alone(self, pmc_ids: list[str]) -> dict[str, str]:
+        logger.warning("PMC batch left %s articles out; fetching them alone", len(pmc_ids))
+        found: dict[str, str] = {}
+        for pmc_id in pmc_ids:
+            try:
+                found[pmc_id] = self._download_pmc_fulltext(pmc_id)
+            except Exception as exc:
+                logger.error("PMC fulltext download failed (%s)", failure_summary(exc))
+        return found
+
+    def _store_pmc_fulltexts(self, pmc_ids: list[str], slug: str, run_id: str | None) -> None:
+        try:
+            shared_dir, _run_dir = self._prepare_run_directories(slug, run_id)
+            files: dict[str, Path] = {}
+            for pmc_id in dict.fromkeys(pmc_ids):
+                validate_cache_identifier(pmc_id, label="PMC ID", numeric=True)
+                fulltext_file = confined_path(
+                    shared_dir.parent, "shared", f"{pmc_id}.fulltext.html"
+                )
+                if not fulltext_file.exists():
+                    files[pmc_id] = fulltext_file
+            fetched = self._download_pmc_fulltexts(list(files)) if files else {}
+        except Exception as exc:
+            logger.error("PMC fulltext download failed (%s)", failure_summary(exc))
+            return
+        for pmc_id, contents in fetched.items():
+            try:
+                files[pmc_id].write_text(contents, encoding="utf-8")
+            except Exception as exc:
+                logger.error("PMC fulltext cache write failed (%s)", failure_summary(exc))
+
     async def _download_fulltexts_for_papers(
         self,
         paper_ids: list[str],
         all_details: dict[str, Any],
         slug: str,
         run_id: str | None,
-        semaphore: asyncio.Semaphore,
     ) -> None:
-        async def download(paper_id: str) -> None:
-            async with semaphore:
-                await asyncio.to_thread(
-                    self.get_pubmed_fulltext,
-                    all_details[paper_id]["pmc_full_text_id"],
-                    slug,
-                    run_id,
-                )
-
-        await asyncio.gather(*(download(paper_id) for paper_id in paper_ids))
+        pmc_ids = [str(all_details[paper_id]["pmc_full_text_id"]) for paper_id in paper_ids]
+        # Entrez's blocking HTTP calls and send gate must run off the event loop.
+        await asyncio.to_thread(self._store_pmc_fulltexts, pmc_ids, slug, run_id)
 
     def _prepare_run_directories(self, slug: str, run_id: str | None) -> tuple[Path, Path | None]:
         validate_cache_identifier(slug, label="slug")
@@ -194,7 +249,6 @@ class PubmedSource(_EntrezClient):
         downloads must not change selection.
         """
         shared_dir, _run_dir = self._prepare_run_directories(slug, run_id)
-        semaphore = asyncio.Semaphore(3)
         paper_ids = self.pubmed_search_ids(
             query,
             retmax=max_papers * 3,
@@ -212,7 +266,5 @@ class PubmedSource(_EntrezClient):
             if metadata.get("pmc_full_text_id") is not None
         ][:max_papers]
         if include_fulltext:
-            await self._download_fulltexts_for_papers(
-                papers_to_use, all_details, slug, run_id, semaphore
-            )
+            await self._download_fulltexts_for_papers(papers_to_use, all_details, slug, run_id)
         return self._assemble_final_results(papers_to_use, all_details, max_papers)
