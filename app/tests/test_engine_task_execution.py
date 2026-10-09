@@ -122,11 +122,8 @@ def _seed_finalize_task(run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: s
 async def test_finalize_lease_survives_a_slow_grounding_wave(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # The assessment blocks until the heartbeat has renewed the lease several
-    # times while it runs. A fixed sleep with a renewal-count floor flakes when
-    # the loop stalls briefly on a loaded runner; waiting on the renewals
-    # themselves is load-independent, and a wave that blocks the loop can never
-    # let them happen, so the wait times out and the test fails.
+    # Wait on the renewals themselves: a fixed sleep with a count floor flaked
+    # under load, while a wave that blocks the loop still times out here.
     needed = 3
     bound_seconds = 5.0
     run = seed_run("Task-level science")

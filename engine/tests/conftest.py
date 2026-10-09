@@ -1,9 +1,36 @@
+import faulthandler
 import pathlib
+import signal
 import sys
 from collections.abc import Iterator
+from types import FrameType
 from typing import Any, ClassVar
 
 import pytest
+
+# CI cancels the engine job at 15 minutes with no stacks. A hung test fails
+# first and prints every thread's stack; the hard exit covers uninterruptible hangs.
+_HANG_SECONDS = 300
+
+
+@pytest.fixture(autouse=True)
+def _fail_a_hung_test() -> Iterator[None]:
+    def _expire(signum: int, frame: FrameType | None) -> None:
+        faulthandler.dump_traceback(file=2, all_threads=True)
+        pytest.fail(
+            f"test still running after {_HANG_SECONDS} s; thread stacks are in its stderr",
+            pytrace=False,
+        )
+
+    previous = signal.signal(signal.SIGALRM, _expire)
+    signal.alarm(_HANG_SECONDS)
+    faulthandler.dump_traceback_later(_HANG_SECONDS + 60, exit=True)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        faulthandler.cancel_dump_traceback_later()
+        signal.signal(signal.SIGALRM, previous)
 
 
 @pytest.fixture(autouse=True)
