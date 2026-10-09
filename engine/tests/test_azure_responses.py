@@ -402,16 +402,76 @@ async def test_litellm_retry_knobs_cannot_bypass_admission(monkeypatch: pytest.M
     [
         "http://test.openai.azure.com",
         "https://test.invalid",
+        "https://test.openai.azure.com.example.com",
+        "https://openai.azure.com",
+        "https://a.b.openai.azure.com",
         "https://test.openai.azure.com/path",
+        "https://test.openai.azure.com/openai/v1",
+        "https://test.cognitiveservices.azure.com/openai/deployments/x",
+        "https://test.openai.azure.com:8443",
+        "https://test.services.ai.azure.com:443x",
+        "https://test.openai.azure.com?api-version=v1",
+        "https://test.openai.azure.com#v1",
         "https://key@test.openai.azure.com",
+        "",
     ],
 )
 def test_factory_refuses_non_resource_endpoints_without_http(
     monkeypatch: pytest.MonkeyPatch, endpoint: str
 ) -> None:
-    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", endpoint)
+    _azure_environment(monkeypatch, endpoint)
     with pytest.raises(ProviderAdmissionError):
         AzureResponsesBackend.from_environment()
+
+
+def test_factory_refuses_a_dated_api_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    _azure_environment(monkeypatch, "https://test.openai.azure.com")
+    monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2025-04-01-preview")
+    with pytest.raises(ProviderAdmissionError):
+        AzureResponsesBackend.from_environment()
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "host"),
+    [
+        ("https://test.openai.azure.com", "test.openai.azure.com"),
+        ("https://test.services.ai.azure.com/", "test.services.ai.azure.com"),
+        (
+            "https://Test-Resource.cognitiveservices.azure.com/",
+            "test-resource.cognitiveservices.azure.com",
+        ),
+        ("https://test.openai.azure.com:443", "test.openai.azure.com"),
+    ],
+)
+def test_factory_sends_documented_resource_forms_to_openai_v1(
+    monkeypatch: pytest.MonkeyPatch, endpoint: str, host: str
+) -> None:
+    _azure_environment(monkeypatch, endpoint)
+    sent: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json=_response())
+
+    class MockClient(httpx.Client):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(transport=httpx.MockTransport(respond), **kwargs)
+
+    monkeypatch.setattr(httpx, "Client", MockClient)
+    backend = AzureResponsesBackend.from_environment()
+    backend._client.responses.create(model=DEPLOYMENTS[NANO], input="synthetic")
+    assert str(sent[0].url) == f"https://{host}/openai/v1/responses"
+
+
+def _azure_environment(monkeypatch: pytest.MonkeyPatch, endpoint: str) -> None:
+    for key, setting in {
+        "AZURE_OPENAI_ENDPOINT": endpoint,
+        "AZURE_OPENAI_API_KEY": "fake",
+        "AZURE_OPENAI_API_VERSION": "v1",
+        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": DEPLOYMENTS[LUNA],
+        "AZURE_OPENAI_WORKER_DEPLOYMENT": DEPLOYMENTS[NANO],
+    }.items():
+        monkeypatch.setenv(key, setting)
 
 
 @pytest.mark.parametrize("model", [LUNA, NANO])
