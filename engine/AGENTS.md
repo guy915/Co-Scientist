@@ -5,8 +5,11 @@ Python 3.12+) holds the whole server. This guide covers the package map, the
 research workflow, the LLM layer, retrieval, the sandbox and the reference MCP
 server (`mcp_server/`). The HTTP API, durable task runtime and SQLite store are
 in [app/AGENTS.md](../app/AGENTS.md), because `app/tests/` tests them. Paths
-below are relative to `src/co_scientist/` unless they start with `tests/` or
-`mcp_server/`.
+are relative to `src/co_scientist/`; under the LLM, Retrieval, Sandbox and MCP
+server headings, a path not starting with a top-level package is relative to
+that heading's package. `tests/` and `mcp_server/` are under `engine/`; paths
+starting with `engine/`, `app/`, `evaluations/` or `vendor/`, and root files,
+are from the repository root.
 
 From `engine/` (the root `make` targets wrap these):
 
@@ -28,8 +31,10 @@ mypy .                    # strict; excludes mcp_server/
 | `platform/` | `llm/`, `retrieval/`, `sandbox/`, `db/`, `telemetry/` |
 | `core/` | Config, constants, metrics, exceptions, run tiers; no I/O |
 
-- Layers, highest first: serving, main, api, orchestration, science, domains,
-  platform, core. `.importlinter` (`make arch`) also keeps the science agents
+- Layers, highest first: serving, main, api, orchestration, science, domains
+  (chat, report, safety, research_state, then documents, access and feedback),
+  platform (retrieval, then llm, sandbox and db, then telemetry), core.
+  `.importlinter` (`make arch`) also keeps the science agents
   independent of each other and confines `fastapi` to serving, main and api,
   `litellm` to `platform.llm`, `httpx` to `platform.llm` and
   `platform.retrieval`, and `sqlite3` to the store, domains and orchestration.
@@ -38,7 +43,8 @@ mypy .                    # strict; excludes mcp_server/
   invert the dependency or pass it in.
 - Inside `platform/llm`, `tests/test_agents.py` enforces the `_LAYERS` order
   and no import cycles; add a new top-level module there. A new public name
-  goes in `_EXPORTS` and the `TYPE_CHECKING` imports of `platform/llm/__init__.py`.
+  goes in `__all__`, `_EXPORTS` and the `TYPE_CHECKING` imports of
+  `platform/llm/__init__.py`.
 - Never name a package directory `cache`, `reports`, `build` or `dist`:
   `.gitignore` and `.dockerignore` drop it without an error
   ([ADR-001](../docs/adr/001-module-map.md)).
@@ -89,10 +95,12 @@ node and commits its update; `next_task_type` follows committed state, stops on
 Run size comes from the tier (`core/run_modes/__init__.py::RUN_TIER_DEFAULTS`).
 These rules keep cost bounded; a change that breaks one multiplies spend.
 
-- Tier gating is decided in one place: the app passes the tier
-  (`orchestration/engine_adapter/opts.py::_apply_capability_opts`), and only
-  `extended` and `ultra` get tool-calling drafting, executed simulation review,
-  overview review and deep research (`app/tests/test_engine_configuration.py`).
+- Only `extended` and `ultra` buy the expensive capabilities.
+  `orchestration/engine_adapter/opts.py::_apply_capability_opts` turns on
+  tool-calling drafting, executed simulation review and overview review for
+  them (`app/tests/test_engine_configuration.py`) and passes the tier on; deep
+  research is funded only by the extended and ultra tables in
+  `platform/retrieval/research_adapter/`.
 - Depth goes to finalists only (`science/scheduling/funnel.py`). Every idea gets
   the safety screen, one screening review and the tournament. Full, observation
   and simulation reviews, deep verification and claim checks run only for the
@@ -103,7 +111,7 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   capped per hypothesis (`platform/retrieval/research_adapter`:
   `review_budget_for_tier`, 4 threads on extended and 5 on ultra) and per cycle
   (`reviewed_hypothesis_limit`, 5 and 8 hypotheses). Deep verification only
-  reads a gathering already in flight (`review_evidence.researched_articles_for`)
+  reads a completed shared gathering (`review_evidence.researched_articles_for`)
   and never starts one. Check every caller's multiplicity before adding a
   per-item LLM pass to a shared helper.
 - `max_llm_calls` is a runaway cap, not an allowance, and it also gates
@@ -112,9 +120,9 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
 ## LLM layer (`platform/llm/`)
 
 - **Bounds.** Every completion has `COSCIENTIST_LLM_TIMEOUT_SECONDS` (default
-  600, `0` disables) passed to the provider and re-imposed as an
-  `asyncio.wait_for` with 30 s grace in `request/transport.py`, raising
-  `LLMTimeoutError`.
+  600, `0` disables; read in `request/completion.py`) passed to the provider
+  and re-imposed with 30 s grace as an `asyncio.wait_for` in
+  `request/transport.py`, raising `LLMTimeoutError`.
 - **One dispatch path.** Engine and app calls share
   `request/transport.py::complete_request`. `request/backend.py` holds the
   installed `CompletionBackend` (`active_backend`, `install_backend`,
@@ -126,7 +134,8 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   litellm; fakes skip operator routing, so routing tests wrap `LitellmBackend`
   (`app/tests/test_w4_provider_order.py`).
 - **One retry loop.** `attempts/retry.py::run_attempts` serves `call_llm` (3
-  attempts, the three rungs of `attempts/escalation.py::BudgetEscalation`),
+  attempts walking `attempts/escalation.py::BudgetEscalation`: as asked, raised
+  budget, thinking off; a fourth rung answers reasoning-cap refusals),
   `call_llm_json` (5; parse and schema judge in `attempts/json_attempt.py`) and
   tool turns (3 physical attempts, never spanning tool execution). It owns the
   never-retried set (`LLMTimeoutError`, `LLMCallBudgetExceededError`,
@@ -189,8 +198,9 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
 
 - Every command a node runs is confined (Linux: Landlock, seccomp, cgroups;
   macOS: Seatbelt). Where no backend can confine a command, execution tools are
-  withheld and the review reasons instead. Workspaces have no network
-  (`network_allowed=False`; `tests/test_sr04_generated_egress.py`). Script
+  withheld and the review reasons instead. Workspaces, skill scripts included,
+  have no network (`network_allowed=False`; `tests/test_sr04_generated_egress.py`),
+  although the `read_skill` preamble still claims otherwise. Script
   execution also needs the cgroup boundary described in
   [DEPLOYMENT](../docs/DEPLOYMENT.md).
 - `workspace/run_workspace.py` opens a workspace per run, per review
@@ -205,13 +215,14 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   `platform/llm/tools/transcript.py` elides superseded writes, then aged
   evidence, then repeated papers; the order is pinned by
   `tests/test_llm_tool_loop.py`. Reaching a ceiling buys one closing turn
-  without tools (`tools/loop.py::_harvest_partial_answer`).
+  without tools (`platform/llm/tools/loop.py::_harvest_partial_answer`).
 - Science skills: `platform/sandbox/skills/` reads `vendor/science-skills/`
   only when `COSCIENTIST_SKILLS_DIR` is set (the API image sets it) and runs
   scripts with the prebuilt `COSCIENTIST_SKILLS_PYTHON`, because uv cannot run
   inside the sandbox. Skills are enabled per consumer: only the drafting pass
-  (`science/generation/literature_tools/draft.py`) sets `skills_enabled`, since
-  the simulation review measured worse with them. The catalogue withholds
+  (`science/generation/literature_tools/draft.py`) gets them, through
+  `workspace/run_workspace.py::open_draft_workspace`, since the simulation
+  review measured worse with them. The catalogue withholds
   skills whose script or dependencies are missing. Credentials reach only a
   recognized vendored script, and `read_skill` paths stay inside the skill
   (`tests/test_skills_catalog.py`). Skills used are recorded in
@@ -228,10 +239,11 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
 - Every route except `GET /` needs `X-MCP-Shared-Secret` equal to
   `COSCIENTIST_MCP_SHARED_SECRET`, the same value the API holds. With no secret,
   only loopback callers with `COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1`
-  pass. A healthy `GET /` with every tool call refused means a missing secret.
+  pass. A healthy `GET /` with every tool call refused means a missing or
+  mismatched secret.
 - `_MCP_TOOLS` in `server.py` is the single source for registration and the
   `GET /` manifest. Adding a tool takes two edits: register it there and declare
-  it in `src/co_scientist/platform/retrieval/config/tools.yaml` with a matching
+  it in `platform/retrieval/config/tools.yaml` with a matching
   `mcp_tool_name` (and in `draft_generation` if the drafting model calls it).
   No test ties the two lists together.
 - Families: literature (PubMed, OpenAlex, OpenCitations, Europe PMC and its
@@ -251,8 +263,9 @@ These rules keep cost bounded; a change that breaks one multiplies spend.
   `/status` asks. Within a call, a refused provider falls through to the next
   configured one; an empty result is an answer and does not fall through.
 - `read_url` fetches model-chosen URLs: `safe_http` resolves the host and
-  rejects non-global addresses, credentials and unusual ports, re-screens each
-  redirect (5 at most), pins the validated IP, and caps size and time. The
+  rejects non-global addresses, metadata hosts, embedded credentials and
+  invalid ports, re-screens every hop (at most 5 requests), pins the validated
+  IP, and caps size and time. The
   server sits on the private network beside the API, so weakening this is SSRF.
   Page content is untrusted data, never instructions.
 - Its environment is `engine/mcp_server/.env` (template beside it); the API's

@@ -13,9 +13,10 @@ store. Backend paths below are relative to `engine/src/co_scientist/`.
 
 - From the root: `make dev-api` (`co_scientist.main:app --reload` on 8008, with
   `coscientist.db` at the root) and `make test-app` (pytest, four workers).
-  `app/Makefile` repeats these for an activated venv (`install`, `dev`, `start`,
-  `test`, `format`, `lint`, `typecheck`; format and lint cover `tests/` only).
-  `app/pyproject.toml` configures only tooling for `tests/`.
+  `app/Makefile` has similar targets for an activated venv (`install`, `dev`,
+  `start`, `test`, `format`, `lint`, `typecheck`), but its server keeps the
+  database in `app/`, its `test` runs serially, and format and lint cover
+  `tests/` only. `app/pyproject.toml` configures only tooling for `tests/`.
 - Use a server without `--reload` (`app/Makefile`'s `start`) whenever a run
   may be in flight: `--reload` restarts on any edit under `engine/src/` and
   drops the embedded worker cohort mid-task.
@@ -46,7 +47,8 @@ This is the real run path; nothing runs a workflow in-process.
   (`engine.fanout.{review,verification,reflection}.{item,aggregate}`,
   `engine.fanout.generation.{strategy,aggregate}`), tournament step
   (`engine.ranking.match`, `engine.ranking.finalize`) and `engine.finalize` is
-  its own leased, idempotent task, checkpointed through
+  its own leased, idempotent task. Items restore the planning checkpoint and
+  stop as superseded if it moved; the other tasks write checkpoints through
   `platform/db/checkpoints.py`. The vocabulary is in
   `orchestration/engine_tasks/support.py` and dispatch in its `__init__.py`.
   Lookahead and resume tasks key on `{task_type}:after:{predecessor_task_id}`.
@@ -55,8 +57,10 @@ This is the real run path; nothing runs a workflow in-process.
   Outcomes (`orchestration/task_worker/outcomes.py`): `LeaseLostError` writes
   nothing, `SupersededTaskError` completes as superseded, safety holds and
   `LLMRateLimitParkError` park, `UnsupportedTaskError` and
-  `LLMCallBudgetExceededError` fail permanently, and anything else retries
-  within its budget. Nothing automatic revives a failed task.
+  `LLMCallBudgetExceededError` fail permanently, an `LLMTimeoutError` without
+  zero-cost admission (an unknown provider outcome) fails the task and stops the
+  run, and anything else retries within its budget. Nothing automatic revives a
+  failed task.
 - Each task builds its own `HypothesisGenerator`
   (`orchestration/engine_adapter/opts.py::build_generator`); none is held across
   requests. `orchestration/engine_tasks/runtime.py` is the seam for what a task
@@ -96,8 +100,8 @@ This is the real run path; nothing runs a workflow in-process.
 - Refusals that look like bugs: 503 `launch_paused` (`api/launch_admission.py`)
   while an operator has paused launch; 413 and 429 from `api/request_limits.py`
   (256 KB JSON, 26 MB uploads, daily write budgets); 410 for an erased identity;
-  409 on start above `max_concurrent_runs` (10 per client, also capped per host
-  and per instance).
+  409 on start when active runs reach `max_concurrent_runs` (10, per client and
+  across the instance) or `concurrent_runs_per_host` (10).
 - Run size comes from the tier: `core/run_modes/__init__.py::RUN_TIER_DEFAULTS`
   (express, standard, extended, ultra) scales hypotheses, iterations,
   evolution, matches, evidence, finalists and `max_llm_calls`. Numeric
@@ -111,12 +115,13 @@ This is the real run path; nothing runs a workflow in-process.
 - App model calls (interview, Q&A, titles, run-start announcement, credential
   probes) go through `platform/llm/llm_request.py` with their own budget
   (`platform/llm/llm_scope.py`, `APP_LLM_MAX_CALLS`, default 4). Streams bound
-  silence, not duration.
+  silence and total duration separately (`llm_scope.stream_chunks`).
 - Safety: deterministic hard blocks run first. The optional semantic assessor
   may only resolve a Tier B "needs context" hold, and any assessor failure
   leaves the hold standing (`domains/safety/hypothesis/safety.py`).
-- Completion email is disabled: `orchestration/notifications.py` is a stub and
-  the `smtp_*` settings back nothing.
+- Completion email is disabled: the enqueue and delivery hooks in
+  `orchestration/notifications.py` are no-ops, and nothing calls the SMTP
+  sender that remains there.
 
 ### Routers
 
@@ -129,7 +134,8 @@ This is the real run path; nothing runs a workflow in-process.
 `POST /api/runs` honours an `Idempotency-Key`; a run's research goal cannot be
 edited; documents staged at `/api/documents` before a run exists are copied
 into it on create. The `/status` web-search probe asks the MCP server's
-`check_web_search_available`, not whether `search_web` is listed.
+`check_web_search_available` rather than whether `search_web` is listed (older
+servers without that tool fall back to presence).
 
 ### Logs
 
@@ -144,11 +150,14 @@ runs, so the frontend sends `clientHeaders()` on every read and write.
 
 ### Wire contracts
 
-Edit `api/contracts/` for run, artifact, report and interview JSON shapes, run
-`.venv/bin/python -m co_scientist.api.contracts.generate`, and format the
+Edit `api/contracts/` for run, artifact, report and interview JSON shapes; the
+status, feedback and client-log models in `api/diagnostics_api.py`,
+`api/feedback_api.py` and `api/logs_api.py` are also exported
+(`generate.py::MODEL_GROUPS`). From the repository root run
+`.venv/bin/python -m co_scientist.api.contracts.generate`, then format the
 generated `frontend/src/shared/api/wire_*.ts` with the frontend linter.
 `tests/test_architecture.py` fails when generated files drift or a contract
-name is declared by hand. Plain-dict endpoints (logs, free usage) stay
+name is declared by hand. Plain-dict payloads (log reads, free usage) stay
 hand-typed.
 
 ## Frontend (`frontend/`)
@@ -192,8 +201,9 @@ prerender), `bun run lint`, `bun run fix`, `bun run test`. Tests are colocated
 ### Design invariants
 
 - Material 3 roles derive from `MD3_SEED` `#1A6B6B` in
-  `shared/ui/md3_scheme.ts` (its test regenerates them); never hardcode
-  `--md-sys-color-*`. `index.css` bridges roles as `--color-th-*` and
+  `shared/ui/md3_scheme.ts`, whose test fails until the precomputed schemes are
+  regenerated from the seed; never hardcode `--md-sys-color-*`. `index.css`
+  bridges those roles as `--color-th-*` and the `--cosci-*` tokens as
   `--color-cosci-*`; use the named utilities.
 - `main.tsx` imports sheets in order: `index.css`, `styles/tokens.css`,
   `shell_surface.css`, `home_surface.css`, `home_landing.css`, `tooltips.css`,

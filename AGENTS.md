@@ -21,7 +21,7 @@ it, then the guide for the code you touch:
 | `evaluations/` | Offline evaluation gates, the manual live quality benchmark, and repository guards in `tests/`. Not installable: run `python -m evaluations.<module>` from the root ([README](evaluations/README.md)). |
 | `e2e/` | Playwright suites: `tests/` (dev server), `production/` (built assets), `support/` ([README](e2e/README.md)). |
 | `docs/` | Live documentation, indexed by [docs/README.md](docs/README.md): start with `ARCHITECTURE.md` and `RUNNING-LOCALLY.md`; decisions in `adr/`. |
-| `scripts/` | `presubmit.py` and `select_targets.py` (gate selection), `ci/` (CI guards), `api-entrypoint.sh` (production API start), `operations/`. |
+| `scripts/` | Gate selection (`presubmit.py`, `select_targets.py`), CI guards (`ci/`), the production API entrypoint. |
 | `requirements/` | Hash-pinned Python 3.12 Linux locks for the images and the reviewed licence inventory ([README](requirements/README.md)). |
 | `vendor/` | Third-party code shipped as-is at a pinned revision (`NOTICE`); never edit or reformat it. `science-skills/` is Google DeepMind's Science Skills bundle, copied into the API image. |
 
@@ -56,7 +56,7 @@ deployment's environment back.
 | `make lint` | Ruff (engine with `mcp_server`, `app/tests`, evaluations, gate scripts), gts on the frontend, then `make arch` |
 | `make arch` | Import contracts in `.importlinter` ([ADR-002](docs/adr/002-layering-enforcement.md)) |
 | `make typecheck` | Strict mypy on app tests, engine, evaluations and gate scripts (MCP mypy runs in `make test-mcp`) |
-| `make test-all` | Engine, app and MCP pytest (plus MCP strict mypy), evaluation tests, frontend Vitest |
+| `make test-all` | Engine, app and MCP pytest (plus MCP strict mypy), evaluation tests, frontend Vitest; each also alone as `make test-engine`, `test-app`, `test-mcp`, `test-evaluations`, `test-frontend` |
 | `make eval-smoke` | Offline safety and citation gate |
 | `make e2e` | Chromium suite on an isolated stack (API 8108, Vite 5273, fresh SQLite, test double); installs its own packages and browser after `make setup` |
 | `make e2e-production` | The same harness against built assets: deep links, reloads, headers, ownership isolation |
@@ -67,10 +67,8 @@ deployment's environment back.
 | `make docker-build` | Builds three images (api, mcp, dev UI) and validates the Compose config |
 | `make audit-deps` | Online dependency advisories (uv); separate from the offline gates |
 
-Single suites: `make test-engine`, `test-app`, `test-mcp`, `test-evaluations`,
-`test-frontend`; `make help` lists the common targets. Before pushing, merge
-current `main`, commit, and run `make presubmit`; it ignores uncommitted
-changes. Code changes also need `make check`; docs-only changes need `make lint`
+`make help` lists the common targets. Before pushing, merge current `main`,
+commit, and run `make presubmit`; it ignores uncommitted changes. Code changes also need `make check`; docs-only changes need `make lint`
 and `make test-evaluations`; launch-wide changes also need `make docker-build`.
 Record each gate's real exit status in the pull request
 ([CONTRIBUTING.md](CONTRIBUTING.md)).
@@ -94,9 +92,8 @@ PR text. Nothing checks what follows.
 
 ### Operational invariants
 
-The rationale is in [docs/OPERATIONS.md](docs/OPERATIONS.md) and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); read it before changing the code
-involved.
+Read the rationale in [OPERATIONS](docs/OPERATIONS.md) or
+[ARCHITECTURE](docs/ARCHITECTURE.md) before changing the code involved.
 
 - Never VACUUM from the serving process. Truncating WAL checkpoints run only in
   the startup prune and at shutdown, and not at all while Litestream replicates;
@@ -138,10 +135,10 @@ live in the dashboards, not in this repository.
   whose watched paths (dashboard settings) changed.
 - With `LITESTREAM_R2_BUCKET`, `_ENDPOINT`, `_ACCESS_KEY_ID` and
   `_SECRET_ACCESS_KEY` set, the API entrypoint replicates SQLite to Cloudflare
-  R2 and restores it when the volume has no database; without them it serves
+  R2 and restores it when the volume has no database; otherwise it serves
   directly.
 
-Load-bearing; read DEPLOYMENT before touching them:
+Three facts are load-bearing:
 
 - **The api runs at exactly one replica.** SQLite in WAL mode with
   `synchronous=NORMAL` is sound only with one writer; growing past one replica
@@ -163,10 +160,9 @@ Load-bearing; read DEPLOYMENT before touching them:
   `engine/mcp_server/.env`, provider keys and other secrets
   (`COSCIENTIST_MCP_SHARED_SECRET`, `LOGS_ADMIN_TOKEN`, `BYOK_ENCRYPTION_KEY`,
   `LITESTREAM_R2_*`), `coscientist.db` and its sidecars, caches, run outputs.
-- `railway status`, `railway logs` and local read-only SQLite queries are
+- `railway status`, `railway logs` and read-only local SQLite queries are
   routine. Confirm before `railway up`, `deploy`, `redeploy`, `run`, `down`,
-  variable writes or service/environment deletion, and before any Cloudflare
-  deploy or DNS, Worker or R2 change.
+  variable writes, deletions, or any Cloudflare deploy or DNS, Worker or R2 change.
 
 ### Code, dependencies and documentation
 
@@ -198,8 +194,8 @@ names as whole words, so ordinary words such as "cursor" fail too.
   Branches: `<type>/<description>`, e.g. `fix/report-tab-empty-state`.
 - PR titles are short, standalone and imperative with no type prefix (`Remove
   unused generate endpoints`); bodies say what changed, why, and how it was tested.
-- **Squash merges.** A squash copies every branch commit message into the
-  merge commit, so a trailer on a branch commit reaches `main` even when the PR
+- **Squash merges.** GitHub's squash copies every branch commit message into
+  the merge commit, so a trailer on a branch commit reaches `main` even when the PR
   body is clean. An empty squash body does not help: GitHub then fills in the
   branch commit messages. Always pass an explicit `<type>(<scope>): ` subject
   and a non-empty, neutral body, then read the merged message. Keep every
@@ -209,12 +205,11 @@ names as whole words, so ordinary words such as "cursor" fail too.
 
 - Preserve uncommitted work: never `git commit --amend`, `git reset`,
   `git stash`, `git checkout <file>` or `git restore <file>` over it; follow-ups
-  are new commits. Before final gates, inspect `git reflog -5` and
-  `git stash list`. Do not automate merges or other hard-to-reverse Git
-  operations end to end; review both sides and the intended diff.
+  are new commits. Check `git reflog -5` and `git stash list` before final
+  gates. Never automate merges or other hard-to-reverse Git operations end to end.
 - Run the app and engine suites one after the other, with no leftover local
-  `uvicorn`, and never re-run an unchanged full suite to reconfirm it. Run
-  named gates directly and record their real exit status, not via a pipeline.
-- Before calling a result unverifiable, inspect the primary source tree and
-  record the evidence. Before declaring a production probe failed, fetch the
-  artifact once and derive the assertion from its output.
+  `uvicorn`; never re-run an unchanged suite to reconfirm it. Run named gates
+  directly and record their real exit status, not through a pipeline.
+- Inspect the primary source before calling a result unverifiable. Before
+  declaring a production probe failed, fetch the artifact once and derive the
+  assertion from its output.
