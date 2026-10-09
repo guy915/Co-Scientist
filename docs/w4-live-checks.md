@@ -44,7 +44,9 @@ SHA. Verify it is on main and includes the merged W4 routing, explicit test
 adapter, spend view, E cuts and T's cache layout with stable-prefix boundaries.
 Run only after T's cache layout is merged. Read this document again at the
 announced SHA and record it. Do not substitute a later main, unpublished branch
-or unmerged T source. If source or a safety limit is missing, post W4 local run:
+or unmerged T source. The required layout is #650, merged as
+cd1bcc315cf703179e215fcfa542ed0a553692cf; the announced SHA must include it.
+If source or a safety limit is missing, post W4 local run:
 stopped with the safe reason on #453 and stop without a provider request.
 Run make setup in that checkout. Do not load local dotenv files or reuse a
 production database. Keep private exports and raw SDK logging disabled.
