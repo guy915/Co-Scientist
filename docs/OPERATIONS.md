@@ -561,8 +561,7 @@ completed and no unexpected request error occurred.
 
 The launch controller is Guy Barel, an individual in the Netherlands, contact
 `guy.barel@open-coscientist.com`. Public notices are at `/privacy` and `/terms`;
-the owner [approved both](https://github.com/guy915/Co-Scientist/issues/453#issuecomment-6060056260)
-before launch. The text is not legal advice.
+the owner approved both before launch. The text is not legal advice.
 Launch uses browser ownership identities, not email/password accounts. The
 random `X-Client-ID` is a private capability; never ask a visitor to email it.
 

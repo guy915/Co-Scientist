@@ -10,7 +10,8 @@ from urllib.parse import unquote, urlsplit
 from markdown_it import MarkdownIt
 
 
-# Owner decision on the launch board, comment 6056862442. No path-wide exceptions.
+# Pinned vendored files are never edited, so their broken links are exempt one by one.
+# No path-wide exceptions.
 PINNED_LINK_EXCEPTIONS = {
     (
         "vendor/science-skills/skills/opentargets_database/SKILL.md",

@@ -2,11 +2,11 @@
 
 Transport uses the existing gateway. BYOK uses caller keys. Express operator
 order is free OpenRouter, Haiku 5.5 Console credit, then Azure. Durable credit
-cooldown and slot selection are merged in #607 and #620. Per-user limits stay.
+cooldown and slot selection are in place. Per-user limits stay.
 Azure remains off unless the operator enables it, sets a positive total EUR
 allowance and sets an unexpired credit date.
 
-T supplies a `CacheablePrompt` from `core/prompt_cache.py`: final rendered text and two
+The prompt layer supplies a `CacheablePrompt` from `core/prompt_cache.py`: final rendered text and two
 character offsets, `run_end` and `item_end`. Appending a schema preserves these offsets.
 Templates and handwritten chat, supervisor, safety and claim builders place fixed
 instructions first, shared run evidence next, then current item data and the question.
@@ -19,8 +19,8 @@ and chat also use top-level automatic caching. A request may have at most four c
 breakpoints, including the automatic one. No delimiter from user text is interpreted.
 
 Haiku 5.5 always sends adaptive thinking and low effort, including recovery attempts.
-There is no disabled path or effort table for this slot. Only the owner changes effort
-after EQ posts paired quality results by call type. Temperature is omitted; top_p and
+There is no disabled path or effort table for this slot. Effort changes only after
+paired quality results by call type. Temperature is omitted; top_p and
 top_k are removed from both request arguments and extra body. Thinking shares max_tokens
 with answer text. Read only text content blocks, including when thinking appears first.
 The verified thinking parameter is allowed explicitly when the bundled SDK catalogue lags.
