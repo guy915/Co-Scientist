@@ -79,7 +79,7 @@ default reply completion, ContextVar isolation, silent reply/worker
 cancellation, rapid resume, stale revisions, real quota/spend notices and
 preservation of unknown paid reservations. No live provider call is needed.
 
-Use the [incident playbooks](INCIDENTS.md), [exact web/app alerts](MONITORING.md#launch-alert-settings)
+Use the [incident playbooks](INCIDENTS.md), [exact web/app alerts](MONITORING.md#alert-settings)
 and [local Litestream restore drill](RESTORE-DRILL.md) for recovery.
 
 The private operator read also returns whether Litestream replication is enabled

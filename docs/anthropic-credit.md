@@ -5,15 +5,14 @@ It is capacity between free OpenRouter routes and Azure. BYOK stays separate.
 Routing admits the slot and separately admits each Azure fallback.
 Operator runs stay Express; Standard and larger runs require BYOK.
 
-Set `ANTHROPIC_API_KEY` on the API service only. The owner claims the subscriber
-credit and links the Console organization **Open Co-Scientist**. The linked
+Set `ANTHROPIC_API_KEY` on the API service only. Claim the provider credits
+and link the Console organization **Open Co-Scientist**. The linked
 organization cannot be changed in self-service. Create the production key there.
 All keys and workspaces in that organization share the provider balance.
 
 `ANTHROPIC_MONTHLY_CREDIT_USD` defaults to `100`.
 `ANTHROPIC_BILLING_RESET_DAY` defaults to `7`; boundaries use UTC calendar dates.
-Unused credit does not roll over. The owner's first grant covers 8 October to
-7 November 2026. The application's remaining allowance is its own ledger value,
+Unused credit does not roll over. The application's remaining allowance is its own ledger value,
 not a live Console balance. Other organization usage can exhaust credit sooner.
 
 Admission includes real spend plus all outstanding reservations and stops at
