@@ -297,7 +297,7 @@ function evidenceSummary(item: Evidence, fallbackGoal: string): string {
   return (
     item.abstract ||
     'This section summarizes the concepts, protocols, and ' +
-      'methodological constraints Open Co-Scientist learned while ' +
+      'methodological constraints Co-Scientist learned while ' +
       `studying ${fallbackGoal}.`
   );
 }
@@ -313,10 +313,10 @@ function evidenceSection(
     summary: evidenceSummary(item, fallbackGoal),
     detail:
       item.source && item.year
-        ? `Source context: ${item.source}, ${item.year}. Open Co-Scientist ` +
+        ? `Source context: ${item.source}, ${item.year}. Co-Scientist ` +
           'keeps this learning available for downstream hypothesis ' +
           'generation, ranking, and synthesis.'
-        : 'Open Co-Scientist keeps this learning available for downstream ' +
+        : 'Co-Scientist keeps this learning available for downstream ' +
           'hypothesis generation, ranking, and synthesis for ' +
           `${fallbackGoal}.`,
     referenceIds: [item.id],

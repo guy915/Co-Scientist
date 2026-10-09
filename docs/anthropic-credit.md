@@ -5,19 +5,18 @@ It is capacity between free OpenRouter routes and Azure. BYOK stays separate.
 Routing admits the slot and separately admits each Azure fallback.
 Operator runs stay Express; Standard and larger runs require BYOK.
 
-Set `ANTHROPIC_API_KEY` on the API service only. The owner claims the subscriber
-credit and links the Console organization **Open Co-Scientist**. The linked
+Set `ANTHROPIC_API_KEY` on the API service only. Claim the provider credits
+and link the Console organization **Open Co-Scientist**. The linked
 organization cannot be changed in self-service. Create the production key there.
 All keys and workspaces in that organization share the provider balance.
 
 `ANTHROPIC_MONTHLY_CREDIT_USD` defaults to `100`.
 `ANTHROPIC_BILLING_RESET_DAY` defaults to `7`; boundaries use UTC calendar dates.
-Unused credit does not roll over. The owner's first grant covers 8 October to
-7 November 2026. The application's remaining allowance is its own ledger value,
+Unused credit does not roll over. The application's remaining allowance is its own ledger value,
 not a live Console balance. Other organization usage can exhaust credit sooner.
 
 Admission includes real spend plus all outstanding reservations and stops at
-95% of the configured credit. The ledger shares SR-01's short durable transaction
+95% of the configured credit. The ledger shares admission's short durable transaction
 with global, client, host and app limits. Those limits are unchanged. Input uses
 the planned model's free `count_tokens` endpoint and the existing byte bound.
 The metadata request has a separate provider rate limit; include it in the live
@@ -45,8 +44,8 @@ calls rather than release unconfirmed spend. No credit row is erased with a run.
 A refusal is billed from any returned usage and counted by call type. Routing
 separately admits Azure for that call, records the switch and stops after Azure.
 There is no server-side fallback. No measured refusal rate or cache saving is
-available from hermetic tests. EQ must post paired quality results before an
-owner changes effort. Message Batches are not implemented. The provider offers
+available from hermetic tests. Effort changes only after paired quality
+results by call type. Message Batches are not implemented. The provider offers
 a 50% discount for offline batches; live runs never use them.
 
 Sources checked 8 October 2026:

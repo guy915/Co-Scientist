@@ -6,6 +6,7 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
+from co_scientist.core.prompt_layout import render_cacheable_prompt
 from co_scientist.core.text_matching import tokenize
 from co_scientist.domains.report import repository as reports
 from co_scientist.platform.db import runs as run_ledger
@@ -606,7 +607,7 @@ class _PromptSections:
 _ANSWER_RULES = (
     "Claims about this run -- what the ideas say, how they were reviewed "
     "or ranked, how far the run has got, and what the evidence shows -- "
-    "must come ONLY from the context above and from the search_ideas "
+    "must come ONLY from the supplied context and from the search_ideas "
     "or search_run_artifacts tools. "
     "The idea index lists titles, not what the ideas say: call search_ideas "
     "before answering anything about an idea's content. If the run's "
@@ -671,13 +672,20 @@ def build_system_prompt(context: QaRunContext) -> str:
         ),
     )
     blocks = [
-        "You are a concise research assistant helping the user understand "
-        "an AI-driven hypothesis generation run.",
-        f"Research goal: {_clip(context.research_goal, 2400)}",
         "Artifact inventory (search_run_artifacts sections, record counts):\n"
-        + ", ".join(f"{key}: {len(items)}" for key, items in context.artifacts.items()),
+        + ", ".join(f"{key}: {len(context.artifacts[key])}" for key in sorted(context.artifacts)),
         *_state_sections(context),
         *_artifact_sections(sections),
-        _ANSWER_RULES,
     ]
-    return "\n\n".join(_clip(block, 8000) for block in blocks[:-1])[:24000] + "\n\n" + _ANSWER_RULES
+    introduction = (
+        "You are a concise research assistant helping the user understand "
+        "an AI-driven hypothesis generation run."
+    )
+    goal = f"Research goal: {_clip(context.research_goal, 2400)}"
+    item_limit = 24000 - len(introduction) - len(goal) - 4
+    return render_cacheable_prompt(
+        introduction + "\n\n" + _ANSWER_RULES,
+        goal,
+        "\n\n".join(_clip(block, 8000) for block in blocks)[:item_limit],
+        "Answer the user's current question using the context and retrieval tools.",
+    )

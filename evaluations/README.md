@@ -149,7 +149,7 @@ web search and literature retrieval is keyless.
   the run-to-run spread is wider than the interval. Report that rate; never
   gate changes on it. Use the paired check below to inspect quality alongside
   efficiency, and state any loss and uncertainty explicitly.
-- **Ration live runs.** Agree the whole-account daily allowance before
+- **Ration live runs.** Set the shared account daily request budget before
   collection and subtract actual attempts from the remainder before each
   dispatch. Do not benchmark changes that cannot alter model output
   (caching, backend, frontend, CI); measure those offline. Batch prompt,
@@ -233,17 +233,17 @@ completion failure, fewer delivered ideas, fewer delivered supported claims,
 a consistent main preference or missing efficiency telemetry requires review
 (exit 2). Otherwise the result is inconclusive (exit 0), never certified quality
 parity. Offline runs always require review as wiring evidence only. Live request
-allocation must be agreed before collection; judge calls count toward it.
+budget must be set before collection; judge calls count toward it.
 The live judge has a hard six-physical-request budget across all orders,
-including retries. An agreed larger allowance can be set explicitly with
+including retries. A larger request budget can be set explicitly with
 `--max-judge-calls`; exhaustion fails instead of inventing missing judgments.
 `make test-evaluations` exercises the entire replay on fake recorded SQLite
 databases with network connections forbidden and checks that inputs are unchanged.
 
 ### Fixed-goal collection
 
-Collect one main baseline per fixed goal on Express, after agreeing the daily
-physical-request allowance. Use a clean checkout, an explicit zero-priced
+Collect one main baseline per fixed goal on Express, after setting the shared daily
+physical-request budget. Use a clean checkout, an explicit zero-priced
 OpenRouter `MODEL_NAME` and `OPENROUTER_API_KEY`, with retrieval configured
 identically for both refs. No Azure or paid fallback is admitted.
 
@@ -252,8 +252,8 @@ identically for both refs. No Azure or paid fallback is admitted.
   --live --max-calls 150 --output /tmp/biology-main
 ```
 
-Repeat for `battery-materials` and `urban-hydrology`, within the agreed shared
-allowance; collection never repeats automatically. An output directory with
+Repeat for `battery-materials` and `urban-hydrology`, within the shared daily request
+budget; collection never repeats automatically. An output directory with
 an existing run database is refused. Each fresh process saves `snapshot.db`,
 `receipt.json`, `baseline.md` and `claim-support-live.json`. The receipt records
 the exact source SHA, resolved controls, dispatch count and ceiling. Use the
@@ -263,7 +263,7 @@ dispatch receipt.
 
 The live measurement launcher enforces `--max-calls` across concurrent HTTP attempts and retries
 (1–450 requests; default 150), independently of task admission counters. Set a
-larger bound only within the agreed daily remaining share; main Express may
+larger bound only within the remaining daily request budget; main Express may
 need more than 150 attempts. Track aggregate use across goals and judge calls.
 Use `python -m evaluations.benchmark_transport collect` in place of the direct
 collector command for live runs, and `python -m evaluations.benchmark_transport
@@ -271,7 +271,7 @@ compare` in place of the direct paired command for live judging. The launcher
 counts HTTP transport attempts before sending, including SDK connection replays
 and redirects. It disables hidden connect retries and records the counter's
 code/SDK identity digest in the snapshot. Zero SDK retry options alone do not disable
-OpenRouter's separate connection replay. All such attempts consume the allowance.
+OpenRouter's separate connection replay. All such attempts consume the request budget.
 Legacy receipts record backend invocations; their live HTTP count and token
 total remain unknown and require review. The artifact-based live dispatch
 rejects legacy counters before judging. An exhausted or
@@ -304,7 +304,7 @@ gh workflow run benchmark.yml --ref main -f goal_id=cell-biology \
 Its summary includes the baseline row and descriptive claim sample/interval;
 the uploaded artifact retains the checked database, snapshot and receipt even
 when the run step fails, provided the credential check passes. Dispatch the other
-goals only within the agreed remaining daily share. The workflow never runs on pull requests.
+goals only within the remaining daily request budget. The workflow never runs on pull requests.
 Collection installs the selected research engine in an isolated clean worktree
 and uses the dispatched measurement launcher outside it. This instruments older
 research refs without editing them; receipts retain the actual research SHA and
@@ -328,7 +328,7 @@ independent request receipts, then judges the reports through the existing
 free-route secret. It emits one table and JSON with both order judgments,
 sample size and uncertainty. Review-required results exit 2 and retain their
 artifacts; failed validation spends no judge requests. Allow for all judge
-attempts in the agreed daily share, and conservatively charge its ceiling if
+attempts in the shared daily request budget, and conservatively charge its ceiling if
 interruption prevents a final usage receipt. Download artifacts before their
 14-day expiry if they will be reused.
 
@@ -339,9 +339,9 @@ file. Then run the recorded-judgment command above against
 `replay/prepared/pairs.json`. No network is used unless `--download` or
 `--live-judge` is explicitly selected.
 
-### Authorized Claude or Azure cohort
+### Native Anthropic or Azure cohort
 
-The owner's shared monetary allowance must cover the run: the HTTP ceiling
+The shared monetary budget must cover the run: the HTTP ceiling
 alone does not enforce a shared money ledger. Resolve
 the money reservation and billing controls before provider-backed collection.
 The `operation=preflight` workflow checks native configuration with sockets
@@ -359,7 +359,7 @@ Claude requires `ANTHROPIC_API_KEY`. Azure requires `AZURE_API_KEY` or
 `AZURE_OPENAI_API_KEY`, `AZURE_API_BASE` (an HTTPS Azure resource root) and
 `AZURE_API_VERSION`. Set these in the execution environment or existing repository
 secrets, never in workflow inputs or committed files. The paid path uses the
-owner's explicit key scope; operator-only Azure deployments retain their existing
+credential owner's explicit key scope; operator-only Azure deployments retain their existing
 restriction and are not converted into BYOK routes. Missing configuration refuses
 execution before provider calls. Other provider credentials and dotenv loading
 are disabled. Claude/Azure keys join the artifact credential guard.

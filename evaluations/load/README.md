@@ -115,7 +115,7 @@ docker compose -f evaluations/load/compose.yml down --volumes --remove-orphans
 ```
 
 Measured launch receipts are in [measurements/launch-2026-10-08](measurements/launch-2026-10-08/README.md),
-with qualified owner capacity and spike steps in [OPERATIONS.md](../../docs/OPERATIONS.md#launch-load-and-capacity).
+with qualified capacity and spike steps in [OPERATIONS.md](../../docs/OPERATIONS.md#load-and-capacity).
 Raw logs, generated reports and disposable data remain ignored. The source
 revision records the harness checkout, not necessarily an overridden image's
 source: preserve the image ID and describe its exact source in a published

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Collect, compare, report reduced launch slots, or check native configuration
+        description: Collect, compare, report two goal pairs, or check native configuration
         type: choice
         options: [collect, compare, preflight, launch-report]
         default: collect
@@ -21,7 +21,7 @@ on:
         description: Three branch IDs for compare; biology,battery IDs or not-run slots for launch-report
         type: string
       max_judge_calls:
-        description: Physical judge ceiling within the daily share; launch-report requires 4
+        description: Physical judge ceiling within the daily request budget; launch-report requires 4
         type: number
         default: 6
       tier:
@@ -39,7 +39,7 @@ on:
         type: string
         default: main
       max_calls:
-        description: Physical request ceiling (1-450, within the agreed daily remaining share)
+        description: Physical request ceiling (1-450, within the remaining daily request budget)
         type: number
         default: 150
       label:
@@ -361,7 +361,7 @@ jobs:
           if-no-files-found: warn
   launch-report:
     if: inputs.operation == 'launch-report'
-    name: Reduced launch quality report (${{ inputs.label }})
+    name: Two-goal quality report (${{ inputs.label }})
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -374,7 +374,7 @@ jobs:
           persist-credentials: false
       - name: Set up backend
         uses: ./.github/actions/setup-backend # zizmor: ignore[self-repository]
-      - name: Validate, guard and judge the retained launch slots
+      - name: Validate, guard and judge the two goal pairs
         timeout-minutes: 60
         env:
           GH_TOKEN: ${{ github.token }}
@@ -390,7 +390,7 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
         run: |
           if [[ "$MODEL_NAME" != openrouter/* || "$MAX_JUDGE_CALLS" != 4 ]]; then
-            echo 'Launch report requires the agreed free model and a four-attempt judge reservation.'
+            echo 'Two-goal report requires the configured free model and a four-attempt judge reservation.'
             exit 1
           fi
           python -m evaluations.launch_report --download \
@@ -411,7 +411,7 @@ jobs:
           test -f launch-artifacts/quality.json
           python -m evaluations.benchmark_artifact_safety \
             launch-artifacts/quality.md launch-artifacts/quality.json
-      - name: Report launch quality
+      - name: Report paired quality
         if: always() && steps.report_safety.outcome == 'success'
         run: cat launch-artifacts/quality.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload checked report only

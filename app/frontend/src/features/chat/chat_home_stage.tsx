@@ -110,7 +110,7 @@ function HomeScrollHint() {
       layoutClassName="reference-home-scroll-hint"
       onClick={onClick}
     >
-      Scroll to see how Open Co-Scientist works
+      Scroll to see how Co-Scientist works
     </Button>
   );
 }
@@ -411,7 +411,7 @@ export const SESSION_STEPS: readonly {
     n: 2,
     title: 'Generate hypotheses',
     body:
-      'Open Co-Scientist explores mechanisms, evidence, and candidate ' +
+      'Co-Scientist explores mechanisms, evidence, and candidate ' +
       'explanations for the topic.',
   },
   {

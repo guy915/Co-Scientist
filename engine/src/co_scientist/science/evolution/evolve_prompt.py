@@ -8,6 +8,7 @@ import random
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from co_scientist.core.prompt_layout import append_item_context
 from co_scientist.domains.research_state.models import Hypothesis, rank_by_elo
 from co_scientist.domains.research_state.proximity_edges import is_judged_edge
 from co_scientist.domains.research_state.state import WorkflowState
@@ -26,6 +27,11 @@ from co_scientist.science.prompts._common import (
     _csv_value,
     _format_bullet_list,
     _format_run_guidance,
+)
+from co_scientist.science.prompts.context_budget import (
+    compact_json_context,
+    select_evidence_excerpt,
+    summarize_references,
 )
 from co_scientist.science.prompts.generation_draft import (
     _build_citation_reference_section,
@@ -151,6 +157,23 @@ def _proximity_neighbors_for(state: WorkflowState, hypothesis: Hypothesis) -> li
     return neighbors
 
 
+def _compact_specialist_records(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _compact_specialist_records(item) for key, item in value.items()}
+    if not isinstance(value, list):
+        return value
+    children = [_compact_specialist_records(item) for item in value]
+    if (
+        len(value) > 1
+        and isinstance(value[0], dict)
+        and value[0]
+        and all(isinstance(item, dict) and item.keys() == value[0].keys() for item in value)
+    ):
+        columns = list(value[0])
+        return {"columns": columns, "rows": [[item[key] for key in columns] for item in children]}
+    return children
+
+
 def _specialist_feedback_for(state: WorkflowState, hypothesis: Hypothesis) -> str:
     ledger: dict[str, Any] = {
         "claim_evidence_gate": hypothesis.enrichments.get("claim_gate") or {},
@@ -166,7 +189,7 @@ def _specialist_feedback_for(state: WorkflowState, hypothesis: Hypothesis) -> st
     mature_reviews = mature_review_summary(hypothesis.enrichments)
     if mature_reviews is not None:
         ledger["mature_reviews"] = mature_reviews
-    return json.dumps(ledger, indent=2)[:8000]
+    return compact_json_context(json.dumps(_compact_specialist_records(ledger)), 4_000)
 
 
 def _sample_up_to(pool: list[Hypothesis], count: int, rng: random.Random) -> list[Hypothesis]:
@@ -427,7 +450,8 @@ def _format_diversity_instruction(
     removed_duplicates: list[str],
     operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
 ) -> str:
-    other_hyps_formatted = _format_bullet_list(other_hypotheses_texts, truncate_chars=200)
+    peer_chars = min(200, max(0, 6_000 // max(1, len(other_hypotheses_texts)) - 6))
+    other_hyps_formatted = _format_bullet_list(other_hypotheses_texts, truncate_chars=peer_chars)
     removed_dups_formatted = _format_bullet_list(removed_duplicates[-5:], truncate_chars=200)
 
     template = (
@@ -453,15 +477,19 @@ def _build_evolution_variables(
     variables["run_guidance"] = _format_run_guidance(
         context.run_setup_guidance, context.run_focus_guidance
     )
-    variables["articles_with_reasoning"] = context.articles_with_reasoning or ""
+    state: Mapping[str, Any] = context.state or {}
+    variables["articles_with_reasoning"] = select_evidence_excerpt(
+        context.articles_with_reasoning or "", state.get("research_goal", ""), 6_000
+    )
     # The schema permits only supplied C* keys; no reference index would force a
     # child to disclaim grounding or invent unresolvable citations.
     variables["citation_reference_section"] = _build_citation_reference_section(
-        context.reference_index.text if context.reference_index else ""
+        summarize_references(context.reference_index.text) if context.reference_index else ""
     )
-    variables["enhancement_grounding"] = grounding_evidence
+    variables["enhancement_grounding"] = select_evidence_excerpt(
+        grounding_evidence, hypothesis.text, 6_000
+    )
     variables["partner_context"] = _format_partner_context(operation.partners, operation.operator)
-    state: Mapping[str, Any] = context.state or {}
     variables["falsified_assumptions_section"] = build_falsified_assumptions_section(
         state.get("hypotheses")
     )
@@ -484,15 +512,18 @@ def _base_evolution_variables(
 ) -> dict[str, Any]:
     return {
         "original_hypothesis": hypothesis.text,
-        "review_feedback": _build_review_feedback(hypothesis),
-        "meta_review_insights": json.dumps(
-            {
-                "common_strengths": meta_review.get("common_strengths", []),
-                "common_weaknesses": meta_review.get("common_weaknesses", []),
-                "strategic_recommendations": meta_review.get("strategic_recommendations", []),
-                "emerging_themes": meta_review.get("emerging_themes", []),
-            },
-            indent=2,
+        "review_feedback": compact_json_context(_build_review_feedback(hypothesis), 3_000),
+        "meta_review_insights": compact_json_context(
+            json.dumps(
+                {
+                    "common_strengths": meta_review.get("common_strengths", []),
+                    "common_weaknesses": meta_review.get("common_weaknesses", []),
+                    "strategic_recommendations": meta_review.get("strategic_recommendations", []),
+                    "emerging_themes": meta_review.get("emerging_themes", []),
+                },
+                indent=2,
+            ),
+            3_000,
         ),
         "supervisor_guidance": _build_supervisor_guidance_text(supervisor_guidance),
     }
@@ -516,7 +547,9 @@ def _build_evolution_prompt(
         context.removed_duplicates,
         operation.operator,
     )
-    prompt, schema, operator_section, _has_template_diversity_slot = render_operator_template(
+    prompt, schema, operator_section, has_template_diversity_slot = render_operator_template(
         operation.operator, variables, diversity
     )
-    return prompt + operator_section + diversity, schema
+    if not has_template_diversity_slot:
+        operator_section += diversity
+    return append_item_context(prompt, operator_section), schema

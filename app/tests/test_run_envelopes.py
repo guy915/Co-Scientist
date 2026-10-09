@@ -46,13 +46,22 @@ class Envelope:
     max_tokens: int
 
 
-# Lane E targets on live runs: Express <= 50 calls and <= 500k tokens, Standard
-# <= 2M tokens, Ultra <= 15M tokens. These offline ceilings fall as the work lands.
+# Live-run targets: Express <= 50 calls and <= 500k tokens, Standard <= 2M
+# tokens, Ultra <= 15M tokens. These offline ceilings are lowered toward them.
 CEILINGS: dict[str, Envelope] = {
     "express": Envelope(calls=55, max_tokens=700_000),
     "standard": Envelope(calls=135, max_tokens=1_700_000),
     "extended": Envelope(calls=240, max_tokens=2_850_000),
     "ultra": Envelope(calls=340, max_tokens=3_900_000),
+}
+
+# Input characters exclude provider framing and schemas; the complete-input
+# token guard lives in test_prompt_envelopes.py.
+PROMPT_PHASE_CEILINGS: dict[str, dict[str, int]] = {
+    "express": {"generation": 50_000, "loop": 80_000},
+    "standard": {"generation": 245_000, "loop": 140_000, "overview": 54_000},
+    "extended": {"generation": 380_000, "loop": 330_000, "overview": 75_000},
+    "ultra": {"generation": 720_000, "loop": 390_000, "overview": 90_000},
 }
 
 # Owner's phase split for the final-check Express run.
@@ -280,3 +289,7 @@ def test_offline_run_stays_inside_its_tier_envelope(
     breakdown = json.dumps(measured["phases"], indent=1)
     assert measured["calls"] <= ceiling.calls, f"{tier} calls by phase:\n{breakdown}"
     assert measured["max_tokens"] <= ceiling.max_tokens, f"{tier} budget by phase:\n{breakdown}"
+    for phase, prompt_ceiling in PROMPT_PHASE_CEILINGS[tier].items():
+        assert measured["phases"][phase]["prompt_chars"] <= prompt_ceiling, (
+            f"{tier} {phase} prompt input by phase:\n{breakdown}"
+        )

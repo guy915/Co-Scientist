@@ -11,6 +11,7 @@ _ENGINE_FAKE = Path(__file__).resolve().parents[2] / "engine" / "tests" / "_llm_
 SCRIPT_PRELUDE = f"""
 import os
 os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+os.environ["LITELLM_LOCAL_ANTHROPIC_BETA_HEADERS"] = "True"
 
 def fake_backend(provider):
     import importlib.util

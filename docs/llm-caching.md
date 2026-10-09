@@ -2,19 +2,25 @@
 
 Transport uses the existing gateway. BYOK uses caller keys. Express operator
 order is free OpenRouter, Haiku 5.5 Console credit, then Azure. Durable credit
-cooldown and slot selection are merged in #607 and #620. Per-user limits stay.
+cooldown and slot selection are in place. Per-user limits stay.
 Azure remains off unless the operator enables it, sets a positive total EUR
 allowance and sets an unexpired credit date.
 
-T supplies a `CacheablePrompt` from `core/prompt_cache.py`: final rendered text and two
+The prompt layer supplies a `CacheablePrompt` from `core/prompt_cache.py`: final rendered text and two
 character offsets, `run_end` and `item_end`. Appending a schema preserves these offsets.
+Templates and handwritten chat, supervisor, safety and claim builders place fixed
+instructions first, shared run evidence next, then current item data and the question.
+Changing evidence remains visible in the current item. Shared evidence baselines are
+bounded to 512 entries of at most 16,000 characters each; committed run/data deletion
+purges them. Hashed erased-run markers block late memoization; filling their 512-entry bound
+purges all baselines and disables memoization until restart.
 The gateway sends five-minute breakpoints at both boundaries on Haiku 5.5. Tool loops
 and chat also use top-level automatic caching. A request may have at most four cache
 breakpoints, including the automatic one. No delimiter from user text is interpreted.
 
 Haiku 5.5 always sends adaptive thinking and low effort, including recovery attempts.
-There is no disabled path or effort table for this slot. Only the owner changes effort
-after EQ posts paired quality results by call type. Temperature is omitted; top_p and
+There is no disabled path or effort table for this slot. Effort changes only after
+paired quality results by call type. Temperature is omitted; top_p and
 top_k are removed from both request arguments and extra body. Thinking shares max_tokens
 with answer text. Read only text content blocks, including when thinking appears first.
 The verified thinking parameter is allowed explicitly when the bundled SDK catalogue lags.
@@ -48,22 +54,18 @@ records the switch. A refusal uses Azure for that call; exhausted operator
 credit persists a cooldown until reset. Unknown stream outcomes retain their
 charge and do not replay at another provider.
 
-The owner's organization has $100 credit. Its first cycle is 8 October–7 November 2026;
-the reset day is 7 each month. The low-credit error marks the operator slot unavailable
+Console credit resets monthly. The low-credit error marks the operator slot unavailable
 until reset and selects Azure. A caller's exhausted BYOK key must not disable the shared
-slot. The $5 Claude / EUR 5 Azure live-check ceilings and shared request allocation remain.
-No measured refusal rate is available yet. On launch day the owner creates workspace
-Open Co-Scientist in the linked organization, creates its key and sets ANTHROPIC_API_KEY
-on the API service only. The launch runbook lane carries this step; no hosting write follows
-from this guide.
+slot. No measured refusal rate is available yet. The operator key goes in
+ANTHROPIC_API_KEY on the API service only; see [Anthropic credit](anthropic-credit.md).
 
 The cache becomes readable after the first response begins. A cold parallel wave may
 miss on every call. Reuse a byte-identical prefix, let the first response begin, then send
-the remaining calls without an extra warm-up request. T owns layout and E owns call reuse.
+the remaining calls without an extra warm-up request.
 
-Completion needs T's boundary integration, E0's per-call-type meter and one budgeted live
-Express run per provider. Hermetic SDK tests prove payload and accounting behavior; they
-do not measure a real cache hit or claim live savings. No live measurement is recorded yet.
+Boundary integration and the hermetic per-call-type input/prefix meter are implemented.
+Hermetic SDK tests prove payload and accounting behavior; they do not measure a real
+cache hit or claim live savings. No live measurement is recorded yet.
 
 Sources checked 8 October 2026:
 

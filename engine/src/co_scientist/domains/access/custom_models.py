@@ -152,7 +152,7 @@ async def _probe(provider: str, model: str, api_key: str, caps: CustomModelCapab
         )
         if not calls:
             raise ByokModelError(
-                "This model does not support tool calling, which Open Co-Scientist needs"
+                "This model does not support tool calling, which Co-Scientist needs"
             )
         function = (
             calls[0].get("function")
@@ -206,7 +206,7 @@ def validate_custom_model(provider: str, requested: str, api_key: str) -> ModelV
                     True,
                     False,
                     caps,
-                    "This model does not support tool calling, which Open Co-Scientist needs",
+                    "This model does not support tool calling, which Co-Scientist needs",
                 )
             if caps.context_length is not None and caps.context_length < _MIN_CONTEXT:
                 return ModelValidation(

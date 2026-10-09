@@ -99,11 +99,11 @@ const UNAVAILABLE = 'Unavailable';
 // and models that reflow it, where hard wraps leave ragged half-lines.
 function aboutSection(): string[] {
   return [
-    '# Open Co-Scientist diagnostic export',
+    '# Co-Scientist diagnostic export',
     '',
     '## About these logs',
     '',
-    'Open Co-Scientist workbench diagnostic export, attached to a feedback submission. It is built from one durable, app-wide log: backend records from the API, the durable task workers and the `co_scientist` engine, one compact stage record per run event, and frontend records this browser posted. It is scoped to this browsing session (records that predate it are excluded; a tab reload keeps the session, closing the tab ends it) and to what this caller may see. Share the whole export when reporting a problem — the preamble is the context a reader would otherwise have to guess at.',
+    'Co-Scientist workbench diagnostic export, attached to a feedback submission. It is built from one durable, app-wide log: backend records from the API, the durable task workers and the `co_scientist` engine, one compact stage record per run event, and frontend records this browser posted. It is scoped to this browsing session (records that predate it are excluded; a tab reload keeps the session, closing the tab ends it) and to what this caller may see. Share the whole export when reporting a problem — the preamble is the context a reader would otherwise have to guess at.',
     '',
   ];
 }

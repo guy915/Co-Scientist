@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from co_scientist.core.prompt_layout import retire_run_prompt_context
 from co_scientist.platform.db import Connection, connect, current_time, transaction
 from co_scientist.platform.db.models import DEMO_CLIENT_ID
 from co_scientist.platform.db.privacy import record_erasure
@@ -169,6 +170,8 @@ def delete_data(owner: str) -> dict[str, int]:
             conn.execute(f"DELETE FROM {table} WHERE client_id=?", (owner,))
         _detach_admission_history(conn, owner)
         record_erasure(conn, owner, run_ids)
+    for run_id in run_ids:
+        retire_run_prompt_context(run_id)
     return counts
 
 

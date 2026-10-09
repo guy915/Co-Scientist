@@ -6,8 +6,8 @@ export function PrivacyContent() {
       <section>
         <h2>Who is responsible</h2>
         <p>
-          Open Co-Scientist is operated by Guy Barel, its individual owner in
-          the Netherlands, who is the controller of the personal data described
+          Co-Scientist is operated by Guy Barel, its individual owner in the
+          Netherlands, who is the controller of the personal data described
           here. Contact{' '}
           <ExternalLink href="mailto:guy.barel@open-coscientist.com">
             guy.barel@open-coscientist.com
@@ -129,6 +129,12 @@ export function PrivacyContent() {
           host-admission mapping remains with that run. Hashed erasure markers
           stay for 24 hours to block late background writes from recreating
           deleted work.
+        </p>
+        <p>
+          Repeated model requests may reuse bounded evidence excerpts kept in
+          server memory until eviction or restart. Deleting a run or all your
+          data clears its excerpts. This local cleanup does not erase copies
+          already received by a model provider.
         </p>
         <p>
           A separate operator funding ledger keeps numeric charge, usage and

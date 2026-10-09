@@ -6,7 +6,7 @@ export function TermsContent() {
       <section>
         <h2>A research aid</h2>
         <p>
-          Open Co-Scientist helps you explore, evaluate and compare research
+          Co-Scientist helps you explore, evaluate and compare research
           hypotheses. Results can be incomplete, incorrect or unsupported;
           citations and safety checks can fail. Verify claims, sources and
           experimental proposals independently before relying on them.

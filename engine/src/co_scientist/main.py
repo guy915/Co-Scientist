@@ -138,6 +138,21 @@ async def _shutdown_recovery(
         await asyncio.gather(*recovery_workers, return_exceptions=True)
 
 
+def _expire_earlier_process_leases() -> None:
+    """A killed or restarted process never releases its leases, and waiting
+    out a full lease idles every active run.
+    """
+    import co_scientist.orchestration.task_worker as task_worker
+
+    try:
+        expired = tasks.expire_earlier_process_leases(task_worker.process_tag())
+    except Exception:
+        logger.warning("Expiring task leases of an earlier process failed", exc_info=True)
+        return
+    if expired:
+        logger.info("Expired %d task lease(s) held by an earlier process", expired)
+
+
 def _start_recovery_task(
     reconciled: dict[str, list[str]],
 ) -> tuple[asyncio.Task[None], list[asyncio.Task[None]]]:
@@ -150,6 +165,7 @@ def _start_recovery_task(
         """Recovery runs beside serving; awaiting provider work before
         binding creates a healthcheck/restart spiral.
         """
+        await asyncio.to_thread(_expire_earlier_process_leases)
         await _resume_checkpointed_runs(reconciled["resumable"])
         _launch_embedded_recovery_workers(recovery_workers)
 
@@ -269,7 +285,7 @@ async def lifespan(
 
 
 app = FastAPI(
-    title="Open Co-Scientist API",
+    title="Co-Scientist API",
     description="FastAPI server for AI hypothesis generation",
     version=API_VERSION,
     lifespan=lifespan,

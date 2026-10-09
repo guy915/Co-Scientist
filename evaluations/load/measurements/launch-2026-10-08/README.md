@@ -6,8 +6,8 @@ model completions are deterministic with 100 ms I/O. Runtime Docker networking
 is internal-only, with no credentials/dotenv/inherited outbound configuration.
 Static assets are excluded. These establish short-run API/store capacity;
 real provider/MCP throughput, production ingress and long-duration memory
-behavior are unmeasured. Owner capacity and spike steps are in
-[OPERATIONS.md](../../../../docs/OPERATIONS.md#launch-load-and-capacity).
+behavior are unmeasured. Capacity and spike steps are in
+[OPERATIONS.md](../../../../docs/OPERATIONS.md#load-and-capacity).
 
 | Receipt | Workload / purpose | Result |
 |---|---|---|
@@ -20,7 +20,7 @@ behavior are unmeasured. Owner capacity and spike steps are in
 | [admission-cap.json](admission-cap.json) | 60 s mixed profile, ten starts, MAX_CONCURRENT_RUNS=1 | Two admitted/completed, four clear concurrency refusals and four daily-host refusals; zero unexpected errors |
 
 The first broken limit was GET SSE inheriting an unset write-only peer context:
-all visitors shared one eight-stream bucket. #529 fixes request-peer admission,
+all visitors shared one eight-stream bucket. The fix corrects request-peer admission,
 sets bounded configurable global capacity, backs quiet polling off to two seconds,
 retains wall-clock deadlines, shows capacity refusal/backoff in the run view,
 and uses 15-second production HTTP keepalive. Existing owner=4/host=8 guards
@@ -46,7 +46,8 @@ reserve enough provider allowance to promise completion. Budgets stayed at
 per host; actual model completions/hour are not established by fake I/O. Use
 0.83 starts/hour only as the global ceiling averaged over a full day.
 
-Source and measurement identity:
+Source and measurement identity (commit IDs refer to the development history
+before this repository was published and are not present here):
 
 - Historical API base: `e6cf5b9211ce4d101c29596e07dcfdc8f2f3b04d`, image
   `sha256:e62e4e8c91603ab56f6e88e32514ae34a50359fc13750be854331cdd979f0b28`.

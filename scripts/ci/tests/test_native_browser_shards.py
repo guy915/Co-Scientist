@@ -67,6 +67,34 @@ class NativeBrowserShardsTests(unittest.TestCase):
             partition_files(reversed_report, "webkit"),
         )
 
+    def test_three_nonempty_bins_keep_every_selected_file_and_case(self):
+        bins = partition_files(collection(self.files), "webkit", shards=3)
+        self.assertEqual(len(bins), 3)
+        self.assertTrue(all(bins))
+        flattened = [name for group in bins for name in group]
+        self.assertCountEqual(flattened, self.files)
+        self.assertEqual(
+            sum(self.files[name] for name in flattened), sum(self.files.values())
+        )
+
+    def test_three_bins_retain_unknown_files_and_ignore_other_projects(self):
+        self.files["nested/future.spec.ts"] = 3
+        report = collection(self.files)
+        report["suites"] += collection({"other-project.spec.ts": 4}, "firefox")[
+            "suites"
+        ]
+        bins = partition_files(report, "webkit", shards=3)
+        self.assertCountEqual([name for group in bins for name in group], self.files)
+
+    def test_invalid_counts_and_empty_third_bin_fail(self):
+        for count in (0, 1, 4, "3"):
+            with self.subTest(count=count), self.assertRaises(ValueError):
+                partition_files(collection(self.files), "webkit", shards=count)
+        with self.assertRaises(ValueError):
+            partition_files(
+                collection({"one.spec.ts": 2, "two.spec.ts": 2}), "webkit", shards=3
+            )
+
     def test_duplicate_ids_and_unsafe_paths_fail(self):
         report = collection(self.files)
         report["suites"][0]["specs"].append(report["suites"][0]["specs"][0])

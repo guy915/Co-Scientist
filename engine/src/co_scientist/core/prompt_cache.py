@@ -18,3 +18,6 @@ class CacheablePrompt(str):
 
     def __add__(self, suffix: str) -> CacheablePrompt:
         return CacheablePrompt(str(self) + suffix, run_end=self.run_end, item_end=self.item_end)
+
+    def __getnewargs_ex__(self) -> tuple[tuple[str], dict[str, int]]:
+        return (str(self),), {"run_end": self.run_end, "item_end": self.item_end}

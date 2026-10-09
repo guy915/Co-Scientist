@@ -20,8 +20,10 @@ for work the maintainer has opened to contributors. Filter by area:
 `area: evaluations`, `area: e2e`, `area: ci` or `area: docs`.
 Types include `type: bug`, `type: feature`, `type: docs`, `type: maintenance`
 and `type: question`. Priority labels range from `priority: critical` to
-`priority: low`. An issue marked `needs triage` still needs its scope,
-reproduction, ownership or priority reviewed.
+`priority: low`. Size labels estimate effort, from `size: XS` (under an
+hour) to `size: XL` (split into sub-issues first). An issue marked
+`needs triage` still needs its scope, reproduction, ownership or priority
+reviewed.
 
 Choose a small issue that matches your interests. Comment with your proposed
 approach before starting. If the scope
@@ -81,7 +83,7 @@ both browser suites. CI tests must not need network access or provider keys.
 For documentation changes, run `make lint` and
 `.venv/bin/python -m pytest evaluations/tests -q` explicitly. Record each
 command's exit status in the pull request. State any checks you could not run.
-For launch-wide code or configuration changes, also run `make docker-build`.
+For repository-wide code or configuration changes, also run `make docker-build`.
 Changes to model behavior should include benchmark scores before and after;
 see the [quality benchmark](evaluations/README.md#quality-benchmark).
 

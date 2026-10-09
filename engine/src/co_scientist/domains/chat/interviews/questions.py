@@ -7,6 +7,7 @@ import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core import byok_scope
 from co_scientist.core.config import settings
 from co_scientist.core.json_schema import obj
+from co_scientist.core.prompt_layout import render_cacheable_prompt
 from co_scientist.platform.llm import CompletionSpec, LLMCallOptions, call_llm_json
 
 logger = logging.getLogger(__name__)
@@ -111,6 +112,16 @@ The turn:
 """
 
 
+def _repair_prompt(message: str) -> str:
+    instructions = _PROMPT.split("\nThe turn:\n", 1)[0].format(min=MIN_OPTIONS, max=MAX_OPTIONS)
+    return render_cacheable_prompt(
+        instructions,
+        "",
+        "The turn:\n---\n" + message.strip() + "\n---",
+        "Recover the existing question and its answers. Never invent a question.",
+    )
+
+
 async def repair_questions(message: str) -> list[dict[str, Any]]:
     if not message.strip() or not offline_guard.remote_chat_allowed():
         return []
@@ -125,7 +136,7 @@ async def repair_questions(message: str) -> list[dict[str, Any]]:
     )
     try:
         result = await call_llm_json(
-            _PROMPT.format(min=MIN_OPTIONS, max=MAX_OPTIONS, message=message.strip()),
+            _repair_prompt(message),
             spec,
             max_attempts=2,
             options=LLMCallOptions(prompt_name="interview_question_repair", enable_thinking=False),

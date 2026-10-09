@@ -62,12 +62,23 @@ export function useAnchoredMenu(
       el.style.maxHeight = `${room}px`;
       setStyle(next);
     }
+    function settleMotion(event: Event) {
+      const el = menu.current;
+      if (el && event.target instanceof Element && event.target.contains(el)) {
+        place();
+      }
+    }
     place();
     window.addEventListener('scroll', place, true);
     window.addEventListener('resize', place);
+    // Ancestor scale changes the fixed origin without a scroll or resize.
+    window.addEventListener('transitionend', settleMotion, true);
+    window.addEventListener('transitioncancel', settleMotion, true);
     return () => {
       window.removeEventListener('scroll', place, true);
       window.removeEventListener('resize', place);
+      window.removeEventListener('transitionend', settleMotion, true);
+      window.removeEventListener('transitioncancel', settleMotion, true);
     };
   }, [open, anchor, align]);
   return {menuRef: menu, menuStyle: style};

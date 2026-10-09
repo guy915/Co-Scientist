@@ -81,7 +81,7 @@ for (const theme of ["light", "dark"]) {
 
     test("landing", async ({ page }, info) => {
       await page.goto("/");
-      await page.getByRole("button", { name: "Scroll to see how Open Co-Scientist works" }).click();
+      await page.getByRole("button", { name: "Scroll to see how Co-Scientist works" }).click();
       await page.locator("#landing-overview").scrollIntoViewIfNeeded();
       await expect(page.locator("#landing-overview")).toBeInViewport();
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
