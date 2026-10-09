@@ -36,45 +36,20 @@ POLICY_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 def configure(provider: str, model: str) -> tuple[str, str]:
     if "co_scientist.core.config" in sys.modules:
         raise ValueError("paid benchmark requires a fresh process")
-    if provider not in {"anthropic", "azure"} or not re.fullmatch(
-        rf"{provider}/[A-Za-z0-9_.-]+", model
-    ):
+    if provider == "azure":
+        # Its local ledger would be empty; Azure credit is admitted only by
+        # the production API's recorded allowance.
+        raise ValueError("paid benchmark refuses Azure; its credit is spent only by the API")
+    if provider != "anthropic" or not re.fullmatch(rf"{provider}/[A-Za-z0-9_.-]+", model):
         raise ValueError("paid benchmark requires an explicit matching provider model")
     if os.getenv("COSCIENTIST_TEST_DOUBLE") or os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1":
         raise ValueError("paid benchmark refuses deterministic execution")
-    if provider == "anthropic":
-        credentials = {"ANTHROPIC_API_KEY"}
-        if not os.getenv("ANTHROPIC_API_KEY", "").strip():
-            raise ValueError("paid benchmark requires ANTHROPIC_API_KEY")
-        base, version = "https://api.anthropic.com", ""
-        if any(os.getenv(name) for name in ("ANTHROPIC_BASE_URL", "ANTHROPIC_API_BASE")):
-            raise ValueError("paid benchmark requires the standard Anthropic endpoint")
-    else:
-        credentials = {"AZURE_API_KEY", "AZURE_OPENAI_API_KEY"}
-        key = os.getenv("AZURE_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY")
-        if not key or not key.strip():
-            raise ValueError("paid benchmark requires an Azure provider key")
-        base = os.getenv("AZURE_API_BASE", "").rstrip("/")
-        parsed = urlsplit(base)
-        if (
-            parsed.scheme != "https"
-            or not parsed.hostname
-            or not parsed.hostname.endswith(
-                (".openai.azure.com", ".services.ai.azure.com", ".cognitiveservices.azure.com")
-            )
-            or parsed.username
-            or parsed.password
-            or parsed.query
-            or parsed.fragment
-            or parsed.path
-            or parsed.port not in (None, 443)
-        ):
-            raise ValueError("paid benchmark requires an HTTPS Azure resource endpoint")
-        version = os.getenv("AZURE_API_VERSION", "")
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:-preview)?", version):
-            raise ValueError("paid benchmark requires an explicit Azure API version")
-        os.environ["AZURE_API_KEY"] = key
-        os.environ["AZURE_OPENAI_API_KEY"] = key
+    credentials = {"ANTHROPIC_API_KEY"}
+    if not os.getenv("ANTHROPIC_API_KEY", "").strip():
+        raise ValueError("paid benchmark requires ANTHROPIC_API_KEY")
+    base, version = "https://api.anthropic.com", ""
+    if any(os.getenv(name) for name in ("ANTHROPIC_BASE_URL", "ANTHROPIC_API_BASE")):
+        raise ValueError("paid benchmark requires the standard Anthropic endpoint")
     for name in list(os.environ):
         if name.upper().endswith("_API_KEY") and name not in credentials:
             del os.environ[name]
@@ -191,7 +166,7 @@ def trusted_transport() -> ModuleType:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Explicit bounded paid paired benchmark.")
     parser.add_argument("operation", choices=("collect", "compare"))
-    parser.add_argument("--provider", choices=("anthropic", "azure"), required=True)
+    parser.add_argument("--provider", choices=("anthropic",), required=True)
     parser.add_argument("--model", default=os.getenv("MODEL_NAME", ""))
     args, remaining = parser.parse_known_args()
     required = "--live" if args.operation == "collect" else "--live-judge"
@@ -225,7 +200,7 @@ def main() -> int:
 
     transport = trusted_transport()
     sys.argv = [sys.argv[0], args.operation, *remaining]
-    key_name = "ANTHROPIC_API_KEY" if args.provider == "anthropic" else "AZURE_API_KEY"
+    key_name = "ANTHROPIC_API_KEY"
     with (
         patch.object(_live_config, "configure_live_environment", selected_model),
         patch.object(_identity, "arm_identity", paid_identity),
