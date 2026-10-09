@@ -7,8 +7,9 @@ throwaway store, so it never touches `coscientist.db` or a running
 ```bash
 make setup                # once: backend venv and frontend dependencies
 make e2e                  # development server suite (tests/)
-COSCI_E2E_BROWSER_SHARD=1/6 make e2e # one weighted development shard, as in CI
+COSCI_E2E_BROWSER_SHARD=1/8 make e2e # one weighted development shard, as in CI
 make e2e-production       # built assets under vite preview (production/)
+make e2e-production E2E_ARGS=--shard=1/2 # one production shard, as in CI
 make e2e E2E_ARGS="tests/03_run_lifecycle.spec.ts --headed"
 ```
 
@@ -48,11 +49,24 @@ downloads are unavailable; its revision can differ from CI's.
   `createCompletedRun`.
 
 Development CI uses eight weighted shards from `support/shard_weights.json`.
-Weights are the case-duration sums from successful run 37770026920; an
+Weights are median case-duration sums from five successful runs on fixed
+head `73637c6f`. An
 unlisted new spec receives 20 seconds and remains included. The planner discovers
 all development specs, so no manifest can omit a new test. Every shard keeps
-one worker and whole stateful files. Production specs run in two whole-file shards.
+one worker and whole stateful files. Production uses two whole-file shards;
+their union contains every production case exactly once.
 
 Use `make e2e` or `BUN=bun node e2e/run.mjs` for cleanup after server shutdown.
 Raw `bun x playwright test` creates an isolated fallback directory but leaves it
 for manual cleanup. Use the wrapper when supplying a separate Playwright config.
+
+Native WebKit, Firefox and iPhone guards use three whole-file bins per project
+in CI. To run a matching bin from the repository root:
+
+```bash
+COSCI_E2E_PRODUCTION=1 .venv/bin/python scripts/ci/native_browser_shards.py --project webkit --shard 1 --shards 3
+```
+
+The local CLI defaults to two bins when `--shards` is omitted. It discovers
+selected cases dynamically, so new tagged files remain included; `--list`
+checks the assignment without starting servers.

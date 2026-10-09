@@ -17,7 +17,9 @@ CASE_SECONDS = {
 PROJECTS = ("webkit", "webkit-iphone", "firefox")
 
 
-def partition_files(report, project):
+def partition_files(report, project, shards=2):
+    if shards not in (2, 3):
+        raise ValueError("Native sharding supports two or three bins")
     if not isinstance(report, dict) or report.get("errors"):
         raise ValueError("Native test collection failed")
     cases = {}
@@ -63,14 +65,14 @@ def partition_files(report, project):
             visit(suite.get("suites", []))
 
     visit(report.get("suites"))
-    if len(cases) < 2:
-        raise ValueError("Both native shards need selected whole files")
+    if len(cases) < shards:
+        raise ValueError("Every native shard needs selected whole files")
     weights = {
         name: len(ids) * CASE_SECONDS.get(name, 13) for name, ids in cases.items()
     }
-    bins, totals = [[], []], [0, 0]
+    bins, totals = [[] for _ in range(shards)], [0] * shards
     for name in sorted(cases, key=lambda name: (-weights[name], name)):
-        selected = min(range(2), key=lambda index: (totals[index], index))
+        selected = min(range(shards), key=lambda index: (totals[index], index))
         bins[selected].append(name)
         totals[selected] += weights[name]
     return [sorted(group) for group in bins]
@@ -79,9 +81,12 @@ def partition_files(report, project):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", choices=PROJECTS, required=True)
-    parser.add_argument("--shard", type=int, choices=(1, 2), required=True)
+    parser.add_argument("--shard", type=int, choices=(1, 2, 3), required=True)
+    parser.add_argument("--shards", type=int, choices=(2, 3), default=2)
     parser.add_argument("--list", action="store_true")
     args = parser.parse_args()
+    if args.shard > args.shards:
+        parser.error("The shard index must not exceed the shard count")
     root = Path(__file__).resolve().parents[2]
     e2e = root / "e2e"
     config = "playwright.cross-browser.config.ts"
@@ -107,14 +112,14 @@ def main():
         print(collected.stderr, file=sys.stderr)
         return collected.returncode
     try:
-        files = partition_files(json.loads(collected.stdout), args.project)[
-            args.shard - 1
-        ]
+        files = partition_files(
+            json.loads(collected.stdout), args.project, args.shards
+        )[args.shard - 1]
     except (TypeError, ValueError):
         print("Native guard collection is invalid", file=sys.stderr)
         return 1
     print(
-        f"Native {args.project} shard {args.shard}/2 whole files: {', '.join(files)}",
+        f"Native {args.project} shard {args.shard}/{args.shards} whole files: {', '.join(files)}",
         flush=True,
     )
     patterns = ["/production/" + re.escape(name) + "$" for name in files]
