@@ -412,7 +412,9 @@ class FakeEutils(urllib.request.BaseHandler):
         endpoint = split.path.rsplit("/", 1)[-1].removesuffix(".fcgi")
         database = params.get("db", [""])[0]
         self.counter.record(category(host, split.path), f"{host}/{endpoint}:{database}")
-        status, body = _eutils_body(split.path, params) if host.endswith("nih.gov") else (404, b"")
+        status, body = (
+            _eutils_body(split.path, params) if host == "eutils.ncbi.nlm.nih.gov" else (404, b"")
+        )
         head = f"HTTP/1.1 {status} {responses[status]}\r\nContent-Type: text/xml\r\n"
         raw = f"{head}Content-Length: {len(body)}\r\n\r\n".encode() + body
         response = HTTPResponse(cast(socket.socket, _Socket(raw)), method=req.get_method())
