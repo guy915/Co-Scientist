@@ -1,460 +1,261 @@
 # Engine — `co-scientist-engine`
 
-Internal multi-agent hypothesis-generation engine. Repo-wide conventions, cross-cutting Gotchas, and required environment live in the [root AGENTS.md](../AGENTS.md) — read that too.
+Read the [root AGENTS.md](../AGENTS.md) first. This package (`src/co_scientist/`,
+Python 3.12+) holds the whole server. This guide covers the package map, the
+research workflow, the LLM layer, retrieval, the sandbox and the reference MCP
+server (`mcp_server/`). The HTTP API, durable task runtime and SQLite store are
+in [app/AGENTS.md](../app/AGENTS.md), because `app/tests/` tests them. Paths
+below are relative to `src/co_scientist/` unless they start with `tests/` or
+`mcp_server/`.
 
-Package name: `co-scientist-engine`. Source under `src/co_scientist/`.
+From `engine/` (the root `make` targets wrap these):
 
-**Commands** (run from `engine/`):
 ```bash
-pip install -e '.[dev]'          # install with dev deps
-pytest                            # unit tests (testpaths = ["tests"])
-ruff format .                     # format (100 cols)
-ruff check .                      # lint
-mypy .                            # typecheck
+pip install -e '.[dev]'   # editable install with dev extras
+pytest                    # tests/, four xdist workers by default
+ruff format . && ruff check .   # 100 columns; also covers mcp_server/
+mypy .                    # strict; excludes mcp_server/
 ```
 
-Use the offline unit suites to exercise individual agents.
+## Package map
 
-**Architecture**
-
-`HypothesisGenerator` (`orchestration/generator/core.py`) prepares capabilities, registry and
-initial state for the app's durable tasks. Nodes live in `science/`: Supervisor,
-six specialists and Safety. `orchestration.registry.NODE_TO_AGENT` maps persisted node keys to
-agents; `orchestration.task_runtime.execute_task_node` commits one node at a time.
-
-| Node | File |
+| Package | Holds |
 |---|---|
-| Supervisor (planning) | `science/supervisor/supervisor.py` |
-| Orchestrator (per-cycle routing) | `science/supervisor/orchestrator.py` |
-| Literature Review (MCP-gated) | `science/generation/literature_review/` (agent planning, analysis and synthesis); shared retrieval in `platform/retrieval/evidence/` |
-| Generate | `science/generation/generate.py` (+ `operations.py`, `debate.py`, `reviews.py`, `literature_tools/`) |
-| Reflection | `science/reflection/reflection.py` |
-| Review | `science/reflection/review.py` |
-| Comprehensive Reflection | `science/reflection/comprehensive_reflection.py` |
-| Deep Verification (probing questions) | `science/reflection/deep_verification.py` |
-| Ranking + Tournament (Elo pairwise) | `science/ranking/` (`review.py`, `ranking_debate.py`, `ranking_matchmaking.py`, ...) |
-| Meta-Review | `science/meta_review/meta_review.py` |
-| Research Overview (synthesis/roadmap) | `science/meta_review/research_overview.py` |
-| Evolve | `science/evolution/evolve.py` |
-| Proximity (dedup) | `science/proximity/proximity.py` |
-| Safety screen (cross-cutting) | `science/safety_screen.py` |
+| `serving.py`, `main.py`, `api/` | Production app factory, FastAPI app, lifespan, middleware, routers, wire contracts (app guide) |
+| `orchestration/` | Node registry, topology and per-node execution (here); generator; durable executor `engine_tasks/`, worker `task_worker/`, queue `repository/`, drain (app guide) |
+| `science/` | One package per agent, plus `safety_screen.py`, `prompts/` (templates in `prompts/templates/*.md`), `schemas/` (structured-output schemas), `scheduling/`, `research_model.py` |
+| `domains/` | `research_state/` (models, `WorkflowState`, claims), `safety/`, `report/`, `chat/`, `documents/`, `access/`, `feedback/` |
+| `platform/` | `llm/`, `retrieval/`, `sandbox/`, `db/`, `telemetry/` |
+| `core/` | Config, constants, metrics, exceptions, run tiers; no I/O |
 
-Node keys persist in task types (`engine.node.<key>`), checkpoints and
-idempotency keys. Never rename them without a migration for persisted runs.
+- Layers, highest first: serving, main, api, orchestration, science, domains,
+  platform, core. `.importlinter` (`make arch`) also keeps the science agents
+  independent of each other and confines `fastapi` to serving, main and api,
+  `litellm` to `platform.llm`, `httpx` to `platform.llm` and
+  `platform.retrieval`, and `sqlite3` to the store, domains and orchestration.
+  There are no ignored imports and `evaluations/tests/test_import_contracts.py`
+  holds that at zero, so fix a crossing import in the structure: move code down,
+  invert the dependency or pass it in.
+- Inside `platform/llm`, `tests/test_agents.py` enforces the `_LAYERS` order
+  and no import cycles; add a new top-level module there. A new public name
+  goes in `_EXPORTS` and the `TYPE_CHECKING` imports of `platform/llm/__init__.py`.
+- Never name a package directory `cache`, `reports`, `build` or `dist`:
+  `.gitignore` and `.dockerignore` drop it without an error
+  ([ADR-001](../docs/adr/001-module-map.md)).
+- A package's `__init__.py` holds its public names; import siblings by full
+  path. Private helpers are tested from their defining modules; re-exports are
+  not a supported boundary.
 
-**Generation planning and finalization have a public operation boundary.**
-`co_scientist.science.generation` exports `GenerationPlan`, `GenerationCounts`,
-`GenerationResults`, `prepare_generation` and `finalize_generation`; their
-implementation lives in `science/generation/operations.py`. The coordinator owns node-level
-strategy execution and expansion research; the app owns durable scheduling,
-lease guards and checkpoint commits. Finalization may call enrichment tools, so
-run it outside store transactions. Preserve the characterized node-level/durable
-assumptions-context and expansion differences when changing strategy dispatch.
+## Research workflow
 
-Ranking, Reflection and Evolution also expose supported operations from their
-agent packages. Ranking owns immutable prompt and debating-leader snapshots, per-match
-judging/Elo and round lifecycle; node-level and durable callers retain their existing
-pair-selection order and prompt inputs. Reflection owns single-item context and
-evidence assembly; durable callers own issuance markers, aggregation and retry
-conversion. Evolution owns `EvolutionContext`, its round builder and the
-selected-parent outcome projection below prompt and task modules. Keep app
-production consumers on public exports; `app/tests/test_architecture.py`
-rejects private engine imports.
-Layering is enforced by `make arch` (`.importlinter`, docs/adr/002-layering-enforcement.md).
+`orchestration/generator/core.py::HypothesisGenerator` prepares capabilities,
+the tool registry and initial state (`prepare_task_state`) for durable tasks.
+`orchestration/registry.py` maps node keys to agents (`NODE_REGISTRY`,
+`NODE_TO_AGENT`). `orchestration/task_runtime.py::execute_task_node` runs one
+node and commits its update; `next_task_type` follows committed state, stops on
+`safety_blocked` and returns `None` at termination. Each node's successor
+(fixed, literature-gated or state-resolved) is declared once in
+`orchestration/workflow_topology.py::WORKFLOW_ROUTES`; `plan_portfolio` and
+`FANNING_NODES` in `task_runtime.py` add durable scheduling on top.
 
-Evidence helpers are imported from their defining modules in `platform/retrieval/evidence/`.
-The internal `evidence.helpers` facade is removed; test/patch the module that
-actually consumes a collaborator rather than relying on unused re-exports.
+| Node key | File |
+|---|---|
+| `supervisor`, `orchestrator` | `science/supervisor/supervisor.py`, `orchestrator.py` |
+| `literature_review` (MCP-gated) | `science/generation/literature_review/` |
+| `generate` | `science/generation/generate.py` (+ `operations.py`, `debate.py`, `literature_tools/`) |
+| `review`, `reflection` | `science/reflection/review.py`, `reflection.py` |
+| `comprehensive_reflection` | `science/reflection/comprehensive_reflection.py` |
+| `deep_verification` | `science/reflection/deep_verification.py` |
+| `ranking` | `science/ranking/` (Elo tournament: `ranking.py`, `ranking_debate.py`, `ranking_matchmaking.py`) |
+| `evolve` | `science/evolution/evolve.py` (prompt in `evolve_prompt.py`) |
+| `proximity` | `science/proximity/proximity.py` |
+| `meta_review`, `research_overview` | `science/meta_review/meta_review.py`, `research_overview.py` |
+| `safety_screen` | `science/safety_screen.py` |
 
-**Generator configuration and execution live in one concrete class.**
-`orchestration/generator/core.py` owns MCP availability and capability/state preparation;
-`prepare_task_state` supplies initial state for durable execution. Evolution prompt rendering lives in
-`science/evolution/evolve_prompt.py`, and novelty-validation stage orchestration lives
-beside its LLM calls in `science/generation/literature_tools/validate.py`. Private helpers
-are imported and tested from their defining modules; compatibility re-exports
-are not a supported boundary. Ranking constructs each `RankingSide` directly
-from its hypothesis's review, reflection and verification evidence.
+- Node keys persist in task types (`engine.node.<key>`), checkpoints and
+  idempotency keys; never rename one without a migration.
+- Shared state is `WorkflowState` (`domains/research_state/state/__init__.py`).
+  The durable path reads each channel's reducer from its annotation
+  (`task_runtime.channel_reducers`), so a list channel written by several nodes
+  (such as `research_ledgers`) needs an accumulating reducer, not
+  last-write-wins.
+- Generation, Ranking, Reflection and Evolution export the operations durable
+  tasks call (for example `prepare_generation`, `finalize_generation`,
+  `EvolutionContext`); keep callers on those exports. Generation finalization
+  may call enrichment tools, so run it outside store transactions.
 
-**The topology is declared once.** `workflow_topology.WORKFLOW_ROUTES` names
-each node's fixed, literature-gated or state-resolved successor.
-`task_runtime.next_task_type` uses committed state, stops on `safety_blocked`
-and returns `None` at termination. The app seeds fresh tasks and resumes its
-persisted queue. `plan_portfolio` and `FANNING_NODES` layer durable scheduling
-policy over those routes.
+### Cost rules
 
-**The simulation review can run what it simulates.** Reflection's
-`simulation` review asks the model to step through a hypothesis's mechanism
-and find where it breaks; its prompt used to say *mentally, in your mind's
-eye*. `science/reflection/simulation_execution.py` gives it a confined
-workspace and a bounded tool loop (`MAX_SIMULATION_TURNS`) first, and hands
-what it observed to the same schema-constrained review call as before -- so
-the verdict vocabulary and every downstream consumer are untouched, and a run
-that cannot execute produces exactly the review it always did. This is the
-first production caller of the **workspace** tool surface -- `call_llm_with_tools`
-itself has driven the literature tools on these tiers for some time. Gated three ways,
-all of which must hold: the app asks by **tier** on `extended`/`ultra` only
-(`opts._apply_capability_opts` -- a tool loop per hypothesis is
-a cost that multiplies by pool size; measured below), the engine refuses it for the offline
-backend (`run_setup._resolve_simulation_execution`), and the review itself
-falls back to mental simulation where no sandbox backend can confine a
-command. Measured cost, four mechanisms through the real path concurrently
-(`deepseek-v4-flash`, 2026-08-20): **231s wall clock for all four**, against
-824s if they had run one after another -- so the pool multiplies *tokens*,
-not wall clock, as long as the review fan-out actually runs concurrently.
+Run size comes from the tier (`core/run_modes/__init__.py::RUN_TIER_DEFAULTS`).
+These rules keep cost bounded; a change that breaks one multiplies spend.
 
-What a simulation costs is decided by two things, and neither is the
-turn count. **A tool loop re-sends its whole transcript every turn**, so
-what accumulates in that transcript is re-bought by every turn after it;
-the model writes its program by rewriting the file whole, and a
-transcript traced turn by turn (2026-08-22) was **59% versions of one
-program that no longer existed**, five rewrites of ~8k characters each.
-`platform.llm.tools.transcript.elide_superseded_writes` drops the text of a write a
-later write to the same path replaced -- the file on disk still holds it
--- which cut that loop's total prompt spend by 37%, a fraction that grows
-with the turn count. **And reaching a ceiling used to return nothing**: a
-loop that had written a model, run it and read its numbers raised, and
-the review fell back to imagining the mechanism it had just measured. It
-now buys one closing turn with the tools withheld
-(`platform.llm.tools.loop._harvest_partial_answer`), so the ceiling degrades the
-observation instead of deleting it.
+- Tier gating is decided in one place: the app passes the tier
+  (`orchestration/engine_adapter/opts.py::_apply_capability_opts`), and only
+  `extended` and `ultra` get tool-calling drafting, executed simulation review,
+  overview review and deep research (`app/tests/test_engine_configuration.py`).
+- Depth goes to finalists only (`science/scheduling/funnel.py`). Every idea gets
+  the safety screen, one screening review and the tournament. Full, observation
+  and simulation reviews, deep verification and claim checks run only for the
+  top 3/5/6/8 ideas by Elo, once each. Terminal depth never follows a budget,
+  clock, task-count or safety stop, or passes the call ceiling
+  (`tests/test_funnel.py`).
+- Per-hypothesis work multiplies by pool size and iterations. Review research is
+  capped per hypothesis (`platform/retrieval/research_adapter`:
+  `review_budget_for_tier`, 4 threads on extended and 5 on ultra) and per cycle
+  (`reviewed_hypothesis_limit`, 5 and 8 hypotheses). Deep verification only
+  reads a gathering already in flight (`review_evidence.researched_articles_for`)
+  and never starts one. Check every caller's multiplicity before adding a
+  per-item LLM pass to a shared helper.
+- `max_llm_calls` is a runaway cap, not an allowance, and it also gates
+  features ([OPERATIONS](../docs/OPERATIONS.md)).
 
-With both in place `SIMULATION_TOKEN_BUDGET` could be **measured rather
-than guessed**, and it moved from 150k to 45k. Seven budgets from 15k to
-150k over four mechanisms, each observation scored by checking its
-numbers against the tool output meant to have produced them, found
-nothing above 45k worth paying for: ten more turns and three times the
-cost bought no more grounded numbers and no longer an observation, and
-the 150k arm scored *lowest* on grounding. The useful work is done in
-six to eight turns. Note the constant is denominated in
-`transcript_tokens`, a character-count estimate blind to the tool
-schemas resent every turn, so it bills around 2.5x its face value.
+## LLM layer (`platform/llm/`)
 
-Each review gets its **own** workspace
-(`open_review_workspace(run_id, hypothesis_id)`) because review items fan out
-as concurrent leased tasks. Whether it ran is stamped on the result by the
-caller (`executed`), never asked of the model.
+- **Bounds.** Every completion has `COSCIENTIST_LLM_TIMEOUT_SECONDS` (default
+  600, `0` disables) passed to the provider and re-imposed as an
+  `asyncio.wait_for` with 30 s grace in `request/transport.py`, raising
+  `LLMTimeoutError`.
+- **One dispatch path.** Engine and app calls share
+  `request/transport.py::complete_request`. `request/backend.py` holds the
+  installed `CompletionBackend` (`active_backend`, `install_backend`,
+  `using_backend`): `LitellmBackend` by default (SDK retries off; Azure
+  deployments go to `request/azure.py`), `offline/llm.py::OfflineRouter` under
+  the test double, or a test fake (`tests/_llm_fake.py`: `install_fake_llm`,
+  `patch_acompletion`). The registry is a module global, not a `ContextVar`, and
+  holds no asyncio primitive. Tests install a fake backend and never patch
+  litellm; fakes skip operator routing, so routing tests wrap `LitellmBackend`
+  (`app/tests/test_w4_provider_order.py`).
+- **One retry loop.** `attempts/retry.py::run_attempts` serves `call_llm` (3
+  attempts, the three rungs of `attempts/escalation.py::BudgetEscalation`),
+  `call_llm_json` (5; parse and schema judge in `attempts/json_attempt.py`) and
+  tool turns (3 physical attempts, never spanning tool execution). It owns the
+  never-retried set (`LLMTimeoutError`, `LLMCallBudgetExceededError`,
+  `ContextWindowExceededError`), rate-limit parking (`LLMRateLimitParkError`),
+  jittered backoff and retry telemetry. Supply an attempt and a judge; never add
+  a second loop (`tests/test_llm_attempt_loop.py`).
+- **Model facts.** Each route is one `ModelProfile` in
+  `profile/__init__.py` (`FAMILIES`, then exact `ROUTES`): reasoning controls,
+  response formats, temperature floor, gateway pin and fallbacks, price. It is
+  the only place a price is stated (`MODEL_PRICING` is derived;
+  `tests/test_model_profile.py` pins the invariants). Add or retire a model
+  there, not with a name check at a call site. `request/thinking.py` applies
+  routing policy (price ceiling, upstream order, at most 3 fallbacks); role
+  effort is in `roles.py` (override with `LLM_EFFORT_<ROLE>`). Never append paid
+  fallbacks under a free route.
+- **Defaults and routing.** `core/config.py::DEFAULT_MODEL` is a zero-priced
+  OpenRouter route with free fallbacks for worker, supervisor, chat and semantic
+  safety. Operator-funded Express runs try free OpenRouter, then Anthropic
+  Haiku within its monthly credit, then Azure within the euro budget, then fail
+  with "No model is available right now" (`routing.py`, `admission/`,
+  [docs/azure-setup.md](../docs/azure-setup.md)). BYOK runs skip operator
+  routing. `COSCIENTIST_REQUIRE_FREE_MODELS` allows free routes only;
+  `LLM_ENABLED=false` stops dispatch.
+- `process_mode.py` answers "offline?" and "credential available?"; only
+  `COSCIENTIST_TEST_DOUBLE=deterministic` selects the deterministic mode.
 
-**The literature review can go back for what it did not answer.** Phases 1-5
-search once, from the research goal, and synthesize what came back.
-`src/co_scientist/platform/retrieval/research/` is a standalone capability that reads a result,
-takes what it leaves open, and searches again -- a budgeted descent whose
-breadth halves per level with a floor, so the whole cost is arithmetic before
-the first call (`8 + 4 + 2` threads, never `8 x 4 x 2`). It imports nothing
-else in this repo and states its needs as two protocols;
-`src/co_scientist/platform/retrieval/research_adapter/` is the implementation of those for this
-engine (MCP search and full text over the run's configured sources, the five
-model judgements over `call_llm_json`, and the tier-to-ceilings tables), and
-`science/generation/literature_review/research_phase.py` is where Generation calls it. Assigning
-the same loop to another agent is a budget and a seed-question policy, not a
-second implementation -- which is exactly what Reflection is (below).
+## Retrieval (`platform/retrieval/`)
 
-Seeded from the gaps Phase 3's per-paper analysis already recorded, so the
-first level asks what the reading raised rather than what the goal suggests.
-What it finds merges back into the review's own paper pool and its synthesis --
-a finding that lived only in a ledger would be recorded and never used. Gated
-the same three ways as the executed simulation: the app passes its tier
-verbatim (`orchestration/engine_adapter/opts.py`) and `research_adapter.budget` alone decides
-which tiers buy it -- `extended` and `ultra` -- so the two sides cannot drift;
-`run_setup._resolve_research_tier` refuses it where MCP is unavailable, since a
-loop whose whole shape is search-read-search has nowhere to go; and a run with
-no enabled search source researches nothing. Whether the literature review
-*node* runs is deliberately not a gate -- the reviews below resolve the run's
-sources from its tool registry themselves.
-Unlike the tool loops, the offline backend is *not* a refusal -- these are
-ordinary schema-constrained completions it answers deterministically, which is
-what makes the whole path testable without a key.
+- `mcp_client/` talks to the MCP server (langchain-mcp-adapters), sends
+  `X-MCP-Shared-Secret`, and bounds each tool call by
+  `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300). The literature review
+  gates on server reachability (`check_mcp_available`), not one source's health.
+  Without MCP the literature and reflection paths run LLM-only, and
+  `degradation.py` records that floor on the run and every later event, so a
+  run that reached no source says so.
+- The tool registry is `config/tools.yaml` with `config/registry.py`. A tool
+  missing from `tools.yaml` is unreachable even if the MCP server registers it.
+  Per-run disabling (`GeneratorOptions(disable_tools=...)`, built in
+  `orchestration/engine_adapter/opts.py`) is reconciled once in
+  `registry._apply_disabled_tools`, which also disables every search source
+  backed by that tool. The search pipeline trusts `SearchSourceConfig.enabled`,
+  so new gating belongs in the registry, not at a call site. A tool's
+  `parameter_mapping` is written in its caller's vocabulary (OPERATIONS).
+- Default literature sources are PubMed full text, OpenAlex, Europe PMC, web
+  search, arXiv and bioRxiv; web results carry `source: "web"` and web search is
+  absent from validation and reflection. Entity-keyed lookups (ChEMBL, UniProt,
+  STRING, Reactome, Open Targets, Ensembl, gnomAD, ClinicalTrials) serve
+  literature enrichment and reflection, not literature search.
+- `evidence/search_fusion.py::select_within_budget` fills the evidence budget
+  best-first, drops retracted papers, and honours `reserved_slots` for sources
+  that score low by construction.
+- `research/` is a standalone, budgeted search-read-search loop. It imports
+  nothing else from the repo (`tests/test_research_loop.py`) and states its
+  needs as two protocols, implemented by `research_adapter/` (tier budgets, MCP
+  retrieval) and `science/research_model.py` (model judgements). The literature
+  review, generation expansion and comprehensive reflection each append to
+  `research_ledgers`.
 
-Everything the phase did leaves the node in `research_ledgers` on the state
-(plain data, because a checkpoint carries JSON only -- see
-`platform/retrieval/research/serialization.py`), and each researched paper carries the id of the
-search that surfaced it. The app writes both: `retrieval_calls` rows and the
-`evidence.retrieval_call_id` that resolves to them, so a run can say which
-query found a piece of evidence and which question that query was serving.
-Note the channel is a *list* with an accumulating reducer
-(`domains.research_state.state.accumulate_research_ledgers`; the durable path reads it
-off the same annotation through `task_runtime.channel_reducers`, so an
-annotated channel cannot fall through to last-write-wins there). Research has two
-owners, and under a single-ledger channel whichever ran last was the only one
-on record.
+## Sandbox and skills (`platform/sandbox/`)
 
-**The deep reviews go back too, and their cost is a product.** The finalist
-review buys no probe retrieval of its own -- verification searches with its
-queries instead -- so `research_for_review` is its only retrieval, one gathering
-per finalist (`science/reflection/review_evidence.py`).
-The policy is what differs from Generation's, and it has to be: the literature
-review researches once per *run*, a review once per *hypothesis*, so a
-per-hypothesis budget alone bounds nothing. Both factors are capped in
-`platform/retrieval/research_adapter/__init__.py` -- what one hypothesis may buy
-(`review_budget_for_tier`: 4 threads on extended, 5 on ultra) and how many
-hypotheses buy anything (`reviewed_hypothesis_limit`: the 3 or 5 best of the
-pool, ordered by the canonical `rank_by_elo` and selected from the whole pool
-so the in-process node and a per-hypothesis durable task choose identically).
-Reviews now go to ranked finalists only, so the Elo half of that key decides.
-The product of the two caps is a per-*cycle*
-ceiling of 12 threads on extended and 25 on ultra -- **not per run**: comprehensive
-reflection runs once per cycle over a fresh top-3, and evolution rewriting a
-hypothesis makes it need its full review, and so its research, again. A live
-extended run (3 iterations) bought 9 gatherings and 28 review threads against the
-12 this was previously quoted as bounding, so multiply by `max_iterations` for a
-run-level number. That quote also depends on
-the two review modes sharing one gathering per hypothesis: they are separate
-leased tasks, and it is the run cohort executing them on one thread's loop
-that lets the second reuse the first's in-flight retrieval. A lease lost
-mid-task re-pays one gathering, as the probe round already did. Seeds are the
-doubts this run already recorded about *this* claim: assumptions a previous
-cycle's full review marked
-uncertain or likely false, and its simulation's failure points. Research that
-fails degrades to the probe round rather than failing the review, and the
-ledger travels beside the review rather than inside it -- through the item
-result and the fan-out aggregate -- so a provenance record does not ride into
-every later checkpoint through `enrichments`.
+- Every command a node runs is confined (Linux: Landlock, seccomp, cgroups;
+  macOS: Seatbelt). Where no backend can confine a command, execution tools are
+  withheld and the review reasons instead. Workspaces have no network
+  (`network_allowed=False`; `tests/test_sr04_generated_egress.py`). Script
+  execution also needs the cgroup boundary described in
+  [DEPLOYMENT](../docs/DEPLOYMENT.md).
+- `workspace/run_workspace.py` opens a workspace per run, per review
+  (`open_review_workspace`, since reviews fan out concurrently) and per drafting
+  pass. Long commands hand back a session id to poll (`workspace/tools.py`).
+- `science/reflection/simulation_execution.py` lets the simulation review run
+  its model in a workspace with a bounded tool loop (`MAX_SIMULATION_TURNS`,
+  `SIMULATION_TOKEN_BUDGET`, both measured) before the usual schema-constrained
+  review. It is refused for the offline backend
+  (`run_setup._resolve_simulation_execution`).
+- Tool loops re-send their whole transcript each turn, so
+  `platform/llm/tools/transcript.py` elides superseded writes, then aged
+  evidence, then repeated papers; the order is pinned by
+  `tests/test_llm_tool_loop.py`. Reaching a ceiling buys one closing turn
+  without tools (`tools/loop.py::_harvest_partial_answer`).
+- Science skills: `platform/sandbox/skills/` reads `vendor/science-skills/`
+  only when `COSCIENTIST_SKILLS_DIR` is set (the API image sets it) and runs
+  scripts with the prebuilt `COSCIENTIST_SKILLS_PYTHON`, because uv cannot run
+  inside the sandbox. Skills are enabled per consumer: only the drafting pass
+  (`science/generation/literature_tools/draft.py`) sets `skills_enabled`, since
+  the simulation review measured worse with them. The catalogue withholds
+  skills whose script or dependencies are missing. Credentials reach only a
+  recognized vendored script, and `read_skill` paths stay inside the skill
+  (`tests/test_skills_catalog.py`). Skills used are recorded in
+  `ExecutionMetrics.skills_used` and named in the report, which carries their
+  licence attribution.
 
-**Deep verification is a third owner of that same gathering and costs
-nothing extra.** It runs immediately after comprehensive reflection (and
-the safety screen), on the same cohort's loop and over the same pool, so
-`review_evidence.researched_articles_for` finds the gathering already in the
-flight cache and merges those papers into its probe round
-(`deep_verification._with_researched`). It deliberately *reads* and never
-starts one: a gathering begun there would be a third per-hypothesis
-retrieval multiplying by pool size and iteration, which is the exact shape
-of the 299-call incident. An idea the reviews did not fund is verified
-against its probes alone, as it always was. Its seeding needs no new policy
-either -- research is seeded from assumptions a previous cycle marked
-uncertain or likely false, and those assumptions are deep verification's own
-output, so the loop it now reads from was already being pointed by it.
+## Reference MCP server (`mcp_server/`)
 
-**Depth goes to finalists only** (`science/scheduling/funnel.py`). Every
-idea gets the safety screen, one screening review and the tournament; the
-observation, full and simulation reviews, deep verification and claim checks
-run for the run's finalists alone -- the top `finalists` (3/5/6/8 by tier) by
-Elo among ideas that have played, which are the ideas the report features. A
-first cycle therefore spends nothing on depth, and an idea that loses never
-pays for it. A finalist's depth is two calls: one `finalist_review` answers the
-observation, full and simulation reviews together and proposes verification
-queries, each part stored under its standalone key so gates and the report read
-the same shapes; deep verification then retrieves with those queries and
-answers once. A finalist is reviewed in depth once, with no recurrent refresh.
-Issuance stays incremental: `deep_verification_issued` is
-checkpointed when an attempt is *issued*, so each finalist is verified once.
-When the run ends with finalists still lacking depth, the orchestrator routes
-the terminal pass through `comprehensive_reflection`, `safety_screen` and
-`deep_verification` to the overview -- never after a budget, clock, task-count
-or safety stop, never past the call ceiling, and without the blocked-idea
-recheck. The report features ideas with a verdict and keeps
-every other released idea as its own entry marked "screened, not
-deep-verified".
-
-`platform/sandbox/workspace/` and `platform/sandbox/` confine every command a node runs -- including
-ones that outlive the call that started them
-(`platform/sandbox/workspace/session.py`: `run_command` hands back a session id
-rather than killing a command at its deadline, `poll_command` continues
-it from a cursor, and `platform.llm.tools.transcript.normalize_tool_transcript`
-turns a turn cut off mid-call into an explicit aborted result instead of
-a conversation the provider rejects). Reflection's simulation review and
-the drafting skills are what run inside them.
-
-Shared state flows through `WorkflowState` in `domains/research_state/state/__init__.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/science/prompts/templates/` (also bundled via `package-data`), loaded by the `science/prompts/` package. YAML tool/domain configs live in `src/co_scientist/platform/retrieval/config/` with examples per domain (biomed/cyber/web-research/etc.).
-
-Key supporting modules: `domains/research_state/models/` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`; ID minting beside `Hypothesis`), `science/schemas/` (JSON-schema package for structured LLM output — prompt families in submodules, name lookup in `__init__.py`), `core/constants/` (Elo params, token limits, temperatures), `domains/research_state/state/` (`WorkflowState` and its reducers), `cache/` (LLM response and node-output caches), `platform/retrieval/mcp_client/` (MCP connection, availability probes), `platform/llm/offline/` (the deterministic offline backend), `core/exceptions.py` (domain exception hierarchy), `platform/telemetry/progress.py` (shared progress-event emission used by all agent nodes), `platform/retrieval/tools/` (tool registry subpackage for YAML-based tool configuration).
-
-Each of those packages keeps its public names in its `__init__.py` and splits the rest into prefix-free modules (`core/metrics.py`, `platform/llm/offline/llm.py`): import a sibling by its full path and the package by its short one.
-
-**LLM dispatch and bounds.** Calls go through LiteLLM, in the `platform/llm/` package (`platform/llm/__init__.py` lists the layers, lowest first, and is the only import surface outside it; `tests/test_agents.py` keeps the imports pointing down). Every completion is bounded twice: `platform.llm.request.completion.llm_timeout_seconds()` (env `COSCIENTIST_LLM_TIMEOUT_SECONDS`, default 600s, `0` disables) is passed to litellm *and* re-imposed as a hard `asyncio.wait_for` ceiling in `platform.llm.request.completion._acompletion_within_timeout` (+30s grace), raising `LLMTimeoutError`. Physical dispatch, admission and telemetry are shared with app calls in `platform/llm/request/transport.py::complete_request`; stream consumption keeps the app's silence deadline. What answers that await is chosen in one place, `platform/llm/request/backend.py`: a `CompletionBackend` with two operations, `complete(**request)` and `supports_json_schema(model)` (does this model take a native `json_schema` response format; it travels with the backend because the backend that answers a model's calls is the one that knows). `active_backend()` returns the installed one, `install_backend()` swaps it (and returns what it replaced), `using_backend()` scopes one to a `with`. The default, `LitellmBackend`, reads the live `litellm.acompletion` attribute at call time, which is why a patch on `"co_scientist.platform.llm.litellm.acompletion"` still steers a call that is already built. `platform.llm.offline.llm.OfflineRouter` is the second adapter (`install_offline_router()` installs it once at process start and no longer assigns over `litellm`; non-`offline/` models go to the backend it replaced); the third is the recording fake in `tests/_llm_fake.py`, which `install_fake_llm`, `patch_acompletion` and `isolate_offline_router` ride. The registry is a plain module global, not a `ContextVar` (the cohorts' threads and event loops would not see a context set elsewhere) and holds no asyncio primitive. The capability answer is read in two places on purpose: `platform/llm/request/completion.py` asks the installed backend on every call, so it decides which response format a call is built with, while `platform/llm/attempts/json_attempt.py` binds the default answer at import, so the validation shim never sees an installed backend. A test that needs the provider installs a fake backend rather than patching `litellm`.
-
-Retrying lives in exactly one place, `platform/llm/attempts/retry.py::run_attempts`: run attempts at escalating rungs, given how to make one attempt and, optionally, a `Judge` of the response (accept it, or reject it with feedback for the next attempt). `call_llm` supplies no judge and defaults to `max_attempts=3`, the number of attempts that walks the ladder's three rungs. `call_llm_json` supplies the parse/repair/validate judge (`platform/llm/attempts/json_attempt.py`) and defaults to 5: its schema and parse failures keep the current rung and are answered by asking again, with the validation error appended to the prompt, which a plain-text call has no counterpart for. The tool turn (`platform/llm/tools/loop.py`) supplies an attempt that stops before tool execution, so a retry never runs a turn's tools twice. The loop owns what a failed attempt is answered with, so there is one place to read it: the rung sequence (`platform.llm.attempts.escalation.BudgetEscalation`; see the "A floor is not a guarantee" gotcha in `docs/OPERATIONS.md`); the never-retried set (`LLMTimeoutError`, `LLMCallBudgetExceededError`, `ContextWindowExceededError` — a stalled provider will not answer the same request faster) and the `FreeModelEligibilityError` re-raise; the platform rate-limit park (`LLMRateLimitParkError`, classified in `platform/llm/attempts/retry.py`); a **jittered** exponential wait for a throttle and a longer schedule for an outage (`platform/llm/attempts/retry.py`; unjittered releases every throttled caller at once and reproduces the burst); the process-wide throttle counter behind `rate_limited_attempt_count` (a plain int, never an asyncio primitive, because the worker cohorts' event loops share it); retry telemetry; and log severity (a warning, and an error only when it gives up). **Tool turns use the same bounded policy with three physical attempts per turn**, including jittered backoff, quota parking and retry telemetry. A retry never spans tool execution. Its rung-to-request mapping remains its own: the mandatory-reasoning rung raises the budget without switching to minimal effort. `tests/test_llm_attempt_loop.py` covers the policy. The separate `AttemptPlan.escalation_only` contract retains a call-local visited-rung guard: each rung, including the initial rung, can be entered once, so alternating reasoning failures terminate within four attempts. Failures with no recovery rung propagate without backoff, parking or retry telemetry under that contract. Production tool turns use their three-attempt bounded plan instead, and bounded plans may revisit rungs within their configured allowance. Do not add another retry loop for a new call site: supply an attempt (and a judge) to this one.
-
-**Model facts.** What depends on which model is called is one `ModelProfile` from `platform.llm.profile.model_profile(name)` (also exported by `co_scientist.platform.llm`): whether it reasons and how to ask it to (`reasons`, `thinking`, `reasoning_can_disable`), whether it takes a `json_schema` response format, its temperature floor, its gateway pin and fallback chain, its price, and whether it is an admitted promotional free route. A name resolves through `platform/llm/profile/__init__.py` (substring/prefix families, e.g. DeepSeek) and then `platform/llm/profile/__init__.py` (one entry per exact route, which overrides its family; the only place a price is stated — `platform.llm.profile.MODEL_PRICING` is derived from it). Add, retire or correct a model by editing that one entry; do not branch on a model-name substring at a call site. `platform/llm/request/thinking.py` is the routing *policy* applied to a profile (price multiple, upstream order, throughput floor, fallback cap); it states no per-model fact.
-
-**MCP and the web.** Literature-review tools are pulled from an external MCP server via `platform/retrieval/mcp_client/` using `langchain-mcp-adapters`, bounded independently by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). State preparation detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode. The literature-review pre-flight gate checks **server** reachability (`check_mcp_available`), not any single source's health: gating on one source let an unreachable remote service veto sources that were otherwise fine. For conditionally-registered tools, ask `mcp_client.check_tool_available(tool_name)`.
-
-**A run that reaches no source now says so.** "Falls back to LLM-only" is four silent branches, not one: both paths route around `literature_review` and `reflection` (`workflow_topology`), `run_setup._resolve_research_tier` resolves to no research, and the deep reviews' probes and evolution's grounding each refuse themselves on `mcp_available`. All four are correct, and none of them is visible — the run publishes ideas, reviews and a tournament that look exactly like a healthy run's, with nothing saying they were never checked against a paper. `platform/retrieval/degradation.py` turns that into a fact the run carries: set at setup and again if the server is lost mid-node, drained into the report payload, and carried on every node event after it so a watcher sees it live. The only thing that survives an MCP outage is a run's own attached documents, searched in-process (`run_attachments`); without those the floor is `none`.
-
-The engine can also search and read the open web. `web_search` (MCP `search_web`) is a default `literature_review` search source alongside PubMed/OpenAlex, weighted lower (`papers_per_query: 2` against their 4) with `read_url` as its content tool; its results carry `source: "web"` so web evidence stays distinguishable downstream. It is deliberately absent from `validation` and `reflection`, which are direct-call paths. The agentic path — the model deciding when to search and what to open — lives in `draft_generation` and is active only when a caller passes `enable_tool_calling_generation=True`; the tools being available is a precondition, never on its own a request. The app opts in **by tier**, not by user toggle: `orchestration/engine_adapter/opts.py::_apply_capability_opts` asks for it on `extended` and `ultra` only. Each tool call is an LLM round-trip that re-sends every prior result, so one hypothesis costs ~9 calls on prompts growing past 12k tokens, per cycle — measured as the largest single line in an express run's token budget during the window this was default-on. See `engine/docs/ARCHITECTURE.md` and `src/co_scientist/platform/retrieval/config/tools.yaml`.
-
-**The drafting pass can query databases, not just read papers.**
-`vendor/science-skills/` is Google DeepMind's Science Skills bundle -- 38
-directories, each a `SKILL.md` of operational judgement plus a Python CLI
-that queries one scientific resource (UniProt, STRING, ClinVar, gnomAD,
-ChEMBL, ClinicalTrials, AlphaGenome, ...). `platform/sandbox/skills/__init__.py` reads it into
-a one-line-per-skill catalogue for the prompt and returns a full document
-only when the model calls `read_skill`; the scripts then run through the
-workspace's ordinary `run_command`, confined like any other command, which
-is why this needed no second execution path. The interpreter is baked at
-image build (`COSCIENTIST_SKILLS_PYTHON`) because `uv` cannot run inside the
-sandbox at all -- its cache contains a `.git` directory and `.git` is in
-`PROTECTED_METADATA_NAMES`. Three things about it are load-bearing.
-
-**Which agent gets them is decided per consumer, not per deployment.**
-`WorkspaceSession.skills_enabled` defaults off and `workspace_tool_schemas`
-takes it explicitly. The skills were wired into the simulation review first
-and measured *negative* there over eighteen runs -- a reviewer that engaged
-a skill produced an observation 5 times in 7 against baseline's 9 in 9, at
-40% the length -- because that node's job is to build a model of a mechanism
-and run it, and retrieval competes with that. The drafting pass
-(`science/generation/literature_tools/draft.py`) is where retrieval *is* the job, and it
-drafts a whole cycle's hypotheses in one tool loop, so the cost is per cycle
-rather than the per-hypothesis multiplicity behind the 299-call incident.
-Deep verification and evolution grounding are deferred for exactly that
-reason. A single environment variable as the gate would have re-armed the
-review the moment the bundle was installed for drafting.
-
-**Disclosure is two levels deep.** 20 of the 38 skills give the overview in
-`SKILL.md` and the command syntax in `references/*.md`. Serving only the
-first level does not make the model stop -- it guesses, and a live pass
-reached STRING's CLI with no subcommand for exit 2. `read_skill` therefore
-takes an optional path inside the skill, resolved and checked to be within
-it. The same preamble also tells the model there is no user to ask, because
-several skills instruct it to stop and ask one.
-
-**Offering them is not requesting them, and turns are not what they cost.**
-With a descriptive prompt section the drafting pass ignored the surface
-entirely across three mechanisms while paying 6.2k prompt characters a turn
-for it; a directive instruction to check one entity against a database
-before finalising is what produced use. Funding that with extra *turns* --
-the obvious move -- bought nothing, because until transcript ageing landed
-this loop was never turn-bound: for four hypotheses the iteration budget is
-13 and live passes stopped at seven to eleven on the transcript backstop.
-The catalogue is ~1.6k tokens on every turn and a skill document another
-~3k on every turn after it is read -- a quarter of a finished pass's last
-transcript, measured -- so `DRAFT_SKILLS_TOKEN_BUDGET` raises the transcript
-ceiling instead, leaving the pass the same number of *working* turns rather
-than trading drafting for lookups.
-Two overheads are removed for any consumer: the catalogue is summarised to
-routing sentences (12,079 to 5,155 chars, since every line is re-sent every
-turn), and `platform/sandbox/skills/__init__.py` seeds the `.licenses/` notices 35 of the 38
-skills demand before they will work, which cost a live loop four turns of
-fourteen. Credentials reach a vendored skill script and nothing else
-(`platform/sandbox/skills/__init__.py::invoked_skill`, which also names the source for
-attribution) -- the same workspace runs model-written programs against an open
-network.
-
-**Every defect that stopped this working was a missing instruction, not
-missing code.** The mechanism was complete and correct and produced zero
-successful skill commands over two measurement rounds; three sentences in the
-`read_skill` preamble and the `run_command` description took it to 4 of 4.
-Skill scripts write their result to a file rather than stdout, and nothing
-said where: a live pass lost a well-formed STRING query to
-`--output /tmp/...` after paying for the API call. `run_command`'s
-description stated flatly that there was no network, which is true of the
-review workspace and false of the drafting one -- a model told the attempt is
-impossible never makes it, so the sentence now follows
-`SandboxPolicy.allows_network`. And the general rule about output paths only
-got to 2 of 3: 27 of the 38 documents write `--output /tmp/out.json` in
-*every* example, and a rule stated generally loses to a dozen concrete
-counter-examples, so the preamble contradicts the pattern by name. Measured
-over three research goals x four hypotheses on the production model: 0 of 7,
-then 2 of 3, then 4 of 4.
-
-**What it buys, in one instance.** A drafting pass read STRING's `SKILL.md`,
-then `references/interactions.md`, ran `string_cli.py partners --identifiers
-SLC9A1 --species 9606`, read the file back, and two of its four hypotheses
-argued from the result -- "STRING database analysis confirms that SLC9A1
-(NHE1) strongly interacts with MAPK3, PRKACA, CALM3, and ROCK1 (combined
-scores 0.94-0.99)". A gap argued from a record rather than from what someone
-wrote up. The ceiling on how often that happens was never the skills.
-Measured on a live drafting pass, `search_pubmed` results were **96% of the
-loop's transcript** (282k of 295k characters over 9 searches) and the skills
-4%, which is why the loop used to stop on its token backstop rather than on
-having finished. Two elisions fixed that, both in `platform.llm.tools.transcript` and
-both applied at `platform.llm.tools.loop._drop_dead_context`, so every tool loop
-inherits them. `elide_repeated_papers` drops a paper an earlier search in
-the same transcript already returned -- 35% of records on that pass, 94
-carrying 61 distinct papers. `elide_aged_evidence` is the one that removes
-the growth: a record stays whole for two more assistant turns, long enough
-for the model to judge a gap from its abstract, and is then cut to what a
-draft cites it by, while a page fetched whole (`read_url`) is cut to the
-call that can fetch it again. **Order is
-load-bearing** and pinned by a test -- ageing runs first, because an elided
-record is no longer a copy of anything, and reversed the two eliders between
-them delete every copy of a paper found again after its first sighting aged
-out.
-
-Measured over three research goals x four hypotheses, before and after: all
-three passes used to stop on the token ceiling at seven to eleven of
-thirteen turns with per-turn spend climbing monotonically to 45k, 61k and
-72k tokens; afterwards per-turn spend is flat and the same goals run to
-their turn budget at 296k-363k total. Every arm produced 4 of 4 drafts, all
-4 literature-sourced -- including the ceiling-hit ones, since reaching a
-bound buys a closing turn rather than discarding the pass. What remains in a
-finished pass's last transcript is 37% search results, 25% skill documents,
-13% prompt, 9% echoed reasoning; nothing there grows with the turn count.
-A stopping rule in the draft prompt was tried against the same three goals
-and reverted: it produced one natural finish in three, did not reduce
-searching, and drafts came back 14% shorter, which is the one thing that
-phase is tuned for.
-
-**Three of the sources are also first-class tools, on every run.** The
-skills are gated: `extended`/`ultra` only, and only when the drafting model
-chooses to reach for one. So the three it reached for on its own --
-interaction networks, pathway membership, target association -- are
-additionally declared in the *default* `platform/retrieval/config/tools.yaml` as
-`search_string_interactions`, `search_reactome_pathways` and
-`search_open_targets` (`mcp_server/tools/biomedical_databases.py`), wired into
-literature-review enrichment and reflection. They are entity-keyed, not
-free-text, which is why they sit on those paths rather than among the
-literature search sources. Declaring them in the default config is the
-load-bearing part: a tool absent from it is unreachable in production.
-
-**The catalogue withholds what it cannot run** (`_withholding_reason`), for
-the same reason `run_command` is withheld with no sandbox backend: reading a
-skill costs a turn and then several thousand tokens re-sent on every turn
-after. Six of the 38 go -- four ship no script at all (`pymol` needs a binary,
-`uv` and `credentials` describe setup the harness has already done and the
-preamble contradicts, `workflow_skill_creator` authors skills rather than
-using one) and two declare a 695 MB closure the image omits. 32 are offered,
-and installing a package is all it takes to make its skill reappear.
-
-**The sources a run queries are attributed to its reader.** `platform/sandbox/skills/__init__.py`
-is a `scoped_telemetry`-shaped context variable -- the invocation happens in a
-tool handler and the count is wanted at the node boundary, and each durable
-run's cohort has its own loop, so a module-level total would mix runs. It
-rides `ExecutionMetrics.skills_used` through the ordinary reducer, scoped by
-the node-level generation call and per strategy task on the durable
-path, into a report section naming only what was actually queried. This is what
-discharges the third-party licence notices; the `.licenses/` file the skills
-themselves ask for is written into a directory that is then deleted.
-
-The run-level gate needs nothing new: the drafting pass only runs at all
-when `enable_tool_calling_generation` is set, which the app asks for by tier
-on `extended`/`ultra`, so the skills inherit that gate rather than adding a
-second one to keep in step. Inert without `COSCIENTIST_SKILLS_DIR`, which a
-checkout, a test and a CI job do not set -- which is also the whole offline
-story, since an empty catalogue offers no skill tool and runs exactly as the
-engine did before skills existed. Provenance and upstream revision: the
-`NOTICE` at the repo root.
-
-**Per-run tool disabling is reconciled once, at registry load.** Connector toggles reach the engine as `GeneratorOptions(disable_tools=[...])` (built in `orchestration/engine_adapter/opts.py`), which `orchestration/generator/run_setup.py` passes on as `ToolRegistry(disabled_tools=...)`. `registry._apply_disabled_tools` flips `enabled = False` on the tool *and* on every workflow `search_source` backed by it, covering every way a tool can be off — the `disabled_tools` argument, a YAML `enabled: false`, or a source naming a tool that does not exist. That one pass is load-bearing: the multi-source pipeline selects on `SearchSourceConfig.enabled` alone and never consults the tool's own flag, so a source left enabled over a dead tool keeps being searched. The Phase 2 searches in `platform/retrieval/evidence/search.py` therefore trust `workflow.get_enabled_search_sources()` and deliberately do not re-check the registry — a second filter there was removed once the registry covered every case, so new gating belongs at the registry, not at the call site. `engine/tests/test_config.py` pins the reconciliation.
-
-**Evidence budget and `reserved_slots`.** Multi-source search fills its budget through `platform/retrieval/evidence/search_fusion.py::select_within_budget`, not by truncating the ranked list. Retrieval score rewards source quality, citation count, and recency — axes a source can lack entirely rather than score poorly on, so it sorts below every indexed paper however well it matches. Such a source can claim guaranteed places via `reserved_slots` in its `SearchSourceConfig`; reserved places are filled best-first within the source, never padded, never over budget. No shipped source currently uses it (`test_the_shipped_sources_reserve_no_slots`).
-
-Engine architecture lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
-[`../docs/OPERATIONS.md`](../docs/OPERATIONS.md) for operational invariants.
-
-**Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine also requires 3.12+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt and systems-biology lookups, and web search/fetch.
-
-**Style conventions:**
-- Ruff formats and lints Python at 100 columns; config is in `pyproject.toml`.
-- Apply the hidden-reasons documentation policy in [`../AGENTS.md`](../AGENTS.md); docstrings are optional.
-- `logger.debug()` lowercase; `info`/`warning`/`error` capitalized.
-- No emojis or unicode decoration in code or logs.
-- Keep terminal presentation libraries outside runtime engine code.
-
-## Reference MCP server (`engine/mcp_server/`)
-
-A separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine also requires 3.12+) — install into a 3.12 venv or you'll hit cryptic solver errors.
-
-The live manifest groups the sources into three families:
-- **Literature** — `search_pubmed`, `pubmed_search_with_fulltext`, `check_pubmed_available` (Biopython/Entrez), `search_openalex` (keyless, cross-disciplinary), `get_opencitations_citation_edges`, `search_europepmc` and its `search_preprints`/`search_biorxiv` preprint-restricted siblings, `search_arxiv` (arxiv.org's own export API, keyless).
-- **Open web** — `read_url` (always registered), `search_web` and `check_web_search_available` (both key-gated).
-- **Biomedical and systems lookups** — ChEMBL, UniProt, STRING, Reactome, Open Targets, Ensembl, gnomAD, GWAS Catalog and ClinicalTrials.
-
-The `_MCP_TOOLS` tuple in `server.py` is the single source for both registration and the `mcp_tools` manifest at `GET /`. **Adding a tool takes two edits**: register it there, and declare it in the engine's `src/co_scientist/platform/retrieval/config/tools.yaml` with a matching `mcp_tool_name` (plus the `draft_generation` whitelist if the model should call it directly).
-
-- **Registration says a key was set, not that it works.** A provider that refuses the key -- revoked, unpaid, or out of quota -- leaves `search_web` registered while every search fails, which before the result contract read downstream as "the web had nothing on this". Brave withdrew its free tier in Feb 2026 and exhausted keys answer `402`, so this is not hypothetical. `web_providers._handle_provider_error` records the refusal per provider -- 401/402/403, plus Tavily's 432/433 for a month's credits spent, but never 429, which self-heals -- logs it at ERROR, and `check_web_search_available` reports it. That tool, not the presence of `search_web`, is what the app's connector probe asks. A search that succeeds clears that provider's record.
-- **Two keys chain, they do not choose.** `candidate_providers` drops refused providers, so a search whose provider is out of credit falls through to the next configured one *within the same call* and later searches skip the spent provider entirely. `WEB_SEARCH_PROVIDER` names the preference, not the only provider. Two rules keep the arithmetic honest: an empty result is an answer and does **not** fall through (re-asking would spend two allowances to hear "nothing" twice), and when every provider has been refused the preferred one is still tried, since a record only clears on a success and a monthly reset would otherwise stay invisible until the process restarts.
-- **`search_web` is registered only when a provider key resolves** — `BRAVE_API_KEY` or `TAVILY_API_KEY`, with `WEB_SEARCH_PROVIDER=brave|tavily` selecting one (otherwise autodetect, brave first). Without a key the tool is *absent from the manifest*, not failing — so "the agent never searched the web" is a deployment question first. `curl http://localhost:8888/` returns the live `mcp_tools` list plus `integrations.web_search_provider`.
-- **`read_url` fetches a URL an LLM chose**, so every URL passes `web_fetch.check_fetchable`: http(s) only, cloud metadata hosts blocked, and the hostname resolved via `getaddrinfo` *before* the range check, so `nip.io`-style names pointing at loopback/private/link-local addresses are refused too. `web_fetch.py` follows redirects manually (`follow_redirects=False`, max 5), re-screening each hop, because httpx's own redirect handling would skip the check. In production this server sits on Railway's private network next to the api, so weakening the guard is a live SSRF. Page content is untrusted data, never instructions.
-- **Every tool is wrapped by `tool_logging.with_call_logging`** in the registration loop, emitting one INFO line per call with argument and result counts, elapsed time and fixed failure diagnostics; queries, URLs, provider error text and tracebacks stay out of logs. Every search returns `{"status": "ok", "records": [...]}` or `{"status": "failed", "records": [], "error": "<short reason>"}` from `tools/_results.py`, never raises, and the log line labels failures. Failure reasons omit exception text that can carry request URLs or credentials. A failed source is unknown for novelty, receives no novelty credit, and is named in the report; the engine does not retry a reported failure. Any wrapper added here **must copy `__signature__`** — FastMCP derives the advertised parameter schema from it, and a bare `*args, **kwargs` wrapper silently strips every parameter from what the agent sees.
-- **Its own env surface**, in `engine/mcp_server/.env.example`, loaded from a `.env` co-located in `mcp_server/` (not the engine's; a missing file only warns): `ENTREZ_EMAIL`/`ENTREZ_API_KEY`, `COSCIENTIST_LIT_REVIEW_DIR`, `COSCIENTIST_MCP_PORT`, `COSCIENTIST_MCP_LOG_LEVEL`, `COSCIENTIST_MCP_SHARED_SECRET` (required shared-secret auth — see `docs/DEPLOYMENT.md`; when unset, only `GET /` is public unless `COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1` explicitly permits actual loopback peers), `WEB_SEARCH_PROVIDER`/`BRAVE_API_KEY`/`TAVILY_API_KEY`. Setting these in the app's `.env` does nothing. An inherited `DISABLE_SSL_VERIFY=true` is rejected; the service never disables TLS verification globally.
-- **Its own pytest suite.** `mcp_server/` is its own project; the engine's `testpaths = ["tests"]` does not reach it and the engine's mypy excludes it. Run `pytest` *and* `mypy .` from `engine/mcp_server/`.
+- A separate project (Python 3.12, `.venv-mcp`). The package maps to the
+  directory, so run `uvicorn mcp_server.server:app` and its pytest from
+  `engine/`. `make test-mcp` runs `pytest mcp_server/tests` from `engine/` and
+  strict `mypy .` from `engine/mcp_server/`. `make dev-mcp` serves port 8888 with
+  local unauthenticated access; production binds `::` on 8888 (`Dockerfile.mcp`).
+- Every route except `GET /` needs `X-MCP-Shared-Secret` equal to
+  `COSCIENTIST_MCP_SHARED_SECRET`, the same value the API holds. With no secret,
+  only loopback callers with `COSCIENTIST_MCP_ALLOW_UNAUTHENTICATED_LOCAL=1`
+  pass. A healthy `GET /` with every tool call refused means a missing secret.
+- `_MCP_TOOLS` in `server.py` is the single source for registration and the
+  `GET /` manifest. Adding a tool takes two edits: register it there and declare
+  it in `src/co_scientist/platform/retrieval/config/tools.yaml` with a matching
+  `mcp_tool_name` (and in `draft_generation` if the drafting model calls it).
+  No test ties the two lists together.
+- Families: literature (PubMed, OpenAlex, OpenCitations, Europe PMC and its
+  preprint searches, arXiv, bioRxiv); open web (`read_url` always; `search_web`
+  and `check_web_search_available` only when `BRAVE_API_KEY` or
+  `TAVILY_API_KEY` resolves); biomedical lookups (ChEMBL, UniProt, STRING,
+  Reactome, Open Targets, Ensembl, gnomAD, GWAS Catalog, ClinicalTrials).
+  `GET /` lists the live tools.
+- Searches return `{"status": "ok" | "failed", "records": [...]}` with a short
+  `error` (`tools/_results.py`) and never raise; a failed source is unknown for
+  novelty and named in the report. A wrapper must copy `__signature__`, because
+  FastMCP builds the advertised schema from it
+  (`tool_logging.with_call_logging`). Logs carry counts, never queries, URLs or
+  provider error text.
+- A provider that refuses its key (401, 402, 403, 432 or 433, never 429) is
+  recorded and reported by `check_web_search_available`, which the API's
+  `/status` asks. Within a call, a refused provider falls through to the next
+  configured one; an empty result is an answer and does not fall through.
+- `read_url` fetches model-chosen URLs: `safe_http` resolves the host and
+  rejects non-global addresses, credentials and unusual ports, re-screens each
+  redirect (5 at most), pins the validated IP, and caps size and time. The
+  server sits on the private network beside the API, so weakening this is SSRF.
+  Page content is untrusted data, never instructions.
+- Its environment is `engine/mcp_server/.env` (template beside it); the API's
+  `.env` does not reach it. Startup deletes everything under
+  `<COSCIENTIST_LIT_REVIEW_DIR>/pubmed/` except the shared public-paper cache,
+  so never point that variable at other data. `DISABLE_SSL_VERIFY` is refused.
