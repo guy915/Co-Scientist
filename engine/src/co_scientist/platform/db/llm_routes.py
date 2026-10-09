@@ -8,7 +8,12 @@ from typing import Literal, cast
 from co_scientist.core.admission_windows import utc_day, utc_day_bounds
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect, current_time, transaction
-from co_scientist.platform.db.spend import UNAVAILABLE
+from co_scientist.platform.db.spend import (
+    UNAVAILABLE,
+    anchored_total,
+    ledger_total,
+    spending_held,
+)
 
 Slot = Literal["openrouter", "anthropic", "azure"]
 
@@ -25,11 +30,14 @@ class RunRoute:
 
 
 def remaining_total(conn: sqlite3.Connection, total: int) -> int:
-    spent = conn.execute("SELECT COALESCE(SUM(charged_microeur),0) FROM llm_spend").fetchone()[0]
+    limit = anchored_total(conn, total)
+    if limit is None:
+        return 0
+    spent = ledger_total(conn)
     forecasts = conn.execute(
         "SELECT COALESCE(SUM(forecast_microeur),0) FROM llm_routes"
     ).fetchone()[0]
-    return max(0, total - int(spent) - int(forecasts))
+    return max(0, limit - spent - int(forecasts))
 
 
 def admit_route(
@@ -47,7 +55,7 @@ def admit_route(
         "azure" in slots
         and total is not None
         and 0 < estimate <= remaining_total(conn, total)
-        and not conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone()
+        and not spending_held(conn)
     )
     choices = tuple(slot for slot in slots if slot != "azure" or allowed)
     if not choices:
@@ -80,7 +88,7 @@ def reacquire_forecast(
     row = conn.execute("SELECT * FROM llm_routes WHERE run_id=?", (run_id,)).fetchone()
     if row is None:
         return
-    if total is None or conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone():
+    if total is None or spending_held(conn):
         allowed = False
     else:
         allowed = 0 < estimate <= remaining_total(conn, total) + row["forecast_microeur"]

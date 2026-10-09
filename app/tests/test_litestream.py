@@ -23,10 +23,15 @@ def _start(tmp_path: Path, settings: dict[str, str]) -> tuple[int, list[str]]:
             '  echo supervisor >> "$CALLS"\n'
             '  exec "$ENTRYPOINT" --serve\n'
             "fi\n"
+            'if [ "${2:-}" = co_scientist.platform.db.spend ]; then\n'
+            '  echo "hold:$3" >> "$CALLS"\n'
+            "  exit 0\n"
+            "fi\n"
             'echo "app:${COSCIENTIST_LITESTREAM_ACTIVE:-off}" >> "$CALLS"\n'
         ),
         "litestream": (
             'echo "$1" >> "$CALLS"\n'
+            'if [ "$1" = restore ] && [ -n "${RESTORED:-}" ]; then : > "$RESTORED"; fi\n'
             'if [ "$1" = restore ]; then exit "${RESTORE_STATUS:-0}"; fi\n'
             'exec "$ENTRYPOINT" --serve\n'
         ),
@@ -57,6 +62,22 @@ def test_incomplete_backup_configuration_never_invokes_litestream(
 
 def test_replication_wraps_the_app_only_after_successful_restore(tmp_path: Path) -> None:
     assert _start(tmp_path, _R2) == (0, ["restore", "supervisor", "app:1"])
+
+
+def test_replica_restore_holds_azure_spend_before_serving(tmp_path: Path) -> None:
+    restored = str(tmp_path / "restored.db")
+    settings = {**_R2, "COSCIENTIST_DB_PATH": restored, "RESTORED": restored}
+    assert _start(tmp_path, settings) == (
+        0,
+        ["restore", f"hold:{restored}", "supervisor", "app:1"],
+    )
+
+
+def test_existing_database_is_not_held_by_a_skipped_restore(tmp_path: Path) -> None:
+    existing = tmp_path / "existing.db"
+    existing.write_bytes(b"")
+    settings = {**_R2, "COSCIENTIST_DB_PATH": str(existing), "RESTORED": str(existing)}
+    assert _start(tmp_path, settings) == (0, ["restore", "supervisor", "app:1"])
 
 
 def test_restore_failure_never_starts_an_empty_database(tmp_path: Path) -> None:

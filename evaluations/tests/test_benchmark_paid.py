@@ -208,24 +208,17 @@ else:
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize(
-    ("base", "host"),
-    [
-        ("https://resource.openai.azure.com", "resource.openai.azure.com"),
-        ("https://resource.cognitiveservices.azure.com/", "resource.cognitiveservices.azure.com"),
-    ],
-)
-def test_azure_alias_key_and_endpoint_identity_are_recorded_without_values(
-    tmp_path: Path, base: str, host: str
-) -> None:
-    script = f"""
-import os
+def test_azure_is_refused_even_with_complete_configuration(tmp_path: Path) -> None:
+    script = """
+import sys
 from evaluations.benchmark_paid import configure
-host,digest=configure('azure','azure/deployment')
-assert host=={host!r}
-assert len(digest)==64 and 'synthetic' not in digest
-assert os.environ['AZURE_API_KEY']==os.environ['AZURE_OPENAI_API_KEY']=='synthetic'
-assert 'ANTHROPIC_API_KEY' not in os.environ
+try:
+ configure('azure','azure/deployment')
+except ValueError as error:
+ assert 'Azure' in str(error)
+ assert 'co_scientist.core.config' not in sys.modules
+else:
+ raise AssertionError('Azure benchmark admitted outside the production ledger')
 """
     result = subprocess.run(
         [sys.executable, "-c", script],
@@ -234,8 +227,7 @@ assert 'ANTHROPIC_API_KEY' not in os.environ
             "PATH": os.environ["PATH"],
             "PYTHONPATH": str(Path(__file__).resolve().parents[2]),
             "AZURE_OPENAI_API_KEY": "synthetic",
-            "ANTHROPIC_API_KEY": "other-synthetic",
-            "AZURE_API_BASE": base,
+            "AZURE_API_BASE": "https://resource.openai.azure.com",
             "AZURE_API_VERSION": "2025-01-01-preview",
         },
         capture_output=True,

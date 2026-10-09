@@ -34,7 +34,8 @@ from co_scientist.platform.db.launch_control import (
     write_control,
 )
 from co_scientist.platform.db.models import RunStatus
-from co_scientist.platform.llm.admission.spend import azure_config
+from co_scientist.platform.db.spend import spending_held
+from co_scientist.platform.llm.admission.spend import effective_azure_config
 from co_scientist.platform.llm.execution_policy import deployment_routes_are_free
 from co_scientist.platform.llm.process_mode import (
     credential_available,
@@ -82,7 +83,7 @@ def _credit_snapshot(conn: Connection) -> dict[str, Any]:
         conn.execute("SELECT COALESCE(SUM(charged_microeur),0) FROM llm_spend").fetchone()[0]
     )
     try:
-        config = azure_config()
+        config = effective_azure_config(conn)
     except ProviderAdmissionError:
         return {
             "enabled": True,
@@ -90,7 +91,7 @@ def _credit_snapshot(conn: Connection) -> dict[str, Any]:
             "charged_and_reserved_microeur": charged,
             "total_microeur": None,
         }
-    held = conn.execute("SELECT 1 FROM llm_spend_holds LIMIT 1").fetchone() is not None
+    held = spending_held(conn)
     forecasts = int(
         conn.execute("SELECT COALESCE(SUM(forecast_microeur),0) FROM llm_routes").fetchone()[0]
     )
@@ -189,7 +190,8 @@ def launch_status(request: Request, response: Response) -> dict[str, Any]:
             for name in (
                 "LLM_AZURE_ENABLED",
                 "LLM_TOTAL_BUDGET_EUR",
-                "LLM_AZURE_UNTIL",
+                "LLM_AZURE_EXPIRES_AT",
+                "LLM_AZURE_CUTOFF_HOURS",
                 "LLM_ENABLED",
                 "LLM_USD_TO_EUR",
             )
