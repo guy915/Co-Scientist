@@ -1,6 +1,6 @@
 # Manual cleanup: deletes merged or abandoned branches. Keeps the default
 # branch, every branch behind an open PR and any branch with a recent commit,
-# so running campaigns lose nothing.
+# so work in progress loses nothing.
 name: Prune branches
 
 on:
