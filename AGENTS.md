@@ -28,7 +28,7 @@ it, then the guide for the code you touch:
 ## Set up and run
 
 Use Python 3.12, Node.js 22.13+ and exactly Bun 1.3.14 (`make check-tools`
-rejects other Bun and Node versions). uv is only for `make audit-deps` and locks.
+rejects any other Bun and older Node). uv is only for `make audit-deps` and locks.
 
 - `make setup` creates `.venv` (prefers `python3.12`; never rebuilds an existing
   venv), installs the engine editable with dev extras and the frontend
@@ -37,15 +37,17 @@ rejects other Bun and Node versions). uv is only for `make audit-deps` and locks
 - `make start` is the single entry point: it installs missing dependencies,
   frees ports 8008, 5173 and 8888, runs MCP, API and UI and opens the browser.
   `make stop` frees the ports; `make dev-api`, `dev-ui` and `dev-mcp` run one
-  service. The API reads the root `.env`; the MCP server reads only
-  `engine/mcp_server/.env`.
+  service, and MCP is skipped when `python3.12` is missing. The API reads the
+  root `.env`; the MCP server reads only `engine/mcp_server/.env`.
 
-A real run needs a provider credential; without one, requests fail with "No
-model is available right now" and nothing falls back to offline. Tests, browser
-suites and offline evaluations select the deterministic backend with
-`COSCIENTIST_TEST_DOUBLE=deterministic` (exact value; `COSCIENTIST_FORCE_OFFLINE`
-is retired). Default models are declared in `engine/src/co_scientist/core/config.py`;
-environment overrides win, so read a deployment's environment back.
+A real run needs a provider credential (`OPENROUTER_API_KEY` for the default
+free route); without one, requests fail with "No model is available right now"
+and nothing falls back to offline. Tests, browser suites and offline
+evaluations select the deterministic backend with
+`COSCIENTIST_TEST_DOUBLE=deterministic` (exact value). `COSCIENTIST_FORCE_OFFLINE`
+is retired; its remaining mentions are inert. Default models are declared in
+`engine/src/co_scientist/core/config.py`; environment overrides win, so read a
+deployment's environment back.
 
 ## Gates
 
@@ -60,26 +62,30 @@ environment overrides win, so read a deployment's environment back.
 | `make e2e-production` | The same harness against built assets: deep links, reloads, headers, ownership isolation |
 | `make build` | Production frontend build; `make build-checked` adds bundle budgets |
 | `make check` | lint, typecheck, test-all, eval-smoke, build, e2e, e2e-production |
-| `make presubmit` | The targets CI selects for your committed diff against `origin/main`, then `make ci-guards`; `PRESUBMIT_ARGS=--dry-run` lists them |
+| `make presubmit` | `make ci-guards`, then the targets CI selects for your committed diff against `origin/main`; `PRESUBMIT_ARGS=--dry-run` lists them |
 | `make ci-guards` | Checker tests, Markdown links, commit hygiene, secret scan (downloads Linux x64 tools) |
 | `make docker-build` | Builds three images (api, mcp, dev UI) and validates the Compose config |
 | `make audit-deps` | Online dependency advisories (uv); separate from the offline gates |
 
-Before pushing, merge current `main`, commit, and run `make presubmit`; it
-ignores uncommitted changes. Code changes also need `make check`; docs-only
-changes need `make lint` and `.venv/bin/python -m pytest evaluations/tests -q`;
-launch-wide changes also need `make docker-build`. Record each gate's real exit
-status in the pull request ([CONTRIBUTING.md](CONTRIBUTING.md)).
+Single suites: `make test-engine`, `test-app`, `test-mcp`, `test-evaluations`,
+`test-frontend`; `make help` lists the common targets. Before pushing, merge
+current `main`, commit, and run `make presubmit`; it ignores uncommitted
+changes. Code changes also need `make check`; docs-only changes need `make lint`
+and `make test-evaluations`; launch-wide changes also need `make docker-build`.
+Record each gate's real exit status in the pull request
+([CONTRIBUTING.md](CONTRIBUTING.md)).
 
 **CI** ([docs/CI.md](docs/CI.md)): `ci.yml` runs on pull requests (a new push or
-title/body edit cancels the running check) and on every push to `main` (all
-jobs, never cancelled); `nightly.yml` calls it daily. Jobs are chosen by
-`.github/ci_paths.json` through `scripts/select_targets.py`, as in presubmit; a
-path no rule matches selects everything. The only required status is `Required
-checks`; `.github/rulesets/main.json` allows squash merges only and does not
-require an up-to-date branch, so merge `main` yourself. Tests never call live
-models, fetch external URLs or retry. `benchmark.yml` is a manual live benchmark
-that spends money; `prune-branches.yml` deletes branches unless `dry_run` is set.
+title/body edit cancels the running check) and on every push to `main`
+(everything but the PR-only checks, never cancelled); `nightly.yml` calls it
+daily. Jobs are chosen by `.github/ci_paths.json` through
+`scripts/select_targets.py`, as in presubmit; a path no rule matches selects
+everything. The only required status is `Required checks`;
+`.github/rulesets/main.json` allows squash merges only and does not require an
+up-to-date branch, so merge `main` yourself. Tests never call live models,
+fetch external URLs or retry. `benchmark.yml` is a manual live benchmark that
+spends money. The manual `prune-branches.yml` deletes stale branches (keeping
+`main`, open-PR and recent ones) unless `dry_run` is set.
 
 ## Rules no tool checks
 
@@ -88,11 +94,13 @@ PR text. Nothing checks what follows.
 
 ### Operational invariants
 
-Each is an incident's lesson; read its [OPERATIONS.md](docs/OPERATIONS.md) entry
-before changing the code involved.
+The rationale is in [docs/OPERATIONS.md](docs/OPERATIONS.md) and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); read it before changing the code
+involved.
 
-- Never VACUUM or run a truncating checkpoint from the serving process; while
-  Litestream replicates, it owns checkpoints.
+- Never VACUUM from the serving process. Truncating WAL checkpoints run only in
+  the startup prune and at shutdown, and not at all while Litestream replicates;
+  add no others.
 - Never hold a SQLite write lock across network I/O, never write on every poll
   tick, and never add a table that grows per task or per LLM call.
 - Keep startup cheap; run recovery executes outside the port-binding path.
@@ -101,8 +109,8 @@ before changing the code involved.
   rename them only with a migration.
 - Future-due queued tasks keep their run's cohort alive; log cursor IDs may
   have gaps.
-- Steering admission permits one extra cycle to incorporate input before it is
-  marked applied.
+- Steering is consumed on observation, so it buys one cycle beyond an exhausted
+  ceiling to incorporate the input before it is marked applied.
 - No asyncio primitive may be shared between the worker cohorts' event loops.
 - Every provider call goes through the LLM layer, so call ceilings and spend
   admission see it. Preserve bounded calls, budget escalation, admission
@@ -119,17 +127,21 @@ before changing the code involved.
 Keep in step with [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Hosting settings
 live in the dashboards, not in this repository.
 
-- Frontend and DNS on Cloudflare: Worker `open-coscientist` (`wrangler.jsonc`)
-  serves `app/frontend/dist` through `app/frontend/worker.mjs` at
-  https://open-coscientist.com; headers and CSP are in `public/_headers`.
+- Frontend and DNS on Cloudflare ([LAUNCH](docs/LAUNCH.md)): Worker
+  `open-coscientist` (`wrangler.jsonc`) serves `app/frontend/dist` through
+  `app/frontend/worker.mjs` at https://open-coscientist.com; headers and CSP
+  are in `app/frontend/public/_headers`.
 - api and mcp in one Railway project, built from `Dockerfile.api` and
   `Dockerfile.mcp` on `main`, no start-command override. The API is
   https://api.open-coscientist.com; MCP is private-network only, port 8888.
-  Merging to `main` deploys every service whose watched paths changed.
-- With all four `LITESTREAM_R2_*` variables set, the API entrypoint restores
-  from and replicates SQLite to Cloudflare R2; without them it serves directly.
+  Merging to `main` triggers the Cloudflare build and every Railway service
+  whose watched paths (dashboard settings) changed.
+- With `LITESTREAM_R2_BUCKET`, `_ENDPOINT`, `_ACCESS_KEY_ID` and
+  `_SECRET_ACCESS_KEY` set, the API entrypoint replicates SQLite to Cloudflare
+  R2 and restores it when the volume has no database; without them it serves
+  directly.
 
-Load-bearing; each was an outage or silent data loss:
+Load-bearing; read DEPLOYMENT before touching them:
 
 - **The api runs at exactly one replica.** SQLite in WAL mode with
   `synchronous=NORMAL` is sound only with one writer; growing past one replica
@@ -137,8 +149,9 @@ Load-bearing; each was an outage or silent data loss:
 - **`RAILWAY_RUN_UID=0` stays set on the api.** Railway mounts a root-owned
   volume over `/app/data`; an unprivileged process cannot write the database,
   dies in its lifespan hook, and every deploy fails its healthcheck.
-- **Caches stay off the volume.** `/app/data` holds only the SQLite database and
-  its WAL and backup files (`Dockerfile.api`).
+- **Caches stay off the volume.** `/app/data` holds only the SQLite store, its
+  WAL and the backup supervisor's files (`Dockerfile.api`); a full volume is an
+  incident ([INCIDENTS](docs/INCIDENTS.md)). Never put caches or outputs there.
 
 ### Trust boundaries
 
@@ -176,8 +189,9 @@ Never mention yourself or any other AI tool in commits, pull requests, pushes
 or merge messages: no AI co-author trailers, no "Generated with" or "Created
 by" lines. Messages read as written by the human developer.
 `scripts/ci/git_hygiene.py` rejects tool names, attribution trailers, commit
-subjects without `<type>(<scope>): ` and PR titles with such a prefix. It
-matches tool names as whole words, so ordinary words such as "cursor" fail.
+subjects without `<type>(<scope>): ` and PR titles with such a prefix. It reads
+message text and the PR title and body only, not author names, and matches tool
+names as whole words, so ordinary words such as "cursor" fail too.
 
 - Commits: `<type>(<scope>): <subject>`, type `feat`, `fix`, `docs`,
   `refactor`, `test` or `chore`, e.g. `fix(report-tab): handle missing markdown`.
