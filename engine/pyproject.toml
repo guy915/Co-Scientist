@@ -133,3 +133,4 @@ ignore_missing_imports = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-n 4"
+faulthandler_timeout = 300
