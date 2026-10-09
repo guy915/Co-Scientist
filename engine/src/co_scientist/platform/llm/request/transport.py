@@ -114,7 +114,7 @@ class _CompletionStream:
         _note_answer(self._call, error)
         if error is None:
             try:
-                settle_physical(self._receipt, self._last)
+                settle_physical(self._receipt, self._last, refused=self._refused)
             except BaseException as settlement_error:
                 self._context.run(
                     record_completion_failure,
@@ -344,7 +344,7 @@ async def _complete_physical(
         return _CompletionStream(response, model_name, start, span, receipt, call)
     call.answered()
     try:
-        settle_physical(receipt, response)
+        settle_physical(receipt, response, refused=is_model_refusal(response))
     except BaseException as settlement_error:
         record_completion_failure(model_name, settlement_error, time.monotonic() - start)
         end_request_span(span, response, settlement_error)

@@ -155,6 +155,24 @@ assert benchmark_paid.main()==0
                 "AZURE_API_VERSION": "2025-01-01",
             },
         ),
+        (
+            "azure",
+            "azure/deployment",
+            {
+                "AZURE_API_KEY": "synthetic",
+                "AZURE_API_BASE": "https://resource.cognitiveservices.azure.com/openai/deployments/x",
+                "AZURE_API_VERSION": "2025-01-01",
+            },
+        ),
+        (
+            "azure",
+            "azure/deployment",
+            {
+                "AZURE_API_KEY": "synthetic",
+                "AZURE_API_BASE": "https://resource.azure-api.net",
+                "AZURE_API_VERSION": "2025-01-01",
+            },
+        ),
     ],
 )
 def test_invalid_paid_configuration_refuses_before_any_engine_or_provider_call(

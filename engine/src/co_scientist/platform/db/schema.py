@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS llm_spend (
         CHECK(charged_microeur >= 0 AND charged_microeur <= reserved_microeur),
     input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL, rates TEXT NOT NULL,
     settled INTEGER NOT NULL DEFAULT 0, prompt_tokens INTEGER, output_tokens INTEGER,
-    cached_tokens INTEGER, cache_write_tokens INTEGER
+    cached_tokens INTEGER, cache_write_tokens INTEGER, refused INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_llm_spend_created_at ON llm_spend(created_at);
 CREATE TABLE IF NOT EXISTS llm_spend_holds (reason TEXT PRIMARY KEY);
@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS anthropic_credit (
         CHECK(charged_microusd >= 0 AND charged_microusd <= reserved_microusd),
     settled INTEGER NOT NULL DEFAULT 0, input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL,
     rates TEXT NOT NULL,
-    prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, cache_write_tokens INTEGER
+    prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, cache_write_tokens INTEGER,
+    refused INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_anthropic_credit_cycle ON anthropic_credit(cycle_start);
 CREATE TABLE IF NOT EXISTS llm_routes (
@@ -864,4 +865,7 @@ ADDED_COLUMNS = (
     ("run_credentials", "supervisor_provider", "TEXT"),
     ("run_credentials", "encrypted_supervisor_key", "TEXT"),
     ("run_credentials", "custom_models_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # NULL means not measured: unsettled, or settled before this column existed.
+    ("llm_spend", "refused", "INTEGER"),
+    ("anthropic_credit", "refused", "INTEGER"),
 )

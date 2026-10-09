@@ -125,7 +125,9 @@ def reserve_physical(
     )
 
 
-def settle_physical(receipt: ProviderReservation | None, response: Any) -> None:
+def settle_physical(
+    receipt: ProviderReservation | None, response: Any, *, refused: bool | None = None
+) -> None:
     if receipt is None:
         return
     usage = (
@@ -167,7 +169,7 @@ def settle_physical(receipt: ProviderReservation | None, response: Any) -> None:
                 cached=field(details, "cached_tokens"),
                 written=written,
             )
-        settle_provider(receipt, total, money, credit_money)
+        settle_provider(receipt, total, money, credit_money, refused=refused)
     except Exception as error:
         if receipt.credit:
             block_credit(receipt.db_path)

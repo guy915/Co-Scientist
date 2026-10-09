@@ -207,6 +207,7 @@ def settle_spend(
     output: int,
     cached: int | None,
     written: int | None,
+    refused: bool | None = None,
 ) -> None:
     row = conn.execute("SELECT reserved_microeur FROM llm_spend WHERE id=?", (receipt,)).fetchone()
     if row is None:
@@ -215,8 +216,8 @@ def settle_spend(
         raise ProviderAdmissionError(UNAVAILABLE)
     changed = conn.execute(
         "UPDATE llm_spend SET charged_microeur=?,settled=1,prompt_tokens=?,output_tokens=?,"
-        "cached_tokens=?,cache_write_tokens=? WHERE id=? AND settled=0",
-        (charged, prompt, output, cached, written, receipt),
+        "cached_tokens=?,cache_write_tokens=?,refused=? WHERE id=? AND settled=0",
+        (charged, prompt, output, cached, written, refused, receipt),
     ).rowcount
     if changed:
         allocation = conn.execute(

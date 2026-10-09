@@ -6,12 +6,12 @@ import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, cast
-from urllib.parse import urlsplit
 
 import httpx
 import openai
 from openai.types.responses import Response, ResponseStreamEvent
 
+from co_scientist.core.azure_endpoint import resource_origin
 from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
 from co_scientist.platform.llm.admission.spend import (
     claim_azure_dispatch,
@@ -388,20 +388,8 @@ class AzureResponsesBackend:
 
     @classmethod
     def from_environment(cls) -> AzureResponsesBackend:
-        endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
-        url = urlsplit(endpoint)
-        host = url.hostname or ""
-        if (
-            url.scheme != "https"
-            or not host.endswith((".openai.azure.com", ".services.ai.azure.com"))
-            or url.path
-            or url.query
-            or url.fragment
-            or url.username
-            or url.password
-            or url.port not in (None, 443)
-            or os.getenv("AZURE_OPENAI_API_VERSION", "v1") != "v1"
-        ):
+        endpoint = resource_origin(os.getenv("AZURE_OPENAI_ENDPOINT", ""))
+        if endpoint is None or os.getenv("AZURE_OPENAI_API_VERSION", "v1") != "v1":
             raise ProviderAdmissionError("Azure needs a resource HTTPS endpoint and API version v1")
         key = os.getenv("AZURE_OPENAI_API_KEY", "")
         deployments = {

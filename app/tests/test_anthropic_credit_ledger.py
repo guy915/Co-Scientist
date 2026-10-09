@@ -108,7 +108,7 @@ def credit_path(tmp_path: Path) -> Path:
             "charged_microusd INTEGER NOT NULL, settled INTEGER NOT NULL DEFAULT 0,"
             "input_bound INTEGER NOT NULL, output_bound INTEGER NOT NULL,"
             "prompt_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER,"
-            "cache_write_tokens INTEGER, rates TEXT NOT NULL);"
+            "cache_write_tokens INTEGER, rates TEXT NOT NULL, refused INTEGER);"
         )
     return path
 
