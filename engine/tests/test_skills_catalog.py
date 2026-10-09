@@ -225,6 +225,20 @@ class TestSkillsCatalog:
         assert catalog.read_skill_document("string", "../secret.txt") is None
         assert catalog.read_skill_document("string", "/etc/hosts") is None
 
+    def test_the_preamble_states_the_workspace_network_policy(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    ) -> None:
+        _write_skill(tmp_path, "string", "name: string\ndescription: Queries STRING.")
+        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
+
+        confined = catalog.read_skill_document("string")
+        networked = catalog.read_skill_document("string", network_allowed=True)
+
+        assert confined is not None and networked is not None
+        assert "no network access" in confined
+        assert "network is available" not in confined
+        assert "network is available for the skill's own API calls only" in networked
+
 
 # Backend-exempt, so `can_run_commands` is true without a sandbox backend
 # on the host running the tests -- which CI does not have.

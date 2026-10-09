@@ -18,7 +18,7 @@ export function DataRightsSection({onOpenLegal}: {onOpenLegal: () => void}) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'open-coscientist-data.zip';
+      link.download = 'co-scientist-data.zip';
       document.body.appendChild(link);
       link.click();
       link.remove();

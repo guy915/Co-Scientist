@@ -16,7 +16,7 @@ describe('run detail overview', () => {
 
     expect(
       screen.getByText(
-        'The research overview appears after Open Co-Scientist finishes the final ' +
+        'The research overview appears after Co-Scientist finishes the final ' +
           'synthesis step.',
       ),
     ).toBeInTheDocument();

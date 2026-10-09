@@ -315,14 +315,18 @@ async def _handle_read_skill(context: "_ToolContext", args: dict[str, Any]) -> d
     """Bundled instructions contain no command-injected secrets; do not
     truncate or redact them.
     """
-    del context
     name = args.get("name")
     if not isinstance(name, str) or not name.strip():
         raise WorkspaceToolInputError("name must be a non-empty string")
     path = args.get("path")
     if path is not None and not isinstance(path, str):
         raise WorkspaceToolInputError("path must be a string")
-    document = await asyncio.to_thread(read_skill_document, name, path)
+    document = await asyncio.to_thread(
+        read_skill_document,
+        name,
+        path,
+        network_allowed=context.session.policy.allows_network,
+    )
     if document is None:
         if path:
             raise WorkspaceToolInputError(

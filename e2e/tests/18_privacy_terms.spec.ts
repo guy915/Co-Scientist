@@ -70,7 +70,7 @@ test("landing footer links to both notices and sitemap lists them", async ({
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Scroll to see how Open Co-Scientist works" })
+    .getByRole("button", { name: "Scroll to see how Co-Scientist works" })
     .click();
   const footer = page.getByRole("navigation", { name: "Legal information" });
   await footer.scrollIntoViewIfNeeded();
