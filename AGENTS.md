@@ -68,11 +68,11 @@ deployment's environment back.
 | `make audit-deps` | Online dependency advisories (uv); separate from the offline gates |
 
 `make help` lists the common targets. Before pushing, merge current `main`,
-commit, and run `make presubmit`; it ignores uncommitted changes. Code changes also need `make check`; docs-only changes need `make lint`
-and `make test-evaluations`; repository-wide code or configuration changes also
-need `make docker-build`.
-Record each gate's real exit status in the pull request
-([CONTRIBUTING.md](CONTRIBUTING.md)).
+commit, and run `make presubmit`; it ignores uncommitted changes. Code changes
+also need `make check`; docs-only changes need `make lint` and
+`make test-evaluations`; repository-wide code or configuration changes also
+need `make docker-build`. Record each gate's real exit status in the pull
+request ([CONTRIBUTING.md](CONTRIBUTING.md)).
 
 **CI** ([docs/CI.md](docs/CI.md)): `ci.yml` runs on pull requests (a new push or
 title/body edit cancels the running check) and on every push to `main`
