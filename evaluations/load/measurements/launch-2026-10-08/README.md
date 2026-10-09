@@ -6,8 +6,8 @@ model completions are deterministic with 100 ms I/O. Runtime Docker networking
 is internal-only, with no credentials/dotenv/inherited outbound configuration.
 Static assets are excluded. These establish short-run API/store capacity;
 real provider/MCP throughput, production ingress and long-duration memory
-behavior are unmeasured. Owner capacity and spike steps are in
-[OPERATIONS.md](../../../../docs/OPERATIONS.md#launch-load-and-capacity).
+behavior are unmeasured. Capacity and spike steps are in
+[OPERATIONS.md](../../../../docs/OPERATIONS.md#load-and-capacity).
 
 | Receipt | Workload / purpose | Result |
 |---|---|---|

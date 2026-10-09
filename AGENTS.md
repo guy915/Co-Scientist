@@ -127,7 +127,7 @@ Read the rationale in [OPERATIONS](docs/OPERATIONS.md) or
 Keep in step with [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Hosting settings
 live in the dashboards, not in this repository.
 
-- Frontend and DNS on Cloudflare ([LAUNCH](docs/LAUNCH.md)): Worker
+- Frontend and DNS on Cloudflare ([DEPLOYMENT](docs/DEPLOYMENT.md#frontend)): Worker
   `open-coscientist` (`wrangler.jsonc`) serves `app/frontend/dist` through
   `app/frontend/worker.mjs` at https://open-coscientist.com; headers and CSP
   are in `app/frontend/public/_headers`.
