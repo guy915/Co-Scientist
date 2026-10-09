@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import pathlib
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 from co_scientist.platform.retrieval.research import (
+    SourceHit,
     ThreadStatus,
     conduct_research,
 )
@@ -127,3 +130,42 @@ def test_no_production_module_reads_the_raw_criteria_keys() -> None:
 _ALLOWED_READERS = {
     "science/schemas/generation.py",
 }
+
+
+async def test_questions_with_one_query_share_a_search_and_sources_fan_out_in_bounded_number() -> (
+    None
+):
+    from co_scientist.platform.retrieval.research.loop import SOURCE_FANOUT
+
+    sources = tuple(f"source-{index}" for index in range(SOURCE_FANOUT + 2))
+    in_flight = 0
+    peak = 0
+
+    class SlowRetrieval(FakeRetrieval):
+        async def search(self, *, query: str, source: str, limit: int) -> Sequence[SourceHit]:
+            nonlocal in_flight, peak
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0.01)
+            in_flight -= 1
+            return await super().search(query=query, source=source, limit=limit)
+
+    class OneQueryModel(FakeModel):
+        async def to_query(self, *, question: str) -> str:
+            return "fibrosis TGF-beta"
+
+    retrieval = SlowRetrieval({source: _hits(f"doc-{source}") for source in sources})
+
+    result = await conduct_research(
+        goal="fibrosis",
+        model=OneQueryModel(),
+        retrieval=retrieval,
+        budget=_budget(depth=1, breadth=2, concurrency=2, sources=sources),
+        seed_questions=["q1", "q2"],
+    )
+
+    assert len(retrieval.queries) == len(sources)
+    assert peak <= SOURCE_FANOUT
+    # Each thread still records its own calls as provenance.
+    assert len(result.calls) == 2 * len(sources)
+    assert all(thread.status is ThreadStatus.OK for thread in result.threads)

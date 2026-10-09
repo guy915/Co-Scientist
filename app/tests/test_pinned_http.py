@@ -31,6 +31,31 @@ def test_pinned_transport_dials_ip_and_preserves_tls_name_and_host(
     assert request.extensions["sni_hostname"] == "example.org"
 
 
+def test_a_pinned_probe_is_attributed_to_each_validated_hostname(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(socket, "getaddrinfo", _dns)
+    sources: list[tuple[str, str]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        sources.append((request.extensions["source_host"], request.extensions["source_url"]))
+        if request.headers["host"] == "doi.org":
+            location = "https://publisher.example/article"
+            return httpx.Response(302, headers={"location": location}, request=request)
+        return httpx.Response(200, request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        response = pinned_http.request_with_screened_redirects(
+            client, "HEAD", "https://doi.org/10.1/x"
+        )
+
+    assert sources == [
+        ("doi.org", "https://doi.org/10.1/x"),
+        ("publisher.example", "https://publisher.example/article"),
+    ]
+    assert response.request.extensions["source_host"] == "publisher.example"
+
+
 def test_redirect_private_hop_is_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(socket, "getaddrinfo", _dns)
 

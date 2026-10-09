@@ -11,8 +11,8 @@ from mcp_server.cache_privacy import PUBLIC_PAPERS
 from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.literature_review import PubmedSource
 from mcp_server.log_privacy import failure_summary
-from mcp_server.pubmed_client import search_with_relaxation
-from mcp_server.pubmed_records import journal_article, parse_pubmed_record
+from mcp_server.pubmed_client import fetch_pubmed_records, search_with_relaxation
+from mcp_server.pubmed_records import PubmedRecord
 from mcp_server.pubmed_storage import confined_path, validate_cache_identifier
 from mcp_server.text_extraction import extract_text_from_pmc_html
 from mcp_server.tools._results import failed, keyed_records, non_raising, ok
@@ -50,17 +50,20 @@ def search_pubmed(query: str, max_papers: int = 10) -> dict[str, Any]:
     """
     try:
         initialize_entrez()
-        articles = []
-        metadata_failed = False
-        for paper_id in _esearch_pubmed_ids(query, max_papers):
-            try:
-                article = _fetch_pubmed_article(paper_id)
-                if article is not None:
-                    articles.append(article.to_dict())
-            except Exception as exc:
-                # A malformed paper must not discard successful siblings.
-                logger.warning("PubMed metadata fetch failed (%s)", failure_summary(exc))
-                metadata_failed = True
+        paper_ids = list(dict.fromkeys(_esearch_pubmed_ids(query, max_papers)))
+        try:
+            records = fetch_pubmed_records(paper_ids) if paper_ids else {}
+        except Exception as exc:
+            logger.warning("PubMed metadata fetch failed (%s)", failure_summary(exc))
+            return failed("PubMed metadata unavailable")
+        articles = [
+            _pubmed_article(paper_id, record).to_dict()
+            for paper_id in paper_ids
+            if (record := records.get(paper_id)) is not None
+        ]
+        # Book records are skipped; a missing or malformed paper fails the
+        # search rather than looking like fewer matches.
+        metadata_failed = any(paper_id not in records for paper_id in paper_ids)
         return failed("PubMed metadata unavailable") if metadata_failed else ok(articles)
     except Exception as exc:
         logger.error("PubMed search failed (%s)", failure_summary(exc))
@@ -94,12 +97,7 @@ def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
     return f"https://doi.org/{doi}" if doi else f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
 
 
-def _fetch_pubmed_article(paper_id: str) -> Article | None:
-    paper_results = read_entrez(entrez_call(Entrez.efetch, db="pubmed", id=paper_id))
-    pubmed_article = journal_article(paper_results)
-    if pubmed_article is None:
-        return None
-    record = parse_pubmed_record(pubmed_article)
+def _pubmed_article(paper_id: str, record: PubmedRecord) -> Article:
     return Article(
         title=record.title,
         url=_pubmed_article_url(record.doi, paper_id),

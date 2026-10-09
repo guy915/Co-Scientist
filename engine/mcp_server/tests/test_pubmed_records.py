@@ -5,7 +5,12 @@ from typing import Any
 import pytest
 from Bio.Entrez.Parser import StringElement
 from mcp_server.pubmed_client import _EntrezClient
-from mcp_server.tests._entrez import CannedEntrezHandle, install_entrez
+from mcp_server.tests._entrez import (
+    CannedEntrezHandle,
+    efetch_by_id,
+    elink_by_id,
+    install_entrez,
+)
 from mcp_server.tools.lit_review import search_pubmed
 
 
@@ -35,12 +40,14 @@ def test_both_pubmed_entrypoints_share_optional_metadata(
     }
     install_entrez(
         monkeypatch,
-        efetch=lambda **_kwargs: CannedEntrezHandle({"PubmedArticle": [raw]}),
-        elink=lambda **_kwargs: CannedEntrezHandle([{"LinkSetDb": []}]),
+        esearch=lambda **_kwargs: CannedEntrezHandle({"IdList": ["123"]}),
+        efetch=efetch_by_id(lambda _paper_id: {"PubmedArticle": [raw]}),
+        elink=elink_by_id(lambda _paper_id: None),
     )
-    fulltext = _EntrezClient(tmp_path)._fetch_paper_details("123")
-    metadata = search_pubmed._fetch_pubmed_article("123")
-    assert fulltext is not None and metadata is not None
+    fulltext = _EntrezClient(tmp_path)._fetch_papers_details(["123"])["123"]
+    result = search_pubmed.search_pubmed("query", max_papers=1)
+    assert fulltext is not None and result["status"] == "ok"
+    metadata = search_pubmed.Article(**result["records"][0])
     expected_abstract = "Methods: Two parts." if abstract else None
     assert (fulltext["title"], metadata.title) == ("Paper", "Paper")
     assert (fulltext["abstract"], metadata.abstract) == (expected_abstract, expected_abstract)
@@ -83,8 +90,8 @@ def test_a_book_record_does_not_fail_a_pubmed_search(monkeypatch: pytest.MonkeyP
     install_entrez(
         monkeypatch,
         esearch=lambda **_kwargs: CannedEntrezHandle({"IdList": ["111", "222"]}),
-        efetch=lambda **kwargs: CannedEntrezHandle(
-            _BOOK_RECORD if kwargs["id"] == "222" else _journal_record("Kept paper")
+        efetch=efetch_by_id(
+            lambda paper_id: _BOOK_RECORD if paper_id == "222" else _journal_record("Kept paper")
         ),
     )
 
@@ -97,9 +104,9 @@ def test_a_book_record_does_not_fail_a_pubmed_search(monkeypatch: pytest.MonkeyP
 def test_a_book_record_has_no_paper_details(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    install_entrez(monkeypatch, efetch=lambda **_kwargs: CannedEntrezHandle(_BOOK_RECORD))
+    install_entrez(monkeypatch, efetch=efetch_by_id(lambda _paper_id: _BOOK_RECORD))
 
-    assert _EntrezClient(tmp_path)._fetch_paper_details("222") is None
+    assert _EntrezClient(tmp_path)._fetch_papers_details(["222"]) == {"222": None}
 
 
 _UNKNOWN_RESPONSES: list[Any] = [
@@ -114,10 +121,10 @@ def _install_mixed_search(monkeypatch: pytest.MonkeyPatch, second: Any) -> None:
     install_entrez(
         monkeypatch,
         esearch=lambda **_kwargs: CannedEntrezHandle({"IdList": ["111", "222"]}),
-        efetch=lambda **kwargs: CannedEntrezHandle(
-            second if kwargs["id"] == "222" else _journal_record("Kept paper")
+        efetch=efetch_by_id(
+            lambda paper_id: second if paper_id == "222" else _journal_record("Kept paper")
         ),
-        elink=lambda **_kwargs: CannedEntrezHandle([{"LinkSetDb": []}]),
+        elink=elink_by_id(lambda _paper_id: None),
     )
 
 
@@ -140,7 +147,7 @@ def test_a_response_without_an_article_or_book_has_no_paper_details(
     install_entrez(monkeypatch, efetch=lambda **_kwargs: CannedEntrezHandle(response))
 
     with pytest.raises(ValueError, match="no article record"):
-        _EntrezClient(tmp_path)._fetch_paper_details("222")
+        _EntrezClient(tmp_path)._fetch_papers_details(["222"])
 
 
 def test_a_book_record_does_not_fail_the_fulltext_search(

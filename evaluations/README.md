@@ -46,6 +46,8 @@ network) unless a runner says otherwise. Runners write dated JSON artifacts to
 - `_identity.py` — run and panel controls, policy snapshots and provenance
   checks.
 - `smoke.py` — the offline smoke suite with its regression tolerances.
+- `attempt_envelope.py` — counts the physical HTTP attempts of one default
+  Express run per provider arm, offline. See [Attempt envelope](#attempt-envelope).
 - `datasets/` — synthetic, legally shareable labeled sets.
 - `tests/` — unit tests for the runners plus the import-contract ratchet.
 
@@ -56,6 +58,7 @@ From the repository root, after `make setup`:
 ```bash
 make test-evaluations                                   # harness tests
 make eval-smoke                                         # offline smoke suite
+make attempt-envelope                                   # HTTP attempts per Express arm
 
 .venv/bin/python -m evaluations.citation_eval                     # v1 panel, lexical assessor
 .venv/bin/python -m evaluations.citation_eval --challenge --llm   # challenge panel, gated
@@ -388,6 +391,29 @@ Use the same `model` input for the six-run comparison dispatch above. For
 recorded replay, add `--provider anthropic` or `--provider azure` to
 `evaluations.paired_artifacts`; without this explicit option, paid archives are
 rejected by the original free path. Recorded judging remains hermetic.
+
+## Attempt envelope
+
+`make attempt-envelope` (after `make setup` and `make test-mcp`) runs one
+default Express workflow per arm, Anthropic (Haiku with `count_tokens`) and Azure
+(Luna and Nano), through the real API, durable worker, LLM gateway, MCP client
+and MCP server subprocess. Only the bottom of each transport is fake: the
+httpx transports and LiteLLM's aiohttp transport in both processes, and the
+urllib opener Biopython's Entrez sends through. Every attempt they see counts,
+including retries and failures, by category: LLM completion, `count_tokens`,
+PubMed/NCBI, OpenAlex, arXiv, Europe PMC, Brave/Tavily, `read_url` and the
+engine's citation probes. Engine-to-MCP traffic on loopback is not counted.
+
+Answers come from the offline filler with the call meter's realism rules
+(`app/tests/_envelope_fakes.py`), so the run follows its first-success path:
+no upstream fails, throttles or times out, and none is cancelled. Treat the
+total as a floor for a live run, not a bound. Hypothesis IDs seed the answers,
+so counts move by a few percent between runs; compare ranges, not single runs.
+The table adds the rest of the owner's live W4 sequence (a cache wave of 8
+attempts and up to 20 for judging) and compares it with the 270-attempt
+operational limit; it reports, and never adjusts, a total above it.
+`ENGINE_DIR=<checkout>/engine` measures another checkout for a before/after
+pair. No credential is read; the run removes any from its environment.
 
 ## External gaps
 

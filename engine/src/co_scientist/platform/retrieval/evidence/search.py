@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from co_scientist.core.constants import corpus_slug
+from co_scientist.core.constants import SOURCE_FANOUT, corpus_slug, distinct_queries
 from co_scientist.platform.retrieval.evidence.relevance import (
     apply_semantic_relevance,
 )
@@ -36,6 +36,7 @@ async def collect_papers(
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """The corpus slug permits reuse across runs and tool-based generation
     searches."""
+    queries = distinct_queries(queries)
     ctx = _SearchRunContext(
         slug=corpus_slug(state["research_goal"]),
         run_id=state["run_id"],
@@ -109,10 +110,15 @@ async def _search_all_sources(
     ctx: _SearchRunContext,
     tool_registry: "ToolRegistry",
 ) -> list[tuple[str, dict[str, dict[str, Any]]]]:
-    tasks = [
-        _search_single_source(source, queries, ctx, tool_registry) for source in enabled_sources
-    ]
-    return await asyncio.gather(*tasks)
+    # Created per call: a semaphore belongs to the running loop, and worker
+    # cohorts run separate loops.
+    fanout = asyncio.Semaphore(SOURCE_FANOUT)
+
+    async def bounded(source: "SearchSourceConfig") -> tuple[str, dict[str, dict[str, Any]]]:
+        async with fanout:
+            return await _search_single_source(source, queries, ctx, tool_registry)
+
+    return await asyncio.gather(*(bounded(source) for source in enabled_sources))
 
 
 async def _apply_semantic_relevance_if_enabled(
