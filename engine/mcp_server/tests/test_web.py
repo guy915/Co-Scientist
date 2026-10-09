@@ -5,7 +5,7 @@ import httpx
 import pytest
 from mcp_server.tests._httpx import stub_failure, stub_responses, transport_responses
 from mcp_server.tests.test_pdf_parser import _pdf
-from mcp_server.tools import web_fetch
+from mcp_server.tools import web_fetch, web_providers
 from mcp_server.tools.web_fetch import (
     UrlNotFetchableError,
     check_fetchable,
@@ -423,12 +423,15 @@ def _error_response(status: int, body: Any) -> httpx.Response:
     return httpx.Response(status, json=body, request=request)
 
 
-def _brave_error(status: int, code: str) -> httpx.Response:
+def _brave_error(status: int, code: str, reset: str | None = None) -> httpx.Response:
     # Shape of Brave's documented APIErrorResponse.
-    return _error_response(
+    response = _error_response(
         status,
         {"type": "ErrorResponse", "error": {"id": "e", "status": status, "code": code}},
     )
+    if reset is not None:
+        response.headers["X-RateLimit-Reset"] = reset
+    return response
 
 
 _TAVILY_FOUND = {"results": [{"title": "found", "url": "https://e.com"}]}
@@ -530,6 +533,111 @@ class TestQuotaAndRateLimits:
 
         assert _asked(client) == ["brave", "tavily", "brave", "brave"]
         assert await check_web_search_available() is True
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
+    fake = FakeClock()
+    monkeypatch.setattr(web_providers, "_clock", fake)
+    return fake
+
+
+_DAY = 24 * 60 * 60
+
+
+@pytest.mark.usefixtures("_clear_credential_state")
+class TestBraveQuotaReset:
+    async def test_brave_is_asked_again_after_its_monthly_window_resets(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any, clock: FakeClock
+    ) -> None:
+        keys(brave=True, tavily=True)
+        client = stub_responses(
+            monkeypatch,
+            _brave_error(429, "QUOTA_LIMITED", reset="1, 3600"),
+            _TAVILY_FOUND,
+            _TAVILY_FOUND,
+            _BRAVE_FOUND,
+            _BRAVE_FOUND,
+        )
+
+        assert (await search_web("month ends"))["records"][0]["title"] == "found"
+        clock.now += 3599
+        assert (await search_web("before reset"))["records"][0]["title"] == "found"
+        assert await check_web_search_available() is True
+        clock.now += 1
+        assert (await search_web("after reset"))["records"][0]["title"] == "brave"
+        assert (await search_web("next"))["records"][0]["title"] == "brave"
+
+        assert _asked(client) == ["brave", "tavily", "tavily", "brave", "brave"]
+        assert web_search_credential_error() is None
+
+    async def test_a_repeated_refusal_after_the_reset_stores_the_new_reset(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any, clock: FakeClock
+    ) -> None:
+        keys(brave=True, tavily=True)
+        client = stub_responses(
+            monkeypatch,
+            _brave_error(429, "USAGE_LIMIT_EXCEEDED", reset="1, 60"),
+            _TAVILY_FOUND,
+            _brave_error(429, "USAGE_LIMIT_EXCEEDED", reset="0, 7200"),
+            _TAVILY_FOUND,
+            _TAVILY_FOUND,
+            _BRAVE_FOUND,
+        )
+
+        await search_web("first")
+        clock.now += 60
+        assert (await search_web("reset passed"))["records"][0]["title"] == "found"
+        clock.now += 7199
+        assert (await search_web("new reset pending"))["records"][0]["title"] == "found"
+        clock.now += 1
+        assert (await search_web("new reset passed"))["records"][0]["title"] == "brave"
+
+        assert _asked(client) == ["brave", "tavily", "brave", "tavily", "tavily", "brave"]
+
+    @pytest.mark.parametrize("reset", [None, "soon", "", "1, -5", "0, 0"])
+    async def test_without_a_readable_reset_brave_is_asked_again_after_a_day(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any, clock: FakeClock, reset: str | None
+    ) -> None:
+        keys(brave=True, tavily=True)
+        client = stub_responses(
+            monkeypatch,
+            _brave_error(429, "CREDIT_EXHAUSTED", reset=reset),
+            _TAVILY_FOUND,
+            _TAVILY_FOUND,
+            _BRAVE_FOUND,
+        )
+
+        await search_web("first")
+        clock.now += _DAY - 1
+        assert (await search_web("same day"))["records"][0]["title"] == "found"
+        clock.now += 1
+        assert (await search_web("next day"))["records"][0]["title"] == "brave"
+
+        assert _asked(client) == ["brave", "tavily", "tavily", "brave"]
+
+    @pytest.mark.parametrize("body", [{}, {"error": {"code": "QUOTA_LIMITED"}}])
+    async def test_a_rejected_key_stays_refused_after_any_reset(
+        self, monkeypatch: pytest.MonkeyPatch, keys: Any, clock: FakeClock, body: Any
+    ) -> None:
+        keys(brave=True, tavily=True)
+        refused = _error_response(402, body)
+        refused.headers["X-RateLimit-Reset"] = "1, 60"
+        client = stub_responses(monkeypatch, refused, _TAVILY_FOUND, _TAVILY_FOUND)
+
+        await search_web("first")
+        clock.now += 40 * _DAY
+        assert (await search_web("much later"))["records"][0]["title"] == "found"
+
+        assert _asked(client) == ["brave", "tavily", "tavily"]
 
 
 @pytest.mark.usefixtures("_clear_credential_state")
