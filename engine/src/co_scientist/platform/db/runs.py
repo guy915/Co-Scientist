@@ -7,6 +7,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from co_scientist.core.prompt_layout import retire_run_prompt_context
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.admission import capacity_available
 from co_scientist.platform.db.llm_routes import release_forecast
@@ -182,6 +183,7 @@ def delete_run(run_id: str, *, draft_before: float | None = None) -> dict[str, i
         )
         delete_logs_for_run(run_id, conn=conn)
         conn.execute("DELETE FROM runs WHERE id=?", (run_id,))
+    retire_run_prompt_context(run_id)
     return before
 
 

@@ -131,6 +131,12 @@ export function PrivacyContent() {
           deleted work.
         </p>
         <p>
+          Repeated model requests may reuse bounded evidence excerpts kept in
+          server memory until eviction or restart. Deleting a run or all your
+          data clears its excerpts. This local cleanup does not erase copies
+          already received by a model provider.
+        </p>
+        <p>
           A separate operator funding ledger keeps numeric charge, usage and
           receipt records without an automatic expiry to enforce the total
           spending cap. It stores no research text, provider keys or browser
