@@ -842,4 +842,7 @@ ADDED_COLUMNS = (
     ("run_credentials", "supervisor_provider", "TEXT"),
     ("run_credentials", "encrypted_supervisor_key", "TEXT"),
     ("run_credentials", "custom_models_json", "TEXT NOT NULL DEFAULT '{}'"),
+    # NULL means not measured: unsettled, or settled before this column existed.
+    ("llm_spend", "refused", "INTEGER"),
+    ("anthropic_credit", "refused", "INTEGER"),
 )

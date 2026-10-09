@@ -64,6 +64,8 @@ def test_private_snapshot_counts_real_cache_cost_and_keeps_unknown_holds(
             "cache_read_tokens": 120,
             "cache_write_tokens": 60,
             "cost": 7,
+            "refusal_measured_calls": 0,
+            "refusals": 0,
         }
     ]
 
@@ -125,6 +127,38 @@ def test_current_credit_keeps_unknown_calls_from_earlier_cycles(isolated_db: str
     assert credit["remaining_credit_usd"] == 95
     assert credit["usable_allowance_usd"] == 90
     assert result["cache_by_role"][0]["cost"] == 12
+    # Rows settled before the refused column existed stay unmeasured.
+    assert result["cache_by_role"][0]["refusal_measured_calls"] == 0
+
+
+def test_refusals_are_counted_per_role_beside_the_money(isolated_db: str) -> None:
+    with transaction(isolated_db) as conn:
+        for receipt, role, refused in (
+            ("a", "safety", 1),
+            ("b", "safety", 0),
+            ("c", "goal_text", 0),
+            ("d", "goal_text", None),
+        ):
+            conn.execute(
+                "INSERT INTO anthropic_credit (id,cycle_start,created_at,role,"
+                "reserved_microusd,charged_microusd,settled,input_bound,output_bound,rates,"
+                "prompt_tokens,output_tokens,refused) "
+                "VALUES (?,100,100,?,10,10,1,1000,1000,'{}',100,10,?)",
+                (receipt, role, refused),
+            )
+        result = spend_snapshot(
+            conn,
+            now=101,
+            total_microeur=None,
+            credit_microusd=None,
+            cycle_start=100,
+            cycle_end=200,
+        )
+    counts = {
+        row["role"]: (row["calls"], row["refusal_measured_calls"], row["refusals"])
+        for row in result["cache_by_role"]
+    }
+    assert counts == {"goal_text": (2, 1, 0), "safety": (2, 2, 1)}
 
 
 def test_available_azure_needs_both_deployments_and_no_durable_hold(
