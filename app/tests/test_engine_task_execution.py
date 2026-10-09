@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import time
+import threading
 from typing import Any
 
 import co_scientist.orchestration.drain as drain_claim_grounding
@@ -118,35 +118,42 @@ def _seed_finalize_task(run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: s
 # synchronous provider waves.
 
 
-def _count_lease_renewals(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
-    box = {"renewals": 0}
-    real_renew = lifecycle.renew_task_lease
-
-    def _renew(*args: Any, **kwargs: Any) -> bool:
-        box["renewals"] += 1
-        return real_renew(*args, **kwargs)
-
-    monkeypatch.setattr(lifecycle, "renew_task_lease", _renew)
-    return box
-
-
 @pytest.mark.asyncio
 async def test_finalize_lease_survives_a_slow_grounding_wave(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # A blocked loop can renew once belatedly; multiple renewals during
-    # assessment prove a live heartbeat.
+    # The assessment blocks until the heartbeat has renewed the lease several
+    # times while it runs. A fixed sleep with a renewal-count floor flakes when
+    # the loop stalls briefly on a loaded runner; waiting on the renewals
+    # themselves is load-independent, and a wave that blocks the loop can never
+    # let them happen, so the wait times out and the test fails.
+    needed = 3
+    bound_seconds = 5.0
     run = seed_run("Task-level science")
     task = _seed_finalize_task(run.id, monkeypatch, isolated_db)
-    renewals = _count_lease_renewals(monkeypatch)
+
+    in_wave = {"armed": False, "renewals": 0, "calls": 0, "reached": False}
+    enough = threading.Event()
+    real_renew = lifecycle.renew_task_lease
+
+    def _renew(*args: Any, **kwargs: Any) -> bool:
+        if in_wave["armed"]:
+            in_wave["renewals"] += 1
+            if in_wave["renewals"] >= needed:
+                enough.set()
+        return real_renew(*args, **kwargs)
+
+    monkeypatch.setattr(lifecycle, "renew_task_lease", _renew)
 
     real_assess = (
         drain_claim_grounding.assess_hypothesis_claims  # type: ignore[attr-defined]
     )
-    sleep_seconds = 0.3
 
     def _slow_assess(*args: Any, **kwargs: Any) -> Any:
-        time.sleep(sleep_seconds)
+        in_wave["calls"] += 1
+        in_wave["armed"] = True
+        in_wave["reached"] = enough.wait(timeout=bound_seconds)
+        in_wave["armed"] = False
         return real_assess(*args, **kwargs)
 
     monkeypatch.setattr(drain_claim_grounding, "assess_hypothesis_claims", _slow_assess)
@@ -154,11 +161,10 @@ async def test_finalize_lease_survives_a_slow_grounding_wave(
     completed = await task_worker.run_once("worker-a", db_path=isolated_db, lease_seconds=0.06)
 
     assert completed
-    # One catch-up renewal occurs even on a blocked loop; multiple renewals
-    # distinguish continuous lease health.
-    assert renewals["renewals"] >= 3, (
-        "the lease heartbeat barely renewed during the grounding wave -- "
-        "the wave is blocking the task's event loop again"
+    assert in_wave["calls"] == 1, "the finalize task never reached the grounding wave"
+    assert in_wave["reached"], (
+        f"only {in_wave['renewals']} lease renewal(s) in {bound_seconds}s while the grounding "
+        "wave ran -- the wave is blocking the task's event loop again"
     )
     persisted_run = runs.get_run(run.id, db_path=isolated_db)
     assert persisted_run is not None
