@@ -19,6 +19,9 @@ MODEL = "openrouter/inclusionai/ling-3.1-flash"
 
 @pytest.fixture(autouse=True)
 async def _drain_sdk_logging() -> AsyncIterator[None]:
+    # Bind the SDK's global worker to this case's loop first: flushing a queue
+    # left by an earlier, closed loop with an unfinished item waits forever.
+    GLOBAL_LOGGING_WORKER.start()
     yield
     # The real SDK's queued callbacks must finish before pytest closes this
     # case's event loop and creates the next one.
