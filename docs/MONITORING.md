@@ -8,14 +8,14 @@ the code hooks in.
 
 Use UptimeRobot with a five-minute interval and web/app notifications only.
 Remove email contacts/actions and disable personal email subscriptions.
-Preserve only the existing €150 Azure budget email alert. Railway's deploy
+Keep the Azure budget email alert as the only email alert. Railway's deploy
 healthcheck does not replace these recurring monitors.
 
 | Monitor | URL | Alert when |
 |---|---|---|
-| Launch API up | `https://api.open-coscientist.com/health` | status is not 200 |
-| Launch API healthy | same URL, keyword check | `"status":"healthy"` is absent |
-| Launch site up | `https://open-coscientist.com/` | status is not 200 |
+| API up | `https://api.open-coscientist.com/health` | status is not 200 |
+| API healthy | same URL, keyword check | `"status":"healthy"` is absent |
+| Site up | `https://open-coscientist.com/` | status is not 200 |
 
 `/health` returns 503 only when the store is unreachable. A stuck run, a
 terminally failed task or low disk report `"status":"degraded"` with 200, so
@@ -27,8 +27,8 @@ For all three monitors: interval **300 seconds**, timeout **30 seconds**,
 notification threshold **0 minutes**, recurrence **0**, and recovery
 notifications enabled. HTTP monitors expect **200**. The healthy keyword
 monitor alerts when the exact keyword `"status":"healthy"` is absent;
-inspect the actual launch API body at cutover before enabling that assertion.
-Use only the owner's configured app/push/web contact. Free-plan threshold and
+inspect the deployed API's actual body before enabling that assertion.
+Use only the operator's configured app/push/web contact. Free-plan threshold and
 recurrence are fixed at zero ([UptimeRobot API](https://uptimerobot.com/api/v2/));
 API alert-contact encoding is `<contact-id>_0_0`. Immediate notification means
 after UptimeRobot confirms the failure, not seconds-level detection on a
@@ -78,7 +78,7 @@ with a free tier (Grafana Cloud Traces, Honeycomb or similar).
 | Railway, api | `OTEL_EXPORTER_OTLP_ENDPOINT` | the backend's OTLP/HTTP endpoint |
 | Railway, api | `OTEL_EXPORTER_OTLP_HEADERS` | its auth header, e.g. `Authorization=Basic ...` |
 | Railway, api | `OTEL_SERVICE_NAME` | `co-scientist-api` |
-| Railway, api (optional) | `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_traceidratio`, `1.0` for launch count/token triggers |
+| Railway, api (optional) | `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_traceidratio`, `1.0` for count/token triggers |
 
 The privacy projection at the exporter accepts only fixed classifications,
 UUID task/run references and numeric usage. The exported fields below are the
@@ -99,13 +99,13 @@ fields are removed. No prompt, completion, tool argument, goal, query string,
 header or body is exported. Stdout has trace IDs while spans are active;
 persisted logs remain local.
 
-## Launch alert settings
+## Alert settings
 
 These are operator configuration instructions; repository changes do not
-create dashboards or alert recipients. Use the owner's configured webhook/app
+create dashboards or alert recipients. Use the operator's configured webhook/app
 integration for every action, remove email actions/contacts and disable
-personal issue-email subscriptions. Only the existing €150 Azure budget
-email stays enabled.
+personal issue-email subscriptions. Only the Azure budget email stays
+enabled.
 
 ### Honeycomb
 
@@ -123,7 +123,7 @@ repeated notifications while unchanged. Filter all queries on
 | Provider connection failures | `name = llm.request`, `error.type = APIConnectionError` | `COUNT > 3` |
 | Provider output burn | `name = llm.request` | `SUM(gen_ai.usage.output_tokens) > 250000` |
 
-For these absolute count/token triggers, use sampling **1.0** during launch;
+For these absolute count/token triggers, use sampling **1.0**;
 sampled counts understate usage. The throttle trigger counts classified
 retries, not every upstream 429. Output burn is a spike warning to inspect
 Azure Cost Management and durable provider-usage/reservation records, not a EUR cost
@@ -136,7 +136,7 @@ Do not add researcher content to telemetry to make a query possible.
 Use separate API and frontend projects, filtered to environment
 **production**, with error/fatal levels only. In both projects create:
 
-- **New error:** “A new issue is created”, with the owner's app/web action.
+- **New error:** “A new issue is created”, with the operator's app/web action.
 - **Regressed error:** “The issue changes state from resolved to unresolved”,
   with the same action.
 

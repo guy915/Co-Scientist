@@ -25,7 +25,7 @@ Reserve input bytes plus the framing allowance, the full output allowance and
 up to four cache-write prefixes. Missing Luna cache-write usage keeps the full
 money reservation. Reported reasoning stays within output tokens. Settlement
 failure keeps all reservations and stops new paid calls. Prices cover model
-tokens only; other subscription charges still reduce the owner's credit.
+tokens only; other subscription charges still reduce the subscription credit.
 
 Because the portal omits the expiry time and zone, stop at 00:00 UTC on the
 configured expiry date. This avoids using the unconfirmed final day.
@@ -41,13 +41,13 @@ backend stays an explicit test double. Spend metrics are token-protected, and
 total-variable change, not code.
 The admin view has no email or alert.
 
-The owner confirmed Sweden Central Global Standard deployments:
+The reference deployments are Sweden Central Global Standard:
 `coscientist-supervisor-luna` (gpt-6-luna, 2026-09-22) and
-`coscientist-worker-nano` (gpt-5-nano, 2025-08-07). Credit remaining was
-€175.99, with expiry shown as 4 January 2027. Exact expiry time and Luna's
+`coscientist-worker-nano` (gpt-5-nano, 2025-08-07). Remaining provider credits
+and their expiry come from the portal. Exact expiry time and Luna's
 short/long price boundary are unknown. Nano cached input is $0.01/M.
 Each deployment has 1,000 TPM / 1 RPM. This cannot fit the existing 18k
-reasoning allowance; usable quota remains an owner setup step. No quota is
+reasoning allowance; usable quota is an operator setup step. No quota is
 changed by this implementation. There is no live model quality receipt.
 
 ## Validation status
