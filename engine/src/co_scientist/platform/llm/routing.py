@@ -149,7 +149,7 @@ def available_slots(path: str) -> RoutingAdmission:
 
 
 def express_estimate(goal: str, config: dict[str, Any], azure: SpendConfig) -> int:
-    # E0's current Express envelope is 57 calls / 720k requested output.
+    # The offline call meter's Express envelope is 57 calls / 720k requested output.
     # This is a forecast, not measured usage. Physical reserves remain hard.
     from decimal import ROUND_CEILING, Decimal
 
@@ -158,7 +158,7 @@ def express_estimate(goal: str, config: dict[str, Any], azure: SpendConfig) -> i
     if supervisor is None or worker is None:
         raise ProviderAdmissionError(UNAVAILABLE)
     supervisor = supervisor.long_context or supervisor
-    # E0 measured four supervisor calls. Allow twelve, plus 45 worker calls,
+    # The offline meter measured four supervisor calls. Allow twelve, plus 45 worker calls,
     # 100k input bytes each and all requested output at the higher tier.
     input_bound = 100_000 + len(goal.encode("utf-8")) + 1024
     inputs = sum(

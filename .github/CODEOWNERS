@@ -1,4 +1,4 @@
-# Assign launch/community policy to the sole verified maintainer.
+# Assign repository and community policy to the sole maintainer.
 # Source paths need additional reviewers before mandatory ownership.
 /.github/CODEOWNERS @guy915
 /.github/labels.yml @guy915

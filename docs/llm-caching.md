@@ -54,23 +54,18 @@ records the switch. A refusal uses Azure for that call; exhausted operator
 credit persists a cooldown until reset. Unknown stream outcomes retain their
 charge and do not replay at another provider.
 
-The owner's organization has $100 credit. Its first cycle is 8 October–7 November 2026;
-the reset day is 7 each month. The low-credit error marks the operator slot unavailable
+Console credit resets monthly. The low-credit error marks the operator slot unavailable
 until reset and selects Azure. A caller's exhausted BYOK key must not disable the shared
-slot. The $5 Claude / EUR 5 Azure live-check ceilings and shared request allocation remain.
-No measured refusal rate is available yet. On launch day the owner creates workspace
-Open Co-Scientist in the linked organization, creates its key and sets ANTHROPIC_API_KEY
-on the API service only. The launch runbook lane carries this step; no hosting write follows
-from this guide.
+slot. No measured refusal rate is available yet. The operator key goes in
+ANTHROPIC_API_KEY on the API service only; see [Anthropic credit](anthropic-credit.md).
 
 The cache becomes readable after the first response begins. A cold parallel wave may
 miss on every call. Reuse a byte-identical prefix, let the first response begin, then send
-the remaining calls without an extra warm-up request. T owns layout and E owns call reuse.
+the remaining calls without an extra warm-up request.
 
 Boundary integration and the hermetic per-call-type input/prefix meter are implemented.
-Completion still needs one budgeted live Express run per provider. Hermetic SDK tests prove
-payload and accounting behavior; they
-do not measure a real cache hit or claim live savings. No live measurement is recorded yet.
+Hermetic SDK tests prove payload and accounting behavior; they do not measure a real
+cache hit or claim live savings. No live measurement is recorded yet.
 
 Sources checked 8 October 2026:
 

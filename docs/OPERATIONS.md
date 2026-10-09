@@ -370,9 +370,9 @@ Express analyzes its literature corpus in one call. Within a run, a claim check
 of an unchanged claim against unchanged sources reuses the stored verdict, even
 across the gate and finalize, which name the same passage differently, and
 the tournament skips a pair already judged with unchanged inputs; both record
-the reuse in provenance. The final-check Express run before this work spent
-105 calls over 70 minutes, mostly on depth and claim checks for ideas the
-report never featured.
+the reuse in provenance. Before these changes an Express run could spend
+over 100 calls, mostly on depth and claim checks for ideas the report never
+featured.
 
 The offline meter (`app/tests/test_run_envelopes.py`) drives every tier through
 the durable worker against a fake MCP server and fails when a tier passes its
@@ -514,7 +514,7 @@ the final integrated repeat completed three and stopped three at the shared
 host's 512-call allowance, with the stored daily-provider-admission message. Do
 not interpret six accepted requests as six completed runs. One complete Express
 probe and report Q&A were separately verified using the same deterministic
-backend. Run efficiency/model-envelope receipts must be consulted before
+backend. Check the run efficiency and model envelopes before
 allocating all twenty daily starts. A separate sixty-second profile with
 `MAX_CONCURRENT_RUNS=1` admitted two of ten starts, clearly refused four at the
 concurrent-run guard and four at the daily host guard; both admitted runs
@@ -539,7 +539,7 @@ completed and no unexpected request error occurred.
    tested width. Do not add Uvicorn workers, replicas, serving VACUUM/checkpoints,
    or database writes on polling ticks to relieve traffic.
 3. On read latency/resource pressure, reduce `SSE_MAX_CONNECTIONS` to 128 or 64.
-   Restart through the documented owner release procedure: existing streams
+   Restart through the documented release procedure: existing streams
    close and reconnect; refusals explain the delay. Lower `MAX_CONCURRENT_RUNS`
    to 1 to protect reads from new research work. Preserve existing durable
    tasks and provider transactions; do not delete the database or its WAL.

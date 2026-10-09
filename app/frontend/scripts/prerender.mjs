@@ -44,7 +44,7 @@ const routes = [
     title: `${kind === "privacy" ? "Privacy notice" : "Terms of use"} - Open Co-Scientist`,
     description: `${kind === "privacy" ? "Privacy notice" : "Terms of use"} for Open Co-Scientist.`,
     heading: kind === "privacy" ? "Privacy notice" : "Terms of use",
-    body: "Contact the individual owner in the Netherlands at guy.barel@open-coscientist.com. Enable JavaScript to read the complete notice. This text is not legal advice; the owner reviews it before launch.",
+    body: "Contact the individual owner in the Netherlands at guy.barel@open-coscientist.com. Enable JavaScript to read the complete notice. This text is not legal advice.",
     jsonLd: null,
   })),
 ];
