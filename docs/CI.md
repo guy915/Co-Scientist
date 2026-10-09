@@ -173,8 +173,8 @@ remains explicitly opt-in.
 
 ## Speed measurements
 
-The [timing evidence](ci-speed-measurements.json) retains source commits, every
-job and step interval, the five-run comparisons and failed trials. Wall time
+The measurements below come from comprehensive CI runs on fixed sources,
+including every job and step interval and the failed trials. Wall time
 includes runner scheduling; percentiles use nearest rank over successful
 runs. The source evolved between themes, so these are operational
 checkpoints rather than controlled attribution to one change.
