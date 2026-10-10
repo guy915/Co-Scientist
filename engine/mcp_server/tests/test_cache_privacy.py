@@ -37,8 +37,11 @@ def test_requests_cache_public_papers_without_queries_topics_or_runs(
     )
     monkeypatch.setattr(
         PubmedSource,
-        "_download_pmc_fulltext",
-        lambda self, paper: f"<article><abstract><p>Public text {paper}</p></abstract></article>",
+        "_download_pmc_fulltexts",
+        lambda self, papers: {
+            paper: f"<article><abstract><p>Public text {paper}</p></abstract></article>"
+            for paper in papers
+        },
     )
     for query, slug, run, paper in [
         ("PRIVATE_QUERY_ONE", "PRIVATE_TOPIC_ONE", "PRIVATE_RUN_ONE", "123"),

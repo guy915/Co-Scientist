@@ -5,8 +5,9 @@ import datetime as dt
 import enum
 import functools
 import logging
+import threading
 from collections.abc import Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 
 import httpx
@@ -223,10 +224,52 @@ def _resolve_with_client(
     return Resolvability.RESOLVABLE if found else Resolvability.UNRESOLVABLE
 
 
-def _resolve_doi(doi: str, client: httpx.Client | None) -> Resolvability:
+class ProbeCache:
+    """One probe per target per run. Concurrent askers wait for the first
+    probe's verdict instead of sending their own."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._verdicts: dict[tuple[str, str], Future[Resolvability]] = {}
+
+    def verdict(self, key: tuple[str, str], probe: Callable[[], Resolvability]) -> Resolvability:
+        with self._lock:
+            pending = self._verdicts.get(key)
+            owner = pending is None
+            if pending is None:
+                pending = self._verdicts[key] = Future()
+        if not owner:
+            return pending.result()
+        try:
+            result = probe()
+        except BaseException as exc:
+            pending.set_exception(exc)
+            raise
+        pending.set_result(result)
+        return result
+
+
+def _probe(
+    probes: ProbeCache | None,
+    key: tuple[str, str],
+    client: httpx.Client | None,
+    check: Callable[[httpx.Client], bool],
+) -> Resolvability:
+    def probe() -> Resolvability:
+        return _resolve_with_client(client, check)
+
+    return probe() if probes is None else probes.verdict(key, probe)
+
+
+def _resolve_doi(
+    doi: str, client: httpx.Client | None, probes: ProbeCache | None = None
+) -> Resolvability:
     if retraction_set.is_known_retracted(doi):
         return Resolvability.RETRACTED
-    return _resolve_with_client(client, lambda c: _reachable(c, _doi_url(doi)))
+    # DOI names are case-insensitive at doi.org, and sources disagree on case
+    # (OpenAlex lowercases, PubMed keeps the publisher's), so one probe serves both.
+    url = _doi_url(doi.lower())
+    return _probe(probes, ("reach", url), client, lambda c: _reachable(c, url))
 
 
 def resolve_one(
@@ -236,30 +279,40 @@ def resolve_one(
     url: str,
     retracted: bool,
     client: httpx.Client | None = None,
+    probes: ProbeCache | None = None,
 ) -> Resolvability:
     """Check an independent DOI retraction set because source indexes can lag
     months. Prefer DOI, then PMID, then URL; actually dereference identifiers
-    rather than trusting nonempty strings.
+    rather than trusting nonempty strings. Retraction checks run per citation;
+    only the network probe is shared through `probes`.
     """
     if retracted:
         return Resolvability.RETRACTED
     if doi:
-        return _resolve_doi(doi, client)
+        return _resolve_doi(doi, client, probes)
     if pmid:
-        return _resolve_with_client(client, lambda c: _pmid_found(c, pmid))
+        return _probe(probes, ("pmid", pmid), client, lambda c: _pmid_found(c, pmid))
     if url:
-        return _resolve_with_client(client, lambda c: _reachable(c, url))
+        return _probe(probes, ("reach", url), client, lambda c: _reachable(c, url))
     return Resolvability.UNRESOLVABLE
 
 
-def live_resolver(meta: CitationMetadata) -> Resolvability:
-    """Live and offline checks use the same resolver seam."""
-    return resolve_one(
-        doi=meta.doi,
-        pmid=meta.pmid,
-        url=meta.url,
-        retracted=meta.retracted,
-    )
+def run_live_resolver() -> Resolver:
+    """Live and offline checks use the same resolver seam. Probes are shared
+    across one run's citations, so a paper several sources returned is
+    dereferenced once."""
+    probes = ProbeCache()
+
+    def resolve(meta: CitationMetadata) -> Resolvability:
+        return resolve_one(
+            doi=meta.doi,
+            pmid=meta.pmid,
+            url=meta.url,
+            retracted=meta.retracted,
+            probes=probes,
+        )
+
+    return resolve
 
 
 def resolve_many(metas: Iterable[CitationMetadata], *, resolver: Resolver) -> list[Resolvability]:

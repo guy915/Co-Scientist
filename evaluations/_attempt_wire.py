@@ -326,6 +326,10 @@ _DTD_ELINK = (
     '"https://eutils.ncbi.nlm.nih.gov/eutils/dtd/20101123/elink.dtd">'
 )
 _XML = '<?xml version="1.0" encoding="UTF-8" ?>\n'
+_DTD_PMC = (
+    '<!DOCTYPE pmc-articleset PUBLIC "-//NLM//DTD ARTICLE SET 2.0//EN" '
+    '"https://dtd.nlm.nih.gov/ncbi/pmc/articleset/nlm-articleset-2.0.dtd">'
+)
 
 
 def _ids(params: dict[str, list[str]]) -> list[str]:
@@ -353,6 +357,16 @@ def _pubmed_article(pmid: str) -> str:
     )
 
 
+def _pmc_article(pmc_id: str) -> str:
+    # Real PMC answers carry one article per ID, each naming its own PMCID.
+    return (
+        '<article article-type="research-article"><front><article-meta>'
+        f'<article-id pub-id-type="pmcid">PMC{pmc_id}</article-id>'
+        "</article-meta></front><body><sec><title>Results</title>"
+        f"<p>Full text of open-access article {pmc_id}.</p></sec></body></article>"
+    )
+
+
 def _eutils_body(path: str, params: dict[str, list[str]]) -> tuple[int, bytes]:
     if path.endswith("esearch.fcgi"):
         term = params.get("term", [""])[0]
@@ -366,7 +380,8 @@ def _eutils_body(path: str, params: dict[str, list[str]]) -> tuple[int, bytes]:
         )
         return 200, body.encode()
     if path.endswith("efetch.fcgi") and params.get("db", ["pubmed"])[0] == "pmc":
-        return 200, b"<article><body><p>Full text of an open-access article.</p></body></article>"
+        articles = "".join(_pmc_article(pmc_id) for pmc_id in _ids(params))
+        return 200, f"{_XML}{_DTD_PMC}<pmc-articleset>{articles}</pmc-articleset>".encode()
     if path.endswith("efetch.fcgi"):
         articles = "".join(_pubmed_article(pmid) for pmid in _ids(params))
         return 200, f"{_XML}{_DTD_PUBMED}<PubmedArticleSet>{articles}</PubmedArticleSet>".encode()

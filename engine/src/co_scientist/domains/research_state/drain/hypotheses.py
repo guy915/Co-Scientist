@@ -75,7 +75,7 @@ def _article_year(art: dict[str, Any]) -> int | None:
 
 def _configured_resolver() -> Resolver:
     if settings.evidence_resolver == "live":
-        return citation_resolver.live_resolver
+        return citation_resolver.run_live_resolver()
     return offline_resolver
 
 
