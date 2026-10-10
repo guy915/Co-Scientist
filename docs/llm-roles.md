@@ -4,8 +4,10 @@
 Options override the spec. The role scope covers every retry, tool turn and
 closing turn. App calls pass `call_role` and optional `call_effort`.
 
-These defaults apply to Azure and Ling. Ling maps none to low because its
-profile requires reasoning. Other free-route profiles keep their checked
+The table defaults apply to Ling. Ling maps none to low because its profile
+requires reasoning. Azure runs every role on Luna: supervisor roles use the
+table's effort, and worker roles use low, except the no-reasoning roles below,
+which use none. Other free-route profiles keep their checked
 settings. Every direct Haiku call uses adaptive thinking and low, regardless of
 the table or overrides. BYOK keeps its selected models and credentials.
 
@@ -17,16 +19,19 @@ the table or overrides. BYOK keeps its selected models and credentials.
 | worker, generation, literature_synthesis, reflection, review, deep_verification, simulation, evolution, interview, chat | Worker | medium |
 | orchestrator, evidence_queries, grounding_queries, research_extract, literature_queries, literature_analysis, drafting, novelty, ranking, proximity, relevance, research, claims, safety, question_repair, goal_text, announcement, credential_probe | Worker | low |
 
+Azure no-reasoning worker roles: evidence_queries, grounding_queries,
+research_extract, literature_queries, proximity, relevance, research,
+question_repair, goal_text, announcement and credential_probe.
+
 Set `LLM_EFFORT_<ROLE>` to override a named role, for example
 `LLM_EFFORT_RANKING=low`. Otherwise an explicit call effort applies, followed by
 `LLM_WORKER_EFFORT` or `LLM_SUPERVISOR_EFFORT`, then the table default. Environment
-values are read per request. Only none, low and medium are accepted; workers
-require low or medium. A retry that disables thinking uses worker low or
-supervisor none.
+values are read per request and apply to Azure too. Only none, low and medium
+are accepted. A retry that disables thinking uses none on Azure.
 
 Exact USD prices and model versions live in `platform/llm/profile/`. Azure
 deployment names do not define prices. Luna includes cache-write and
-long-context rates; Nano has no extra cache-write fee. The spend ledger must
+long-context rates. The spend ledger must
 use Luna's long-context rate until its price boundary is confirmed.
 
 Production operator routing selects the native Responses client for Azure.

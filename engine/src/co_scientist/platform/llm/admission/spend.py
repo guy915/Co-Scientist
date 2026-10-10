@@ -159,7 +159,7 @@ def _model_rates(model: str) -> dict[str, str]:
     }
 
 
-AZURE_MODELS = ("azure/gpt-6-luna-2026-09-22", "azure/gpt-5-nano-2025-08-07")
+AZURE_MODELS = ("azure/gpt-6-luna-2026-09-22",)
 
 
 def verified_rates(fx: Decimal) -> dict[str, Any]:

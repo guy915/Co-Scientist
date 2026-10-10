@@ -11,19 +11,20 @@ higher tiers require BYOK. No Mistral slot remains.
    cannot change that link. Create workspace **Open Co-Scientist** and an API key
    there. Set `ANTHROPIC_API_KEY` on the API service only. Every key and workspace
    in the organization shares its credit.
-2. In Azure AI Foundry, confirm Global Standard deployments in Sweden Central:
-   `coscientist-supervisor-luna`, gpt-6-luna `2026-09-22`, and
-   `coscientist-worker-nano`, gpt-5-nano `2025-08-07`. Use the resource HTTPS
-   endpoint, not a deployment URL. Set the five variables below on the API only.
+2. In Azure AI Foundry, confirm the Global Standard deployment in Sweden Central:
+   `coscientist-supervisor-luna`, gpt-6-luna `2026-09-22`. Every Azure role uses
+   it. Use the resource HTTPS endpoint, not a deployment URL. Set the variables
+   below on the API only.
 3. Establish the spending cutoff ([below](#spending-cutoff)): read the credit
    lot's exact expiry and the usage already charged against it, then record the
    allowance. Azure has no hard cap for this offer; excess spend is billed to the
    subscription.
 4. Size TPM/RPM for the capped requests and Express concurrency within that
-   total. Since 9 Oct 2026, `coscientist-supervisor-luna` has 100K TPM and
-   `coscientist-worker-nano` has 300K TPM. TPM is a rate limit, not a cost;
-   spend is bounded by the recorded allowance. Confirm quota before enabling
-   Azure.
+   total. Azure counts each request's input plus its requested output cap. The
+   W4 preflight measured an Express peak of about 264K TPM and 36 RPM across
+   all roles, so give `coscientist-supervisor-luna` at least 300K TPM. TPM is a
+   rate limit, not a cost; spend is bounded by the recorded allowance. Confirm
+   quota before enabling Azure.
 5. Open `/operations/spend` with the logs-admin token and test the kill switches
    and refusal path. Enable Azure only after the bounded live checks pass.
 
@@ -40,8 +41,7 @@ higher tiers require BYOK. No Mistral slot remains.
 | `AZURE_OPENAI_API_KEY` | secret, API service only |
 | `AZURE_OPENAI_ENDPOINT` | resource HTTPS origin `https://<resource>` + `.openai.azure.com`, `.services.ai.azure.com` or `.cognitiveservices.azure.com`; no path, port or query |
 | `AZURE_OPENAI_API_VERSION` | `v1` |
-| `AZURE_OPENAI_SUPERVISOR_DEPLOYMENT` | `coscientist-supervisor-luna` |
-| `AZURE_OPENAI_WORKER_DEPLOYMENT` | `coscientist-worker-nano` |
+| `AZURE_OPENAI_DEPLOYMENT` | `coscientist-supervisor-luna` |
 | `ANTHROPIC_MONTHLY_CREDIT_USD` | `100` |
 | `ANTHROPIC_BILLING_RESET_DAY` | `7`; UTC boundary |
 | `LLM_OPENROUTER_CALLS_PER_DAY` | `1000`; free route requests only |

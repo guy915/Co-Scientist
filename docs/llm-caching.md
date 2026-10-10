@@ -35,14 +35,13 @@ Azure receives `prompt_cache_key` from run context and call role. A rolling 60-s
 window starts a stable numbered partition after 15 requests per key. State uses a thread
 lock, at most 4096 run/role entries and 256 partitions per entry; under larger bursts,
 cache hits are best effort. No lock covers provider I/O. Calls without run context use
-provider automatic caching. Nano receives no new cache options or breakpoints. The Azure
-key API is covered by the installed SDK test; cache-hit behavior still needs a live check.
+provider automatic caching. The Azure key API is covered by the installed SDK test;
+cache-hit behavior still needs a live check.
 
 Azure writes are an additional input charge. The durable EUR ledger already reserves
 and records them. Missing priced write usage keeps the full reservation. The single total
 cap, request-time expiry and kill switches still apply. General usage now records writes
-and uses each model's published read/write rates; Nano reads cost 0.01/M, not 0.1 times
-its 0.05/M input rate. The ledger retains conservative Luna long-context rates until its
+and uses each model's published read/write rates. The ledger retains conservative Luna long-context rates until its
 short/long boundary is confirmed. USD usage estimates do not replace that credit guard.
 
 Private spans export numeric input, read and write counts plus a stable numeric call-type

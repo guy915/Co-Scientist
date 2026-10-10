@@ -55,8 +55,7 @@ _ARM_ENV = {
     "azure": {
         "AZURE_OPENAI_API_KEY": _FAKE_KEY,
         "AZURE_OPENAI_ENDPOINT": _AZURE_ENDPOINT,
-        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": "offline-supervisor",
-        "AZURE_OPENAI_WORKER_DEPLOYMENT": "offline-worker",
+        "AZURE_OPENAI_DEPLOYMENT": "offline-luna",
         "LLM_AZURE_ENABLED": "true",
         "LLM_TOTAL_BUDGET_EUR": "1000",
         "LLM_AZURE_EXPIRES_AT": "2099-01-04T00:00:00+00:00",
