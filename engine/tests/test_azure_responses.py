@@ -92,7 +92,7 @@ async def test_responses_wire_and_usage_keep_chat_contract_without_sdk_retries()
 
     backend = _backend(respond)
     try:
-        with scoped_call_policy("relevance"), _permit(LUNA):
+        with scoped_call_policy("goal_text"), _permit(LUNA):
             answer = await backend.complete(
                 **_request(
                     model=LUNA,

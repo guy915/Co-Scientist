@@ -5,7 +5,7 @@ from typing import Any
 
 import co_scientist.domains.chat.interviews.questions as question_repair
 import pytest
-from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT, settings
+from co_scientist.core.config import settings
 from co_scientist.domains.chat.interviews import model as interviews_model
 from co_scientist.domains.chat.repository import interviews as store
 from co_scientist.domains.chat.repository.interviews import NewInterviewTurn
@@ -334,7 +334,8 @@ async def test_thinking_only_turn_retries_once_with_thinking_off(
     result = await interviews_model._call_interview_model(interview, on_reasoning=_on_reasoning)
 
     assert len(calls) == 2
-    assert calls[0]["reasoning_effort"] == CONVERSATIONAL_REASONING_EFFORT
+    # High is DeepSeek's lowest reasoning tier.
+    assert calls[0]["reasoning_effort"] == "high"
     assert calls[1]["extra_body"] == {"thinking": {"type": "disabled"}}
     assert "reasoning_effort" not in calls[1]
     assert any("retrying" in fragment for fragment in reasoning_fragments)

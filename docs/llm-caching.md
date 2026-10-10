@@ -19,8 +19,9 @@ and chat also use top-level automatic caching. A request may have at most four c
 breakpoints, including the automatic one. No delimiter from user text is interpreted.
 
 Haiku 5.5 always sends low effort. It sends adaptive thinking, or disabled
-thinking for the calls that do not reason on Luna. A recovery attempt keeps the
-call's thinking mode, so the cached prefix stays valid. Effort changes only after
+thinking for the roles that do not reason. An engine recovery attempt keeps the
+call's thinking mode, so the cached prefix stays valid; a chat retry after an
+answer-less reasoning stream turns thinking off. Effort changes only after
 paired quality results by call type. Temperature is omitted; top_p and
 top_k are removed from both request arguments and extra body. Thinking shares max_tokens
 with answer text. Read only text content blocks, including when thinking appears first.

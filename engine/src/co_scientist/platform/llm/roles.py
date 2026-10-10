@@ -48,10 +48,9 @@ CallRole = Literal[
     "credential_probe",
 ]
 
+# "none" means the role never reasons, on every provider.
 ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
-    "supervisor": ("supervisor", "medium"),
-    "meta_review": ("supervisor", "medium"),
-    "overview": ("supervisor", "medium"),
+    **dict.fromkeys(("supervisor", "meta_review", "overview"), ("supervisor", "medium")),
     **dict.fromkeys(
         ("overview_review", "overview_outline", "overview_directions"), ("supervisor", "low")
     ),
@@ -73,55 +72,37 @@ ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
     **dict.fromkeys(
         (
             "orchestrator",
-            "evidence_queries",
-            "grounding_queries",
             "research_extract",
-            "literature_queries",
             "literature_analysis",
             "drafting",
             "novelty",
             "ranking",
             "proximity",
             "relevance",
-            "research",
             "claims",
             "safety",
+        ),
+        ("worker", "low"),
+    ),
+    **dict.fromkeys(
+        (
+            "evidence_queries",
+            "grounding_queries",
+            "literature_queries",
+            "research",
             "question_repair",
             "goal_text",
             "announcement",
             "credential_probe",
         ),
-        ("worker", "low"),
+        ("worker", "none"),
     ),
 }
 
 
-# Azure serves every role from Luna at its lowest reasoning effort, except the
-# planning and report roles; these roles and the table's "none" roles do not reason.
-AZURE_NO_REASONING_ROLES: frozenset[str] = frozenset(
-    {
-        "evidence_queries",
-        "grounding_queries",
-        "research_extract",
-        "literature_queries",
-        "proximity",
-        "relevance",
-        "research",
-        "question_repair",
-        "goal_text",
-        "announcement",
-        "credential_probe",
-    }
-)
-
-
+# Operator credit runs Luna at its lowest reasoning effort, except the planning
+# and report roles.
 AZURE_MEDIUM_ROLES: frozenset[str] = frozenset({"supervisor", "overview"})
-
-
-def _azure_default(role: str, default: ReasoningEffort) -> ReasoningEffort:
-    if default == "none" or role in AZURE_NO_REASONING_ROLES:
-        return "none"
-    return "medium" if role in AZURE_MEDIUM_ROLES else "low"
 
 
 @dataclass(frozen=True)
@@ -129,6 +110,7 @@ class CallPolicy:
     role: CallRole = "worker"
     tier: ModelTier = "worker"
     effort: ReasoningEffort = "medium"
+    # False when the caller turns thinking off or the role's effort is none.
     enable_thinking: bool = True
     azure_effort: ReasoningEffort = "low"
 
@@ -149,22 +131,19 @@ def current_call_policy() -> CallPolicy:
         or os.getenv(f"LLM_{tier.upper()}_EFFORT")
     )
     effort = override or default
-    azure_effort = override or _azure_default(role, default)
     if effort not in ("none", "low", "medium"):
         raise ProviderAdmissionError("Model effort must be none, low or medium")
+    reasons = thinking and effort != "none"
+    azure_effort = (
+        "none" if not reasons else override or ("medium" if role in AZURE_MEDIUM_ROLES else "low")
+    )
     return CallPolicy(
         role,
         tier,
         cast(ReasoningEffort, effort),
-        thinking,
+        reasons,
         cast(ReasoningEffort, azure_effort),
     )
-
-
-def role_reasons() -> bool:
-    # Every provider reasons only where Luna does, so naming a chat never waits on thinking.
-    policy = current_call_policy()
-    return policy.enable_thinking and policy.azure_effort != "none"
 
 
 @contextmanager

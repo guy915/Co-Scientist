@@ -588,7 +588,7 @@ def test_native_credit_preflight_works_without_openrouter_and_notice_keeps_usabl
         process_mode.install(previous)
 
 
-async def test_goal_text_on_claude_sends_no_thinking_and_keeps_its_output_room(
+async def test_goal_text_on_claude_sends_no_thinking_and_only_its_answer_budget(
     path: str, providers: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from co_scientist.core.config import settings
@@ -614,7 +614,7 @@ async def test_goal_text_on_claude_sends_no_thinking_and_keeps_its_output_room(
         response = _message(refused=False)
         # max_tokens bounds thinking and answer together; a budget under one
         # thought is spent before any text.
-        if body["max_tokens"] < 1024:
+        if body["thinking"] != {"type": "disabled"} and body["max_tokens"] < 1024:
             response["stop_reason"] = "max_tokens"
             response["content"] = [{"type": "thinking", "thinking": "", "signature": "s"}]
             response["usage"]["output_tokens"] = body["max_tokens"]
@@ -637,7 +637,7 @@ async def test_goal_text_on_claude_sends_no_thinking_and_keeps_its_output_room(
         title = await generate_run_title(goal)
         restatement = await generate_goal_restatement(goal)
     assert (title, restatement) == ("Ferroptosis Targets", "A restatement.")
-    assert [body["max_tokens"] for body in bodies] == [8192, 8192]
+    assert [body["max_tokens"] for body in bodies] == [24, 200]
     assert all(body["thinking"] == {"type": "disabled"} for body in bodies)
     assert all(body["output_config"] == {"effort": "low"} for body in bodies)
     with connect(path) as conn:

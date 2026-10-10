@@ -78,27 +78,81 @@ def test_paid_gateway_route_keeps_the_role_effort(role: CallRole, effort: str) -
     assert body["reasoning"] == {"enabled": True, "effort": effort}
 
 
-@pytest.mark.parametrize(
-    "role",
-    ["goal_text", "announcement", "evidence_queries", "research_extract", "relevance", "proximity"],
-)
-@pytest.mark.parametrize(
-    "model",
-    ["openrouter/inclusionai/ling-3.1-flash", "openrouter/z-ai/glm-5.3-flash"],
-)
-def test_gateway_routes_do_not_reason_where_luna_does_not(role: CallRole, model: str) -> None:
+FREE = "openrouter/inclusionai/ling-3.1-flash"
+PAID = "openrouter/z-ai/glm-5.3-flash"
+NATIVE = "deepseek/deepseek-v4-flash"
+HAIKU = "anthropic/claude-haiku-5-5"
+
+
+def _wire(role: CallRole, model: str, *, enable_thinking: bool = True) -> dict[str, Any]:
     from co_scientist.platform.llm.request.thinking import (
-        deepseek_thinking_extra_body,
-        deepseek_thinking_kwargs,
-        effective_thinking_enabled,
+        _apply_thinking_args,
+        apply_provider_constraints,
     )
 
-    # These hosts cannot switch reasoning off, so it is capped at its minimum.
-    minimal = {"enabled": True, "max_tokens": MINIMAL_REASONING_MAX_TOKENS}
-    with scoped_call_policy(role):
-        assert deepseek_thinking_extra_body(model)["reasoning"] == minimal
-        assert deepseek_thinking_kwargs(model)["extra_body"]["reasoning"] == minimal
-        assert effective_thinking_enabled(model, True)
+    args: dict[str, Any] = {"model": model, "max_tokens": 100, "messages": []}
+    with scoped_call_policy(role, enable_thinking=enable_thinking):
+        _apply_thinking_args(args, model, True)
+        apply_provider_constraints(args, model)
+    return args
+
+
+def _reasoning(args: dict[str, Any]) -> object:
+    extra = args.get("extra_body") or {}
+    return (
+        extra.get("reasoning"),
+        extra.get("thinking"),
+        args.get("reasoning_effort"),
+        args.get("thinking"),
+        args.get("output_config"),
+    )
+
+
+# Hosts that cannot switch reasoning off get the smallest cap instead.
+_MINIMAL = {"enabled": True, "max_tokens": MINIMAL_REASONING_MAX_TOKENS}
+
+
+@pytest.mark.parametrize(
+    "role", ["goal_text", "announcement", "evidence_queries", "literature_queries", "research"]
+)
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        (FREE, (_MINIMAL, None, None, None, None)),
+        (PAID, (_MINIMAL, None, None, None, None)),
+        (NATIVE, (None, {"type": "disabled"}, None, None, None)),
+        (LUNA, (None, None, "none", None, None)),
+        (HAIKU, (None, None, None, {"type": "disabled"}, {"effort": "low"})),
+    ],
+)
+def test_no_reasoning_roles_do_not_reason_on_any_provider(
+    role: CallRole, model: str, expected: object
+) -> None:
+    assert _reasoning(_wire(role, model)) == expected
+
+
+@pytest.mark.parametrize("role", ["relevance", "proximity", "research_extract", "claims"])
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        (FREE, ({"enabled": True, "effort": "max"}, None, None, None, None)),
+        (PAID, ({"enabled": True, "effort": "low"}, None, None, None, None)),
+        (NATIVE, (None, {"type": "enabled"}, "high", None, None)),
+        (LUNA, (None, None, "low", None, None)),
+        (HAIKU, (None, None, None, {"type": "adaptive"}, {"effort": "low"})),
+    ],
+)
+def test_reasoning_roles_reason_on_every_provider(
+    role: CallRole, model: str, expected: object
+) -> None:
+    assert _reasoning(_wire(role, model)) == expected
+
+
+@pytest.mark.parametrize("model", [FREE, PAID, NATIVE, LUNA, HAIKU])
+def test_a_caller_turning_thinking_off_matches_a_no_reasoning_role(model: str) -> None:
+    assert _reasoning(_wire("generation", model, enable_thinking=False)) == _reasoning(
+        _wire("goal_text", model)
+    )
 
 
 def test_gateway_route_that_can_disable_reasoning_turns_it_off_for_titles(
@@ -106,16 +160,13 @@ def test_gateway_route_that_can_disable_reasoning_turns_it_off_for_titles(
 ) -> None:
     from co_scientist.platform.llm.request import thinking
 
-    profile = model_profile("openrouter/z-ai/glm-5.3-flash")
+    profile = model_profile(PAID)
     monkeypatch.setattr(
         thinking,
         "model_profile",
         lambda _: dataclasses.replace(profile, reasoning_can_disable=True),
     )
-    with scoped_call_policy("goal_text"):
-        body = thinking.deepseek_thinking_extra_body("openrouter/z-ai/glm-5.3-flash")
-        assert body["reasoning"] == {"enabled": False}
-        assert not thinking.effective_thinking_enabled("openrouter/z-ai/glm-5.3-flash", True)
+    assert _wire("goal_text", PAID)["extra_body"]["reasoning"] == {"enabled": False}
 
 
 @pytest.fixture(autouse=True)
@@ -207,9 +258,11 @@ def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.Monkey
         ("ranking", "low", "low"),
         ("safety", "low", "low"),
         ("claims", "low", "low"),
-        ("literature_queries", "low", "none"),
-        ("relevance", "low", "none"),
-        ("goal_text", "low", "none"),
+        ("literature_queries", "none", "none"),
+        ("relevance", "low", "low"),
+        ("proximity", "low", "low"),
+        ("research_extract", "low", "low"),
+        ("goal_text", "none", "none"),
         ("supervisor", "medium", "medium"),
         ("overview", "medium", "medium"),
         ("meta_review", "medium", "low"),

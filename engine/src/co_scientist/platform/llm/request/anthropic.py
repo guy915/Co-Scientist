@@ -16,7 +16,7 @@ from co_scientist.platform.db.anthropic_credit import (
 from co_scientist.platform.db.spend import UNAVAILABLE
 from co_scientist.platform.llm.admission.anthropic import require_credit_available
 from co_scientist.platform.llm.request.cache import HAIKU
-from co_scientist.platform.llm.roles import ROLE_DEFAULTS, current_call_policy, role_reasons
+from co_scientist.platform.llm.roles import ROLE_DEFAULTS, current_call_policy
 
 API_BASE = "https://api.anthropic.com"
 INPUT_LIMIT = 100_000
@@ -49,8 +49,8 @@ class AnthropicSlotUnavailableError(AnthropicCreditUnavailableError):
 
 
 def haiku_thinking() -> dict[str, str]:
-    # Haiku follows Luna's choice of which calls reason, but always at low effort.
-    return {"type": "adaptive" if role_reasons() else "disabled"}
+    # Haiku 5.5 has no fixed thinking budget: adaptive at low effort, or off.
+    return {"type": "adaptive" if current_call_policy().enable_thinking else "disabled"}
 
 
 def count_request(request: dict[str, Any]) -> dict[str, Any]:

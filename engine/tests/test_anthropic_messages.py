@@ -216,7 +216,8 @@ async def test_caller_billing_error_does_not_disable_operator_credit(
     ("role", "cap", "thinking", "mode"),
     [
         ("claims", 8192, False, "disabled"),
-        ("relevance", 8192, True, "disabled"),
+        ("relevance", 8192, True, "adaptive"),
+        ("goal_text", 8192, True, "disabled"),
         ("generation", 16384, True, "adaptive"),
         ("overview", 32768, True, "adaptive"),
     ],
