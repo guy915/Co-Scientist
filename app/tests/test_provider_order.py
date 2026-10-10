@@ -126,6 +126,41 @@ def test_terminal_or_deleted_run_releases_only_forecast_and_keeps_unknown_money(
         )
 
 
+@pytest.mark.parametrize("path_taken", ["task_failure", "restart", "startup_heal"])
+def test_failed_run_releases_its_forecast_on_every_failure_path(path: str, path_taken: str) -> None:
+    from co_scientist.orchestration.repository import runs_views
+
+    run_id, other = _run(path), _run(path)
+    with transaction(path) as conn:
+        admit_route(conn, run_id, slots=("azure",), estimate=90, total=100)
+        assert not admit_route(
+            conn, other, slots=("anthropic", "azure"), estimate=90, total=100
+        ).azure_allowed
+    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=path)
+    if path_taken == "task_failure":
+        with transaction(path) as conn:
+            runs_views._settle_run_for_failed_task(
+                conn, run_id, "engine.generate", "provider rejected", retryable=False
+            )
+    elif path_taken == "restart":
+        assert runs_views.reconcile_interrupted_runs(path)["failed"] == [run_id]
+    else:
+        with transaction(path) as conn:
+            conn.execute("UPDATE runs SET status='failed' WHERE id=?", (run_id,))
+        runs_views.reconcile_interrupted_runs(path)
+    with transaction(path) as conn:
+        run = runs.get_run(run_id, conn=conn)
+        assert run is not None and run.status == RunStatus.FAILED.value
+        assert (
+            conn.execute(
+                "SELECT forecast_microeur FROM llm_routes WHERE run_id=?", (run_id,)
+            ).fetchone()[0]
+            == 0
+        )
+        conn.execute("DELETE FROM llm_routes WHERE run_id=?", (other,))
+        assert admit_route(conn, other, slots=("azure",), estimate=90, total=100).azure_allowed
+
+
 def test_free_slot_cap_is_atomic_and_renews_next_utc_day(
     path: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
