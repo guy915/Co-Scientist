@@ -61,7 +61,7 @@ def _spent(path: str) -> int:
 def test_concurrent_calls_never_reserve_past_total(
     budget: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.004")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.0025")
 
     def reserve(_: int) -> bool:
         try:
@@ -74,7 +74,7 @@ def test_concurrent_calls_never_reserve_past_total(
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
         results = list(pool.map(reserve, range(40)))
     assert sum(results) == 2
-    assert 0 < _spent(budget) <= 4000
+    assert 0 < _spent(budget) <= 2500
     with connect(budget) as conn:
         assert (
             conn.execute("SELECT calls FROM provider_admissions WHERE scope='global'").fetchone()[0]
@@ -88,9 +88,9 @@ def test_token_and_money_settlement_is_one_idempotent_refund(budget: str) -> Non
     settle_physical(
         receipt, _usage(prompt_tokens_details={"cached_tokens": 40, "cache_write_tokens": 0})
     )
-    assert _spent(budget) == 30 and _spent(budget) < reserved
+    assert _spent(budget) == 18 and _spent(budget) < reserved
     settle_physical(receipt, _usage(prompt_tokens=1, completion_tokens=1))
-    assert _spent(budget) == 30
+    assert _spent(budget) == 18
     with connect(budget) as conn:
         assert all(row[0] == 120 for row in conn.execute("SELECT tokens FROM provider_admissions"))
 
@@ -112,7 +112,7 @@ def test_settlement_keeps_original_fx_when_configuration_changes(
     receipt = reserve_physical(_request())
     monkeypatch.setenv("LLM_USD_TO_EUR", "100")
     settle_physical(receipt, _settleable())
-    assert _spent(budget) == 36
+    assert _spent(budget) == 22
 
 
 def test_failed_settlement_rolls_back_token_refund_and_stops_new_paid_calls(
@@ -352,7 +352,7 @@ def test_privacy_erasure_and_admission_retention_keep_lifetime_spend(budget: str
             == 0
         )
     settle_physical(unknown, _settleable())
-    assert _spent(budget) == 72
+    assert _spent(budget) == 44
 
 
 def test_cache_write_charge_is_durable_and_can_exhaust_remaining_total(
@@ -367,12 +367,12 @@ def test_cache_write_charge_is_durable_and_can_exhaust_remaining_total(
             prompt_tokens_details={"cached_tokens": 800, "cache_write_tokens": 1000},
         ),
     )
-    # The ledger saves conservative long-context rates until the Azure
-    # short/long boundary is confirmed; writes are an additional charge.
-    assert _spent(budget) == 336
+    # A prompt below Luna's 272K boundary pays short rates; writes are an
+    # additional charge.
+    assert _spent(budget) == 179
     with connect(budget) as conn:
         row = conn.execute("SELECT cache_write_tokens, settled FROM llm_spend").fetchone()
         assert tuple(row) == (1000, 1)
-    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.000336")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.000179")
     with pytest.raises(ProviderAdmissionError):
         reserve_physical(_request(LUNA))

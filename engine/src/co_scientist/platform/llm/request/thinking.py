@@ -5,7 +5,6 @@ from contextvars import ContextVar
 from typing import Any, Final
 
 from co_scientist.core._context import _bind_contextvar
-from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT
 from co_scientist.core.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
@@ -150,6 +149,9 @@ _CONVERSATIONAL_ROLES: Final = frozenset(("chat", "interview"))
 
 def _gateway_effort() -> str:
     if current_call_policy().role in _CONVERSATIONAL_ROLES:
+        # Imported here: live evaluations configure the environment before config loads.
+        from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT
+
         return CONVERSATIONAL_REASONING_EFFORT
     return _GATEWAY_MAX_EFFORT
 
