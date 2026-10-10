@@ -8,7 +8,6 @@ from typing import Any
 
 from co_scientist.core import byok_scope
 from co_scientist.core.config import (
-    CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
     settings,
 )
@@ -24,6 +23,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from co_scientist.platform.llm.roles import scoped_call_policy
 from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
 from co_scientist.platform.telemetry.logging_setup import run_log_context
@@ -101,11 +101,12 @@ async def _stream_model_fragments(
     # verbatim.
     offline_guard.require_remote_chat("the session announcement")
     model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
-    thinking_kwargs = (
-        deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
-        if thinking_enabled
-        else thinking_off_kwargs(model)
-    )
+    # The role decides whether this call reasons, so build the request under it.
+    with scoped_call_policy("announcement"):
+        thinking_kwargs = (
+            deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
+        )
+        max_tokens = thinking_safe_max_tokens(model, _ANNOUNCEMENT_MAX_TOKENS)
     response = await llm_request.acompletion(
         call_role="announcement",
         model=model,
@@ -114,7 +115,7 @@ async def _stream_model_fragments(
             {"role": "user", "content": _announcement_prompt(run)},
         ],
         temperature=0.7,
-        max_tokens=thinking_safe_max_tokens(model, _ANNOUNCEMENT_MAX_TOKENS),
+        max_tokens=max_tokens,
         timeout=_TOTAL_SECONDS,
         stream=True,
         **thinking_kwargs,

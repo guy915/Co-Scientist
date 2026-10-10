@@ -16,7 +16,6 @@ from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
-    LLMCallOptions,
     call_llm_json,
     scoped_telemetry_phase,
 )
@@ -54,7 +53,6 @@ async def _ask(
                 temperature=MEDIUM_TEMPERATURE,
                 json_schema=schema,
             ),
-            options=LLMCallOptions(enable_thinking=False),
         )
 
 

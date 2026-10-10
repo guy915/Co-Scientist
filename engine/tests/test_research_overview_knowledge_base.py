@@ -175,9 +175,7 @@ async def test_the_synthesis_is_one_bounded_outline_call_plus_one_per_theme(
     assert len(responder.specs) == calls
     assert KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS < KNOWLEDGE_BASE_THEME_MAX_TOKENS
     assert all(spec.max_tokens <= THINKING_FLOOR_MAX_TOKENS for spec in responder.specs)
-    assert all(
-        options is not None and options.enable_thinking is False for options in responder.options
-    )
+    assert all(options is None for options in responder.options)
     for prompt in responder.prompts[1:]:
         assert all(title in prompt for title in _THEME_SECTIONS)
     assert [topic["theme"] for topic in topics] == [

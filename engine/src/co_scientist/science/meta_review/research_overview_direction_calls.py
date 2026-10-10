@@ -14,7 +14,6 @@ from co_scientist.core.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.domains.research_state.state import WorkflowState
 from co_scientist.platform.llm import (
     CompletionSpec,
-    LLMCallOptions,
     scoped_telemetry_phase,
 )
 from co_scientist.science.meta_review.research_overview_evidence import (
@@ -151,7 +150,6 @@ async def write_direction_body(
                     temperature=MEDIUM_TEMPERATURE,
                     json_schema=schema,
                 ),
-                options=LLMCallOptions(enable_thinking=False),
             )
     except TASK_CONTROL_FLOW_ERRORS:
         raise

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core import byok_scope
-from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT, settings
+from co_scientist.core.config import settings
 from co_scientist.domains.chat.titles import title_case
 from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
@@ -17,6 +17,7 @@ from co_scientist.platform.llm.request.thinking import (
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
+from co_scientist.platform.llm.roles import scoped_call_policy
 from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 
 logger = logging.getLogger(__name__)
@@ -130,11 +131,12 @@ async def _request_completion(
     """
     offline_guard.require_remote_chat(request.purpose)
     model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
-    thinking_kwargs = (
-        deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
-        if thinking_enabled
-        else thinking_off_kwargs(model)
-    )
+    # The role decides whether this call reasons, so build the request under it.
+    with scoped_call_policy("goal_text"):
+        thinking_kwargs = (
+            deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
+        )
+        max_tokens = thinking_safe_max_tokens(model, request.max_tokens)
     return await asyncio.wait_for(
         llm_request.acompletion(
             call_role="goal_text",
@@ -144,7 +146,7 @@ async def _request_completion(
                 {"role": "user", "content": goal},
             ],
             temperature=request.temperature,
-            max_tokens=thinking_safe_max_tokens(model, request.max_tokens),
+            max_tokens=max_tokens,
             **thinking_kwargs,
             api_key=api_key,
         ),

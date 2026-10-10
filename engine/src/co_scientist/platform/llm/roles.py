@@ -52,9 +52,9 @@ ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
     "supervisor": ("supervisor", "medium"),
     "meta_review": ("supervisor", "medium"),
     "overview": ("supervisor", "medium"),
-    "overview_review": ("supervisor", "low"),
-    "overview_outline": ("supervisor", "none"),
-    "overview_directions": ("supervisor", "none"),
+    **dict.fromkeys(
+        ("overview_review", "overview_outline", "overview_directions"), ("supervisor", "low")
+    ),
     **dict.fromkeys(
         (
             "worker",
@@ -159,6 +159,12 @@ def current_call_policy() -> CallPolicy:
         thinking,
         cast(ReasoningEffort, azure_effort),
     )
+
+
+def role_reasons() -> bool:
+    # Every provider reasons only where Luna does, so naming a chat never waits on thinking.
+    policy = current_call_policy()
+    return policy.enable_thinking and policy.azure_effort != "none"
 
 
 @contextmanager

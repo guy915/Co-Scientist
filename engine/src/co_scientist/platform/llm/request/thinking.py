@@ -12,7 +12,7 @@ from co_scientist.core.constants import (
 from co_scientist.core.env_vars import parse_list_env
 from co_scientist.platform.llm.profile import ModelProfile, Thinking, is_free_route, model_profile
 from co_scientist.platform.llm.request.anthropic import haiku_thinking, output_limit
-from co_scientist.platform.llm.roles import current_call_policy
+from co_scientist.platform.llm.roles import current_call_policy, role_reasons
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def effective_thinking_enabled(model_name: str, enable_thinking: bool) -> bool:
     """Funding and diagnostics must reflect forced reasoning, not the
     requested disable.
     """
-    if enable_thinking or _minimal_reasoning_forced.get():
+    if (enable_thinking and role_reasons()) or _minimal_reasoning_forced.get():
         return True
     profile = model_profile(model_name)
     if profile.thinking is Thinking.NONE:
@@ -133,6 +133,7 @@ def deepseek_thinking_extra_body(model_name: str, *, enabled: bool = True) -> di
     """
     lowered = model_name.lower()
     profile = model_profile(lowered)
+    enabled = enabled and role_reasons()
     if profile.thinking is Thinking.NATIVE:
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
     if not profile.gateway:
@@ -141,11 +142,11 @@ def deepseek_thinking_extra_body(model_name: str, *, enabled: bool = True) -> di
 
 
 # Free routes bill per request, not per token, so they reason at the most the
-# gateway offers; it maps "max" down to each model's top tier. User-facing text
-# keeps a middle tier so users are not left waiting, and paid routes keep the
-# role's own effort because they bill per token.
+# gateway offers; it maps "max" down to each model's top tier. Chat keeps a
+# middle tier so users are not left waiting, and paid routes keep the role's own
+# effort because they bill per token.
 _GATEWAY_MAX_EFFORT: Final[str] = "max"
-_CONVERSATIONAL_ROLES: Final = frozenset(("chat", "interview", "goal_text", "announcement"))
+_CONVERSATIONAL_ROLES: Final = frozenset(("chat", "interview"))
 
 
 def _gateway_effort(lowered: str) -> str:
@@ -157,7 +158,7 @@ def _gateway_effort(lowered: str) -> str:
         return CONVERSATIONAL_REASONING_EFFORT
     if is_free_route(lowered):
         return _GATEWAY_MAX_EFFORT
-    return "low" if policy.effort == "none" else policy.effort
+    return policy.effort
 
 
 def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[str, Any]:
@@ -188,7 +189,7 @@ def reasoning_effort_args(model_name: str, *, enabled: bool = True) -> dict[str,
     """DeepSeek high is its lowest tier; gateway routes already carry the
     tier and reject duplicates.
     """
-    if enabled and model_profile(model_name).thinking is Thinking.NATIVE:
+    if enabled and role_reasons() and model_profile(model_name).thinking is Thinking.NATIVE:
         return {"reasoning_effort": _REASONING_EFFORT}
     return {}
 

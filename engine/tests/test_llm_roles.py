@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import pytest
 
+from co_scientist.core.constants import MINIMAL_REASONING_MAX_TOKENS
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.llm import (
     CompletionSpec,
@@ -30,17 +32,13 @@ LUNA = "azure/gpt-6-luna-2026-09-22"
 @pytest.mark.parametrize(
     ("role", "effort"),
     [
-        ("evidence_queries", "max"),
-        ("grounding_queries", "max"),
-        ("research_extract", "max"),
         ("reflection", "max"),
         ("generation", "max"),
         ("supervisor", "max"),
         ("overview_outline", "max"),
+        ("overview_directions", "max"),
         ("chat", "medium"),
         ("interview", "medium"),
-        ("goal_text", "medium"),
-        ("announcement", "medium"),
     ],
 )
 async def test_free_route_reasons_at_maximum_effort_except_conversation(
@@ -78,6 +76,46 @@ def test_paid_gateway_route_keeps_the_role_effort(role: CallRole, effort: str) -
     with scoped_call_policy(role):
         body = deepseek_thinking_extra_body("openrouter/z-ai/glm-5.3-flash")
     assert body["reasoning"] == {"enabled": True, "effort": effort}
+
+
+@pytest.mark.parametrize(
+    "role",
+    ["goal_text", "announcement", "evidence_queries", "research_extract", "relevance", "proximity"],
+)
+@pytest.mark.parametrize(
+    "model",
+    ["openrouter/inclusionai/ling-3.1-flash", "openrouter/z-ai/glm-5.3-flash"],
+)
+def test_gateway_routes_do_not_reason_where_luna_does_not(role: CallRole, model: str) -> None:
+    from co_scientist.platform.llm.request.thinking import (
+        deepseek_thinking_extra_body,
+        deepseek_thinking_kwargs,
+        effective_thinking_enabled,
+    )
+
+    # These hosts cannot switch reasoning off, so it is capped at its minimum.
+    minimal = {"enabled": True, "max_tokens": MINIMAL_REASONING_MAX_TOKENS}
+    with scoped_call_policy(role):
+        assert deepseek_thinking_extra_body(model)["reasoning"] == minimal
+        assert deepseek_thinking_kwargs(model)["extra_body"]["reasoning"] == minimal
+        assert effective_thinking_enabled(model, True)
+
+
+def test_gateway_route_that_can_disable_reasoning_turns_it_off_for_titles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.platform.llm.request import thinking
+
+    profile = model_profile("openrouter/z-ai/glm-5.3-flash")
+    monkeypatch.setattr(
+        thinking,
+        "model_profile",
+        lambda _: dataclasses.replace(profile, reasoning_can_disable=True),
+    )
+    with scoped_call_policy("goal_text"):
+        body = thinking.deepseek_thinking_extra_body("openrouter/z-ai/glm-5.3-flash")
+        assert body["reasoning"] == {"enabled": False}
+        assert not thinking.effective_thinking_enabled("openrouter/z-ai/glm-5.3-flash", True)
 
 
 @pytest.fixture(autouse=True)
@@ -150,9 +188,9 @@ async def test_tool_turn_and_closing_harvest_keep_role_and_effort(
 
 def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.MonkeyPatch) -> None:
     with scoped_call_policy("overview_outline"):
-        assert current_call_policy().effort == "none"
-        monkeypatch.setenv("LLM_EFFORT_OVERVIEW_OUTLINE", "low")
         assert current_call_policy().effort == "low"
+        monkeypatch.setenv("LLM_EFFORT_OVERVIEW_OUTLINE", "none")
+        assert current_call_policy().effort == "none"
         monkeypatch.setenv("LLM_EFFORT_OVERVIEW_OUTLINE", "high")
         with pytest.raises(ProviderAdmissionError):
             current_call_policy()
@@ -176,7 +214,8 @@ def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.Monkey
         ("overview", "medium", "medium"),
         ("meta_review", "medium", "low"),
         ("overview_review", "low", "low"),
-        ("overview_outline", "none", "none"),
+        ("overview_outline", "low", "low"),
+        ("overview_directions", "low", "low"),
     ],
 )
 async def test_azure_runs_luna_at_low_or_none_and_planning_and_report_at_medium(
