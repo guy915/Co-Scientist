@@ -10,6 +10,7 @@ import pytest
 
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect
+from co_scientist.platform.db.anthropic_credit import AnthropicPromptTooLongError
 from co_scientist.platform.llm.admission.anthropic import credit_config
 from co_scientist.platform.llm.admission.service import scoped_client
 from co_scientist.platform.llm.request.anthropic import (
@@ -79,7 +80,7 @@ async def test_own_token_count_checks_cap_before_any_message_is_sent(
         if accepted:
             await complete_request(_request(), HAIKU, byok=False, timeout_seconds=5)
         else:
-            with pytest.raises(AnthropicSlotUnavailableError):
+            with pytest.raises(AnthropicPromptTooLongError):
                 await complete_request(_request(), HAIKU, byok=False, timeout_seconds=5)
     assert all(request.url.host == "api.anthropic.com" for request in sent)
     assert sum(request.url.path.endswith("/messages") for request in sent) == int(accepted)

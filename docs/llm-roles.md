@@ -4,12 +4,12 @@
 Options override the spec. The role scope covers every retry, tool turn and
 closing turn. App calls pass `call_role` and optional `call_effort`.
 
-The table defaults apply to Ling. Ling maps none to low because its profile
-requires reasoning. Azure runs every role on Luna: supervisor roles use the
-table's effort, and worker roles use low, except the no-reasoning roles below,
-which use none. Other free-route profiles keep their checked
-settings. Every direct Haiku call uses adaptive thinking and low, regardless of
-the table or overrides. BYOK keeps its selected models and credentials.
+Free OpenRouter routes bill per request, not per token, so every role asks for
+effort max, which the gateway maps to each model's top tier. Chat and interview
+use medium so users are not kept waiting; output budgets are sized for these
+efforts. Azure runs every role on Luna at low, except the table's none roles
+and the no-reasoning roles below, which use none. Every direct Haiku call uses
+adaptive thinking and low, regardless of the table or overrides. BYOK keeps its selected models and credentials.
 
 | Role | Tier | Default effort |
 |---|---|---|
@@ -26,13 +26,14 @@ question_repair, goal_text, announcement and credential_probe.
 Set `LLM_EFFORT_<ROLE>` to override a named role, for example
 `LLM_EFFORT_RANKING=low`. Otherwise an explicit call effort applies, followed by
 `LLM_WORKER_EFFORT` or `LLM_SUPERVISOR_EFFORT`, then the table default. Environment
-values are read per request and apply to Azure too. Only none, low and medium
+values are read per request and apply to Azure; free routes ignore them. Only none, low and medium
 are accepted. A retry that disables thinking uses none on Azure.
 
 Exact USD prices and model versions live in `platform/llm/profile/`. Azure
 deployment names do not define prices. Luna includes cache-write and
-long-context rates. The spend ledger must
-use Luna's long-context rate until its price boundary is confirmed.
+long-context rates. Its published boundary is 272,000 input tokens: a request
+above it pays the long rates for every token. The ledger prices a call at the
+short rates when its input bound or reported prompt is at or below the boundary.
 
 Production operator routing selects the native Responses client for Azure.
 `LLM_AZURE_ENABLED`, a positive hard total and an unexpired cutoff are required.

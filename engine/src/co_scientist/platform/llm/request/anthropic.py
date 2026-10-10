@@ -9,7 +9,10 @@ import openai
 from litellm.llms.anthropic.chat.transformation import AnthropicConfig
 from litellm.types.llms.openai import AllMessageValues
 
-from co_scientist.platform.db.anthropic_credit import AnthropicCreditUnavailableError
+from co_scientist.platform.db.anthropic_credit import (
+    AnthropicCreditUnavailableError,
+    AnthropicPromptTooLongError,
+)
 from co_scientist.platform.db.spend import UNAVAILABLE
 from co_scientist.platform.llm.admission.anthropic import require_credit_available
 from co_scientist.platform.llm.request.cache import HAIKU
@@ -117,8 +120,11 @@ async def require_prompt_fits(request: dict[str, Any], path: str) -> int:
         )
         response.raise_for_status()
         count = response.json().get("input_tokens")
-    if type(count) is not int or not 0 <= count <= INPUT_LIMIT:
+    if type(count) is not int or count < 0:
         raise AnthropicSlotUnavailableError(UNAVAILABLE)
+    # Haiku bills a longer prompt at five times the input rate.
+    if count > INPUT_LIMIT:
+        raise AnthropicPromptTooLongError(UNAVAILABLE)
     return count
 
 

@@ -24,7 +24,7 @@ from co_scientist.platform.db.spend import (
     ledger_total,
     record_allowance,
 )
-from co_scientist.platform.llm.profile import model_profile
+from co_scientist.platform.llm.profile import ModelPrice, model_profile
 from co_scientist.platform.llm.roles import current_call_policy
 
 _blocked: set[str] = set()
@@ -142,13 +142,23 @@ def effective_azure_config(conn: Connection) -> SpendConfig:
     return _anchored(azure_config(), active_allowance(conn))
 
 
+# Luna's published boundary: a request with more input tokens pays the long
+# rates for all of it. Input bounds count bytes, which never undercount tokens.
+SHORT_CONTEXT_TOKENS = 272_000
+
+
 def _model_rates(model: str) -> dict[str, str]:
     profile = model_profile(model)
     price = profile.price
     if price is None or profile.version is None:
         raise ProviderAdmissionError(UNAVAILABLE)
-    # The short/long boundary is unconfirmed; use the higher known rates.
-    price = price.long_context or price
+    rates = _tier_rates(price.long_context or price)
+    if price.long_context is not None:
+        rates.update({f"short_{name}": value for name, value in _tier_rates(price).items()})
+    return rates
+
+
+def _tier_rates(price: ModelPrice) -> dict[str, str]:
     # A zero cache-read price means unmeasured, not free.
     cached = price.cached_prompt_usd_per_million or price.prompt_usd_per_million
     return {
@@ -341,11 +351,12 @@ def price_cost(
 ) -> int:
     # Rates are USD per million tokens; multiplying by FX yields micro-EUR
     # per token. Reasoning is already within output, never an extra charge.
+    tier = "short_" if inputs <= SHORT_CONTEXT_TOKENS and "short_input" in rates else ""
     value = (
-        (inputs - cached) * Decimal(rates["input"])
-        + cached * Decimal(rates["cached"])
-        + outputs * Decimal(rates["output"])
-        + written * Decimal(rates["write"])
+        (inputs - cached) * Decimal(rates[f"{tier}input"])
+        + cached * Decimal(rates[f"{tier}cached"])
+        + outputs * Decimal(rates[f"{tier}output"])
+        + written * Decimal(rates[f"{tier}write"])
     ) * Decimal(rates["fx"])
     return _microeur(value)
 

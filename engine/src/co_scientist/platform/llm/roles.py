@@ -96,8 +96,8 @@ ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
 }
 
 
-# Azure serves every role from Luna. Supervisor roles keep the table's effort;
-# worker roles reason at Luna's lowest effort unless listed here.
+# Azure serves every role from Luna at its lowest reasoning effort; these roles
+# and the table's "none" roles do not reason.
 AZURE_NO_REASONING_ROLES: frozenset[str] = frozenset(
     {
         "evidence_queries",
@@ -115,10 +115,8 @@ AZURE_NO_REASONING_ROLES: frozenset[str] = frozenset(
 )
 
 
-def _azure_default(role: str, tier: ModelTier, default: ReasoningEffort) -> ReasoningEffort:
-    if tier == "supervisor":
-        return default
-    return "none" if role in AZURE_NO_REASONING_ROLES else "low"
+def _azure_default(role: str, default: ReasoningEffort) -> ReasoningEffort:
+    return "none" if default == "none" or role in AZURE_NO_REASONING_ROLES else "low"
 
 
 @dataclass(frozen=True)
@@ -146,7 +144,7 @@ def current_call_policy() -> CallPolicy:
         or os.getenv(f"LLM_{tier.upper()}_EFFORT")
     )
     effort = override or default
-    azure_effort = override or _azure_default(role, tier, default)
+    azure_effort = override or _azure_default(role, default)
     if effort not in ("none", "low", "medium"):
         raise ProviderAdmissionError("Model effort must be none, low or medium")
     return CallPolicy(

@@ -41,8 +41,8 @@ cache-hit behavior still needs a live check.
 Azure writes are an additional input charge. The durable EUR ledger already reserves
 and records them. Missing priced write usage keeps the full reservation. The single total
 cap, request-time expiry and kill switches still apply. General usage now records writes
-and uses each model's published read/write rates. The ledger retains conservative Luna long-context rates until its
-short/long boundary is confirmed. USD usage estimates do not replace that credit guard.
+and uses each model's published read/write rates. The ledger prices Luna at its short rates up to the published
+272,000-token boundary and at its long rates above it. USD usage estimates do not replace that credit guard.
 
 Private spans export numeric input, read and write counts plus a stable numeric call-type
 ID and refusal flag. Cache keys and prompt text are excluded. Usage aggregates include

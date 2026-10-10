@@ -30,15 +30,18 @@ LUNA = "azure/gpt-6-luna-2026-09-22"
 @pytest.mark.parametrize(
     ("role", "effort"),
     [
-        ("evidence_queries", "low"),
-        ("grounding_queries", "low"),
-        ("research_extract", "low"),
-        ("reflection", "medium"),
-        ("generation", "medium"),
-        ("overview_outline", "low"),
+        ("evidence_queries", "max"),
+        ("grounding_queries", "max"),
+        ("research_extract", "max"),
+        ("reflection", "max"),
+        ("generation", "max"),
+        ("supervisor", "max"),
+        ("overview_outline", "max"),
+        ("chat", "medium"),
+        ("interview", "medium"),
     ],
 )
-async def test_free_route_receives_role_effort_without_changing_price_cap(
+async def test_free_route_reasons_at_maximum_effort_except_conversation(
     monkeypatch: pytest.MonkeyPatch, role: CallRole, effort: str
 ) -> None:
     captured: list[dict[str, Any]] = []
@@ -155,11 +158,13 @@ def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.Monkey
         ("literature_queries", "low", "none"),
         ("relevance", "low", "none"),
         ("goal_text", "low", "none"),
-        ("supervisor", "medium", "medium"),
+        ("supervisor", "medium", "low"),
+        ("meta_review", "medium", "low"),
+        ("overview_review", "low", "low"),
         ("overview_outline", "none", "none"),
     ],
 )
-async def test_azure_runs_worker_roles_on_luna_at_lowest_effort_or_none(
+async def test_azure_runs_every_role_on_luna_at_lowest_effort_or_none(
     monkeypatch: pytest.MonkeyPatch, role: CallRole, effort: str, azure_effort: str
 ) -> None:
     captured: list[dict[str, Any]] = []
@@ -185,3 +190,26 @@ def test_azure_prices_include_cache_write_and_long_context_without_guessing_depl
     assert luna.price.long_context.cache_write_usd_per_million == 0.25
     assert model_profile("azure/gpt-5-nano-2025-08-07").price is None
     assert model_profile("azure/unmapped-deployment").price is None
+
+
+def test_luna_charges_short_rates_up_to_its_published_boundary() -> None:
+    from co_scientist.platform.llm.admission.spend import _model_rates, price_cost
+
+    rates = {**_model_rates(LUNA), "fx": "1"}
+    assert price_cost(rates, 272_000, 0, cached=0, written=0) == 27_200
+    assert price_cost(rates, 272_001, 0, cached=0, written=0) == 54_401
+    legacy = {name: value for name, value in rates.items() if not name.startswith("short_")}
+    assert price_cost(legacy, 272_000, 0, cached=0, written=0) == 54_400
+
+
+def test_express_estimate_uses_luna_short_rates_for_bounded_inputs() -> None:
+    from decimal import Decimal
+
+    from co_scientist.platform.llm.admission.spend import SpendConfig
+    from co_scientist.platform.llm.routing import express_estimate
+
+    azure = SpendConfig(10_000_000, Decimal("1"), float("inf"))
+    config = {"max_llm_calls": 1200}
+    assert express_estimate("g", config, azure) == 57 * 101_025 * 6 // 10 + 360_000
+    long_goal = "g" * 200_000
+    assert express_estimate(long_goal, config, azure) == -(-57 * 301_024 * 12 // 10) + 540_000

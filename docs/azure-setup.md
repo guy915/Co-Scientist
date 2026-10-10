@@ -117,7 +117,8 @@ setting.
 - **Per request.** Each physical request, including every retry, reserves its
   upper cost before dispatch: input bytes of the actual Responses body plus
   framing allowances, the full output allowance (reasoning is within it), and the
-  cache-write allowance, at long-context rates. Each replayed reasoning item adds
+  cache-write allowance, at Luna's short rates when that bound is at most
+  272,000 tokens and at its long rates otherwise. Each replayed reasoning item adds
   the request's output cap, since its encrypted bytes do not bound the tokens
   it bills. Only text content, local function
   tools and replayed message, reasoning and function-call items are accepted. The

@@ -22,7 +22,10 @@ the planned model's free `count_tokens` endpoint and the existing byte bound.
 The metadata request has a separate provider rate limit; include it in the live
 check's request allocation. No writer covers a count or Messages request.
 
-Reject a counted prompt above 100,000 tokens before sending Messages. Counts are
+Reject a counted prompt above 100,000 tokens before sending Messages; Haiku
+bills it at five times the input rate. Operator routing then sends that one call
+to Luna, whose long tier starts at 272,000 tokens, and the next call returns to
+Haiku. Without an admitted Azure slot the call has no provider. Counts are
 provider estimates with small possible differences from billed usage. Reserve
 at the higher price tier, with the full cache-write rate and output allowance;
 settle the actual tier and cache buckets using saved prices. Inclusive prompt

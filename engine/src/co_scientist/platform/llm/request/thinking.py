@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from typing import Any, Final
 
 from co_scientist.core._context import _bind_contextvar
+from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT
 from co_scientist.core.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
@@ -140,6 +141,19 @@ def deepseek_thinking_extra_body(model_name: str, *, enabled: bool = True) -> di
     return _gateway_body(lowered, profile, enabled)
 
 
+# Free routes bill per request, not per token, so they reason at the most the
+# gateway offers; it maps "max" down to each model's top tier. Conversation
+# keeps a middle tier so users are not left waiting.
+_GATEWAY_MAX_EFFORT: Final[str] = "max"
+_CONVERSATIONAL_ROLES: Final = frozenset(("chat", "interview"))
+
+
+def _gateway_effort() -> str:
+    if current_call_policy().role in _CONVERSATIONAL_ROLES:
+        return CONVERSATIONAL_REASONING_EFFORT
+    return _GATEWAY_MAX_EFFORT
+
+
 def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[str, Any]:
     body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
     if profile.fallbacks:
@@ -152,11 +166,7 @@ def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[st
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
-        if lowered == "openrouter/inclusionai/ling-3.1-flash":
-            effort = current_call_policy().effort
-            reasoning["effort"] = "low" if effort == "none" else effort
-        else:
-            reasoning["effort"] = profile.pinned_effort or _REASONING_EFFORT
+        reasoning["effort"] = profile.pinned_effort or _gateway_effort()
     body["reasoning"] = reasoning
     return body
 

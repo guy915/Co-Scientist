@@ -167,8 +167,7 @@ ROUTES: Final[dict[str, Facts]] = {
     "openrouter/dots-studio/dots-3-note-preview:free": _gateway(_FREE),
     "openrouter/nvidia/nemotron-3.5-lightning:free": _gateway(_FREE),
     # A zero-priced trial without a ":free" id; zero-cost admission still
-    # checks the live catalog price and expiry. Medium keeps most of high's
-    # quality at far fewer reasoning tokens.
+    # checks the live catalog price and expiry.
     "openrouter/inclusionai/ling-3.1-flash": {
         **_gateway(
             _FREE,
@@ -178,10 +177,8 @@ ROUTES: Final[dict[str, Facts]] = {
             ),
         ),
         "json_object": False,
-        "pinned_effort": "medium",
     },
-    # Its only host, Nvidia, rejects every response_format. High effort
-    # overthinks and exhausts the answer budget; medium is its working tier.
+    # Its only host, Nvidia, rejects every response_format.
     "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
         **_gateway(
             _FREE,
@@ -189,7 +186,6 @@ ROUTES: Final[dict[str, Facts]] = {
             fallbacks=("nvidia/nemotron-3-super-120b-a12b:free",),
         ),
         "json_object": False,
-        "pinned_effort": "medium",
     },
     # Historical promotional rates need revalidation before selecting this paid
     # route.

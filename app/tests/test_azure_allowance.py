@@ -186,7 +186,7 @@ def test_raising_the_setting_cannot_exceed_the_recorded_allowance(
             accepted += 1
         except ProviderAdmissionError:
             break
-    assert accepted == 2 and _spent(ledger) <= 4000
+    assert accepted == 3 and _spent(ledger) <= 4000
 
 
 def test_lowering_the_setting_takes_effect_without_touching_the_record(
@@ -223,7 +223,7 @@ def test_ledger_and_allowance_history_are_append_only(ledger: str) -> None:
     for statement in statements:
         with pytest.raises(sqlite3.DatabaseError), transaction(ledger) as conn:
             conn.execute(statement)
-    assert _spent(ledger) == 36
+    assert _spent(ledger) == 22
 
 
 def test_unsettled_reservation_and_allowance_survive_abrupt_exit(ledger: str) -> None:
