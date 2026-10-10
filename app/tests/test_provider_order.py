@@ -149,7 +149,8 @@ def test_failed_run_releases_its_forecast_on_every_failure_path(path: str, path_
             conn.execute("UPDATE runs SET status='failed' WHERE id=?", (run_id,))
         runs_views.reconcile_interrupted_runs(path)
     with transaction(path) as conn:
-        assert runs.get_run(run_id, conn=conn).status == RunStatus.FAILED.value
+        run = runs.get_run(run_id, conn=conn)
+        assert run is not None and run.status == RunStatus.FAILED.value
         assert (
             conn.execute(
                 "SELECT forecast_microeur FROM llm_routes WHERE run_id=?", (run_id,)
