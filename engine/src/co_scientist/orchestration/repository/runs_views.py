@@ -6,8 +6,10 @@ import sqlite3
 from co_scientist.orchestration.repository.events import _append_event
 from co_scientist.platform.db import connect, current_time, transaction, use_conn
 from co_scientist.platform.db.checkpoints import has_checkpoint
+from co_scientist.platform.db.llm_routes import release_forecast
 from co_scientist.platform.db.models import (
     _ACTIVE_RUN_STATUSES,
+    TERMINAL_STATUSES,
     RunStatus,
     TaskFailure,
 )
@@ -25,6 +27,7 @@ def _fail_interrupted_run(
         "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",
         (RunStatus.FAILED.value, reason, now, now, run_id),
     )
+    release_forecast(conn, run_id)
     _append_event(conn, run_id, "status", {"status": "failed", "error": reason}, now)
 
 
@@ -59,6 +62,7 @@ def _settle_run_out_of_work(
     ).rowcount
     if not changed:
         return False
+    release_forecast(conn, run_id)
     payload = {"status": "failed", "error": error}
     if failure_kind is not None:
         payload["failure_kind"] = failure_kind
@@ -146,6 +150,17 @@ def reconcile_interrupted_runs(
                 "published before restart.",
                 recovered,
             )
+        # Older stores kept forecasts of failed runs reserved against the Azure
+        # allowance forever.
+        terminal = [status.value for status in TERMINAL_STATUSES]
+        stale = conn.execute(
+            "SELECT llm_routes.run_id FROM llm_routes JOIN runs ON runs.id=llm_routes.run_id "
+            "WHERE llm_routes.forecast_microeur>0 "
+            f"AND runs.status IN ({','.join('?' * len(terminal))})",
+            terminal,
+        ).fetchall()
+        for row in stale:
+            release_forecast(conn, row[0])
         rows = conn.execute(
             "SELECT id FROM runs WHERE status IN (?,?,?)",
             _ACTIVE_RUN_STATUSES,
