@@ -209,7 +209,9 @@ def response_request(request: dict[str, Any], deployments: dict[str, str]) -> di
     if fmt:
         body["text"] = {
             "format": (
-                {"type": "json_schema", **fmt["json_schema"]}
+                # Chat Completions treats an omitted strict as false, but Azure
+                # Responses enforces the strict subset and rejects optional keys.
+                {"type": "json_schema", "strict": False, **fmt["json_schema"]}
                 if fmt.get("type") == "json_schema"
                 else {"type": fmt["type"]}
             )

@@ -9,6 +9,7 @@ import openai
 import pytest
 
 from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
+from co_scientist.domains.safety.semantic import _SEMANTIC_DECISION_SCHEMA
 from co_scientist.platform.db import connect, transaction
 from co_scientist.platform.db.admission import ProviderReservation
 from co_scientist.platform.db.spend import SpendReservation
@@ -25,6 +26,7 @@ from co_scientist.platform.llm.request.azure import (
     response_request,
 )
 from co_scientist.platform.llm.request.backend import LitellmBackend, using_backend
+from co_scientist.platform.llm.request.completion import _apply_schema_response_format
 from co_scientist.platform.llm.request.transport import complete_request
 from co_scientist.platform.llm.roles import scoped_call_policy
 from co_scientist.platform.llm.tools.transcript import _message_to_history_dict
@@ -329,6 +331,22 @@ def test_unknown_price_unbounded_output_and_hosted_tools_are_refused(
 ) -> None:
     with pytest.raises(ProviderAdmissionError):
         response_request(_request(**changes), DEPLOYMENTS)
+
+
+def test_schema_with_optional_fields_is_sent_non_strict_unless_caller_opts_in() -> None:
+    args: dict[str, Any] = _request()
+    backend = _backend(lambda request: httpx.Response(500))
+    try:
+        with using_backend(backend):
+            _apply_schema_response_format(args, "answer", NANO, _SEMANTIC_DECISION_SCHEMA)
+    finally:
+        backend.close()
+    fmt = response_request(args, DEPLOYMENTS)["text"]["format"]
+    assert fmt["strict"] is False
+    assert set(fmt["schema"]["properties"]) > set(fmt["schema"]["required"])
+    strict = {"type": "json_schema", "json_schema": {"name": "r", "schema": {}, "strict": True}}
+    body = response_request(_request(response_format=strict), DEPLOYMENTS)
+    assert body["text"]["format"]["strict"] is True
 
 
 def test_nested_hosted_tool_type_cannot_override_function_type() -> None:
