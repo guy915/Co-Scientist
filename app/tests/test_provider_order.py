@@ -150,9 +150,12 @@ def test_failed_run_releases_its_forecast_on_every_failure_path(path: str, path_
         runs_views.reconcile_interrupted_runs(path)
     with transaction(path) as conn:
         assert runs.get_run(run_id, conn=conn).status == RunStatus.FAILED.value
-        assert conn.execute(
-            "SELECT forecast_microeur FROM llm_routes WHERE run_id=?", (run_id,)
-        ).fetchone()[0] == 0
+        assert (
+            conn.execute(
+                "SELECT forecast_microeur FROM llm_routes WHERE run_id=?", (run_id,)
+            ).fetchone()[0]
+            == 0
+        )
         conn.execute("DELETE FROM llm_routes WHERE run_id=?", (other,))
         assert admit_route(conn, other, slots=("azure",), estimate=90, total=100).azure_allowed
 
