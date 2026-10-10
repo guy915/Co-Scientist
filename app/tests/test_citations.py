@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -280,3 +281,112 @@ def test_punctuation_does_not_change_the_citation_score() -> None:
     ]
 
     assert scored == [CitationState.VERIFIED, CitationState.VERIFIED]
+
+
+def _count_probes(monkeypatch: pytest.MonkeyPatch, reachable: bool = True) -> list[str]:
+    probed: list[str] = []
+
+    def probe(client: httpx.Client, url: str) -> bool:
+        probed.append(url)
+        return reachable
+
+    def pmid_found(client: httpx.Client, pmid: str) -> bool:
+        probed.append(f"pmid:{pmid}")
+        return reachable
+
+    monkeypatch.setattr(citation_resolver, "_reachable", probe)
+    monkeypatch.setattr(citation_resolver, "_pmid_found", pmid_found)
+    return probed
+
+
+def test_a_doi_several_sources_returned_is_probed_once_per_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probed = _count_probes(monkeypatch)
+    metas = [
+        CitationMetadata(doi="10.1016/S0140-6736(20)30183-5", source="pubmed"),
+        CitationMetadata(doi="10.1016/s0140-6736(20)30183-5", source="openalex"),
+        CitationMetadata(url="https://doi.org/10.1016/s0140-6736(20)30183-5", source="web"),
+        CitationMetadata(pmid="12345", source="pubmed"),
+        CitationMetadata(pmid="12345", source="europepmc"),
+    ] * 4
+
+    verdicts = citation_resolver.resolve_many(metas, resolver=citation_resolver.run_live_resolver())
+
+    assert verdicts == [Resolvability.RESOLVABLE] * len(metas)
+    assert sorted(probed) == ["https://doi.org/10.1016/s0140-6736(20)30183-5", "pmid:12345"]
+
+
+def test_a_duplicate_doi_that_fails_its_probe_fails_for_every_citation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probed = _count_probes(monkeypatch, reachable=False)
+    metas = [CitationMetadata(doi="10.1000/dead"), CitationMetadata(doi="10.1000/DEAD")]
+
+    verdicts = citation_resolver.resolve_many(metas, resolver=citation_resolver.run_live_resolver())
+
+    assert verdicts == [Resolvability.UNRESOLVABLE, Resolvability.UNRESOLVABLE]
+    assert probed == ["https://doi.org/10.1000/dead"]
+
+
+def test_retraction_is_still_judged_per_citation_when_the_probe_is_shared(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probed = _count_probes(monkeypatch)
+    monkeypatch.setattr(retraction_set, "is_known_retracted", lambda doi: doi == "10.1000/flagged")
+    metas = [
+        CitationMetadata(doi="10.1000/shared", retracted=True),
+        CitationMetadata(doi="10.1000/shared"),
+        CitationMetadata(doi="10.1000/flagged"),
+        CitationMetadata(doi="10.1000/flagged"),
+    ]
+
+    verdicts = citation_resolver.resolve_many(metas, resolver=citation_resolver.run_live_resolver())
+
+    assert verdicts == [
+        Resolvability.RETRACTED,
+        Resolvability.RESOLVABLE,
+        Resolvability.RETRACTED,
+        Resolvability.RETRACTED,
+    ]
+    assert probed == ["https://doi.org/10.1000/shared"]
+
+
+def test_concurrent_citations_of_one_doi_wait_for_a_single_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    probed: list[str] = []
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_probe(client: httpx.Client, url: str) -> bool:
+        probed.append(url)
+        started.set()
+        release.wait(timeout=5)
+        return True
+
+    monkeypatch.setattr(citation_resolver, "_reachable", slow_probe)
+    resolver = citation_resolver.run_live_resolver()
+    meta = CitationMetadata(doi="10.1000/busy")
+    first = threading.Thread(target=resolver, args=(meta,))
+    first.start()
+    assert started.wait(timeout=5)
+    waiting: list[Resolvability] = []
+    second = threading.Thread(target=lambda: waiting.append(resolver(meta)))
+    second.start()
+    release.set()
+    first.join(timeout=5)
+    second.join(timeout=5)
+
+    assert waiting == [Resolvability.RESOLVABLE]
+    assert probed == ["https://doi.org/10.1000/busy"]
+
+
+def test_each_run_probes_afresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    probed = _count_probes(monkeypatch)
+    meta = CitationMetadata(doi="10.1000/again")
+
+    for _ in range(2):
+        citation_resolver.run_live_resolver()(meta)
+
+    assert probed == ["https://doi.org/10.1000/again"] * 2
