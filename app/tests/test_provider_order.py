@@ -45,7 +45,7 @@ _RATES = '{"input": "9", "output": "9", "cached": "9", "write": "9", "fx": "9"}'
 
 def _quote(run_id: str, amount: int = 60) -> SpendReservation:
     return SpendReservation(
-        "azure/gpt-5-nano-2025-08-07", "worker", amount, 100, float("inf"), 100, 100, _RATES, run_id
+        "azure/gpt-6-luna-2026-09-22", "worker", amount, 100, float("inf"), 100, 100, _RATES, run_id
     )
 
 
@@ -153,8 +153,7 @@ def providers(path: str, monkeypatch: pytest.MonkeyPatch) -> str:
         "ANTHROPIC_API_KEY": "fake-subscriber",
         "AZURE_OPENAI_API_KEY": "fake-azure",
         "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
-        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": "supervisor-deployment",
-        "AZURE_OPENAI_WORKER_DEPLOYMENT": "worker-deployment",
+        "AZURE_OPENAI_DEPLOYMENT": "azure-deployment",
     }.items():
         monkeypatch.setenv(name, value)
     record_azure_allowance(path)
@@ -172,7 +171,7 @@ def _azure_response() -> dict[str, Any]:
         "object": "response",
         "created_at": 1,
         "status": "completed",
-        "model": "worker-deployment",
+        "model": "azure-deployment",
         "output": [
             {
                 "type": "message",
@@ -183,7 +182,7 @@ def _azure_response() -> dict[str, Any]:
         "usage": {
             "input_tokens": 20,
             "output_tokens": 3,
-            "input_tokens_details": {"cached_tokens": 0},
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
             "output_tokens_details": {"reasoning_tokens": 1},
         },
     }
@@ -290,12 +289,12 @@ async def test_real_sdk_order_and_refusal_falls_back_for_only_that_call(
     assert [slot for slot, _ in sent] == ["openrouter", "anthropic", "azure", "anthropic"]
     assert sent[1][1]["output_config"] == {"effort": "low"}
     assert sent[2][1]["reasoning"] == {"effort": "low"}
-    assert sent[2][1]["model"] == "worker-deployment"
+    assert sent[2][1]["model"] == "azure-deployment"
     assert "extra_body" not in sent[2][1]
     with connect(path) as conn:
         assert conn.execute("SELECT slot FROM llm_routes").fetchone()[0] == "anthropic"
         assert conn.execute("SELECT SUM(charged_microusd) FROM anthropic_credit").fetchone()[0] == 4
-        assert conn.execute("SELECT SUM(charged_microeur) FROM llm_spend").fetchone()[0] == 2
+        assert conn.execute("SELECT SUM(charged_microeur) FROM llm_spend").fetchone()[0] == 6
         assert [
             row[0]
             for row in conn.execute("SELECT refused FROM anthropic_credit ORDER BY created_at")

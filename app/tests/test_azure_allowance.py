@@ -24,14 +24,14 @@ from co_scientist.platform.db.spend import active_allowance
 from co_scientist.platform.llm.admission import spend as spend_policy
 from co_scientist.platform.llm.admission.service import reserve_physical, settle_physical
 from co_scientist.platform.llm.admission.spend import azure_dispatch_permit, establish_allowance
-from co_scientist.platform.llm.request.azure import LUNA, NANO, AzureResponsesBackend
+from co_scientist.platform.llm.request.azure import LUNA, AzureResponsesBackend
 from co_scientist.platform.llm.request.backend import LitellmBackend, using_backend
 from co_scientist.platform.llm.request.transport import complete_request
 
 from tests._client import make_client, make_operator_client
 
 EXPIRES = "2099-01-04T00:00:00+00:00"
-DEPLOYMENTS = {LUNA: "supervisor-deployment", NANO: "worker-deployment"}
+DEPLOYMENTS = {LUNA: "luna-deployment"}
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def _anchor(path: str, allowance: str, *, expires: str = EXPIRES, hours: str = "
     )
 
 
-def _request(model: str = NANO, **changes: Any) -> dict[str, Any]:
+def _request(model: str = LUNA, **changes: Any) -> dict[str, Any]:
     return {
         "model": model,
         "messages": [{"role": "user", "content": "answer"}],
@@ -74,7 +74,14 @@ def _request(model: str = NANO, **changes: Any) -> dict[str, Any]:
 
 
 def _usage(**changes: Any) -> Any:
-    return SimpleNamespace(usage={"prompt_tokens": 90, "completion_tokens": 30, **changes})
+    return SimpleNamespace(
+        usage={
+            "prompt_tokens": 90,
+            "completion_tokens": 30,
+            "prompt_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            **changes,
+        }
+    )
 
 
 def _spent(path: str) -> int:
@@ -130,14 +137,16 @@ def _response_body(**changes: Any) -> dict[str, Any]:
         "usage": {
             "input_tokens": 90,
             "output_tokens": 30,
-            "input_tokens_details": {"cached_tokens": 0},
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
             "output_tokens_details": {"reasoning_tokens": 20},
         },
         **changes,
     }
 
 
-def _native(seen: list[httpx.Request]) -> AzureResponsesBackend:
+def _native(
+    seen: list[httpx.Request], deployments: dict[str, str] = DEPLOYMENTS
+) -> AzureResponsesBackend:
     def respond(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         return httpx.Response(200, json=_response_body())
@@ -147,7 +156,7 @@ def _native(seen: list[httpx.Request]) -> AzureResponsesBackend:
         base_url="https://test.openai.azure.com/openai/v1/",
         http_client=httpx.Client(transport=httpx.MockTransport(respond)),
     )
-    return AzureResponsesBackend(client, DEPLOYMENTS)
+    return AzureResponsesBackend(client, deployments)
 
 
 # Persistence: one lifetime allowance that nothing resets.
@@ -161,14 +170,14 @@ def test_fresh_database_without_operator_allowance_never_dispatches(
     monkeypatch.setenv("COSCIENTIST_DB_PATH", str(tmp_path / "fresh.db"))
     fake = _Fake()
     with using_backend(fake), pytest.raises(ProviderAdmissionError, match="No model"):
-        asyncio.run(complete_request(_request(), NANO, byok=False, timeout_seconds=5))
+        asyncio.run(complete_request(_request(), LUNA, byok=False, timeout_seconds=5))
     assert fake.calls == []
 
 
 def test_raising_the_setting_cannot_exceed_the_recorded_allowance(
     ledger: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _anchor(ledger, "0.001")
+    _anchor(ledger, "0.004")
     monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "1000")
     accepted = 0
     for _ in range(10):
@@ -177,7 +186,7 @@ def test_raising_the_setting_cannot_exceed_the_recorded_allowance(
             accepted += 1
         except ProviderAdmissionError:
             break
-    assert accepted == 2 and _spent(ledger) <= 1000
+    assert accepted == 2 and _spent(ledger) <= 4000
 
 
 def test_lowering_the_setting_takes_effect_without_touching_the_record(
@@ -214,7 +223,7 @@ def test_ledger_and_allowance_history_are_append_only(ledger: str) -> None:
     for statement in statements:
         with pytest.raises(sqlite3.DatabaseError), transaction(ledger) as conn:
             conn.execute(statement)
-    assert _spent(ledger) == 15
+    assert _spent(ledger) == 36
 
 
 def test_unsettled_reservation_and_allowance_survive_abrupt_exit(ledger: str) -> None:
@@ -235,7 +244,7 @@ def test_unsettled_reservation_and_allowance_survive_abrupt_exit(ledger: str) ->
 import os
 from co_scientist.platform.llm.admission.service import reserve_physical
 reserve_physical({
-    "model": "azure/gpt-5-nano-2025-08-07",
+    "model": "azure/gpt-6-luna-2026-09-22",
     "messages": [{"role": "user", "content": "answer"}],
     "max_tokens": 1000,
 })
@@ -257,13 +266,13 @@ os._exit(0)
 def test_concurrent_dispatch_exhausts_the_allowance_exactly_once(
     ledger: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _anchor(ledger, "0.002")
+    _anchor(ledger, "0.004")
     # Hung calls keep their whole reservation, so concurrency cannot reuse it.
     fake = _Fake(error=LLMTimeoutError("no answer"))
 
     def call(_: int) -> str:
         try:
-            asyncio.run(complete_request(_request(), NANO, byok=False, timeout_seconds=5))
+            asyncio.run(complete_request(_request(), LUNA, byok=False, timeout_seconds=5))
         except ProviderAdmissionError:
             return "refused"
         except LLMTimeoutError:
@@ -275,7 +284,7 @@ def test_concurrent_dispatch_exhausts_the_allowance_exactly_once(
     rows = _rows(ledger)
     assert results.count("dispatched") == len(fake.calls) == len(rows) >= 1
     assert results.count("refused") == 48 - len(rows)
-    assert _spent(ledger) <= 2000 < _spent(ledger) + rows[0]["reserved_microeur"]
+    assert _spent(ledger) <= 4000 < _spent(ledger) + rows[0]["reserved_microeur"]
 
 
 # Retries: every physical attempt reserves its own upper bound.
@@ -308,8 +317,8 @@ async def test_each_engine_retry_reserves_and_failed_attempts_keep_their_charge(
                     message=SimpleNamespace(content="done", tool_calls=None), finish_reason="stop"
                 )
             ],
-            usage={"prompt_tokens": 90, "completion_tokens": 30},
-            model=NANO,
+            usage=_usage().usage,
+            model=LUNA,
         ),
     ]
     calls = []
@@ -323,7 +332,7 @@ async def test_each_engine_retry_reserves_and_failed_attempts_keep_their_charge(
             return answer
 
     with using_backend(Scripted()):
-        assert await call_llm("question", CompletionSpec(NANO, max_tokens=1000)) == "done"
+        assert await call_llm("question", CompletionSpec(LUNA, max_tokens=1000)) == "done"
     rows = _rows(ledger)
     assert len(calls) == len(rows) == 3
     assert [bool(row["settled"]) for row in rows] == [False, False, True]
@@ -336,8 +345,7 @@ def test_sdk_clients_are_built_without_retries_or_redirects(
     for name, value in {
         "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
         "AZURE_OPENAI_API_KEY": "fake",
-        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": "one",
-        "AZURE_OPENAI_WORKER_DEPLOYMENT": "two",
+        "AZURE_OPENAI_DEPLOYMENT": "one",
     }.items():
         monkeypatch.setenv(name, value)
     backend = AzureResponsesBackend.from_environment()
@@ -384,18 +392,10 @@ def test_missing_or_malformed_usage_keeps_the_full_reservation(
 @pytest.mark.parametrize(
     "usage",
     [
-        {"prompt_tokens": 90, "completion_tokens": 1001},
-        {"prompt_tokens": 10**9, "completion_tokens": 30},
-        {
-            "prompt_tokens": 90,
-            "completion_tokens": 30,
-            "prompt_tokens_details": {"cached_tokens": 91},
-        },
-        {
-            "prompt_tokens": 90,
-            "completion_tokens": 30,
-            "completion_tokens_details": {"reasoning_tokens": 31},
-        },
+        {"completion_tokens": 1001},
+        {"prompt_tokens": 10**9},
+        {"prompt_tokens_details": {"cached_tokens": 91, "cache_write_tokens": 0}},
+        {"completion_tokens_details": {"reasoning_tokens": 31}},
     ],
 )
 def test_inconsistent_usage_keeps_charge_and_stops_all_paid_calls(
@@ -404,7 +404,7 @@ def test_inconsistent_usage_keeps_charge_and_stops_all_paid_calls(
     receipt = reserve_physical(_request())
     reserved = _spent(ledger)
     with pytest.raises(ProviderAdmissionError):
-        settle_physical(receipt, SimpleNamespace(usage=usage))
+        settle_physical(receipt, _usage(**usage))
     assert _spent(ledger) == reserved
     with connect(ledger) as conn:
         assert conn.execute("SELECT COUNT(*) FROM llm_spend_holds").fetchone()[0] == 1
@@ -417,7 +417,7 @@ async def test_timeout_keeps_the_full_reservation(ledger: str) -> None:
         using_backend(_Fake(error=LLMTimeoutError("no answer"))),
         pytest.raises(LLMTimeoutError),
     ):
-        await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+        await complete_request(_request(), LUNA, byok=False, timeout_seconds=5)
     [row] = _rows(ledger)
     assert not row["settled"] and row["charged_microeur"] == row["reserved_microeur"]
 
@@ -445,7 +445,7 @@ async def test_interrupted_and_usage_free_streams_keep_the_full_reservation(
     for usage, consume in ((True, 1), (False, 99)):
         with using_backend(_Fake(answer=Stream(usage))):
             stream = await complete_request(
-                _request(stream=True), NANO, byok=False, timeout_seconds=5
+                _request(stream=True), LUNA, byok=False, timeout_seconds=5
             )
             seen = 0
             async for _ in stream:
@@ -535,7 +535,7 @@ async def test_permit_expires_with_the_cutoff_even_after_reservation(
     monkeypatch.setattr(asyncio, "to_thread", after_cutoff)
     try:
         with using_backend(backend), pytest.raises(ProviderAdmissionError):
-            await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+            await complete_request(_request(), LUNA, byok=False, timeout_seconds=5)
     finally:
         backend.close()
     assert seen == [] and _spent(ledger) > 0
@@ -549,11 +549,12 @@ def test_code_price_below_the_verified_price_refuses_dispatch(
 ) -> None:
     from co_scientist.platform.llm import profile
 
-    original = profile.model_profile(NANO)
-    assert original.price is not None
-    cheaper = replace(original, price=replace(original.price, completion_usd_per_million=0.01))
+    original = profile.model_profile(LUNA)
+    assert original.price is not None and original.price.long_context is not None
+    long_context = replace(original.price.long_context, completion_usd_per_million=0.01)
+    cheaper = replace(original, price=replace(original.price, long_context=long_context))
     monkeypatch.setattr(
-        spend_policy, "model_profile", lambda name: cheaper if name == NANO else original
+        spend_policy, "model_profile", lambda name: cheaper if name == LUNA else original
     )
     with pytest.raises(ProviderAdmissionError):
         reserve_physical(_request())
@@ -583,7 +584,7 @@ async def test_unsupported_request_shapes_are_refused_before_reservation(
 ) -> None:
     fake = _Fake()
     with using_backend(fake), pytest.raises(ProviderAdmissionError):
-        await complete_request(_request(**changes), NANO, byok=False, timeout_seconds=5)
+        await complete_request(_request(**changes), LUNA, byok=False, timeout_seconds=5)
     assert fake.calls == [] and _spent(ledger) == 0
 
 
@@ -591,7 +592,7 @@ async def test_input_bound_counts_schema_and_tool_definitions(ledger: str) -> No
     schema = {"type": "object", "description": "x" * 20_000}
     plain = _Fake()
     with using_backend(plain):
-        await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+        await complete_request(_request(), LUNA, byok=False, timeout_seconds=5)
     with using_backend(_Fake()):
         await complete_request(
             _request(
@@ -600,7 +601,7 @@ async def test_input_bound_counts_schema_and_tool_definitions(ledger: str) -> No
                     "json_schema": {"name": "r", "schema": schema},
                 }
             ),
-            NANO,
+            LUNA,
             byok=False,
             timeout_seconds=5,
         )
@@ -622,14 +623,20 @@ async def test_native_backend_refuses_a_call_that_was_never_reserved(ledger: str
     assert seen == []
 
 
-async def test_a_permit_covers_exactly_one_matching_request(ledger: str) -> None:
+async def test_a_permit_covers_exactly_one_matching_request(
+    ledger: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from co_scientist.platform.llm import profile
+
+    luna = profile.model_profile(LUNA)
+    monkeypatch.setattr("co_scientist.platform.llm.request.azure.model_profile", lambda name: luna)
     seen: list[httpx.Request] = []
-    backend = _native(seen)
+    backend = _native(seen, {**DEPLOYMENTS, "azure/other": "other-deployment"})
     receipt = reserve_physical(_request())
     try:
         with azure_dispatch_permit(receipt):
             with pytest.raises(ProviderAdmissionError):
-                await backend.complete(**_request(LUNA))
+                await backend.complete(**_request("azure/other"))
             with pytest.raises(ProviderAdmissionError):
                 await backend.complete(**_request(max_tokens=1001))
             with pytest.raises(ProviderAdmissionError):
@@ -688,7 +695,7 @@ async def test_full_native_path_reserves_dispatches_once_and_settles(ledger: str
     backend = _native(seen)
     try:
         with using_backend(backend):
-            await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+            await complete_request(_request(), LUNA, byok=False, timeout_seconds=5)
     finally:
         backend.close()
     [row] = _rows(ledger)
@@ -768,7 +775,7 @@ def test_allowance_record_subtracts_prior_usage_and_buffer(ledger: str) -> None:
     data = answer.json()
     assert data["allowance_eur"] == "147.49"
     assert data["cutoff_at"] == "2099-01-01T10:00:00+00:00"
-    assert set(data["rates"]["models"]) == {LUNA, NANO}
+    assert set(data["rates"]["models"]) == {LUNA}
     view = client.get("/api/spend/azure-allowance").json()
     assert view["active"]["version"] == data["version"]
     assert view["ledger_charged_and_reserved_eur"] == "0.000000"
@@ -823,16 +830,16 @@ def test_store_applies_the_record_even_if_policy_admitted_a_larger_total(ledger:
     # The record can be lowered between policy preparation and the writer.
     from co_scientist.platform.db.spend import SpendReservation, reserve_spend
 
-    rates = json.dumps({"input": "1", "output": "1", "cached": "1", "write": "0", "fx": "1"})
+    rates = json.dumps({"input": "1", "output": "1", "cached": "1", "write": "1", "fx": "1"})
     far = datetime.fromisoformat(EXPIRES).timestamp() + 10**9
     with transaction(ledger) as conn:
         cutoff = reserve_spend(
-            conn, "a", SpendReservation(NANO, "worker", 500_000, 10**12, far, 1, 1, rates)
+            conn, "a", SpendReservation(LUNA, "worker", 500_000, 10**12, far, 1, 1, rates)
         )
     assert cutoff == datetime.fromisoformat(EXPIRES).timestamp() - 48 * 3600
     with pytest.raises(ProviderAdmissionError), transaction(ledger) as conn:
         reserve_spend(
-            conn, "b", SpendReservation(NANO, "worker", 500_001, 10**12, far, 1, 1, rates)
+            conn, "b", SpendReservation(LUNA, "worker", 500_001, 10**12, far, 1, 1, rates)
         )
     assert _spent(ledger) == 500_000
 
@@ -935,8 +942,7 @@ def test_out_of_range_cutoff_refuses_azure_without_breaking_routing(
     for name in (
         "AZURE_OPENAI_API_KEY",
         "AZURE_OPENAI_ENDPOINT",
-        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT",
-        "AZURE_OPENAI_WORKER_DEPLOYMENT",
+        "AZURE_OPENAI_DEPLOYMENT",
     ):
         monkeypatch.setenv(name, "configured")
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "false")
@@ -954,10 +960,10 @@ async def test_replayed_reasoning_reserves_its_producing_output_cap(ledger: str)
         ],
     }
     with using_backend(_Fake()):
-        await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+        await complete_request(_request(), LUNA, byok=False, timeout_seconds=5)
         await complete_request(
             _request(messages=[{"role": "user", "content": "answer"}, replay]),
-            NANO,
+            LUNA,
             byok=False,
             timeout_seconds=5,
         )

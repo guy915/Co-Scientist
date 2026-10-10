@@ -38,7 +38,7 @@ from co_scientist.platform.llm.request.anthropic import (
     is_credit_error,
     require_prompt_fits,
 )
-from co_scientist.platform.llm.request.azure import LUNA, NANO, request_input_bound
+from co_scientist.platform.llm.request.azure import LUNA, request_input_bound
 from co_scientist.platform.llm.request.backend import active_backend, is_azure_model
 from co_scientist.platform.llm.request.cache import (
     HAIKU,
@@ -199,8 +199,6 @@ def _routed_args(original: dict[str, Any], model: str) -> dict[str, Any]:
         args.pop("response_format", None)
     policy = current_call_policy()
     _apply_thinking_args(args, model, policy.enable_thinking)
-    if model in (LUNA, NANO):
-        args["reasoning_effort"] = policy.effort
     long_roles = {"overview", "meta_review", "literature_analysis"}
     ceiling = 600.0 if policy.role in long_roles else 180.0
     requested_timeout = args.get("timeout")
@@ -289,7 +287,7 @@ async def _complete_physical(
     require_enabled()
     native_model = str(completion_args.get("model", "")).replace("azure/responses/", "azure/")
     azure = is_azure_model(native_model) or is_azure_model(model_name)
-    if azure and (byok or native_model not in (LUNA, NANO)):
+    if azure and (byok or native_model != LUNA):
         # The native deployment client owns its key; a caller key cannot
         # establish caller funding, and other Azure routes have no permit.
         raise ProviderAdmissionError("No model is available right now")

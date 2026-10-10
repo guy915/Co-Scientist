@@ -96,12 +96,38 @@ ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
 }
 
 
+# Azure serves every role from Luna. Supervisor roles keep the table's effort;
+# worker roles reason at Luna's lowest effort unless listed here.
+AZURE_NO_REASONING_ROLES: frozenset[str] = frozenset(
+    {
+        "evidence_queries",
+        "grounding_queries",
+        "research_extract",
+        "literature_queries",
+        "proximity",
+        "relevance",
+        "research",
+        "question_repair",
+        "goal_text",
+        "announcement",
+        "credential_probe",
+    }
+)
+
+
+def _azure_default(role: str, tier: ModelTier, default: ReasoningEffort) -> ReasoningEffort:
+    if tier == "supervisor":
+        return default
+    return "none" if role in AZURE_NO_REASONING_ROLES else "low"
+
+
 @dataclass(frozen=True)
 class CallPolicy:
     role: CallRole = "worker"
     tier: ModelTier = "worker"
     effort: ReasoningEffort = "medium"
     enable_thinking: bool = True
+    azure_effort: ReasoningEffort = "low"
 
 
 _policy: ContextVar[tuple[CallRole, ReasoningEffort | None, bool]] = ContextVar(
@@ -114,17 +140,22 @@ def current_call_policy() -> CallPolicy:
     if role not in ROLE_DEFAULTS:
         raise ProviderAdmissionError("Unknown model call role")
     tier, default = ROLE_DEFAULTS[role]
-    effort = (
+    override = (
         os.getenv(f"LLM_EFFORT_{role.upper()}")
         or explicit
         or os.getenv(f"LLM_{tier.upper()}_EFFORT")
-        or default
     )
-    if effort not in ("none", "low", "medium") or (tier == "worker" and effort == "none"):
-        raise ProviderAdmissionError(
-            "Model effort must be none, low or medium; workers require low or medium"
-        )
-    return CallPolicy(role, tier, cast(ReasoningEffort, effort), thinking)
+    effort = override or default
+    azure_effort = override or _azure_default(role, tier, default)
+    if effort not in ("none", "low", "medium"):
+        raise ProviderAdmissionError("Model effort must be none, low or medium")
+    return CallPolicy(
+        role,
+        tier,
+        cast(ReasoningEffort, effort),
+        thinking,
+        cast(ReasoningEffort, azure_effort),
+    )
 
 
 @contextmanager

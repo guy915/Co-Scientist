@@ -177,8 +177,7 @@ def test_available_azure_needs_both_deployments_and_no_durable_hold(
         ("COSCIENTIST_REQUIRE_FREE_MODELS", "false"),
         ("AZURE_OPENAI_API_KEY", "synthetic"),
         ("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com"),
-        ("AZURE_OPENAI_SUPERVISOR_DEPLOYMENT", "supervisor"),
-        ("AZURE_OPENAI_WORKER_DEPLOYMENT", "worker"),
+        ("AZURE_OPENAI_DEPLOYMENT", "supervisor"),
     ):
         monkeypatch.setenv(name, value)
     record_azure_allowance()
@@ -187,9 +186,9 @@ def test_available_azure_needs_both_deployments_and_no_durable_hold(
     with TestClient(app) as client:
         headers = {"X-Logs-Token": "test-operator"}
         assert client.get("/api/spend", headers=headers).json()["azure"]["available"]
-        monkeypatch.delenv("AZURE_OPENAI_WORKER_DEPLOYMENT")
+        monkeypatch.delenv("AZURE_OPENAI_DEPLOYMENT")
         assert not client.get("/api/spend", headers=headers).json()["azure"]["available"]
-        monkeypatch.setenv("AZURE_OPENAI_WORKER_DEPLOYMENT", "worker")
+        monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "supervisor")
         with transaction(isolated_db) as conn:
             conn.execute("INSERT INTO llm_spend_holds VALUES ('unknown settlement')")
         assert not client.get("/api/spend", headers=headers).json()["azure"]["available"]

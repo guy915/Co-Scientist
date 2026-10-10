@@ -97,9 +97,9 @@ class LitellmBackend:
         steer built requests.
         """
         model = str(completion_args.get("model", "")).replace("azure/responses/", "azure/")
-        from co_scientist.platform.llm.request.azure import LUNA, NANO, AzureResponsesBackend
+        from co_scientist.platform.llm.request.azure import LUNA, AzureResponsesBackend
 
-        if model in (LUNA, NANO):
+        if model == LUNA:
             backend = AzureResponsesBackend.from_environment()
             try:
                 response = await backend.complete(**completion_args)

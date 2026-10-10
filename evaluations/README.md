@@ -396,7 +396,7 @@ rejected by the original free path. Recorded judging remains hermetic.
 
 `make attempt-envelope` (after `make setup` and `make test-mcp`) runs one
 default Express workflow per arm, Anthropic (Haiku with `count_tokens`) and Azure
-(Luna and Nano), through the real API, durable worker, LLM gateway, MCP client
+(Luna), through the real API, durable worker, LLM gateway, MCP client
 and MCP server subprocess. Only the bottom of each transport is fake: the
 httpx transports and LiteLLM's aiohttp transport in both processes, and the
 urllib opener Biopython's Entrez sends through. Every attempt they see counts,

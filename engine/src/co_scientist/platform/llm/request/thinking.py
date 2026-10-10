@@ -196,10 +196,7 @@ def _apply_thinking_args(
     """
     profile = model_profile(model_name)
     if profile.supported_efforts is not None:
-        policy = current_call_policy()
-        effort = (
-            policy.effort if enable_thinking else ("low" if policy.tier == "worker" else "none")
-        )
+        effort = current_call_policy().azure_effort if enable_thinking else "none"
         completion_args["reasoning_effort"] = effort
         if effort != "none":
             completion_args["max_tokens"] = max(

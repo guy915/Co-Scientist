@@ -9,13 +9,13 @@ import openai
 import pytest
 
 from co_scientist.core.exceptions import LLMTimeoutError, ProviderAdmissionError
+from co_scientist.domains.safety.semantic import _SEMANTIC_DECISION_SCHEMA
 from co_scientist.platform.db import connect, transaction
 from co_scientist.platform.db.admission import ProviderReservation
 from co_scientist.platform.db.spend import SpendReservation
 from co_scientist.platform.llm.admission.spend import azure_dispatch_permit
 from co_scientist.platform.llm.request.azure import (
     LUNA,
-    NANO,
     AzureResponsesBackend,
     Completion,
     ResponsesStream,
@@ -25,12 +25,13 @@ from co_scientist.platform.llm.request.azure import (
     response_request,
 )
 from co_scientist.platform.llm.request.backend import LitellmBackend, using_backend
+from co_scientist.platform.llm.request.completion import _apply_schema_response_format
 from co_scientist.platform.llm.request.transport import complete_request
 from co_scientist.platform.llm.roles import scoped_call_policy
 from co_scientist.platform.llm.tools.transcript import _message_to_history_dict
 from tests._azure_ledger import record_azure_allowance
 
-DEPLOYMENTS = {LUNA: "supervisor-deployment", NANO: "worker-deployment"}
+DEPLOYMENTS = {LUNA: "luna-deployment"}
 
 
 def _response(**changes: Any) -> dict[str, Any]:
@@ -59,14 +60,14 @@ def _response(**changes: Any) -> dict[str, Any]:
 
 def _request(**changes: Any) -> dict[str, Any]:
     return {
-        "model": NANO,
+        "model": LUNA,
         "messages": [{"role": "user", "content": "answer"}],
         "max_tokens": 18000,
         **changes,
     }
 
 
-def _permit(model: str = NANO) -> Any:
+def _permit(model: str = LUNA) -> Any:
     # Wire-format tests call the backend directly, outside the funded gateway.
     money = SpendReservation(model, "worker", 0, 1, float("inf"), 10**9, 10**9, "{}")
     return azure_dispatch_permit(ProviderReservation("direct", "unused", True, money=money))
@@ -154,7 +155,7 @@ async def test_gateway_settles_normalized_usage_without_holding_writer_over_http
     backend = _backend(respond)
     try:
         with using_backend(backend):
-            await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+            await complete_request(_request(), LUNA, byok=False, timeout_seconds=5)
         with connect() as conn:
             tokens = conn.execute("SELECT tokens FROM provider_admissions").fetchall()
         assert len(tokens) == 3 and all(row[0] == 120 for row in tokens)
@@ -184,8 +185,7 @@ async def test_native_dispatch_rechecks_policy_after_thread_wait(
         "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com",
         "AZURE_OPENAI_API_KEY": "fake",
         "AZURE_OPENAI_API_VERSION": "v1",
-        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": DEPLOYMENTS[LUNA],
-        "AZURE_OPENAI_WORKER_DEPLOYMENT": DEPLOYMENTS[NANO],
+        "AZURE_OPENAI_DEPLOYMENT": DEPLOYMENTS[LUNA],
     }.items():
         monkeypatch.setenv(key, setting)
     record_azure_allowance()
@@ -215,7 +215,7 @@ async def test_native_dispatch_rechecks_policy_after_thread_wait(
     monkeypatch.setattr(asyncio, "to_thread", after_wait)
     try:
         with using_backend(backend), pytest.raises(ProviderAdmissionError):
-            await complete_request(_request(stream=stream), NANO, byok=False, timeout_seconds=5)
+            await complete_request(_request(stream=stream), LUNA, byok=False, timeout_seconds=5)
         assert captured == []
     finally:
         backend.close()
@@ -223,12 +223,7 @@ async def test_native_dispatch_rechecks_policy_after_thread_wait(
 
 @pytest.mark.parametrize(
     "model",
-    [
-        LUNA,
-        NANO,
-        LUNA.replace("azure/", "azure/responses/"),
-        NANO.replace("azure/", "azure/responses/"),
-    ],
+    [LUNA, LUNA.replace("azure/", "azure/responses/")],
 )
 @pytest.mark.parametrize("policy", ["disabled", "unset", "expired", "enabled"])
 async def test_byok_flag_cannot_exempt_native_deployment_from_funding(
@@ -270,7 +265,7 @@ def test_reasoning_and_call_ids_survive_tool_turn_with_repaired_arguments() -> N
             "arguments": "malformed",
         },
     ]
-    result = normalize_response(_response(output=items), NANO)
+    result = normalize_response(_response(output=items), LUNA)
     history = _message_to_history_dict(result.choices[0].message)
     history["tool_calls"][0]["function"]["arguments"] = '{"query":"short"}'
     converted = response_input(
@@ -295,7 +290,7 @@ def test_missing_usage_is_unknown_and_reasoning_is_not_added_to_output() -> None
     assert usage and usage.prompt_tokens is None and usage.completion_tokens == 30
     assert (
         normalize_response(
-            _response(status="incomplete", incomplete_details={"reason": "max_output_tokens"}), NANO
+            _response(status="incomplete", incomplete_details={"reason": "max_output_tokens"}), LUNA
         )
         .choices[0]
         .finish_reason
@@ -306,7 +301,7 @@ def test_missing_usage_is_unknown_and_reasoning_is_not_added_to_output() -> None
             _response(
                 output=[{"type": "message", "content": [{"type": "refusal", "refusal": "no"}]}]
             ),
-            NANO,
+            LUNA,
         )
         .choices[0]
         .finish_reason
@@ -319,7 +314,6 @@ def test_missing_usage_is_unknown_and_reasoning_is_not_added_to_output() -> None
     [
         {"model": "azure/unknown"},
         {"reasoning_effort": "high"},
-        {"reasoning_effort": "none"},
         {"max_tokens": None},
         {"tools": [{"type": "web_search"}]},
     ],
@@ -329,6 +323,22 @@ def test_unknown_price_unbounded_output_and_hosted_tools_are_refused(
 ) -> None:
     with pytest.raises(ProviderAdmissionError):
         response_request(_request(**changes), DEPLOYMENTS)
+
+
+def test_schema_with_optional_fields_is_sent_non_strict_unless_caller_opts_in() -> None:
+    args: dict[str, Any] = _request()
+    backend = _backend(lambda request: httpx.Response(500))
+    try:
+        with using_backend(backend):
+            _apply_schema_response_format(args, "answer", LUNA, _SEMANTIC_DECISION_SCHEMA)
+    finally:
+        backend.close()
+    fmt = response_request(args, DEPLOYMENTS)["text"]["format"]
+    assert fmt["strict"] is False
+    assert set(fmt["schema"]["properties"]) > set(fmt["schema"]["required"])
+    strict = {"type": "json_schema", "json_schema": {"name": "r", "schema": {}, "strict": True}}
+    body = response_request(_request(response_format=strict), DEPLOYMENTS)
+    assert body["text"]["format"]["strict"] is True
 
 
 def test_nested_hosted_tool_type_cannot_override_function_type() -> None:
@@ -478,7 +488,7 @@ def test_factory_sends_documented_resource_forms_to_openai_v1(
 
     monkeypatch.setattr(httpx, "Client", MockClient)
     backend = AzureResponsesBackend.from_environment()
-    backend._client.responses.create(model=DEPLOYMENTS[NANO], input="synthetic")
+    backend._client.responses.create(model=DEPLOYMENTS[LUNA], input="synthetic")
     assert str(sent[0].url) == f"https://{host}/openai/v1/responses"
 
 
@@ -487,13 +497,12 @@ def _azure_environment(monkeypatch: pytest.MonkeyPatch, endpoint: str) -> None:
         "AZURE_OPENAI_ENDPOINT": endpoint,
         "AZURE_OPENAI_API_KEY": "fake",
         "AZURE_OPENAI_API_VERSION": "v1",
-        "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT": DEPLOYMENTS[LUNA],
-        "AZURE_OPENAI_WORKER_DEPLOYMENT": DEPLOYMENTS[NANO],
+        "AZURE_OPENAI_DEPLOYMENT": DEPLOYMENTS[LUNA],
     }.items():
         monkeypatch.setenv(key, setting)
 
 
-@pytest.mark.parametrize("model", [LUNA, NANO])
+@pytest.mark.parametrize("model", [LUNA])
 async def test_real_responses_sdk_sends_partitioned_cache_key(model: str) -> None:
     sent = []
 

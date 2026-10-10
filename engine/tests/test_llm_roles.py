@@ -25,7 +25,6 @@ from tests._llm_fake import (
 )
 
 LUNA = "azure/gpt-6-luna-2026-09-22"
-NANO = "azure/gpt-5-nano-2025-08-07"
 
 
 @pytest.mark.parametrize(
@@ -121,14 +120,14 @@ async def test_tool_turn_and_closing_harvest_keep_role_and_effort(
     install_fake_backend(monkeypatch, respond)
     answer, _ = await call_llm_with_tools(
         "Answer",
-        CompletionSpec(model_name=NANO, role="drafting"),
+        CompletionSpec(model_name=LUNA, role="drafting"),
         ToolLoop(SEARCH_TOOL, echo_executor, max_iterations=1),
         LLMCallOptions(effort="low", enable_thinking=False),
     )
     assert answer == "Observed result"
     assert len(captured) == 2
     assert all(policy.role == "drafting" and not policy.enable_thinking for policy, _ in captured)
-    assert all(args["reasoning_effort"] == "low" for _, args in captured)
+    assert all(args["reasoning_effort"] == "none" for _, args in captured)
     assert "tools" in captured[0][1] and "tools" not in captured[1][1]
 
 
@@ -141,17 +140,48 @@ def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.Monkey
         with pytest.raises(ProviderAdmissionError):
             current_call_policy()
     monkeypatch.setenv("LLM_WORKER_EFFORT", "none")
-    with scoped_call_policy("claims"), pytest.raises(ProviderAdmissionError):
-        current_call_policy()
+    with scoped_call_policy("claims"):
+        assert current_call_policy().effort == current_call_policy().azure_effort == "none"
+
+
+@pytest.mark.parametrize(
+    ("role", "effort", "azure_effort"),
+    [
+        ("generation", "medium", "low"),
+        ("review", "medium", "low"),
+        ("ranking", "low", "low"),
+        ("safety", "low", "low"),
+        ("claims", "low", "low"),
+        ("literature_queries", "low", "none"),
+        ("relevance", "low", "none"),
+        ("goal_text", "low", "none"),
+        ("supervisor", "medium", "medium"),
+        ("overview_outline", "none", "none"),
+    ],
+)
+async def test_azure_runs_worker_roles_on_luna_at_lowest_effort_or_none(
+    monkeypatch: pytest.MonkeyPatch, role: CallRole, effort: str, azure_effort: str
+) -> None:
+    captured: list[dict[str, Any]] = []
+
+    async def respond(**kwargs: Any) -> Any:
+        captured.append(kwargs)
+        return make_completion(make_message('{"ok":1}'))
+
+    install_fake_backend(monkeypatch, respond)
+    with scoped_call_policy(role):
+        assert current_call_policy().effort == effort
+    assert await call_llm_json(
+        "Answer", CompletionSpec(model_name=LUNA, role=role), max_attempts=1
+    ) == {"ok": 1}
+    assert captured[0]["reasoning_effort"] == azure_effort
 
 
 def test_azure_prices_include_cache_write_and_long_context_without_guessing_deployment() -> None:
-    luna, nano = model_profile(LUNA), model_profile(NANO)
-    assert luna.version == "2026-09-22" and nano.version == "2025-08-07"
-    assert luna.price is not None and luna.price.long_context is not None and nano.price is not None
+    luna = model_profile(LUNA)
+    assert luna.version == "2026-09-22"
+    assert luna.price is not None and luna.price.long_context is not None
     assert luna.price.cache_write_usd_per_million == 0.125
     assert luna.price.long_context.cache_write_usd_per_million == 0.25
-    assert nano.price.cache_write_usd_per_million == 0
-    assert nano.price.cached_prompt_usd_per_million == 0.01
-    assert "none" not in (nano.supported_efforts or ())
+    assert model_profile("azure/gpt-5-nano-2025-08-07").price is None
     assert model_profile("azure/unmapped-deployment").price is None
