@@ -21,7 +21,7 @@ higher tiers require BYOK. No Mistral slot remains.
    subscription.
 4. Size TPM/RPM for the capped requests and Express concurrency within that
    total. Azure counts each request's input plus its requested output cap. The
-   W4 preflight measured an Express peak of about 264K TPM and 36 RPM across
+   An offline preflight measured an Express peak of about 264K TPM and 36 RPM across
    all roles, so give `coscientist-supervisor-luna` at least 300K TPM. TPM is a
    rate limit, not a cost; spend is bounded by the recorded allowance. Confirm
    quota before enabling Azure.
