@@ -297,10 +297,7 @@ app = FastAPI(
 )
 
 
-DEFAULT_ALLOWED_ORIGINS = (
-    "http://localhost:5173,http://127.0.0.1:5173,"
-    "https://open-coscientist.com,https://ai-co-scientist.com"
-)
+DEFAULT_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,https://open-coscientist.com"
 
 
 def _resolve_cors_config(env_value: str) -> tuple[list[str], bool]:

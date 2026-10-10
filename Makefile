@@ -289,7 +289,6 @@ build-checked: check-tools
 	@node --test "$(FRONTEND)/scripts/check-bundle.test.mjs"
 
 root-config:
-	@"$(PY)" -m json.tool vercel.json > /dev/null
 	@"$(PY)" -m json.tool wrangler.jsonc > /dev/null
 	@node --test "$(FRONTEND)/worker.test.mjs"
 

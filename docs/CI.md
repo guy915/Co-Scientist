@@ -28,7 +28,7 @@ no queue or `merge_group` trigger.
 | `changes` | Shared rules; unknown/incomplete diffs select everything | 5 |
 | `launch-checks` | Offline checker tests/style, Markdown; PR metadata/history and diff secrets | 5 |
 | `format-lint` | Ruff; selected MCP pytest and strict mypy | 20 |
-| `typecheck` | Strict mypy, import contracts; selected root setup/lint/routing, including `vercel.json` | 30 |
+| `typecheck` | Strict mypy, import contracts; selected root setup/lint/routing | 30 |
 | `test-engine` | Engine pytest on Python 3.12, four isolated workers | 15 |
 | `test-app` | Four independent shards, four workers each | 25 |
 | `evaluations` | Four-worker evaluation tests, licence inventory and offline smoke | 15 |
@@ -109,7 +109,7 @@ Job filtering keeps the aggregate present.
 Documentation-only changes skip ordinary test targets but retain launch guards
 and affected lint/workflow checks. Sandbox documentation retains its native
 selection. Requirement locks and every LICENSE/NOTICE select the evaluation
-licence guard. `vercel.json` remains a root input until the separate cutover.
+licence guard.
 
 Install Bun 1.3.14 and run `make setup`, then merge current main and run
 `make presubmit` before pushing. It always checks checker units/style,

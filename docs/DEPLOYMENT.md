@@ -185,8 +185,7 @@ settings, distinct from the public build-time `VITE_SENTRY_DSN`.
 
 - **CORS.** `ALLOWED_ORIGINS` is a comma-separated allowlist and enables
   credentialed CORS. When unset, `main.py` uses `DEFAULT_ALLOWED_ORIGINS`
-  (the local dev origins and, until launch, the new and old public sites).
-  Set it explicitly to an empty
+  (the local dev origins and the public site). Set it explicitly to an empty
   value and the API falls back to `Access-Control-Allow-Origin: *` without
   credentials, so any origin can call it from a browser.
 - **Models.** The defaults are declared in

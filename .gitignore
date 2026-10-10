@@ -60,7 +60,6 @@ blob-report/
 test-results/
 .playwright-mcp/
 
-.vercel
 .superpowers/
 
 .agents/

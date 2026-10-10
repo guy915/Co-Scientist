@@ -106,7 +106,6 @@
   ],
   "root_config": [
     "Makefile",
-    "vercel.json",
     "wrangler.jsonc",
     "app/frontend/worker*.mjs",
     "app/frontend/public/_headers",
